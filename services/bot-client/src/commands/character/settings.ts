@@ -19,17 +19,16 @@ import {
   createLogger,
   DISCORD_COLORS,
   type EnvConfig,
+  type ConfigOverrides,
   type ResolvedConfigOverrides,
   characterSettingsOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
+  type SettingsData,
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
-  type SettingsData,
-  type SettingSource,
-  type SettingValue,
   type SettingUpdateResult,
   createSettingsDashboard,
   handleSettingsSelectMenu,
@@ -40,12 +39,10 @@ import {
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   mapSettingToApiUpdate,
+  buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('character-settings');
-
-/** Cascade source indicating a user's per-personality override */
-const USER_PERSONALITY_SOURCE = 'user-personality';
 
 /**
  * Entity type for custom IDs
@@ -250,48 +247,23 @@ function parseEntityId(entityId: string): [string | null, string | null] {
 }
 
 /**
- * Map cascade source to dashboard SettingSource
- */
-function mapSource(source: string): SettingSource {
-  switch (source) {
-    case USER_PERSONALITY_SOURCE:
-      return 'user-personality';
-    case 'user-default':
-      return 'global';
-    case 'personality':
-      return 'personality';
-    case 'admin':
-      return 'global';
-    default:
-      return 'default';
-  }
-}
-
-/**
- * Convert cascade-resolved overrides to dashboard SettingsData format
+ * Convert cascade-resolved overrides to dashboard SettingsData format.
+ * Extracts local overrides by checking which fields the user-personality tier set.
  */
 function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData {
-  function buildField<T>(
-    field: keyof ResolvedConfigOverrides & keyof typeof resolved.sources
-  ): SettingValue<T> {
-    return {
-      localValue:
-        resolved.sources[field] === USER_PERSONALITY_SOURCE ? (resolved[field] as T) : null,
-      effectiveValue: resolved[field] as T,
-      source: mapSource(resolved.sources[field]),
-    };
+  const localOverrides: Partial<ConfigOverrides> = {};
+  for (const [field, source] of Object.entries(resolved.sources)) {
+    if (source === 'user-personality') {
+      localOverrides[field as keyof ConfigOverrides] = resolved[
+        field as keyof ResolvedConfigOverrides
+      ] as never;
+    }
   }
-
-  return {
-    maxMessages: buildField<number>('maxMessages'),
-    maxAge: buildField<number | null>('maxAge'),
-    maxImages: buildField<number>('maxImages'),
-    focusModeEnabled: buildField<boolean>('focusModeEnabled'),
-    crossChannelHistoryEnabled: buildField<boolean>('crossChannelHistoryEnabled'),
-    shareLtmAcrossPersonalities: buildField<boolean>('shareLtmAcrossPersonalities'),
-    memoryScoreThreshold: buildField<number>('memoryScoreThreshold'),
-    memoryLimit: buildField<number>('memoryLimit'),
-  };
+  return buildCascadeSettingsData(
+    resolved,
+    Object.keys(localOverrides).length > 0 ? localOverrides : null,
+    'user-personality'
+  );
 }
 
 /**

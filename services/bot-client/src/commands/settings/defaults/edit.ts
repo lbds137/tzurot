@@ -21,17 +21,16 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import {
   createLogger,
   DISCORD_COLORS,
-  HARDCODED_CONFIG_DEFAULTS,
   type ConfigOverrideSource,
+  type ConfigOverrides,
+  type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import {
+  type SettingsData,
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
-  type SettingsData,
-  type SettingValue,
   type SettingUpdateResult,
-  type SettingSource,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
@@ -40,6 +39,8 @@ import {
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   mapSettingToApiUpdate,
+  buildCascadeSettingsData,
+  buildFallbackSettingsData,
 } from '../../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('user-defaults-settings');
@@ -152,25 +153,6 @@ export function isUserDefaultsInteraction(customId: string): boolean {
 }
 
 /**
- * Map ConfigOverrideSource to dashboard SettingSource.
- * Both 'user-default' and 'admin' map to 'global' because neither is specific
- * to a channel or personality — they are server/account-wide tiers.
- * The dashboard differentiates "set by you" vs "inherited" via localValue !== null,
- * not via the source field.
- */
-function mapCascadeSource(source: ConfigOverrideSource): SettingSource {
-  switch (source) {
-    case 'user-default':
-      return 'global';
-    case 'admin':
-      return 'global';
-    case 'hardcoded':
-    default:
-      return 'default';
-  }
-}
-
-/**
  * Fetch resolved config from API and convert to dashboard SettingsData format.
  */
 async function fetchAndConvertSettingsData(userId: string): Promise<SettingsData> {
@@ -189,51 +171,23 @@ async function fetchAndConvertSettingsData(userId: string): Promise<SettingsData
 
 /**
  * Convert API response to dashboard SettingsData format.
- * Uses source tracking from the resolve-defaults endpoint.
+ * Builds a ResolvedConfigOverrides from the flat resolve-defaults response,
+ * then delegates to the shared builder.
  */
 function convertToSettingsData(response: ResolveDefaultsResponse): SettingsData {
-  function buildValue<T>(field: string): SettingValue<T> {
-    const localValue = (response.userOverrides?.[field] ?? null) as T | null;
-    const effectiveValue = response[field as keyof ResolveDefaultsResponse] as T;
-    const source = mapCascadeSource(response.sources[field]);
-    return { localValue, effectiveValue, source };
-  }
-
-  return {
-    maxMessages: buildValue<number>('maxMessages'),
-    maxAge: buildValue<number | null>('maxAge'),
-    maxImages: buildValue<number>('maxImages'),
-    focusModeEnabled: buildValue<boolean>('focusModeEnabled'),
-    crossChannelHistoryEnabled: buildValue<boolean>('crossChannelHistoryEnabled'),
-    shareLtmAcrossPersonalities: buildValue<boolean>('shareLtmAcrossPersonalities'),
-    memoryScoreThreshold: buildValue<number>('memoryScoreThreshold'),
-    memoryLimit: buildValue<number>('memoryLimit'),
+  const resolved: ResolvedConfigOverrides = {
+    maxMessages: response.maxMessages,
+    maxAge: response.maxAge,
+    maxImages: response.maxImages,
+    focusModeEnabled: response.focusModeEnabled,
+    crossChannelHistoryEnabled: response.crossChannelHistoryEnabled,
+    shareLtmAcrossPersonalities: response.shareLtmAcrossPersonalities,
+    memoryScoreThreshold: response.memoryScoreThreshold,
+    memoryLimit: response.memoryLimit,
+    sources: response.sources as Record<keyof ConfigOverrides, ConfigOverrideSource>,
   };
-}
-
-/**
- * Build fallback SettingsData when API call fails.
- * Uses hardcoded defaults with 'default' source for all fields.
- */
-function buildFallbackSettingsData(): SettingsData {
-  function fallback<T>(field: keyof typeof HARDCODED_CONFIG_DEFAULTS): SettingValue<T> {
-    return {
-      localValue: null,
-      effectiveValue: HARDCODED_CONFIG_DEFAULTS[field] as T,
-      source: 'default',
-    };
-  }
-
-  return {
-    maxMessages: fallback<number>('maxMessages'),
-    maxAge: fallback<number | null>('maxAge'),
-    maxImages: fallback<number>('maxImages'),
-    focusModeEnabled: fallback<boolean>('focusModeEnabled'),
-    crossChannelHistoryEnabled: fallback<boolean>('crossChannelHistoryEnabled'),
-    shareLtmAcrossPersonalities: fallback<boolean>('shareLtmAcrossPersonalities'),
-    memoryScoreThreshold: fallback<number>('memoryScoreThreshold'),
-    memoryLimit: fallback<number>('memoryLimit'),
-  };
+  const userOverrides = (response.userOverrides ?? null) as Partial<ConfigOverrides> | null;
+  return buildCascadeSettingsData(resolved, userOverrides, 'user-default');
 }
 
 /**

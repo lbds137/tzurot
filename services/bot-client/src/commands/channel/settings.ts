@@ -22,8 +22,6 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import {
   createLogger,
   DISCORD_COLORS,
-  HARDCODED_CONFIG_DEFAULTS,
-  type ConfigOverrideSource,
   type ResolvedConfigOverrides,
   type ConfigOverrides,
 } from '@tzurot/common-types';
@@ -33,9 +31,7 @@ import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingsData,
-  type SettingValue,
   type SettingUpdateResult,
-  type SettingSource,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
@@ -45,6 +41,7 @@ import {
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   mapSettingToApiUpdate,
+  buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('channel-context');
@@ -219,28 +216,6 @@ function extractChannelId(customId: string): string | null {
 }
 
 /**
- * Map ConfigOverrideSource to dashboard SettingSource.
- * Both 'admin' and 'user-default' map to 'global' because from the channel
- * moderator's perspective, both are "outside this channel's control".
- */
-function mapCascadeSource(source: ConfigOverrideSource): SettingSource {
-  switch (source) {
-    case 'admin':
-    case 'user-default':
-      return 'global';
-    case 'personality':
-      return 'personality';
-    case 'channel':
-      return 'channel';
-    case 'user-personality':
-      return 'user-personality';
-    case 'hardcoded':
-    default:
-      return 'default';
-  }
-}
-
-/**
  * Fetch resolved config from API and convert to dashboard SettingsData format.
  *
  * Gets the channel's own overrides (localValue) and the fully resolved values
@@ -275,44 +250,7 @@ async function fetchAndConvertSettingsData(
 
   const resolved = resolvedResult?.ok === true ? resolvedResult.data : null;
 
-  return buildSettingsData(channelOverrides, resolved);
-}
-
-/**
- * Build SettingsData from channel overrides and resolved cascade.
- */
-function buildSettingsData(
-  channelOverrides: Partial<ConfigOverrides> | null,
-  resolved: ResolvedConfigOverrides | null
-): SettingsData {
-  // Safety: HARDCODED_CONFIG_DEFAULTS covers all ConfigOverrides fields, so the
-  // fallback always produces a real value. The `as T` casts are safe because
-  // callers below match field names to their corresponding generic types.
-  function buildValue<T>(field: keyof ConfigOverrides): SettingValue<T> {
-    const localValue = (channelOverrides?.[field] ?? null) as T | null;
-    const effectiveValue =
-      resolved !== null
-        ? (resolved[field as keyof ResolvedConfigOverrides] as T)
-        : ((localValue ?? HARDCODED_CONFIG_DEFAULTS[field]) as T);
-    const source =
-      resolved !== null
-        ? mapCascadeSource(resolved.sources[field])
-        : localValue !== null
-          ? ('channel' as SettingSource)
-          : ('default' as SettingSource);
-    return { localValue, effectiveValue, source };
-  }
-
-  return {
-    maxMessages: buildValue<number>('maxMessages'),
-    maxAge: buildValue<number | null>('maxAge'),
-    maxImages: buildValue<number>('maxImages'),
-    focusModeEnabled: buildValue<boolean>('focusModeEnabled'),
-    crossChannelHistoryEnabled: buildValue<boolean>('crossChannelHistoryEnabled'),
-    shareLtmAcrossPersonalities: buildValue<boolean>('shareLtmAcrossPersonalities'),
-    memoryScoreThreshold: buildValue<number>('memoryScoreThreshold'),
-    memoryLimit: buildValue<number>('memoryLimit'),
-  };
+  return buildCascadeSettingsData(resolved, channelOverrides, 'channel');
 }
 
 /**

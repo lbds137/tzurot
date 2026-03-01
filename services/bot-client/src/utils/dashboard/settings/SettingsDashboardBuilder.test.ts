@@ -52,42 +52,42 @@ const createTestSession = (
     maxMessages: {
       localValue: null,
       effectiveValue: 50,
-      source: 'global',
+      source: 'admin',
     },
     maxAge: {
       localValue: null,
       effectiveValue: 7200,
-      source: 'global',
+      source: 'admin',
     },
     maxImages: {
       localValue: null,
       effectiveValue: 10,
-      source: 'global',
+      source: 'admin',
     },
     crossChannelHistoryEnabled: {
       localValue: null,
       effectiveValue: false,
-      source: 'default',
+      source: 'hardcoded',
     },
     focusModeEnabled: {
       localValue: null,
       effectiveValue: false,
-      source: 'default',
+      source: 'hardcoded',
     },
     shareLtmAcrossPersonalities: {
       localValue: null,
       effectiveValue: false,
-      source: 'default',
+      source: 'hardcoded',
     },
     memoryScoreThreshold: {
       localValue: null,
       effectiveValue: 0.5,
-      source: 'default',
+      source: 'hardcoded',
     },
     memoryLimit: {
       localValue: null,
       effectiveValue: 20,
-      source: 'default',
+      source: 'hardcoded',
     },
     ...dataOverrides,
   },
@@ -171,10 +171,36 @@ describe('SettingsDashboardBuilder', () => {
       expect(maxMessagesField?.value).toContain('Auto');
     });
 
+    it('should show "Auto (from admin)" for admin-sourced values', () => {
+      const config = createTestConfig();
+      const session = createTestSession({
+        maxMessages: { localValue: null, effectiveValue: 75, source: 'admin' },
+      });
+
+      const embed = buildOverviewEmbed(config, session);
+      const fields = getEmbedFields(embed);
+      const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
+
+      expect(maxMessagesField?.value).toContain('Auto (from admin)');
+    });
+
+    it('should show "Auto (default)" for hardcoded-sourced values', () => {
+      const config = createTestConfig();
+      const session = createTestSession({
+        maxMessages: { localValue: null, effectiveValue: 50, source: 'hardcoded' },
+      });
+
+      const embed = buildOverviewEmbed(config, session);
+      const fields = getEmbedFields(embed);
+      const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
+
+      expect(maxMessagesField?.value).toContain('Auto (default)');
+    });
+
     it('should format duration values', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxAge: { localValue: 7200, effectiveValue: 7200, source: 'global' },
+        maxAge: { localValue: 7200, effectiveValue: 7200, source: 'admin' },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -187,7 +213,7 @@ describe('SettingsDashboardBuilder', () => {
     it('should show "Off (no limit)" for null duration', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxAge: { localValue: null, effectiveValue: null, source: 'global' },
+        maxAge: { localValue: null, effectiveValue: null, source: 'admin' },
       });
 
       const embed = buildOverviewEmbed(config, session);
@@ -338,7 +364,7 @@ describe('SettingsDashboardBuilder', () => {
     const createTriStateSession = (
       localValue: boolean | null,
       effectiveValue: boolean,
-      source: 'global' | 'channel' = 'global'
+      source: 'admin' | 'channel' = 'admin'
     ) => {
       const session = createTestSession();
       // Inject synthetic field into data so the builder can read it
@@ -429,7 +455,7 @@ describe('SettingsDashboardBuilder', () => {
     it('should disable Reset button when no override', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
+        maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },
       });
       const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 

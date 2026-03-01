@@ -18,9 +18,10 @@ describe('mergeConfigOverrides', () => {
     expect(result).toBe('invalid');
   });
 
-  it('should return "invalid" for unknown keys (strict schema)', () => {
+  it('should strip unknown keys and return null when no valid fields remain', () => {
+    // .strip() discards unknown keys — with no valid fields, merged result is empty
     const result = mergeConfigOverrides(null, { unknownField: true });
-    expect(result).toBe('invalid');
+    expect(result).toBeNull();
   });
 
   it('should strip null fields inherited from existing JSONB', () => {
