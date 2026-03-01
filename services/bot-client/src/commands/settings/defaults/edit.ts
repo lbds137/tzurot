@@ -153,10 +153,10 @@ export function isUserDefaultsInteraction(customId: string): boolean {
 
 /**
  * Map ConfigOverrideSource to dashboard SettingSource.
- * From the user-defaults perspective:
- * - 'user-default' is a local override at this level
- * - 'admin' is inherited from admin tier → 'global'
- * - 'hardcoded' is the system default → 'default'
+ * Both 'user-default' and 'admin' map to 'global' because neither is specific
+ * to a channel or personality — they are server/account-wide tiers.
+ * The dashboard differentiates "set by you" vs "inherited" via localValue !== null,
+ * not via the source field.
  */
 function mapCascadeSource(source: ConfigOverrideSource): SettingSource {
   switch (source) {
