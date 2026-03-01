@@ -60,7 +60,8 @@ export class PersonalityMessageHandler {
    */
   private async resolveConfig(
     userId: string,
-    personality: LoadedPersonality
+    personality: LoadedPersonality,
+    channelId?: string
   ): Promise<ConfigResolutionResult> {
     const result = await callGatewayApi<ConfigResolutionResult>('/user/llm-config/resolve', {
       method: 'POST',
@@ -68,6 +69,7 @@ export class PersonalityMessageHandler {
       body: {
         personalityId: personality.id,
         personalityConfig: personality,
+        channelId,
       },
       timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE, // Fast timeout for pre-processing step
     });
@@ -185,7 +187,11 @@ export class PersonalityMessageHandler {
       }
 
       // Resolve LLM config from gateway (applies user overrides for context settings)
-      const resolvedConfig = await this.resolveConfig(message.author.id, personality);
+      const resolvedConfig = await this.resolveConfig(
+        message.author.id,
+        personality,
+        message.channel.id
+      );
 
       // Build extended context settings from resolved config
       const extendedContextSettings = this.buildExtendedContextSettings(

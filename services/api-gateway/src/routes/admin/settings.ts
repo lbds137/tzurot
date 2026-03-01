@@ -4,7 +4,8 @@
  *
  * Endpoints:
  * - GET /admin/settings - Get the AdminSettings singleton
- * - PATCH /admin/settings - Update AdminSettings fields
+ * - PATCH /admin/settings/config-defaults - Update configDefaults directly (flat body)
+ * - PATCH /admin/settings - Update AdminSettings fields (wrapped body)
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -24,6 +25,8 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { isAuthorizedForRead, isAuthorizedForWrite } from '../../services/AuthMiddleware.js';
 
 const logger = createLogger('admin-settings-routes');
+
+const CASCADE_INVALIDATION_WARN = '[AdminSettings] Failed to publish cascade cache invalidation';
 
 interface AuthenticatedRequest extends Request {
   userId: string;
@@ -46,36 +49,145 @@ async function getOrCreateSettings(
   });
 }
 
+/** Publish cascade invalidation for admin tier, swallowing errors. */
+async function tryInvalidateAdmin(
+  cascadeInvalidation: ConfigCascadeCacheInvalidationService | undefined
+): Promise<void> {
+  if (cascadeInvalidation === undefined) {
+    return;
+  }
+  try {
+    await cascadeInvalidation.invalidateAdmin();
+  } catch (error) {
+    logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
+  }
+}
+
+/** Build response object from DB settings */
+function buildResponse(settings: Prisma.AdminSettingsGetPayload<object>): {
+  id: string;
+  updatedBy: string | null;
+  configDefaults: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+} {
+  return {
+    id: settings.id,
+    updatedBy: settings.updatedBy,
+    configDefaults: settings.configDefaults as Record<string, unknown> | null,
+    createdAt: settings.createdAt.toISOString(),
+    updatedAt: settings.updatedAt.toISOString(),
+  };
+}
+
+/** Resolve Discord ID → User UUID for the updatedBy FK */
+async function resolveUserUuid(prisma: PrismaClient, discordId: string): Promise<string | null> {
+  const user = await prisma.user.findFirst({
+    where: { discordId },
+    select: { id: true },
+  });
+  return user?.id ?? null;
+}
+
+/**
+ * PATCH /admin/settings/config-defaults handler
+ * Accepts flat Partial<ConfigOverrides> body (same shape as all cascade tiers).
+ */
+function createConfigDefaultsPatchHandler(
+  prisma: PrismaClient,
+  cascadeInvalidation?: ConfigCascadeCacheInvalidationService
+): (req: Request, res: Response) => void {
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!isAuthorizedForWrite(req.userId)) {
+      sendError(res, ErrorResponses.unauthorized('Only bot owners can update settings'));
+      return;
+    }
+
+    const input = req.body as Record<string, unknown>;
+    const userUuid = await resolveUserUuid(prisma, req.userId);
+    const existing = await getOrCreateSettings(prisma);
+
+    const merged = mergeConfigOverrides(existing.configDefaults, input);
+    if (merged === 'invalid') {
+      sendError(res, ErrorResponses.validationError('Invalid config format'));
+      return;
+    }
+
+    const updated = await prisma.adminSettings.update({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      data: {
+        configDefaults: merged === null ? Prisma.JsonNull : (merged as Prisma.InputJsonValue),
+        updatedBy: userUuid,
+      },
+    });
+
+    await tryInvalidateAdmin(cascadeInvalidation);
+
+    const response = buildResponse(updated);
+    AdminSettingsSchema.parse(response);
+    sendCustomSuccess(res, response, StatusCodes.OK);
+  });
+}
+
+/**
+ * PATCH /admin/settings handler
+ * Accepts wrapped body: { configDefaults?: Partial<ConfigOverrides> | null }
+ */
+function createSettingsPatchHandler(
+  prisma: PrismaClient,
+  cascadeInvalidation?: ConfigCascadeCacheInvalidationService
+): (req: Request, res: Response) => void {
+  return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!isAuthorizedForWrite(req.userId)) {
+      sendError(res, ErrorResponses.unauthorized('Only bot owners can update settings'));
+      return;
+    }
+
+    const { configDefaults } = req.body as { configDefaults?: Record<string, unknown> | null };
+    const userUuid = await resolveUserUuid(prisma, req.userId);
+
+    const updateData: Prisma.AdminSettingsUncheckedUpdateInput = {
+      updatedBy: userUuid,
+    };
+
+    if (configDefaults !== undefined) {
+      if (configDefaults === null) {
+        updateData.configDefaults = Prisma.JsonNull;
+      } else {
+        const existing = await getOrCreateSettings(prisma);
+        const configDefaultsValue = mergeConfigOverrides(existing.configDefaults, configDefaults);
+        if (configDefaultsValue === 'invalid') {
+          sendError(res, ErrorResponses.validationError('Invalid configDefaults format'));
+          return;
+        }
+        updateData.configDefaults =
+          configDefaultsValue === null
+            ? Prisma.JsonNull
+            : (configDefaultsValue as Prisma.InputJsonValue);
+      }
+    }
+
+    const updated = await prisma.adminSettings.update({
+      where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+      data: updateData,
+    });
+
+    await tryInvalidateAdmin(cascadeInvalidation);
+
+    const response = buildResponse(updated);
+    AdminSettingsSchema.parse(response);
+    sendCustomSuccess(res, response, StatusCodes.OK);
+  });
+}
+
 export function createAdminSettingsRoutes(
   prisma: PrismaClient,
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService
 ): Router {
   const router = Router();
 
-  /** Build response object from DB settings */
-  function buildResponse(settings: Prisma.AdminSettingsGetPayload<object>): {
-    id: string;
-    updatedBy: string | null;
-    configDefaults: Record<string, unknown> | null;
-    createdAt: string;
-    updatedAt: string;
-  } {
-    return {
-      id: settings.id,
-      updatedBy: settings.updatedBy,
-      configDefaults: settings.configDefaults as Record<string, unknown> | null,
-      createdAt: settings.createdAt.toISOString(),
-      updatedAt: settings.updatedAt.toISOString(),
-    };
-  }
-
-  /**
-   * GET /admin/settings
-   * Get the AdminSettings singleton
-   *
-   * Authorization: Uses isAuthorizedForRead() - allows service-only calls
-   * (bot reading extended context defaults), requires bot owner for user requests.
-   */
+  // GET /admin/settings - Get the AdminSettings singleton
+  // Authorization: allows service-only calls, requires bot owner for user requests
   router.get(
     '/',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -91,73 +203,11 @@ export function createAdminSettingsRoutes(
     })
   );
 
-  /**
-   * PATCH /admin/settings
-   * Update AdminSettings fields (merge semantics for configDefaults)
-   *
-   * Body: { configDefaults?: Partial<ConfigOverrides> }
-   * Merges partial configDefaults into existing JSONB. Send null to clear.
-   */
-  router.patch(
-    '/',
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      if (!isAuthorizedForWrite(req.userId)) {
-        sendError(res, ErrorResponses.unauthorized('Only bot owners can update settings'));
-        return;
-      }
+  // PATCH /admin/settings/config-defaults - Flat body (same shape as all cascade tiers)
+  router.patch('/config-defaults', createConfigDefaultsPatchHandler(prisma, cascadeInvalidation));
 
-      const { configDefaults } = req.body as { configDefaults?: Record<string, unknown> | null };
-
-      // Resolve Discord ID → User UUID for the updatedBy FK
-      const user = await prisma.user.findFirst({
-        where: { discordId: req.userId },
-        select: { id: true },
-      });
-
-      // Build update data (use unchecked input to set updatedBy scalar directly)
-      const updateData: Prisma.AdminSettingsUncheckedUpdateInput = {
-        updatedBy: user?.id ?? null,
-      };
-
-      if (configDefaults !== undefined) {
-        if (configDefaults === null) {
-          updateData.configDefaults = Prisma.JsonNull;
-        } else {
-          const existing = await getOrCreateSettings(prisma);
-          const configDefaultsValue = mergeConfigOverrides(existing.configDefaults, configDefaults);
-          if (configDefaultsValue === 'invalid') {
-            sendError(res, ErrorResponses.validationError('Invalid configDefaults format'));
-            return;
-          }
-          updateData.configDefaults =
-            configDefaultsValue === null
-              ? Prisma.JsonNull
-              : (configDefaultsValue as Prisma.InputJsonValue);
-        }
-      }
-
-      const updated = await prisma.adminSettings.update({
-        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
-        data: updateData,
-      });
-
-      // Invalidate cascade cache (admin tier affects everyone)
-      if (cascadeInvalidation !== undefined) {
-        try {
-          await cascadeInvalidation.invalidateAdmin();
-        } catch (error) {
-          logger.warn(
-            { err: error },
-            '[AdminSettings] Failed to publish cascade cache invalidation'
-          );
-        }
-      }
-
-      const response = buildResponse(updated);
-      AdminSettingsSchema.parse(response);
-      sendCustomSuccess(res, response, StatusCodes.OK);
-    })
-  );
+  // PATCH /admin/settings - Wrapped body { configDefaults?: ... }
+  router.patch('/', createSettingsPatchHandler(prisma, cascadeInvalidation));
 
   return router;
 }

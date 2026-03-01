@@ -31,6 +31,7 @@ interface ChannelSettingsResult {
   id: string;
   channelId: string;
   guildId: string | null;
+  activatedPersonalityId: string | null;
   autoRespond: boolean;
   createdBy: string | null;
   createdAt: Date;
@@ -43,6 +44,7 @@ interface ActivationResponse {
     id: string;
     channelId: string;
     guildId: string | null;
+    activatedPersonalityId: string | null;
     personalitySlug: string | null;
     personalityName: string | null;
     autoRespond: boolean;
@@ -64,6 +66,7 @@ function buildActivationResponse(
       id: settings.id,
       channelId: settings.channelId,
       guildId: settings.guildId,
+      activatedPersonalityId: settings.activatedPersonalityId,
       personalitySlug: settings.activatedPersonality?.slug ?? null,
       personalityName: settings.activatedPersonality?.displayName ?? null,
       autoRespond: settings.autoRespond,
@@ -146,6 +149,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
         id: true,
         channelId: true,
         guildId: true,
+        activatedPersonalityId: true,
         autoRespond: true,
         createdBy: true,
         createdAt: true,

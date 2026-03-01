@@ -160,15 +160,16 @@ export function createConfigOverrideRoutes(
   );
 
   /**
-   * GET /user/config-overrides/resolve/:personalityId
-   * Resolve cascade overrides for a user+personality combination.
+   * GET /user/config-overrides/resolve/:personalityId?channelId=xxx
+   * Resolve cascade overrides for a user+personality+channel combination.
    * Returns fully resolved values with per-field source tracking.
    */
   router.get(
     '/resolve/:personalityId',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-      const resolved = await cascadeResolver.resolveOverrides(req.userId, personalityId);
+      const channelId = (req.query.channelId as string) || undefined;
+      const resolved = await cascadeResolver.resolveOverrides(req.userId, personalityId, channelId);
       sendCustomSuccess(res, resolved, StatusCodes.OK);
     })
   );

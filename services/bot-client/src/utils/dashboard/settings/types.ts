@@ -22,8 +22,8 @@ export enum SettingType {
 /**
  * Source of a resolved setting value.
  * Maps to cascade tiers: admin → 'global', personality → 'personality',
- * user-default → 'global', user-personality → 'user-personality', hardcoded → 'default'.
- * Channel tier uses 'channel' (not yet in cascade — see BACKLOG).
+ * channel → 'channel', user-default → 'global', user-personality → 'user-personality',
+ * hardcoded → 'default'.
  */
 export type SettingSource = 'global' | 'channel' | 'user-personality' | 'personality' | 'default';
 

@@ -356,6 +356,7 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
 interface ResolveConfigBody {
   personalityId: string;
   personalityConfig: LoadedPersonality;
+  channelId?: string;
 }
 
 const resolveConfigBodySchema = z.object({
@@ -367,6 +368,7 @@ const resolveConfigBodySchema = z.object({
       model: z.string(),
     })
     .passthrough(), // Allow additional LoadedPersonality fields
+  channelId: z.string().min(1).optional(),
 });
 
 /**
@@ -390,12 +392,12 @@ function createResolveHandler(prisma: PrismaClient) {
       return sendError(res, ErrorResponses.validationError(parseResult.error.message));
     }
 
-    const { personalityId, personalityConfig } = parseResult.data as ResolveConfigBody;
+    const { personalityId, personalityConfig, channelId } = parseResult.data as ResolveConfigBody;
 
     try {
       const [result, overrides] = await Promise.all([
         resolver.resolveConfig(discordUserId, personalityId, personalityConfig),
-        cascadeResolver.resolveOverrides(discordUserId, personalityId),
+        cascadeResolver.resolveOverrides(discordUserId, personalityId, channelId),
       ]);
 
       logger.debug(

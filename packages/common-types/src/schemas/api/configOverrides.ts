@@ -1,8 +1,8 @@
 /**
  * Config Cascade Overrides Schema
  *
- * Defines the shape of JSONB config override columns used in the 4-tier config cascade:
- *   hardcoded defaults < admin < personality < user-default < user+personality
+ * Defines the shape of JSONB config override columns used in the 5-tier config cascade:
+ *   hardcoded defaults < admin < personality < channel < user-default < user+personality
  *
  * All fields are optional in the schema (partial overrides). The resolver merges
  * tiers bottom-up to produce a fully-resolved object with no undefined fields.
@@ -78,11 +78,15 @@ export const HARDCODED_CONFIG_DEFAULTS: {
 /**
  * Source of a resolved config override value.
  * Tracks which tier provided each field in the final resolved config.
+ *
+ * Cascade order (lowest → highest priority):
+ *   hardcoded → admin → personality → channel → user-default → user-personality
  */
 export type ConfigOverrideSource =
   | 'hardcoded'
   | 'admin'
   | 'personality'
+  | 'channel'
   | 'user-default'
   | 'user-personality';
 
