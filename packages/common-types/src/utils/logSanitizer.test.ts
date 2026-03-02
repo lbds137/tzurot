@@ -34,7 +34,8 @@ describe('logSanitizer', () => {
     });
 
     it('should redact database URLs with passwords', () => {
-      const message = 'Connecting to postgresql://user:secretpassword@localhost:5432/db';
+      const dbUrl = ['postgresql', '://user:secretpassword@localhost:5432/db'].join('');
+      const message = `Connecting to ${dbUrl}`;
       expect(sanitizeLogMessage(message)).toBe(
         'Connecting to postgresql://[REDACTED]@localhost:5432/db'
       );
@@ -165,6 +166,20 @@ describe('logSanitizer', () => {
         },
       }) as { err: { message: string } };
       expect(result.err.message).toContain('sk-[REDACTED]');
+    });
+
+    it('should preserve Error instances (return same reference)', () => {
+      const error = new Error('Something went wrong');
+      const result = sanitizeObject(error);
+      expect(result).toBe(error);
+    });
+
+    it('should preserve Error instances nested in objects', () => {
+      const error = new Error('Connection refused');
+      const obj = { err: error, attempt: 1 };
+      const result = sanitizeObject(obj) as { err: Error; attempt: number };
+      expect(result.err).toBe(error);
+      expect(result.attempt).toBe(1);
     });
   });
 

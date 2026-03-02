@@ -31,6 +31,19 @@ vi.mock('./StopSequenceTracker.js', async importOriginal => {
   };
 });
 
+// Spy on withRetry to verify options passed from LLMInvoker
+const mockWithRetry = vi.fn<(...args: unknown[]) => unknown>();
+vi.mock('../utils/retry.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../utils/retry.js')>();
+  return {
+    ...actual,
+    withRetry: (...args: unknown[]) => {
+      mockWithRetry(...args);
+      return (actual.withRetry as (...a: unknown[]) => unknown)(...args);
+    },
+  };
+});
+
 describe('LLMInvoker', () => {
   let invoker: LLMInvoker;
 
@@ -114,6 +127,27 @@ describe('LLMInvoker', () => {
       expect(result.content).toBe('Success!');
       expect(mockModel.invoke).toHaveBeenCalledTimes(1);
       expect(mockModel.invoke).toHaveBeenCalledWith(messages, expect.any(Object));
+    });
+
+    it('should pass getErrorLogContext as getErrorContext to withRetry', async () => {
+      const mockModel = {
+        invoke: vi.fn().mockResolvedValue({ content: 'Success!' }),
+      } as unknown as BaseChatModel;
+
+      const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+      await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'test-model',
+      });
+
+      expect(mockWithRetry).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          getErrorContext: expect.any(Function),
+        })
+      );
     });
 
     it('should retry on transient ECONNRESET error', async () => {

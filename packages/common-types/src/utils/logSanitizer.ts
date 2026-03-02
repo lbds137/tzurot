@@ -99,6 +99,11 @@ export function sanitizeObject(obj: unknown, depth = 0): unknown {
     return obj.map(item => sanitizeObject(item, depth + 1));
   }
 
+  // Preserve Error instances — the err serializer handles sanitization
+  if (obj instanceof Error) {
+    return obj;
+  }
+
   // Handle objects
   if (typeof obj === 'object') {
     const sanitized: Record<string, unknown> = {};
