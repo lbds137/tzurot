@@ -26,8 +26,6 @@ interface ParallelRetryOptions {
    * Default: all errors are retried.
    */
   shouldRetry?: (error: unknown) => boolean;
-  /** Number of items to process in parallel (default: items.length) */
-  concurrency?: number;
 }
 
 /**
@@ -51,6 +49,10 @@ export interface ParallelItemResult<T> {
  *
  * Attempts to process all items, retrying failed items in subsequent rounds.
  * Returns results for all items, including both successes and failures.
+ *
+ * Note: unlike {@link withRetry}, this function does not add delays between
+ * retry rounds. Use `shouldRetry` to fast-fail non-retryable errors (e.g., 429s)
+ * rather than relying on backoff.
  *
  * @param items - Array of items to process
  * @param fn - Async function to process each item
