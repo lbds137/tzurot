@@ -20,7 +20,7 @@ import {
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
-import { withParallelRetry } from '../utils/retry.js';
+import { withParallelRetry } from '../utils/parallelRetry.js';
 import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
 import { describeImage } from './multimodal/VisionProcessor.js';
 import { transcribeAudio } from './multimodal/AudioProcessor.js';

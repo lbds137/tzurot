@@ -2,13 +2,13 @@
  * Retry Utilities
  *
  * Centralized retry and timeout patterns for ai-worker.
- * Handles exponential backoff, parallel retries, and timeout management.
  *
  * Features:
  * - Exponential backoff between retries
  * - Global timeout for all attempts
  * - Optional error classification for fast-fail on permanent errors
- * - Parallel retry for batch operations
+ *
+ * See also: parallelRetry.ts for batch operations with per-item retries.
  */
 
 import type { Logger } from 'pino';
@@ -101,6 +101,26 @@ function normalizeErrorForLogging(error: unknown, operationName: string): Error 
   return normalized;
 }
 
+/**
+ * Safely invoke getErrorContext, swallowing exceptions to avoid
+ * suppressing the original error that triggered the retry.
+ */
+function safeGetErrorContext(
+  getErrorContext: ((error: unknown) => Record<string, unknown>) | undefined,
+  error: unknown,
+  logger?: Logger
+): Record<string, unknown> {
+  if (!getErrorContext) {
+    return {};
+  }
+  try {
+    return getErrorContext(error);
+  } catch (ctxErr) {
+    logger?.warn({ err: ctxErr }, '[Retry] getErrorContext threw, ignoring');
+    return {};
+  }
+}
+
 interface TimeoutCheckContext {
   globalTimeoutMs: number | undefined;
   startTime: number;
@@ -166,7 +186,7 @@ interface NonRetryableErrorContext extends RetryContext {
 function handleNonRetryableError(ctx: NonRetryableErrorContext): never {
   const { error, attempt, startTime, operationName, logger, getErrorContext } = ctx;
   const totalTimeMs = Date.now() - startTime;
-  const errorContext = getErrorContext?.(error) ?? {};
+  const errorContext = safeGetErrorContext(getErrorContext, error, logger);
   logger?.warn(
     { ...errorContext, err: normalizeErrorForLogging(error, operationName), attempt, totalTimeMs },
     `[Retry] ${operationName} failed with non-retryable error, fast-failing`
@@ -177,6 +197,7 @@ function handleNonRetryableError(ctx: NonRetryableErrorContext): never {
 interface ErrorCheckContext extends RetryContext {
   error: unknown;
   shouldRetry?: (error: unknown) => boolean;
+  /** Forwarded to handleNonRetryableError for error log enrichment */
   getErrorContext?: (error: unknown) => Record<string, unknown>;
 }
 
@@ -275,7 +296,7 @@ export async function withRetry<T>(
         operationName,
         logger,
       });
-      const errorContext = getErrorContext?.(error) ?? {};
+      const errorContext = safeGetErrorContext(getErrorContext, error, logger);
       logger?.warn(
         {
           ...errorContext,
@@ -304,7 +325,7 @@ export async function withRetry<T>(
     maxAttempts,
     lastError
   );
-  const exhaustionContext = getErrorContext?.(lastError) ?? {};
+  const exhaustionContext = safeGetErrorContext(getErrorContext, lastError, logger);
   logger?.error(
     { ...exhaustionContext, err: error, attempts: maxAttempts, totalTimeMs },
     `[Retry] ${operationName} exhausted all retry attempts`
@@ -347,140 +368,6 @@ export async function withTimeout<T>(
     }
     throw error;
   }
-}
-
-/**
- * Options for parallel retry operations.
- * Excludes getErrorContext — parallel items have per-item error handling,
- * so a single error context callback would be misleading.
- */
-interface ParallelRetryOptions extends Omit<RetryOptions, 'getErrorContext'> {
-  /** Number of items to process in parallel (default: items.length) */
-  concurrency?: number;
-}
-
-/**
- * Result of a single item in parallel retry
- */
-interface ParallelItemResult<T> {
-  /** Index of the item in the original array */
-  index: number;
-  /** Status of the operation */
-  status: 'success' | 'failed';
-  /** The successful result (if status is 'success') */
-  value?: T;
-  /** The error (if status is 'failed') */
-  error?: unknown;
-  /** Number of attempts made */
-  attempts: number;
-}
-
-/**
- * Process multiple items in parallel with retry logic
- *
- * Attempts to process all items, retrying failed items in subsequent rounds.
- * Returns results for all items, including both successes and failures.
- *
- * @param items - Array of items to process
- * @param fn - Async function to process each item
- * @param options - Parallel retry configuration
- * @returns Array of results for each item
- *
- * @example
- * const results = await withParallelRetry(
- *   attachments,
- *   (attachment) => describeImage(attachment),
- *   {
- *     maxAttempts: 3,
- *     logger,
- *     operationName: 'Image description'
- *   }
- * );
- */
-export async function withParallelRetry<TItem, TResult>(
-  items: TItem[],
-  fn: (item: TItem, index: number) => Promise<TResult>,
-  options: ParallelRetryOptions = {}
-): Promise<ParallelItemResult<TResult>[]> {
-  const { maxAttempts = 3, logger, operationName = 'operation', shouldRetry } = options;
-
-  // Track results for each item
-  const results: ParallelItemResult<TResult>[] = items.map((_, index) => ({
-    index,
-    status: 'failed' as const,
-    attempts: 0,
-  }));
-
-  // Track which items still need processing
-  let remainingIndices = items.map((_, index) => index);
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (remainingIndices.length === 0) {
-      break; // All items succeeded
-    }
-
-    logger?.info(
-      { attempt, remaining: remainingIndices.length, total: items.length },
-      `[ParallelRetry] ${operationName} attempt ${attempt}/${maxAttempts}`
-    );
-
-    // Process remaining items in parallel
-    const promises = remainingIndices.map(async index => {
-      try {
-        const value = await fn(items[index], index);
-        return { index, status: 'success' as const, value };
-      } catch (error) {
-        return { index, status: 'failed' as const, error };
-      }
-    });
-
-    const attemptResults = await Promise.allSettled(promises);
-
-    // Update results and identify items that still need retry
-    const stillFailing: number[] = [];
-
-    attemptResults.forEach((promiseResult, i) => {
-      const index = remainingIndices[i];
-
-      if (promiseResult.status === 'fulfilled') {
-        const { status, value, error } = promiseResult.value;
-
-        results[index].attempts = attempt;
-
-        if (status === 'success') {
-          results[index].status = 'success';
-          results[index].value = value;
-        } else {
-          results[index].status = 'failed';
-          results[index].error = error;
-          const canRetry = shouldRetry === undefined || shouldRetry(error);
-          if (canRetry) {
-            stillFailing.push(index);
-          }
-        }
-      } else {
-        // Promise itself was rejected (shouldn't happen with our setup)
-        results[index].attempts = attempt;
-        results[index].status = 'failed';
-        results[index].error = promiseResult.reason;
-        const canRetry = shouldRetry === undefined || shouldRetry(promiseResult.reason);
-        if (canRetry) {
-          stillFailing.push(index);
-        }
-      }
-    });
-
-    remainingIndices = stillFailing;
-
-    // Log progress
-    const successCount = results.filter(r => r.status === 'success').length;
-    logger?.info(
-      { attempt, successCount, failedCount: remainingIndices.length },
-      `[ParallelRetry] ${operationName} attempt ${attempt} complete: ${successCount}/${items.length} succeeded`
-    );
-  }
-
-  return results;
 }
 
 /**
