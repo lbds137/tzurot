@@ -1,110 +1,61 @@
-# Open-Source Voice Cloning Research
+# Open-Source Voice Engine Research
 
-> **Date**: 2026-01-24
-> **Source**: Gemini consultation (2026-01-22)
-> **Status**: Active - implementation deferred (Later roadmap)
+> **Date**: 2026-01-24 (initial), 2026-03-01 (updated)
+> **Status**: Active — implementation planned for March 2026
 
 ## TL;DR
 
-Zero-shot voice cloning is now possible on CPU. **TTS**: Kyutai Pocket TTS (100M params, ~1GB RAM idle, 2-4GB active). **STT**: SenseVoice (emotion detection + punctuation, replaces Whisper). Both run in a Python microservice at `services/voice-engine/`. Two-tier model: free users get open-source, premium users BYOK ElevenLabs.
+Two-tier voice system for both STT and TTS:
 
-## Architecture
+| Tier                   | STT                         | TTS               |
+| ---------------------- | --------------------------- | ----------------- |
+| **Free (self-hosted)** | NVIDIA Parakeet TDT 0.6B v3 | Kyutai Pocket TTS |
+| **Premium (BYOK)**     | ElevenLabs Scribe v2        | ElevenLabs v3     |
 
-```
-services/voice-engine/          # Python FastAPI service
-├── Dockerfile
-├── requirements.txt
-├── server.py
-└── .dockerignore
+Self-hosted models run as a Python FastAPI microservice (`services/voice-engine/`) on Railway CPU in Serverless mode (~$5-10/month vs $42/month always-on). Premium users bring their own ElevenLabs API key for both STT and TTS.
 
-Endpoints:
-  POST /v1/clone          # TTS - text + reference audio → cloned voice
-  POST /v1/transcribe     # STT - audio → text with emotion tags
-  GET  /health
-```
+## Key Decisions (Updated from Initial Research)
 
-**Integration**: TypeScript services call via HTTP (internal Railway network).
+| Decision          | Initial (Jan 2026)   | Updated (Mar 2026)            | Why                                                                           |
+| ----------------- | -------------------- | ----------------------------- | ----------------------------------------------------------------------------- |
+| STT model         | SenseVoice (Alibaba) | **Parakeet TDT 0.6B v3**      | Better punctuation (trained-in, not post-processing), 6.05% WER, 25 languages |
+| TTS model         | Kyutai Pocket TTS    | Kyutai Pocket TTS (confirmed) | True zero-shot cloning, 100M params, CPU-optimized                            |
+| TTS alternative   | Kokoro-82M           | Rejected                      | No voice cloning capability — preset voices only                              |
+| Deployment        | Always-on            | **Railway Serverless**        | $5-10/month vs $42/month; 30-60s cold start acceptable                        |
+| OpenAI dependency | None                 | None (confirmed)              | Self-hosted + ElevenLabs covers all tiers                                     |
 
-## TTS: Kyutai Pocket TTS
+## Critical Warnings
 
-**Why**: First model to achieve all three: Quality + Speed + CPU-only.
+The initial Gemini consultation (Jan 2026) produced fabricated API names for Pocket TTS. The correct library is `pocket_tts` with `TTSModel.load_model()`. See the implementation guide for verified API usage.
 
-| Aspect       | Details                                                |
-| ------------ | ------------------------------------------------------ |
-| Model Size   | 100M parameters                                        |
-| RAM (Idle)   | ~1.1 GB                                                |
-| RAM (Active) | 2-4 GB (has memory leak, needs explicit gc.collect())  |
-| Latency      | 2-4 seconds for 10-second audio on Railway CPU         |
-| Quality      | 90% timbre accuracy, less "theatrical" than ElevenLabs |
+## Full Implementation Guide
 
-**Hyperparameters**:
+**`docs/proposals/active/voice-engine-implementation-guide.md`** — Complete 9-part guide covering:
 
-- `cfg_guidance`: 1.5-3.0 (controls voice vs text adherence)
-
-**Known Issues**:
-
-- Memory leak in reference implementation - must call `gc.collect()` after each request
-- Railway recommendation: 4GB RAM allocation
-
-## STT: SenseVoice (Alibaba)
-
-**Why**: Emotion detection + proper punctuation (fixes Whisper's "wall of text" problem).
-
-| Aspect   | Details                                              |
-| -------- | ---------------------------------------------------- | --- | --- | ----- | --------------- |
-| Model    | `iic/SenseVoiceSmall` (~500MB)                       |
-| Output   | `<                                                   | en  | ><  | HAPPY | > Hello world.` |
-| Features | Language detection, ITN (inverse text normalization) |
-
-**Emotion Tags**: `HAPPY`, `SAD`, `ANGRY`, `NEUTRAL`
-
-**For Tzurot**: Feed emotion metadata to LLM so personalities can react to user mood.
-
-## Railway Deployment
-
-```yaml
-# Service config
-Root Directory: services/voice-engine
-Resources: 4GB RAM, 2 vCPU
-Port: 8000
-```
-
-**Connection**:
-
-```bash
-# ai-worker environment variable
-VOICE_ENGINE_URL=http://${{ voice-engine.RAILWAY_PRIVATE_DOMAIN }}:8000
-```
-
-## Requirements
-
-```txt
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.0
-torchaudio==2.2.0
-funasr==1.0.0
-modelscope
-moshi-b  # or kyutai depending on package name
-scipy
-soundfile
-numpy
-```
+1. Self-hosted STT (Parakeet TDT)
+2. Self-hosted TTS (Pocket TTS) with correct API
+3. Premium tier (ElevenLabs BYOK)
+4. Python voice-engine service (server.py, Dockerfile)
+5. ai-worker TypeScript integration (VoiceService)
+6. Railway deployment + Serverless mode
+7. LLM prompt integration (audio tags)
+8. Testing & validation
+9. Known limitations & future upgrades
 
 ## Alternatives Considered
 
-| Model      | Quality  | Speed    | CPU    | Cloning              | Verdict                 |
-| ---------- | -------- | -------- | ------ | -------------------- | ----------------------- |
-| Kokoro-82M | ⭐⭐⭐   | ⭐⭐⭐⭐ | ✅     | ❌ Voice mixing only | Use for non-cloning TTS |
-| F5-TTS     | ⭐⭐⭐⭐ | ⭐⭐⭐   | ❌ GPU | ✅                   | Too heavy for Railway   |
-| XTTS v2    | ⭐⭐⭐   | ⭐⭐     | ✅     | ✅                   | Older, less accurate    |
+| Model            | Quality    | Speed    | CPU     | Cloning        | Verdict                            |
+| ---------------- | ---------- | -------- | ------- | -------------- | ---------------------------------- |
+| Kokoro-82M       | ⭐⭐⭐     | ⭐⭐⭐⭐ | ✅      | ❌ Preset only | Rejected — no cloning              |
+| F5-TTS           | ⭐⭐⭐⭐   | ⭐⭐⭐   | ❌ GPU  | ✅             | Too heavy for Railway              |
+| XTTS v2          | ⭐⭐⭐     | ⭐⭐     | ✅      | ✅             | Older, less accurate               |
+| NeuTTS Air       | ⭐⭐⭐⭐   | ⭐⭐⭐   | ✅      | ✅             | Future upgrade path (multilingual) |
+| Chatterbox Turbo | ⭐⭐⭐⭐⭐ | ⭐⭐⭐   | ❌ GPU  | ✅             | Future if GPU available            |
+| Qwen3-TTS        | ⭐⭐⭐⭐⭐ | ⭐⭐     | ⚠️ Slow | ✅             | Highest quality, needs GPU         |
 
-## Actionable Items
+## References
 
-See BACKLOG.md "Voice Synthesis (Open Source)" in Future Themes section:
-
-- [ ] Python microservice: `services/voice-engine/`
-- [ ] TTS: Kyutai Pocket TTS
-- [ ] STT: SenseVoice
+- Implementation guide: `docs/proposals/active/voice-engine-implementation-guide.md`
+- Backlog: BACKLOG.md → Future Themes → Voice Engine
+- Pocket TTS GitHub: https://github.com/kyutai-labs/pocket-tts
+- Parakeet TDT HuggingFace: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
