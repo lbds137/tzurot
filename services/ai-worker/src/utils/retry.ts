@@ -38,7 +38,11 @@ interface RetryOptions {
    * Default: all errors are retried.
    */
   shouldRetry?: (error: unknown) => boolean;
-  /** Optional function to extract additional log context from errors */
+  /**
+   * Optional function to extract additional log context from errors.
+   * Must not return keys that collide with `err`, `attempt`, `maxAttempts`,
+   * `attempts`, or `totalTimeMs` — those are set by the retry infrastructure.
+   */
   getErrorContext?: (error: unknown) => Record<string, unknown>;
 }
 
@@ -163,7 +167,7 @@ function handleNonRetryableError(ctx: NonRetryableErrorContext): never {
   const totalTimeMs = Date.now() - startTime;
   const errorContext = getErrorContext?.(error) ?? {};
   logger?.warn(
-    { err: normalizeErrorForLogging(error, operationName), ...errorContext, attempt, totalTimeMs },
+    { ...errorContext, err: normalizeErrorForLogging(error, operationName), attempt, totalTimeMs },
     `[Retry] ${operationName} failed with non-retryable error, fast-failing`
   );
   throw new RetryError(`${operationName} failed with non-retryable error`, attempt, error);
@@ -273,8 +277,8 @@ export async function withRetry<T>(
       const errorContext = getErrorContext?.(error) ?? {};
       logger?.warn(
         {
-          err: normalizeErrorForLogging(error, operationName),
           ...errorContext,
+          err: normalizeErrorForLogging(error, operationName),
           attempt,
           maxAttempts,
         },
@@ -301,7 +305,7 @@ export async function withRetry<T>(
   );
   const exhaustionContext = getErrorContext?.(lastError) ?? {};
   logger?.error(
-    { err: error, ...exhaustionContext, attempts: maxAttempts, totalTimeMs },
+    { ...exhaustionContext, err: error, attempts: maxAttempts, totalTimeMs },
     `[Retry] ${operationName} exhausted all retry attempts`
   );
   throw error;
@@ -345,7 +349,9 @@ export async function withTimeout<T>(
 }
 
 /**
- * Options for parallel retry operations
+ * Options for parallel retry operations.
+ * Excludes getErrorContext — parallel items have per-item error handling,
+ * so a single error context callback would be misleading.
  */
 interface ParallelRetryOptions extends Omit<RetryOptions, 'getErrorContext'> {
   /** Number of items to process in parallel (default: items.length) */
