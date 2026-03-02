@@ -29,7 +29,7 @@ import {
   type ModelConfig,
 } from './ModelFactory.js';
 import { withRetry } from '../utils/retry.js';
-import { shouldRetryError } from '../utils/apiErrorParser.js';
+import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
 import {
   getReasoningModelConfig,
@@ -204,6 +204,7 @@ export class LLMInvoker {
         logger,
         operationName: `LLM invocation (${modelName})`,
         shouldRetry: shouldRetryError,
+        getErrorContext: getErrorLogContext,
       }
     );
 
