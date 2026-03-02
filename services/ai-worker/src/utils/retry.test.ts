@@ -264,13 +264,13 @@ describe('retryService', () => {
       await promise;
 
       expect(getErrorContext).toHaveBeenCalledWith(apiError);
-      const warnCall = (mockLogger.warn as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(warnCall[0]).toEqual(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
           errorCategory: 'RATE_LIMIT',
           errorType: 'TRANSIENT',
           shouldRetry: true,
-        })
+        }),
+        expect.any(String)
       );
     });
 
@@ -296,13 +296,13 @@ describe('retryService', () => {
       await assertionPromise;
 
       expect(getErrorContext).toHaveBeenCalledWith(permanentError);
-      const warnCall = (mockLogger.warn as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(warnCall[0]).toEqual(
+      expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.objectContaining({
           errorCategory: 'AUTHENTICATION',
           errorType: 'PERMANENT',
           shouldRetry: false,
-        })
+        }),
+        expect.any(String)
       );
     });
 
