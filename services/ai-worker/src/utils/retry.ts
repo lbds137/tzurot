@@ -38,6 +38,8 @@ interface RetryOptions {
    * Default: all errors are retried.
    */
   shouldRetry?: (error: unknown) => boolean;
+  /** Optional function to extract additional log context from errors */
+  getErrorContext?: (error: unknown) => Record<string, unknown>;
 }
 
 /**
@@ -129,24 +131,6 @@ function checkGlobalTimeout(ctx: TimeoutCheckContext): void {
 }
 
 /**
- * Handle a non-retryable error by throwing a RetryError
- */
-function handleNonRetryableError(
-  error: unknown,
-  attempt: number,
-  startTime: number,
-  operationName: string,
-  logger?: Logger
-): never {
-  const totalTimeMs = Date.now() - startTime;
-  logger?.warn(
-    { err: normalizeErrorForLogging(error, operationName), attempt, totalTimeMs },
-    `[Retry] ${operationName} failed with non-retryable error, fast-failing`
-  );
-  throw new RetryError(`${operationName} failed with non-retryable error`, attempt, error);
-}
-
-/**
  * Calculate delay for exponential backoff
  */
 function calculateBackoffDelay(
@@ -166,19 +150,39 @@ interface RetryContext {
   logger?: Logger;
 }
 
+interface NonRetryableErrorContext extends RetryContext {
+  error: unknown;
+  getErrorContext?: (error: unknown) => Record<string, unknown>;
+}
+
+/**
+ * Handle a non-retryable error by throwing a RetryError
+ */
+function handleNonRetryableError(ctx: NonRetryableErrorContext): never {
+  const { error, attempt, startTime, operationName, logger, getErrorContext } = ctx;
+  const totalTimeMs = Date.now() - startTime;
+  const errorContext = getErrorContext?.(error) ?? {};
+  logger?.warn(
+    { err: normalizeErrorForLogging(error, operationName), ...errorContext, attempt, totalTimeMs },
+    `[Retry] ${operationName} failed with non-retryable error, fast-failing`
+  );
+  throw new RetryError(`${operationName} failed with non-retryable error`, attempt, error);
+}
+
 interface ErrorCheckContext extends RetryContext {
   error: unknown;
   shouldRetry?: (error: unknown) => boolean;
+  getErrorContext?: (error: unknown) => Record<string, unknown>;
 }
 
 /**
  * Check if error should be retried and handle accordingly
  */
 function checkRetryableError(ctx: ErrorCheckContext): void {
-  const { error, shouldRetry, attempt, startTime, operationName, logger } = ctx;
+  const { error, shouldRetry, getErrorContext, attempt, startTime, operationName, logger } = ctx;
   const errorShouldRetry = shouldRetry === undefined || shouldRetry(error);
   if (!errorShouldRetry) {
-    handleNonRetryableError(error, attempt, startTime, operationName, logger);
+    handleNonRetryableError({ error, getErrorContext, attempt, startTime, operationName, logger });
   }
 }
 
@@ -234,6 +238,7 @@ export async function withRetry<T>(
     logger,
     operationName = 'operation',
     shouldRetry,
+    getErrorContext,
   } = options;
 
   const startTime = Date.now();
@@ -256,9 +261,23 @@ export async function withRetry<T>(
       return { value, attempts: attempt, totalTimeMs };
     } catch (error) {
       lastError = error;
-      checkRetryableError({ error, shouldRetry, attempt, startTime, operationName, logger });
+      checkRetryableError({
+        error,
+        shouldRetry,
+        getErrorContext,
+        attempt,
+        startTime,
+        operationName,
+        logger,
+      });
+      const errorContext = getErrorContext?.(error) ?? {};
       logger?.warn(
-        { err: normalizeErrorForLogging(error, operationName), attempt, maxAttempts },
+        {
+          err: normalizeErrorForLogging(error, operationName),
+          ...errorContext,
+          attempt,
+          maxAttempts,
+        },
         `[Retry] ${operationName} failed (attempt ${attempt}/${maxAttempts})`
       );
       await waitBeforeRetry({

@@ -243,6 +243,69 @@ describe('retryService', () => {
       expect(loggedErr).toBe(realError);
     });
 
+    it('should call getErrorContext and spread result into log on retryable error', async () => {
+      const apiError = new Error('Rate limited');
+      const fn = vi.fn().mockRejectedValueOnce(apiError).mockResolvedValue('success');
+      const getErrorContext = vi.fn().mockReturnValue({
+        errorCategory: 'RATE_LIMIT',
+        errorType: 'TRANSIENT',
+        shouldRetry: true,
+      });
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        operationName: 'test-op',
+        getErrorContext,
+      });
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(getErrorContext).toHaveBeenCalledWith(apiError);
+      const warnCall = (mockLogger.warn as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(warnCall[0]).toEqual(
+        expect.objectContaining({
+          errorCategory: 'RATE_LIMIT',
+          errorType: 'TRANSIENT',
+          shouldRetry: true,
+        })
+      );
+    });
+
+    it('should call getErrorContext in handleNonRetryableError path', async () => {
+      const permanentError = new Error('Auth failed');
+      const fn = vi.fn().mockRejectedValue(permanentError);
+      const getErrorContext = vi.fn().mockReturnValue({
+        errorCategory: 'AUTHENTICATION',
+        errorType: 'PERMANENT',
+        shouldRetry: false,
+      });
+
+      const promise = withRetry(fn, {
+        maxAttempts: 3,
+        logger: mockLogger,
+        operationName: 'auth-test',
+        shouldRetry: () => false,
+        getErrorContext,
+      });
+
+      const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertionPromise;
+
+      expect(getErrorContext).toHaveBeenCalledWith(permanentError);
+      const warnCall = (mockLogger.warn as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(warnCall[0]).toEqual(
+        expect.objectContaining({
+          errorCategory: 'AUTHENTICATION',
+          errorType: 'PERMANENT',
+          shouldRetry: false,
+        })
+      );
+    });
+
     it('should include custom operation name in errors', async () => {
       const fn = vi.fn().mockRejectedValue(new Error('Fail'));
 
