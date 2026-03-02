@@ -229,7 +229,10 @@ export class VoiceTranscriptionService {
       // Send each chunk as a reply (these will appear BEFORE personality webhook response)
       // Don't ping the user - they already know they sent a voice message
       for (const chunk of chunks) {
-        await message.reply({ content: chunk, allowedMentions: { repliedUser: false } });
+        await message.reply({
+          content: chunk,
+          allowedMentions: { parse: [], repliedUser: false },
+        });
       }
 
       // Determine if we should continue to personality handler
@@ -250,7 +253,7 @@ export class VoiceTranscriptionService {
       await message
         .reply({
           content: "Sorry, I couldn't transcribe that voice message.",
-          allowedMentions: { repliedUser: false },
+          allowedMentions: { parse: [], repliedUser: false },
         })
         .catch(replyError => {
           logger.warn(

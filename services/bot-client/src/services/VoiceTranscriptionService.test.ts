@@ -235,7 +235,7 @@ describe('VoiceTranscriptionService', () => {
       // Should reply with transcript (without pinging user)
       expect(message.reply).toHaveBeenCalledWith({
         content: 'This is the transcribed text',
-        allowedMentions: { repliedUser: false },
+        allowedMentions: { parse: [], repliedUser: false },
       });
 
       // Should cache in Redis
@@ -361,7 +361,7 @@ describe('VoiceTranscriptionService', () => {
       expect(result).toBeNull();
       expect(message.reply).toHaveBeenCalledWith({
         content: "Sorry, I couldn't transcribe that voice message.",
-        allowedMentions: { repliedUser: false },
+        allowedMentions: { parse: [], repliedUser: false },
       });
     });
 
@@ -385,7 +385,7 @@ describe('VoiceTranscriptionService', () => {
       expect(result).toBeNull();
       expect(message.reply).toHaveBeenCalledWith({
         content: "Sorry, I couldn't transcribe that voice message.",
-        allowedMentions: { repliedUser: false },
+        allowedMentions: { parse: [], repliedUser: false },
       });
     });
 
