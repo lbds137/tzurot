@@ -299,8 +299,9 @@ export async function withRetry<T>(
     maxAttempts,
     lastError
   );
+  const exhaustionContext = getErrorContext?.(lastError) ?? {};
   logger?.error(
-    { err: error, attempts: maxAttempts, totalTimeMs },
+    { err: error, ...exhaustionContext, attempts: maxAttempts, totalTimeMs },
     `[Retry] ${operationName} exhausted all retry attempts`
   );
   throw error;
