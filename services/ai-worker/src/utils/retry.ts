@@ -346,7 +346,7 @@ export async function withTimeout<T>(
 /**
  * Options for parallel retry operations
  */
-interface ParallelRetryOptions extends RetryOptions {
+interface ParallelRetryOptions extends Omit<RetryOptions, 'getErrorContext'> {
   /** Number of items to process in parallel (default: items.length) */
   concurrency?: number;
 }
