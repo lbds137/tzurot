@@ -101,6 +101,9 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
   ],
   partials: [Partials.Channel],
+  // Disable all mention parsing from message content to prevent AI-generated
+  // @everyone/@here/@role pings. Reply-pings (repliedUser) are unaffected.
+  allowedMentions: { parse: [] },
 });
 
 /**

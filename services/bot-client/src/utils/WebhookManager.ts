@@ -171,15 +171,19 @@ export class WebhookManager {
     const avatarURL = personality.avatarUrl;
 
     // Build webhook send options
+    // Webhooks don't inherit Client's allowedMentions — must be set explicitly
+    // to prevent AI-generated @everyone/@here/@role pings
     const webhookOptions: {
       content: string;
       username: string;
       avatarURL?: string;
       threadId?: string;
+      allowedMentions: { parse: [] };
     } = {
       content,
       username: standardizedName,
       avatarURL,
+      allowedMentions: { parse: [] },
     };
 
     // For threads, add threadId parameter (Discord.js v14 official API)

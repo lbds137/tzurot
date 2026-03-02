@@ -472,6 +472,7 @@ describe('WebhookManager', () => {
         content: 'Hello world!',
         username: 'Lilith · TestBot',
         avatarURL: 'https://example.com/avatar.png',
+        allowedMentions: { parse: [] },
       });
       expect(message.id).toBe('message-from-new-webhook');
     });
@@ -490,6 +491,7 @@ describe('WebhookManager', () => {
         content: 'Test message',
         username: 'NoAvatar · TestBot',
         avatarURL: undefined,
+        allowedMentions: { parse: [] },
       });
     });
 
@@ -509,6 +511,7 @@ describe('WebhookManager', () => {
         username: 'ThreadBot · TestBot',
         avatarURL: undefined,
         threadId: 'thread-456',
+        allowedMentions: { parse: [] },
       });
     });
 
@@ -522,6 +525,23 @@ describe('WebhookManager', () => {
       const result = await manager.sendAsPersonality(channel, personality, 'Test');
 
       expect(result).toHaveProperty('id');
+    });
+
+    it('should include allowedMentions to prevent @everyone/@here/@role pings', async () => {
+      const client = createMockClient('TestBot#1234');
+      manager = new WebhookManager(client);
+
+      const personality = createMockPersonality('Lilith');
+      const channel = createMockTextChannel('channel-123', 'bot-123');
+
+      await manager.sendAsPersonality(channel, personality, 'Hey @everyone check this out!');
+
+      const webhook = await manager.getWebhook(channel);
+      expect(webhook.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          allowedMentions: { parse: [] },
+        })
+      );
     });
 
     describe('displayName fallback to name', () => {
