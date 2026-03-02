@@ -40,8 +40,9 @@ interface RetryOptions {
   shouldRetry?: (error: unknown) => boolean;
   /**
    * Optional function to extract additional log context from errors.
-   * Must not return keys that collide with `err`, `attempt`, `maxAttempts`,
-   * `attempts`, or `totalTimeMs` — those are set by the retry infrastructure.
+   * Must not throw — exceptions propagate through the retry machinery and
+   * suppress the original error. Keys `err`, `attempt`, `maxAttempts`,
+   * `attempts`, and `totalTimeMs` are overridden by the retry infrastructure.
    */
   getErrorContext?: (error: unknown) => Record<string, unknown>;
 }
