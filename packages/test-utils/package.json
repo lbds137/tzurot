@@ -17,7 +17,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "ioredis": "^5.9.3"
+    "ioredis": "^5.10.0"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
