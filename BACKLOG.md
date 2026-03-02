@@ -280,7 +280,7 @@ Full automated import from shapes.inc via `/shapes` command group. Shipped on de
 - [x] Phase 3: Import pipeline (BullMQ job → personality + system prompt + LLM config + pgvector memories)
 - [x] Phase 4: `/shapes browse|import|export|status` slash commands (UX overhaul: detail view, autocomplete, retry logic — PR #662)
 - [ ] Phase 5 (backlogged): Sidecar prompt injection — data preserved in customFields, proper system-prompt injection is "User System Prompts" feature
-- [ ] Phase 6 (backlogged): Voice/image field import — shapes.inc has `voice_model`, `voice_id`, `voice_stability`, `image_jailbreak`, `image_size` etc. Currently set `voiceEnabled: false`, `imageEnabled: false`. Import when Tzurot adds voice/image support.
+- [ ] Phase 6 (backlogged): Voice/image field import — shapes.inc has `voice_model`, `voice_id`, `voice_stability`, `image_jailbreak`, `image_size` etc. Currently set `voiceEnabled: false`, `imageEnabled: false`. Voice import tracked in Voice Engine epic Phase 5. Image import deferred until image generation support is added.
 - [ ] Phase 7 (backlogged): Training data import — shapes.inc has training pairs (see `debug/shapes/lilith-training.json`). Tzurot has no training data schema yet. Needs: define training data schema → import from shapes.inc.
 - [ ] Phase 8 (backlogged): Resolve memory sender UUIDs to display names — memories include sender UUIDs instead of human-readable names. Resolve via `GET https://talk.shapes.inc/api/user/{uuid}` (public, no auth). Batch-resolve unique UUIDs, build `Map<uuid, displayName>`, include in Markdown export headings. Graceful fallback if API fails.
 - [ ] Phase 9 (backlogged): Configurable export sections — let users choose which sections to include (`include_config`, `include_memories`, `include_stories`, `include_personalization`). Add optional boolean options to `/shapes export` slash command, pass through to job payload, conditionally skip sections in formatters.
@@ -416,8 +416,71 @@ _Self-directed personality behaviors._
 
 _Beyond text: voice and images._
 
-- **Voice Synthesis** - Open-source TTS/STT for voice interactions
 - **Image Generation** - AI-generated images from personalities
+
+---
+
+### Theme: Voice Engine
+
+_Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for both STT and TTS. Target: working before mid-March 2026._
+
+**Full implementation guide**: `docs/proposals/active/voice-engine-implementation-guide.md`
+
+| Tier               | STT                         | TTS               |
+| ------------------ | --------------------------- | ----------------- |
+| Free (self-hosted) | NVIDIA Parakeet TDT 0.6B v3 | Kyutai Pocket TTS |
+| Premium (BYOK)     | ElevenLabs Scribe v2        | ElevenLabs v3     |
+
+#### Phase 1: Python Voice-Engine Service
+
+Deploy `services/voice-engine/` — Python FastAPI microservice with Parakeet TDT (STT) and Pocket TTS (TTS). Railway Serverless mode for cost control ($5-10/month vs $42 always-on).
+
+- [ ] Create `services/voice-engine/` with `server.py`, `Dockerfile`, `requirements.txt`
+- [ ] Implement `/v1/transcribe` (Parakeet TDT STT with native punctuation)
+- [ ] Implement `/v1/tts` (Pocket TTS with zero-shot voice cloning)
+- [ ] Implement `/v1/voices/register` and `/v1/voices` (voice management)
+- [ ] Add OpenAI-compatible endpoints (`/v1/audio/transcriptions`, `/v1/audio/speech`)
+- [ ] Docker build + local smoke tests
+- [ ] Deploy to Railway with Serverless mode enabled, 4GB RAM, Railway Volume for `/app/voices`
+
+#### Phase 2: ai-worker Integration — STT Upgrade
+
+Replace current Whisper-based transcription with VoiceService that routes to voice-engine (free) or ElevenLabs Scribe (premium). Fixes the "wall of text" punctuation problem.
+
+- [ ] Create `VoiceService` in ai-worker with tier routing logic
+- [ ] Add cold-start-aware timeout/retry for Railway Serverless (90s first attempt, 30s retry)
+- [ ] Wire into existing `AudioTranscriptionJob` / `AudioProcessor` pipeline
+- [ ] Add `VOICE_ENGINE_URL` env var to ai-worker on Railway
+- [ ] Verify punctuation quality improvement over Whisper
+
+#### Phase 3: TTS + Voice Cloning
+
+Enable personalities to speak — generate voice responses from LLM text output.
+
+- [ ] Add voice configuration to personality schema (`voiceEnabled`, `voiceId`, `referenceAudioUrl`)
+- [ ] Wire TTS into response pipeline — when `voiceEnabled`, generate audio from LLM response text
+- [ ] Bot-client: send voice response as Discord audio attachment
+- [ ] Voice registration flow — admin uploads reference audio for a personality, creates voice state
+- [ ] Strip ElevenLabs audio tags (`[whisper]`, `[shout]`) for Pocket TTS free tier
+
+#### Phase 4: ElevenLabs Premium Tier
+
+BYOK ElevenLabs support for users who want premium voice quality.
+
+- [ ] Add `elevenlabsApiKey` to user credential storage (reuse `UserCredential` pattern from shapes.inc)
+- [ ] ElevenLabs Scribe v2 STT — audio events (`[laughter]`, `[sigh]`) passed as LLM context
+- [ ] ElevenLabs v3 TTS — audio tag injection in system prompt for emotional voice control
+- [ ] Instant Voice Clone setup via ElevenLabs API, store `voice_id` per personality
+
+#### Phase 5: Shapes.inc Voice Field Import
+
+Import voice configuration from shapes.inc character data.
+
+- [ ] Map shapes.inc `voice_model`, `voice_id`, `voice_stability` fields to Tzurot voice config
+- [ ] Set `voiceEnabled: true` for imported characters with voice data
+- [ ] Create voice states from imported reference audio if available
+
+**Research**: `docs/research/voice-cloning-2026.md`
 
 ---
 
@@ -615,4 +678,5 @@ _Decided not to do yet._
 - [docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md](docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
 - Shapes.inc import: Phases 1-4 complete on develop (see Character Portability theme)
 - [docs/research/sillytavern-features.md](docs/research/sillytavern-features.md)
-- [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md)
+- [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md) - Voice engine research summary
+- [docs/proposals/active/voice-engine-implementation-guide.md](docs/proposals/active/voice-engine-implementation-guide.md) - Full 9-part implementation guide
