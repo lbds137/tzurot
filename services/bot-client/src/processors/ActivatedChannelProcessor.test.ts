@@ -195,11 +195,11 @@ describe('ActivatedChannelProcessor', () => {
 
       expect(message.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('Secret Bot'),
-        allowedMentions: { repliedUser: false },
+        allowedMentions: { parse: [], repliedUser: false },
       });
       expect(message.reply).toHaveBeenCalledWith({
         content: expect.stringContaining("private personality you don't have access to"),
-        allowedMentions: { repliedUser: false },
+        allowedMentions: { parse: [], repliedUser: false },
       });
     });
 

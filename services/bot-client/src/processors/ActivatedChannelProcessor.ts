@@ -84,7 +84,7 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
         try {
           await message.reply({
             content: `📍 This channel has **${personalityName}** activated, but it's a private personality you don't have access to. You can still @mention other personalities or ask the personality owner for access.`,
-            allowedMentions: { repliedUser: false }, // Don't ping the user
+            allowedMentions: { parse: [], repliedUser: false }, // Don't ping the user
           });
         } catch (error) {
           logger.warn(
