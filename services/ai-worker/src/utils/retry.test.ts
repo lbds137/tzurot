@@ -88,6 +88,37 @@ describe('retryService', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
+    it('should include getErrorContext in exhaustion error log', async () => {
+      const error = new Error('Persistent failure');
+      const fn = vi.fn().mockRejectedValue(error);
+      const getErrorContext = vi.fn().mockReturnValue({
+        errorCategory: 'SERVER_ERROR',
+        errorType: 'TRANSIENT',
+        shouldRetry: true,
+      });
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        operationName: 'exhaustion-test',
+        getErrorContext,
+      });
+
+      const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertionPromise;
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          errorCategory: 'SERVER_ERROR',
+          errorType: 'TRANSIENT',
+          shouldRetry: true,
+        }),
+        expect.any(String)
+      );
+    });
+
     it('should use exponential backoff', async () => {
       const fn = vi
         .fn()
