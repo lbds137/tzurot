@@ -59,6 +59,16 @@ The `getCrossChannelHistory` describe block in `ConversationHistoryService.int.t
 
 **Discovered during**: PR #693 Claude review agent feedback
 
+### 🏗️ Audit Error Sanitization in Log Pipeline
+
+Two gaps identified during PR #700 (empty error objects fix):
+
+1. **Enumerable Error properties bypass sanitization** — `sanitizeObject()` now early-returns for `instanceof Error`, which is correct for preserving `message`/`stack`. But Error instances _can_ carry enumerable properties (e.g. Axios errors have `error.config.url` with credentials). These won't be sanitized. Check whether OpenRouter/LangChain clients attach enumerable properties with URLs or tokens to thrown errors.
+
+2. **`getErrorContext` return value not sanitized** — The callback's result is spread directly into log objects without going through `sanitizeObject`. Current implementation (`getErrorLogContext`) returns safe structural metadata, but this should be documented as an API contract so future callers know they're responsible for not returning sensitive values.
+
+**Discovered during**: PR #700 code review
+
 ### 🏗️ Audit API Routes for Zod Validation at Boundaries
 
 Several api-gateway routes use manual `typeof` checks and utility functions (e.g., `isValidDiscordId()`) for query/path param validation instead of Zod schemas. Per code standards, service boundaries should validate with Zod. Audit all routes and convert manual validation to Zod `.safeParse()` for consistency.

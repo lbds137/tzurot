@@ -34,6 +34,7 @@ describe('logSanitizer', () => {
     });
 
     it('should redact database URLs with passwords', () => {
+      // Split to avoid triggering secretlint on the literal connection string
       const dbUrl = ['postgresql', '://user:secretpassword@localhost:5432/db'].join('');
       const message = `Connecting to ${dbUrl}`;
       expect(sanitizeLogMessage(message)).toBe(
