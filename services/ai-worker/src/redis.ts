@@ -17,7 +17,7 @@ import {
   getPrismaClient,
 } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
-import { modelSupportsVision } from './services/ModelCapabilityChecker.js';
+import { modelSupportsVision, modelSupportsReasoning } from './services/ModelCapabilityChecker.js';
 
 const { redis, voiceTranscriptCache } = initCoreRedisServices('WorkerRedis');
 
@@ -47,4 +47,15 @@ visionDescriptionCache.setL2Cache(persistentVisionCache);
  */
 export async function checkModelVisionSupport(modelId: string): Promise<boolean> {
   return modelSupportsVision(modelId, redis);
+}
+
+/**
+ * Check if a model supports reasoning parameters using OpenRouter's cached model data.
+ * This is a singleton wrapper that uses the shared ioredis client.
+ *
+ * @param modelId - The model ID to check
+ * @returns true if the model supports reasoning parameters
+ */
+export async function checkModelReasoningSupport(modelId: string): Promise<boolean> {
+  return modelSupportsReasoning(modelId, redis);
 }

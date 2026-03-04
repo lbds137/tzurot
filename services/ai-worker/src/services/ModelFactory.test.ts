@@ -803,6 +803,74 @@ describe('ModelFactory', () => {
   });
 
   // ===================================
+  // Reasoning capability gate
+  // ===================================
+
+  describe('reasoning capability gate', () => {
+    it('should skip reasoning params when supportsReasoning is false', () => {
+      const config: ModelConfig = {
+        modelName: 'meta-llama/llama-3-70b',
+        reasoning: { effort: 'high', enabled: true },
+        supportsReasoning: false,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+      };
+      // reasoning should NOT be in modelKwargs
+      expect(callArgs?.modelKwargs?.reasoning).toBeUndefined();
+    });
+
+    it('should pass reasoning params when supportsReasoning is true', () => {
+      const config: ModelConfig = {
+        modelName: 'deepseek/deepseek-r1',
+        reasoning: { effort: 'high' },
+        supportsReasoning: true,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+      };
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'high' });
+    });
+
+    it('should pass reasoning params when supportsReasoning is undefined (backward compat)', () => {
+      const config: ModelConfig = {
+        modelName: 'deepseek/deepseek-r1',
+        reasoning: { effort: 'medium' },
+        // supportsReasoning not set
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+      };
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'medium' });
+    });
+
+    it('should not use custom fetch when reasoning is gated out', () => {
+      const config: ModelConfig = {
+        modelName: 'meta-llama/llama-3-70b',
+        reasoning: { effort: 'high' },
+        supportsReasoning: false,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+      // No reasoning = no custom fetch needed (unless other params require it)
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
+    });
+  });
+
+  // ===================================
   // App attribution headers
   // ===================================
 

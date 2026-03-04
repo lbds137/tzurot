@@ -201,7 +201,15 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   addIfDefined(kwargs, 'response_format', modelConfig.responseFormat);
 
   // Reasoning (CRITICAL for thinking models: o1/o3, Claude, Gemini, DeepSeek R1)
-  addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
+  // Gate: skip reasoning params if the model explicitly doesn't support them
+  if (modelConfig.reasoning !== undefined && modelConfig.supportsReasoning === false) {
+    logger.warn(
+      { modelName: modelConfig.modelName, reasoning: modelConfig.reasoning },
+      '[ModelFactory] Model does not support reasoning — skipping reasoning params'
+    );
+  } else {
+    addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
+  }
 
   return kwargs;
 }
@@ -351,7 +359,8 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
       const extraParams = buildOpenRouterExtraParams(modelConfig);
       const hasExtraParams = Object.keys(extraParams).length > 0;
 
-      const hasReasoning = modelConfig.reasoning !== undefined;
+      const hasReasoning =
+        modelConfig.reasoning !== undefined && modelConfig.supportsReasoning !== false;
       const needsCustomFetch = hasExtraParams || hasReasoning;
 
       logger.debug(

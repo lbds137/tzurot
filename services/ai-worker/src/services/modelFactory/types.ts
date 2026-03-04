@@ -15,6 +15,13 @@ import type { ConvertedLlmParams } from '@tzurot/common-types';
 export interface ModelConfig extends ConvertedLlmParams {
   modelName?: string;
   apiKey?: string; // User-provided key (BYOK)
+  /**
+   * Whether the model supports reasoning parameters.
+   * Resolved async by caller via checkModelReasoningSupport().
+   * When false, reasoning params are silently skipped with a log warning.
+   * When undefined, reasoning params are passed through (backward compatible).
+   */
+  supportsReasoning?: boolean;
 }
 
 /**

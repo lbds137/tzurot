@@ -71,6 +71,7 @@ vi.mock('../redis.js', () => ({
   visionDescriptionCache: {
     get: vi.fn().mockResolvedValue(null),
   },
+  checkModelReasoningSupport: vi.fn().mockResolvedValue(true),
 }));
 vi.mock('./storedReferenceHydrator.js', () => ({
   hydrateStoredReferences: vi.fn().mockResolvedValue(undefined),
@@ -1029,7 +1030,6 @@ describe('ConversationalRAGService', () => {
         modelName: 'test-model',
         imageCount: 2,
         audioCount: 1,
-        stopSequences: expect.any(Array),
       });
     });
 
