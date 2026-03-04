@@ -196,10 +196,10 @@ const VISION_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
   { required: 'gemma3' },
   // Llama vision models
   { required: 'llama', additional: ['vision'] },
-  // Qwen VL and Qwen 3+ models (natively multimodal without "vl" in ID)
+  // Qwen VL models + Qwen 3.5 (natively multimodal; qwen3 base models are text-only)
   { required: 'qwen', additional: ['vl', 'vision'] },
-  { required: 'qwen3' },
-  { required: 'qwen-3' },
+  { required: 'qwen3.5' },
+  { required: 'qwen3-vl' },
   // Mistral vision models
   { required: 'pixtral' },
   // InternVL models
