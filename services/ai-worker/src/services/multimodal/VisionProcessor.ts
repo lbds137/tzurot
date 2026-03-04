@@ -271,7 +271,7 @@ async function selectVisionModel(
   }
 
   // Priority 3: Use fallback vision model
-  // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
+  // Guest users (no BYOK API key) use VISION_FALLBACK_FREE, BYOK users use VISION_FALLBACK (paid)
   const fallback = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
   logger.info(
     { mainModel: personality.model, fallbackModel: fallback, isGuestMode, source: 'fallback' },

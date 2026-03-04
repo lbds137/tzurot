@@ -160,10 +160,10 @@ export const MODEL_DEFAULTS = {
 
   // Specialized models
   WHISPER: 'whisper-1',
-  /** Vision fallback for BYOK users (paid) */
-  VISION_FALLBACK: 'qwen/qwen3-vl-235b-a22b-instruct',
-  /** Vision fallback for free tier users (no BYOK) - ~30k context window */
-  VISION_FALLBACK_FREE: 'qwen/qwen-2.5-vl-7b-instruct:free',
+  /** Vision fallback for BYOK users (paid) — natively multimodal */
+  VISION_FALLBACK: 'qwen/qwen3.5-397b-a17b',
+  /** Vision fallback for free tier users (no BYOK) — 128k context, multimodal, less censored */
+  VISION_FALLBACK_FREE: 'mistralai/mistral-small-3.1-24b-instruct:free',
   /**
    * Local embedding model (not configurable via env)
    * Uses @tzurot/embeddings package with 384-dimensional vectors.
@@ -192,18 +192,19 @@ export enum AIProvider {
 export const GUEST_MODE = {
   /**
    * Default free model for guest users
-   * Gemma 3 27B: 96k context window, excellent for conversational AI
+   * Gemma 3 27B: 131k context window, multimodal, excellent for conversational AI
    */
   DEFAULT_MODEL: 'google/gemma-3-27b-it:free',
 
   /**
    * Alternative free models (for failover or user choice)
-   * Ordered by preference for chat/roleplay use cases
+   * Ordered by preference for chat/roleplay use cases.
+   * Verified against OpenRouter /api/v1/models (2026-03-03).
    */
   FREE_MODELS: [
-    'google/gemma-3-27b-it:free', // 96k context, balanced quality/speed
-    'nvidia/nemotron-nano-12b-v2-vl:free', // 128k context, vision support
-    'tngtech/tng-r1t-chimera:free', // 164k context, creative storytelling
+    'google/gemma-3-27b-it:free', // 131k context, multimodal, balanced quality/speed
+    'mistralai/mistral-small-3.1-24b-instruct:free', // 128k context, multimodal
+    'nvidia/nemotron-nano-12b-v2-vl:free', // 128k context, vision+video
   ] as const,
 
   /**

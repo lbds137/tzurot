@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-03-01
-> **Version**: v3.0.0-beta.84
+> **Last Updated**: 2026-03-03
+> **Version**: v3.0.0-beta.85
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -13,17 +13,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-### 🐛 Stop Sequence `<message` Causes Premature Response Truncation
-
-The stop sequence `<message` (from `generateStopSequences()` in `RAGUtils.ts`) is too broad — it triggers on any `<message` substring in the model's output, not just actual XML message tags. This causes premature response truncation observed in production across multiple debug captures (`debug/debug-compact-*.json`), all showing `"stopSequenceTriggered": "inferred:non-xml-stop"`.
-
-**Root cause**: Stop sequences `['</message>', '<message']` were added to prevent the model from generating fake conversation history. But `<message` matches mid-word (e.g., `<messages`, `<messaging`) and inside natural prose that happens to contain angle brackets. The model's response gets cut off mid-thought.
-
-**Key finding**: `stripResponseArtifacts()` in `responseArtifacts.ts` already strips XML tags from the response in post-processing, making the `<message` stop sequence redundant for its intended purpose.
-
-**Proposed fix**: Remove stop sequences entirely and rely on post-processing (`stripResponseArtifacts`) to clean up any XML artifacts. If stop sequences are still needed for cost savings (stopping early on runaway generation), use more specific patterns that won't match partial words.
-
-**Evidence**: Three debug JSON files in `debug/` all show truncated responses with the `inferred:non-xml-stop` marker.
+_Empty — all items triaged to Current Focus (2026-03-03)._
 
 ---
 
@@ -31,51 +21,7 @@ The stop sequence `<message` (from `generateStopSequences()` in `RAGUtils.ts`) i
 
 _New items go here. Triage to appropriate section weekly._
 
-### 🏗️ API Gateway Middleware Wiring Integration Tests
-
-Unit tests mock away Express middleware (auth, error handlers, route mounting), so wiring bugs slip through — e.g., `router.use(requireUserAuth)` vs `router.use(requireUserAuth())` caused all config-override routes to hang in production (PR #691 hotfix). The mocks matched the buggy code, not the correct calling convention.
-
-**Scope**: Add supertest-style integration tests that boot the actual Express app with real middleware and verify:
-
-- Auth middleware is correctly applied (factory functions called, not just passed)
-- Routes respond with expected status codes (not hanging/timing out)
-- Error middleware catches and formats errors properly
-- Route mounting order doesn't shadow endpoints
-
-**Audit first**: Grep all `router.use(...)` and `app.use(...)` calls for middleware factory functions passed without `()`. The `requireUserAuth` bug may exist in other route files.
-
-**Discovered during**: PR #691 production debugging — `/settings defaults edit` hung until bot-client timeout
-
-### 🏗️ Fix `getCrossChannelHistory` Integration Test State-Sharing
-
-The `getCrossChannelHistory` describe block in `ConversationHistoryService.int.test.ts` has tests that depend on accumulated DB state from prior `it()` blocks — violating the self-contained test rule. Test 1 inserts data that test 2 implicitly relies on, so a reorder or isolation change could cause cascading failures.
-
-**Fix**: Use unique `personaId`/`personalityId` combos per test so queries don't bleed across, or wrap in a sub-describe with a `beforeEach` that clears relevant rows.
-
-**While in the area**:
-
-- Add a `logger.debug` in `wrapCurrentChannel()` (ContextWindowManager.ts) when `locationXml` is empty but `currentChannelXml` has content — aids telemetry for the no-environment fallback path
-- Clarify `.strip()` doc comment on `ConfigOverridesSchema` (configOverrides.ts) — `.strip()` _tolerates_ JSONB drift rather than preventing it; the protection comes from the schema being the single write path
-
-**Discovered during**: PR #693 Claude review agent feedback
-
-### 🏗️ Audit Error Sanitization in Log Pipeline
-
-Two gaps identified during PR #700 (empty error objects fix):
-
-1. **Enumerable Error properties bypass sanitization** — `sanitizeObject()` now early-returns for `instanceof Error`, which is correct for preserving `message`/`stack`. But Error instances _can_ carry enumerable properties (e.g. Axios errors have `error.config.url` with credentials). These won't be sanitized. Check whether OpenRouter/LangChain clients attach enumerable properties with URLs or tokens to thrown errors.
-
-2. **`getErrorContext` return value not sanitized** — The callback's result is spread directly into log objects without going through `sanitizeObject`. Current implementation (`getErrorLogContext`) returns safe structural metadata, but this should be documented as an API contract so future callers know they're responsible for not returning sensitive values.
-
-**Discovered during**: PR #700 code review
-
-### 🏗️ Audit API Routes for Zod Validation at Boundaries
-
-Several api-gateway routes use manual `typeof` checks and utility functions (e.g., `isValidDiscordId()`) for query/path param validation instead of Zod schemas. Per code standards, service boundaries should validate with Zod. Audit all routes and convert manual validation to Zod `.safeParse()` for consistency.
-
-**Known examples**: `config-overrides.ts` resolve endpoint uses manual `typeof req.query.channelId === 'string'` + `isValidDiscordId()` instead of a Zod query schema.
-
-**Discovered during**: PR #688 review (channel tier config cascade)
+_Empty — all items triaged (2026-03-03)._
 
 ---
 
@@ -83,7 +29,25 @@ Several api-gateway routes use manual `typeof` checks and utility functions (e.g
 
 _This week's active work. Max 3 items._
 
-_Empty — pull next from Quick Wins or Active Epic._
+### 🐛 Reasoning/Thinking Pipeline Investigation
+
+Combined investigation of three related issues all stemming from reasoning parameter handling:
+
+1. **Thinking leaked as visible response** (Critical) — Models with `reasoning.enabled: true` dump chain-of-thought directly as response content without tags. Users see raw analysis instead of character responses. Evidence: `debug-compact-bee978c6` (kimi-k2.5, 637 tokens), `debug-compact-e6275aae` (kimi-k2.5, 42 tokens), `debug-compact-1ecd7057` (glm-5, 100 tokens).
+
+2. **Reasoning settings error when fields blank** — Error when `max_tokens` and/or `reasoning_effort` aren't explicitly set. Confusion between top-level `max_tokens` and nested `reasoning.maxTokens`. Compare: kimi-k2.5 configs have NO `reasoning.maxTokens` (thinking leaked), glm-5/COLD config HAS `reasoning.maxTokens: 16384` (thinking extracted correctly but truncated).
+
+3. **Truncated thinking content** — `debug-compact-edcef141` shows thinking cut mid-sentence ("...I should keep it minimal and e") with a stray period in visible response. Reasoning token budget may be miscalculated.
+
+**Investigation plan**: Trace `ModelFactory.ts` → `modelKwargs` → reasoning parameter assembly. Understand what OpenRouter/models expect. Fix parameter assembly, then add untagged-thinking detection as safety net.
+
+### 🐛 Remove Stop Sequence `<message` Truncation
+
+Remove overly broad `<message` stop sequence from `generateStopSequences()` in `RAGUtils.ts`. Post-processing (`stripResponseArtifacts`) already handles XML cleanup, making the stop sequence redundant. All 4 recent debug captures show `inferred:non-xml-stop`. Surgical fix — remove stop sequences, verify post-processing covers the cases.
+
+### 🐛 Image Vision Fallback for Multimodal Models
+
+When no explicit `visionModel` is configured in the preset/LLM config, image vision doesn't work — even when the active model is multimodal. Investigate vision pipeline model resolution and add fallback: if `visionModel` is unset, use the current model (if it supports vision).
 
 ---
 
@@ -96,6 +60,10 @@ _Small tasks that can be done between major features. Good for momentum._
 GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty.
 
 **Fix options**: Allowlist known reasoning models, require both open+close tags, or fallback to thinking-as-content when visible content is empty.
+
+### 🏗️ Fix `getCrossChannelHistory` Integration Test State-Sharing
+
+The `getCrossChannelHistory` describe block in `ConversationHistoryService.int.test.ts` has tests that depend on accumulated DB state from prior `it()` blocks. Fix with unique IDs per test or `beforeEach` cleanup. While in the area: add `logger.debug` in `wrapCurrentChannel()` for no-environment fallback path, clarify `.strip()` doc comment on `ConfigOverridesSchema`.
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
@@ -529,6 +497,10 @@ Auto-inject `[ServiceName]` prefix in logs instead of hardcoding in every log ca
 - [ ] Remove manual `[ServiceName]` prefixes from log messages
 - [ ] Consider structured `service` field instead of string prefix
 
+#### 🏗️ Audit Error Sanitization in Log Pipeline
+
+Two gaps: (1) Enumerable Error properties (e.g. Axios `error.config.url`) bypass `sanitizeObject()` early-return for `instanceof Error`. (2) `getErrorContext` callback results spread into log objects without sanitization. Check OpenRouter/LangChain error objects, document API contract. Discovered during PR #700.
+
 #### ✨ Admin/User Error Context Differentiation
 
 Admin errors should show full technical context; user errors show sanitized version. Partially done in PR #587 (error display framework shipped), this is the remaining differentiation.
@@ -579,6 +551,10 @@ Adopt `z.infer<typeof schema>` across all job types to eliminate manual interfac
 #### 🏗️ Investigate Safe Auto-Migration on Railway
 
 Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env dev/prod`). This caused a P2002 bug when a migration was deployed as code but never applied. Investigate: dev-only auto-migration in start command, pre-deploy hook with `prisma migrate deploy`, CI step that validates migration state matches schema.
+
+#### 🏗️ API Gateway Middleware Wiring Integration Tests
+
+Add supertest-style integration tests that boot the actual Express app with real middleware. Verifies auth middleware is correctly applied (factory functions called, not just passed), routes respond properly, error middleware works. Audit `router.use(...)` calls for missing `()` on factory functions. Discovered during PR #691.
 
 #### 🧹 Ops CLI Command Migration
 
@@ -631,6 +607,11 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 #### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention.
+
+### Low-Priority Audits
+
+- **Audit API Routes for Zod Validation** — Several routes use manual `typeof` + `isValidDiscordId()` instead of Zod schemas at boundaries. Large scope, no recent production impact. Discovered PR #688.
+- **DB-Sync Deletion Propagation** — Cross-env sync only upserts, so prod deletions get undone on re-sync. Workaround: manual cleanup. Needs design decision (tombstones, deletion log, sync manifest). Low urgency.
 
 ### Nice-to-Have Features
 
