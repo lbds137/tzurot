@@ -237,6 +237,22 @@ describe('selectBetterFallback', () => {
     const result = selectBetterFallback(existing, candidate);
     expect(result).toBe(candidate);
   });
+
+  it('should prefer leaked-thinking over empty on later attempt', () => {
+    const existing = createFallback('empty', 1);
+    const candidate = createFallback('leaked-thinking', 2, 'Analytical content');
+    const result = selectBetterFallback(existing, candidate);
+    // Same priority tier — prefer more recent attempt
+    expect(result).toBe(candidate);
+  });
+
+  it('should prefer empty over leaked-thinking on later attempt', () => {
+    const existing = createFallback('leaked-thinking', 1, 'Analytical content');
+    const candidate = createFallback('empty', 2);
+    const result = selectBetterFallback(existing, candidate);
+    // Same priority tier — prefer more recent attempt
+    expect(result).toBe(candidate);
+  });
 });
 
 describe('logRetryEscalation', () => {
