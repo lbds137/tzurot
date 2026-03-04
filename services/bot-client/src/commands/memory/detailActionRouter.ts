@@ -41,40 +41,35 @@ export async function handleMemoryDetailAction(
 
   switch (action) {
     case 'edit':
-      if (memoryId !== undefined) {
-        await handleEditButton(buttonInteraction, memoryId);
-      }
+      if (memoryId === undefined) {return false;}
+      await handleEditButton(buttonInteraction, memoryId);
       return true;
     case 'edit-truncated':
-      if (memoryId !== undefined) {
-        await handleEditTruncatedButton(buttonInteraction, memoryId);
-      }
+      if (memoryId === undefined) {return false;}
+      await handleEditTruncatedButton(buttonInteraction, memoryId);
       return true;
     case 'cancel-edit':
       await handleCancelEditButton(buttonInteraction);
       return true;
     case 'lock':
-      if (memoryId !== undefined) {
-        await handleLockButton(buttonInteraction, memoryId);
-      }
+      if (memoryId === undefined) {return false;}
+      await handleLockButton(buttonInteraction, memoryId);
       return true;
     case 'delete':
-      if (memoryId !== undefined) {
-        await handleDeleteButton(buttonInteraction, memoryId);
+      if (memoryId === undefined) {return false;}
+      await handleDeleteButton(buttonInteraction, memoryId);
+      return true;
+    case 'confirm-delete': {
+      if (memoryId === undefined) {return false;}
+      const success = await handleDeleteConfirm(buttonInteraction, memoryId);
+      if (success) {
+        await onRefresh();
       }
       return true;
-    case 'confirm-delete':
-      if (memoryId !== undefined) {
-        const success = await handleDeleteConfirm(buttonInteraction, memoryId);
-        if (success) {
-          await onRefresh();
-        }
-      }
-      return true;
+    }
     case 'view-full':
-      if (memoryId !== undefined) {
-        await handleViewFullButton(buttonInteraction, memoryId);
-      }
+      if (memoryId === undefined) {return false;}
+      await handleViewFullButton(buttonInteraction, memoryId);
       return true;
     case 'back':
       await buttonInteraction.deferUpdate();
