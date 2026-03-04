@@ -160,13 +160,13 @@ describe('handleMemoryDetailAction', () => {
     expect(result).toBe(false);
   });
 
-  it('should skip handler when memoryId is undefined for id-requiring actions', async () => {
+  it('should return false when memoryId is undefined for id-requiring actions', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'edit', memoryId: undefined });
     const interaction = createMockButtonInteraction('memory-detail::edit');
 
     const result = await handleMemoryDetailAction(interaction, mockOnRefresh);
 
-    expect(result).toBe(true);
+    expect(result).toBe(false);
     expect(mockHandleEditButton).not.toHaveBeenCalled();
   });
 });
