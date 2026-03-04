@@ -11,7 +11,7 @@ _Quick wins from backlog — bundle small fixes into one PR._
 
 ## Active Task
 
-Security dependency overrides (hono, @hono/node-server, ajv).
+None — session complete.
 
 ---
 
@@ -23,7 +23,8 @@ Security dependency overrides (hono, @hono/node-server, ajv).
   - Fixed undefined memoryId silent-swallow (now returns false)
   - CPD: 141 → 140 (memory detail clone pair eliminated)
 - **Backlog cleanup**: Removed completed GLM unclosed `<think>` tag item (fixed by PR #702), removed integration test fix item
-- **Security**: Updated pnpm overrides for hono (>=4.12.4), @hono/node-server (>=1.19.10), ajv (>=6.14.0) to resolve all 5 Dependabot alerts
+- **Security**: Updated pnpm overrides for hono (>=4.12.4), @hono/node-server (>=1.19.10), ajv (>=6.14.0 <7.0.0) to resolve all 5 Dependabot alerts
+- **Fix**: Capped ajv override at <7.0.0 — unbounded `>=6.14.0` resolved to ajv 8.x for @eslint/eslintrc, breaking `no-singleton-export.test.ts`
 
 ## Recent Releases
 
