@@ -1220,7 +1220,7 @@ describe('GenerationStep', () => {
 
       it('should return empty response as fallback when later LLM call fails', async () => {
         // Attempt 1: empty content (e.g., model produced only thinking blocks)
-        // → stored as fallback with reason 'empty'
+        // → stored as fallback
         const emptyResponse: RAGResponse = {
           content: '',
           retrievedMemories: 2,
