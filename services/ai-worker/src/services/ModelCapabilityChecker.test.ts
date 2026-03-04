@@ -286,9 +286,12 @@ describe('ModelCapabilityChecker', () => {
         );
       });
 
-      it('should detect Qwen 3+ reasoning models', async () => {
+      it('should detect Qwen 3+ reasoning models (all qwen3 variants support reasoning)', async () => {
         expect(await modelSupportsReasoning('qwen/qwen3-235b-a22b', mockRedis)).toBe(true);
         expect(await modelSupportsReasoning('qwen/qwen3.5-397b-a17b', mockRedis)).toBe(true);
+        // qwen3 base models are text-only for vision but still support reasoning
+        expect(await modelSupportsReasoning('qwen/qwen3-32b', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('qwen/qwen3-coder', mockRedis)).toBe(true);
       });
 
       it('should detect OpenAI GPT-5 reasoning models', async () => {
