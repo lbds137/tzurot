@@ -193,7 +193,8 @@ const VISION_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
   // Anthropic Claude 3+ models
   { required: 'claude-3' },
   { required: 'claude-4' },
-  // Google Gemini models (gemini + 1.5/2./2-/vision)
+  // Google Gemini models — '2.' matches dot-separated (gemini-2.0-flash),
+  // '2-' matches hyphen-separated (gemini-2-flash) alternate naming
   { required: 'gemini', additional: ['1.5', '2.', '2-', 'vision'] },
   // Google Gemma 3 models
   { required: 'gemma-3' },
@@ -263,7 +264,7 @@ const REASONING_MODEL_PATTERNS: { required: string; additional?: string[] }[] = 
   { required: 'claude-sonnet-4' },
   { required: 'claude-opus-4' },
   { required: 'claude-haiku-4' },
-  // Google Gemini 1.5+ (2.x includes 2.0 and 2.5)
+  // Google Gemini 1.5+ — '2.' matches dot-separated, '2-' matches hyphen-separated
   { required: 'gemini', additional: ['1.5', '2.', '2-', '3'] },
   // Kimi K2 (confirmed reasoning-capable)
   { required: 'kimi-k2' },

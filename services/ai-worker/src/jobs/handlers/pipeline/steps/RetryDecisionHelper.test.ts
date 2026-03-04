@@ -238,20 +238,20 @@ describe('selectBetterFallback', () => {
     expect(result).toBe(candidate);
   });
 
-  it('should prefer leaked-thinking over empty on later attempt', () => {
+  it('should prefer leaked-thinking over empty (leaked has content)', () => {
     const existing = createFallback('empty', 1);
     const candidate = createFallback('leaked-thinking', 2, 'Analytical content');
     const result = selectBetterFallback(existing, candidate);
-    // Same priority tier — prefer more recent attempt
+    // leaked-thinking ranks higher than empty (has content, just wrong kind)
     expect(result).toBe(candidate);
   });
 
-  it('should prefer empty over leaked-thinking on later attempt', () => {
+  it('should keep leaked-thinking over later empty', () => {
     const existing = createFallback('leaked-thinking', 1, 'Analytical content');
     const candidate = createFallback('empty', 2);
     const result = selectBetterFallback(existing, candidate);
-    // Same priority tier — prefer more recent attempt
-    expect(result).toBe(candidate);
+    // leaked-thinking ranks higher than empty regardless of attempt order
+    expect(result).toBe(existing);
   });
 });
 
