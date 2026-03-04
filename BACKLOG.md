@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-03-03
-> **Version**: v3.0.0-beta.85
+> **Last Updated**: 2026-03-04
+> **Version**: v3.0.0-beta.86
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -13,7 +13,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-_Empty — all items triaged to Current Focus (2026-03-03)._
+_Empty (2026-03-04)._
 
 ---
 
@@ -21,7 +21,7 @@ _Empty — all items triaged to Current Focus (2026-03-03)._
 
 _New items go here. Triage to appropriate section weekly._
 
-_Empty — all items triaged (2026-03-03)._
+_Empty (2026-03-04)._
 
 ---
 
@@ -37,35 +37,9 @@ _Empty — pull next from Quick Wins or Active Epic._
 
 _Small tasks that can be done between major features. Good for momentum._
 
-### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
-
-GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty.
-
-**Fix options**: Allowlist known reasoning models, require both open+close tags, or fallback to thinking-as-content when visible content is empty.
-
-### 🏗️ Fix `getCrossChannelHistory` Integration Test State-Sharing
-
-The `getCrossChannelHistory` describe block in `ConversationHistoryService.int.test.ts` has tests that depend on accumulated DB state from prior `it()` blocks. Fix with unique IDs per test or `beforeEach` cleanup. While in the area: add `logger.debug` in `wrapCurrentChannel()` for no-environment fallback path, clarify `.strip()` doc comment on `ConfigOverridesSchema`.
-
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
-LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned just `"N"` (1 token, `finishReason: "unknown"`, 160s duration). The current retry system only handles HTTP errors, not content-quality failures.
-
-**Approach**: Compound scoring heuristic (multiple signals must converge to trigger retry):
-
-| Signal                                         | Weight      | Rationale                                                     |
-| ---------------------------------------------- | ----------- | ------------------------------------------------------------- |
-| `finishReason` is `"unknown"` or `"error"`     | +0.40/+0.50 | Strongest single signal — legit short responses have `"stop"` |
-| `completionTokens` ≤ 1 / ≤ 5                   | +0.30/+0.15 | Very low output for conversational context                    |
-| No stop sequence triggered + short response    | +0.20       | Model didn't complete its thought                             |
-| Extreme ms-per-token ratio (>10s/token)        | +0.20       | Model was stuck/spinning                                      |
-| Content empty or ≤ 2 chars after tag stripping | +0.30/+0.15 | Nothing meaningful generated                                  |
-
-Retry threshold: score ≥ 0.5. Max 1 content retry (these failures are slow). Return last response if retry also fails (bad response > no response; inspect UI already flags low tokens).
-
-**Integration point**: After successful HTTP response in the AI pipeline, before returning to user. Log all assessments for tuning.
-
-**Reference**: `debug/debug-compact-736e6c99-*.json` (the "N" response).
+LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned just `"N" (1 token, finishReason: "unknown"`, 160s duration). Needs compound scoring heuristic + timing data threading through RAGResponse. ~4-6hr feature, not a quick win — moved details to Logging & Error Observability theme.
 
 ---
 
@@ -73,7 +47,7 @@ Retry threshold: score ≥ 0.5. Max 1 content retry (these failures are slow). R
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 127 clones across PRs #599, #665, #666, #667, #668.
+**Progress**: 175 → 140 clones across PRs #599, #665, #666, #667, #668, #704.
 
 ### Completed
 
@@ -107,7 +81,8 @@ Subcommand routing, browse/pagination, custom IDs, and command-specific duplicat
 - [ ] Consolidate subcommand routers — parameterized router with context-type generic (3 clones)
 - [ ] Migrate browse consumers to `browse/` utilities, delete `paginationBuilder.ts` (4 clones)
 - [ ] Servers command: use `createBrowseCustomIdHelpers` instead of inline parsing (4 clones)
-- [ ] Extract memory command shared helpers — `formatMemoryLine`, detail action handler (4 clones)
+- [x] Extract memory command detail action handler — `handleMemoryDetailAction` shared router (PR #704)
+- [ ] Extract memory command shared helpers — `formatMemoryLine` (remaining clones)
 
 ### Phase 7: Cross-Service & Common-Types (~15 clones)
 
@@ -132,7 +107,7 @@ Smaller wins in ai-worker internal patterns and tooling utilities.
 
 Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
 
-**Target**: <100 clones or <1.5%. Currently 127 clones.
+**Target**: <100 clones or <1.5%. Currently 140 clones.
 
 ---
 
@@ -458,6 +433,16 @@ During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorOb
 - [ ] Review `determineErrorType()` in `logger.ts` checking `constructor.name`
 - [ ] Codebase-wide scan for `{ err: ... }` patterns that produce useless output
 - [ ] Goal: every `{ err: ... }` log shows message + stack, never `raw: "{}"`
+
+#### 🐛 Inadequate LLM Response Detection
+
+Compound scoring heuristic to detect garbage 200 OK responses (e.g., glm-5 returned just `"N"`, 1 token, `finishReason: "unknown"`, 160s). All signals already collected by `DiagnosticCollector` but timing data needs threading through `RAGResponse`. Integrates into PR #702's retry loop via `FallbackResponse` ranking.
+
+**Signals**: `finishReason` unknown/error (+0.4), `completionTokens` ≤1/≤5 (+0.3/+0.15), no stop sequence + short (+0.2), extreme ms-per-token (+0.2), empty content (+0.3). Threshold: ≥0.5. Max 1 content retry.
+
+**Files**: `ConversationalRAGTypes.ts` (add timing field), `ConversationalRAGService.ts` (thread timing), `RetryDecisionHelper.ts` or new scorer, `GenerationStep.ts` (call scorer), tests.
+
+**Reference**: `debug/debug-compact-736e6c99-*.json`
 
 #### 🏗️ Per-Attempt Diagnostic Tracking in Retry Loop
 
