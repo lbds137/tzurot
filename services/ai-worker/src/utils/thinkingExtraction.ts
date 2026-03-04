@@ -213,10 +213,16 @@ function cleanupVisibleContent(content: string): string {
   result = result.replace(HARMONY_TOKEN_PATTERN, '');
 
   // Clean whitespace
-  return result
+  result = result
     .replace(/^\s+/, '') // Leading whitespace
     .replace(/\s+$/, '') // Trailing whitespace
     .replace(/\n{3,}/g, '\n\n'); // Multiple blank lines to double
+
+  // Strip leading stray punctuation left after truncated thinking extraction
+  // (e.g., visible content starts with "., " or ", " after an unclosed tag was removed)
+  result = result.replace(/^[.,;]+\s*/, '');
+
+  return result;
 }
 
 /**

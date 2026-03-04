@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ResponsePostProcessor } from './ResponsePostProcessor.js';
+import { ResponsePostProcessor, looksLikeLeakedThinking } from './ResponsePostProcessor.js';
 import type { ReferencedMessage } from '@tzurot/common-types';
 
 // Use vi.hoisted() to create mocks that persist across test resets
@@ -174,6 +174,7 @@ describe('ResponsePostProcessor', () => {
       expect(result.cleanedContent).toBe('final content');
       expect(result.thinkingContent).toBeNull();
       expect(result.wasDeduplicated).toBe(false);
+      expect(result.onlyThinkingProduced).toBe(false);
 
       // Verify order of operations
       expect(mockRemoveDuplicateResponse).toHaveBeenCalledWith('raw content');
@@ -246,6 +247,121 @@ describe('ResponsePostProcessor', () => {
 
       expect(result.thinkingContent).toBe('API level\n\n---\n\nInline');
       expect(result.cleanedContent).toBe('Response');
+    });
+  });
+
+  describe('looksLikeLeakedThinking', () => {
+    it('should detect analytical content without dialogue', () => {
+      const content = `The user is asking about their day.
+I should consider the character voice carefully.
+Key elements: maintain the persona's tone.
+Check against constraints: no breaking character.`;
+
+      expect(looksLikeLeakedThinking(content)).toBe(true);
+    });
+
+    it('should NOT flag content with dialogue markers (quotes)', () => {
+      const content = `"Hello there!" she said with a warm smile.
+The user seems curious about the weather.
+I should keep the conversation light.`;
+
+      expect(looksLikeLeakedThinking(content)).toBe(false);
+    });
+
+    it('should NOT flag content with roleplay asterisks', () => {
+      const content = `*waves enthusiastically*
+The user seems curious.
+I need to maintain character.`;
+
+      expect(looksLikeLeakedThinking(content)).toBe(false);
+    });
+
+    it('should NOT flag content with only one analytical marker', () => {
+      const content = `The user is asking about something interesting.
+This is a normal response with some analysis but mostly narrative content.`;
+
+      expect(looksLikeLeakedThinking(content)).toBe(false);
+    });
+
+    it('should NOT flag normal conversational content', () => {
+      expect(looksLikeLeakedThinking('Hey, how are you doing today?')).toBe(false);
+      expect(looksLikeLeakedThinking('The weather is quite nice outside.')).toBe(false);
+    });
+  });
+
+  describe('processResponse glitch detection', () => {
+    const reasoningContext = {
+      personalityName: 'TestBot',
+      userName: 'TestUser',
+      reasoningEnabled: true,
+    };
+
+    it('should set onlyThinkingProduced when leaked thinking is detected', () => {
+      const leakedContent = `The user is asking about their day.
+I should maintain character voice.
+Key elements: stay in persona.
+Check against constraints: avoid breaking character.`;
+
+      mockRemoveDuplicateResponse.mockReturnValue(leakedContent);
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: null,
+        visibleContent: leakedContent,
+      });
+      mockMergeThinkingContent.mockReturnValue(null);
+      mockStripResponseArtifacts.mockReturnValue(leakedContent);
+      mockReplacePromptPlaceholders.mockReturnValue(leakedContent);
+
+      const result = processor.processResponse(
+        leakedContent,
+        undefined,
+        undefined,
+        reasoningContext
+      );
+
+      expect(result.onlyThinkingProduced).toBe(true);
+    });
+
+    it('should NOT set onlyThinkingProduced when reasoning is not enabled', () => {
+      const leakedContent = `The user is asking about their day.
+I should maintain character voice.
+Key elements: stay in persona.`;
+
+      mockRemoveDuplicateResponse.mockReturnValue(leakedContent);
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: null,
+        visibleContent: leakedContent,
+      });
+      mockMergeThinkingContent.mockReturnValue(null);
+      mockStripResponseArtifacts.mockReturnValue(leakedContent);
+      mockReplacePromptPlaceholders.mockReturnValue(leakedContent);
+
+      const result = processor.processResponse(leakedContent, undefined, undefined, {
+        personalityName: 'TestBot',
+        userName: 'TestUser',
+        // reasoningEnabled not set
+      });
+
+      expect(result.onlyThinkingProduced).toBe(false);
+    });
+
+    it('should NOT set onlyThinkingProduced when thinking was properly extracted', () => {
+      mockRemoveDuplicateResponse.mockReturnValue('<think>analysis</think>Normal response');
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: 'analysis',
+        visibleContent: 'Normal response',
+      });
+      mockMergeThinkingContent.mockReturnValue('analysis');
+      mockStripResponseArtifacts.mockReturnValue('Normal response');
+      mockReplacePromptPlaceholders.mockReturnValue('Normal response');
+
+      const result = processor.processResponse(
+        '<think>analysis</think>Normal response',
+        undefined,
+        undefined,
+        reasoningContext
+      );
+
+      expect(result.onlyThinkingProduced).toBe(false);
     });
   });
 

@@ -61,6 +61,7 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     cacheVal(modelConfig.reasoning?.exclude),
     cacheVal(modelConfig.reasoning?.effort),
     cacheVal(modelConfig.reasoning?.maxTokens),
+    cacheVal(modelConfig.supportsReasoning),
     // OpenRouter
     cacheArr(modelConfig.transforms),
     cacheVal(modelConfig.route),

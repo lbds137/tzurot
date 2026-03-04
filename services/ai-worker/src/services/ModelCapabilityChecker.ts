@@ -24,10 +24,112 @@ const logger = createLogger('ModelCapabilityChecker');
  */
 interface CachedCapabilities {
   supportsVision: boolean;
+  supportsReasoning: boolean;
   timestamp: number;
 }
 
 const capabilityCache = new Map<string, CachedCapabilities>();
+
+/** Normalize model ID for cache key (strip :free suffix) */
+function normalizeModelId(modelId: string): string {
+  return modelId.replace(/:free$/, '');
+}
+
+/**
+ * Resolve model capabilities from Redis cache, returning null on miss/error.
+ * Shared between vision and reasoning checks to avoid duplicate Redis reads.
+ */
+async function resolveFromRedis(
+  modelId: string,
+  normalizedId: string,
+  redis: Redis
+): Promise<CachedCapabilities | null> {
+  try {
+    const modelsJson = await redis.get(REDIS_KEY_PREFIXES.OPENROUTER_MODELS);
+    if (modelsJson === null || modelsJson === '') {
+      return null;
+    }
+
+    let models: OpenRouterModel[];
+    try {
+      models = JSON.parse(modelsJson) as OpenRouterModel[];
+    } catch (parseError) {
+      logger.warn(
+        { err: parseError, modelId },
+        '[ModelCapabilityChecker] Failed to parse Redis cache data, using fallback'
+      );
+      return null;
+    }
+
+    const model = models.find(m => m.id === normalizedId || m.id === modelId);
+    if (!model) {
+      return null;
+    }
+
+    const capabilities: CachedCapabilities = {
+      supportsVision: model.architecture.input_modalities.includes('image'),
+      supportsReasoning: model.supported_parameters.includes('reasoning'),
+      timestamp: Date.now(),
+    };
+
+    capabilityCache.set(normalizedId, capabilities);
+    logger.debug(
+      {
+        modelId,
+        supportsVision: capabilities.supportsVision,
+        supportsReasoning: capabilities.supportsReasoning,
+        source: 'redis-cache',
+      },
+      '[ModelCapabilityChecker] Resolved capabilities from cache'
+    );
+    return capabilities;
+  } catch (error) {
+    logger.warn(
+      { err: error, modelId },
+      '[ModelCapabilityChecker] Failed to read from Redis, using fallback'
+    );
+    return null;
+  }
+}
+
+/**
+ * Get cached capabilities or resolve from Redis + fallback.
+ * Returns the full capabilities object (vision + reasoning).
+ */
+async function getCapabilities(modelId: string, redis: Redis): Promise<CachedCapabilities> {
+  const normalizedId = normalizeModelId(modelId);
+
+  // Check in-memory cache first
+  const cached = capabilityCache.get(normalizedId);
+  if (cached && Date.now() - cached.timestamp < AI_DEFAULTS.MODEL_CAPABILITY_CACHE_TTL_MS) {
+    return cached;
+  }
+
+  // Try Redis
+  const fromRedis = await resolveFromRedis(modelId, normalizedId, redis);
+  if (fromRedis !== null) {
+    return fromRedis;
+  }
+
+  // Fallback to pattern matching
+  const capabilities: CachedCapabilities = {
+    supportsVision: hasVisionSupportFallback(modelId),
+    supportsReasoning: hasReasoningSupportFallback(modelId),
+    timestamp: Date.now(),
+  };
+
+  capabilityCache.set(normalizedId, capabilities);
+  logger.debug(
+    {
+      modelId,
+      supportsVision: capabilities.supportsVision,
+      supportsReasoning: capabilities.supportsReasoning,
+      source: 'pattern-fallback',
+    },
+    '[ModelCapabilityChecker] Using pattern matching fallback'
+  );
+  return capabilities;
+}
 
 /**
  * Check if a model supports vision input using OpenRouter's model data
@@ -48,60 +150,34 @@ const capabilityCache = new Map<string, CachedCapabilities>();
  * @returns true if the model supports image input
  */
 export async function modelSupportsVision(modelId: string, redis: Redis): Promise<boolean> {
-  // Normalize model ID for cache key (strip :free suffix since OpenRouter stores without it)
-  const normalizedId = modelId.replace(/:free$/, '');
-
-  // Check in-memory cache first
-  const cached = capabilityCache.get(normalizedId);
-  if (cached && Date.now() - cached.timestamp < AI_DEFAULTS.MODEL_CAPABILITY_CACHE_TTL_MS) {
-    return cached.supportsVision;
-  }
-
-  // Try to get from Redis cache
-  try {
-    const modelsJson = await redis.get(REDIS_KEY_PREFIXES.OPENROUTER_MODELS);
-    if (modelsJson !== null && modelsJson !== '') {
-      // Parse JSON separately for clearer error logging
-      let models: OpenRouterModel[];
-      try {
-        models = JSON.parse(modelsJson) as OpenRouterModel[];
-      } catch (parseError) {
-        logger.warn(
-          { err: parseError, modelId },
-          '[ModelCapabilityChecker] Failed to parse Redis cache data, using fallback'
-        );
-        // Fall through to pattern matching
-        models = [];
-      }
-
-      const model = models.find(m => m.id === normalizedId || m.id === modelId);
-
-      if (model) {
-        const supportsVision = model.architecture.input_modalities.includes('image');
-        capabilityCache.set(normalizedId, { supportsVision, timestamp: Date.now() });
-        logger.debug(
-          { modelId, supportsVision, source: 'redis-cache' },
-          '[ModelCapabilityChecker] Resolved vision capability from cache'
-        );
-        return supportsVision;
-      }
-    }
-  } catch (error) {
-    logger.warn(
-      { err: error, modelId },
-      '[ModelCapabilityChecker] Failed to read from Redis, using fallback'
-    );
-  }
-
-  // Fallback to pattern matching for resilience
-  const supportsVision = hasVisionSupportFallback(modelId);
-  capabilityCache.set(normalizedId, { supportsVision, timestamp: Date.now() });
-  logger.debug(
-    { modelId, supportsVision, source: 'pattern-fallback' },
-    '[ModelCapabilityChecker] Using pattern matching fallback'
-  );
-  return supportsVision;
+  const capabilities = await getCapabilities(modelId, redis);
+  return capabilities.supportsVision;
 }
+
+/**
+ * Check if a model supports reasoning/thinking parameters using OpenRouter's model data
+ *
+ * Resolution order:
+ * 1. In-memory cache (5 min TTL)
+ * 2. Redis cache (populated by api-gateway) — checks `supported_parameters.includes('reasoning')`
+ * 3. Fallback to pattern matching for known reasoning-capable models
+ *
+ * This is a **capability gate** to prevent sending reasoning params to models that
+ * don't support them at all. Models that intermittently glitch (producing raw
+ * chain-of-thought) are handled separately by the glitch detection in ResponsePostProcessor.
+ *
+ * @param modelId - The model ID to check
+ * @param redis - Redis client instance
+ * @returns true if the model supports reasoning parameters
+ */
+export async function modelSupportsReasoning(modelId: string, redis: Redis): Promise<boolean> {
+  const capabilities = await getCapabilities(modelId, redis);
+  return capabilities.supportsReasoning;
+}
+
+// ===================================
+// Vision fallback patterns
+// ===================================
 
 /**
  * Vision model patterns for fallback detection
@@ -113,35 +189,84 @@ const VISION_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
   // Anthropic Claude 3+ models
   { required: 'claude-3' },
   { required: 'claude-4' },
-  // Google Gemini models (gemini + 1.5/2./vision)
-  { required: 'gemini', additional: ['1.5', '2.', 'vision'] },
+  // Google Gemini models (gemini + 1.5/2./2-/vision)
+  { required: 'gemini', additional: ['1.5', '2.', '2-', 'vision'] },
   // Google Gemma 3 models
   { required: 'gemma-3' },
   { required: 'gemma3' },
   // Llama vision models
   { required: 'llama', additional: ['vision'] },
-  // Qwen VL models
+  // Qwen VL and Qwen 3+ models (natively multimodal without "vl" in ID)
   { required: 'qwen', additional: ['vl', 'vision'] },
+  { required: 'qwen3' },
+  { required: 'qwen-3' },
+  // Mistral vision models
+  { required: 'pixtral' },
+  // InternVL models
+  { required: 'internvl' },
 ];
+
+/** Check patterns against a normalized model name */
+function matchesPatterns(
+  normalized: string,
+  patterns: { required: string; additional?: string[] }[]
+): boolean {
+  return patterns.some(pattern => {
+    if (!normalized.includes(pattern.required)) {
+      return false;
+    }
+    if (!pattern.additional) {
+      return true;
+    }
+    return pattern.additional.some(term => normalized.includes(term));
+  });
+}
 
 /**
  * Fallback pattern matching for vision support detection
  * Used when Redis cache is unavailable
  */
 function hasVisionSupportFallback(modelName: string): boolean {
-  const normalized = modelName.toLowerCase();
+  return matchesPatterns(modelName.toLowerCase(), VISION_MODEL_PATTERNS);
+}
 
-  return VISION_MODEL_PATTERNS.some(pattern => {
-    if (!normalized.includes(pattern.required)) {
-      return false;
-    }
-    // If no additional terms required, the required term is sufficient
-    if (!pattern.additional) {
-      return true;
-    }
-    // At least one additional term must match
-    return pattern.additional.some(term => normalized.includes(term));
-  });
+// ===================================
+// Reasoning fallback patterns
+// ===================================
+
+/**
+ * Reasoning model patterns for fallback detection.
+ * Used when Redis cache is unavailable.
+ * Conservative: only includes models confirmed to support `reasoning` parameter.
+ */
+const REASONING_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
+  // Dedicated reasoning models (DeepSeek R1)
+  { required: 'deepseek-r1' },
+  { required: 'deepseek-reasoner' },
+  // Qwen QwQ (reasoning)
+  { required: 'qwq' },
+  // OpenAI reasoning models
+  { required: 'o1' },
+  { required: 'o3' },
+  { required: 'o4' },
+  // Anthropic Claude 3.5+ (supports reasoning parameter)
+  { required: 'claude-3.5' },
+  { required: 'claude-4' },
+  // Google Gemini 1.5+/2+
+  { required: 'gemini', additional: ['2.', '2-', '1.5'] },
+  // Kimi K2 (confirmed reasoning-capable)
+  { required: 'kimi-k2' },
+  // GLM 4+/5 (Z.AI, confirmed reasoning-capable)
+  { required: 'glm-4' },
+  { required: 'glm-5' },
+];
+
+/**
+ * Fallback pattern matching for reasoning support detection
+ * Used when Redis cache is unavailable
+ */
+function hasReasoningSupportFallback(modelName: string): boolean {
+  return matchesPatterns(modelName.toLowerCase(), REASONING_MODEL_PATTERNS);
 }
 
 /**
