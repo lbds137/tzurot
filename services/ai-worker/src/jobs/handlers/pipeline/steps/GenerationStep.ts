@@ -86,7 +86,7 @@ export class GenerationStep implements IPipelineStep {
    * - Empty content after post-processing (e.g., model produced only thinking blocks)
    * - Duplicate responses matching recent assistant messages (up to 5)
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity, max-lines-per-function -- single cohesive retry loop; extracting sub-steps would scatter the state machine across files
+  // eslint-disable-next-line sonarjs/cognitive-complexity, max-lines-per-function, max-statements -- single cohesive retry loop; extracting sub-steps would scatter the state machine across files
   private async generateWithDuplicateRetry(opts: {
     personality: Parameters<ConversationalRAGService['generateResponse']>[0];
     message: MessageContent;
@@ -189,12 +189,24 @@ export class GenerationStep implements IPipelineStep {
         return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
       }
 
-      // Leaked chain-of-thought (reasoning glitch) — retry once with fallback
-      if (response.onlyThinkingProduced === true && attempt < maxAttempts) {
+      // Leaked chain-of-thought (reasoning glitch) — retry with fallback
+      if (response.onlyThinkingProduced === true) {
         leakedThinkingRetries++;
-        logger.warn({ jobId, attempt }, '[GenerationStep] Leaked chain-of-thought — retrying');
-        fallback = selectBetterFallback(fallback, { response, reason: 'leaked-thinking', attempt });
-        continue;
+        if (attempt < maxAttempts) {
+          logger.warn({ jobId, attempt }, '[GenerationStep] Leaked chain-of-thought — retrying');
+          fallback = selectBetterFallback(fallback, {
+            response,
+            reason: 'leaked-thinking',
+            attempt,
+          });
+          continue;
+        }
+        // Final attempt also leaked — log for flight recorder, then fall through
+        // to duplicate check. Bad response > no response.
+        logger.error(
+          { jobId, attempt, contentLength: response.content.length },
+          '[GenerationStep] All attempts produced leaked chain-of-thought'
+        );
       }
       // Check for duplicate responses (async: includes semantic embedding layer)
       const { isDuplicate, matchIndex } = await isRecentDuplicateAsync(
