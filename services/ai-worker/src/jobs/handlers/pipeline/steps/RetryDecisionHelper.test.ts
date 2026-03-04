@@ -274,11 +274,29 @@ describe('logRetryEscalation', () => {
 
 describe('logRetrySuccess', () => {
   it('should not throw when called with valid args', () => {
-    expect(() => logRetrySuccess('job-1', 'test-model', 2, 1, 0)).not.toThrow();
+    expect(() =>
+      logRetrySuccess({
+        jobId: 'job-1',
+        modelUsed: 'test-model',
+        attempt: 2,
+        duplicateRetries: 1,
+        emptyRetries: 0,
+        leakedThinkingRetries: 0,
+      })
+    ).not.toThrow();
   });
 
   it('should not throw with undefined jobId and modelUsed', () => {
-    expect(() => logRetrySuccess(undefined, undefined, 3, 2, 1)).not.toThrow();
+    expect(() =>
+      logRetrySuccess({
+        jobId: undefined,
+        modelUsed: undefined,
+        attempt: 3,
+        duplicateRetries: 2,
+        emptyRetries: 1,
+        leakedThinkingRetries: 0,
+      })
+    ).not.toThrow();
   });
 });
 

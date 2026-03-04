@@ -97,7 +97,12 @@ export class GenerationStep implements IPipelineStep {
     jobId: string | undefined;
     diagnosticCollector?: DiagnosticCollector;
     configOverrides?: ResolvedConfigOverrides;
-  }): Promise<{ response: RAGResponse; duplicateRetries: number; emptyRetries: number }> {
+  }): Promise<{
+    response: RAGResponse;
+    duplicateRetries: number;
+    emptyRetries: number;
+    leakedThinkingRetries: number;
+  }> {
     const {
       personality,
       message,
@@ -112,6 +117,7 @@ export class GenerationStep implements IPipelineStep {
 
     let duplicateRetries = 0;
     let emptyRetries = 0;
+    let leakedThinkingRetries = 0;
     let preservedThinking: string | undefined;
     let fallback: FallbackResponse | undefined;
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
@@ -156,6 +162,7 @@ export class GenerationStep implements IPipelineStep {
             response: fallback.response,
             duplicateRetries,
             emptyRetries,
+            leakedThinkingRetries,
           };
         }
         // No fallback available - rethrow to preserve existing error behavior
@@ -179,11 +186,12 @@ export class GenerationStep implements IPipelineStep {
       if (emptyAction === 'return') {
         emptyRetries++;
         this.restoreThinking(response, preservedThinking);
-        return { response, duplicateRetries, emptyRetries };
+        return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
       }
 
       // Leaked chain-of-thought (reasoning glitch) — retry once with fallback
       if (response.onlyThinkingProduced === true && attempt < maxAttempts) {
+        leakedThinkingRetries++;
         logger.warn({ jobId, attempt }, '[GenerationStep] Leaked chain-of-thought — retrying');
         fallback = selectBetterFallback(fallback, { response, reason: 'leaked-thinking', attempt });
         continue;
@@ -196,11 +204,18 @@ export class GenerationStep implements IPipelineStep {
       );
 
       if (!isDuplicate) {
-        if (duplicateRetries > 0 || emptyRetries > 0) {
-          logRetrySuccess(jobId, response.modelUsed, attempt, duplicateRetries, emptyRetries);
+        if (duplicateRetries > 0 || emptyRetries > 0 || leakedThinkingRetries > 0) {
+          logRetrySuccess({
+            jobId,
+            modelUsed: response.modelUsed,
+            attempt,
+            duplicateRetries,
+            emptyRetries,
+            leakedThinkingRetries,
+          });
         }
         this.restoreThinking(response, preservedThinking);
-        return { response, duplicateRetries, emptyRetries };
+        return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
       }
 
       // Duplicate detected - log and determine action
@@ -216,7 +231,7 @@ export class GenerationStep implements IPipelineStep {
       });
       if (dupAction === 'return') {
         this.restoreThinking(response, preservedThinking);
-        return { response, duplicateRetries, emptyRetries };
+        return { response, duplicateRetries, emptyRetries, leakedThinkingRetries };
       }
     }
 
@@ -284,17 +299,18 @@ export class GenerationStep implements IPipelineStep {
       });
 
       // Generate response with automatic retry on empty content and cross-turn duplication
-      const { response, duplicateRetries, emptyRetries } = await this.generateWithDuplicateRetry({
-        personality: effectivePersonality,
-        message: message as MessageContent,
-        conversationContext,
-        recentAssistantMessages,
-        apiKey,
-        isGuestMode,
-        jobId: job.id,
-        diagnosticCollector,
-        configOverrides: context.configOverrides,
-      });
+      const { response, duplicateRetries, emptyRetries, leakedThinkingRetries } =
+        await this.generateWithDuplicateRetry({
+          personality: effectivePersonality,
+          message: message as MessageContent,
+          conversationContext,
+          recentAssistantMessages,
+          apiKey,
+          isGuestMode,
+          jobId: job.id,
+          diagnosticCollector,
+          configOverrides: context.configOverrides,
+        });
 
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the
@@ -310,7 +326,7 @@ export class GenerationStep implements IPipelineStep {
           );
         } catch (error) {
           logger.error(
-            { jobId: job.id, error },
+            { jobId: job.id, err: error },
             '[GenerationStep] Failed to store deferred memory - continuing without memory storage'
           );
         }
@@ -318,7 +334,7 @@ export class GenerationStep implements IPipelineStep {
 
       const processingTimeMs = Date.now() - startTime;
       logger.info(
-        { jobId: job.id, processingTimeMs, duplicateRetries, emptyRetries },
+        { jobId: job.id, processingTimeMs, duplicateRetries, emptyRetries, leakedThinkingRetries },
         '[GenerationStep] Generation completed'
       );
 
