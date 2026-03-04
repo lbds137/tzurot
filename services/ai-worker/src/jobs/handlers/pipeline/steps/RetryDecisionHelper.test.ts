@@ -172,7 +172,7 @@ describe('logDuplicateDetection', () => {
 
 describe('selectBetterFallback', () => {
   function createFallback(
-    reason: 'empty' | 'duplicate',
+    reason: 'empty' | 'duplicate' | 'leaked-thinking',
     attempt: number,
     content = 'fallback content'
   ): FallbackResponse {
@@ -213,6 +213,27 @@ describe('selectBetterFallback', () => {
   it('should prefer later attempt when same reason (both empty)', () => {
     const existing = createFallback('empty', 1);
     const candidate = createFallback('empty', 2);
+    const result = selectBetterFallback(existing, candidate);
+    expect(result).toBe(candidate);
+  });
+
+  it('should prefer duplicate over leaked-thinking', () => {
+    const existing = createFallback('duplicate', 1, 'Real in-character content');
+    const candidate = createFallback('leaked-thinking', 2, 'The user wants...');
+    const result = selectBetterFallback(existing, candidate);
+    expect(result).toBe(existing);
+  });
+
+  it('should upgrade from leaked-thinking to duplicate', () => {
+    const existing = createFallback('leaked-thinking', 1, 'The user wants...');
+    const candidate = createFallback('duplicate', 2, 'Duplicate content');
+    const result = selectBetterFallback(existing, candidate);
+    expect(result).toBe(candidate);
+  });
+
+  it('should prefer later attempt when both leaked-thinking', () => {
+    const existing = createFallback('leaked-thinking', 1);
+    const candidate = createFallback('leaked-thinking', 2);
     const result = selectBetterFallback(existing, candidate);
     expect(result).toBe(candidate);
   });
