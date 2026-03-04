@@ -20,20 +20,8 @@ import {
   calculatePagination,
   type PaginationConfig,
 } from '../../utils/paginationBuilder.js';
-import {
-  buildMemorySelectMenu,
-  handleMemorySelect,
-  parseMemoryActionId,
-  handleLockButton,
-  handleDeleteButton,
-  handleDeleteConfirm,
-  handleViewFullButton,
-} from './detail.js';
-import {
-  handleEditButton,
-  handleEditTruncatedButton,
-  handleCancelEditButton,
-} from './detailModals.js';
+import { buildMemorySelectMenu, handleMemorySelect } from './detail.js';
+import { handleMemoryDetailAction } from './detailActionRouter.js';
 import type { MemoryItem, ListContext } from './detailApi.js';
 import { truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
 import {
@@ -206,67 +194,15 @@ async function handleBrowseButton(
 }
 
 /**
- * Handle detail action buttons within the collector
+ * Handle detail action buttons within the collector.
+ * Delegates to the shared router with refreshList as the callback.
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Switch over memory action types (view, delete, confirm, cancel) with per-action API calls and UI updates
 async function handleDetailAction(
   buttonInteraction: ButtonInteraction,
   _context: BrowseCollectorContext,
   refreshList: () => Promise<void>
 ): Promise<boolean> {
-  const parsed = parseMemoryActionId(buttonInteraction.customId);
-  if (parsed === null) {
-    return false;
-  }
-
-  const { action, memoryId } = parsed;
-
-  switch (action) {
-    case 'edit':
-      if (memoryId !== undefined) {
-        await handleEditButton(buttonInteraction, memoryId);
-      }
-      return true;
-    case 'edit-truncated':
-      if (memoryId !== undefined) {
-        await handleEditTruncatedButton(buttonInteraction, memoryId);
-      }
-      return true;
-    case 'cancel-edit':
-      await handleCancelEditButton(buttonInteraction);
-      return true;
-    case 'lock':
-      if (memoryId !== undefined) {
-        await handleLockButton(buttonInteraction, memoryId);
-      }
-      return true;
-    case 'delete':
-      if (memoryId !== undefined) {
-        await handleDeleteButton(buttonInteraction, memoryId);
-      }
-      return true;
-    case 'confirm-delete':
-      if (memoryId !== undefined) {
-        const success = await handleDeleteConfirm(buttonInteraction, memoryId);
-        if (success) {
-          // Refresh the list after deletion
-          await refreshList();
-        }
-      }
-      return true;
-    case 'view-full':
-      if (memoryId !== undefined) {
-        await handleViewFullButton(buttonInteraction, memoryId);
-      }
-      return true;
-    case 'back':
-      // Return to list view
-      await buttonInteraction.deferUpdate();
-      await refreshList();
-      return true;
-    default:
-      return false;
-  }
+  return handleMemoryDetailAction(buttonInteraction, refreshList);
 }
 
 /**
