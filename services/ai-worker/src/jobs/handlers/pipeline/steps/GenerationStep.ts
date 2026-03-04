@@ -86,7 +86,7 @@ export class GenerationStep implements IPipelineStep {
    * - Empty content after post-processing (e.g., model produced only thinking blocks)
    * - Duplicate responses matching recent assistant messages (up to 5)
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- retry loop with thinking preservation across multiple exit paths
+  // eslint-disable-next-line sonarjs/cognitive-complexity, max-lines-per-function -- retry loop with thinking preservation across multiple exit paths
   private async generateWithDuplicateRetry(opts: {
     personality: Parameters<ConversationalRAGService['generateResponse']>[0];
     message: MessageContent;
@@ -109,9 +109,10 @@ export class GenerationStep implements IPipelineStep {
       diagnosticCollector,
     } = opts;
 
-    let duplicateRetries = 0,
-      emptyRetries = 0;
-    let preservedThinking: string | undefined, fallback: FallbackResponse | undefined;
+    let duplicateRetries = 0;
+    let emptyRetries = 0;
+    let preservedThinking: string | undefined;
+    let fallback: FallbackResponse | undefined;
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -183,7 +184,7 @@ export class GenerationStep implements IPipelineStep {
       // Leaked chain-of-thought (reasoning glitch) — retry once with fallback
       if (response.onlyThinkingProduced === true && attempt < maxAttempts) {
         logger.warn({ jobId, attempt }, '[GenerationStep] Leaked chain-of-thought — retrying');
-        fallback = selectBetterFallback(fallback, { response, reason: 'empty', attempt });
+        fallback = selectBetterFallback(fallback, { response, reason: 'leaked-thinking', attempt });
         continue;
       }
       // Check for duplicate responses (async: includes semantic embedding layer)

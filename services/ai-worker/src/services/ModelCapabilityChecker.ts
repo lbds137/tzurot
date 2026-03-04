@@ -237,28 +237,38 @@ function hasVisionSupportFallback(modelName: string): boolean {
 /**
  * Reasoning model patterns for fallback detection.
  * Used when Redis cache is unavailable.
- * Conservative: only includes models confirmed to support `reasoning` parameter.
+ *
+ * Based on OpenRouter /api/v1/models `supported_parameters` data (March 2026).
+ * These are conservative fallbacks — a false positive sends reasoning params
+ * to a model that rejects them at the API level (recoverable), not data corruption.
  */
 const REASONING_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
-  // Dedicated reasoning models (DeepSeek R1)
+  // DeepSeek R1 + V3 series (reasoning-capable per OpenRouter)
   { required: 'deepseek-r1' },
   { required: 'deepseek-reasoner' },
-  // Qwen QwQ (reasoning)
+  { required: 'deepseek-v3' },
+  { required: 'deepseek-chat-v3' },
+  // Qwen QwQ (dedicated reasoning) + Qwen 3+ (all support reasoning)
   { required: 'qwq' },
-  // OpenAI reasoning models
-  { required: 'o1' },
-  { required: 'o3' },
-  { required: 'o4' },
-  // Anthropic Claude 3.5+ (supports reasoning parameter)
-  { required: 'claude-3.5' },
-  { required: 'claude-4' },
-  // Google Gemini 1.5+/2+
-  { required: 'gemini', additional: ['2.', '2-', '1.5'] },
+  { required: 'qwen3' },
+  // OpenAI GPT-5 family + GPT-OSS
+  { required: 'gpt-5' },
+  { required: 'gpt-oss' },
+  // Anthropic Claude 3.7+ (model IDs: claude-3.7-sonnet, claude-sonnet-4.x, etc.)
+  { required: 'claude-3.7' },
+  { required: 'claude-sonnet-4' },
+  { required: 'claude-opus-4' },
+  { required: 'claude-haiku-4' },
+  // Google Gemini 1.5+ (2.x includes 2.0 and 2.5)
+  { required: 'gemini', additional: ['1.5', '2.', '2-', '3'] },
   // Kimi K2 (confirmed reasoning-capable)
   { required: 'kimi-k2' },
   // GLM 4+/5 (Z.AI, confirmed reasoning-capable)
   { required: 'glm-4' },
   { required: 'glm-5' },
+  // xAI Grok 3+ (reasoning-capable per OpenRouter)
+  { required: 'grok-3' },
+  { required: 'grok-4' },
 ];
 
 /**

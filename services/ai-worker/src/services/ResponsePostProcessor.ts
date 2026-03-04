@@ -68,6 +68,8 @@ const ANALYTICAL_MARKERS = [
  *
  * This is NOT a content modifier — it's a retry trigger. We don't try to extract
  * the thinking or modify the content, just signal the caller to retry.
+ *
+ * @internal Exported for testing only — not part of the stable API.
  */
 export function looksLikeLeakedThinking(content: string): boolean {
   // If the response has dialogue markers, it's probably real content
@@ -200,8 +202,9 @@ export class ResponsePostProcessor {
       looksLikeLeakedThinking(cleanedContent)
     ) {
       onlyThinkingProduced = true;
+      // contentLength only — full content appears in diagnostics collector
       logger.warn(
-        { contentLength: cleanedContent.length, contentPreview: cleanedContent.substring(0, 200) },
+        { contentLength: cleanedContent.length },
         '[ResponsePostProcessor] Detected leaked chain-of-thought — signaling retry'
       );
     }
