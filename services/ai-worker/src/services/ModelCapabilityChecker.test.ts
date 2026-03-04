@@ -275,21 +275,42 @@ describe('ModelCapabilityChecker', () => {
         expect(await modelSupportsReasoning('qwen/qwq-32b', mockRedis)).toBe(true);
       });
 
-      it('should detect OpenAI reasoning models', async () => {
-        expect(await modelSupportsReasoning('openai/o1-preview', mockRedis)).toBe(true);
-        expect(await modelSupportsReasoning('openai/o3-mini', mockRedis)).toBe(true);
-        expect(await modelSupportsReasoning('openai/o4-mini', mockRedis)).toBe(true);
+      it('should detect DeepSeek V3 reasoning models', async () => {
+        expect(await modelSupportsReasoning('deepseek/deepseek-v3.1', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('deepseek/deepseek-v3.2', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('deepseek/deepseek-chat-v3-0324', mockRedis)).toBe(
+          true
+        );
       });
 
-      it('should detect Claude 3.5/4 models', async () => {
-        expect(await modelSupportsReasoning('anthropic/claude-3.5-sonnet', mockRedis)).toBe(true);
-        expect(await modelSupportsReasoning('anthropic/claude-4-opus', mockRedis)).toBe(true);
+      it('should detect Qwen 3+ reasoning models', async () => {
+        expect(await modelSupportsReasoning('qwen/qwen3-235b-a22b', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('qwen/qwen3.5-397b-a17b', mockRedis)).toBe(true);
+      });
+
+      it('should detect OpenAI GPT-5 reasoning models', async () => {
+        expect(await modelSupportsReasoning('openai/gpt-5', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('openai/gpt-5-mini', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('openai/gpt-oss-120b', mockRedis)).toBe(true);
+      });
+
+      it('should detect Claude 3.7+ reasoning models', async () => {
+        expect(await modelSupportsReasoning('anthropic/claude-3.7-sonnet', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('anthropic/claude-sonnet-4.6', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('anthropic/claude-opus-4.1', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('anthropic/claude-haiku-4.5', mockRedis)).toBe(true);
       });
 
       it('should detect Gemini reasoning models', async () => {
+        expect(await modelSupportsReasoning('google/gemini-2.5-pro', mockRedis)).toBe(true);
         expect(await modelSupportsReasoning('google/gemini-2.0-flash', mockRedis)).toBe(true);
-        expect(await modelSupportsReasoning('google/gemini-2-flash', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('google/gemini-3-flash-preview', mockRedis)).toBe(true);
         expect(await modelSupportsReasoning('google/gemini-1.5-pro', mockRedis)).toBe(true);
+      });
+
+      it('should detect Grok reasoning models', async () => {
+        expect(await modelSupportsReasoning('x-ai/grok-3-mini', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('x-ai/grok-4', mockRedis)).toBe(true);
       });
 
       it('should detect Kimi K2 models', async () => {
@@ -306,6 +327,7 @@ describe('ModelCapabilityChecker', () => {
         expect(await modelSupportsReasoning('meta-llama/llama-3-70b', mockRedis)).toBe(false);
         expect(await modelSupportsReasoning('anthropic/claude-3-opus', mockRedis)).toBe(false);
         expect(await modelSupportsReasoning('qwen/qwen2.5-72b', mockRedis)).toBe(false);
+        expect(await modelSupportsReasoning('openai/gpt-4o', mockRedis)).toBe(false);
       });
     });
   });

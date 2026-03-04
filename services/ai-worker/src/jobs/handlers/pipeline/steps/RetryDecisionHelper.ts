@@ -16,13 +16,13 @@ type RetryAction = 'retry' | 'return' | 'continue';
 /** A rejected-but-valid response preserved as a fallback in case later attempts fail entirely */
 export interface FallbackResponse {
   response: RAGResponse;
-  reason: 'empty' | 'duplicate';
+  reason: 'empty' | 'duplicate' | 'leaked-thinking';
   attempt: number;
 }
 
 /**
  * Select the better fallback between existing and candidate.
- * Prefers 'duplicate' over 'empty' since duplicates have actual content.
+ * Prefers 'duplicate' over 'empty'/'leaked-thinking' since duplicates have actual in-character content.
  * Returns the candidate if no existing fallback, or the better of the two.
  */
 export function selectBetterFallback(
@@ -32,14 +32,14 @@ export function selectBetterFallback(
   if (existing === undefined) {
     return candidate;
   }
-  // Prefer duplicate over empty (duplicate has content the user can see)
-  if (existing.reason === 'duplicate' && candidate.reason === 'empty') {
+  // Prefer duplicate over empty/leaked-thinking (duplicate has real content)
+  if (existing.reason === 'duplicate' && candidate.reason !== 'duplicate') {
     return existing;
   }
-  if (existing.reason === 'empty' && candidate.reason === 'duplicate') {
+  if (candidate.reason === 'duplicate' && existing.reason !== 'duplicate') {
     return candidate;
   }
-  // Same reason: prefer the more recent attempt (later attempt had escalated params)
+  // Same priority: prefer the more recent attempt (later attempt had escalated params)
   return candidate;
 }
 
