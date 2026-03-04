@@ -219,8 +219,10 @@ function cleanupVisibleContent(content: string): string {
     .replace(/\n{3,}/g, '\n\n'); // Multiple blank lines to double
 
   // Strip leading stray punctuation left after truncated thinking extraction
-  // (e.g., visible content starts with "., " or ", " after an unclosed tag was removed)
-  result = result.replace(/^[.,;]+\s*/, '');
+  // (e.g., visible content starts with "., " or ", " after an unclosed tag was removed).
+  // Capped at 1-2 chars + required whitespace to avoid eating leading ellipsis
+  // in roleplay prose like "...she hesitated" (common dramatic pause convention).
+  result = result.replace(/^[.,;]{1,2}\s+/, '');
 
   return result;
 }
