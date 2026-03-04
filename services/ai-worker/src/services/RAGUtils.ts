@@ -87,17 +87,6 @@ export function buildAttachmentDescriptions(
 }
 
 /**
- * Generate stop sequences for LLM generation safety
- *
- * Only XML structure stops. Name-based stops (personality name,
- * participant names) were removed (PR #659) because:
- * 1. XML prompt format makes them redundant (turns enclosed in <message> tags)
- * 2. Reasoning models generate these substrings mid-chain-of-thought (false positives)
- * 3. Name stops truncate reasoning before the actual response begins
- *
- * Note: Google Gemini API limits stop sequences to 16 max if this ever grows.
- */
-/**
  * Build a map from Discord message ID to image descriptions
  *
  * This allows us to associate preprocessed image descriptions with their
