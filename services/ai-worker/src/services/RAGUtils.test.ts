@@ -8,7 +8,6 @@ import type { AttachmentMetadata, StoredReferencedMessage } from '@tzurot/common
 import {
   buildAttachmentDescriptions,
   extractContentDescriptions,
-  generateStopSequences,
   injectImageDescriptions,
   countMediaAttachments,
   enrichConversationHistory,
@@ -241,14 +240,6 @@ describe('RAGUtils', () => {
 
       const result = extractContentDescriptions(attachments);
       expect(result).toBe('');
-    });
-  });
-
-  describe('generateStopSequences', () => {
-    it('should return empty array (stop sequences removed — post-processing handles XML)', () => {
-      const result = generateStopSequences();
-
-      expect(result).toEqual([]);
     });
   });
 

@@ -1114,6 +1114,46 @@ describe('GenerationStep', () => {
       });
     });
 
+    describe('leaked chain-of-thought retry', () => {
+      it('should retry when onlyThinkingProduced is true', async () => {
+        const leakedResponse: RAGResponse = {
+          content:
+            'The user is asking about X.\nKey elements: tone, style.\nI should respond with Y.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          onlyThinkingProduced: true,
+        };
+        const goodResponse: RAGResponse = {
+          content: '*smiles* Here is a proper roleplay response.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          onlyThinkingProduced: false,
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(leakedResponse)
+          .mockResolvedValueOnce(goodResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe(goodResponse.content);
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+    });
+
     describe('fallback response on LLM failure', () => {
       const previousBotResponseForFallback =
         '*slow smile* I accept that victory graciously. Well played, my friend.';
