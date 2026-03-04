@@ -31,11 +31,10 @@ import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
 import {
   buildAttachmentDescriptions,
-  generateStopSequences,
   enrichConversationHistory,
   countMediaAttachments,
 } from './RAGUtils.js';
-import { redisService, visionDescriptionCache } from '../redis.js';
+import { redisService, visionDescriptionCache, checkModelReasoningSupport } from '../redis.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
@@ -174,6 +173,12 @@ export class ConversationalRAGService {
     // Build messages array
     const messages: BaseMessage[] = [systemPrompt, currentMessage];
 
+    // Check reasoning capability (async, cached with 5-min TTL)
+    const supportsReasoning =
+      personality.reasoning !== undefined
+        ? await checkModelReasoningSupport(personality.model)
+        : undefined;
+
     // Get model with all LLM sampling parameters (retry config overrides for duplicate detection)
     const { model, modelName } = this.llmInvoker.getModel({
       modelName: personality.model,
@@ -196,6 +201,7 @@ export class ConversationalRAGService {
       showThinking: personality.showThinking,
       // Reasoning (for thinking models: o1/o3, Claude, DeepSeek R1)
       reasoning: personality.reasoning,
+      supportsReasoning,
       // OpenRouter-specific
       transforms: personality.transforms,
       route: personality.route,
@@ -204,9 +210,6 @@ export class ConversationalRAGService {
 
     // Calculate attachment counts for timeout
     const { imageCount, audioCount } = countMediaAttachments(context.attachments);
-
-    // Generate stop sequences
-    const stopSequences = generateStopSequences();
 
     // Record assembled prompt and LLM config for diagnostics
     if (diagnosticCollector) {
@@ -222,7 +225,7 @@ export class ConversationalRAGService {
         effectiveTemperature: retryConfig?.temperatureOverride ?? personality.temperature,
         effectiveFrequencyPenalty:
           retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
-        stopSequences,
+        stopSequences: [], // Disabled — post-processing handles XML artifacts
       });
       diagnosticCollector.markLlmInvocationStart();
     }
@@ -234,7 +237,6 @@ export class ConversationalRAGService {
       modelName,
       imageCount,
       audioCount,
-      stopSequences,
     });
 
     const rawContent = response.content as string;
@@ -245,13 +247,7 @@ export class ConversationalRAGService {
 
     // Record LLM response for diagnostics
     if (diagnosticCollector) {
-      recordLlmResponseDiagnostic(
-        diagnosticCollector,
-        rawContent,
-        modelName,
-        metadata,
-        stopSequences
-      );
+      recordLlmResponseDiagnostic(diagnosticCollector, rawContent, modelName, metadata);
     }
 
     // Process response: deduplicate, extract reasoning, strip artifacts, replace placeholders

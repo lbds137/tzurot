@@ -264,8 +264,8 @@ async function selectVisionModel(
   const mainModelHasVision = await hasVisionSupport(personality.model);
   if (mainModelHasVision) {
     logger.info(
-      { model: personality.model },
-      'Using main LLM for vision (native vision support detected)'
+      { model: personality.model, source: 'main-model-vision' },
+      'Using main LLM for vision (native vision support detected via cache/pattern)'
     );
     return personality.model;
   }
@@ -274,7 +274,7 @@ async function selectVisionModel(
   // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
   const fallback = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
   logger.info(
-    { mainModel: personality.model, fallbackModel: fallback, isGuestMode },
+    { mainModel: personality.model, fallbackModel: fallback, isGuestMode, source: 'fallback' },
     'Using fallback vision model - main LLM lacks vision support'
   );
   return fallback;

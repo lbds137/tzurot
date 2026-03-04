@@ -245,27 +245,10 @@ describe('RAGUtils', () => {
   });
 
   describe('generateStopSequences', () => {
-    it('should return exactly the 2 XML stop sequences', () => {
+    it('should return empty array (stop sequences removed — post-processing handles XML)', () => {
       const result = generateStopSequences();
 
-      expect(result).toEqual(['</message>', '<message']);
-    });
-
-    it('should not include any name-based stop sequences', () => {
-      const result = generateStopSequences();
-
-      // No personality or participant name patterns
-      const hasNamePattern = result.some(s => s.startsWith('\n') && s.endsWith(':'));
-      expect(hasNamePattern).toBe(false);
-    });
-
-    it('should not include legacy plain-text role markers', () => {
-      const result = generateStopSequences();
-
-      expect(result).not.toContain('\nUser:');
-      expect(result).not.toContain('\nHuman:');
-      expect(result).not.toContain('###');
-      expect(result).not.toContain('<|user|>');
+      expect(result).toEqual([]);
     });
   });
 

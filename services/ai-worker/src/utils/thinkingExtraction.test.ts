@@ -488,6 +488,44 @@ Sarcasm is just encrypted honesty.`;
       expect(result.visibleContent).toContain('Answer.');
       expect(result.blockCount).toBe(1);
     });
+
+    it('should strip leading stray punctuation after truncated thinking extraction', () => {
+      // When an unclosed tag is removed, visible content may start with stray punctuation
+      // left over from the truncated reasoning (e.g., "., " or ", " fragments)
+      const content = 'Some visible text. <think>Unclosed thinking that was truncated';
+      const result = extractThinkingBlocks(content);
+
+      // The unclosed tag content is extracted as thinking
+      expect(result.thinkingContent).toBe('Unclosed thinking that was truncated');
+      // Visible content should be clean
+      expect(result.visibleContent).toBe('Some visible text.');
+    });
+
+    it('should strip leading punctuation when visible content starts with stray period', () => {
+      // Simulates a response where the model's thinking was truncated and visible
+      // content begins with leftover punctuation fragment
+      const content = '<think>reasoning</think>., The actual response starts here.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('reasoning');
+      expect(result.visibleContent).toBe('The actual response starts here.');
+    });
+
+    it('should strip leading comma after thinking extraction', () => {
+      const content = '<think>reasoning</think>, Response text.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('reasoning');
+      expect(result.visibleContent).toBe('Response text.');
+    });
+
+    it('should strip leading semicolon after thinking extraction', () => {
+      const content = '<think>reasoning</think>; Response text.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('reasoning');
+      expect(result.visibleContent).toBe('Response text.');
+    });
   });
 
   describe('real-world examples', () => {

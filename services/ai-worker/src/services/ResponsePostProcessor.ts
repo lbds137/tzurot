@@ -29,6 +29,12 @@ interface ProcessedResponse {
   thinkingContent: string | null;
   /** Whether deduplication was applied */
   wasDeduplicated: boolean;
+  /**
+   * Whether the model produced only analytical/reasoning content without roleplay.
+   * Set when reasoning was enabled and the response looks like leaked chain-of-thought
+   * (no dialogue markers, multiple analytical patterns). The caller should retry once.
+   */
+  onlyThinkingProduced: boolean;
 }
 
 /** Context needed for response processing */
@@ -39,6 +45,40 @@ interface ResponseProcessingContext {
   userName: string;
   /** User's Discord username for placeholder replacement */
   discordUsername?: string;
+  /** Whether reasoning was enabled for this request (triggers glitch detection) */
+  reasoningEnabled?: boolean;
+}
+
+/**
+ * Analytical markers that indicate leaked chain-of-thought content.
+ * These patterns appear in raw reasoning output but not in normal roleplay responses.
+ */
+const ANALYTICAL_MARKERS = [
+  /^The user[\s(]/m,
+  /^(?:Key elements|Character voice|Tone|Avoid|Response structure):/m,
+  /^(?:I should|I need to|Let me think|Looking at)/m,
+  /^(?:Check against constraints|Final check|Important):/m,
+];
+
+/**
+ * Detect if a response looks like leaked chain-of-thought rather than actual content.
+ *
+ * Simple smell test: if there's no dialogue content (quotes or roleplay asterisks)
+ * but multiple analytical markers are present, it's likely a reasoning glitch.
+ *
+ * This is NOT a content modifier — it's a retry trigger. We don't try to extract
+ * the thinking or modify the content, just signal the caller to retry.
+ */
+export function looksLikeLeakedThinking(content: string): boolean {
+  // If the response has dialogue markers, it's probably real content
+  const hasDialogue = /["*]/.test(content);
+  if (hasDialogue) {
+    return false;
+  }
+
+  // Count analytical markers — need >= 2 for conservative detection
+  const matchCount = ANALYTICAL_MARKERS.filter(r => r.test(content)).length;
+  return matchCount >= 2;
 }
 
 /**
@@ -150,10 +190,27 @@ export class ResponsePostProcessor {
       context.discordUsername
     );
 
+    // Step 6: Glitch detection — check for leaked chain-of-thought
+    // Only fires when reasoning was enabled AND tag-based extraction found nothing
+    let onlyThinkingProduced = false;
+    if (
+      context.reasoningEnabled === true &&
+      thinkingContent === null &&
+      cleanedContent.length > 0 &&
+      looksLikeLeakedThinking(cleanedContent)
+    ) {
+      onlyThinkingProduced = true;
+      logger.warn(
+        { contentLength: cleanedContent.length, contentPreview: cleanedContent.substring(0, 200) },
+        '[ResponsePostProcessor] Detected leaked chain-of-thought — signaling retry'
+      );
+    }
+
     return {
       cleanedContent,
       thinkingContent,
       wasDeduplicated,
+      onlyThinkingProduced,
     };
   }
 

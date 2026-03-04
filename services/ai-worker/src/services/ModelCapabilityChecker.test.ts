@@ -5,7 +5,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
 import { REDIS_KEY_PREFIXES, type OpenRouterModel } from '@tzurot/common-types';
-import { modelSupportsVision, clearCapabilityCache } from './ModelCapabilityChecker.js';
+import {
+  modelSupportsVision,
+  modelSupportsReasoning,
+  clearCapabilityCache,
+} from './ModelCapabilityChecker.js';
 
 // Mock Redis client
 const mockRedis = {
@@ -13,7 +17,11 @@ const mockRedis = {
 } as unknown as Redis;
 
 // Sample OpenRouter model data
-const createMockModel = (id: string, inputModalities: string[]): OpenRouterModel =>
+const createMockModel = (
+  id: string,
+  inputModalities: string[],
+  supportedParams: string[] = []
+): OpenRouterModel =>
   ({
     id,
     canonical_slug: id,
@@ -43,7 +51,7 @@ const createMockModel = (id: string, inputModalities: string[]): OpenRouterModel
       is_moderated: false,
     },
     per_request_limits: null,
-    supported_parameters: [],
+    supported_parameters: supportedParams,
     default_parameters: {},
   }) as OpenRouterModel;
 
@@ -172,6 +180,7 @@ describe('ModelCapabilityChecker', () => {
       it('should detect Gemini models', async () => {
         expect(await modelSupportsVision('google/gemini-1.5-pro', mockRedis)).toBe(true);
         expect(await modelSupportsVision('google/gemini-2.0-flash', mockRedis)).toBe(true);
+        expect(await modelSupportsVision('google/gemini-2-flash-lite', mockRedis)).toBe(true);
       });
 
       it('should detect Gemma 3 models', async () => {
@@ -185,10 +194,118 @@ describe('ModelCapabilityChecker', () => {
         expect(await modelSupportsVision('qwen/qwen2-vl-72b', mockRedis)).toBe(true);
       });
 
+      it('should detect Qwen 3+ models (natively multimodal)', async () => {
+        expect(await modelSupportsVision('qwen/qwen3.5-397b-a17b', mockRedis)).toBe(true);
+        expect(await modelSupportsVision('qwen/qwen3-235b-a22b', mockRedis)).toBe(true);
+        expect(await modelSupportsVision('qwen/qwen-3-32b', mockRedis)).toBe(true);
+      });
+
+      it('should detect Pixtral (Mistral vision) models', async () => {
+        expect(await modelSupportsVision('mistralai/pixtral-large-2411', mockRedis)).toBe(true);
+        expect(await modelSupportsVision('mistralai/pixtral-12b', mockRedis)).toBe(true);
+      });
+
+      it('should detect InternVL models', async () => {
+        expect(await modelSupportsVision('openaccess-ai-collective/internvl2-26b', mockRedis)).toBe(
+          true
+        );
+      });
+
       it('should NOT detect non-vision models', async () => {
         expect(await modelSupportsVision('openai/gpt-3.5-turbo', mockRedis)).toBe(false);
         expect(await modelSupportsVision('google/gemma-2-27b', mockRedis)).toBe(false);
         expect(await modelSupportsVision('meta-llama/llama-3-70b', mockRedis)).toBe(false);
+        expect(await modelSupportsVision('qwen/qwen2.5-72b', mockRedis)).toBe(false);
+      });
+    });
+  });
+
+  describe('modelSupportsReasoning', () => {
+    describe('with Redis cache available', () => {
+      it('should return true for models with reasoning in supported_parameters', async () => {
+        const models = [
+          createMockModel('kimi/kimi-k2.5', ['text'], ['reasoning', 'temperature', 'top_p']),
+        ];
+        vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+        const result = await modelSupportsReasoning('kimi/kimi-k2.5', mockRedis);
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false for models without reasoning in supported_parameters', async () => {
+        const models = [
+          createMockModel('meta-llama/llama-3-70b', ['text'], ['temperature', 'top_p']),
+        ];
+        vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+        const result = await modelSupportsReasoning('meta-llama/llama-3-70b', mockRedis);
+
+        expect(result).toBe(false);
+      });
+
+      it('should share cache between vision and reasoning checks', async () => {
+        const models = [
+          createMockModel('openai/gpt-4o', ['text', 'image'], ['reasoning', 'temperature']),
+        ];
+        vi.mocked(mockRedis.get).mockResolvedValue(JSON.stringify(models));
+
+        // First call populates cache via vision check
+        await modelSupportsVision('openai/gpt-4o', mockRedis);
+        expect(mockRedis.get).toHaveBeenCalledTimes(1);
+
+        // Second call should use memory cache (no additional Redis hit)
+        const reasoning = await modelSupportsReasoning('openai/gpt-4o', mockRedis);
+        expect(mockRedis.get).toHaveBeenCalledTimes(1);
+        expect(reasoning).toBe(true);
+      });
+    });
+
+    describe('pattern matching fallback', () => {
+      beforeEach(() => {
+        vi.mocked(mockRedis.get).mockResolvedValue(null);
+      });
+
+      it('should detect DeepSeek R1 reasoning models', async () => {
+        expect(await modelSupportsReasoning('deepseek/deepseek-r1', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('deepseek/deepseek-reasoner', mockRedis)).toBe(true);
+      });
+
+      it('should detect QwQ reasoning models', async () => {
+        expect(await modelSupportsReasoning('qwen/qwq-32b', mockRedis)).toBe(true);
+      });
+
+      it('should detect OpenAI reasoning models', async () => {
+        expect(await modelSupportsReasoning('openai/o1-preview', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('openai/o3-mini', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('openai/o4-mini', mockRedis)).toBe(true);
+      });
+
+      it('should detect Claude 3.5/4 models', async () => {
+        expect(await modelSupportsReasoning('anthropic/claude-3.5-sonnet', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('anthropic/claude-4-opus', mockRedis)).toBe(true);
+      });
+
+      it('should detect Gemini reasoning models', async () => {
+        expect(await modelSupportsReasoning('google/gemini-2.0-flash', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('google/gemini-2-flash', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('google/gemini-1.5-pro', mockRedis)).toBe(true);
+      });
+
+      it('should detect Kimi K2 models', async () => {
+        expect(await modelSupportsReasoning('kimi/kimi-k2-thinking', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('kimi/kimi-k2.5', mockRedis)).toBe(true);
+      });
+
+      it('should detect GLM 4/5 models', async () => {
+        expect(await modelSupportsReasoning('z-ai/glm-4.5-air', mockRedis)).toBe(true);
+        expect(await modelSupportsReasoning('z-ai/glm-5-plus', mockRedis)).toBe(true);
+      });
+
+      it('should NOT detect non-reasoning models', async () => {
+        expect(await modelSupportsReasoning('meta-llama/llama-3-70b', mockRedis)).toBe(false);
+        expect(await modelSupportsReasoning('anthropic/claude-3-opus', mockRedis)).toBe(false);
+        expect(await modelSupportsReasoning('qwen/qwen2.5-72b', mockRedis)).toBe(false);
       });
     });
   });

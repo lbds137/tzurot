@@ -98,7 +98,10 @@ export function buildAttachmentDescriptions(
  * Note: Google Gemini API limits stop sequences to 16 max if this ever grows.
  */
 export function generateStopSequences(): string[] {
-  return ['</message>', '<message'];
+  // Stop sequences removed: `<message` was too broad, matching partial words and prose
+  // (caused `inferred:non-xml-stop` in production). `stripResponseArtifacts()` already
+  // handles `</message>` and other XML artifacts in post-processing.
+  return [];
 }
 
 /**
