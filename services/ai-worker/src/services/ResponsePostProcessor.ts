@@ -52,6 +52,11 @@ interface ResponseProcessingContext {
 /**
  * Analytical markers that indicate leaked chain-of-thought content.
  * These patterns appear in raw reasoning output but not in normal roleplay responses.
+ *
+ * The "I should"/"I need to" patterns are intentionally broad (no colon anchor)
+ * because leaked CoT commonly starts lines this way. A persona saying "I need to
+ * tell you something" in roleplay would match one marker, but the >= 2 threshold
+ * plus the dialogue-marker gate makes false positives unlikely in practice.
  */
 const ANALYTICAL_MARKERS = [
   /^The user[\s(]/m,

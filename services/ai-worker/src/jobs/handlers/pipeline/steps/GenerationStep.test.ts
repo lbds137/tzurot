@@ -1152,6 +1152,53 @@ describe('GenerationStep', () => {
         expect(result.result?.content).toBe(goodResponse.content);
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
       });
+
+      it('should return leaked response as-is when all attempts produce leaked thinking', async () => {
+        const leakedResponse1: RAGResponse = {
+          content: 'The user is asking about X.\nI should respond with Y.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          onlyThinkingProduced: true,
+        };
+        const leakedResponse2: RAGResponse = {
+          content: 'Key elements: tone.\nI need to stay in character.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          onlyThinkingProduced: true,
+        };
+        const leakedResponse3: RAGResponse = {
+          content: 'Check against constraints.\nLet me think about this.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+          onlyThinkingProduced: true,
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(leakedResponse1)
+          .mockResolvedValueOnce(leakedResponse2)
+          .mockResolvedValueOnce(leakedResponse3);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        // Bad response > no response: final attempt's leaked content is returned
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe(leakedResponse3.content);
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(3);
+      });
     });
 
     describe('fallback response on LLM failure', () => {
