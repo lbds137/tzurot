@@ -38,6 +38,10 @@ function normalizeModelId(modelId: string): string {
 /**
  * Resolve model capabilities from Redis cache, returning null on miss/error.
  * Shared between vision and reasoning checks to avoid duplicate Redis reads.
+ *
+ * @param modelId - Original model ID (for logging and fallback matching)
+ * @param normalizedId - :free-stripped ID (for cache key and primary model lookup)
+ * @param redis - Redis client instance
  */
 async function resolveFromRedis(
   modelId: string,
