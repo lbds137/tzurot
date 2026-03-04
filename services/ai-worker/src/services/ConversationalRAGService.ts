@@ -259,6 +259,11 @@ export class ConversationalRAGService {
         personalityName: personality.name,
         userName: this.inputProcessor.resolveUserName(context),
         discordUsername: context.discordUsername,
+        // Fires glitch detection when user configured reasoning AND model wasn't
+        // explicitly resolved as non-reasoning. When supportsReasoning is undefined
+        // (Redis miss + no pattern match), we err on the side of detection — the user
+        // intended reasoning, so catching leaked CoT is more valuable than avoiding
+        // an extra retry on models that happen to generate analytical-style prose.
         reasoningEnabled: personality.reasoning !== undefined && supportsReasoning !== false,
       }
     );
