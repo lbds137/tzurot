@@ -86,7 +86,7 @@ export class GenerationStep implements IPipelineStep {
    * - Empty content after post-processing (e.g., model produced only thinking blocks)
    * - Duplicate responses matching recent assistant messages (up to 5)
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity, max-lines-per-function -- retry loop with thinking preservation across multiple exit paths
+  // eslint-disable-next-line sonarjs/cognitive-complexity, max-lines-per-function -- single cohesive retry loop; extracting sub-steps would scatter the state machine across files
   private async generateWithDuplicateRetry(opts: {
     personality: Parameters<ConversationalRAGService['generateResponse']>[0];
     message: MessageContent;
@@ -107,6 +107,8 @@ export class GenerationStep implements IPipelineStep {
       isGuestMode,
       jobId,
       diagnosticCollector,
+      // configOverrides not destructured — accessed as opts.configOverrides below
+      // to stay under max-lines-per-function (pass-through only, not used in loop logic)
     } = opts;
 
     let duplicateRetries = 0;

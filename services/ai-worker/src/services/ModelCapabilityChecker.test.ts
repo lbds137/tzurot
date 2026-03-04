@@ -194,10 +194,10 @@ describe('ModelCapabilityChecker', () => {
         expect(await modelSupportsVision('qwen/qwen2-vl-72b', mockRedis)).toBe(true);
       });
 
-      it('should detect Qwen 3+ models (natively multimodal)', async () => {
+      it('should detect Qwen 3.5 and Qwen 3 VL models (multimodal)', async () => {
         expect(await modelSupportsVision('qwen/qwen3.5-397b-a17b', mockRedis)).toBe(true);
-        expect(await modelSupportsVision('qwen/qwen3-235b-a22b', mockRedis)).toBe(true);
-        expect(await modelSupportsVision('qwen/qwen-3-32b', mockRedis)).toBe(true);
+        expect(await modelSupportsVision('qwen/qwen3-vl-235b-a22b-instruct', mockRedis)).toBe(true);
+        expect(await modelSupportsVision('qwen/qwen3-vl-8b-instruct', mockRedis)).toBe(true);
       });
 
       it('should detect Pixtral (Mistral vision) models', async () => {
@@ -216,6 +216,9 @@ describe('ModelCapabilityChecker', () => {
         expect(await modelSupportsVision('google/gemma-2-27b', mockRedis)).toBe(false);
         expect(await modelSupportsVision('meta-llama/llama-3-70b', mockRedis)).toBe(false);
         expect(await modelSupportsVision('qwen/qwen2.5-72b', mockRedis)).toBe(false);
+        // Qwen 3 base models are text-only (only qwen3.5 and qwen3-vl are multimodal)
+        expect(await modelSupportsVision('qwen/qwen3-32b', mockRedis)).toBe(false);
+        expect(await modelSupportsVision('qwen/qwen3-coder', mockRedis)).toBe(false);
       });
     });
   });

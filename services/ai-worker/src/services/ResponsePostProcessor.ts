@@ -71,6 +71,11 @@ const ANALYTICAL_MARKERS = [
  * Simple smell test: if there's no dialogue content (quotes or roleplay asterisks)
  * but multiple analytical markers are present, it's likely a reasoning glitch.
  *
+ * Known false-negative: leaked CoT using asterisks for emphasis (e.g., "I need to
+ * *emphasize* this") bypasses the dialogue gate. Accepted trade-off — false negatives
+ * (missed glitch → user sees raw CoT) are less harmful than false positives
+ * (valid response suppressed → unnecessary retry).
+ *
  * This is NOT a content modifier — it's a retry trigger. We don't try to extract
  * the thinking or modify the content, just signal the caller to retry.
  *
