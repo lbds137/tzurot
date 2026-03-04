@@ -32,9 +32,6 @@ describe('ConversationHistoryService Component Test', () => {
   const testPersonalityId = '00000000-0000-0000-0000-000000000003';
   const testChannelId = '123456789012345678';
   const testGuildId = '987654321098765432';
-  // Additional IDs for cross-channel tests
-  const testChannelId2 = '223456789012345678';
-  const testChannelId3 = '323456789012345678';
 
   beforeAll(async () => {
     // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
@@ -730,9 +727,12 @@ describe('ConversationHistoryService Component Test', () => {
 
   describe('getCrossChannelHistory', () => {
     it('should return messages from other channels, excluding specified channel', async () => {
-      // Add messages to 3 channels
+      const ch1 = 'cross-basic-ch1';
+      const ch2 = 'cross-basic-ch2';
+      const ch3 = 'cross-basic-ch3';
+
       await service.addMessage({
-        channelId: testChannelId,
+        channelId: ch1,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -740,7 +740,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
       await service.addMessage({
-        channelId: testChannelId2,
+        channelId: ch2,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -748,7 +748,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
       await service.addMessage({
-        channelId: testChannelId3,
+        channelId: ch3,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -759,21 +759,23 @@ describe('ConversationHistoryService Component Test', () => {
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId, // exclude current channel
+        ch1, // exclude current channel
         50
       );
 
-      // Should get messages from channel 2 and 3, but NOT channel 1
       expect(result).toHaveLength(2);
       const allChannelIds = result.map(g => g.channelId);
-      expect(allChannelIds).toContain(testChannelId2);
-      expect(allChannelIds).toContain(testChannelId3);
-      expect(allChannelIds).not.toContain(testChannelId);
+      expect(allChannelIds).toContain(ch2);
+      expect(allChannelIds).toContain(ch3);
+      expect(allChannelIds).not.toContain(ch1);
     });
 
     it('should exclude soft-deleted messages', async () => {
+      const chExclude = 'cross-deleted-ch1';
+      const chOther = 'cross-deleted-ch2';
+
       await service.addMessage({
-        channelId: testChannelId2,
+        channelId: chOther,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -786,13 +788,13 @@ describe('ConversationHistoryService Component Test', () => {
       await prisma.$executeRaw`
         INSERT INTO conversation_history
         (id, channel_id, guild_id, personality_id, persona_id, role, content, deleted_at, created_at)
-        VALUES (${deletedMsgId}, ${testChannelId2}, ${testGuildId}, ${testPersonalityId}, ${testPersonaId}, 'user', 'Deleted message', NOW(), NOW())
+        VALUES (${deletedMsgId}, ${chOther}, ${testGuildId}, ${testPersonalityId}, ${testPersonaId}, 'user', 'Deleted message', NOW(), NOW())
       `;
 
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId,
+        chExclude,
         50
       );
 
@@ -802,10 +804,13 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should respect limit parameter', async () => {
-      // Add 5 messages to channel 2
+      const chExclude = 'cross-limit-ch1';
+      const chOther = 'cross-limit-ch2';
+
+      // Add 5 messages to other channel
       for (let i = 0; i < 5; i++) {
         await service.addMessage({
-          channelId: testChannelId2,
+          channelId: chOther,
           personalityId: testPersonalityId,
           personaId: testPersonaId,
           role: MessageRole.User,
@@ -817,7 +822,7 @@ describe('ConversationHistoryService Component Test', () => {
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId,
+        chExclude,
         3 // Only get 3 messages
       );
 
@@ -830,10 +835,14 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should exclude older channels when limit is smaller than total messages', async () => {
-      // Add 2 older messages to channel 2
+      const chExclude = 'cross-exclude-ch1';
+      const chOlder = 'cross-exclude-ch2';
+      const chNewer = 'cross-exclude-ch3';
+
+      // Add 2 older messages to chOlder
       for (let i = 0; i < 2; i++) {
         await service.addMessage({
-          channelId: testChannelId2,
+          channelId: chOlder,
           personalityId: testPersonalityId,
           personaId: testPersonaId,
           role: MessageRole.User,
@@ -842,10 +851,10 @@ describe('ConversationHistoryService Component Test', () => {
         });
       }
 
-      // Add 3 newer messages to channel 3
+      // Add 3 newer messages to chNewer
       for (let i = 0; i < 3; i++) {
         await service.addMessage({
-          channelId: testChannelId3,
+          channelId: chNewer,
           personalityId: testPersonalityId,
           personaId: testPersonaId,
           role: MessageRole.User,
@@ -854,23 +863,26 @@ describe('ConversationHistoryService Component Test', () => {
         });
       }
 
-      // Limit = 3: all 3 most recent are from channel 3, so channel 2 is absent
+      // Limit = 3: all 3 most recent are from chNewer, so chOlder is absent
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId,
+        chExclude,
         3
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].channelId).toBe(testChannelId3);
-      // Channel 2 exists but is excluded because all 3 limit slots went to channel 3
+      expect(result[0].channelId).toBe(chNewer);
     });
 
     it('should order groups by most recent activity', async () => {
-      // Add older message to channel 2
+      const chExclude = 'cross-order-ch1';
+      const chOlder = 'cross-order-ch2';
+      const chNewer = 'cross-order-ch3';
+
+      // Add older message to chOlder
       await service.addMessage({
-        channelId: testChannelId2,
+        channelId: chOlder,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -878,9 +890,9 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      // Add newer message to channel 3
+      // Add newer message to chNewer
       await service.addMessage({
-        channelId: testChannelId3,
+        channelId: chNewer,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -891,20 +903,23 @@ describe('ConversationHistoryService Component Test', () => {
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId,
+        chExclude,
         50
       );
 
       expect(result).toHaveLength(2);
-      // Channel 3 has more recent activity, so it appears first
-      expect(result[0].channelId).toBe(testChannelId3);
-      expect(result[1].channelId).toBe(testChannelId2);
+      // chNewer has more recent activity, so it appears first
+      expect(result[0].channelId).toBe(chNewer);
+      expect(result[1].channelId).toBe(chOlder);
     });
 
     it('should return messages in chronological order within groups', async () => {
-      // Add messages to channel 2 in sequence
+      const chExclude = 'cross-chrono-ch1';
+      const chOther = 'cross-chrono-ch2';
+
+      // Add messages in sequence
       await service.addMessage({
-        channelId: testChannelId2,
+        channelId: chOther,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -912,7 +927,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
       await service.addMessage({
-        channelId: testChannelId2,
+        channelId: chOther,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.Assistant,
@@ -920,7 +935,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
       await service.addMessage({
-        channelId: testChannelId2,
+        channelId: chOther,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -931,7 +946,7 @@ describe('ConversationHistoryService Component Test', () => {
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId,
+        chExclude,
         50
       );
 
@@ -943,8 +958,11 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should handle DM channels with null guildId', async () => {
+      const chExclude = 'cross-dm-ch1';
+      const chDM = 'cross-dm-ch2';
+
       await service.addMessage({
-        channelId: testChannelId2,
+        channelId: chDM,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -955,18 +973,20 @@ describe('ConversationHistoryService Component Test', () => {
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId,
+        chExclude,
         50
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].channelId).toBe(testChannelId2);
+      expect(result[0].channelId).toBe(chDM);
       expect(result[0].guildId).toBeNull();
     });
 
     it('should return empty when all messages are in excluded channel', async () => {
+      const chExclude = 'cross-empty-ch1';
+
       await service.addMessage({
-        channelId: testChannelId,
+        channelId: chExclude,
         personalityId: testPersonalityId,
         personaId: testPersonaId,
         role: MessageRole.User,
@@ -977,7 +997,7 @@ describe('ConversationHistoryService Component Test', () => {
       const result = await service.getCrossChannelHistory(
         testPersonaId,
         testPersonalityId,
-        testChannelId,
+        chExclude,
         50
       );
 
