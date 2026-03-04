@@ -225,7 +225,7 @@ export class ConversationalRAGService {
         effectiveTemperature: retryConfig?.temperatureOverride ?? personality.temperature,
         effectiveFrequencyPenalty:
           retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
-        stopSequences: [], // Disabled — post-processing handles XML artifacts
+        stopSequences: [], // Disabled — stripResponseArtifacts() handles XML cleanup
       });
       diagnosticCollector.markLlmInvocationStart();
     }
