@@ -107,8 +107,7 @@ export class GenerationStep implements IPipelineStep {
       isGuestMode,
       jobId,
       diagnosticCollector,
-      // configOverrides not destructured — accessed as opts.configOverrides below
-      // to stay under max-lines-per-function (pass-through only, not used in loop logic)
+      configOverrides,
     } = opts;
 
     let duplicateRetries = 0;
@@ -144,7 +143,7 @@ export class GenerationStep implements IPipelineStep {
           retryConfig: { attempt, ...retryConfig },
           skipMemoryStorage: true,
           diagnosticCollector,
-          configOverrides: opts.configOverrides,
+          configOverrides,
         });
       } catch (error) {
         // LLM invocation failed entirely. If we have a fallback from a prior
