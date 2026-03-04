@@ -184,8 +184,11 @@ export async function modelSupportsReasoning(modelId: string, redis: Redis): Pro
 // ===================================
 
 /**
- * Vision model patterns for fallback detection
- * Each pattern has a required term and optional additional terms (any must match)
+ * Vision model patterns for fallback detection.
+ * Each pattern has a required term and optional additional terms (any must match).
+ *
+ * Source of truth: OpenRouter /api/v1/models `architecture.input_modalities` field.
+ * These fallbacks only fire when Redis cache (primary path) is unavailable.
  */
 const VISION_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
   // OpenAI vision models (gpt-4 + vision/4o/turbo)
@@ -253,7 +256,8 @@ const REASONING_MODEL_PATTERNS: { required: string; additional?: string[] }[] = 
   { required: 'deepseek-reasoner' },
   { required: 'deepseek-v3' },
   { required: 'deepseek-chat-v3' },
-  // Qwen QwQ (dedicated reasoning) + Qwen 3+ (all support reasoning)
+  // Qwen QwQ (dedicated reasoning) + Qwen 3+ (all support reasoning per OpenRouter)
+  // Note: 'qwen3' intentionally broad — matches qwen3, qwen3.5, qwen3-coder, etc.
   { required: 'qwq' },
   { required: 'qwen3' },
   // OpenAI GPT-5 family + GPT-OSS
