@@ -69,7 +69,7 @@ const SHARED_VARIABLES: VariableConfig[] = [
     description: 'Vision model',
     isSecret: false,
     required: true,
-    defaultValue: 'qwen/qwen3-vl-235b-a22b-instruct',
+    defaultValue: 'qwen/qwen3.5-397b-a17b',
   },
   {
     key: 'NODE_ENV',
