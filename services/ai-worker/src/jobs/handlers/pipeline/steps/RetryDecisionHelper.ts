@@ -87,17 +87,15 @@ export function logRetryEscalation(
 }
 
 /** Log when a retry succeeds after previous failures */
-export function logRetrySuccess(
-  jobId: string | undefined,
-  modelUsed: string | undefined,
-  attempt: number,
-  duplicateRetries: number,
-  emptyRetries: number
-): void {
-  logger.info(
-    { jobId, modelUsed, attempt, duplicateRetries, emptyRetries },
-    '[RetryDecisionHelper] Retry succeeded - got valid unique response'
-  );
+export function logRetrySuccess(opts: {
+  jobId: string | undefined;
+  modelUsed: string | undefined;
+  attempt: number;
+  duplicateRetries: number;
+  emptyRetries: number;
+  leakedThinkingRetries: number;
+}): void {
+  logger.info(opts, '[RetryDecisionHelper] Retry succeeded - got valid unique response');
 }
 
 /** Options for empty response check */
