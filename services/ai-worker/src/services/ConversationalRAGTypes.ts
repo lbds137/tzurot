@@ -152,6 +152,8 @@ export interface RAGResponse {
    * Only present if the model included thinking blocks in its response.
    */
   thinkingContent?: string;
+  /** Model produced only analytical/reasoning content without roleplay — caller should retry */
+  onlyThinkingProduced?: boolean;
 }
 
 /**
@@ -230,6 +232,8 @@ export interface ModelInvocationResult {
   tokensOut?: number;
   /** Extracted thinking/reasoning content from <think> tags, if present */
   thinkingContent?: string;
+  /** Model produced only analytical/reasoning content without roleplay — caller should retry */
+  onlyThinkingProduced?: boolean;
 }
 
 /** Options for budget allocation */

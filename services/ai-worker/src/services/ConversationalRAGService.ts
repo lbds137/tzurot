@@ -259,10 +259,11 @@ export class ConversationalRAGService {
         personalityName: personality.name,
         userName: this.inputProcessor.resolveUserName(context),
         discordUsername: context.discordUsername,
+        reasoningEnabled: personality.reasoning !== undefined && supportsReasoning !== false,
       }
     );
 
-    const { cleanedContent, thinkingContent, wasDeduplicated } = processed;
+    const { cleanedContent, thinkingContent, wasDeduplicated, onlyThinkingProduced } = processed;
 
     // Record post-processing for diagnostics
     if (diagnosticCollector) {
@@ -296,6 +297,7 @@ export class ConversationalRAGService {
       tokensIn: usageMetadata?.input_tokens,
       tokensOut: usageMetadata?.output_tokens,
       thinkingContent: thinkingContent ?? undefined,
+      onlyThinkingProduced,
     };
   }
 
@@ -492,6 +494,7 @@ export class ConversationalRAGService {
         incognitoModeActive,
         deferredMemoryData,
         thinkingContent: modelResult.thinkingContent,
+        onlyThinkingProduced: modelResult.onlyThinkingProduced,
       };
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);

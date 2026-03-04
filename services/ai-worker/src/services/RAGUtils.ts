@@ -97,13 +97,6 @@ export function buildAttachmentDescriptions(
  *
  * Note: Google Gemini API limits stop sequences to 16 max if this ever grows.
  */
-export function generateStopSequences(): string[] {
-  // Stop sequences removed: `<message` was too broad, matching partial words and prose
-  // (caused `inferred:non-xml-stop` in production). `stripResponseArtifacts()` already
-  // handles `</message>` and other XML artifacts in post-processing.
-  return [];
-}
-
 /**
  * Build a map from Discord message ID to image descriptions
  *
