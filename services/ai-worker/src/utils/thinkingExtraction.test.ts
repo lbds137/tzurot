@@ -526,6 +526,15 @@ Sarcasm is just encrypted honesty.`;
       expect(result.thinkingContent).toBe('reasoning');
       expect(result.visibleContent).toBe('Response text.');
     });
+
+    it('should preserve leading ellipsis in roleplay prose', () => {
+      // "...she hesitated" is a common dramatic pause convention — don't strip it
+      const content = '<think>reasoning</think>...she hesitated before speaking.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('reasoning');
+      expect(result.visibleContent).toBe('...she hesitated before speaking.');
+    });
   });
 
   describe('real-world examples', () => {
