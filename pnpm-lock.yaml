@@ -12,7 +12,7 @@ overrides:
   hono@<4.12.4: '>=4.12.4'
   '@hono/node-server@<1.19.10': '>=1.19.10'
   lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
-  ajv@>=6.0.0 <6.14.0: '>=6.14.0'
+  ajv@>=6.0.0 <6.14.0: '>=6.14.0 <7.0.0'
 
 importers:
   .:
@@ -8224,7 +8224,7 @@ snapshots:
 
   '@eslint/eslintrc@3.3.3':
     dependencies:
-      ajv: 8.18.0
+      ajv: 6.14.0
       debug: 4.4.3
       espree: 10.4.0
       globals: 14.0.0
@@ -9974,7 +9974,7 @@ snapshots:
       '@humanwhocodes/module-importer': 1.0.1
       '@humanwhocodes/retry': 0.4.3
       '@types/estree': 1.0.8
-      ajv: 8.18.0
+      ajv: 6.14.0
       chalk: 4.1.2
       cross-spawn: 7.0.6
       debug: 4.4.3
