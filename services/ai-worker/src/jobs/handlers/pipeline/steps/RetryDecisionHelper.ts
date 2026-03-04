@@ -21,9 +21,21 @@ export interface FallbackResponse {
 }
 
 /**
+ * Fallback quality ranking: duplicate > leaked-thinking > empty.
+ * - duplicate: in-character content, just repeated
+ * - leaked-thinking: has content, just wrong kind (raw CoT)
+ * - empty: no content at all
+ */
+const FALLBACK_RANK: Record<FallbackResponse['reason'], number> = {
+  duplicate: 2,
+  'leaked-thinking': 1,
+  empty: 0,
+};
+
+/**
  * Select the better fallback between existing and candidate.
- * Prefers 'duplicate' over 'empty'/'leaked-thinking' since duplicates have actual in-character content.
- * Returns the candidate if no existing fallback, or the better of the two.
+ * Uses quality ranking (duplicate > leaked-thinking > empty).
+ * At equal rank, prefers the more recent attempt (escalated params).
  */
 export function selectBetterFallback(
   existing: FallbackResponse | undefined,
@@ -32,14 +44,15 @@ export function selectBetterFallback(
   if (existing === undefined) {
     return candidate;
   }
-  // Prefer duplicate over empty/leaked-thinking (duplicate has real content)
-  if (existing.reason === 'duplicate' && candidate.reason !== 'duplicate') {
+  const existingRank = FALLBACK_RANK[existing.reason];
+  const candidateRank = FALLBACK_RANK[candidate.reason];
+  if (existingRank > candidateRank) {
     return existing;
   }
-  if (candidate.reason === 'duplicate' && existing.reason !== 'duplicate') {
+  if (candidateRank > existingRank) {
     return candidate;
   }
-  // Same priority: prefer the more recent attempt (later attempt had escalated params)
+  // Same rank: prefer the more recent attempt (later attempt had escalated params)
   return candidate;
 }
 
