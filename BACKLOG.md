@@ -29,25 +29,7 @@ _Empty — all items triaged (2026-03-03)._
 
 _This week's active work. Max 3 items._
 
-### 🐛 Reasoning/Thinking Pipeline Investigation
-
-Combined investigation of three related issues all stemming from reasoning parameter handling:
-
-1. **Thinking leaked as visible response** (Critical) — Models with `reasoning.enabled: true` dump chain-of-thought directly as response content without tags. Users see raw analysis instead of character responses. Evidence: `debug-compact-bee978c6` (kimi-k2.5, 637 tokens), `debug-compact-e6275aae` (kimi-k2.5, 42 tokens), `debug-compact-1ecd7057` (glm-5, 100 tokens).
-
-2. **Reasoning settings error when fields blank** — Error when `max_tokens` and/or `reasoning_effort` aren't explicitly set. Confusion between top-level `max_tokens` and nested `reasoning.maxTokens`. Compare: kimi-k2.5 configs have NO `reasoning.maxTokens` (thinking leaked), glm-5/COLD config HAS `reasoning.maxTokens: 16384` (thinking extracted correctly but truncated).
-
-3. **Truncated thinking content** — `debug-compact-edcef141` shows thinking cut mid-sentence ("...I should keep it minimal and e") with a stray period in visible response. Reasoning token budget may be miscalculated.
-
-**Investigation plan**: Trace `ModelFactory.ts` → `modelKwargs` → reasoning parameter assembly. Understand what OpenRouter/models expect. Fix parameter assembly, then add untagged-thinking detection as safety net.
-
-### 🐛 Remove Stop Sequence `<message` Truncation
-
-Remove overly broad `<message` stop sequence from `generateStopSequences()` in `RAGUtils.ts`. Post-processing (`stripResponseArtifacts`) already handles XML cleanup, making the stop sequence redundant. All 4 recent debug captures show `inferred:non-xml-stop`. Surgical fix — remove stop sequences, verify post-processing covers the cases.
-
-### 🐛 Image Vision Fallback for Multimodal Models
-
-When no explicit `visionModel` is configured in the preset/LLM config, image vision doesn't work — even when the active model is multimodal. Investigate vision pipeline model resolution and add fallback: if `visionModel` is unset, use the current model (if it supports vision).
+_Empty — pull next from Quick Wins or Active Epic._
 
 ---
 
