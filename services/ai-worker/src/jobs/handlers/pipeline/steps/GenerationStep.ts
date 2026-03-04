@@ -107,13 +107,11 @@ export class GenerationStep implements IPipelineStep {
       isGuestMode,
       jobId,
       diagnosticCollector,
-      configOverrides,
     } = opts;
 
-    let duplicateRetries = 0;
-    let emptyRetries = 0;
-    let preservedThinking: string | undefined;
-    let fallback: FallbackResponse | undefined;
+    let duplicateRetries = 0,
+      emptyRetries = 0;
+    let preservedThinking: string | undefined, fallback: FallbackResponse | undefined;
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -143,7 +141,7 @@ export class GenerationStep implements IPipelineStep {
           retryConfig: { attempt, ...retryConfig },
           skipMemoryStorage: true,
           diagnosticCollector,
-          configOverrides,
+          configOverrides: opts.configOverrides,
         });
       } catch (error) {
         // LLM invocation failed entirely. If we have a fallback from a prior
@@ -182,8 +180,13 @@ export class GenerationStep implements IPipelineStep {
         return { response, duplicateRetries, emptyRetries };
       }
 
-      // Check for duplicate responses
-      // Use async version with optional embedding service for semantic layer (Layer 4)
+      // Leaked chain-of-thought (reasoning glitch) — retry once with fallback
+      if (response.onlyThinkingProduced === true && attempt < maxAttempts) {
+        logger.warn({ jobId, attempt }, '[GenerationStep] Leaked chain-of-thought — retrying');
+        fallback = selectBetterFallback(fallback, { response, reason: 'empty', attempt });
+        continue;
+      }
+      // Check for duplicate responses (async: includes semantic embedding layer)
       const { isDuplicate, matchIndex } = await isRecentDuplicateAsync(
         response.content,
         recentAssistantMessages,
