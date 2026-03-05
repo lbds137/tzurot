@@ -1,13 +1,13 @@
 # Current
 
 > **Session**: 2026-03-04
-> **Version**: v3.0.0-beta.86
+> **Version**: v3.0.0-beta.87
 
 ---
 
 ## Session Goal
 
-_Feature: add `showModelFooter` config cascade option._
+_Bugfix release: Discord custom ID overflow, security patch, interaction error resilience._
 
 ## Active Task
 
@@ -17,18 +17,15 @@ None — session complete.
 
 ## Completed This Session
 
-- **PR #705**: feat: add `showModelFooter` to config cascade (merged to develop)
-  - Added `showModelFooter` boolean to all 5 tiers of config cascade (default: `true`)
-  - When `false`, hides model indicator footer; other footers (guest, focus, incognito, auto) remain
-  - New DISPLAY_SETTINGS group in all 5 settings dashboards (tri-state toggle)
-  - Refactored `chatResponseSender` to options object pattern (max-params lint fix)
-  - GenerationStep propagation tests for success/error/empty-response paths
-  - 36 files changed, 356 insertions across common-types, ai-worker, api-gateway, bot-client
+- **fix(bot-client)**: Use UUID-only entityId in character settings/overrides custom IDs — was exceeding Discord's 100-char limit (`slug--uuid` → `uuid`, max 96 chars)
+- **fix(deps)**: Patch tar hardlink path traversal vulnerability (GHSA #53) — override tar@<=7.5.9 to >=7.5.10 via pnpm overrides
+- **fix(bot-client)**: Catch failed error replies on already-acknowledged interactions — prevents cascading DiscordAPIError[40060] in all 3 CommandHandler catch blocks
 
 ## Recent Releases
 
+- **v3.0.0-beta.88** (2026-03-04) — Custom ID fix, tar security patch, interaction error resilience, XML wrapper stripping
+- **v3.0.0-beta.87** (2026-03-04) — showModelFooter config cascade, XML tool-use wrapper stripping
 - **v3.0.0-beta.86** (2026-03-03) — LLM response quality fixes: stop sequence removal, leaked thinking detection+retry, vision fallback for multimodal models, reasoning capability gate, fallback model updates
-- **v3.0.0-beta.85** (2026-02-28) — Per-request retry, cookie parser extraction, dependency bumps
 
 ## Next Steps
 
