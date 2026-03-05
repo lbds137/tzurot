@@ -63,6 +63,8 @@ interface SendResponseOptions {
    * From the user's LLM config (preset or override).
    */
   showThinking?: boolean;
+  /** Whether to show the model indicator footer (from config cascade) */
+  showModelFooter?: boolean;
 }
 
 /**
@@ -97,6 +99,7 @@ export class DiscordResponseSender {
       incognitoModeActive,
       thinkingContent,
       showThinking,
+      showModelFooter,
     } = options;
 
     // Send thinking content as a separate message before the main response
@@ -110,12 +113,12 @@ export class DiscordResponseSender {
     // Compact format: combine model + auto-response indicator on one line to minimize clutter
     // NOTE: Footer text constants are centralized in BOT_FOOTER_TEXT (common-types)
     let footer = '';
-    if (modelUsed !== undefined && modelUsed.length > 0) {
+    if (showModelFooter !== false && modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
       const modelFooter = buildModelFooterText(modelUsed, modelUrl, isAutoResponse === true);
       footer += `\n-# ${modelFooter}`;
     } else if (isAutoResponse === true) {
-      // No model shown but still want to indicate auto-response
+      // No model shown (hidden or absent) but still want to indicate auto-response
       footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
     }
     if (isGuestMode === true) {

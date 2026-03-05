@@ -89,6 +89,11 @@ const createTestSession = (
       effectiveValue: 20,
       source: 'hardcoded',
     },
+    showModelFooter: {
+      localValue: null,
+      effectiveValue: true,
+      source: 'hardcoded',
+    },
     ...dataOverrides,
   },
 });
@@ -637,6 +642,13 @@ describe('SettingsDashboardBuilder', () => {
 
       const shareLtm = getSettingById('shareLtmAcrossPersonalities');
       expect(shareLtm?.type).toBe(SettingType.TRI_STATE);
+    });
+
+    it('should find display settings', () => {
+      expect(getSettingById('showModelFooter')).toBeDefined();
+
+      const showModelFooter = getSettingById('showModelFooter');
+      expect(showModelFooter?.type).toBe(SettingType.TRI_STATE);
     });
   });
 });

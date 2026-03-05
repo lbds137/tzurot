@@ -18,6 +18,7 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
     focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
+    showModelFooter: true,
     sources: {
       maxMessages: 'hardcoded' as const,
       maxAge: 'hardcoded' as const,
@@ -27,6 +28,7 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
       focusModeEnabled: 'hardcoded' as const,
       crossChannelHistoryEnabled: 'hardcoded' as const,
       shareLtmAcrossPersonalities: 'hardcoded' as const,
+      showModelFooter: 'hardcoded' as const,
     },
   }),
   mockResolveConfig: vi.fn().mockResolvedValue({

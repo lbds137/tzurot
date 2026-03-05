@@ -41,6 +41,7 @@ import {
   isSettingsInteraction,
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
+  DISPLAY_SETTINGS,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
@@ -62,7 +63,7 @@ const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Global',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
+  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS, ...DISPLAY_SETTINGS],
 };
 
 /**

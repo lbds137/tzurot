@@ -59,6 +59,7 @@ export interface ResolveDefaultsResponse {
   shareLtmAcrossPersonalities: boolean;
   memoryScoreThreshold: number;
   memoryLimit: number;
+  showModelFooter: boolean;
   sources: Record<string, ConfigOverrideSource>;
   userOverrides: Record<string, unknown> | null;
 }
@@ -81,6 +82,7 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     shareLtmAcrossPersonalities: response.shareLtmAcrossPersonalities,
     memoryScoreThreshold: response.memoryScoreThreshold,
     memoryLimit: response.memoryLimit,
+    showModelFooter: response.showModelFooter,
     sources: response.sources as Record<keyof ConfigOverrides, ConfigOverrideSource>,
   };
   const userOverrides = (response.userOverrides ?? null) as Partial<ConfigOverrides> | null;

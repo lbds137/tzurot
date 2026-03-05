@@ -21,6 +21,7 @@ const { mockGetOrCreateUser, mockResolveOverrides } = vi.hoisted(() => ({
     focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
+    showModelFooter: true,
     sources: {
       maxMessages: 'hardcoded',
       maxAge: 'hardcoded',
@@ -30,6 +31,7 @@ const { mockGetOrCreateUser, mockResolveOverrides } = vi.hoisted(() => ({
       focusModeEnabled: 'hardcoded',
       crossChannelHistoryEnabled: 'hardcoded',
       shareLtmAcrossPersonalities: 'hardcoded',
+      showModelFooter: 'hardcoded',
     },
   }),
 }));

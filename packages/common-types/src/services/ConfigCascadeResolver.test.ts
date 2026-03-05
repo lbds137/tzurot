@@ -65,6 +65,7 @@ describe('ConfigCascadeResolver', () => {
       expect(result.shareLtmAcrossPersonalities).toBe(
         HARDCODED_CONFIG_DEFAULTS.shareLtmAcrossPersonalities
       );
+      expect(result.showModelFooter).toBe(HARDCODED_CONFIG_DEFAULTS.showModelFooter);
 
       // All sources should be 'hardcoded'
       for (const source of Object.values(result.sources)) {
@@ -216,6 +217,19 @@ describe('ConfigCascadeResolver', () => {
       // admin wins for memoryLimit (30) — no higher tier overrides it
       expect(result.memoryLimit).toBe(30);
       expect(result.sources.memoryLimit).toBe('admin');
+    });
+
+    it('should apply showModelFooter override from user-default tier', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-id',
+        configDefaults: { showModelFooter: false },
+        personalityConfigs: [],
+      });
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.showModelFooter).toBe(false);
+      expect(result.sources.showModelFooter).toBe('user-default');
     });
 
     it('should handle DB error gracefully (channel tier)', async () => {

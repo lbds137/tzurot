@@ -24,6 +24,7 @@ describe('buildCascadeSettingsData', () => {
       focusModeEnabled: true,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
+      showModelFooter: true,
       sources: {
         maxMessages: 'admin',
         maxAge: 'personality',
@@ -33,6 +34,7 @@ describe('buildCascadeSettingsData', () => {
         focusModeEnabled: 'user-default',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
+        showModelFooter: 'hardcoded',
       },
     };
 
@@ -59,6 +61,7 @@ describe('buildCascadeSettingsData', () => {
       focusModeEnabled: false,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
+      showModelFooter: true,
       sources: {
         maxMessages: 'channel',
         maxAge: 'hardcoded',
@@ -68,6 +71,7 @@ describe('buildCascadeSettingsData', () => {
         focusModeEnabled: 'hardcoded',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
+        showModelFooter: 'hardcoded',
       },
     };
 
@@ -121,6 +125,7 @@ describe('buildCascadeSettingsData', () => {
       focusModeEnabled: false,
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
+      showModelFooter: true,
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -130,6 +135,7 @@ describe('buildCascadeSettingsData', () => {
         focusModeEnabled: 'hardcoded',
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
+        showModelFooter: 'hardcoded',
       },
     };
 
@@ -147,7 +153,7 @@ describe('buildCascadeSettingsData', () => {
     expect(result.maxImages.effectiveValue).toBe(5);
   });
 
-  it('should include all 8 config fields', () => {
+  it('should include all 9 config fields', () => {
     const result = buildCascadeSettingsData(null, null, 'admin');
 
     const expectedFields = [
@@ -159,6 +165,7 @@ describe('buildCascadeSettingsData', () => {
       'focusModeEnabled',
       'crossChannelHistoryEnabled',
       'shareLtmAcrossPersonalities',
+      'showModelFooter',
     ];
 
     for (const field of expectedFields) {
@@ -181,6 +188,7 @@ describe('convertResolveDefaultsResponse', () => {
       shareLtmAcrossPersonalities: false,
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
+      showModelFooter: true,
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -190,6 +198,7 @@ describe('convertResolveDefaultsResponse', () => {
         shareLtmAcrossPersonalities: 'hardcoded',
         memoryScoreThreshold: 'hardcoded',
         memoryLimit: 'hardcoded',
+        showModelFooter: 'hardcoded',
       },
       userOverrides: { maxMessages: 30 },
     };
@@ -213,6 +222,7 @@ describe('convertResolveDefaultsResponse', () => {
       shareLtmAcrossPersonalities: false,
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
+      showModelFooter: true,
       sources: {
         maxMessages: 'hardcoded',
         maxAge: 'hardcoded',
@@ -222,6 +232,7 @@ describe('convertResolveDefaultsResponse', () => {
         shareLtmAcrossPersonalities: 'hardcoded',
         memoryScoreThreshold: 'hardcoded',
         memoryLimit: 'hardcoded',
+        showModelFooter: 'hardcoded',
       },
       userOverrides: null,
     };
@@ -250,6 +261,7 @@ describe('buildFallbackSettingsData', () => {
     expect(result.shareLtmAcrossPersonalities.effectiveValue).toBe(false);
     expect(result.memoryScoreThreshold.effectiveValue).toBe(0.5);
     expect(result.memoryLimit.effectiveValue).toBe(20);
+    expect(result.showModelFooter.effectiveValue).toBe(true);
   });
 
   it('should have null localValue for all fields', () => {
@@ -263,5 +275,6 @@ describe('buildFallbackSettingsData', () => {
     expect(result.shareLtmAcrossPersonalities.localValue).toBeNull();
     expect(result.memoryScoreThreshold.localValue).toBeNull();
     expect(result.memoryLimit.localValue).toBeNull();
+    expect(result.showModelFooter.localValue).toBeNull();
   });
 });

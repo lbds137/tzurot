@@ -120,5 +120,25 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
   },
 ];
 
+/**
+ * Display settings definitions
+ */
+export const DISPLAY_SETTINGS: SettingDefinition[] = [
+  {
+    id: 'showModelFooter',
+    label: 'Model Footer',
+    emoji: '🏷️',
+    description:
+      'Show the model indicator line (e.g., "Model: claude-sonnet-4") at the bottom of AI responses. ' +
+      'Disabling hides the model line but other indicators (guest mode, focus mode, incognito) still appear.',
+    type: SettingType.TRI_STATE,
+    helpText: 'When disabled, the model name is hidden from responses',
+  },
+];
+
 /** All known settings across all groups. Single source of truth for setting lookups. */
-export const ALL_SETTINGS: SettingDefinition[] = [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS];
+export const ALL_SETTINGS: SettingDefinition[] = [
+  ...EXTENDED_CONTEXT_SETTINGS,
+  ...MEMORY_SETTINGS,
+  ...DISPLAY_SETTINGS,
+];
