@@ -11,6 +11,7 @@ import type {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
+  ButtonInteraction,
 } from 'discord.js';
 import type { Command } from '../types.js';
 
@@ -518,6 +519,59 @@ describe('CommandHandler', () => {
 
       // Should not throw — the failed error reply is caught internally
       await expect(handler.handleInteraction(mockInteraction)).resolves.toBeUndefined();
+    });
+
+    it('should not throw when modal error reply itself fails', async () => {
+      const mockCommand: Command = {
+        data: {
+          name: 'modal-fail',
+          description: 'Failing modal command',
+        } as unknown as SlashCommandBuilder,
+        execute: vi.fn(),
+        handleModal: vi.fn().mockRejectedValue(new Error('Modal handler failed')),
+      };
+
+      handler.getCommands().set('modal-fail', mockCommand);
+      (handler as any).prefixToCommand.set('modal-fail', mockCommand);
+
+      const mockInteraction = {
+        isChatInputCommand: () => false,
+        isModalSubmit: () => true,
+        customId: 'modal-fail::edit::entity-123',
+        reply: vi.fn().mockRejectedValue(new Error('Interaction has already been acknowledged.')),
+        followUp: vi.fn(),
+        replied: false,
+        deferred: false,
+      } as unknown as ModalSubmitInteraction;
+
+      await expect(handler.handleInteraction(mockInteraction)).resolves.toBeUndefined();
+    });
+
+    it('should not throw when component error reply itself fails', async () => {
+      const mockCommand: Command = {
+        data: {
+          name: 'comp-fail',
+          description: 'Failing component command',
+        } as unknown as SlashCommandBuilder,
+        execute: vi.fn(),
+        handleButton: vi.fn().mockRejectedValue(new Error('Button handler failed')),
+        componentPrefixes: ['comp-fail'],
+      };
+
+      handler.getCommands().set('comp-fail', mockCommand);
+      (handler as any).prefixToCommand.set('comp-fail', mockCommand);
+
+      const mockInteraction = {
+        customId: 'comp-fail::action::123',
+        isStringSelectMenu: () => false,
+        isButton: () => true,
+        reply: vi.fn().mockRejectedValue(new Error('Interaction has already been acknowledged.')),
+        followUp: vi.fn(),
+        replied: false,
+        deferred: false,
+      } as unknown as ButtonInteraction;
+
+      await expect(handler.handleComponentInteraction(mockInteraction)).resolves.toBeUndefined();
     });
   });
 
