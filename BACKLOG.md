@@ -47,7 +47,7 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 140 clones across PRs #599, #665, #666, #667, #668, #704.
+**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140. Current: 140.
 
 ### Completed
 
