@@ -273,6 +273,78 @@ describe('stripResponseArtifacts', () => {
     });
   });
 
+  describe('Hallucinated XML tool-use wrapper stripping', () => {
+    it('should strip leading <function_results> and nested tags (real GLM 4.5 Air case)', () => {
+      const content =
+        '<function_results>\n<result>\n<result_text>Leviathan</result_text>\n</result>\n</function_results>\n\n*adjusts glasses* Well, well...';
+      expect(stripResponseArtifacts(content, 'Leviathan')).toBe('*adjusts glasses* Well, well...');
+    });
+
+    it('should strip leading <function_calls> with <invoke> nesting', () => {
+      const content =
+        '<function_calls>\n<invoke name="respond">\n<parameter name="character">Bambi</parameter>\n<parameter name="content">Hey there!</parameter>\n</invoke>\n</function_calls>\n\nHey there!';
+      expect(stripResponseArtifacts(content, 'Bambi')).toBe('Hey there!');
+    });
+
+    it('should strip self-contained <result>PersonalityName</result>', () => {
+      expect(
+        stripResponseArtifacts('<result>Leviathan</result>\n\nActual response here.', 'Leviathan')
+      ).toBe('Actual response here.');
+    });
+
+    it('should strip self-contained <parameter> with attributes', () => {
+      expect(
+        stripResponseArtifacts('<parameter name="character">Bambi</parameter>\nHello!', 'Bambi')
+      ).toBe('Hello!');
+    });
+
+    it('should strip leading <tool_results> tag', () => {
+      expect(stripResponseArtifacts('<tool_results>\nSome content here', 'Emily')).toBe(
+        'Some content here'
+      );
+    });
+
+    it('should strip leading <tool_call> tag with attributes', () => {
+      expect(stripResponseArtifacts('<tool_call id="123">\nResponse text', 'Emily')).toBe(
+        'Response text'
+      );
+    });
+
+    it('should NOT strip roleplay content like <looks around>', () => {
+      const content = '<looks around> Hey, what are you doing here?';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    });
+
+    it('should NOT strip self-contained tag with long content via single pattern', () => {
+      // Self-contained pattern has 100-char limit, but individual leading/trailing patterns
+      // still strip the tags separately. Use a tag NOT in our known lists to verify.
+      const longContent = 'A'.repeat(150);
+      const content = `<dialogue>${longContent}</dialogue>`;
+      // Only </dialogue> gets stripped by generic trailing closer; <dialogue> is not in our list
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(`<dialogue>${longContent}`);
+    });
+
+    it('should handle combined leading XML wrappers + trailing closing tags', () => {
+      const content =
+        '<function_results>\n<result>Leviathan</result>\nActual response!</function_results></message>';
+      expect(stripResponseArtifacts(content, 'Leviathan')).toBe('Actual response!');
+    });
+
+    it('should be case-insensitive for hallucinated tags', () => {
+      expect(stripResponseArtifacts('<FUNCTION_RESULTS>\nHello there', 'Emily')).toBe(
+        'Hello there'
+      );
+    });
+
+    it('should strip deeply nested hallucination (multiple iterations)', () => {
+      // Real pattern: wrapper tags around actual response text (not inside a self-contained tag)
+      const content =
+        '<function_results>\n<result>\n<result_text>\nHello, how are you?\n</result_text>\n</result>\n</function_results>';
+      const result = stripResponseArtifacts(content, 'Emily');
+      expect(result).toBe('Hello, how are you?');
+    });
+  });
+
   describe('Edge cases', () => {
     it('should handle empty content after stripping', () => {
       expect(stripResponseArtifacts('Emily: ', 'Emily')).toBe('');

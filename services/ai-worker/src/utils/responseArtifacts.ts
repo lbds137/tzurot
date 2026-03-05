@@ -29,6 +29,18 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
     // Leading <from> tag: model echoes speaker identification from prompt
     // '<from id="abc">Kevbear</from>\n\nHello' → 'Hello'
     /^<from\b[^>]*>[^<]*<\/from>\s*/i,
+    // Self-contained hallucinated tags with short content: catches metadata echoes like
+    // <result>PersonalityName</result> or <parameter name="char">Name</parameter>.
+    // Max 100 chars prevents stripping tags that contain the actual response.
+    // MUST come before leading opening tag pattern so matched pairs are stripped as a unit.
+    /^<(result|result_text|parameter|character|name|content)(?:\s[^>]*)?>[^<\n]{0,100}<\/\1>\s*/i,
+    // Leading hallucinated tool-use opening tags: GLM 4.5 Air (and similar models trained on
+    // Anthropic/OpenAI data) wrap responses in XML tool-use structures like <function_calls>,
+    // <invoke>, <results>, etc. Strip known tag families at start of content only.
+    /^<(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)(?:\s[^>]*)?>[ \t]*\n?/i,
+    // Leading hallucinated closing tags: after inner content is stripped, orphaned closing tags
+    // like </result> or </function_results> remain at the start. Strip them too.
+    /^<\/(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)>[ \t]*\n?/i,
     // Trailing <reactions>...</reactions> block: LLM mimics conversation history metadata
     // Must be checked before simpler trailing tags since it's multiline
     /\s*<reactions>[\s\S]*?<\/reactions>\s*$/i,
@@ -96,7 +108,7 @@ function applyPatternsIteratively(
  */
 export function stripResponseArtifacts(content: string, personalityName: string): string {
   const patterns = buildArtifactPatterns(personalityName);
-  const { cleaned, strippedCount } = applyPatternsIteratively(content, patterns, 5);
+  const { cleaned, strippedCount } = applyPatternsIteratively(content, patterns, 10);
 
   if (strippedCount > 0) {
     const charsRemoved = content.length - cleaned.length;
