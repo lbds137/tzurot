@@ -39,7 +39,6 @@ import {
   handleSettingsModal,
   isSettingsInteraction,
   parseSettingsCustomId,
-  parseCharacterEntityId,
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   DISPLAY_SETTINGS,
@@ -125,10 +124,10 @@ export async function handleOverrides(
     await createSettingsDashboard(context.interaction, {
       config: CHARACTER_OVERRIDES_CONFIG,
       data,
-      entityId: `${characterSlug}--${personality.id}`,
+      entityId: personality.id,
       entityName: `${personality.name} (${personality.slug})`,
       userId,
-      updateHandler: createUpdateHandler(characterSlug, personality.id),
+      updateHandler: createUpdateHandler(personality.id),
     });
 
     logger.info({ characterSlug, userId }, '[Character Overrides] Dashboard opened');
@@ -152,20 +151,15 @@ export async function handleCharacterOverridesSelectMenu(
   }
 
   const parsed = parseSettingsCustomId(interaction.customId);
-  const entityId = parsed?.entityId ?? null;
-  if (entityId === null) {
-    return;
-  }
-
-  const [characterSlug, personalityId] = parseCharacterEntityId(entityId);
-  if (characterSlug === null) {
+  const personalityId = parsed?.entityId ?? null;
+  if (personalityId === null) {
     return;
   }
 
   await handleSettingsSelectMenu(
     interaction,
     CHARACTER_OVERRIDES_CONFIG,
-    createUpdateHandler(characterSlug, personalityId)
+    createUpdateHandler(personalityId)
   );
 }
 
@@ -180,20 +174,15 @@ export async function handleCharacterOverridesButton(
   }
 
   const parsed = parseSettingsCustomId(interaction.customId);
-  const entityId = parsed?.entityId ?? null;
-  if (entityId === null) {
-    return;
-  }
-
-  const [characterSlug, personalityId] = parseCharacterEntityId(entityId);
-  if (characterSlug === null) {
+  const personalityId = parsed?.entityId ?? null;
+  if (personalityId === null) {
     return;
   }
 
   await handleSettingsButton(
     interaction,
     CHARACTER_OVERRIDES_CONFIG,
-    createUpdateHandler(characterSlug, personalityId)
+    createUpdateHandler(personalityId)
   );
 }
 
@@ -208,20 +197,15 @@ export async function handleCharacterOverridesModal(
   }
 
   const parsed = parseSettingsCustomId(interaction.customId);
-  const entityId = parsed?.entityId ?? null;
-  if (entityId === null) {
-    return;
-  }
-
-  const [characterSlug, personalityId] = parseCharacterEntityId(entityId);
-  if (characterSlug === null) {
+  const personalityId = parsed?.entityId ?? null;
+  if (personalityId === null) {
     return;
   }
 
   await handleSettingsModal(
     interaction,
     CHARACTER_OVERRIDES_CONFIG,
-    createUpdateHandler(characterSlug, personalityId)
+    createUpdateHandler(personalityId)
   );
 }
 
@@ -256,17 +240,17 @@ function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData 
 }
 
 /**
- * Create a settings update handler bound to a specific character+personality.
+ * Create a settings update handler bound to a specific personality.
  * Returns a 4-param handler matching the SettingsUpdateHandler signature.
  */
-function createUpdateHandler(characterSlug: string, personalityId: string | null) {
+function createUpdateHandler(personalityId: string) {
   return (
     interaction: ButtonInteraction | ModalSubmitInteraction,
     _session: SettingsDashboardSession,
     settingId: string,
     newValue: unknown
   ): Promise<SettingUpdateResult> =>
-    handleSettingUpdate(interaction, settingId, newValue, characterSlug, personalityId);
+    handleSettingUpdate(interaction, settingId, newValue, personalityId);
 }
 
 /**
@@ -277,17 +261,12 @@ async function handleSettingUpdate(
   interaction: ButtonInteraction | ModalSubmitInteraction,
   settingId: string,
   newValue: unknown,
-  characterSlug: string,
-  personalityId: string | null
+  personalityId: string
 ): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
-  if (personalityId === null) {
-    return { success: false, error: 'Missing personality ID' };
-  }
-
   logger.debug(
-    { settingId, newValue, characterSlug, personalityId, userId },
+    { settingId, newValue, personalityId, userId },
     '[Character Overrides] Updating setting'
   );
 
@@ -312,7 +291,7 @@ async function handleSettingUpdate(
 
     if (!result.ok) {
       logger.warn(
-        { settingId, error: result.error, characterSlug },
+        { settingId, error: result.error, personalityId },
         '[Character Overrides] Update failed'
       );
       return { success: false, error: result.error };
@@ -331,14 +310,14 @@ async function handleSettingUpdate(
     const newData = convertToSettingsData(cascadeResult.data);
 
     logger.info(
-      { settingId, newValue, characterSlug, userId },
+      { settingId, newValue, personalityId, userId },
       '[Character Overrides] Setting updated'
     );
 
     return { success: true, newData };
   } catch (error) {
     logger.error(
-      { err: error, settingId, characterSlug },
+      { err: error, settingId, personalityId },
       '[Character Overrides] Error updating setting'
     );
     return { success: false, error: 'Failed to update setting' };

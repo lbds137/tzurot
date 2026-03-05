@@ -333,7 +333,7 @@ describe('Character Overrides Dashboard', () => {
   describe('handleCharacterOverridesButton', () => {
     it('should ignore non-character-overrides interactions', async () => {
       const interaction = createMockButtonInteraction(
-        'character-settings::set::aurora--personality-123::enabled:true'
+        'character-settings::set::personality-123::enabled:true'
       );
 
       await handleCharacterOverridesButton(interaction);
@@ -352,8 +352,7 @@ describe('Character Overrides Dashboard', () => {
 
     it('should update setting via user-personality cascade endpoint', async () => {
       const interaction = {
-        customId:
-          'character-overrides::set::aurora--personality-123::crossChannelHistoryEnabled:true',
+        customId: 'character-overrides::set::personality-123::crossChannelHistoryEnabled:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -363,7 +362,7 @@ describe('Character Overrides Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           userId: 'user-456',
-          entityId: 'aurora--personality-123',
+          entityId: 'personality-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'personality' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'personality' },
@@ -398,37 +397,6 @@ describe('Character Overrides Dashboard', () => {
           body: { crossChannelHistoryEnabled: true },
         })
       );
-    });
-
-    it('should handle missing personalityId when entityId has no -- separator', async () => {
-      const interaction = {
-        customId: 'character-overrides::set::aurora::crossChannelHistoryEnabled:true',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'aurora',
-          data: {
-            crossChannelHistoryEnabled: {
-              localValue: null,
-              effectiveValue: false,
-              source: 'hardcoded',
-            },
-          },
-          view: 'setting',
-          activeSetting: 'crossChannelHistoryEnabled',
-        },
-      });
-
-      await handleCharacterOverridesButton(interaction as unknown as ButtonInteraction);
-
-      // Should not make any API calls since personalityId is null
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
   });
 
@@ -472,7 +440,7 @@ describe('Character Overrides Dashboard', () => {
     const createSessionWithSetting = (settingId: string) => ({
       data: {
         userId: 'user-456',
-        entityId: 'aurora--personality-123',
+        entityId: 'personality-123',
         data: {
           maxMessages: { localValue: null, effectiveValue: 50, source: 'personality' },
           maxAge: { localValue: null, effectiveValue: 7200, source: 'personality' },
@@ -485,7 +453,7 @@ describe('Character Overrides Dashboard', () => {
 
     it('should ignore non-character-overrides modal interactions', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora--personality-123::maxMessages',
+        'character-settings::modal::personality-123::maxMessages',
         '50'
       );
 
@@ -504,7 +472,7 @@ describe('Character Overrides Dashboard', () => {
 
     it('should update maxMessages setting via user-personality cascade endpoint', async () => {
       const interaction = createMockModalInteraction(
-        'character-overrides::modal::aurora--personality-123::maxMessages',
+        'character-overrides::modal::personality-123::maxMessages',
         '75'
       );
 

@@ -369,8 +369,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update crossChannelHistoryEnabled via set button', async () => {
       const interaction = {
-        customId:
-          'character-settings::set::aurora--personality-123::crossChannelHistoryEnabled:true',
+        customId: 'character-settings::set::personality-123::crossChannelHistoryEnabled:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -380,7 +379,7 @@ describe('Character Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           userId: 'user-456',
-          entityId: 'aurora--personality-123',
+          entityId: 'personality-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'personality' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'personality' },
@@ -418,8 +417,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update shareLtmAcrossPersonalities via set button', async () => {
       const interaction = {
-        customId:
-          'character-settings::set::aurora--personality-123::shareLtmAcrossPersonalities:true',
+        customId: 'character-settings::set::personality-123::shareLtmAcrossPersonalities:true',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -429,7 +427,7 @@ describe('Character Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           userId: 'user-456',
-          entityId: 'aurora--personality-123',
+          entityId: 'personality-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'personality' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'personality' },
@@ -468,7 +466,7 @@ describe('Character Settings Dashboard', () => {
     it('should handle permission denied (401) response', async () => {
       // Entity ID now uses slug::personalityId format
       const interaction = {
-        customId: 'character-settings::set::aurora--personality-123::maxMessages:auto',
+        customId: 'character-settings::set::personality-123::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -478,7 +476,7 @@ describe('Character Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           userId: 'user-456',
-          entityId: 'aurora--personality-123',
+          entityId: 'personality-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'personality' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'personality' },
@@ -507,7 +505,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle character not found (404) response', async () => {
       const interaction = {
-        customId: 'character-settings::set::aurora--personality-123::maxMessages:auto',
+        customId: 'character-settings::set::personality-123::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -517,7 +515,7 @@ describe('Character Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           userId: 'user-456',
-          entityId: 'aurora--personality-123',
+          entityId: 'personality-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'personality' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'personality' },
@@ -575,7 +573,7 @@ describe('Character Settings Dashboard', () => {
     const createSessionWithSetting = (settingId: string) => ({
       data: {
         userId: 'user-456',
-        entityId: 'aurora--personality-123',
+        entityId: 'personality-123',
         data: {
           maxMessages: { localValue: null, effectiveValue: 50, source: 'personality' },
           maxAge: { localValue: null, effectiveValue: 7200, source: 'personality' },
@@ -599,7 +597,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxMessages setting via cascade endpoint', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora--personality-123::maxMessages',
+        'character-settings::modal::personality-123::maxMessages',
         '75'
       );
 
@@ -622,7 +620,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxAge setting with duration string (2h)', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora--personality-123::maxAge',
+        'character-settings::modal::personality-123::maxAge',
         '2h'
       );
 
@@ -644,7 +642,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxAge setting to "off" (disabled)', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora--personality-123::maxAge',
+        'character-settings::modal::personality-123::maxAge',
         'off'
       );
 
@@ -667,7 +665,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should set maxAge to auto (null) when auto selected', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora--personality-123::maxAge',
+        'character-settings::modal::personality-123::maxAge',
         'auto'
       );
 
@@ -690,7 +688,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should update maxImages setting via cascade endpoint', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora--personality-123::maxImages',
+        'character-settings::modal::personality-123::maxImages',
         '10'
       );
 
@@ -712,7 +710,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle refresh failure after update', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora--personality-123::maxMessages',
+        'character-settings::modal::personality-123::maxMessages',
         '50'
       );
 
