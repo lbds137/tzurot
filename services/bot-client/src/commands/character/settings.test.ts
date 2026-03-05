@@ -724,5 +724,20 @@ describe('Character Settings Dashboard', () => {
       // When refresh fails, handler should not call editReply (preserves state)
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
+
+    it('should handle thrown error in update handler gracefully', async () => {
+      const interaction = createMockModalInteraction(
+        'character-settings::modal::personality-123::maxMessages',
+        '50'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      mockCallGatewayApi.mockRejectedValueOnce(new Error('Network error'));
+
+      await handleCharacterSettingsModal(interaction as never);
+
+      // Error is caught — handler should not propagate
+      expect(interaction.editReply).not.toHaveBeenCalled();
+    });
   });
 });
