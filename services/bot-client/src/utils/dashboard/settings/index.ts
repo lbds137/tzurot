@@ -16,7 +16,6 @@ export {
   type PersonalityResponse,
   parseSettingsCustomId,
   isSettingsInteraction,
-  parseCharacterEntityId,
 } from './types.js';
 
 // Configuration
