@@ -23,6 +23,8 @@ import { getCommandFromCustomId } from '../utils/customIds.js';
 import { getCommandFiles } from '../utils/commandFileUtils.js';
 
 const logger = createLogger('CommandHandler');
+const ERROR_REPLY_FAILED_MSG =
+  '[CommandHandler] Could not send error reply (interaction likely already acknowledged)';
 
 // Get directory name for ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -207,7 +209,11 @@ export class CommandHandler {
       await execute(interaction);
     } catch (error) {
       logger.error({ err: error }, `[CommandHandler] Error executing command: ${commandName}`);
-      await this.sendErrorReply(interaction, 'There was an error executing this command!');
+      try {
+        await this.sendErrorReply(interaction, 'There was an error executing this command!');
+      } catch (replyError) {
+        logger.debug({ err: replyError }, ERROR_REPLY_FAILED_MSG);
+      }
     }
   }
 
@@ -251,7 +257,11 @@ export class CommandHandler {
       }
     } catch (error) {
       logger.error({ err: error, customId }, `[CommandHandler] Error in modal: ${commandName}`);
-      await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
+      try {
+        await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
+      } catch (replyError) {
+        logger.debug({ err: replyError, customId }, ERROR_REPLY_FAILED_MSG);
+      }
     }
   }
 
@@ -342,7 +352,11 @@ export class CommandHandler {
         { err: error, customId, commandName },
         '[CommandHandler] Error in component interaction'
       );
-      await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
+      try {
+        await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
+      } catch (replyError) {
+        logger.debug({ err: replyError, customId }, ERROR_REPLY_FAILED_MSG);
+      }
     }
   }
 
