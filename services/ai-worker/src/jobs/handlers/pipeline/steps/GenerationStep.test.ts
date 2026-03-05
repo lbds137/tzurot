@@ -10,6 +10,7 @@ import {
   AttachmentType,
   type LLMGenerationJobData,
   type LoadedPersonality,
+  type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import { GenerationStep } from './GenerationStep.js';
 import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext } from '../types.js';
@@ -424,6 +425,97 @@ describe('GenerationStep', () => {
       const result = await step.process(context);
 
       expect(result.result?.metadata?.providerUsed).toBe('gemini');
+    });
+
+    describe('showModelFooter propagation', () => {
+      const configOverridesWithFooterHidden: ResolvedConfigOverrides = {
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: 0.5,
+        memoryLimit: 20,
+        focusModeEnabled: false,
+        crossChannelHistoryEnabled: false,
+        shareLtmAcrossPersonalities: false,
+        showModelFooter: false,
+        sources: {
+          maxMessages: 'hardcoded' as const,
+          maxAge: 'hardcoded' as const,
+          maxImages: 'hardcoded' as const,
+          memoryScoreThreshold: 'hardcoded' as const,
+          memoryLimit: 'hardcoded' as const,
+          focusModeEnabled: 'hardcoded' as const,
+          crossChannelHistoryEnabled: 'hardcoded' as const,
+          shareLtmAcrossPersonalities: 'hardcoded' as const,
+          showModelFooter: 'user-default' as const,
+        },
+      };
+
+      it('should propagate showModelFooter=false in success metadata', async () => {
+        const ragResponse: RAGResponse = {
+          content: 'Response',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+        };
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+          configOverrides: configOverridesWithFooterHidden,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.metadata?.showModelFooter).toBe(false);
+      });
+
+      it('should propagate showModelFooter=false in error metadata', async () => {
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(new Error('API error'));
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+          configOverrides: configOverridesWithFooterHidden,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.metadata?.showModelFooter).toBe(false);
+      });
+
+      it('should propagate showModelFooter=false in empty response metadata', async () => {
+        const ragResponse: RAGResponse = {
+          content: '',
+          retrievedMemories: 0,
+          tokensIn: 10,
+          tokensOut: 5,
+        };
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+          configOverrides: configOverridesWithFooterHidden,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.metadata?.showModelFooter).toBe(false);
+      });
     });
 
     it('should pass guild info from job context to RAG service', async () => {

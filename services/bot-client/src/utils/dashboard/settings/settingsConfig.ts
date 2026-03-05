@@ -129,7 +129,7 @@ export const DISPLAY_SETTINGS: SettingDefinition[] = [
     label: 'Model Footer',
     emoji: '🏷️',
     description:
-      'Show the model indicator line (e.g., "Model: claude-sonnet-4") at the bottom of AI responses. ' +
+      'Show the model indicator line (e.g., "Model: [claude-sonnet-4](…)") at the bottom of AI responses. ' +
       'Disabling hides the model line but other indicators (guest mode, focus mode, incognito) still appear.',
     type: SettingType.TRI_STATE,
     helpText: 'When disabled, the model name is hidden from responses',
