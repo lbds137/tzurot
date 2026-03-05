@@ -7,7 +7,7 @@
 
 ## Session Goal
 
-_Quick wins from backlog — bundle small fixes into one PR._
+_Feature: add `showModelFooter` config cascade option._
 
 ## Active Task
 
@@ -17,14 +17,13 @@ None — session complete.
 
 ## Completed This Session
 
-- **PR #704**: Memory CPD clone reduction (detailActionRouter extraction) + integration test isolation fix
-  - Extracted shared `handleMemoryDetailAction()` from browse.ts and searchDetailActions.ts
-  - Fixed `getCrossChannelHistory` tests with per-test unique channel IDs
-  - Fixed undefined memoryId silent-swallow (now returns false)
-  - CPD: 141 → 140 (memory detail clone pair eliminated)
-- **Backlog cleanup**: Removed completed GLM unclosed `<think>` tag item (fixed by PR #702), removed integration test fix item
-- **Security**: Updated pnpm overrides for hono (>=4.12.4), @hono/node-server (>=1.19.10), ajv (>=6.14.0 <7.0.0) to resolve all 5 Dependabot alerts
-- **Fix**: Capped ajv override at <7.0.0 — unbounded `>=6.14.0` resolved to ajv 8.x for @eslint/eslintrc, breaking `no-singleton-export.test.ts`
+- **PR #705**: feat: add `showModelFooter` to config cascade (merged to develop)
+  - Added `showModelFooter` boolean to all 5 tiers of config cascade (default: `true`)
+  - When `false`, hides model indicator footer; other footers (guest, focus, incognito, auto) remain
+  - New DISPLAY_SETTINGS group in all 5 settings dashboards (tri-state toggle)
+  - Refactored `chatResponseSender` to options object pattern (max-params lint fix)
+  - GenerationStep propagation tests for success/error/empty-response paths
+  - 36 files changed, 356 insertions across common-types, ai-worker, api-gateway, bot-client
 
 ## Recent Releases
 
@@ -34,6 +33,7 @@ None — session complete.
 ## Next Steps
 
 1. Continue CPD Clone Reduction (Phase 5: dashboard patterns)
+2. Pull next item from Quick Wins or backlog
 
 ## CPD Epic Progress
 
