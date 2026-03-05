@@ -271,10 +271,6 @@ Allow emoji reactions to trigger personality actions.
 - [ ] Hook into reaction events (reactionAdd handler)
 - [ ] Action dispatch based on emoji → action mapping
 
-#### ✨ Hide Model Footer (Config Cascade)
-
-User request: option to hide the model indicator line from responses. Add `showModelFooter` boolean to the config cascade (default: `true`). Configurable at all 3 tiers: admin, personality, user-personality. Requires schema migration.
-
 #### ✨ Denylist Duration Support
 
 Allow `/deny` entries to have an optional expiration for temporary bans (e.g., `duration:24h`). Requires `expiresAt` column, filter check, and BullMQ cleanup job.
