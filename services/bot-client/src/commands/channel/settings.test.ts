@@ -265,6 +265,7 @@ describe('Channel Context Dashboard', () => {
           expect.stringContaining('Share Memories'),
           expect.stringContaining('Memory Relevance'),
           expect.stringContaining('Memory Limit'),
+          expect.stringContaining('Model Footer'),
         ])
       );
     });
