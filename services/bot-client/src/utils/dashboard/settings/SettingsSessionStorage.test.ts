@@ -38,6 +38,7 @@ describe('SettingsSessionStorage', () => {
       focusModeEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
       crossChannelHistoryEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
       shareLtmAcrossPersonalities: { localValue: null, effectiveValue: false, source: 'hardcoded' },
+      showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
       memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
       memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
     },

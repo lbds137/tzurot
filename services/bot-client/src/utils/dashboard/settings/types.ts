@@ -74,6 +74,7 @@ export interface SettingsData {
   shareLtmAcrossPersonalities: SettingValue<boolean>;
   memoryScoreThreshold: SettingValue<number>;
   memoryLimit: SettingValue<number>;
+  showModelFooter: SettingValue<boolean>;
 }
 
 /**

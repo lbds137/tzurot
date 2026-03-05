@@ -271,6 +271,7 @@ export class ConfigCascadeResolver {
       focusModeEnabled: values.focusModeEnabled as boolean,
       crossChannelHistoryEnabled: values.crossChannelHistoryEnabled as boolean,
       shareLtmAcrossPersonalities: values.shareLtmAcrossPersonalities as boolean,
+      showModelFooter: values.showModelFooter as boolean,
       sources,
     };
   }

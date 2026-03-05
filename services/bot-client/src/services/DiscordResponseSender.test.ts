@@ -333,6 +333,64 @@ describe('DiscordResponseSender', () => {
       expect(calledContent).toContain('👻 Incognito Mode • Memories not being saved');
     });
 
+    it('should hide model footer when showModelFooter is false', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'anthropic/claude-sonnet-4.5',
+        showModelFooter: false,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).not.toContain('Model:');
+    });
+
+    it('should show standalone auto-response indicator when showModelFooter is false and isAutoResponse is true', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'anthropic/claude-sonnet-4.5',
+        isAutoResponse: true,
+        showModelFooter: false,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('Response content');
+      expect(calledContent).not.toContain('Model:');
+      expect(calledContent).toContain('📍 auto-response');
+    });
+
+    it('should still show other footers when showModelFooter is false', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'test-model',
+        isGuestMode: true,
+        focusModeEnabled: true,
+        incognitoModeActive: true,
+        showModelFooter: false,
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).not.toContain('Model:');
+      expect(calledContent).toContain('🆓 Using free model');
+      expect(calledContent).toContain('🔒 Focus Mode');
+      expect(calledContent).toContain('👻 Incognito Mode');
+    });
+
     it('should not add auto-response indicator when isAutoResponse is false', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });

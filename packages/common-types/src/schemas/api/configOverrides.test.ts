@@ -31,10 +31,16 @@ describe('ConfigOverridesSchema', () => {
         memoryScoreThreshold: 0.8,
         memoryLimit: 10,
         focusModeEnabled: true,
+        showModelFooter: false,
       };
       const result = ConfigOverridesSchema.safeParse(full);
       expect(result.success).toBe(true);
       expect(result.data).toEqual(full);
+    });
+
+    it('should accept showModelFooter as boolean', () => {
+      expect(ConfigOverridesSchema.safeParse({ showModelFooter: true }).success).toBe(true);
+      expect(ConfigOverridesSchema.safeParse({ showModelFooter: false }).success).toBe(true);
     });
 
     it('should accept maxAge as null (no limit)', () => {
@@ -118,6 +124,11 @@ describe('ConfigOverridesSchema', () => {
       const result = ConfigOverridesSchema.safeParse({ focusModeEnabled: 'yes' });
       expect(result.success).toBe(false);
     });
+
+    it('should reject non-boolean showModelFooter', () => {
+      const result = ConfigOverridesSchema.safeParse({ showModelFooter: 'yes' });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('unknown key handling', () => {
@@ -150,6 +161,7 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold).toBe(0.5);
     expect(HARDCODED_CONFIG_DEFAULTS.memoryLimit).toBe(20);
     expect(HARDCODED_CONFIG_DEFAULTS.focusModeEnabled).toBe(false);
+    expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
   });
 
   it('should pass schema validation', () => {

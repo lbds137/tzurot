@@ -405,6 +405,7 @@ export class GenerationStep implements IPipelineStep {
               // Include thinking content so it can be shown even on failure
               thinkingContent: response.thinkingContent,
               showThinking: effectivePersonality.showThinking,
+              showModelFooter: context.configOverrides?.showModelFooter,
             },
           },
         };
@@ -440,6 +441,7 @@ export class GenerationStep implements IPipelineStep {
             incognitoModeActive: response.incognitoModeActive,
             thinkingContent: response.thinkingContent,
             showThinking: effectivePersonality.showThinking,
+            showModelFooter: context.configOverrides?.showModelFooter,
           },
         },
       };
@@ -492,6 +494,7 @@ export class GenerationStep implements IPipelineStep {
             providerUsed: provider,
             configSource,
             isGuestMode,
+            showModelFooter: context.configOverrides?.showModelFooter,
           },
         },
       };

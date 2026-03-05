@@ -646,6 +646,7 @@ describe('MemoryRetriever', () => {
         focusModeEnabled: false,
         crossChannelHistoryEnabled: false,
         shareLtmAcrossPersonalities: false,
+        showModelFooter: true,
         sources: {
           maxMessages: 'user-personality',
           maxAge: 'hardcoded',
@@ -655,6 +656,7 @@ describe('MemoryRetriever', () => {
           focusModeEnabled: 'hardcoded',
           crossChannelHistoryEnabled: 'hardcoded' as const,
           shareLtmAcrossPersonalities: 'hardcoded' as const,
+          showModelFooter: 'hardcoded' as const,
         },
       };
 

@@ -37,6 +37,8 @@ export const ConfigOverridesSchema = z
     crossChannelHistoryEnabled: z.boolean().optional(),
     /** Share long-term memories across all personalities (migrated from Persona column) */
     shareLtmAcrossPersonalities: z.boolean().optional(),
+    /** Whether to show the model indicator footer on AI responses */
+    showModelFooter: z.boolean().optional(),
   })
   .strip();
 
@@ -60,6 +62,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly focusModeEnabled: false;
   readonly crossChannelHistoryEnabled: false;
   readonly shareLtmAcrossPersonalities: false;
+  readonly showModelFooter: true;
 } = {
   maxMessages: 50,
   maxAge: null,
@@ -69,6 +72,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   focusModeEnabled: false,
   crossChannelHistoryEnabled: false,
   shareLtmAcrossPersonalities: false,
+  showModelFooter: true,
 };
 
 // ============================================================================
@@ -104,6 +108,7 @@ export interface ResolvedConfigOverrides {
   focusModeEnabled: boolean;
   crossChannelHistoryEnabled: boolean;
   shareLtmAcrossPersonalities: boolean;
+  showModelFooter: boolean;
 
   /** Per-field source tracking: which tier provided each value */
   sources: Record<keyof ConfigOverrides, ConfigOverrideSource>;

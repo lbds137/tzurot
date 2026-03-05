@@ -359,6 +359,7 @@ describe('PersonalityMessageHandler', () => {
             focusModeEnabled: false,
             crossChannelHistoryEnabled: false,
             shareLtmAcrossPersonalities: false,
+            showModelFooter: true,
             sources: {
               maxMessages: 'user-personality',
               maxAge: 'admin',
@@ -368,6 +369,7 @@ describe('PersonalityMessageHandler', () => {
               focusModeEnabled: 'hardcoded',
               crossChannelHistoryEnabled: 'hardcoded',
               shareLtmAcrossPersonalities: 'hardcoded',
+              showModelFooter: 'hardcoded',
             },
           },
         },
@@ -432,6 +434,7 @@ describe('PersonalityMessageHandler', () => {
             focusModeEnabled: false,
             crossChannelHistoryEnabled: true,
             shareLtmAcrossPersonalities: false,
+            showModelFooter: true,
             sources: {
               maxMessages: 'hardcoded',
               maxAge: 'hardcoded',
@@ -441,6 +444,7 @@ describe('PersonalityMessageHandler', () => {
               focusModeEnabled: 'hardcoded',
               crossChannelHistoryEnabled: 'admin',
               shareLtmAcrossPersonalities: 'hardcoded',
+              showModelFooter: 'hardcoded',
             },
           },
         },

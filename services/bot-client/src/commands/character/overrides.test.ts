@@ -68,6 +68,7 @@ describe('Character Overrides Dashboard', () => {
     focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
+    showModelFooter: true,
     sources: {
       maxMessages: 'personality',
       maxAge: 'personality',
@@ -77,6 +78,7 @@ describe('Character Overrides Dashboard', () => {
       focusModeEnabled: 'personality',
       crossChannelHistoryEnabled: 'personality',
       shareLtmAcrossPersonalities: 'personality',
+      showModelFooter: 'hardcoded',
     },
   };
 
