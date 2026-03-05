@@ -18,6 +18,7 @@ const SETTING_FIELDS = [
   'shareLtmAcrossPersonalities',
   'memoryScoreThreshold',
   'memoryLimit',
+  'showModelFooter',
 ] as const;
 
 /**

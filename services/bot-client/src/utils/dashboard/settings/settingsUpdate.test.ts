@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { mapSettingToApiUpdate } from './settingsUpdate.js';
+import { ALL_SETTINGS } from './settingsConfig.js';
 
 describe('mapSettingToApiUpdate', () => {
   describe('maxMessages', () => {
@@ -104,9 +105,32 @@ describe('mapSettingToApiUpdate', () => {
     });
   });
 
+  describe('showModelFooter', () => {
+    it('should map boolean value', () => {
+      expect(mapSettingToApiUpdate('showModelFooter', false)).toEqual({
+        showModelFooter: false,
+      });
+    });
+
+    it('should map null (auto/clear)', () => {
+      expect(mapSettingToApiUpdate('showModelFooter', null)).toEqual({
+        showModelFooter: null,
+      });
+    });
+  });
+
   describe('unknown setting', () => {
     it('should return null for unrecognized setting ID', () => {
       expect(mapSettingToApiUpdate('unknownSetting', 42)).toBeNull();
+    });
+  });
+
+  describe('completeness guard', () => {
+    it('should handle every setting defined in ALL_SETTINGS', () => {
+      for (const setting of ALL_SETTINGS) {
+        const result = mapSettingToApiUpdate(setting.id, 'test-value');
+        expect(result).not.toBeNull();
+      }
     });
   });
 });
