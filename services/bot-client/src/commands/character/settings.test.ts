@@ -68,6 +68,7 @@ describe('Character Settings Dashboard', () => {
     focusModeEnabled: false,
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
+    showModelFooter: true,
     sources: {
       maxMessages: 'personality',
       maxAge: 'personality',
@@ -77,6 +78,7 @@ describe('Character Settings Dashboard', () => {
       focusModeEnabled: 'personality',
       crossChannelHistoryEnabled: 'personality',
       shareLtmAcrossPersonalities: 'personality',
+      showModelFooter: 'hardcoded',
     },
   };
 
@@ -226,7 +228,7 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('should include all 8 settings fields', async () => {
+    it('should include all 9 settings fields', async () => {
       const context = createMockContext();
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true, data: mockPersonality })
@@ -237,7 +239,7 @@ describe('Character Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(8);
+      expect(embedJson.fields).toHaveLength(9);
     });
 
     it('should extract personality-tier overrides as local values', async () => {

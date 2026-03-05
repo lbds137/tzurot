@@ -64,7 +64,9 @@ describe('sendCharacterResponse', () => {
   });
 
   it('should append model footer when modelUsed is provided', async () => {
-    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', 'test/model-1');
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', {
+      modelUsed: 'test/model-1',
+    });
 
     const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
     expect(sentContent).toContain('[test/model-1]');
@@ -72,7 +74,7 @@ describe('sendCharacterResponse', () => {
   });
 
   it('should append guest mode footer when in guest mode', async () => {
-    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', undefined, true);
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', { isGuestMode: true });
 
     const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
     expect(sentContent).toContain('Guest mode');
@@ -88,9 +90,39 @@ describe('sendCharacterResponse', () => {
   });
 
   it('should not append footer when modelUsed is empty', async () => {
-    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', '');
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', { modelUsed: '' });
 
     const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
     expect(sentContent).toBe('Hello');
+  });
+
+  it('should hide model footer when showModelFooter is false', async () => {
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', {
+      modelUsed: 'test/model-1',
+      showModelFooter: false,
+    });
+
+    const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
+    expect(sentContent).toBe('Hello');
+    expect(sentContent).not.toContain('test/model-1');
+  });
+
+  it('should show model footer when showModelFooter is true', async () => {
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', {
+      modelUsed: 'test/model-1',
+      showModelFooter: true,
+    });
+
+    const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
+    expect(sentContent).toContain('[test/model-1]');
+  });
+
+  it('should show model footer when showModelFooter is undefined (default behavior)', async () => {
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', {
+      modelUsed: 'test/model-1',
+    });
+
+    const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
+    expect(sentContent).toContain('[test/model-1]');
   });
 });

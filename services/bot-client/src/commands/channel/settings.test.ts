@@ -176,6 +176,7 @@ describe('Channel Context Dashboard', () => {
         focusModeEnabled: false,
         crossChannelHistoryEnabled: false,
         shareLtmAcrossPersonalities: false,
+        showModelFooter: true,
         sources: {
           maxMessages: 'hardcoded',
           maxAge: 'hardcoded',
@@ -185,6 +186,7 @@ describe('Channel Context Dashboard', () => {
           focusModeEnabled: 'hardcoded',
           crossChannelHistoryEnabled: 'hardcoded',
           shareLtmAcrossPersonalities: 'hardcoded',
+          showModelFooter: 'hardcoded',
         },
       },
     });
@@ -241,7 +243,7 @@ describe('Channel Context Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 8 settings fields (extended context + memory)', async () => {
+    it('should include all 9 settings fields (extended context + memory + display)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
@@ -251,7 +253,7 @@ describe('Channel Context Dashboard', () => {
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       // Both extended context and memory settings are shown at channel tier
-      expect(embedJson.fields).toHaveLength(8);
+      expect(embedJson.fields).toHaveLength(9);
       const fieldNames = embedJson.fields.map((f: { name: string }) => f.name);
       expect(fieldNames).toEqual(
         expect.arrayContaining([
@@ -306,6 +308,7 @@ describe('Channel Context Dashboard', () => {
             focusModeEnabled: false,
             crossChannelHistoryEnabled: false,
             shareLtmAcrossPersonalities: false,
+            showModelFooter: true,
             sources: {
               maxMessages: 'admin',
               maxAge: 'hardcoded',
@@ -315,6 +318,7 @@ describe('Channel Context Dashboard', () => {
               focusModeEnabled: 'hardcoded',
               crossChannelHistoryEnabled: 'hardcoded',
               shareLtmAcrossPersonalities: 'hardcoded',
+              showModelFooter: 'hardcoded',
             },
             userOverrides: null,
           },

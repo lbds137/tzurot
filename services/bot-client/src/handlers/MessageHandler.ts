@@ -162,6 +162,7 @@ export class MessageHandler {
         incognitoModeActive: result.metadata?.incognitoModeActive,
         thinkingContent: result.metadata?.thinkingContent,
         showThinking: result.metadata?.showThinking,
+        showModelFooter: result.metadata?.showModelFooter,
       });
 
       // Save assistant message to conversation history
@@ -217,6 +218,7 @@ export class MessageHandler {
         isAutoResponse,
         focusModeEnabled: result.metadata?.focusModeEnabled,
         incognitoModeActive: result.metadata?.incognitoModeActive,
+        showModelFooter: result.metadata?.showModelFooter,
       });
 
       // Save error message to history (stripped of technical spoiler details)

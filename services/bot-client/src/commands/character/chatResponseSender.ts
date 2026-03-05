@@ -17,6 +17,13 @@ import type { LoadedPersonality } from '@tzurot/common-types';
 import { getWebhookManager } from '../../services/serviceRegistry.js';
 import { redisService } from '../../redis.js';
 
+/** Options for footer display */
+interface CharacterResponseOptions {
+  modelUsed?: string;
+  isGuestMode?: boolean;
+  showModelFooter?: boolean;
+}
+
 /**
  * Send character response via webhook.
  * Returns the message IDs of all sent chunks.
@@ -25,15 +32,20 @@ export async function sendCharacterResponse(
   channel: TextChannel | ThreadChannel,
   personality: LoadedPersonality,
   content: string,
-  modelUsed?: string,
-  isGuestMode?: boolean
+  options?: CharacterResponseOptions
 ): Promise<string[]> {
+  const { modelUsed, isGuestMode, showModelFooter } = options ?? {};
   const webhookManager = getWebhookManager();
   const messageIds: string[] = [];
 
   // Build footer (using centralized constants from BOT_FOOTER_TEXT)
   let footer = '';
-  if (modelUsed !== undefined && modelUsed !== null && modelUsed !== '') {
+  if (
+    showModelFooter !== false &&
+    modelUsed !== undefined &&
+    modelUsed !== null &&
+    modelUsed !== ''
+  ) {
     const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
     footer = `\n-# ${buildModelFooterText(modelUsed, modelUrl)}`;
   }

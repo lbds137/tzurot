@@ -119,13 +119,11 @@ async function pollAndSendResponse(
       return { success: false, responseMessageIds: [] };
     }
 
-    const responseMessageIds = await sendCharacterResponse(
-      channel,
-      personality,
-      result.content,
-      result.metadata?.modelUsed,
-      result.metadata?.isGuestMode
-    );
+    const responseMessageIds = await sendCharacterResponse(channel, personality, result.content, {
+      modelUsed: result.metadata?.modelUsed,
+      isGuestMode: result.metadata?.isGuestMode,
+      showModelFooter: result.metadata?.showModelFooter,
+    });
 
     logger.info(
       { jobId, characterSlug, isWeighInMode, responseCount: responseMessageIds.length },

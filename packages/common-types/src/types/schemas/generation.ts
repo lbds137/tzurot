@@ -101,6 +101,8 @@ const generationPayloadSchema = z.object({
       triggerMessageId: z.string().optional(),
       /** Reason processing was skipped (e.g., 'idempotency_check_failed') */
       skipReason: z.string().optional(),
+      /** Whether to show the model footer on the response (from config cascade) */
+      showModelFooter: z.boolean().optional(),
     })
     .optional(),
 });
