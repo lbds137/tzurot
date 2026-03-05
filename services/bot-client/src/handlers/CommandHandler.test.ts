@@ -493,6 +493,32 @@ describe('CommandHandler', () => {
       });
       expect(mockInteraction.reply).not.toHaveBeenCalled();
     });
+
+    it('should not throw when error reply itself fails (interaction already acknowledged)', async () => {
+      const mockCommand: Command = {
+        data: {
+          name: 'failing',
+          description: 'Failing command',
+        } as unknown as SlashCommandBuilder,
+        execute: vi.fn().mockRejectedValue(new Error('Command failed')),
+      };
+
+      handler.getCommands().set('failing', mockCommand);
+
+      const mockInteraction = {
+        isChatInputCommand: () => true,
+        isModalSubmit: () => false,
+        commandName: 'failing',
+        // reply throws because Discord already acknowledged the interaction
+        reply: vi.fn().mockRejectedValue(new Error('Interaction has already been acknowledged.')),
+        followUp: vi.fn(),
+        replied: false,
+        deferred: false,
+      } as unknown as ChatInputCommandInteraction;
+
+      // Should not throw — the failed error reply is caught internally
+      await expect(handler.handleInteraction(mockInteraction)).resolves.toBeUndefined();
+    });
   });
 
   describe('getCommands', () => {
