@@ -12,6 +12,7 @@ import re
 import tempfile
 from contextlib import asynccontextmanager
 
+import librosa
 import numpy as np
 import scipy.io.wavfile
 import soundfile as sf
@@ -116,6 +117,9 @@ async def lifespan(app: FastAPI):
         for filename in os.listdir(voices_dir):
             if filename.endswith((".wav", ".mp3", ".flac", ".ogg")):
                 voice_id = os.path.splitext(filename)[0]
+                if not _VOICE_ID_RE.match(voice_id):
+                    print(f"[TTS] WARNING: Skipping voice file with invalid ID: {filename}")
+                    continue
                 filepath = os.path.join(voices_dir, filename)
                 try:
                     _cache_voice(
@@ -202,8 +206,6 @@ async def transcribe(file: UploadFile = File(...)):
 
         # Resample to 16kHz if needed
         if sample_rate != 16000:
-            import librosa
-
             audio_array = librosa.resample(
                 audio_array.astype(np.float32),
                 orig_sr=sample_rate,
@@ -290,8 +292,8 @@ async def text_to_speech(
             with tempfile.NamedTemporaryFile(
                 suffix=".wav", delete=False
             ) as tmp:
-                tmp.write(audio_bytes)
                 tmp_path = tmp.name
+                tmp.write(audio_bytes)
 
             try:
                 voice_state = tts_model.get_state_for_audio_prompt(tmp_path)
