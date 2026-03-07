@@ -53,14 +53,16 @@ async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
  * Transcribe audio using the self-hosted voice-engine service.
  * Returns the transcription text, or null if the service is unavailable.
  */
-async function transcribeWithVoiceEngine(attachment: AttachmentMetadata): Promise<string | null> {
+async function transcribeWithVoiceEngine(
+  attachment: AttachmentMetadata,
+  audioBuffer: ArrayBuffer
+): Promise<string | null> {
   const voiceEngineClient = getVoiceEngineClient();
   if (voiceEngineClient === null) {
     return null;
   }
 
   try {
-    const audioBuffer = await fetchAudioBuffer(attachment.url);
     const filename =
       attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'audio.ogg';
 
@@ -88,7 +90,10 @@ async function transcribeWithVoiceEngine(attachment: AttachmentMetadata): Promis
 /**
  * Transcribe audio using OpenAI Whisper (fallback path).
  */
-async function transcribeWithWhisper(attachment: AttachmentMetadata): Promise<string> {
+async function transcribeWithWhisper(
+  attachment: AttachmentMetadata,
+  audioBuffer: ArrayBuffer
+): Promise<string> {
   const config = getConfig();
 
   logger.info(
@@ -106,7 +111,6 @@ async function transcribeWithWhisper(attachment: AttachmentMetadata): Promise<st
     timeout: TIMEOUTS.WHISPER_API,
   });
 
-  const audioBuffer = await fetchAudioBuffer(attachment.url);
   const blob = new Blob([audioBuffer], { type: attachment.contentType });
   const audioFile = new File(
     [blob],
@@ -174,12 +178,15 @@ export async function transcribeAudio(
     }
   }
 
+  // Fetch audio once — shared by both voice-engine and Whisper paths
+  const audioBuffer = await fetchAudioBuffer(attachment.url);
+
   // Try voice-engine first (returns null if unconfigured or failed)
-  const voiceEngineResult = await transcribeWithVoiceEngine(attachment);
+  const voiceEngineResult = await transcribeWithVoiceEngine(attachment, audioBuffer);
   if (voiceEngineResult !== null) {
     return voiceEngineResult;
   }
 
   // Fallback to Whisper
-  return transcribeWithWhisper(attachment);
+  return transcribeWithWhisper(attachment, audioBuffer);
 }

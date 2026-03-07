@@ -36,6 +36,11 @@ from pocket_tts import TTSModel  # type: ignore[import-untyped] -- no type stubs
 class _JsonFormatter(logging.Formatter):
     """Emit one JSON object per log line for Railway/structured log ingestion."""
 
+    # Standard LogRecord attributes to exclude from extra-field merging
+    _STANDARD_ATTRS: frozenset[str] = frozenset(
+        logging.LogRecord("", 0, "", 0, "", (), None).__dict__
+    )
+
     def format(self, record: logging.LogRecord) -> str:
         log_entry: dict[str, Any] = {
             "level": record.levelname,
@@ -44,11 +49,9 @@ class _JsonFormatter(logging.Formatter):
         }
         if record.exc_info and record.exc_info[0] is not None:
             log_entry["exc"] = self.formatException(record.exc_info)
-        # Merge structured fields passed via extra={}
-        for key in ("voice_id", "chars", "sample_rate", "voices_loaded",
-                     "voice_count", "filename", "error_detail"):
-            val = getattr(record, key, None)
-            if val is not None:
+        # Dynamically merge any extra={} fields not in the standard LogRecord
+        for key, val in record.__dict__.items():
+            if key not in self._STANDARD_ATTRS and not key.startswith("_"):
                 log_entry[key] = val
         return json.dumps(log_entry)
 
@@ -185,19 +188,19 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if os.path.isdir(voices_dir):
         for filename in os.listdir(voices_dir):
             if filename.endswith((".wav", ".mp3", ".flac", ".ogg")):
-                vid = os.path.splitext(filename)[0]
-                if not _is_valid_voice_id(vid):
+                voice_id = os.path.splitext(filename)[0]
+                if not _is_valid_voice_id(voice_id):
                     logger.warning("Skipping voice file with invalid ID", extra={"filename": filename})
                     continue
                 filepath = os.path.join(voices_dir, filename)
                 try:
                     _cache_voice(
-                        vid,
+                        voice_id,
                         tts_model.get_state_for_audio_prompt(filepath),
                     )
-                    logger.info("Pre-loaded custom voice", extra={"voice_id": vid})
+                    logger.info("Pre-loaded custom voice", extra={"voice_id": voice_id})
                 except Exception:
-                    logger.warning("Failed to pre-load custom voice", exc_info=True, extra={"voice_id": vid})
+                    logger.warning("Failed to pre-load custom voice", exc_info=True, extra={"voice_id": voice_id})
 
     logger.info("Voice Engine ready", extra={"voices_loaded": len(voice_cache)})
 
@@ -488,7 +491,7 @@ def list_voices() -> dict[str, list[dict[str, str]]]:
     """List all available voices."""
     return {
         "voices": [
-            {"id": vid, "type": "cached"} for vid in voice_cache
+            {"id": voice_id, "type": "cached"} for voice_id in voice_cache
         ]
     }
 

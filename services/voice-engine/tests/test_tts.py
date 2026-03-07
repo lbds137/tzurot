@@ -5,12 +5,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import httpx
-import pytest
 
 from server import MAX_TTS_TEXT_LENGTH, voice_cache
 
 
-@pytest.mark.asyncio
 async def test_tts_returns_wav_audio(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     voice_cache["alba"] = {"state": "mock"}
 
@@ -24,7 +22,6 @@ async def test_tts_returns_wav_audio(client: httpx.AsyncClient, mock_tts: MagicM
     assert len(response.content) > 0
 
 
-@pytest.mark.asyncio
 async def test_tts_strips_audio_tags(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     voice_cache["alba"] = {"state": "mock"}
 
@@ -43,7 +40,6 @@ async def test_tts_strips_audio_tags(client: httpx.AsyncClient, mock_tts: MagicM
     assert "Hello world" in clean_text
 
 
-@pytest.mark.asyncio
 async def test_tts_rejects_text_over_limit(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     voice_cache["alba"] = {"state": "mock"}
     long_text = "a" * (MAX_TTS_TEXT_LENGTH + 1)
@@ -57,7 +53,6 @@ async def test_tts_rejects_text_over_limit(client: httpx.AsyncClient, mock_tts: 
     assert "too long" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_tts_returns_404_for_unknown_voice(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     # Voice not in cache, and get_state_for_audio_prompt fails
     mock_tts.get_state_for_audio_prompt.side_effect = FileNotFoundError("Voice not found")
@@ -71,7 +66,6 @@ async def test_tts_returns_404_for_unknown_voice(client: httpx.AsyncClient, mock
     assert "not found" in response.json()["detail"].lower()
 
 
-@pytest.mark.asyncio
 async def test_tts_returns_503_when_model_not_loaded(client: httpx.AsyncClient) -> None:
     response = await client.post(
         "/v1/tts",
@@ -82,7 +76,6 @@ async def test_tts_returns_503_when_model_not_loaded(client: httpx.AsyncClient) 
     assert "TTS model not loaded" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_tts_rejects_invalid_voice_id(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     response = await client.post(
         "/v1/tts",
@@ -93,7 +86,6 @@ async def test_tts_rejects_invalid_voice_id(client: httpx.AsyncClient, mock_tts:
     assert "voice_id" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_tts_rejects_empty_text_after_tag_stripping(
     client: httpx.AsyncClient, mock_tts: MagicMock
 ) -> None:
@@ -108,7 +100,6 @@ async def test_tts_rejects_empty_text_after_tag_stripping(
     assert "No text to synthesize" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_tts_requires_auth_when_key_set(
     client: httpx.AsyncClient, mock_tts: MagicMock, api_key: str
 ) -> None:
