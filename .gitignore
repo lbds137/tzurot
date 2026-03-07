@@ -78,6 +78,8 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+services/voice-engine/voices/*
+!services/voice-engine/voices/.gitkeep
 
 # Dev logs
 railway_dev_logs.md

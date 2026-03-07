@@ -9,13 +9,13 @@ import gc
 import io
 import os
 import re
+import secrets
 import tempfile
 from contextlib import asynccontextmanager
 
 import librosa
 import numpy as np
 import scipy.io.wavfile
-import soundfile as sf
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
@@ -158,7 +158,7 @@ async def check_api_key(request: Request, call_next):
             auth = request.headers.get("authorization", "")
             if auth.startswith("Bearer "):
                 provided = auth[7:]
-        if provided != _API_KEY:
+        if not provided or not secrets.compare_digest(provided, _API_KEY):
             return JSONResponse(
                 status_code=401, content={"detail": "Invalid or missing API key"}
             )
@@ -174,7 +174,7 @@ def health():
         "status": "ok",
         "asr_loaded": "asr" in models,
         "tts_loaded": "tts" in models,
-        "voices_loaded": list(voice_cache.keys()),
+        "voices_loaded": len(voice_cache),
     }
 
 
@@ -198,22 +198,18 @@ async def transcribe(file: UploadFile = File(...)):
         if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="Audio file too large")
 
-        audio_array, sample_rate = sf.read(io.BytesIO(audio_bytes))
+        # librosa handles MP3, OGG, FLAC, WAV (soundfile can't decode MP3)
+        audio_array, sample_rate = librosa.load(
+            io.BytesIO(audio_bytes), sr=None, mono=True
+        )
 
-        # Convert to mono if stereo
-        if len(audio_array.shape) > 1:
-            audio_array = np.mean(audio_array, axis=1)
-
-        # Resample to 16kHz if needed
+        # Resample to 16kHz if needed (librosa already returns float32 mono)
         if sample_rate != 16000:
             audio_array = librosa.resample(
-                audio_array.astype(np.float32),
+                audio_array,
                 orig_sr=sample_rate,
                 target_sr=16000,
             )
-
-        # Ensure float32
-        audio_array = audio_array.astype(np.float32)
 
         # Transcribe — NeMo returns objects with .text attribute
         transcriptions = asr_model.transcribe([audio_array])
@@ -325,14 +321,17 @@ async def text_to_speech(
         audio_tensor = tts_model.generate_audio(voice_state, clean_text)
         audio_np = audio_tensor.numpy()
 
+        # Convert float32 [-1.0, 1.0] to int16 for broad player compatibility
+        audio_int16 = np.clip(audio_np * 32767, -32768, 32767).astype(np.int16)
+
         # Convert to WAV bytes
         wav_buffer = io.BytesIO()
-        scipy.io.wavfile.write(wav_buffer, tts_model.sample_rate, audio_np)
+        scipy.io.wavfile.write(wav_buffer, tts_model.sample_rate, audio_int16)
         wav_buffer.seek(0)
         wav_bytes = wav_buffer.read()
 
         # Cleanup
-        del audio_tensor, audio_np
+        del audio_tensor, audio_np, audio_int16
         gc.collect()
 
         return Response(content=wav_bytes, media_type="audio/wav")

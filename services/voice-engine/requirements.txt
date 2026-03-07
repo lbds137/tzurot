@@ -4,7 +4,6 @@ uvicorn[standard]==0.34.0
 python-multipart==0.0.18
 
 # Audio processing
-soundfile==0.12.1
 scipy==1.14.0
 librosa==0.10.2
 numpy>=1.26,<2.0
