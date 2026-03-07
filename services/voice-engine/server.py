@@ -88,6 +88,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Tzurot Voice Engine", lifespan=lifespan)
 
+# TODO(phase2): Add API key authentication via VOICE_ENGINE_API_KEY env var.
+# All endpoints are currently unauthenticated — the service should only be
+# reachable via internal networking (Railway private network or localhost).
+
 
 # ---------------------------------------------------------------------------
 # Health check
@@ -157,7 +161,7 @@ async def transcribe(file: UploadFile = File(...)):
 @app.post("/v1/audio/transcriptions")
 async def transcribe_openai_compat(
     file: UploadFile = File(...),
-    model: str = Form("parakeet-tdt-0.6b-v3"),
+    model: str = Form("parakeet-tdt-0.6b-v3"),  # TODO(phase2): Route to different backends based on model param
 ):
     """OpenAI Whisper API-compatible endpoint."""
     result = await transcribe(file)
@@ -264,7 +268,7 @@ async def text_to_speech(
 @app.post("/v1/audio/speech")
 async def tts_openai_compat(
     input: str = Form(...),
-    model: str = Form("pocket-tts"),
+    model: str = Form("pocket-tts"),  # TODO(phase2): Route to different backends based on model param
     voice: str = Form("alba"),
 ):
     """OpenAI TTS API-compatible endpoint."""

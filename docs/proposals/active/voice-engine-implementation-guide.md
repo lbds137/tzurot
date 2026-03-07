@@ -33,6 +33,7 @@
 - Add `VOICE_ENGINE_URL` env var to Railway config
 - Deploy voice-engine service to Railway (see Part 6)
 - Add pytest + httpx test suite for voice-engine (mock NeMo/Pocket TTS models, test audio tag stripping, resampling, error paths, health/voices endpoints)
+- Add API key authentication to voice-engine (`VOICE_ENGINE_API_KEY` env var, middleware check on all endpoints except `/health`)
 
 ## CRITICAL WARNINGS — Read Before Implementing
 
