@@ -14,7 +14,12 @@
 
 import { Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, CACHE_CONTROL, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  CACHE_CONTROL,
+  VOICE_REFERENCE_LIMITS,
+  type PrismaClient,
+} from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('api-gateway');
@@ -54,7 +59,11 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
         }
 
         const buffer = Buffer.from(personality.voiceReferenceData);
-        const contentType = personality.voiceReferenceType ?? 'audio/wav';
+        // Defense-in-depth: validate stored MIME type against allowed list
+        const storedType = personality.voiceReferenceType ?? '';
+        const contentType = VOICE_REFERENCE_LIMITS.ALLOWED_TYPES.includes(storedType)
+          ? storedType
+          : 'audio/wav';
 
         res.set('Content-Type', contentType);
         res.set('Cache-Control', `max-age=${CACHE_CONTROL.VOICE_REFERENCE_MAX_AGE}`);

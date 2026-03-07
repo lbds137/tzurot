@@ -598,6 +598,16 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should store valid voice reference on update', async () => {
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-voice',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: 'Test',
+          voiceReferenceType: 'audio/wav',
+        })
+      );
+
       const audioBytes = Buffer.from('fake-wav-audio');
       const base64 = audioBytes.toString('base64');
       const dataUri = `data:audio/wav;base64,${base64}`;
@@ -614,6 +624,13 @@ describe('PUT /user/personality/:slug (update)', () => {
           data: expect.objectContaining({
             voiceReferenceData: new Uint8Array(audioBytes),
             voiceReferenceType: 'audio/wav',
+          }),
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality: expect.objectContaining({
+            hasVoiceReference: true,
           }),
         })
       );

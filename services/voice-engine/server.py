@@ -60,7 +60,8 @@ voice_cache = {}
 
 
 def _cache_voice(voice_id, voice_state):
-    """Cache a voice state, evicting the oldest entry if at capacity."""
+    """Cache a voice state with LRU eviction when at capacity."""
+    voice_cache.pop(voice_id, None)  # Remove first to refresh insertion order
     voice_cache[voice_id] = voice_state
     if len(voice_cache) > MAX_VOICE_CACHE_SIZE:
         oldest = next(iter(voice_cache))
@@ -292,7 +293,9 @@ async def text_to_speech(
             del audio_bytes
 
         elif voice_id in voice_cache:
-            voice_state = voice_cache[voice_id]
+            # Move to end for LRU eviction order
+            voice_state = voice_cache.pop(voice_id)
+            voice_cache[voice_id] = voice_state
 
         else:
             # Try loading as a preset name or HF path

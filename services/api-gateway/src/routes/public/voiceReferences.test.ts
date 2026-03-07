@@ -17,6 +17,9 @@ vi.mock('@tzurot/common-types', () => ({
   CACHE_CONTROL: {
     VOICE_REFERENCE_MAX_AGE: 3600,
   },
+  VOICE_REFERENCE_LIMITS: {
+    ALLOWED_TYPES: ['audio/wav', 'audio/mpeg', 'audio/ogg', 'audio/flac'],
+  },
 }));
 
 vi.mock('../../utils/errorResponses.js', () => ({
@@ -99,6 +102,19 @@ describe('Voice Reference Routes', () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         voiceReferenceData: audioBuffer,
         voiceReferenceType: null,
+      });
+
+      const response = await request(app).get('/voice-references/testbot');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.headers['content-type']).toContain('audio/wav');
+    });
+
+    it('should fall back to audio/wav for unexpected stored MIME type', async () => {
+      const audioBuffer = Buffer.from('fake-audio');
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        voiceReferenceData: audioBuffer,
+        voiceReferenceType: 'text/html',
       });
 
       const response = await request(app).get('/voice-references/testbot');
