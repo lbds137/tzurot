@@ -69,6 +69,8 @@ export function formatPersonalityResponse(
     imageEnabled: personality.imageEnabled,
     ownerId: personality.ownerId,
     hasAvatar: personality.avatarData !== null,
+    // voiceReferenceType (not voiceReferenceData) is the proxy — PERSONALITY_DETAIL_SELECT
+    // excludes the blob column to avoid loading up to 10MB into memory on every query.
     hasVoiceReference: personality.voiceReferenceType !== null,
     customFields: personality.customFields,
     systemPromptId: personality.systemPromptId,
