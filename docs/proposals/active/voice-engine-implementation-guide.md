@@ -31,6 +31,8 @@
 - **Python tooling setup** — Add `pyproject.toml` with ruff (lint + format), mypy (type checking), pytest config. Add type hints to `server.py`. Create `requirements-dev.txt` for dev deps. Add brief Python section to `.claude/rules/02-code-standards.md`. Do this BEFORE writing the pytest suite so standards are in place from the start. See "Python Standards Lessons Learned" below for specific patterns to codify.
 - Add pytest + httpx test suite for voice-engine (mock NeMo/Pocket TTS models, test audio tag stripping, resampling, error paths, health/voices endpoints)
 - ~~Add API key authentication to voice-engine~~ DONE in Phase 1 — optional `VOICE_ENGINE_API_KEY` env var with middleware check on all endpoints except `/health`. Set the env var on Railway before deployment.
+- **Structured logging** — Replace all `print()` calls with stdlib `logging` (log levels, structured fields, Railway log aggregation compatibility). Add type annotations to `models: dict[str, Any]` and `voice_cache: dict[str, Any]` globals (mypy readiness).
+- **Voice reference deletion** — Add ability to clear `voiceReferenceData`/`voiceReferenceType` via personality update (set to null). Currently once set, a voice reference can't be removed.
 - Create `services/ai-worker/src/services/voice/VoiceService.ts` (see Part 5 in this guide)
 - Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
 - Add `VOICE_ENGINE_URL` env var to Railway config
