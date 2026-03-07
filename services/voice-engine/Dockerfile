@@ -46,7 +46,10 @@ EXPOSE ${PORT}
 # Health check — the 120s start-period accommodates model loading on cold boot.
 # This is especially important with Railway Serverless mode, where the container
 # starts from scratch each time it wakes from sleep.
+# Hardcoded port 8000 rather than ${PORT} — ENV PORT=8000 above is baked at build
+# time, not overridden by Railway's runtime PORT, so the variable would always
+# resolve to 8000 anyway. Being explicit avoids confusion.
 HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["python", "server.py"]

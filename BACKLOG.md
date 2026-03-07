@@ -381,7 +381,7 @@ Replace current Whisper-based transcription with VoiceService that routes to voi
 - [ ] Wire into existing `AudioTranscriptionJob` / `AudioProcessor` pipeline
 - [ ] Add `VOICE_ENGINE_URL` env var to ai-worker on Railway
 - [ ] Verify punctuation quality improvement over Whisper
-- [ ] Python test suite for voice-engine (pytest + httpx, mocked models) — audio tag stripping, resampling, error paths, health/voices endpoints
+- [ ] Python test suite for voice-engine (pytest + httpx, mocked models): startup/lifespan, auth middleware (valid key, missing key, empty key RuntimeError), voice ID validation edge cases (`\Z` anchor, length limit, path traversal), transcribe/tts 503 when model not loaded, audio tag stripping, resampling to 16kHz, temp file cleanup on error, LRU eviction, health/voices endpoints
 
 #### Phase 3: TTS + Voice Cloning
 
