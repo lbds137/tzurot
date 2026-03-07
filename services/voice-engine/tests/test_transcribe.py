@@ -5,7 +5,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import httpx
+import pytest
 
+import server
 from server import MAX_AUDIO_UPLOAD_BYTES
 
 
@@ -35,9 +37,12 @@ async def test_transcribe_returns_503_when_model_not_loaded(client: httpx.AsyncC
     assert "STT model not loaded" in response.json()["detail"]
 
 
-async def test_transcribe_rejects_oversized_file(client: httpx.AsyncClient, mock_asr: MagicMock) -> None:
-    # Create a file just over the limit
-    oversized = b"\x00" * (MAX_AUDIO_UPLOAD_BYTES + 1)
+async def test_transcribe_rejects_oversized_file(
+    client: httpx.AsyncClient, mock_asr: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Patch to a tiny limit so we don't allocate 50MB in tests
+    monkeypatch.setattr(server, "MAX_AUDIO_UPLOAD_BYTES", 100)
+    oversized = b"\x00" * 101
 
     response = await client.post(
         "/v1/transcribe",

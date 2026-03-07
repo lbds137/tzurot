@@ -82,7 +82,14 @@ async function transcribeWithVoiceEngine(
 
     return result.text;
   } catch (error) {
-    logger.warn({ err: error }, 'Voice engine transcription failed, falling back to Whisper');
+    // Auth errors (401/403) indicate a persistent config issue — log at error level
+    // so it's visible in monitoring, rather than warn which implies transient failure
+    const isAuthError = error instanceof Error && /\(40[13]\)/.test(error.message);
+    if (isAuthError) {
+      logger.error({ err: error }, 'Voice engine auth error — check VOICE_ENGINE_API_KEY config');
+    } else {
+      logger.warn({ err: error }, 'Voice engine transcription failed, falling back to Whisper');
+    }
     return null;
   }
 }
