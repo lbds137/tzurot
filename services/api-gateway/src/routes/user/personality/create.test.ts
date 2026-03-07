@@ -176,6 +176,11 @@ describe('POST /user/personality (create)', () => {
           ownerId: 'user-uuid-123',
           isPublic: false,
         }),
+        select: expect.objectContaining({
+          id: true,
+          name: true,
+          slug: true,
+        }),
       })
     );
     expect(res.status).toHaveBeenCalledWith(201);
