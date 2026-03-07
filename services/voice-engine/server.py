@@ -318,62 +318,63 @@ async def text_to_speech(
 
         # Read reference audio before acquiring semaphore (I/O, not model work)
         loop = asyncio.get_running_loop()
-        ref_audio_bytes = None
         ref_tmp_path = None
-        if reference_audio:
-            ref_audio_bytes = await reference_audio.read()
-            if len(ref_audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
-                raise HTTPException(
-                    status_code=413, detail="Reference audio file too large"
+        try:
+            if reference_audio:
+                ref_audio_bytes = await reference_audio.read()
+                if len(ref_audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413, detail="Reference audio file too large"
+                    )
+                ext = _AUDIO_EXTENSIONS.get(
+                    reference_audio.content_type, _DEFAULT_AUDIO_EXT
                 )
-            ext = _AUDIO_EXTENSIONS.get(
-                reference_audio.content_type, _DEFAULT_AUDIO_EXT
-            )
-            with tempfile.NamedTemporaryFile(
-                suffix=ext, delete=False
-            ) as tmp:
-                ref_tmp_path = tmp.name
-                tmp.write(ref_audio_bytes)
-            del ref_audio_bytes
+                with tempfile.NamedTemporaryFile(
+                    suffix=ext, delete=False
+                ) as tmp:
+                    ref_tmp_path = tmp.name
+                    tmp.write(ref_audio_bytes)
+                del ref_audio_bytes
 
-        # Semaphore caps concurrency to prevent OOM on Railway 4GB ceiling.
-        async with _inference_semaphore:
-            # Get or create voice state
-            if ref_tmp_path is not None:
-                # Zero-shot cloning from uploaded audio
-                try:
+            # Semaphore caps concurrency to prevent OOM on Railway 4GB ceiling.
+            async with _inference_semaphore:
+                # Get or create voice state
+                if ref_tmp_path is not None:
+                    # Zero-shot cloning from uploaded audio
                     voice_state = await loop.run_in_executor(
                         None, tts_model.get_state_for_audio_prompt, ref_tmp_path
                     )
                     _cache_voice(voice_id, voice_state)
-                finally:
-                    os.unlink(ref_tmp_path)
 
-            elif voice_id in voice_cache:
-                # Refresh LRU position via _cache_voice (pop-and-reinsert)
-                voice_state = voice_cache[voice_id]
-                _cache_voice(voice_id, voice_state)
-
-            else:
-                # Try loading as a preset name or HF path
-                try:
-                    voice_state = await loop.run_in_executor(
-                        None, tts_model.get_state_for_audio_prompt, voice_id
-                    )
+                elif voice_id in voice_cache:
+                    # Refresh LRU position via _cache_voice (pop-and-reinsert)
+                    voice_state = voice_cache[voice_id]
                     _cache_voice(voice_id, voice_state)
-                except Exception:
-                    # Fall back to default
-                    voice_state = voice_cache.get("alba")
-                    if not voice_state:
-                        raise HTTPException(
-                            status_code=404,
-                            detail=f"Voice '{voice_id}' not found",
-                        )
 
-            # Generate audio
-            audio_tensor = await loop.run_in_executor(
-                None, tts_model.generate_audio, voice_state, clean_text
-            )
+                else:
+                    # Try loading as a preset name or HF path
+                    try:
+                        voice_state = await loop.run_in_executor(
+                            None, tts_model.get_state_for_audio_prompt, voice_id
+                        )
+                        _cache_voice(voice_id, voice_state)
+                    except Exception:
+                        # Fall back to default
+                        voice_state = voice_cache.get("alba")
+                        if not voice_state:
+                            raise HTTPException(
+                                status_code=404,
+                                detail=f"Voice '{voice_id}' not found",
+                            )
+
+                # Generate audio
+                audio_tensor = await loop.run_in_executor(
+                    None, tts_model.generate_audio, voice_state, clean_text
+                )
+        finally:
+            # Clean up temp file regardless of semaphore/model errors
+            if ref_tmp_path is not None and os.path.exists(ref_tmp_path):
+                os.unlink(ref_tmp_path)
         audio_np = audio_tensor.numpy()
 
         # Convert float32 [-1.0, 1.0] to int16 for broad player compatibility
