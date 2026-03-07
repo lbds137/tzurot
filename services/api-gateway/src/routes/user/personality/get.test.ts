@@ -63,7 +63,7 @@ describe('GET /user/personality/:slug', () => {
       isPublic: false,
       ownerId: 'other-user',
       avatarData: null,
-      voiceReferenceData: null,
+      voiceReferenceType: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -101,7 +101,7 @@ describe('GET /user/personality/:slug', () => {
       imageEnabled: false,
       ownerId: 'other-user',
       avatarData: null,
-      voiceReferenceData: null,
+      voiceReferenceType: null,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-02'),
     });
@@ -150,7 +150,7 @@ describe('GET /user/personality/:slug', () => {
       imageEnabled: false,
       ownerId: 'user-uuid-123',
       avatarData: Buffer.from('test'),
-      voiceReferenceData: null,
+      voiceReferenceType: null,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-02'),
     });

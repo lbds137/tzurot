@@ -123,6 +123,9 @@ async def transcribe(file: UploadFile = File(...)):
 
     try:
         audio_bytes = await file.read()
+        if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Audio file too large")
+
         audio_array, sample_rate = sf.read(io.BytesIO(audio_bytes))
 
         # Convert to mono if stereo
@@ -184,6 +187,9 @@ _VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 # TTS text length cap — prevents OOM on CPU inference (Railway 4GB ceiling)
 MAX_TTS_TEXT_LENGTH = 2000
+
+# Audio upload size cap (50MB) — prevents OOM from large uploads
+MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
 
 
 @app.post("/v1/tts")
@@ -328,6 +334,8 @@ async def register_voice(
 
     try:
         audio_bytes = await audio.read()
+        if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Audio file too large")
 
         # Save to voices directory for persistence across restarts
         voices_dir = os.environ.get("VOICES_DIR", "./voices")
@@ -337,9 +345,13 @@ async def register_voice(
         with open(voice_path, "wb") as f:
             f.write(audio_bytes)
 
-        # Create and cache voice state
-        voice_state = tts_model.get_state_for_audio_prompt(voice_path)
-        voice_cache[voice_id] = voice_state
+        # Create and cache voice state — clean up file on model failure
+        try:
+            voice_state = tts_model.get_state_for_audio_prompt(voice_path)
+            voice_cache[voice_id] = voice_state
+        except Exception:
+            os.unlink(voice_path)
+            raise
 
         del audio_bytes
         gc.collect()

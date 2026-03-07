@@ -10,7 +10,7 @@ librosa==0.10.2
 numpy>=1.26,<2.0
 
 # STT: Parakeet TDT
-nemo_toolkit[asr]>=2.1.0
+nemo_toolkit[asr]>=2.1.0,<3.0.0
 
 # TTS: Pocket TTS (MIT license)
 pocket-tts>=1.1.0

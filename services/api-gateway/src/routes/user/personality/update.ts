@@ -130,7 +130,7 @@ async function processMediaUploads(
 
   const voiceRefResult = processVoiceReferenceData(body.voiceReferenceData, slug);
   if (voiceRefResult !== null && !voiceRefResult.ok) {
-    return { avatarUpdated: false, error: voiceRefResult.error };
+    return { avatarUpdated, error: voiceRefResult.error };
   }
 
   if (voiceRefResult?.ok === true) {

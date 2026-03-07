@@ -596,6 +596,28 @@ describe('PUT /user/personality/:slug (update)', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(mockPrisma.personality.update).not.toHaveBeenCalled();
     });
+
+    it('should store valid voice reference on update', async () => {
+      const audioBytes = Buffer.from('fake-wav-audio');
+      const base64 = audioBytes.toString('base64');
+      const dataUri = `data:audio/wav;base64,${base64}`;
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes({ voiceReferenceData: dataUri }, { slug: 'test-char' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            voiceReferenceData: new Uint8Array(audioBytes),
+            voiceReferenceType: 'audio/wav',
+          }),
+        })
+      );
+    });
   });
 
   describe('slug update permissions (admin-only)', () => {
