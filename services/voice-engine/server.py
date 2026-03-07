@@ -39,7 +39,9 @@ _AUDIO_TAG_RE = re.compile(
 # TTS text length cap — prevents OOM on CPU inference (Railway 4GB ceiling)
 MAX_TTS_TEXT_LENGTH = 2000
 
-# Audio upload size cap (50MB) — prevents OOM from large uploads
+# Audio upload size cap (50MB) — prevents OOM from large uploads.
+# Note: api-gateway caps stored voice references at 10MB (VOICE_REFERENCE_LIMITS);
+# this higher limit allows direct uploads to the voice engine for testing/registration.
 MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
 
 # Allowed audio extensions for voice registration
@@ -360,13 +362,11 @@ async def text_to_speech(
                         )
                         _cache_voice(voice_id, voice_state)
                     except Exception as e:
-                        print(f"[TTS] Failed to load voice '{voice_id}', falling back to alba: {e}")
-                        voice_state = voice_cache.get("alba")
-                        if not voice_state:
-                            raise HTTPException(
-                                status_code=404,
-                                detail=f"Voice '{voice_id}' not found",
-                            )
+                        print(f"[TTS] Voice '{voice_id}' not found: {e}")
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Voice '{voice_id}' not found",
+                        )
 
                 # Generate audio
                 audio_tensor = await loop.run_in_executor(
@@ -455,7 +455,10 @@ async def register_voice(
         if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="Audio file too large")
 
-        # Save to voices directory for persistence across restarts
+        # Save to voices directory for persistence across restarts.
+        # SINGLE_REPLICA_ONLY: This writes to local disk, so registered voices
+        # are only visible to the replica that handled the request. Multi-replica
+        # deployments need shared storage (e.g., Railway volume or S3) in Phase 2.
         voices_dir = os.environ.get("VOICES_DIR", "./voices")
         os.makedirs(voices_dir, exist_ok=True)
         ext = _AUDIO_EXTENSIONS.get(audio.content_type, _DEFAULT_AUDIO_EXT)
