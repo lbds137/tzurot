@@ -175,8 +175,10 @@ app = FastAPI(title="Tzurot Voice Engine", lifespan=lifespan)
 # When unset, endpoints are unauthenticated (rely on Railway private networking).
 _API_KEY = os.environ.get("VOICE_ENGINE_API_KEY")
 if _API_KEY is not None and not _API_KEY:
-    print("[WARN] VOICE_ENGINE_API_KEY is set but empty — auth will still be enforced "
-          "(all requests will fail). Set a non-empty key or unset the variable entirely.")
+    raise RuntimeError(
+        "VOICE_ENGINE_API_KEY is set but empty — all requests would get 401. "
+        "Set a non-empty key or unset the variable entirely."
+    )
 
 
 @app.middleware("http")
