@@ -184,7 +184,9 @@ export const PersonalityCreateSchema = z.object({
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),
 
-  // Voice reference audio (base64 data URI, processed separately)
+  // Voice reference audio (base64 data URI, processed by voiceReferenceProcessor).
+  // Schema only validates type — format/MIME/size validation is in the processor
+  // (same pattern as avatarData above).
   voiceReferenceData: z.string().optional(),
 });
 

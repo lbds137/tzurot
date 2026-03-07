@@ -16,10 +16,12 @@ from contextlib import asynccontextmanager
 from functools import partial
 
 import librosa
+import nemo.collections.asr as nemo_asr
 import numpy as np
 import scipy.io.wavfile
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
+from pocket_tts import TTSModel
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -75,7 +77,11 @@ voice_cache = {}
 
 # Concurrency cap for model inference — prevents OOM on Railway's 4GB ceiling.
 # Two concurrent Parakeet TDT passes on 1-min WAV ≈ 480MB audio + 1.2GB model.
-_INFERENCE_CONCURRENCY = int(os.environ.get("INFERENCE_CONCURRENCY", "2"))
+try:
+    _INFERENCE_CONCURRENCY = int(os.environ.get("INFERENCE_CONCURRENCY", "2"))
+except ValueError:
+    print("[WARN] Invalid INFERENCE_CONCURRENCY value — defaulting to 2")
+    _INFERENCE_CONCURRENCY = 2
 _inference_semaphore = asyncio.Semaphore(_INFERENCE_CONCURRENCY)
 
 
@@ -99,8 +105,6 @@ async def lifespan(app: FastAPI):
 
     # --- Load STT model ---
     print("[STT] Loading Parakeet TDT 0.6B v3...")
-    import nemo.collections.asr as nemo_asr
-
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
         model_name="nvidia/parakeet-tdt-0.6b-v3"
     )
@@ -111,8 +115,6 @@ async def lifespan(app: FastAPI):
 
     # --- Load TTS model ---
     print("[TTS] Loading Kyutai Pocket TTS...")
-    from pocket_tts import TTSModel
-
     tts_model = TTSModel.load_model()
     models["tts"] = tts_model
     print(f"[TTS] Pocket TTS loaded. Sample rate: {tts_model.sample_rate}")
@@ -172,11 +174,14 @@ app = FastAPI(title="Tzurot Voice Engine", lifespan=lifespan)
 # endpoints except /health require it via X-API-Key header or Bearer token.
 # When unset, endpoints are unauthenticated (rely on Railway private networking).
 _API_KEY = os.environ.get("VOICE_ENGINE_API_KEY")
+if _API_KEY is not None and not _API_KEY:
+    print("[WARN] VOICE_ENGINE_API_KEY is set but empty — auth will still be enforced "
+          "(all requests will fail). Set a non-empty key or unset the variable entirely.")
 
 
 @app.middleware("http")
 async def check_api_key(request: Request, call_next):
-    if _API_KEY and request.url.path != "/health":
+    if _API_KEY is not None and request.url.path != "/health":
         provided = request.headers.get("x-api-key", "")
         if not provided:
             auth = request.headers.get("authorization", "")
@@ -263,12 +268,14 @@ async def transcribe(file: UploadFile = File(...)):
 @app.post("/v1/audio/transcriptions")
 async def transcribe_openai_compat(
     file: UploadFile = File(...),
-    model: str = Form("parakeet-tdt-0.6b-v3"),  # TODO(phase2): Route to different backends based on model param
+    model: str = Form("parakeet-tdt-0.6b-v3"),
 ):
     """OpenAI Whisper API-compatible endpoint.
 
     Note: ``model`` is accepted for API compatibility but currently ignored.
-    All requests use Parakeet TDT. Phase 2 may route to different backends.
+    All requests use Parakeet TDT.
+
+    TODO(phase2): Route to different backends based on ``model`` param.
     """
     result = await transcribe(file)
     return result
@@ -405,7 +412,7 @@ async def text_to_speech(
 @app.post("/v1/audio/speech")
 async def tts_openai_compat(
     input: str = Form(...),
-    model: str = Form("pocket-tts"),  # TODO(phase2): Route to different backends based on model param
+    model: str = Form("pocket-tts"),
     voice: str = Form("alba"),
 ):
     """OpenAI-inspired TTS endpoint (uses Form fields, not JSON body).
@@ -413,6 +420,8 @@ async def tts_openai_compat(
     Not a true drop-in for the official OpenAI SDK — use /v1/tts for
     the native interface. ``model`` is accepted for API compatibility
     but currently ignored; all requests use Pocket TTS.
+
+    TODO(phase2): Route to different backends based on ``model`` param.
     """
     return await text_to_speech(text=input, voice_id=voice)
 
