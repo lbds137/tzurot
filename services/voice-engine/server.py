@@ -53,6 +53,15 @@ _DEFAULT_AUDIO_EXT = ".wav"
 # Voice cache eviction cap — each cached voice holds model tensors in memory
 MAX_VOICE_CACHE_SIZE = 100
 
+# Maximum voice ID length — prevents ENAMETOOLONG when used as filename
+MAX_VOICE_ID_LENGTH = 64
+
+
+def _is_valid_voice_id(voice_id: str) -> bool:
+    """Check voice ID format: 1-64 alphanumeric chars, hyphens, or underscores."""
+    return len(voice_id) <= MAX_VOICE_ID_LENGTH and bool(_VOICE_ID_RE.match(voice_id))
+
+
 # ---------------------------------------------------------------------------
 # Global model references (populated on startup)
 # ---------------------------------------------------------------------------
@@ -103,7 +112,7 @@ async def lifespan(app: FastAPI):
         voice_name = voice_name.strip()
         if not voice_name:
             continue
-        if not _VOICE_ID_RE.match(voice_name) or len(voice_name) > 64:
+        if not _is_valid_voice_id(voice_name):
             print(f"[TTS] WARNING: Skipping invalid preset voice name: {voice_name}")
             continue
         try:
@@ -121,7 +130,7 @@ async def lifespan(app: FastAPI):
         for filename in os.listdir(voices_dir):
             if filename.endswith((".wav", ".mp3", ".flac", ".ogg")):
                 voice_id = os.path.splitext(filename)[0]
-                if not _VOICE_ID_RE.match(voice_id):
+                if not _is_valid_voice_id(voice_id):
                     print(f"[TTS] WARNING: Skipping voice file with invalid ID: {filename}")
                     continue
                 filepath = os.path.join(voices_dir, filename)
@@ -239,7 +248,11 @@ async def transcribe_openai_compat(
     file: UploadFile = File(...),
     model: str = Form("parakeet-tdt-0.6b-v3"),  # TODO(phase2): Route to different backends based on model param
 ):
-    """OpenAI Whisper API-compatible endpoint."""
+    """OpenAI Whisper API-compatible endpoint.
+
+    Note: ``model`` is accepted for API compatibility but currently ignored.
+    All requests use Parakeet TDT. Phase 2 may route to different backends.
+    """
     result = await transcribe(file)
     return result
 
@@ -264,7 +277,7 @@ async def text_to_speech(
 
     Returns: audio/wav
     """
-    if len(voice_id) > 64 or not _VOICE_ID_RE.match(voice_id):
+    if not _is_valid_voice_id(voice_id):
         raise HTTPException(
             status_code=400,
             detail="voice_id must be 1-64 alphanumeric characters, hyphens, or underscores",
@@ -367,7 +380,8 @@ async def tts_openai_compat(
     """OpenAI-inspired TTS endpoint (uses Form fields, not JSON body).
 
     Not a true drop-in for the official OpenAI SDK — use /v1/tts for
-    the native interface.
+    the native interface. ``model`` is accepted for API compatibility
+    but currently ignored; all requests use Pocket TTS.
     """
     return await text_to_speech(text=input, voice_id=voice)
 
@@ -395,7 +409,7 @@ async def register_voice(
     The voice state is cached in memory for subsequent TTS requests.
     For persistent storage, save the audio file to the voices/ directory.
     """
-    if len(voice_id) > 64 or not _VOICE_ID_RE.match(voice_id):
+    if not _is_valid_voice_id(voice_id):
         raise HTTPException(
             status_code=400,
             detail="voice_id must be 1-64 alphanumeric characters, hyphens, or underscores",

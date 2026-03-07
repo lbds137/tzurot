@@ -33,6 +33,15 @@ vi.mock('../../utils/errorResponses.js', () => ({
   },
 }));
 
+vi.mock('../../utils/validators.js', () => ({
+  validateSlug: vi.fn((slug: string | undefined) => {
+    if (!slug || slug.length > 64 || !/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+      return { valid: false, error: { error: 'Validation Error', message: 'Invalid slug' } };
+    }
+    return { valid: true };
+  }),
+}));
+
 import { createVoiceReferenceRouter } from './voiceReferences.js';
 
 function createMockPrisma() {
