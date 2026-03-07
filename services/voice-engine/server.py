@@ -174,9 +174,9 @@ app = FastAPI(title="Tzurot Voice Engine", lifespan=lifespan)
 # endpoints except /health require it via X-API-Key header or Bearer token.
 # When unset, endpoints are unauthenticated (rely on Railway private networking).
 _API_KEY = os.environ.get("VOICE_ENGINE_API_KEY")
-if _API_KEY is not None and not _API_KEY:
+if _API_KEY is not None and not _API_KEY.strip():
     raise RuntimeError(
-        "VOICE_ENGINE_API_KEY is set but empty — all requests would get 401. "
+        "VOICE_ENGINE_API_KEY is set but empty/whitespace — all requests would get 401. "
         "Set a non-empty key or unset the variable entirely."
     )
 
@@ -338,6 +338,15 @@ async def text_to_speech(
                     raise HTTPException(
                         status_code=413, detail="Reference audio file too large"
                     )
+                if (
+                    reference_audio.content_type
+                    and reference_audio.content_type not in _AUDIO_EXTENSIONS
+                ):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Unsupported audio type: {reference_audio.content_type}. "
+                        f"Allowed: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
+                    )
                 ext = _AUDIO_EXTENSIONS.get(
                     reference_audio.content_type, _DEFAULT_AUDIO_EXT
                 )
@@ -476,12 +485,17 @@ async def register_voice(
         voice_path = os.path.join(voices_dir, f"{voice_id}{ext}")
 
         # Clean up stale files from prior registrations with different MIME types
-        # (e.g., re-registering "alice" as MP3 after it was WAV leaves alice.wav)
+        # (e.g., re-registering "alice" as MP3 after it was WAV leaves alice.wav).
+        # FileNotFoundError guard prevents race when two concurrent registrations
+        # for the same voice_id both try to unlink the same stale file.
         for existing in os.listdir(voices_dir):
             if os.path.splitext(existing)[0] == voice_id:
                 existing_path = os.path.join(voices_dir, existing)
                 if existing_path != voice_path:
-                    os.unlink(existing_path)
+                    try:
+                        os.unlink(existing_path)
+                    except FileNotFoundError:
+                        pass
 
         # Write and process — clean up on any failure (disk full, model error).
         # File write is offloaded to executor to avoid blocking the event loop
