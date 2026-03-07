@@ -19,6 +19,37 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Voice ID validation — prevents path traversal (CWE-22) in /v1/voices/register
+_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+# Regex for stripping ElevenLabs-style audio tags (not supported by Pocket TTS)
+_AUDIO_TAG_RE = re.compile(
+    r"\[(whisper|shout|shouting|laugh|sad|slow|fast|firm|"
+    r"compassionate|maniacal laugh|angry|happy|excited)\]",
+    flags=re.IGNORECASE,
+)
+
+# TTS text length cap — prevents OOM on CPU inference (Railway 4GB ceiling)
+MAX_TTS_TEXT_LENGTH = 2000
+
+# Audio upload size cap (50MB) — prevents OOM from large uploads
+MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
+
+# Allowed audio extensions for voice registration
+_AUDIO_EXTENSIONS = {
+    "audio/wav": ".wav",
+    "audio/mpeg": ".mp3",
+    "audio/ogg": ".ogg",
+    "audio/flac": ".flac",
+    "audio/x-wav": ".wav",
+    "audio/wave": ".wav",
+}
+_DEFAULT_AUDIO_EXT = ".wav"
+
+# ---------------------------------------------------------------------------
 # Global model references (populated on startup)
 # ---------------------------------------------------------------------------
 models = {}
@@ -155,6 +186,8 @@ async def transcribe(file: UploadFile = File(...)):
 
         return {"text": text}
 
+    except HTTPException:
+        raise
     except Exception as e:
         gc.collect()
         raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
@@ -174,23 +207,6 @@ async def transcribe_openai_compat(
 # ---------------------------------------------------------------------------
 # TTS Endpoints
 # ---------------------------------------------------------------------------
-
-# Regex for stripping ElevenLabs-style audio tags (not supported by Pocket TTS)
-_AUDIO_TAG_RE = re.compile(
-    r"\[(whisper|shout|shouting|laugh|sad|slow|fast|firm|"
-    r"compassionate|maniacal laugh|angry|happy|excited)\]",
-    flags=re.IGNORECASE,
-)
-
-# Voice ID validation — prevents path traversal (CWE-22) in /v1/voices/register
-_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
-
-# TTS text length cap — prevents OOM on CPU inference (Railway 4GB ceiling)
-MAX_TTS_TEXT_LENGTH = 2000
-
-# Audio upload size cap (50MB) — prevents OOM from large uploads
-MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
-
 
 @app.post("/v1/tts")
 async def text_to_speech(
@@ -340,7 +356,8 @@ async def register_voice(
         # Save to voices directory for persistence across restarts
         voices_dir = os.environ.get("VOICES_DIR", "./voices")
         os.makedirs(voices_dir, exist_ok=True)
-        voice_path = os.path.join(voices_dir, f"{voice_id}.wav")
+        ext = _AUDIO_EXTENSIONS.get(audio.content_type, _DEFAULT_AUDIO_EXT)
+        voice_path = os.path.join(voices_dir, f"{voice_id}{ext}")
 
         with open(voice_path, "wb") as f:
             f.write(audio_bytes)
@@ -358,6 +375,8 @@ async def register_voice(
 
         return {"status": "ok", "voice_id": voice_id}
 
+    except HTTPException:
+        raise
     except Exception as e:
         gc.collect()
         raise HTTPException(
