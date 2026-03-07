@@ -37,8 +37,77 @@
 - [x] Config: `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` added to `envSchema` in common-types
 - [x] VoiceEngineClient: HTTP client with `transcribe()`, `isHealthy()`, lazy singleton
 - [x] AudioProcessor wiring: voice-engine as primary STT with Whisper fallback
-- [ ] Docker build + local smoke test (`podman build`, `curl /health`)
-- [ ] Railway deployment: Create service, set env vars, verify
+- [ ] Docker build + local smoke test (see Deployment Runbook below)
+- [ ] Railway deployment (see Deployment Runbook below)
+
+### Phase 2 Deployment Runbook
+
+These are the remaining operational steps to complete Phase 2. The code is merged — this is deploy-only.
+
+#### Step 1: Docker Build + Local Smoke Test
+
+```bash
+cd services/voice-engine
+
+# Build (first build: 10-20 min, ~4-6 GB image due to PyTorch + NeMo)
+podman build -t voice-engine .
+
+# Run locally
+podman run -p 8000:8000 \
+  -e PORT=8000 \
+  -e VOICE_ENGINE_API_KEY=test-key \
+  voice-engine
+
+# Wait 60-120s for models to load, then smoke test:
+curl http://localhost:8000/health
+# Expected: {"status":"ok","asr_loaded":true,"tts_loaded":true}
+
+# Test transcription (if you have a test WAV file):
+curl -X POST http://localhost:8000/v1/transcribe \
+  -H "Authorization: Bearer test-key" \
+  -F "file=@test_audio.wav"
+```
+
+See Part 8 ("Testing & Validation") for full smoke test commands including TTS.
+
+#### Step 2: Railway Deployment
+
+See Part 6 for full details. Quick checklist:
+
+1. **Create voice-engine service** in Railway UI:
+   - New Service → GitHub Repo → `tzurot`
+   - Settings → Root Directory: `services/voice-engine`
+   - Railway detects the Dockerfile automatically
+
+2. **Set voice-engine env vars:**
+
+   ```
+   PORT=8000
+   DEFAULT_VOICES=alba,bria
+   VOICES_DIR=/app/voices
+   VOICE_ENGINE_API_KEY=<generate a strong secret>
+   ```
+
+3. **Resource config:**
+   - RAM: 4 GB minimum
+   - CPU: 2 vCPU recommended
+
+4. **Enable Serverless mode** (Settings → Deploy → Serverless) — see Part 6 "CRITICAL: Enable Railway Serverless Mode"
+
+5. **Attach a volume** at `/app/voices` for persistent voice storage
+
+6. **Deploy and wait** for health check to pass (allow 60-120s for model loading)
+
+7. **Set ai-worker env vars:**
+
+   ```
+   VOICE_ENGINE_URL=http://${{voice-engine.RAILWAY_PRIVATE_DOMAIN}}:8000
+   VOICE_ENGINE_API_KEY=<same secret as above>
+   ```
+
+8. **Verify** via Railway logs:
+   - voice-engine: `"msg": "Health check", "asr_loaded": true, "tts_loaded": true`
+   - ai-worker: `Voice engine client initialized` (on first voice request)
 
 ### Phase 2 Implementation Notes
 
@@ -1253,12 +1322,14 @@ export class VoiceService {
    PORT=8000
    DEFAULT_VOICES=alba,bria
    VOICES_DIR=/app/voices
+   VOICE_ENGINE_API_KEY=<generate a strong secret>
    ```
 
 4. **Environment variables for ai-worker:**
 
    ```
    VOICE_ENGINE_URL=http://${{voice-engine.RAILWAY_PRIVATE_DOMAIN}}:8000
+   VOICE_ENGINE_API_KEY=<same secret as voice-engine>
    ```
 
    (Use Railway's variable references to get the internal DNS name.)
@@ -1445,31 +1516,36 @@ First run will download both models (~2.5 GB total). Subsequent starts use cache
 
 ### Smoke Tests
 
-After the server is running, verify both pipelines:
+After the server is running, verify both pipelines. All endpoints except
+`/health` require the `Authorization` header when `VOICE_ENGINE_API_KEY` is set.
 
 ```bash
-# Health check
+# Health check (no auth required)
 curl http://localhost:8000/health
 
 # STT test (provide any WAV/OGG file)
 curl -X POST http://localhost:8000/v1/transcribe \
+  -H "Authorization: Bearer test-key" \
   -F "file=@test_audio.wav"
 
 # TTS test with preset voice
 curl -X POST http://localhost:8000/v1/tts \
+  -H "Authorization: Bearer test-key" \
   -F "text=Hello, this is a test of the Tzurot voice engine." \
   -F "voice_id=alba" \
   --output test_output.wav
 
 # TTS test with voice cloning
 curl -X POST http://localhost:8000/v1/tts \
+  -H "Authorization: Bearer test-key" \
   -F "text=I am speaking in a cloned voice." \
   -F "voice_id=custom_test" \
   -F "reference_audio=@reference_sample.wav" \
   --output cloned_output.wav
 
 # List loaded voices
-curl http://localhost:8000/v1/voices
+curl -H "Authorization: Bearer test-key" \
+  http://localhost:8000/v1/voices
 ```
 
 ### What to Verify
@@ -1485,13 +1561,20 @@ curl http://localhost:8000/v1/voices
 
 ```bash
 cd services/voice-engine
-docker build -t tzurot-voice-engine .
+podman build -t voice-engine .   # or: docker build -t voice-engine .
 
-# First build will be slow (~10-15 min) due to PyTorch and NeMo downloads
-# Subsequent builds use Docker layer cache
+# First build will be slow (~10-20 min) due to PyTorch and NeMo downloads
+# Subsequent builds use layer cache
 
-docker run -p 8000:8000 -e PORT=8000 tzurot-voice-engine
+podman run -p 8000:8000 \
+  -e PORT=8000 \
+  -e VOICE_ENGINE_API_KEY=test-key \
+  voice-engine
 ```
+
+**Note:** Include `-H "Authorization: Bearer test-key"` in all smoke test
+curl commands when `VOICE_ENGINE_API_KEY` is set (all endpoints except `/health`
+require auth).
 
 ---
 
