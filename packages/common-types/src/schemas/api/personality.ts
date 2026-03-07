@@ -306,7 +306,7 @@ export const PERSONALITY_DETAIL_SELECT = {
   imageEnabled: true,
   ownerId: true,
   avatarData: true,
-  voiceReferenceData: true,
+  voiceReferenceType: true,
   customFields: true,
   systemPromptId: true,
   voiceSettings: true,

@@ -69,7 +69,7 @@ export function formatPersonalityResponse(
     imageEnabled: personality.imageEnabled,
     ownerId: personality.ownerId,
     hasAvatar: personality.avatarData !== null,
-    hasVoiceReference: personality.voiceReferenceData !== null,
+    hasVoiceReference: personality.voiceReferenceType !== null,
     customFields: personality.customFields,
     systemPromptId: personality.systemPromptId,
     voiceSettings: personality.voiceSettings,
