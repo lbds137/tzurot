@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install CPU-only PyTorch first (saves ~2GB vs CUDA version)
 RUN pip install --no-cache-dir \
-    torch torchaudio \
+    "torch>=2.5.0,<3.0.0" "torchaudio>=2.5.0,<3.0.0" \
     --index-url https://download.pytorch.org/whl/cpu
 
 # Install remaining Python dependencies
