@@ -33,7 +33,7 @@
 - ~~Add API key authentication to voice-engine~~ DONE in Phase 1 — optional `VOICE_ENGINE_API_KEY` env var with middleware check on all endpoints except `/health`. Set the env var on Railway before deployment.
 - **Structured logging** — Replace all `print()` calls with stdlib `logging` (log levels, structured fields, Railway log aggregation compatibility). Add type annotations to `models: dict[str, Any]` and `voice_cache: dict[str, Any]` globals (mypy readiness).
 - **[HIGH PRIORITY] Voice reference deletion** — Add ability to clear `voiceReferenceData`/`voiceReferenceType` via personality update (set to null). Currently once set, a voice reference can't be removed — no recovery path for corrupted/wrong uploads without direct DB edit. Must ship before voice references are user-facing.
-- **[HIGH PRIORITY] Inference rate limiting** — Add `asyncio.Semaphore` to `/v1/transcribe` and `/v1/tts`. This is a prerequisite for wiring into ai-worker, not a nice-to-have. Two concurrent Parakeet TDT passes on 1-minute WAV ≈ 480MB audio + 1.2GB model weights → OOM on Railway's 4GB ceiling.
+- **[HIGH PRIORITY] Inference rate limiting** — Add `asyncio.Semaphore` to `/v1/transcribe`, `/v1/tts`, AND `/v1/voices/register` (voice registration calls `get_state_for_audio_prompt()` which loads audio into memory). This is a prerequisite for wiring into ai-worker, not a nice-to-have. Two concurrent Parakeet TDT passes on 1-minute WAV ≈ 480MB audio + 1.2GB model weights → OOM on Railway's 4GB ceiling.
 - Create `services/ai-worker/src/services/voice/VoiceService.ts` (see Part 5 in this guide)
 - Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
 - Add `VOICE_ENGINE_URL` env var to Railway config

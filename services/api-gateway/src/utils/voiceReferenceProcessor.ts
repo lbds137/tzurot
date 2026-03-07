@@ -72,8 +72,10 @@ export function processVoiceReferenceData(
       };
     }
 
-    // Extract base64 payload and decode
-    const base64Data = voiceReferenceData.replace(/^data:[^;]+;base64,/, '');
+    // Extract base64 payload and decode — indexOf is O(1) on the short prefix
+    // vs regex which would scan the full string (potentially 10MB+)
+    const commaIndex = voiceReferenceData.indexOf(',');
+    const base64Data = voiceReferenceData.substring(commaIndex + 1);
     const buffer = Buffer.from(base64Data, 'base64');
 
     // Validate size
