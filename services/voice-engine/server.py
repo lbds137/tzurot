@@ -5,6 +5,7 @@ STT: NVIDIA Parakeet TDT 0.6B v3 (punctuation-aware transcription)
 TTS: Kyutai Pocket TTS (zero-shot voice cloning on CPU)
 """
 
+import asyncio
 import gc
 import io
 import os
@@ -12,6 +13,7 @@ import re
 import secrets
 import tempfile
 from contextlib import asynccontextmanager
+from functools import partial
 
 import librosa
 import numpy as np
@@ -24,7 +26,8 @@ from fastapi.responses import JSONResponse, Response
 # ---------------------------------------------------------------------------
 
 # Voice ID validation — prevents path traversal (CWE-22) in /v1/voices/register
-_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+# \Z is strict end-of-string ($ allows a trailing \n in Python)
+_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+\Z")
 
 # Regex for stripping ElevenLabs-style audio tags (not supported by Pocket TTS)
 _AUDIO_TAG_RE = re.compile(
@@ -211,21 +214,26 @@ async def transcribe(file: UploadFile = File(...)):
         if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="Audio file too large")
 
+        # Run CPU-bound audio decoding + inference off the event loop so
+        # /health and concurrent requests aren't blocked during processing.
+        loop = asyncio.get_running_loop()
+
         # librosa handles MP3, OGG, FLAC, WAV (soundfile can't decode MP3)
-        audio_array, sample_rate = librosa.load(
-            io.BytesIO(audio_bytes), sr=None, mono=True
+        audio_array, sample_rate = await loop.run_in_executor(
+            None, partial(librosa.load, io.BytesIO(audio_bytes), sr=None, mono=True)
         )
 
         # Resample to 16kHz if needed (librosa already returns float32 mono)
         if sample_rate != 16000:
-            audio_array = librosa.resample(
-                audio_array,
-                orig_sr=sample_rate,
-                target_sr=16000,
+            audio_array = await loop.run_in_executor(
+                None,
+                partial(librosa.resample, audio_array, orig_sr=sample_rate, target_sr=16000),
             )
 
         # Transcribe — NeMo returns objects with .text attribute
-        transcriptions = asr_model.transcribe([audio_array])
+        transcriptions = await loop.run_in_executor(
+            None, asr_model.transcribe, [audio_array]
+        )
         text = transcriptions[0].text if transcriptions else ""
 
         # Cleanup
@@ -296,9 +304,14 @@ async def text_to_speech(
 
         # Strip ElevenLabs-style audio tags (not supported by Pocket TTS)
         clean_text = _AUDIO_TAG_RE.sub("", text).strip()
+        if clean_text != text.strip():
+            print(f"[TTS] Stripped audio tags from text for voice '{voice_id}'")
 
         if not clean_text:
             raise HTTPException(status_code=400, detail="No text to synthesize")
+
+        # Run CPU-bound model calls off the event loop
+        loop = asyncio.get_running_loop()
 
         # Get or create voice state
         if reference_audio:
@@ -318,7 +331,9 @@ async def text_to_speech(
                 tmp.write(audio_bytes)
 
             try:
-                voice_state = tts_model.get_state_for_audio_prompt(tmp_path)
+                voice_state = await loop.run_in_executor(
+                    None, tts_model.get_state_for_audio_prompt, tmp_path
+                )
                 _cache_voice(voice_id, voice_state)
             finally:
                 os.unlink(tmp_path)
@@ -332,7 +347,9 @@ async def text_to_speech(
         else:
             # Try loading as a preset name or HF path
             try:
-                voice_state = tts_model.get_state_for_audio_prompt(voice_id)
+                voice_state = await loop.run_in_executor(
+                    None, tts_model.get_state_for_audio_prompt, voice_id
+                )
                 _cache_voice(voice_id, voice_state)
             except Exception:
                 # Fall back to default
@@ -344,7 +361,9 @@ async def text_to_speech(
                     )
 
         # Generate audio
-        audio_tensor = tts_model.generate_audio(voice_state, clean_text)
+        audio_tensor = await loop.run_in_executor(
+            None, tts_model.generate_audio, voice_state, clean_text
+        )
         audio_np = audio_tensor.numpy()
 
         # Convert float32 [-1.0, 1.0] to int16 for broad player compatibility
@@ -439,10 +458,13 @@ async def register_voice(
                     os.unlink(existing_path)
 
         # Write and process — clean up on any failure (disk full, model error)
+        loop = asyncio.get_running_loop()
         try:
             with open(voice_path, "wb") as f:
                 f.write(audio_bytes)
-            voice_state = tts_model.get_state_for_audio_prompt(voice_path)
+            voice_state = await loop.run_in_executor(
+                None, tts_model.get_state_for_audio_prompt, voice_path
+            )
             _cache_voice(voice_id, voice_state)
         except Exception:
             if os.path.exists(voice_path):
