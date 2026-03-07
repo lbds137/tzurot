@@ -71,6 +71,7 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
           : 'audio/wav';
 
         res.set('Content-Type', contentType);
+        res.set('Content-Length', String(buffer.length));
         res.set('Cache-Control', `max-age=${CACHE_CONTROL.VOICE_REFERENCE_MAX_AGE}`);
         res.send(buffer);
       } catch (error) {

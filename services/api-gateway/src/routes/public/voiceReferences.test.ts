@@ -112,7 +112,7 @@ describe('Voice Reference Routes', () => {
       expect(response.status).toBe(StatusCodes.NOT_FOUND);
     });
 
-    it('should serve voice reference with correct content type', async () => {
+    it('should serve voice reference with correct content type and length', async () => {
       const audioBuffer = Buffer.from('fake-wav-data');
       mockPrisma.personality.findUnique.mockResolvedValue({
         voiceReferenceData: audioBuffer,
@@ -123,6 +123,7 @@ describe('Voice Reference Routes', () => {
 
       expect(response.status).toBe(StatusCodes.OK);
       expect(response.headers['content-type']).toContain('audio/wav');
+      expect(response.headers['content-length']).toBe(String(audioBuffer.length));
       expect(response.headers['cache-control']).toContain('max-age=3600');
       expect(response.body).toEqual(audioBuffer);
     });

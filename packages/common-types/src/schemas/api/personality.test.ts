@@ -371,6 +371,34 @@ describe('Personality API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should accept voiceReferenceData as string (set new)', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        voiceReferenceData: 'data:audio/wav;base64,AAAA',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.voiceReferenceData).toBe('data:audio/wav;base64,AAAA');
+      }
+    });
+
+    it('should accept voiceReferenceData as null (clear existing)', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        voiceReferenceData: null,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.voiceReferenceData).toBeNull();
+      }
+    });
+
+    it('should accept voiceReferenceData as undefined (no change)', () => {
+      const result = PersonalityUpdateSchema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.voiceReferenceData).toBeUndefined();
+      }
+    });
+
     it('should transform empty string displayName to null', () => {
       const result = PersonalityUpdateSchema.safeParse({ displayName: '' });
       expect(result.success).toBe(true);
