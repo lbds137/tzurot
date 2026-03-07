@@ -73,7 +73,8 @@ voice_cache = {}
 
 # Concurrency cap for model inference — prevents OOM on Railway's 4GB ceiling.
 # Two concurrent Parakeet TDT passes on 1-min WAV ≈ 480MB audio + 1.2GB model.
-_inference_semaphore = asyncio.Semaphore(2)
+_INFERENCE_CONCURRENCY = int(os.environ.get("INFERENCE_CONCURRENCY", "2"))
+_inference_semaphore = asyncio.Semaphore(_INFERENCE_CONCURRENCY)
 
 
 def _cache_voice(voice_id, voice_state):
@@ -358,8 +359,8 @@ async def text_to_speech(
                             None, tts_model.get_state_for_audio_prompt, voice_id
                         )
                         _cache_voice(voice_id, voice_state)
-                    except Exception:
-                        # Fall back to default
+                    except Exception as e:
+                        print(f"[TTS] Failed to load voice '{voice_id}', falling back to alba: {e}")
                         voice_state = voice_cache.get("alba")
                         if not voice_state:
                             raise HTTPException(
