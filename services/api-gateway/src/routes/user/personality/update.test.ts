@@ -597,6 +597,71 @@ describe('PUT /user/personality/:slug (update)', () => {
       expect(mockPrisma.personality.update).not.toHaveBeenCalled();
     });
 
+    it('should clear voice reference when voiceReferenceData is null', async () => {
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-voice',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: 'Test',
+          voiceReferenceType: null,
+        })
+      );
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes({ voiceReferenceData: null }, { slug: 'test-char' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            voiceReferenceData: null,
+            voiceReferenceType: null,
+          }),
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality: expect.objectContaining({
+            hasVoiceReference: false,
+          }),
+        })
+      );
+    });
+
+    it('should not touch voice reference when voiceReferenceData is undefined', async () => {
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-voice',
+          name: 'Updated',
+          slug: 'test-char',
+          displayName: 'Updated',
+        })
+      );
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { name: 'Updated' }, // No voiceReferenceData field
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({
+            voiceReferenceData: expect.anything(),
+            voiceReferenceType: expect.anything(),
+          }),
+        })
+      );
+    });
+
     it('should store valid voice reference on update', async () => {
       mockPrisma.personality.update.mockResolvedValue(
         createMockPersonality({
