@@ -5,7 +5,7 @@ python-multipart>=0.0.18,<1.0.0
 
 # Audio processing
 scipy>=1.14.0,<2.0.0
-librosa==0.10.2
+librosa>=0.10.2,<0.11.0
 numpy>=1.26,<2.0
 
 # STT: Parakeet TDT

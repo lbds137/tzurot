@@ -325,9 +325,9 @@ async def text_to_speech(
             del audio_bytes
 
         elif voice_id in voice_cache:
-            # Move to end for LRU eviction order
-            voice_state = voice_cache.pop(voice_id)
-            voice_cache[voice_id] = voice_state
+            # Refresh LRU position via _cache_voice (pop-and-reinsert)
+            voice_state = voice_cache[voice_id]
+            _cache_voice(voice_id, voice_state)
 
         else:
             # Try loading as a preset name or HF path

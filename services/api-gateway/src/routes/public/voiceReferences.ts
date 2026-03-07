@@ -10,6 +10,12 @@
  * personality slug can retrieve them. The primary consumer is the voice-engine
  * service which fetches reference audio for voice cloning without user auth
  * context. If voice references become sensitive, add a shared service secret.
+ *
+ * CACHE NOTE: max-age=3600 (1 hour) means updated voice references may be
+ * stale for up to 1 hour in downstream caches. Unlike avatars (which use
+ * timestamp-based cache-busting URLs), voice references are served from DB
+ * with no filesystem cache layer. Acceptable for Phase 1 since the voice-engine
+ * service isn't wired to fetch from this endpoint yet.
  */
 
 import { Router } from 'express';

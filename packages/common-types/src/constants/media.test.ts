@@ -33,12 +33,14 @@ describe('Media Constants', () => {
       expect(VOICE_REFERENCE_LIMITS.MAX_SIZE).toBe(10 * 1024 * 1024);
     });
 
-    it('should allow wav, mpeg, ogg, and flac audio types', () => {
+    it('should allow wav, mpeg, ogg, flac, and wav aliases', () => {
       expect(VOICE_REFERENCE_LIMITS.ALLOWED_TYPES).toEqual([
         'audio/wav',
         'audio/mpeg',
         'audio/ogg',
         'audio/flac',
+        'audio/x-wav',
+        'audio/wave',
       ]);
     });
 

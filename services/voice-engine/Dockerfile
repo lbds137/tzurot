@@ -5,6 +5,7 @@ WORKDIR /app
 # System dependencies for audio processing
 # espeak-ng: included defensively (may be needed by Pocket TTS for phonemization)
 # curl: needed for HEALTHCHECK command
+# build-essential: needed for pip install of native extensions (purged after)
 RUN apt-get update && apt-get install -y \
     libsndfile1 \
     ffmpeg \
@@ -22,11 +23,18 @@ RUN pip install --no-cache-dir \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Purge build tools — only needed during pip install (~200-300MB savings)
+RUN apt-get purge -y build-essential && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy application code
 COPY server.py .
 
-# Create voices directory
-RUN mkdir -p /app/voices
+# Create non-root user (CWE-250: least privilege)
+RUN useradd -m -u 1000 appuser \
+    && mkdir -p /app/voices \
+    && chown -R appuser:appuser /app/voices
+USER appuser
 
 # Default port (Railway will set PORT env var)
 ENV PORT=8000

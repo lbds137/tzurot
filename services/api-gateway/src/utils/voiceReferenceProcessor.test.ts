@@ -9,7 +9,14 @@ vi.mock('@tzurot/common-types', () => ({
   }),
   VOICE_REFERENCE_LIMITS: {
     MAX_SIZE: 10 * 1024 * 1024,
-    ALLOWED_TYPES: ['audio/wav', 'audio/mpeg', 'audio/ogg', 'audio/flac'],
+    ALLOWED_TYPES: [
+      'audio/wav',
+      'audio/mpeg',
+      'audio/ogg',
+      'audio/flac',
+      'audio/x-wav',
+      'audio/wave',
+    ],
   },
 }));
 
