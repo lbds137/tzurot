@@ -88,6 +88,22 @@ async def test_transcribe_accepts_x_api_key_header(
     assert response.status_code == 200
 
 
+async def test_transcribe_returns_empty_string_for_silent_audio(
+    client: httpx.AsyncClient, mock_asr: MagicMock
+) -> None:
+    from tests.conftest import _FakeTranscription
+
+    mock_asr.transcribe.return_value = [_FakeTranscription("")]
+
+    response = await client.post(
+        "/v1/transcribe",
+        files={"file": ("silence.wav", b"RIFF" + b"\x00" * 100, "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["text"] == ""
+
+
 async def test_transcribe_handles_model_error(client: httpx.AsyncClient, mock_asr: MagicMock) -> None:
     mock_asr.transcribe.side_effect = RuntimeError("Model inference failed")
 

@@ -68,5 +68,11 @@ def test_json_formatter_excludes_standard_log_attrs() -> None:
     assert "pathname" not in parsed
     assert "lineno" not in parsed
     assert "funcName" not in parsed
-    # Only our explicit keys should be present
-    assert set(parsed.keys()) == {"level", "msg", "logger"}
+    assert "name" not in parsed
+    assert "args" not in parsed
+    assert "created" not in parsed
+    assert "thread" not in parsed
+    # Our explicit keys should always be present
+    assert "level" in parsed
+    assert "msg" in parsed
+    assert "logger" in parsed

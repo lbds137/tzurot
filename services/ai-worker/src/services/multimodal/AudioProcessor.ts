@@ -160,7 +160,8 @@ async function transcribeWithWhisper(
  * @param attachment - Audio attachment to transcribe
  */
 export async function transcribeAudio(attachment: AttachmentMetadata): Promise<string> {
-  // Check Redis cache first (if originalUrl is available)
+  // Check Redis cache first (if originalUrl is available).
+  // Cache is populated by bot-client's VoiceTranscriptionService after receiving job results.
   if (attachment.originalUrl !== undefined && attachment.originalUrl.length > 0) {
     try {
       const { voiceTranscriptCache } = await import('../../redis.js');
