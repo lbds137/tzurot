@@ -260,6 +260,12 @@ async def text_to_speech(
 
     Returns: audio/wav
     """
+    if not _VOICE_ID_RE.match(voice_id) or len(voice_id) > 64:
+        raise HTTPException(
+            status_code=400,
+            detail="voice_id must be 1-64 alphanumeric characters, hyphens, or underscores",
+        )
+
     tts_model = models.get("tts")
     if not tts_model:
         raise HTTPException(status_code=503, detail="TTS model not loaded")
@@ -382,10 +388,10 @@ async def register_voice(
     The voice state is cached in memory for subsequent TTS requests.
     For persistent storage, save the audio file to the voices/ directory.
     """
-    if not _VOICE_ID_RE.match(voice_id):
+    if not _VOICE_ID_RE.match(voice_id) or len(voice_id) > 64:
         raise HTTPException(
             status_code=400,
-            detail="voice_id must contain only alphanumeric characters, hyphens, or underscores",
+            detail="voice_id must be 1-64 alphanumeric characters, hyphens, or underscores",
         )
 
     tts_model = models.get("tts")
@@ -403,15 +409,15 @@ async def register_voice(
         ext = _AUDIO_EXTENSIONS.get(audio.content_type, _DEFAULT_AUDIO_EXT)
         voice_path = os.path.join(voices_dir, f"{voice_id}{ext}")
 
-        with open(voice_path, "wb") as f:
-            f.write(audio_bytes)
-
-        # Create and cache voice state — clean up file on model failure
+        # Write and process — clean up on any failure (disk full, model error)
         try:
+            with open(voice_path, "wb") as f:
+                f.write(audio_bytes)
             voice_state = tts_model.get_state_for_audio_prompt(voice_path)
             _cache_voice(voice_id, voice_state)
         except Exception:
-            os.unlink(voice_path)
+            if os.path.exists(voice_path):
+                os.unlink(voice_path)
             raise
 
         del audio_bytes
