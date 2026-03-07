@@ -18,10 +18,11 @@ import { Prisma } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
+import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
@@ -111,6 +112,46 @@ async function handleSlugCacheInvalidation(
   }
 }
 
+/** Process media uploads (avatar + voice reference), returning fields to merge */
+async function processMediaUploads(
+  body: PersonalityUpdateInput,
+  slug: string
+): Promise<{
+  avatarUpdated: boolean;
+  mediaFields: Prisma.PersonalityUpdateInput;
+  error?: ErrorResponse;
+}> {
+  const mediaFields: Prisma.PersonalityUpdateInput = {};
+
+  const avatarResult = await processAvatarData(body.avatarData, slug);
+  if (avatarResult !== null && !avatarResult.ok) {
+    return { avatarUpdated: false, mediaFields, error: avatarResult.error };
+  }
+
+  const avatarUpdated = avatarResult?.ok === true;
+  if (avatarUpdated) {
+    mediaFields.avatarData = new Uint8Array(avatarResult.buffer);
+  }
+
+  // null = clear existing voice reference, undefined = don't change, string = set new
+  if (body.voiceReferenceData === null) {
+    mediaFields.voiceReferenceData = null;
+    mediaFields.voiceReferenceType = null;
+  } else {
+    const voiceRefResult = processVoiceReferenceData(body.voiceReferenceData, slug);
+    if (voiceRefResult !== null && !voiceRefResult.ok) {
+      return { avatarUpdated, mediaFields, error: voiceRefResult.error };
+    }
+
+    if (voiceRefResult?.ok === true) {
+      mediaFields.voiceReferenceData = new Uint8Array(voiceRefResult.buffer);
+      mediaFields.voiceReferenceType = voiceRefResult.mimeType;
+    }
+  }
+
+  return { avatarUpdated, mediaFields };
+}
+
 // --- Handler Factory ---
 
 function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
@@ -183,19 +224,15 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     const updateData = buildUpdateData(body, personality.name);
 
-    const avatarResult = await processAvatarData(body.avatarData, slug);
-    if (avatarResult !== null && !avatarResult.ok) {
-      return sendError(res, avatarResult.error);
+    const mediaResult = await processMediaUploads(body, slug);
+    if (mediaResult.error !== undefined) {
+      return sendError(res, mediaResult.error);
     }
-
-    const avatarUpdated = avatarResult?.ok === true;
-    if (avatarUpdated) {
-      updateData.avatarData = new Uint8Array(avatarResult.buffer);
-    }
+    const { avatarUpdated, mediaFields } = mediaResult;
 
     const updated = await prisma.personality.update({
       where: { id: personality.id },
-      data: updateData,
+      data: { ...updateData, ...mediaFields },
       select: PERSONALITY_DETAIL_SELECT,
     });
 

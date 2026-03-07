@@ -90,8 +90,8 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
             return;
           }
 
-          // avatarData is already raw bytes (Buffer)
-          const buffer = Buffer.from(personality.avatarData);
+          // Prisma returns Bytes fields as Buffer — no wrapping needed
+          const buffer = personality.avatarData;
           const dbTimestamp = personality.updatedAt.getTime();
 
           // Only cache if request matches current DB version or is a legacy request.

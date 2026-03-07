@@ -63,6 +63,7 @@ export const PersonalityFullSchema = z.object({
   imageEnabled: z.boolean(),
   ownerId: z.string(),
   hasAvatar: z.boolean(),
+  hasVoiceReference: z.boolean(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -182,6 +183,9 @@ export const PersonalityCreateSchema = z.object({
 
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),
+
+  // Voice reference audio (base64 data URI, processed separately)
+  voiceReferenceData: z.string().optional(),
 });
 
 export type PersonalityCreateInput = z.infer<typeof PersonalityCreateSchema>;
@@ -218,6 +222,10 @@ export const PersonalityUpdateSchema = z.object({
 
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),
+
+  // Voice reference audio (base64 data URI, processed separately)
+  // null = clear existing voice reference, undefined = don't change, string = set new
+  voiceReferenceData: z.string().nullable().optional(),
 });
 
 export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;
@@ -299,6 +307,7 @@ export const PERSONALITY_DETAIL_SELECT = {
   imageEnabled: true,
   ownerId: true,
   avatarData: true,
+  voiceReferenceType: true,
   customFields: true,
   systemPromptId: true,
   voiceSettings: true,

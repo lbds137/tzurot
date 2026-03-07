@@ -153,6 +153,8 @@ CREATE TABLE "personalities" (
     "image_enabled" BOOLEAN NOT NULL DEFAULT false,
     "image_settings" JSONB,
     "avatar_data" BYTEA,
+    "voice_reference_data" BYTEA,
+    "voice_reference_type" VARCHAR(50),
     "config_defaults" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

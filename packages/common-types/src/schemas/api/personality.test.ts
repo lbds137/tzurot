@@ -18,6 +18,7 @@ import {
   PersonalityUpdateSchema,
   AdminPersonalityResponseSchema,
   SetVisibilitySchema,
+  PERSONALITY_DETAIL_SELECT,
 } from './personality.js';
 
 describe('Personality API Contract Tests', () => {
@@ -370,6 +371,34 @@ describe('Personality API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should accept voiceReferenceData as string (set new)', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        voiceReferenceData: 'data:audio/wav;base64,AAAA',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.voiceReferenceData).toBe('data:audio/wav;base64,AAAA');
+      }
+    });
+
+    it('should accept voiceReferenceData as null (clear existing)', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        voiceReferenceData: null,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.voiceReferenceData).toBeNull();
+      }
+    });
+
+    it('should accept voiceReferenceData as undefined (no change)', () => {
+      const result = PersonalityUpdateSchema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.voiceReferenceData).toBeUndefined();
+      }
+    });
+
     it('should transform empty string displayName to null', () => {
       const result = PersonalityUpdateSchema.safeParse({ displayName: '' });
       expect(result.success).toBe(true);
@@ -484,6 +513,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: true,
+      hasVoiceReference: false,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-20T15:30:00.000Z',
     };
@@ -557,6 +587,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
+      hasVoiceReference: false,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-15T12:00:00.000Z',
     };
@@ -598,6 +629,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
+      hasVoiceReference: false,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-15T12:00:00.000Z',
     };
@@ -691,6 +723,17 @@ describe('Personality API Contract Tests', () => {
       };
       const result = DeletePersonalityResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('PERSONALITY_DETAIL_SELECT', () => {
+    it('should NOT include voiceReferenceData blob (uses voiceReferenceType as proxy)', () => {
+      expect(PERSONALITY_DETAIL_SELECT).not.toHaveProperty('voiceReferenceData');
+      expect(PERSONALITY_DETAIL_SELECT).toHaveProperty('voiceReferenceType', true);
+    });
+
+    it('should include avatarData for filesystem caching', () => {
+      expect(PERSONALITY_DETAIL_SELECT).toHaveProperty('avatarData', true);
     });
   });
 

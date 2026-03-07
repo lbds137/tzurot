@@ -1,0 +1,19 @@
+# Web framework
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.34.0,<1.0.0
+python-multipart>=0.0.18,<1.0.0
+
+# Audio processing
+scipy>=1.14.0,<2.0.0
+librosa>=0.10.2,<0.11.0
+numpy>=1.26,<2.0
+
+# STT: Parakeet TDT
+nemo_toolkit[asr]>=2.1.0,<3.0.0
+
+# TTS: Pocket TTS (MIT license)
+pocket-tts>=1.1.0,<2.0.0
+
+# PyTorch CPU-only — installed separately in Dockerfile with --index-url
+# to guarantee CPU wheels. Do NOT add torch/torchaudio here; --extra-index-url
+# could resolve CUDA builds from PyPI if versions drift.

@@ -397,6 +397,81 @@ describe('POST /user/personality (create)', () => {
     });
   });
 
+  describe('voice reference processing', () => {
+    it('should return error for invalid voice reference data URI', async () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Voice Char',
+        slug: 'voice-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        voiceReferenceData: 'not-a-data-uri',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.create).not.toHaveBeenCalled();
+    });
+
+    it('should return error for unsupported voice reference MIME type', async () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Voice Char',
+        slug: 'voice-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        voiceReferenceData: 'data:image/png;base64,iVBORw0KGgo=',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.create).not.toHaveBeenCalled();
+    });
+
+    it('should store valid voice reference and return hasVoiceReference true', async () => {
+      mockPrisma.personality.create.mockResolvedValue(
+        createMockPersonality({ voiceReferenceType: 'audio/wav' })
+      );
+
+      const audioBytes = Buffer.from('fake-wav-audio');
+      const base64 = audioBytes.toString('base64');
+      const dataUri = `data:audio/wav;base64,${base64}`;
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Voice Char',
+        slug: 'voice-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        voiceReferenceData: dataUri,
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(mockPrisma.personality.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            voiceReferenceData: new Uint8Array(audioBytes),
+            voiceReferenceType: 'audio/wav',
+          }),
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personality: expect.objectContaining({
+            hasVoiceReference: true,
+          }),
+        })
+      );
+    });
+  });
+
   describe('LLM config error handling', () => {
     it('should still succeed when setting default LLM config fails', async () => {
       mockPrisma.personality.create.mockResolvedValue(createMockPersonality());

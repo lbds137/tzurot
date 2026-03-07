@@ -34,6 +34,7 @@ export interface PersonalityResponse {
   imageEnabled: boolean;
   ownerId: string;
   hasAvatar: boolean;
+  hasVoiceReference: boolean;
   customFields: unknown;
   systemPromptId: string | null;
   voiceSettings: unknown;
@@ -68,6 +69,7 @@ export function formatPersonalityResponse(
     imageEnabled: personality.imageEnabled,
     ownerId: personality.ownerId,
     hasAvatar: personality.avatarData !== null,
+    hasVoiceReference: personality.voiceReferenceType !== null,
     customFields: personality.customFields,
     systemPromptId: personality.systemPromptId,
     voiceSettings: personality.voiceSettings,
