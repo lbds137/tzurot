@@ -224,7 +224,8 @@ export const PersonalityUpdateSchema = z.object({
   avatarData: z.string().optional(),
 
   // Voice reference audio (base64 data URI, processed separately)
-  voiceReferenceData: z.string().optional(),
+  // null = clear existing voice reference, undefined = don't change, string = set new
+  voiceReferenceData: z.string().nullable().optional(),
 });
 
 export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;

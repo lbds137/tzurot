@@ -72,8 +72,8 @@ export function processVoiceReferenceData(
       };
     }
 
-    // Extract base64 payload and decode — indexOf is O(1) on the short prefix
-    // vs regex which would scan the full string (potentially 10MB+)
+    // Use indexOf for the payload split — the prefix is short (~20 chars)
+    // so the comma is found immediately without scanning the full multi-MB string.
     const commaIndex = voiceReferenceData.indexOf(',');
     const base64Data = voiceReferenceData.substring(commaIndex + 1);
     const buffer = Buffer.from(base64Data, 'base64');

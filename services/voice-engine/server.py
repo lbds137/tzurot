@@ -71,6 +71,10 @@ def _is_valid_voice_id(voice_id: str) -> bool:
 models = {}
 voice_cache = {}
 
+# Concurrency cap for model inference — prevents OOM on Railway's 4GB ceiling.
+# Two concurrent Parakeet TDT passes on 1-min WAV ≈ 480MB audio + 1.2GB model.
+_inference_semaphore = asyncio.Semaphore(2)
+
 
 def _cache_voice(voice_id, voice_state):
     """Cache a voice state with LRU eviction when at capacity."""
@@ -79,6 +83,7 @@ def _cache_voice(voice_id, voice_state):
     if len(voice_cache) > MAX_VOICE_CACHE_SIZE:
         oldest = next(iter(voice_cache))
         del voice_cache[oldest]
+        # TODO(phase2): replace with structured logger
         print(f"[TTS] Voice cache full ({MAX_VOICE_CACHE_SIZE}), evicted: {oldest}")
 
 
@@ -216,25 +221,26 @@ async def transcribe(file: UploadFile = File(...)):
 
         # Run CPU-bound audio decoding + inference off the event loop so
         # /health and concurrent requests aren't blocked during processing.
+        # Semaphore caps concurrency to prevent OOM on Railway 4GB ceiling.
         loop = asyncio.get_running_loop()
-
-        # librosa handles MP3, OGG, FLAC, WAV (soundfile can't decode MP3)
-        audio_array, sample_rate = await loop.run_in_executor(
-            None, partial(librosa.load, io.BytesIO(audio_bytes), sr=None, mono=True)
-        )
-
-        # Resample to 16kHz if needed (librosa already returns float32 mono)
-        if sample_rate != 16000:
-            audio_array = await loop.run_in_executor(
-                None,
-                partial(librosa.resample, audio_array, orig_sr=sample_rate, target_sr=16000),
+        async with _inference_semaphore:
+            # librosa handles MP3, OGG, FLAC, WAV (soundfile can't decode MP3)
+            audio_array, sample_rate = await loop.run_in_executor(
+                None, partial(librosa.load, io.BytesIO(audio_bytes), sr=None, mono=True)
             )
 
-        # Transcribe — NeMo returns objects with .text attribute
-        transcriptions = await loop.run_in_executor(
-            None, asr_model.transcribe, [audio_array]
-        )
-        text = transcriptions[0].text if transcriptions else ""
+            # Resample to 16kHz if needed (librosa already returns float32 mono)
+            if sample_rate != 16000:
+                audio_array = await loop.run_in_executor(
+                    None,
+                    partial(librosa.resample, audio_array, orig_sr=sample_rate, target_sr=16000),
+                )
+
+            # Transcribe — NeMo returns objects with .text attribute
+            transcriptions = await loop.run_in_executor(
+                None, asr_model.transcribe, [audio_array]
+            )
+            text = transcriptions[0].text if transcriptions else ""
 
         # Cleanup
         del audio_bytes, audio_array
@@ -310,14 +316,13 @@ async def text_to_speech(
         if not clean_text:
             raise HTTPException(status_code=400, detail="No text to synthesize")
 
-        # Run CPU-bound model calls off the event loop
+        # Read reference audio before acquiring semaphore (I/O, not model work)
         loop = asyncio.get_running_loop()
-
-        # Get or create voice state
+        ref_audio_bytes = None
+        ref_tmp_path = None
         if reference_audio:
-            # Zero-shot cloning from uploaded audio
-            audio_bytes = await reference_audio.read()
-            if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
+            ref_audio_bytes = await reference_audio.read()
+            if len(ref_audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
                 raise HTTPException(
                     status_code=413, detail="Reference audio file too large"
                 )
@@ -327,43 +332,48 @@ async def text_to_speech(
             with tempfile.NamedTemporaryFile(
                 suffix=ext, delete=False
             ) as tmp:
-                tmp_path = tmp.name
-                tmp.write(audio_bytes)
+                ref_tmp_path = tmp.name
+                tmp.write(ref_audio_bytes)
+            del ref_audio_bytes
 
-            try:
-                voice_state = await loop.run_in_executor(
-                    None, tts_model.get_state_for_audio_prompt, tmp_path
-                )
-                _cache_voice(voice_id, voice_state)
-            finally:
-                os.unlink(tmp_path)
-            del audio_bytes
-
-        elif voice_id in voice_cache:
-            # Refresh LRU position via _cache_voice (pop-and-reinsert)
-            voice_state = voice_cache[voice_id]
-            _cache_voice(voice_id, voice_state)
-
-        else:
-            # Try loading as a preset name or HF path
-            try:
-                voice_state = await loop.run_in_executor(
-                    None, tts_model.get_state_for_audio_prompt, voice_id
-                )
-                _cache_voice(voice_id, voice_state)
-            except Exception:
-                # Fall back to default
-                voice_state = voice_cache.get("alba")
-                if not voice_state:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Voice '{voice_id}' not found",
+        # Semaphore caps concurrency to prevent OOM on Railway 4GB ceiling.
+        async with _inference_semaphore:
+            # Get or create voice state
+            if ref_tmp_path is not None:
+                # Zero-shot cloning from uploaded audio
+                try:
+                    voice_state = await loop.run_in_executor(
+                        None, tts_model.get_state_for_audio_prompt, ref_tmp_path
                     )
+                    _cache_voice(voice_id, voice_state)
+                finally:
+                    os.unlink(ref_tmp_path)
 
-        # Generate audio
-        audio_tensor = await loop.run_in_executor(
-            None, tts_model.generate_audio, voice_state, clean_text
-        )
+            elif voice_id in voice_cache:
+                # Refresh LRU position via _cache_voice (pop-and-reinsert)
+                voice_state = voice_cache[voice_id]
+                _cache_voice(voice_id, voice_state)
+
+            else:
+                # Try loading as a preset name or HF path
+                try:
+                    voice_state = await loop.run_in_executor(
+                        None, tts_model.get_state_for_audio_prompt, voice_id
+                    )
+                    _cache_voice(voice_id, voice_state)
+                except Exception:
+                    # Fall back to default
+                    voice_state = voice_cache.get("alba")
+                    if not voice_state:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Voice '{voice_id}' not found",
+                        )
+
+            # Generate audio
+            audio_tensor = await loop.run_in_executor(
+                None, tts_model.generate_audio, voice_state, clean_text
+            )
         audio_np = audio_tensor.numpy()
 
         # Convert float32 [-1.0, 1.0] to int16 for broad player compatibility
@@ -462,9 +472,10 @@ async def register_voice(
         try:
             with open(voice_path, "wb") as f:
                 f.write(audio_bytes)
-            voice_state = await loop.run_in_executor(
-                None, tts_model.get_state_for_audio_prompt, voice_path
-            )
+            async with _inference_semaphore:
+                voice_state = await loop.run_in_executor(
+                    None, tts_model.get_state_for_audio_prompt, voice_path
+                )
             _cache_voice(voice_id, voice_state)
         except Exception:
             if os.path.exists(voice_path):

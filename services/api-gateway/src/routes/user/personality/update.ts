@@ -133,14 +133,20 @@ async function processMediaUploads(
     mediaFields.avatarData = new Uint8Array(avatarResult.buffer);
   }
 
-  const voiceRefResult = processVoiceReferenceData(body.voiceReferenceData, slug);
-  if (voiceRefResult !== null && !voiceRefResult.ok) {
-    return { avatarUpdated, mediaFields, error: voiceRefResult.error };
-  }
+  // null = clear existing voice reference, undefined = don't change, string = set new
+  if (body.voiceReferenceData === null) {
+    mediaFields.voiceReferenceData = null;
+    mediaFields.voiceReferenceType = null;
+  } else {
+    const voiceRefResult = processVoiceReferenceData(body.voiceReferenceData, slug);
+    if (voiceRefResult !== null && !voiceRefResult.ok) {
+      return { avatarUpdated, mediaFields, error: voiceRefResult.error };
+    }
 
-  if (voiceRefResult?.ok === true) {
-    mediaFields.voiceReferenceData = new Uint8Array(voiceRefResult.buffer);
-    mediaFields.voiceReferenceType = voiceRefResult.mimeType;
+    if (voiceRefResult?.ok === true) {
+      mediaFields.voiceReferenceData = new Uint8Array(voiceRefResult.buffer);
+      mediaFields.voiceReferenceType = voiceRefResult.mimeType;
+    }
   }
 
   return { avatarUpdated, mediaFields };
