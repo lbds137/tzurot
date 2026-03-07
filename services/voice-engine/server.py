@@ -101,15 +101,19 @@ async def lifespan(app: FastAPI):
     default_voices = os.environ.get("DEFAULT_VOICES", "alba,bria").split(",")
     for voice_name in default_voices:
         voice_name = voice_name.strip()
-        if voice_name:
-            try:
-                _cache_voice(
-                    voice_name,
-                    tts_model.get_state_for_audio_prompt(voice_name),
-                )
-                print(f"[TTS] Pre-loaded voice: {voice_name}")
-            except Exception as e:
-                print(f"[TTS] WARNING: Failed to pre-load voice '{voice_name}': {e}")
+        if not voice_name:
+            continue
+        if not _VOICE_ID_RE.match(voice_name) or len(voice_name) > 64:
+            print(f"[TTS] WARNING: Skipping invalid preset voice name: {voice_name}")
+            continue
+        try:
+            _cache_voice(
+                voice_name,
+                tts_model.get_state_for_audio_prompt(voice_name),
+            )
+            print(f"[TTS] Pre-loaded voice: {voice_name}")
+        except Exception as e:
+            print(f"[TTS] WARNING: Failed to pre-load voice '{voice_name}': {e}")
 
     # --- Pre-load any custom voices from the voices/ directory ---
     voices_dir = os.environ.get("VOICES_DIR", "./voices")
@@ -260,7 +264,7 @@ async def text_to_speech(
 
     Returns: audio/wav
     """
-    if not _VOICE_ID_RE.match(voice_id) or len(voice_id) > 64:
+    if len(voice_id) > 64 or not _VOICE_ID_RE.match(voice_id):
         raise HTTPException(
             status_code=400,
             detail="voice_id must be 1-64 alphanumeric characters, hyphens, or underscores",
@@ -391,7 +395,7 @@ async def register_voice(
     The voice state is cached in memory for subsequent TTS requests.
     For persistent storage, save the audio file to the voices/ directory.
     """
-    if not _VOICE_ID_RE.match(voice_id) or len(voice_id) > 64:
+    if len(voice_id) > 64 or not _VOICE_ID_RE.match(voice_id):
         raise HTTPException(
             status_code=400,
             detail="voice_id must be 1-64 alphanumeric characters, hyphens, or underscores",

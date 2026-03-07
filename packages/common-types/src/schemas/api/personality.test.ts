@@ -18,6 +18,7 @@ import {
   PersonalityUpdateSchema,
   AdminPersonalityResponseSchema,
   SetVisibilitySchema,
+  PERSONALITY_DETAIL_SELECT,
 } from './personality.js';
 
 describe('Personality API Contract Tests', () => {
@@ -694,6 +695,17 @@ describe('Personality API Contract Tests', () => {
       };
       const result = DeletePersonalityResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('PERSONALITY_DETAIL_SELECT', () => {
+    it('should NOT include voiceReferenceData blob (uses voiceReferenceType as proxy)', () => {
+      expect(PERSONALITY_DETAIL_SELECT).not.toHaveProperty('voiceReferenceData');
+      expect(PERSONALITY_DETAIL_SELECT).toHaveProperty('voiceReferenceType', true);
+    });
+
+    it('should include avatarData for filesystem caching', () => {
+      expect(PERSONALITY_DETAIL_SELECT).toHaveProperty('avatarData', true);
     });
   });
 

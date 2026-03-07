@@ -21,7 +21,9 @@ _Empty (2026-03-04)._
 
 _New items go here. Triage to appropriate section weekly._
 
-_Empty (2026-03-04)._
+### 🏗️ Personality create.ts response uses formatPersonalityResponse
+
+`create.ts` assembles its response manually and is missing fields that `formatPersonalityResponse()` includes (`customFields`, `systemPromptId`, `voiceSettings`, `imageSettings`). The update endpoint correctly uses the formatter. Aligning create.ts would require a `findUnique` after create (or selecting the right fields on create). Pre-existing but surfaced by voice-engine PR review.
 
 ---
 
