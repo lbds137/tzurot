@@ -154,6 +154,14 @@ describe('VoiceEngineClient', () => {
   });
 
   describe('timeout handling', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('should throw descriptive error on timeout', async () => {
       const shortTimeoutClient = new VoiceEngineClient('http://voice-engine:8000', 'test-key', 100);
 
@@ -164,6 +172,31 @@ describe('VoiceEngineClient', () => {
       await expect(
         shortTimeoutClient.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav')
       ).rejects.toThrow('Voice engine request timed out');
+    });
+
+    it('should abort request after configured timeout delay', async () => {
+      const shortTimeoutClient = new VoiceEngineClient(
+        'http://voice-engine:8000',
+        'test-key',
+        1000
+      );
+
+      // Simulate a fetch that never resolves (hangs indefinitely)
+      mockFetch.mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => {
+              const abortError = new Error('The operation was aborted');
+              abortError.name = 'AbortError';
+              reject(abortError);
+            });
+          })
+      );
+
+      const promise = shortTimeoutClient.transcribe(Buffer.from('audio'), 'test.wav', 'audio/wav');
+      const assertion = expect(promise).rejects.toThrow('Voice engine request timed out');
+      await vi.advanceTimersByTimeAsync(1001);
+      await assertion;
     });
   });
 

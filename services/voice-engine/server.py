@@ -126,6 +126,9 @@ voice_cache: dict[str, Any] = {}
 # Two concurrent Parakeet TDT passes on 1-min WAV ≈ 480MB audio + 1.2GB model.
 try:
     _INFERENCE_CONCURRENCY: int = int(os.environ.get("INFERENCE_CONCURRENCY", "2"))
+    if _INFERENCE_CONCURRENCY < 1:
+        logger.warning("INFERENCE_CONCURRENCY must be >= 1 — defaulting to 2")
+        _INFERENCE_CONCURRENCY = 2
 except ValueError:
     logger.warning("Invalid INFERENCE_CONCURRENCY value — defaulting to 2")
     _INFERENCE_CONCURRENCY = 2

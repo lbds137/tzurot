@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { transcribeAudio } from './AudioProcessor.js';
-import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
+import type { AttachmentMetadata } from '@tzurot/common-types';
 import { CONTENT_TYPES } from '@tzurot/common-types';
 
 // Create mock functions
@@ -40,21 +40,6 @@ vi.mock('../voice/VoiceEngineClient.js', () => ({
 global.fetch = vi.fn();
 
 describe('AudioProcessor', () => {
-  const mockPersonality = {
-    id: 'test',
-    name: 'Test',
-    displayName: 'Test',
-    slug: 'test',
-    systemPrompt: 'Test prompt',
-    model: 'gpt-4',
-    visionModel: undefined,
-    temperature: 0.7,
-    maxTokens: 1000,
-    contextWindowTokens: 8000,
-    characterInfo: '',
-    personalityTraits: '',
-  } as LoadedPersonality;
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockWhisperCreate.mockResolvedValue('Mocked transcription');
@@ -80,7 +65,7 @@ describe('AudioProcessor', () => {
 
         mockVoiceTranscriptCacheGet.mockResolvedValue('Cached transcription from Redis');
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Cached transcription from Redis');
         expect(mockVoiceTranscriptCacheGet).toHaveBeenCalledWith(attachment.originalUrl);
@@ -102,7 +87,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment, mockPersonality);
+        await transcribeAudio(attachment);
 
         expect(mockVoiceTranscriptCacheGet).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
@@ -122,7 +107,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment, mockPersonality);
+        await transcribeAudio(attachment);
 
         expect(mockVoiceTranscriptCacheGet).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
@@ -144,7 +129,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Mocked transcription');
         expect(global.fetch).toHaveBeenCalled();
@@ -167,7 +152,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment, mockPersonality);
+        await transcribeAudio(attachment);
 
         expect(global.fetch).toHaveBeenCalled();
         expect(mockWhisperCreate).toHaveBeenCalled();
@@ -189,7 +174,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment, mockPersonality);
+        await transcribeAudio(attachment);
 
         expect(global.fetch).toHaveBeenCalled();
         expect(mockWhisperCreate).toHaveBeenCalled();
@@ -213,7 +198,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Voice engine transcription');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
@@ -236,7 +221,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Mocked transcription');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
@@ -258,7 +243,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Mocked transcription');
         expect(mockWhisperCreate).toHaveBeenCalled();
@@ -279,7 +264,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048)),
         });
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Mocked transcription');
         expect(global.fetch).toHaveBeenCalledWith(
@@ -300,7 +285,7 @@ describe('AudioProcessor', () => {
 
         (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
-        await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow('Network error');
+        await expect(transcribeAudio(attachment)).rejects.toThrow('Network error');
       });
 
       it('should handle HTTP error responses', async () => {
@@ -316,7 +301,7 @@ describe('AudioProcessor', () => {
           statusText: 'Not Found',
         });
 
-        await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow(
+        await expect(transcribeAudio(attachment)).rejects.toThrow(
           'Failed to fetch audio: Not Found'
         );
       });
@@ -333,9 +318,7 @@ describe('AudioProcessor', () => {
         abortError.name = 'AbortError';
         (global.fetch as any).mockRejectedValue(abortError);
 
-        await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow(
-          'Audio file download timed out'
-        );
+        await expect(transcribeAudio(attachment)).rejects.toThrow('Audio file download timed out');
       });
     });
 
@@ -356,7 +339,7 @@ describe('AudioProcessor', () => {
 
         mockWhisperCreate.mockResolvedValue('This is a transcribed message');
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('This is a transcribed message');
         expect(mockWhisperCreate).toHaveBeenCalledWith(
@@ -382,7 +365,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment, mockPersonality);
+        await transcribeAudio(attachment);
 
         const fileArg = mockWhisperCreate.mock.calls[0][0].file;
         expect(fileArg.name).toBe('my-recording.ogg');
@@ -401,7 +384,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment, mockPersonality);
+        await transcribeAudio(attachment);
 
         const fileArg = mockWhisperCreate.mock.calls[0][0].file;
         expect(fileArg.name).toBe('audio.ogg');
@@ -420,7 +403,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment, mockPersonality);
+        await transcribeAudio(attachment);
 
         const fileArg = mockWhisperCreate.mock.calls[0][0].file;
         expect(fileArg.name).toBe('audio.ogg');
@@ -441,9 +424,7 @@ describe('AudioProcessor', () => {
 
         mockWhisperCreate.mockRejectedValue(new Error('Whisper API error'));
 
-        await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow(
-          'Whisper API error'
-        );
+        await expect(transcribeAudio(attachment)).rejects.toThrow('Whisper API error');
       });
     });
 
@@ -469,7 +450,7 @@ describe('AudioProcessor', () => {
             arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
           });
 
-          const result = await transcribeAudio(attachment, mockPersonality);
+          const result = await transcribeAudio(attachment);
 
           expect(result).toBe('Mocked transcription');
           const fileArg = mockWhisperCreate.mock.calls[0][0].file;
@@ -494,7 +475,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8192)),
         });
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Mocked transcription');
         expect(mockWhisperCreate).toHaveBeenCalled();
@@ -517,7 +498,7 @@ describe('AudioProcessor', () => {
 
         mockWhisperCreate.mockResolvedValue('Very long transcription...');
 
-        const result = await transcribeAudio(attachment, mockPersonality);
+        const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Very long transcription...');
       });

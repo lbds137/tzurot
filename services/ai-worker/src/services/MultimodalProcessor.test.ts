@@ -170,7 +170,7 @@ describe('MultimodalProcessor', () => {
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
       });
 
-      const result = await transcribeAudio(attachment, mockPersonality);
+      const result = await transcribeAudio(attachment);
 
       expect(result).toBe('Mocked transcription');
       expect(global.fetch).toHaveBeenCalledWith(attachment.url, expect.any(Object));
@@ -186,7 +186,7 @@ describe('MultimodalProcessor', () => {
 
       (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
-      await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow('Network error');
+      await expect(transcribeAudio(attachment)).rejects.toThrow('Network error');
     });
 
     it('should handle Whisper API errors', async () => {
@@ -204,9 +204,7 @@ describe('MultimodalProcessor', () => {
 
       mockWhisperCreate.mockRejectedValue(new Error('Whisper API error'));
 
-      await expect(transcribeAudio(attachment, mockPersonality)).rejects.toThrow(
-        'Whisper API error'
-      );
+      await expect(transcribeAudio(attachment)).rejects.toThrow('Whisper API error');
     });
   });
 
