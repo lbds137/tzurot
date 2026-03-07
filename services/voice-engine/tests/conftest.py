@@ -15,7 +15,7 @@ import pytest
 from server import app, models, voice_cache
 
 
-class _FakeTranscription:
+class FakeTranscription:
     """Mimics NeMo's transcription result (has .text attribute)."""
 
     def __init__(self, text: str = "Hello, this is a test transcription.") -> None:
@@ -40,7 +40,7 @@ def mock_asr(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     import server
 
     asr = MagicMock()
-    asr.transcribe.return_value = [_FakeTranscription()]
+    asr.transcribe.return_value = [FakeTranscription()]
     models["asr"] = asr
     # Mock librosa so tests don't depend on real audio decoding of synthetic bytes
     mock_librosa = MagicMock()

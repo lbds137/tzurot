@@ -21,6 +21,10 @@ _Empty (2026-03-04)._
 
 _New items go here. Triage to appropriate section weekly._
 
+- 🧹 `[CHORE]` **Python CI for voice-engine tests** — 26 pytest tests exist but no CI step runs them. Add a GitHub Actions job with `pip install -r requirements-dev.txt` + `pytest`. Without this, tests will silently rot as `server.py` changes.
+- 🧹 `[CHORE]` **Voice-engine LRU eviction test** — `_cache_voice` eviction when `len(voice_cache) > MAX_VOICE_CACHE_SIZE` has no test coverage. Low risk (simple logic) but worth a follow-up.
+- ✨ `[FEAT]` **Voice-engine empty-transcription fallback toggle** — If voice-engine returns `""` for speech that contains words (model bug), there's no Whisper retry. Consider a `VOICE_ENGINE_EMPTY_FALLBACK=true` env toggle in Phase 3 if quality issues emerge.
+
 ## 🎯 Current Focus
 
 _This week's active work. Max 3 items._

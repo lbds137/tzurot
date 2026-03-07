@@ -91,9 +91,9 @@ async def test_transcribe_accepts_x_api_key_header(
 async def test_transcribe_returns_empty_string_for_silent_audio(
     client: httpx.AsyncClient, mock_asr: MagicMock
 ) -> None:
-    from tests.conftest import _FakeTranscription
+    from tests.conftest import FakeTranscription
 
-    mock_asr.transcribe.return_value = [_FakeTranscription("")]
+    mock_asr.transcribe.return_value = [FakeTranscription("")]
 
     response = await client.post(
         "/v1/transcribe",

@@ -6,6 +6,7 @@ python-multipart>=0.0.18,<1.0.0
 # Audio processing
 scipy>=1.14.0,<2.0.0
 librosa>=0.10.2,<0.11.0
+# numpy 2.x required by pocket-tts>=1.1.0; nemo_toolkit 2.1+ targets numpy 2.x
 numpy>=2.0,<3.0
 
 # STT: Parakeet TDT
