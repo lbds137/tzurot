@@ -370,7 +370,7 @@ async def text_to_speech(
         raise HTTPException(status_code=500, detail="Speech generation failed")
 
 
-# OpenAI-compatible TTS endpoint
+# OpenAI-inspired TTS endpoint (Form fields, NOT JSON — not a true drop-in)
 @app.post("/v1/audio/speech")
 async def tts_openai_compat(
     input: str = Form(...),
@@ -429,6 +429,14 @@ async def register_voice(
         os.makedirs(voices_dir, exist_ok=True)
         ext = _AUDIO_EXTENSIONS.get(audio.content_type, _DEFAULT_AUDIO_EXT)
         voice_path = os.path.join(voices_dir, f"{voice_id}{ext}")
+
+        # Clean up stale files from prior registrations with different MIME types
+        # (e.g., re-registering "alice" as MP3 after it was WAV leaves alice.wav)
+        for existing in os.listdir(voices_dir):
+            if os.path.splitext(existing)[0] == voice_id:
+                existing_path = os.path.join(voices_dir, existing)
+                if existing_path != voice_path:
+                    os.unlink(existing_path)
 
         # Write and process — clean up on any failure (disk full, model error)
         try:
