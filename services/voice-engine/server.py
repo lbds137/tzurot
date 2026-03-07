@@ -101,10 +101,14 @@ async def lifespan(app: FastAPI):
     for voice_name in default_voices:
         voice_name = voice_name.strip()
         if voice_name:
-            print(f"[TTS] Pre-loading voice: {voice_name}")
-            voice_cache[voice_name] = tts_model.get_state_for_audio_prompt(
-                voice_name
-            )
+            try:
+                _cache_voice(
+                    voice_name,
+                    tts_model.get_state_for_audio_prompt(voice_name),
+                )
+                print(f"[TTS] Pre-loaded voice: {voice_name}")
+            except Exception as e:
+                print(f"[TTS] WARNING: Failed to pre-load voice '{voice_name}': {e}")
 
     # --- Pre-load any custom voices from the voices/ directory ---
     voices_dir = os.environ.get("VOICES_DIR", "./voices")
@@ -113,10 +117,14 @@ async def lifespan(app: FastAPI):
             if filename.endswith((".wav", ".mp3", ".flac", ".ogg")):
                 voice_id = os.path.splitext(filename)[0]
                 filepath = os.path.join(voices_dir, filename)
-                print(f"[TTS] Pre-loading custom voice: {voice_id}")
-                voice_cache[voice_id] = tts_model.get_state_for_audio_prompt(
-                    filepath
-                )
+                try:
+                    _cache_voice(
+                        voice_id,
+                        tts_model.get_state_for_audio_prompt(filepath),
+                    )
+                    print(f"[TTS] Pre-loaded custom voice: {voice_id}")
+                except Exception as e:
+                    print(f"[TTS] WARNING: Failed to pre-load voice '{voice_id}': {e}")
 
     print("=" * 60)
     print(f"VOICE ENGINE READY — {len(voice_cache)} voices loaded")
