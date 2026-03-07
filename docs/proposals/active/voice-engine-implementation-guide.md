@@ -32,6 +32,7 @@
 - Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
 - Add `VOICE_ENGINE_URL` env var to Railway config
 - Deploy voice-engine service to Railway (see Part 6)
+- Add pytest + httpx test suite for voice-engine (mock NeMo/Pocket TTS models, test audio tag stripping, resampling, error paths, health/voices endpoints)
 
 ## CRITICAL WARNINGS — Read Before Implementing
 
