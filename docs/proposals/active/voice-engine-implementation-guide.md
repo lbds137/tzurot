@@ -28,13 +28,31 @@
 
 ### Phase 2 Entry Points
 
-- **Python tooling setup** — Add `pyproject.toml` with ruff (lint + format), mypy (type checking), pytest config. Add type hints to `server.py`. Create `requirements-dev.txt` for dev deps. Add brief Python section to `.claude/rules/02-code-standards.md`. Do this BEFORE writing the pytest suite so standards are in place from the start.
+- **Python tooling setup** — Add `pyproject.toml` with ruff (lint + format), mypy (type checking), pytest config. Add type hints to `server.py`. Create `requirements-dev.txt` for dev deps. Add brief Python section to `.claude/rules/02-code-standards.md`. Do this BEFORE writing the pytest suite so standards are in place from the start. See "Python Standards Lessons Learned" below for specific patterns to codify.
 - Add pytest + httpx test suite for voice-engine (mock NeMo/Pocket TTS models, test audio tag stripping, resampling, error paths, health/voices endpoints)
 - Add API key authentication to voice-engine (`VOICE_ENGINE_API_KEY` env var, middleware check on all endpoints except `/health`)
 - Create `services/ai-worker/src/services/voice/VoiceService.ts` (see Part 5 in this guide)
 - Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
 - Add `VOICE_ENGINE_URL` env var to Railway config
 - Deploy voice-engine service to Railway (see Part 6)
+
+### Python Standards Lessons Learned (from Phase 1 PR Review)
+
+These patterns were caught during PR review of `server.py` and should be codified in Python coding standards during Phase 2 tooling setup:
+
+| Pattern                           | Problem                                                                                                                                  | Standard                                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **`except HTTPException: raise`** | Generic `except Exception` swallows FastAPI's HTTPException (e.g., 413 becomes 500). Always re-raise HTTPException before the catch-all. | Every `try/except Exception` in a FastAPI endpoint MUST have `except HTTPException: raise` first.             |
+| **Temp file cleanup**             | `tempfile.NamedTemporaryFile(delete=False)` leaks files if processing fails.                                                             | Always wrap in `try/finally` with `os.unlink()`.                                                              |
+| **Persistent file cleanup**       | Files saved to disk before model processing may be orphaned on failure.                                                                  | Use `try/except` with `os.unlink()` when writing files that are only valid if subsequent processing succeeds. |
+| **Input size limits**             | Unbounded uploads cause OOM on Railway's 4GB ceiling.                                                                                    | All upload endpoints MUST check `len(bytes) > MAX_*_BYTES` before processing.                                 |
+| **Text length caps**              | Long TTS text causes CPU OOM during inference.                                                                                           | Cap text input length before passing to model.                                                                |
+| **Path traversal (CWE-22)**       | User-supplied IDs used in file paths enable directory traversal.                                                                         | Validate IDs with `^[a-zA-Z0-9_-]+$` regex before any filesystem operations.                                  |
+| **MIME-to-extension mapping**     | Hardcoding `.wav` loses the original format, potentially confusing format-aware models.                                                  | Use a MIME→extension dict with a safe default.                                                                |
+| **Dependency pinning**            | Unpinned major versions allow breaking changes.                                                                                          | Pin upper bounds on all deps: `>=X.Y.Z,<(X+1).0.0`.                                                           |
+| **Constants placement**           | Constants defined after the functions that use them are harder to find.                                                                  | All module-level constants at the top, after imports.                                                         |
+
+**Tooling to enforce these**: ruff can catch some (unused imports, complexity), but most of these are domain-specific patterns that need code review or custom ruff rules. Consider adding a `PYTHON_STANDARDS.md` alongside the existing TypeScript rules, or a Python section in `02-code-standards.md`.
 
 ## CRITICAL WARNINGS — Read Before Implementing
 
