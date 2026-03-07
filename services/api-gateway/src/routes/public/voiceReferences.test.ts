@@ -62,6 +62,20 @@ describe('Voice Reference Routes', () => {
       expect(response.body.error).toBe('Validation Error');
     });
 
+    it('should reject slug with uppercase letters', async () => {
+      const response = await request(app).get('/voice-references/TestBot');
+
+      expect(response.status).toBe(StatusCodes.BAD_REQUEST);
+      expect(response.body.error).toBe('Validation Error');
+    });
+
+    it('should reject slug with underscores', async () => {
+      const response = await request(app).get('/voice-references/test_bot');
+
+      expect(response.status).toBe(StatusCodes.BAD_REQUEST);
+      expect(response.body.error).toBe('Validation Error');
+    });
+
     it('should return 404 when personality has no voice reference', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         voiceReferenceData: null,

@@ -35,7 +35,7 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
     void (async () => {
       const { slug } = req.params;
 
-      if (!slug || slug.length > 255 || !/^[a-z0-9][a-z0-9_-]*$/i.test(slug)) {
+      if (!slug || slug.length > 64 || !/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
         const errorResponse = ErrorResponses.validationError('Invalid personality slug');
         res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
         return;
