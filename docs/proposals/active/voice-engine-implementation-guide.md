@@ -5,7 +5,7 @@
 | Phase   | Scope                                         | Status      |
 | ------- | --------------------------------------------- | ----------- |
 | Phase 1 | Python service + voice reference blob storage | COMPLETE    |
-| Phase 2 | ai-worker VoiceService + BullMQ integration   | Not started |
+| Phase 2 | Python hardening + ai-worker STT integration  | COMPLETE    |
 | Phase 3 | Bot-client TTS commands + Discord audio       | Not started |
 
 ### Phase 1 Checklist
@@ -26,22 +26,41 @@
 - `voiceReferenceData` field added to `PersonalityCreateSchema` and `PersonalityUpdateSchema`
 - `processMediaUploads()` helper extracted in update handler to keep complexity under lint threshold
 
-### Phase 2 Entry Points
+### Phase 2 Checklist
 
-- **Python tooling setup** — Add `pyproject.toml` with ruff (lint + format), mypy (type checking), pytest config. Add type hints to `server.py`. Create `requirements-dev.txt` for dev deps. Add brief Python section to `.claude/rules/02-code-standards.md`. Do this BEFORE writing the pytest suite so standards are in place from the start. See "Python Standards Lessons Learned" below for specific patterns to codify.
-- Add pytest + httpx test suite for voice-engine (mock NeMo/Pocket TTS models, test audio tag stripping, resampling, error paths, health/voices endpoints)
-- ~~Add API key authentication to voice-engine~~ DONE in Phase 1 — optional `VOICE_ENGINE_API_KEY` env var with middleware check on all endpoints except `/health`. Set the env var on Railway before deployment.
-- **Structured logging** — Replace all `print()` calls with stdlib `logging` (log levels, structured fields, Railway log aggregation compatibility). Add type annotations to `models: dict[str, Any]` and `voice_cache: dict[str, Any]` globals (mypy readiness).
-- ~~**[HIGH PRIORITY] Voice reference deletion**~~ DONE in Phase 1 — `PersonalityUpdateSchema` accepts `voiceReferenceData: null` to clear. `processMediaUploads()` sets both `voiceReferenceData` and `voiceReferenceType` to null when the body field is explicitly null.
-- ~~**[HIGH PRIORITY] Inference rate limiting**~~ DONE in Phase 1 — `asyncio.Semaphore(2)` caps concurrent model inference across `/v1/transcribe`, `/v1/tts`, and `/v1/voices/register`. All CPU-bound model calls use `run_in_executor` with the semaphore wrapping them.
-- Create `services/ai-worker/src/services/voice/VoiceService.ts` (see Part 5 in this guide)
-- Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
-- Add `VOICE_ENGINE_URL` env var to Railway config
-- Deploy voice-engine service to Railway (see Part 6)
+- [x] Deferred Phase 1 nits: proxy pattern comment in `formatters.ts`, slug removed from 404 error in `voiceReferences.ts`
+- [x] Python tooling: `pyproject.toml` (ruff, mypy, pytest), `requirements-dev.txt`
+- [x] Type hints: Full `mypy --strict` compatible annotations in `server.py`
+- [x] Structured logging: All `print()` replaced with stdlib `logging` + `_JsonFormatter`
+- [x] pytest suite: `tests/conftest.py`, `test_health.py`, `test_transcribe.py`, `test_tts.py`, `test_voices.py`
+- [x] Python standards: Added to `.claude/rules/02-code-standards.md`
+- [x] Config: `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` added to `envSchema` in common-types
+- [x] VoiceEngineClient: HTTP client with `transcribe()`, `isHealthy()`, lazy singleton
+- [x] AudioProcessor wiring: voice-engine as primary STT with Whisper fallback
+- [ ] Docker build + local smoke test (`podman build`, `curl /health`)
+- [ ] Railway deployment: Create service, set env vars, verify
+
+### Phase 2 Implementation Notes
+
+- **VoiceEngineClient** uses native `POST /v1/transcribe` endpoint (not OpenAI-compatible) for richer metadata
+- Client is a lazy singleton created from config on first access via `getVoiceEngineClient()`
+- Returns `null` when `VOICE_ENGINE_URL` is not configured — dev environments work unchanged
+- AudioProcessor orchestration: Redis cache → voice-engine → Whisper fallback
+- Extracted `fetchAudioBuffer()`, `transcribeWithVoiceEngine()`, `transcribeWithWhisper()` helpers
+- Python test suite uses `httpx.ASGITransport` for in-process FastAPI testing (no real server)
+- NeMo/Pocket TTS models mocked via `unittest.mock.patch` on the `models` global dict
+- Structured logging uses `_JsonFormatter` for Railway log aggregation compatibility
+
+### Phase 3 Entry Points
+
+- **Bot-client TTS integration** — `POST /v1/tts` for generating speech, sending as Discord audio attachment
+- **TTS filesystem cache + BullMQ cleanup job** — 1-hour TTL for generated audio files
+- **Voice registration slash commands** — `/voice register`, `/voice list`, `/voice remove`
+- **ElevenLabs premium tier** — BYOK for higher-quality voices
 
 ### Python Standards Lessons Learned (from Phase 1 PR Review)
 
-These patterns were caught during PR review of `server.py` and should be codified in Python coding standards during Phase 2 tooling setup:
+These patterns were caught during PR review of `server.py` and codified in `.claude/rules/02-code-standards.md` (Python Standards section) during Phase 2:
 
 | Pattern                           | Problem                                                                                                                                  | Standard                                                                                                      |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -55,7 +74,7 @@ These patterns were caught during PR review of `server.py` and should be codifie
 | **Dependency pinning**            | Unpinned major versions allow breaking changes.                                                                                          | Pin upper bounds on all deps: `>=X.Y.Z,<(X+1).0.0`.                                                           |
 | **Constants placement**           | Constants defined after the functions that use them are harder to find.                                                                  | All module-level constants at the top, after imports.                                                         |
 
-**Tooling to enforce these**: ruff can catch some (unused imports, complexity), but most of these are domain-specific patterns that need code review or custom ruff rules. Consider adding a `PYTHON_STANDARDS.md` alongside the existing TypeScript rules, or a Python section in `02-code-standards.md`.
+**Tooling to enforce these**: ruff catches some (unused imports, complexity), but most are domain-specific patterns enforced through code review. Standards codified in `.claude/rules/02-code-standards.md` (Python Standards section).
 
 ## CRITICAL WARNINGS — Read Before Implementing
 
