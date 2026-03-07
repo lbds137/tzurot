@@ -325,7 +325,7 @@ async def transcribe_openai_compat(
     Note: ``model`` is accepted for API compatibility but currently ignored.
     All requests use Parakeet TDT.
     """
-    _ = model  # accepted for API compat, unused
+    _ = model  # accepted for API compat; can't rename to _model (FastAPI derives form field name)
     result = await transcribe(file)
     return result
 
@@ -479,7 +479,7 @@ async def tts_openai_compat(
     the native interface. ``model`` is accepted for API compatibility
     but currently ignored; all requests use Pocket TTS.
     """
-    _ = model  # accepted for API compat, unused
+    _ = model  # accepted for API compat; can't rename to _model (FastAPI derives form field name)
     return await text_to_speech(text=input, voice_id=voice)
 
 

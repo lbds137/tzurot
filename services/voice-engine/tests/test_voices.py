@@ -29,7 +29,7 @@ async def test_list_voices_empty(client: httpx.AsyncClient) -> None:
     assert response.json()["voices"] == []
 
 
-async def test_register_voice_success(client: httpx.AsyncClient, mock_tts: MagicMock, tmp_path: object) -> None:
+async def test_register_voice_success(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     response = await client.post(
         "/v1/voices/register",
         data={"voice_id": "test-voice"},
