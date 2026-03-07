@@ -21,12 +21,6 @@ _Empty (2026-03-04)._
 
 _New items go here. Triage to appropriate section weekly._
 
-### 🏗️ Personality create.ts response uses formatPersonalityResponse
-
-`create.ts` assembles its response manually and is missing fields that `formatPersonalityResponse()` includes (`customFields`, `systemPromptId`, `voiceSettings`, `imageSettings`). The update endpoint correctly uses the formatter. Preferred approach: add `select: PERSONALITY_DETAIL_SELECT` to `prisma.personality.create()` — Prisma supports `select` on create, so no extra `findUnique` roundtrip needed. Pre-existing but surfaced by voice-engine PR review.
-
----
-
 ## 🎯 Current Focus
 
 _This week's active work. Max 3 items._

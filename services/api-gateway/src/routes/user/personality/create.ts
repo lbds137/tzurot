@@ -12,6 +12,7 @@ import {
   generatePersonalityUuid,
   PersonalityCreateSchema,
   type PersonalityCreateInput,
+  PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -22,6 +23,7 @@ import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
 import { setupDefaultLlmConfig } from '../../../utils/personalityHelpers.js';
+import { formatPersonalityResponse } from './formatters.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 
@@ -128,6 +130,7 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
     });
     const personality = await prisma.personality.create({
       data: createData,
+      select: PERSONALITY_DETAIL_SELECT,
     });
 
     logger.info(
@@ -138,39 +141,9 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
     // Set default LLM config (non-blocking, errors logged but don't fail creation)
     await setupDefaultLlmConfig(prisma, personality.id);
 
-    // Return full personality data for dashboard display
     sendCustomSuccess(
       res,
-      {
-        success: true,
-        personality: {
-          id: personality.id,
-          name: personality.name,
-          slug: personality.slug,
-          displayName: personality.displayName,
-          characterInfo: personality.characterInfo,
-          personalityTraits: personality.personalityTraits,
-          personalityTone: personality.personalityTone,
-          personalityAge: personality.personalityAge,
-          personalityAppearance: personality.personalityAppearance,
-          personalityLikes: personality.personalityLikes,
-          personalityDislikes: personality.personalityDislikes,
-          conversationalGoals: personality.conversationalGoals,
-          conversationalExamples: personality.conversationalExamples,
-          errorMessage: personality.errorMessage,
-          birthMonth: null, // Not yet supported in create
-          birthDay: null,
-          birthYear: null,
-          isPublic: personality.isPublic,
-          voiceEnabled: personality.voiceEnabled,
-          imageEnabled: personality.imageEnabled,
-          ownerId: discordUserId, // Return Discord ID for bot-client
-          hasAvatar: personality.avatarData !== null,
-          hasVoiceReference: personality.voiceReferenceType !== null,
-          createdAt: personality.createdAt.toISOString(),
-          updatedAt: personality.updatedAt.toISOString(),
-        },
-      },
+      { success: true, personality: formatPersonalityResponse(personality) },
       StatusCodes.CREATED
     );
   });

@@ -481,11 +481,17 @@ async def register_voice(
                 if existing_path != voice_path:
                     os.unlink(existing_path)
 
-        # Write and process — clean up on any failure (disk full, model error)
+        # Write and process — clean up on any failure (disk full, model error).
+        # File write is offloaded to executor to avoid blocking the event loop
+        # for large uploads (up to MAX_AUDIO_UPLOAD_BYTES = 50MB).
         loop = asyncio.get_running_loop()
+
+        def _write_file(path, data):
+            with open(path, "wb") as f:
+                f.write(data)
+
         try:
-            with open(voice_path, "wb") as f:
-                f.write(audio_bytes)
+            await loop.run_in_executor(None, _write_file, voice_path, audio_bytes)
             async with _inference_semaphore:
                 voice_state = await loop.run_in_executor(
                     None, tts_model.get_state_for_audio_prompt, voice_path
