@@ -291,8 +291,11 @@ async def text_to_speech(
                 raise HTTPException(
                     status_code=413, detail="Reference audio file too large"
                 )
+            ext = _AUDIO_EXTENSIONS.get(
+                reference_audio.content_type, _DEFAULT_AUDIO_EXT
+            )
             with tempfile.NamedTemporaryFile(
-                suffix=".wav", delete=False
+                suffix=ext, delete=False
             ) as tmp:
                 tmp_path = tmp.name
                 tmp.write(audio_bytes)
