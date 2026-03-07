@@ -60,8 +60,15 @@ export const CONTENT_TYPES = {
 export const VOICE_REFERENCE_LIMITS = {
   /** Maximum voice reference file size (10MB) */
   MAX_SIZE: 10 * 1024 * 1024,
-  /** Allowed MIME types for voice reference audio */
-  ALLOWED_TYPES: ['audio/wav', 'audio/mpeg', 'audio/ogg', 'audio/flac'] as readonly string[],
+  /** Allowed MIME types for voice reference audio (includes browser aliases for WAV) */
+  ALLOWED_TYPES: [
+    'audio/wav',
+    'audio/mpeg',
+    'audio/ogg',
+    'audio/flac',
+    'audio/x-wav',
+    'audio/wave',
+  ] as readonly string[],
 } as const;
 
 /**

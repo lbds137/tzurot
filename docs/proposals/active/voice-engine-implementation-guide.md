@@ -33,6 +33,7 @@
 - ~~Add API key authentication to voice-engine~~ DONE in Phase 1 — optional `VOICE_ENGINE_API_KEY` env var with middleware check on all endpoints except `/health`. Set the env var on Railway before deployment.
 - **Structured logging** — Replace all `print()` calls with stdlib `logging` (log levels, structured fields, Railway log aggregation compatibility). Add type annotations to `models: dict[str, Any]` and `voice_cache: dict[str, Any]` globals (mypy readiness).
 - **Voice reference deletion** — Add ability to clear `voiceReferenceData`/`voiceReferenceType` via personality update (set to null). Currently once set, a voice reference can't be removed.
+- **Inference rate limiting** — Add `asyncio.Semaphore` to `/v1/transcribe` and `/v1/tts` to prevent concurrent CPU-bound requests from exhausting Railway's 4GB RAM ceiling. Even `Semaphore(2)` prevents runaway queuing.
 - Create `services/ai-worker/src/services/voice/VoiceService.ts` (see Part 5 in this guide)
 - Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
 - Add `VOICE_ENGINE_URL` env var to Railway config

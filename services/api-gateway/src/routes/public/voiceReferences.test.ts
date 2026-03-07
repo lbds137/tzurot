@@ -18,7 +18,14 @@ vi.mock('@tzurot/common-types', () => ({
     VOICE_REFERENCE_MAX_AGE: 3600,
   },
   VOICE_REFERENCE_LIMITS: {
-    ALLOWED_TYPES: ['audio/wav', 'audio/mpeg', 'audio/ogg', 'audio/flac'],
+    ALLOWED_TYPES: [
+      'audio/wav',
+      'audio/mpeg',
+      'audio/ogg',
+      'audio/flac',
+      'audio/x-wav',
+      'audio/wave',
+    ],
   },
 }));
 
