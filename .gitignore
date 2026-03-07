@@ -72,5 +72,10 @@ packages/common-types/src/generated/prisma/
 # npm lock file (we use pnpm)
 package-lock.json
 
+# Python (voice-engine service)
+__pycache__/
+*.pyc
+.venv/
+
 # Dev logs
 railway_dev_logs.md

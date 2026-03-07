@@ -74,6 +74,7 @@ export {
 export {
   MEDIA_LIMITS,
   AVATAR_LIMITS,
+  VOICE_REFERENCE_LIMITS,
   CONTENT_TYPES,
   EMBED_NAMING,
   AttachmentType,

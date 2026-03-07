@@ -1,0 +1,21 @@
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.34.0
+python-multipart==0.0.18
+
+# Audio processing
+soundfile==0.12.1
+scipy==1.14.0
+librosa==0.10.2
+numpy>=1.26,<2.0
+
+# STT: Parakeet TDT
+nemo_toolkit[asr]>=2.1.0
+
+# TTS: Pocket TTS (MIT license)
+pocket-tts>=1.1.0
+
+# PyTorch CPU-only (saves ~2GB vs full CUDA build)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.5.0
+torchaudio>=2.5.0
