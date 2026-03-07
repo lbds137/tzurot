@@ -18,7 +18,7 @@ import { Prisma } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
@@ -117,7 +117,7 @@ async function processMediaUploads(
   body: PersonalityUpdateInput,
   slug: string,
   updateData: Prisma.PersonalityUpdateInput
-): Promise<{ avatarUpdated: boolean; error?: ReturnType<typeof ErrorResponses.processingError> }> {
+): Promise<{ avatarUpdated: boolean; error?: ErrorResponse }> {
   const avatarResult = await processAvatarData(body.avatarData, slug);
   if (avatarResult !== null && !avatarResult.ok) {
     return { avatarUpdated: false, error: avatarResult.error };

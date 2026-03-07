@@ -30,7 +30,7 @@
 
 - **Python tooling setup** — Add `pyproject.toml` with ruff (lint + format), mypy (type checking), pytest config. Add type hints to `server.py`. Create `requirements-dev.txt` for dev deps. Add brief Python section to `.claude/rules/02-code-standards.md`. Do this BEFORE writing the pytest suite so standards are in place from the start. See "Python Standards Lessons Learned" below for specific patterns to codify.
 - Add pytest + httpx test suite for voice-engine (mock NeMo/Pocket TTS models, test audio tag stripping, resampling, error paths, health/voices endpoints)
-- Add API key authentication to voice-engine (`VOICE_ENGINE_API_KEY` env var, middleware check on all endpoints except `/health`)
+- ~~Add API key authentication to voice-engine~~ DONE in Phase 1 — optional `VOICE_ENGINE_API_KEY` env var with middleware check on all endpoints except `/health`. Set the env var on Railway before deployment.
 - Create `services/ai-worker/src/services/voice/VoiceService.ts` (see Part 5 in this guide)
 - Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
 - Add `VOICE_ENGINE_URL` env var to Railway config
@@ -66,7 +66,7 @@ These patterns were caught during PR review of `server.py` and should be codifie
 
 5. **There is no OpenAI dependency anywhere in this stack.** Do not add OpenAI API calls as a fallback. The self-hosted tier uses Parakeet TDT + Pocket TTS. The premium tier uses ElevenLabs for both STT and TTS.
 
-6. **`nemo_toolkit[asr]` is a large package (~1.2 GB+).** First Docker build will be slow. Plan accordingly. If image size becomes problematic, consider a multi-stage Docker build that separates dependency installation from application code.
+6. **`nemo_toolkit[asr]` is a large package (~1.2 GB+).** The final Docker image is approximately **4-6 GB** due to PyTorch (CPU), NeMo, and Pocket TTS. First build takes 10-20 minutes; subsequent builds are faster with Docker layer caching. If image size becomes problematic, consider a multi-stage Docker build that separates dependency installation from application code.
 
 7. **Pocket TTS is English-only.** It cannot synthesize speech in other languages. This is acceptable for Tzurot's current requirements.
 

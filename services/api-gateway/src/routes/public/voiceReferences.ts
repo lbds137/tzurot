@@ -4,6 +4,12 @@
  * Serves personality voice reference audio from database.
  * Unlike avatars, no filesystem caching — voice references are accessed infrequently
  * (only when registering voices with the voice-engine service).
+ *
+ * ACCESS DECISION: This endpoint is intentionally unauthenticated. Voice
+ * references are treated as semi-public data (like avatars) — anyone with the
+ * personality slug can retrieve them. The primary consumer is the voice-engine
+ * service which fetches reference audio for voice cloning without user auth
+ * context. If voice references become sensitive, add a shared service secret.
  */
 
 import { Router } from 'express';

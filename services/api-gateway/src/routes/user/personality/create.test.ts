@@ -433,7 +433,9 @@ describe('POST /user/personality (create)', () => {
     });
 
     it('should store valid voice reference and return hasVoiceReference true', async () => {
-      mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
+      mockPrisma.personality.create.mockResolvedValue(
+        createMockPersonality({ voiceReferenceType: 'audio/wav' })
+      );
 
       const audioBytes = Buffer.from('fake-wav-audio');
       const base64 = audioBytes.toString('base64');
