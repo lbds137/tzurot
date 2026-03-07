@@ -15,7 +15,7 @@ vi.mock('@tzurot/common-types', () => ({
     debug: vi.fn(),
   }),
   CACHE_CONTROL: {
-    AVATAR_MAX_AGE: 604800,
+    VOICE_REFERENCE_MAX_AGE: 3600,
   },
 }));
 
@@ -90,7 +90,7 @@ describe('Voice Reference Routes', () => {
 
       expect(response.status).toBe(StatusCodes.OK);
       expect(response.headers['content-type']).toContain('audio/wav');
-      expect(response.headers['cache-control']).toContain('max-age=604800');
+      expect(response.headers['cache-control']).toContain('max-age=3600');
       expect(response.body).toEqual(audioBuffer);
     });
 

@@ -552,6 +552,52 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
   });
 
+  describe('voice reference processing', () => {
+    beforeEach(() => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-voice',
+        ownerId: 'user-uuid-123',
+        name: 'Test',
+      });
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-voice',
+          name: 'Test',
+          slug: 'test-char',
+          displayName: 'Test',
+        })
+      );
+    });
+
+    it('should return error for invalid voice reference data URI', async () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { voiceReferenceData: 'not-a-data-uri' },
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+    });
+
+    it('should return error for unsupported voice reference MIME type', async () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { voiceReferenceData: 'data:image/png;base64,iVBORw0KGgo=' },
+        { slug: 'test-char' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('slug update permissions (admin-only)', () => {
     beforeEach(() => {
       // Setup: user exists and owns the personality

@@ -51,7 +51,7 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
         const contentType = personality.voiceReferenceType ?? 'audio/wav';
 
         res.set('Content-Type', contentType);
-        res.set('Cache-Control', `max-age=${CACHE_CONTROL.AVATAR_MAX_AGE}`);
+        res.set('Cache-Control', `max-age=${CACHE_CONTROL.VOICE_REFERENCE_MAX_AGE}`);
         res.send(buffer);
       } catch (error) {
         logger.error({ err: error, slug }, '[Gateway] Error serving voice reference');

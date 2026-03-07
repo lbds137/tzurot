@@ -144,6 +144,8 @@ export const RETRY_CONFIG = {
 export const CACHE_CONTROL = {
   /** Cache duration for avatar images (7 days in seconds) */
   AVATAR_MAX_AGE: 604800,
+  /** Cache duration for voice reference audio (1 hour in seconds) */
+  VOICE_REFERENCE_MAX_AGE: 3600,
 } as const;
 
 /**

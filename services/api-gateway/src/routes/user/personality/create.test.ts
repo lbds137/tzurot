@@ -397,6 +397,42 @@ describe('POST /user/personality (create)', () => {
     });
   });
 
+  describe('voice reference processing', () => {
+    it('should return error for invalid voice reference data URI', async () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Voice Char',
+        slug: 'voice-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        voiceReferenceData: 'not-a-data-uri',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.create).not.toHaveBeenCalled();
+    });
+
+    it('should return error for unsupported voice reference MIME type', async () => {
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Voice Char',
+        slug: 'voice-char',
+        characterInfo: 'Info',
+        personalityTraits: 'Traits',
+        voiceReferenceData: 'data:image/png;base64,iVBORw0KGgo=',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.personality.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('LLM config error handling', () => {
     it('should still succeed when setting default LLM config fails', async () => {
       mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
