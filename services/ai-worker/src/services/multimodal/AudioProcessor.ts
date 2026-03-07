@@ -16,7 +16,7 @@ import {
   type AttachmentMetadata,
 } from '@tzurot/common-types';
 import OpenAI from 'openai';
-import { getVoiceEngineClient } from '../voice/VoiceEngineClient.js';
+import { VoiceEngineError, getVoiceEngineClient } from '../voice/VoiceEngineClient.js';
 
 const logger = createLogger('AudioProcessor');
 
@@ -82,10 +82,11 @@ async function transcribeWithVoiceEngine(
     // Empty string is a valid result (silent/inaudible audio) — don't fall back to Whisper
     return result.text;
   } catch (error) {
-    // Auth errors (401/403) indicate a persistent config issue — log at error level
-    // so it's visible in monitoring, rather than warn which implies transient failure
-    const isAuthError = error instanceof Error && /\(40[13]\)/.test(error.message);
-    if (isAuthError) {
+    // Auth errors (401/403) are persistent config issues — log at error level.
+    // We still fall back to Whisper (intentional "always succeed" trade-off:
+    // user gets a transcription even with misconfigured voice-engine, at the
+    // cost of silent OpenAI API usage visible only in error logs).
+    if (error instanceof VoiceEngineError && error.isAuthError) {
       logger.error({ err: error }, 'Voice engine auth error — check VOICE_ENGINE_API_KEY config');
     } else {
       logger.warn({ err: error }, 'Voice engine transcription failed, falling back to Whisper');
