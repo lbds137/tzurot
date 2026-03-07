@@ -39,6 +39,8 @@ USER appuser
 
 # Default port (Railway will set PORT env var)
 ENV PORT=8000
+# Ensure print() output appears immediately in Railway logs (no buffering)
+ENV PYTHONUNBUFFERED=1
 EXPOSE ${PORT}
 
 # Health check — the 120s start-period accommodates model loading on cold boot.
