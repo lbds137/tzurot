@@ -112,33 +112,38 @@ async function handleSlugCacheInvalidation(
   }
 }
 
-/** Process media uploads (avatar + voice reference) and apply to update data */
+/** Process media uploads (avatar + voice reference), returning fields to merge */
 async function processMediaUploads(
   body: PersonalityUpdateInput,
-  slug: string,
-  updateData: Prisma.PersonalityUpdateInput
-): Promise<{ avatarUpdated: boolean; error?: ErrorResponse }> {
+  slug: string
+): Promise<{
+  avatarUpdated: boolean;
+  mediaFields: Prisma.PersonalityUpdateInput;
+  error?: ErrorResponse;
+}> {
+  const mediaFields: Prisma.PersonalityUpdateInput = {};
+
   const avatarResult = await processAvatarData(body.avatarData, slug);
   if (avatarResult !== null && !avatarResult.ok) {
-    return { avatarUpdated: false, error: avatarResult.error };
+    return { avatarUpdated: false, mediaFields, error: avatarResult.error };
   }
 
   const avatarUpdated = avatarResult?.ok === true;
   if (avatarUpdated) {
-    updateData.avatarData = new Uint8Array(avatarResult.buffer);
+    mediaFields.avatarData = new Uint8Array(avatarResult.buffer);
   }
 
   const voiceRefResult = processVoiceReferenceData(body.voiceReferenceData, slug);
   if (voiceRefResult !== null && !voiceRefResult.ok) {
-    return { avatarUpdated, error: voiceRefResult.error };
+    return { avatarUpdated, mediaFields, error: voiceRefResult.error };
   }
 
   if (voiceRefResult?.ok === true) {
-    updateData.voiceReferenceData = new Uint8Array(voiceRefResult.buffer);
-    updateData.voiceReferenceType = voiceRefResult.mimeType;
+    mediaFields.voiceReferenceData = new Uint8Array(voiceRefResult.buffer);
+    mediaFields.voiceReferenceType = voiceRefResult.mimeType;
   }
 
-  return { avatarUpdated };
+  return { avatarUpdated, mediaFields };
 }
 
 // --- Handler Factory ---
@@ -213,15 +218,15 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     const updateData = buildUpdateData(body, personality.name);
 
-    const mediaResult = await processMediaUploads(body, slug, updateData);
+    const mediaResult = await processMediaUploads(body, slug);
     if (mediaResult.error !== undefined) {
       return sendError(res, mediaResult.error);
     }
-    const { avatarUpdated } = mediaResult;
+    const { avatarUpdated, mediaFields } = mediaResult;
 
     const updated = await prisma.personality.update({
       where: { id: personality.id },
-      data: updateData,
+      data: { ...updateData, ...mediaFields },
       select: PERSONALITY_DETAIL_SELECT,
     });
 
