@@ -13,6 +13,21 @@ export interface TranscriptionResult {
   text: string;
 }
 
+/** Error from voice-engine HTTP responses (carries status code for caller inspection). */
+export class VoiceEngineError extends Error {
+  readonly status: number;
+
+  constructor(status: number, detail: string) {
+    super(`Voice engine transcription failed (${status}): ${detail}`);
+    this.name = 'VoiceEngineError';
+    this.status = status;
+  }
+
+  get isAuthError(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+}
+
 export class VoiceEngineClient {
   private readonly baseUrl: string;
   private readonly apiKey: string | undefined;
@@ -45,7 +60,7 @@ export class VoiceEngineClient {
 
     if (!response.ok) {
       const detail = await this.extractErrorDetail(response);
-      throw new Error(`Voice engine transcription failed (${response.status}): ${detail}`);
+      throw new VoiceEngineError(response.status, detail);
     }
 
     return (await response.json()) as TranscriptionResult;
@@ -54,7 +69,7 @@ export class VoiceEngineClient {
   /** Check service health via GET /health. Used for Phase 3 monitoring/readiness checks. */
   async isHealthy(): Promise<boolean> {
     try {
-      const response = await this.fetchWithTimeout('/health', { method: 'GET' });
+      const response = await this.fetchWithTimeout('/health', { method: 'GET' }, 5_000);
       if (!response.ok) {
         return false;
       }
@@ -65,9 +80,14 @@ export class VoiceEngineClient {
     }
   }
 
-  private async fetchWithTimeout(path: string, init: RequestInit): Promise<globalThis.Response> {
+  private async fetchWithTimeout(
+    path: string,
+    init: RequestInit,
+    timeoutOverride?: number
+  ): Promise<globalThis.Response> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const effectiveTimeout = timeoutOverride ?? this.timeoutMs;
+    const timeout = setTimeout(() => controller.abort(), effectiveTimeout);
 
     const headers: Record<string, string> = {};
     if (this.apiKey !== undefined) {
@@ -82,7 +102,7 @@ export class VoiceEngineClient {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Voice engine request timed out after ${this.timeoutMs}ms`, {
+        throw new Error(`Voice engine request timed out after ${effectiveTimeout}ms`, {
           cause: error,
         });
       }

@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   VoiceEngineClient,
+  VoiceEngineError,
   getVoiceEngineClient,
   resetVoiceEngineClient,
 } from './VoiceEngineClient.js';
@@ -48,7 +49,7 @@ describe('VoiceEngineClient', () => {
       );
     });
 
-    it('should throw on 401 unauthorized', async () => {
+    it('should throw VoiceEngineError on 401 unauthorized', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 401,
@@ -56,12 +57,19 @@ describe('VoiceEngineClient', () => {
         json: vi.fn().mockResolvedValue({ detail: 'Invalid or missing API key' }),
       });
 
-      await expect(
-        client.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav')
-      ).rejects.toThrow('Voice engine transcription failed (401): Invalid or missing API key');
+      const promise = client.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav');
+      await expect(promise).rejects.toThrow(VoiceEngineError);
+      await expect(promise).rejects.toThrow('Voice engine transcription failed (401)');
+      try {
+        await client.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav');
+      } catch (error) {
+        expect(error).toBeInstanceOf(VoiceEngineError);
+        expect((error as VoiceEngineError).status).toBe(401);
+        expect((error as VoiceEngineError).isAuthError).toBe(true);
+      }
     });
 
-    it('should throw on 503 service unavailable', async () => {
+    it('should throw VoiceEngineError on 503 (non-auth)', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 503,
@@ -69,9 +77,14 @@ describe('VoiceEngineClient', () => {
         json: vi.fn().mockResolvedValue({ detail: 'STT model not loaded' }),
       });
 
-      await expect(
-        client.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav')
-      ).rejects.toThrow('Voice engine transcription failed (503)');
+      try {
+        await client.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav');
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(VoiceEngineError);
+        expect((error as VoiceEngineError).status).toBe(503);
+        expect((error as VoiceEngineError).isAuthError).toBe(false);
+      }
     });
 
     it('should throw on network error', async () => {
