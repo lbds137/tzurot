@@ -15,8 +15,8 @@ from contextlib import asynccontextmanager
 import numpy as np
 import scipy.io.wavfile
 import soundfile as sf
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, Response
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -49,11 +49,23 @@ _AUDIO_EXTENSIONS = {
 }
 _DEFAULT_AUDIO_EXT = ".wav"
 
+# Voice cache eviction cap — each cached voice holds model tensors in memory
+MAX_VOICE_CACHE_SIZE = 100
+
 # ---------------------------------------------------------------------------
 # Global model references (populated on startup)
 # ---------------------------------------------------------------------------
 models = {}
 voice_cache = {}
+
+
+def _cache_voice(voice_id, voice_state):
+    """Cache a voice state, evicting the oldest entry if at capacity."""
+    voice_cache[voice_id] = voice_state
+    if len(voice_cache) > MAX_VOICE_CACHE_SIZE:
+        oldest = next(iter(voice_cache))
+        del voice_cache[oldest]
+        print(f"[TTS] Voice cache full ({MAX_VOICE_CACHE_SIZE}), evicted: {oldest}")
 
 
 @asynccontextmanager
@@ -119,9 +131,25 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Tzurot Voice Engine", lifespan=lifespan)
 
-# TODO(phase2): Add API key authentication via VOICE_ENGINE_API_KEY env var.
-# All endpoints are currently unauthenticated — the service should only be
-# reachable via internal networking (Railway private network or localhost).
+# Optional API key authentication — if VOICE_ENGINE_API_KEY is set, all
+# endpoints except /health require it via X-API-Key header or Bearer token.
+# When unset, endpoints are unauthenticated (rely on Railway private networking).
+_API_KEY = os.environ.get("VOICE_ENGINE_API_KEY")
+
+
+@app.middleware("http")
+async def check_api_key(request: Request, call_next):
+    if _API_KEY and request.url.path != "/health":
+        provided = request.headers.get("x-api-key", "")
+        if not provided:
+            auth = request.headers.get("authorization", "")
+            if auth.startswith("Bearer "):
+                provided = auth[7:]
+        if provided != _API_KEY:
+            return JSONResponse(
+                status_code=401, content={"detail": "Invalid or missing API key"}
+            )
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +217,9 @@ async def transcribe(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[STT] Transcription error: {e}")
         gc.collect()
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
+        raise HTTPException(status_code=500, detail="Transcription failed")
 
 
 # OpenAI Whisper API-compatible endpoint for drop-in replacement
@@ -245,6 +274,10 @@ async def text_to_speech(
         if reference_audio:
             # Zero-shot cloning from uploaded audio
             audio_bytes = await reference_audio.read()
+            if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413, detail="Reference audio file too large"
+                )
             with tempfile.NamedTemporaryFile(
                 suffix=".wav", delete=False
             ) as tmp:
@@ -253,7 +286,7 @@ async def text_to_speech(
 
             try:
                 voice_state = tts_model.get_state_for_audio_prompt(tmp_path)
-                voice_cache[voice_id] = voice_state  # Cache for future use
+                _cache_voice(voice_id, voice_state)
             finally:
                 os.unlink(tmp_path)
             del audio_bytes
@@ -265,7 +298,7 @@ async def text_to_speech(
             # Try loading as a preset name or HF path
             try:
                 voice_state = tts_model.get_state_for_audio_prompt(voice_id)
-                voice_cache[voice_id] = voice_state
+                _cache_voice(voice_id, voice_state)
             except Exception:
                 # Fall back to default
                 voice_state = voice_cache.get("alba")
@@ -294,10 +327,9 @@ async def text_to_speech(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[TTS] Speech generation error: {e}")
         gc.collect()
-        raise HTTPException(
-            status_code=500, detail=f"Speech generation failed: {e}"
-        )
+        raise HTTPException(status_code=500, detail="Speech generation failed")
 
 
 # OpenAI-compatible TTS endpoint
@@ -365,7 +397,7 @@ async def register_voice(
         # Create and cache voice state — clean up file on model failure
         try:
             voice_state = tts_model.get_state_for_audio_prompt(voice_path)
-            voice_cache[voice_id] = voice_state
+            _cache_voice(voice_id, voice_state)
         except Exception:
             os.unlink(voice_path)
             raise
@@ -378,10 +410,9 @@ async def register_voice(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[TTS] Voice registration error: {e}")
         gc.collect()
-        raise HTTPException(
-            status_code=500, detail=f"Voice registration failed: {e}"
-        )
+        raise HTTPException(status_code=500, detail="Voice registration failed")
 
 
 if __name__ == "__main__":

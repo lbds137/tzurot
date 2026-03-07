@@ -165,8 +165,8 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
           voiceEnabled: personality.voiceEnabled,
           imageEnabled: personality.imageEnabled,
           ownerId: discordUserId, // Return Discord ID for bot-client
-          hasAvatar: avatarResult?.ok === true,
-          hasVoiceReference: voiceRefResult?.ok === true,
+          hasAvatar: personality.avatarData !== null,
+          hasVoiceReference: personality.voiceReferenceType !== null,
           createdAt: personality.createdAt.toISOString(),
           updatedAt: personality.updatedAt.toISOString(),
         },
