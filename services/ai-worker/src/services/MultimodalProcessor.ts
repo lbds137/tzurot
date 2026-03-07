@@ -67,7 +67,7 @@ async function processSingleAttachment(
     attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
     attachment.isVoiceMessage === true
   ) {
-    const description = await transcribeAudio(attachment, personality);
+    const description = await transcribeAudio(attachment);
     logger.info({ name: attachment.name }, 'Processed audio attachment');
     return {
       type: AttachmentType.Audio,

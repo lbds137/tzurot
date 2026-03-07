@@ -33,11 +33,20 @@ def _reset_state() -> Generator[None, None, None]:
 
 
 @pytest.fixture()
-def mock_asr() -> MagicMock:
-    """Provide a mock ASR model that returns a canned transcription."""
+def mock_asr(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Provide a mock ASR model and mock librosa to avoid real audio decoding."""
+    import numpy as np
+
+    import server
+
     asr = MagicMock()
     asr.transcribe.return_value = [_FakeTranscription()]
     models["asr"] = asr
+    # Mock librosa so tests don't depend on real audio decoding of synthetic bytes
+    mock_librosa = MagicMock()
+    mock_librosa.load.return_value = (np.zeros(16000, dtype=np.float32), 16000)
+    mock_librosa.resample.side_effect = lambda audio, **_kw: audio
+    monkeypatch.setattr(server, "librosa", mock_librosa)
     return asr
 
 

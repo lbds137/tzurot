@@ -14,7 +14,6 @@ import {
   AI_DEFAULTS,
   TEXT_LIMITS,
   type AttachmentMetadata,
-  type LoadedPersonality,
 } from '@tzurot/common-types';
 import OpenAI from 'openai';
 import { getVoiceEngineClient } from '../voice/VoiceEngineClient.js';
@@ -31,7 +30,6 @@ async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
 
   try {
     const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(fetchTimeout);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch audio: ${response.statusText}`);
@@ -39,13 +37,14 @@ async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
 
     return await response.arrayBuffer();
   } catch (error) {
-    clearTimeout(fetchTimeout);
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(`Audio file download timed out after ${TIMEOUTS.AUDIO_FETCH}ms`, {
         cause: error,
       });
     }
     throw error;
+  } finally {
+    clearTimeout(fetchTimeout);
   }
 }
 
@@ -80,6 +79,7 @@ async function transcribeWithVoiceEngine(
       'Audio transcribed via voice-engine'
     );
 
+    // Empty string is a valid result (silent/inaudible audio) — don't fall back to Whisper
     return result.text;
   } catch (error) {
     // Auth errors (401/403) indicate a persistent config issue — log at error level
@@ -157,12 +157,8 @@ async function transcribeWithWhisper(
  * Throws errors to allow retry logic to handle them.
  *
  * @param attachment - Audio attachment to transcribe
- * @param _personality - (Optional) Personality context (not currently used for transcription)
  */
-export async function transcribeAudio(
-  attachment: AttachmentMetadata,
-  _personality?: LoadedPersonality
-): Promise<string> {
+export async function transcribeAudio(attachment: AttachmentMetadata): Promise<string> {
   // Check Redis cache first (if originalUrl is available)
   if (attachment.originalUrl !== undefined && attachment.originalUrl.length > 0) {
     try {

@@ -143,7 +143,6 @@ async function processVoiceAttachment(
   attachment: ProcessSingleAttachmentOptions['attachment'],
   index: number,
   referenceNumber: number,
-  personality: LoadedPersonality,
   preprocessed?: ProcessedAttachment
 ): Promise<ProcessedAttachmentResult> {
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
@@ -162,7 +161,7 @@ async function processVoiceAttachment(
       { referenceNumber, url: attachment.url, duration: attachment.duration },
       '[AttachmentProcessor] Transcribing voice message'
     );
-    const result = await withRetry(() => transcribeAudio(attachment, personality), {
+    const result = await withRetry(() => transcribeAudio(attachment), {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
       operationName: `Voice transcription (reference ${referenceNumber})`,
@@ -241,7 +240,7 @@ async function processSingleAttachment(
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
   if (attachment.isVoiceMessage === true) {
-    return processVoiceAttachment(attachment, index, referenceNumber, personality, preprocessed);
+    return processVoiceAttachment(attachment, index, referenceNumber, preprocessed);
   }
 
   if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
