@@ -5,6 +5,7 @@ Mocks NeMo ASR and Pocket TTS models so tests run without GPU/model files.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -22,7 +23,7 @@ class _FakeTranscription:
 
 
 @pytest.fixture(autouse=True)
-def _reset_state() -> Any:
+def _reset_state() -> Generator[None, None, None]:
     """Clear models and voice_cache before each test to prevent leaks."""
     models.clear()
     voice_cache.clear()
@@ -68,7 +69,10 @@ def api_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 @pytest.fixture()
-def client() -> httpx.AsyncClient:
+async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
     """httpx async client wired to the FastAPI app (no real server)."""
-    transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
-    return httpx.AsyncClient(transport=transport, base_url="http://testserver")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),  # type: ignore[arg-type]
+        base_url="http://testserver",
+    ) as c:
+        yield c

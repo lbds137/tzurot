@@ -5,12 +5,10 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import httpx
-import pytest
 
 from server import voice_cache
 
 
-@pytest.mark.asyncio
 async def test_list_voices_returns_cached(client: httpx.AsyncClient) -> None:
     voice_cache["alba"] = {"state": "mock"}
     voice_cache["bria"] = {"state": "mock"}
@@ -24,7 +22,6 @@ async def test_list_voices_returns_cached(client: httpx.AsyncClient) -> None:
     assert "bria" in voice_ids
 
 
-@pytest.mark.asyncio
 async def test_list_voices_empty(client: httpx.AsyncClient) -> None:
     response = await client.get("/v1/voices")
 
@@ -32,7 +29,6 @@ async def test_list_voices_empty(client: httpx.AsyncClient) -> None:
     assert response.json()["voices"] == []
 
 
-@pytest.mark.asyncio
 async def test_register_voice_success(client: httpx.AsyncClient, mock_tts: MagicMock, tmp_path: object) -> None:
     response = await client.post(
         "/v1/voices/register",
@@ -47,7 +43,6 @@ async def test_register_voice_success(client: httpx.AsyncClient, mock_tts: Magic
     assert "test-voice" in voice_cache
 
 
-@pytest.mark.asyncio
 async def test_register_voice_rejects_path_traversal(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     response = await client.post(
         "/v1/voices/register",
@@ -59,7 +54,6 @@ async def test_register_voice_rejects_path_traversal(client: httpx.AsyncClient, 
     assert "voice_id" in response.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_register_voice_rejects_too_long_id(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     response = await client.post(
         "/v1/voices/register",
@@ -70,7 +64,6 @@ async def test_register_voice_rejects_too_long_id(client: httpx.AsyncClient, moc
     assert response.status_code == 400
 
 
-@pytest.mark.asyncio
 async def test_register_voice_returns_503_when_model_not_loaded(client: httpx.AsyncClient) -> None:
     response = await client.post(
         "/v1/voices/register",
@@ -81,7 +74,6 @@ async def test_register_voice_returns_503_when_model_not_loaded(client: httpx.As
     assert response.status_code == 503
 
 
-@pytest.mark.asyncio
 async def test_register_voice_requires_auth(
     client: httpx.AsyncClient, mock_tts: MagicMock, api_key: str
 ) -> None:
@@ -94,7 +86,6 @@ async def test_register_voice_requires_auth(
     assert response.status_code == 401
 
 
-@pytest.mark.asyncio
 async def test_list_voices_requires_auth(client: httpx.AsyncClient, api_key: str) -> None:
     response = await client.get("/v1/voices")
 

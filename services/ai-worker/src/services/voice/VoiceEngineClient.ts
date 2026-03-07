@@ -22,6 +22,8 @@ export class VoiceEngineClient {
     // Strip trailing slash for consistent URL construction
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.apiKey = apiKey;
+    // Reuses WHISPER_API timeout (3min) intentionally — Railway Serverless cold starts
+    // take 30-120s for model loading, so a shorter timeout would cause false failures.
     this.timeoutMs = timeoutMs ?? TIMEOUTS.WHISPER_API;
   }
 
@@ -49,7 +51,7 @@ export class VoiceEngineClient {
     return (await response.json()) as TranscriptionResult;
   }
 
-  /** Check service health via GET /health. */
+  /** Check service health via GET /health. Used for Phase 3 monitoring/readiness checks. */
   async isHealthy(): Promise<boolean> {
     try {
       const response = await this.fetchWithTimeout('/health', { method: 'GET' });
@@ -104,16 +106,19 @@ export class VoiceEngineClient {
 // Lazy singleton — created from config on first access
 // ---------------------------------------------------------------------------
 let _instance: VoiceEngineClient | null = null;
+let _checked = false;
 
 /**
  * Get the VoiceEngineClient singleton (or null if VOICE_ENGINE_URL is not configured).
  */
 export function getVoiceEngineClient(): VoiceEngineClient | null {
-  if (_instance !== null) {
+  if (_checked) {
     return _instance;
   }
 
   const config = getConfig();
+  _checked = true;
+
   if (config.VOICE_ENGINE_URL === undefined) {
     return null;
   }
@@ -126,4 +131,5 @@ export function getVoiceEngineClient(): VoiceEngineClient | null {
 /** Reset singleton (for testing). */
 export function resetVoiceEngineClient(): void {
   _instance = null;
+  _checked = false;
 }
