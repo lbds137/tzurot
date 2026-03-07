@@ -47,10 +47,7 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
           select: { voiceReferenceData: true, voiceReferenceType: true },
         });
 
-        if (
-          personality?.voiceReferenceData === null ||
-          personality?.voiceReferenceData === undefined
-        ) {
+        if (!personality?.voiceReferenceData) {
           const errorResponse = ErrorResponses.notFound(
             `Voice reference for personality '${slug}'`
           );

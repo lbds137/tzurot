@@ -37,6 +37,8 @@ function extractMimeType(dataUri: string): string | null {
 /**
  * Process voice reference audio data.
  *
+ * @param voiceReferenceData - Base64 data URI of the audio file
+ * @param slug - Personality slug, used only for log context
  * @returns `null` if no data provided, `{ ok: true, buffer, mimeType }` on success,
  *          or `{ ok: false, error }` on validation failure.
  */

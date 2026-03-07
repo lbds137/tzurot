@@ -75,6 +75,8 @@ package-lock.json
 # Python (voice-engine service)
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .venv/
 
 # Dev logs
