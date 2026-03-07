@@ -1,5 +1,38 @@
 # Tzurot Voice Engine Implementation Guide
 
+## Status
+
+| Phase   | Scope                                         | Status      |
+| ------- | --------------------------------------------- | ----------- |
+| Phase 1 | Python service + voice reference blob storage | COMPLETE    |
+| Phase 2 | ai-worker VoiceService + BullMQ integration   | Not started |
+| Phase 3 | Bot-client TTS commands + Discord audio       | Not started |
+
+### Phase 1 Checklist
+
+- [x] Python voice-engine service (`services/voice-engine/`)
+- [x] Database migration (`prisma/migrations/20260306230115_add_voice_reference_data/`)
+- [x] Voice reference constants (`packages/common-types/src/constants/media.ts`)
+- [x] Voice reference processor (`services/api-gateway/src/utils/voiceReferenceProcessor.ts`)
+- [x] Voice reference serving route (`services/api-gateway/src/routes/public/voiceReferences.ts`)
+- [x] Personality CRUD wiring (create, update, formatters, Zod schemas)
+
+### Phase 1 Implementation Notes
+
+- Voice reference audio stored as database blobs (like `avatarData`), 10MB cap, preserves original MIME type
+- No optimization step (unlike avatars) — audio stored as-is
+- Voice reference route at `GET /voice-references/:slug` (no filesystem cache, infrequent access)
+- `hasVoiceReference` boolean added to `PersonalityFullSchema` response
+- `voiceReferenceData` field added to `PersonalityCreateSchema` and `PersonalityUpdateSchema`
+- `processMediaUploads()` helper extracted in update handler to keep complexity under lint threshold
+
+### Phase 2 Entry Points
+
+- Create `services/ai-worker/src/services/voice/VoiceService.ts` (see Part 5 in this guide)
+- Wire `VoiceService` into `AudioProcessor.ts` to replace Whisper
+- Add `VOICE_ENGINE_URL` env var to Railway config
+- Deploy voice-engine service to Railway (see Part 6)
+
 ## CRITICAL WARNINGS — Read Before Implementing
 
 1. **Do NOT reference any Gemini-generated code for Pocket TTS.** Prior research chats produced fabricated API names like `from kyutai import PocketTTS`, `PocketTTS.from_pretrained()`, and `from moshi.tts import TTSGenerator`. These do not exist. The correct library is `pocket_tts` with `TTSModel.load_model()` — see Part 2 for the real API.
@@ -18,7 +51,7 @@
 
 8. **Parakeet TDT v3 supports 25 European languages** with automatic language detection. No configuration needed — it will transcribe whatever language the user speaks. However, since Pocket TTS only speaks English, the practical pipeline is English-centric.
 
-9. **`espeak-ng` is a required system dependency** for Pocket TTS (used for phonemization). It must be installed in the Docker image via `apt-get install espeak-ng`.
+9. **`espeak-ng` may be a required system dependency** for Pocket TTS (used for phonemization). Not confirmed in the official README, but included defensively in the Dockerfile via `apt-get install espeak-ng`.
 
 10. **Railway has no GPU.** All inference runs on CPU. Both models selected for this guide are specifically optimized for CPU inference. Do not attempt to use CUDA or GPU-dependent models.
 
@@ -89,7 +122,7 @@ The self-hosted voice models run as a **Python microservice** (`voice-engine`) a
 
 ---
 
-## Part 1: Self-Hosted STT — Parakeet TDT 0.6B v3
+## Part 1: Self-Hosted STT — Parakeet TDT 0.6B v3 (Reference — Phase 1)
 
 ### Why This Model
 
@@ -195,7 +228,7 @@ async def transcribe_via_api(audio_bytes: bytes, filename: str = "audio.wav") ->
 
 ---
 
-## Part 2: Self-Hosted TTS — Kyutai Pocket TTS
+## Part 2: Self-Hosted TTS — Kyutai Pocket TTS (Reference — Phase 1)
 
 ### Why This Model
 
@@ -205,7 +238,7 @@ async def transcribe_via_api(audio_bytes: bytes, filename: str = "audio.wav") ->
 - **~1.5-2 GB RAM** footprint
 - **Voice similarity scores** that beat F5-TTS and match models 10-20x its size
 - **228 donated voices** available on HuggingFace as presets
-- **License:** CC-BY-4.0
+- **License:** MIT
 
 ### Model Details
 
@@ -370,7 +403,7 @@ This could be used as an alternative to writing a custom FastAPI wrapper, but ve
 
 ---
 
-## Part 3: Premium Tier — ElevenLabs (BYOK)
+## Part 3: Premium Tier — ElevenLabs (BYOK) (Phase 2+)
 
 Users who provide their own ElevenLabs API key get access to both STT and TTS through ElevenLabs' API. This completely eliminates any OpenAI dependency.
 
@@ -512,7 +545,7 @@ The `voice_id` should be stored per-character in Tzurot's database alongside the
 
 ---
 
-## Part 4: The Python Voice Engine Service
+## Part 4: The Python Voice Engine Service (Phase 1)
 
 ### Folder Structure
 
@@ -544,7 +577,7 @@ numpy>=1.26,<2.0
 nemo_toolkit[asr]>=2.1.0
 
 # TTS: Pocket TTS
-pocket-tts>=0.3.0
+pocket-tts>=1.1.0
 
 # PyTorch CPU-only (saves ~2GB vs full CUDA build)
 --extra-index-url https://download.pytorch.org/whl/cpu
@@ -696,7 +729,7 @@ async def transcribe(file: UploadFile = File(...)):
 
         # Transcribe
         transcriptions = asr_model.transcribe([audio_array])
-        text = transcriptions[0] if transcriptions else ""
+        text = transcriptions[0].text if transcriptions else ""
 
         # Cleanup
         del audio_bytes, audio_array
@@ -948,7 +981,7 @@ __pycache__
 
 ---
 
-## Part 5: Integration with ai-worker (TypeScript)
+## Part 5: Integration with ai-worker (TypeScript) (Phase 2)
 
 ### VoiceService Interface
 
@@ -1160,7 +1193,7 @@ export class VoiceService {
 
 ---
 
-## Part 6: Railway Deployment
+## Part 6: Railway Deployment (Phase 2)
 
 ### Adding the voice-engine Service
 
@@ -1279,7 +1312,7 @@ Railway containers have ephemeral filesystems. For voice files to persist across
 
 ---
 
-## Part 7: Integration Notes for LLM Prompting
+## Part 7: Integration Notes for LLM Prompting (Phase 3)
 
 ### Audio Tags in System Prompts
 
@@ -1342,7 +1375,7 @@ No OpenAI dependency anywhere in the stack.
 
 ---
 
-## Part 8: Testing & Validation
+## Part 8: Testing & Validation (Phase 1 — smoke tests; Phase 2 — integration tests)
 
 ### Local Development Without Railway
 

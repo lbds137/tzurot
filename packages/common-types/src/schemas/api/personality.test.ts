@@ -484,6 +484,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: true,
+      hasVoiceReference: false,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-20T15:30:00.000Z',
     };
@@ -557,6 +558,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
+      hasVoiceReference: false,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-15T12:00:00.000Z',
     };
@@ -598,6 +600,7 @@ describe('Personality API Contract Tests', () => {
       imageEnabled: false,
       ownerId: '44444444-4444-5444-8444-444444444444',
       hasAvatar: false,
+      hasVoiceReference: false,
       createdAt: '2025-01-15T12:00:00.000Z',
       updatedAt: '2025-01-15T12:00:00.000Z',
     };

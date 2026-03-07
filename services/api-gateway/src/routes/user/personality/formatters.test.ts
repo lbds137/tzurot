@@ -29,6 +29,7 @@ function createMockPersonality(overrides: Record<string, unknown> = {}) {
     imageEnabled: true,
     ownerId: 'owner-123',
     avatarData: Buffer.from('avatar'),
+    voiceReferenceData: null,
     customFields: { key: 'value' },
     systemPromptId: 'prompt-123',
     voiceSettings: { voice: 'alloy' },
@@ -67,6 +68,7 @@ describe('formatPersonalityResponse', () => {
       imageEnabled: true,
       ownerId: 'owner-123',
       hasAvatar: true,
+      hasVoiceReference: false,
       customFields: { key: 'value' },
       systemPromptId: 'prompt-123',
       voiceSettings: { voice: 'alloy' },
@@ -86,6 +88,18 @@ describe('formatPersonalityResponse', () => {
     const personality = createMockPersonality({ avatarData: Buffer.from('data') });
     const result = formatPersonalityResponse(personality);
     expect(result.hasAvatar).toBe(true);
+  });
+
+  it('should set hasVoiceReference to false when voiceReferenceData is null', () => {
+    const personality = createMockPersonality({ voiceReferenceData: null });
+    const result = formatPersonalityResponse(personality);
+    expect(result.hasVoiceReference).toBe(false);
+  });
+
+  it('should set hasVoiceReference to true when voiceReferenceData is present', () => {
+    const personality = createMockPersonality({ voiceReferenceData: Buffer.from('audio') });
+    const result = formatPersonalityResponse(personality);
+    expect(result.hasVoiceReference).toBe(true);
   });
 
   it('should convert dates to ISO strings', () => {

@@ -22,6 +22,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
+import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
@@ -111,6 +112,35 @@ async function handleSlugCacheInvalidation(
   }
 }
 
+/** Process media uploads (avatar + voice reference) and apply to update data */
+async function processMediaUploads(
+  body: PersonalityUpdateInput,
+  slug: string,
+  updateData: Prisma.PersonalityUpdateInput
+): Promise<{ avatarUpdated: boolean; error?: ReturnType<typeof ErrorResponses.processingError> }> {
+  const avatarResult = await processAvatarData(body.avatarData, slug);
+  if (avatarResult !== null && !avatarResult.ok) {
+    return { avatarUpdated: false, error: avatarResult.error };
+  }
+
+  const avatarUpdated = avatarResult?.ok === true;
+  if (avatarUpdated) {
+    updateData.avatarData = new Uint8Array(avatarResult.buffer);
+  }
+
+  const voiceRefResult = processVoiceReferenceData(body.voiceReferenceData, slug);
+  if (voiceRefResult !== null && !voiceRefResult.ok) {
+    return { avatarUpdated: false, error: voiceRefResult.error };
+  }
+
+  if (voiceRefResult?.ok === true) {
+    updateData.voiceReferenceData = new Uint8Array(voiceRefResult.buffer);
+    updateData.voiceReferenceType = voiceRefResult.mimeType;
+  }
+
+  return { avatarUpdated };
+}
+
 // --- Handler Factory ---
 
 function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
@@ -183,15 +213,11 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     const updateData = buildUpdateData(body, personality.name);
 
-    const avatarResult = await processAvatarData(body.avatarData, slug);
-    if (avatarResult !== null && !avatarResult.ok) {
-      return sendError(res, avatarResult.error);
+    const mediaResult = await processMediaUploads(body, slug, updateData);
+    if (mediaResult.error !== undefined) {
+      return sendError(res, mediaResult.error);
     }
-
-    const avatarUpdated = avatarResult?.ok === true;
-    if (avatarUpdated) {
-      updateData.avatarData = new Uint8Array(avatarResult.buffer);
-    }
+    const { avatarUpdated } = mediaResult;
 
     const updated = await prisma.personality.update({
       where: { id: personality.id },

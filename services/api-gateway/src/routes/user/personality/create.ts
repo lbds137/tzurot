@@ -20,6 +20,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
+import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
 import { setupDefaultLlmConfig } from '../../../utils/personalityHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
@@ -29,11 +30,17 @@ const logger = createLogger('user-personality-create');
 /**
  * Build Prisma create data from validated input
  */
+interface MediaBuffers {
+  avatarBuffer?: Buffer;
+  voiceReferenceBuffer?: Buffer;
+  voiceReferenceMimeType?: string;
+}
+
 function buildCreateData(
   body: PersonalityCreateInput,
   ownerId: string,
   systemPromptId: string | null,
-  avatarBuffer: Buffer | undefined
+  media: MediaBuffers
 ): Prisma.PersonalityUncheckedCreateInput {
   const hasDisplayName =
     body.displayName !== null && body.displayName !== undefined && body.displayName !== '';
@@ -55,7 +62,10 @@ function buildCreateData(
     isPublic: body.isPublic ?? false,
     ownerId,
     systemPromptId,
-    avatarData: avatarBuffer !== undefined ? new Uint8Array(avatarBuffer) : null,
+    avatarData: media.avatarBuffer !== undefined ? new Uint8Array(media.avatarBuffer) : null,
+    voiceReferenceData:
+      media.voiceReferenceBuffer !== undefined ? new Uint8Array(media.voiceReferenceBuffer) : null,
+    voiceReferenceType: media.voiceReferenceMimeType ?? null,
     voiceEnabled: false,
     imageEnabled: false,
   };
@@ -98,6 +108,12 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
       return sendError(res, avatarResult.error);
     }
 
+    // Process voice reference if provided
+    const voiceRefResult = processVoiceReferenceData(body.voiceReferenceData, slug);
+    if (voiceRefResult !== null && !voiceRefResult.ok) {
+      return sendError(res, voiceRefResult.error);
+    }
+
     // Get or create user and find default system prompt in parallel
     const [user, defaultSystemPrompt] = await Promise.all([
       getOrCreateInternalUser(prisma, discordUserId),
@@ -105,12 +121,11 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
     ]);
 
     // Create personality in database
-    const createData = buildCreateData(
-      body,
-      user.id,
-      defaultSystemPrompt?.id ?? null,
-      avatarResult?.ok === true ? avatarResult.buffer : undefined
-    );
+    const createData = buildCreateData(body, user.id, defaultSystemPrompt?.id ?? null, {
+      avatarBuffer: avatarResult?.ok === true ? avatarResult.buffer : undefined,
+      voiceReferenceBuffer: voiceRefResult?.ok === true ? voiceRefResult.buffer : undefined,
+      voiceReferenceMimeType: voiceRefResult?.ok === true ? voiceRefResult.mimeType : undefined,
+    });
     const personality = await prisma.personality.create({
       data: createData,
     });
@@ -151,6 +166,7 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
           imageEnabled: personality.imageEnabled,
           ownerId: discordUserId, // Return Discord ID for bot-client
           hasAvatar: avatarResult?.ok === true,
+          hasVoiceReference: voiceRefResult?.ok === true,
           createdAt: personality.createdAt.toISOString(),
           updatedAt: personality.updatedAt.toISOString(),
         },

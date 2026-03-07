@@ -71,6 +71,7 @@ describe('Character Export', () => {
     conversationalExamples: null,
     errorMessage: null,
     hasAvatar: false,
+    hasVoiceReference: false,
   };
 
   beforeEach(() => {

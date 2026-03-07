@@ -224,6 +224,8 @@ model Personality {
   imageEnabled               Boolean  @default(false) @map("image_enabled")
   imageSettings              Json?    @map("image_settings")
   avatarData                 Bytes?   @map("avatar_data")
+  voiceReferenceData         Bytes?   @map("voice_reference_data")
+  voiceReferenceType         String?  @map("voice_reference_type") @db.VarChar(50)
   /// JSONB config cascade defaults (personality tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults             Json?    @map("config_defaults")
 

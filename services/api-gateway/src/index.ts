@@ -39,6 +39,7 @@ import {
   createHealthRouter,
   createMetricsRouter,
   createAvatarRouter,
+  createVoiceReferenceRouter,
   createExportsRouter,
 } from './routes/public/index.js';
 
@@ -205,6 +206,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   app.use('/health', createHealthRouter(startTime));
   app.use('/metrics', createMetricsRouter(aiQueue, startTime));
   app.use('/avatars', createAvatarRouter(prisma));
+  app.use('/voice-references', createVoiceReferenceRouter(prisma));
   app.use('/exports', createExportsRouter(prisma));
 
   // Serve temporary attachments from Railway volume

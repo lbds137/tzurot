@@ -40,6 +40,10 @@ export const CONTENT_TYPES = {
   IMAGE_JPG: 'image/jpeg',
   /** WebP image type */
   IMAGE_WEBP: 'image/webp',
+  /** WAV audio type */
+  AUDIO_WAV: 'audio/wav',
+  /** FLAC audio type */
+  AUDIO_FLAC: 'audio/flac',
   /** OGG audio type (voice messages) */
   AUDIO_OGG: 'audio/ogg',
   /** MP3 audio type */
@@ -48,6 +52,16 @@ export const CONTENT_TYPES = {
   JSON: 'application/json',
   /** Binary octet stream (generic binary) */
   BINARY: 'application/octet-stream',
+} as const;
+
+/**
+ * Voice reference audio limits and allowed MIME types
+ */
+export const VOICE_REFERENCE_LIMITS = {
+  /** Maximum voice reference file size (10MB) */
+  MAX_SIZE: 10 * 1024 * 1024,
+  /** Allowed MIME types for voice reference audio */
+  ALLOWED_TYPES: ['audio/wav', 'audio/mpeg', 'audio/ogg', 'audio/flac'] as readonly string[],
 } as const;
 
 /**

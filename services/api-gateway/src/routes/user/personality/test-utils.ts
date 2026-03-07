@@ -113,6 +113,7 @@ export function createMockPersonality(
     // eslint-disable-next-line sonarjs/no-duplicate-string -- Test fixture UUID shared across mock factory functions
     ownerId: 'user-uuid-123',
     avatarData: null,
+    voiceReferenceData: null,
     createdAt: createMockCreatedAt(),
     updatedAt: createMockUpdatedAt(),
     ...overrides,
