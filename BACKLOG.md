@@ -374,14 +374,16 @@ Deploy `services/voice-engine/` — Python FastAPI microservice with Parakeet TD
 
 #### Phase 2: ai-worker Integration — STT Upgrade
 
-Replace current Whisper-based transcription with VoiceService that routes to voice-engine (free) or ElevenLabs Scribe (premium). Fixes the "wall of text" punctuation problem.
+Replace current Whisper-based transcription with VoiceEngineClient that routes to voice-engine (free) with Whisper fallback. Fixes the "wall of text" punctuation problem.
 
-- [ ] Create `VoiceService` in ai-worker with tier routing logic
-- [ ] Add cold-start-aware timeout/retry for Railway Serverless (90s first attempt, 30s retry)
-- [ ] Wire into existing `AudioTranscriptionJob` / `AudioProcessor` pipeline
-- [ ] Add `VOICE_ENGINE_URL` env var to ai-worker on Railway
+- [x] Python quality hardening: type hints (mypy --strict), structured logging (stdlib logging), ruff/pytest tooling
+- [x] Python test suite (pytest + httpx, mocked models): health, transcribe, TTS, voice management, auth
+- [x] Create `VoiceEngineClient` in ai-worker with health check and transcription methods
+- [x] Wire into existing `AudioProcessor` pipeline (voice-engine primary, Whisper fallback)
+- [x] Add `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` to config schema
+- [ ] Docker build + local smoke tests
+- [ ] Deploy to Railway, set env vars on ai-worker
 - [ ] Verify punctuation quality improvement over Whisper
-- [ ] Python test suite for voice-engine (pytest + httpx, mocked models): startup/lifespan, auth middleware (valid key, missing key, empty key RuntimeError), voice ID validation edge cases (`\Z` anchor, length limit, path traversal), transcribe/tts 503 when model not loaded, audio tag stripping, resampling to 16kHz, temp file cleanup on error, LRU eviction, health/voices endpoints
 
 #### Phase 3: TTS + Voice Cloning
 

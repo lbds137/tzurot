@@ -55,9 +55,7 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
         });
 
         if (!personality?.voiceReferenceData) {
-          const errorResponse = ErrorResponses.notFound(
-            `Voice reference for personality '${slug}'`
-          );
+          const errorResponse = ErrorResponses.notFound('Voice reference');
           res.status(StatusCodes.NOT_FOUND).json(errorResponse);
           return;
         }

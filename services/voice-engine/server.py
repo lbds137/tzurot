@@ -5,23 +5,66 @@ STT: NVIDIA Parakeet TDT 0.6B v3 (punctuation-aware transcription)
 TTS: Kyutai Pocket TTS (zero-shot voice cloning on CPU)
 """
 
+from __future__ import annotations
+
 import asyncio
 import gc
 import io
+import json
+import logging
 import os
 import re
 import secrets
 import tempfile
 from contextlib import asynccontextmanager
 from functools import partial
+from typing import Any, AsyncIterator
 
-import librosa
-import nemo.collections.asr as nemo_asr
+import librosa  # type: ignore[import-untyped] -- no type stubs available
+import nemo.collections.asr as nemo_asr  # type: ignore[import-untyped] -- NeMo lacks stubs
 import numpy as np
-import scipy.io.wavfile
+import scipy.io.wavfile  # type: ignore[import-untyped] -- scipy stubs incomplete for io.wavfile
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
-from pocket_tts import TTSModel
+from pocket_tts import TTSModel  # type: ignore[import-untyped] -- no type stubs available
+
+# ---------------------------------------------------------------------------
+# Logging — JSON-structured for Railway log aggregation
+# ---------------------------------------------------------------------------
+
+
+class _JsonFormatter(logging.Formatter):
+    """Emit one JSON object per log line for Railway/structured log ingestion."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry: dict[str, Any] = {
+            "level": record.levelname,
+            "msg": record.getMessage(),
+            "logger": record.name,
+        }
+        if record.exc_info and record.exc_info[0] is not None:
+            log_entry["exc"] = self.formatException(record.exc_info)
+        # Merge structured fields passed via extra={}
+        for key in ("voice_id", "chars", "sample_rate", "voices_loaded",
+                     "voice_count", "filename", "error_detail"):
+            val = getattr(record, key, None)
+            if val is not None:
+                log_entry[key] = val
+        return json.dumps(log_entry)
+
+
+def _setup_logging() -> logging.Logger:
+    """Configure root and voice-engine logger with JSON output."""
+    handler = logging.StreamHandler()
+    handler.setFormatter(_JsonFormatter())
+    log = logging.getLogger("voice-engine")
+    log.addHandler(handler)
+    log.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
+    return log
+
+
+logger = _setup_logging()
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -29,25 +72,25 @@ from pocket_tts import TTSModel
 
 # Voice ID validation — prevents path traversal (CWE-22) in /v1/voices/register
 # \Z is strict end-of-string ($ allows a trailing \n in Python)
-_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+\Z")
+_VOICE_ID_RE: re.Pattern[str] = re.compile(r"^[a-zA-Z0-9_-]+\Z")
 
 # Regex for stripping ElevenLabs-style audio tags (not supported by Pocket TTS)
-_AUDIO_TAG_RE = re.compile(
+_AUDIO_TAG_RE: re.Pattern[str] = re.compile(
     r"\[(whisper|shout|shouting|laugh|sad|slow|fast|firm|"
     r"compassionate|maniacal laugh|angry|happy|excited)\]",
     flags=re.IGNORECASE,
 )
 
 # TTS text length cap — prevents OOM on CPU inference (Railway 4GB ceiling)
-MAX_TTS_TEXT_LENGTH = 2000
+MAX_TTS_TEXT_LENGTH: int = 2000
 
 # Audio upload size cap (50MB) — prevents OOM from large uploads.
 # Note: api-gateway caps stored voice references at 10MB (VOICE_REFERENCE_LIMITS);
 # this higher limit allows direct uploads to the voice engine for testing/registration.
-MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
+MAX_AUDIO_UPLOAD_BYTES: int = 50 * 1024 * 1024
 
 # Allowed audio extensions for voice registration
-_AUDIO_EXTENSIONS = {
+_AUDIO_EXTENSIONS: dict[str, str] = {
     "audio/wav": ".wav",
     "audio/mpeg": ".mp3",
     "audio/ogg": ".ogg",
@@ -55,13 +98,13 @@ _AUDIO_EXTENSIONS = {
     "audio/x-wav": ".wav",
     "audio/wave": ".wav",
 }
-_DEFAULT_AUDIO_EXT = ".wav"
+_DEFAULT_AUDIO_EXT: str = ".wav"
 
 # Voice cache eviction cap — each cached voice holds model tensors in memory
-MAX_VOICE_CACHE_SIZE = 100
+MAX_VOICE_CACHE_SIZE: int = 100
 
 # Maximum voice ID length — prevents ENAMETOOLONG when used as filename
-MAX_VOICE_ID_LENGTH = 64
+MAX_VOICE_ID_LENGTH: int = 64
 
 
 def _is_valid_voice_id(voice_id: str) -> bool:
@@ -72,52 +115,52 @@ def _is_valid_voice_id(voice_id: str) -> bool:
 # ---------------------------------------------------------------------------
 # Global model references (populated on startup)
 # ---------------------------------------------------------------------------
-models = {}
-voice_cache = {}
+# Any: NeMo ASRModel and PocketTTS TTSModel lack type stubs
+models: dict[str, Any] = {}
+voice_cache: dict[str, Any] = {}
 
 # Concurrency cap for model inference — prevents OOM on Railway's 4GB ceiling.
 # Two concurrent Parakeet TDT passes on 1-min WAV ≈ 480MB audio + 1.2GB model.
 try:
-    _INFERENCE_CONCURRENCY = int(os.environ.get("INFERENCE_CONCURRENCY", "2"))
+    _INFERENCE_CONCURRENCY: int = int(os.environ.get("INFERENCE_CONCURRENCY", "2"))
 except ValueError:
-    print("[WARN] Invalid INFERENCE_CONCURRENCY value — defaulting to 2")
+    logger.warning("Invalid INFERENCE_CONCURRENCY value — defaulting to 2")
     _INFERENCE_CONCURRENCY = 2
-_inference_semaphore = asyncio.Semaphore(_INFERENCE_CONCURRENCY)
+_inference_semaphore: asyncio.Semaphore = asyncio.Semaphore(_INFERENCE_CONCURRENCY)
 
 
-def _cache_voice(voice_id, voice_state):
+def _cache_voice(voice_id: str, voice_state: Any) -> None:
     """Cache a voice state with LRU eviction when at capacity."""
     voice_cache.pop(voice_id, None)  # Remove first to refresh insertion order
     voice_cache[voice_id] = voice_state
     if len(voice_cache) > MAX_VOICE_CACHE_SIZE:
         oldest = next(iter(voice_cache))
         del voice_cache[oldest]
-        # TODO(phase2): replace with structured logger
-        print(f"[TTS] Voice cache full ({MAX_VOICE_CACHE_SIZE}), evicted: {oldest}")
+        logger.info("Voice cache full, evicted oldest entry", extra={
+            "voice_id": oldest, "voice_count": MAX_VOICE_CACHE_SIZE,
+        })
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Load models on startup, clean up on shutdown."""
-    print("=" * 60)
-    print("TZUROT VOICE ENGINE — Starting up")
-    print("=" * 60)
+    logger.info("Tzurot Voice Engine starting up")
 
     # --- Load STT model ---
-    print("[STT] Loading Parakeet TDT 0.6B v3...")
+    logger.info("Loading Parakeet TDT 0.6B v3")
     asr_model = nemo_asr.models.ASRModel.from_pretrained(
         model_name="nvidia/parakeet-tdt-0.6b-v3"
     )
     asr_model = asr_model.cpu()
     asr_model.eval()
     models["asr"] = asr_model
-    print("[STT] Parakeet TDT loaded successfully.")
+    logger.info("Parakeet TDT loaded successfully")
 
     # --- Load TTS model ---
-    print("[TTS] Loading Kyutai Pocket TTS...")
-    tts_model = TTSModel.load_model()
+    logger.info("Loading Kyutai Pocket TTS")
+    tts_model: Any = TTSModel.load_model()
     models["tts"] = tts_model
-    print(f"[TTS] Pocket TTS loaded. Sample rate: {tts_model.sample_rate}")
+    logger.info("Pocket TTS loaded", extra={"sample_rate": tts_model.sample_rate})
 
     # --- Pre-load default voices ---
     default_voices = os.environ.get("DEFAULT_VOICES", "alba,bria").split(",")
@@ -126,39 +169,37 @@ async def lifespan(app: FastAPI):
         if not voice_name:
             continue
         if not _is_valid_voice_id(voice_name):
-            print(f"[TTS] WARNING: Skipping invalid preset voice name: {voice_name}")
+            logger.warning("Skipping invalid preset voice name", extra={"voice_id": voice_name})
             continue
         try:
             _cache_voice(
                 voice_name,
                 tts_model.get_state_for_audio_prompt(voice_name),
             )
-            print(f"[TTS] Pre-loaded voice: {voice_name}")
-        except Exception as e:
-            print(f"[TTS] WARNING: Failed to pre-load voice '{voice_name}': {e}")
+            logger.info("Pre-loaded voice", extra={"voice_id": voice_name})
+        except Exception:
+            logger.warning("Failed to pre-load voice", exc_info=True, extra={"voice_id": voice_name})
 
     # --- Pre-load any custom voices from the voices/ directory ---
     voices_dir = os.environ.get("VOICES_DIR", "./voices")
     if os.path.isdir(voices_dir):
         for filename in os.listdir(voices_dir):
             if filename.endswith((".wav", ".mp3", ".flac", ".ogg")):
-                voice_id = os.path.splitext(filename)[0]
-                if not _is_valid_voice_id(voice_id):
-                    print(f"[TTS] WARNING: Skipping voice file with invalid ID: {filename}")
+                vid = os.path.splitext(filename)[0]
+                if not _is_valid_voice_id(vid):
+                    logger.warning("Skipping voice file with invalid ID", extra={"filename": filename})
                     continue
                 filepath = os.path.join(voices_dir, filename)
                 try:
                     _cache_voice(
-                        voice_id,
+                        vid,
                         tts_model.get_state_for_audio_prompt(filepath),
                     )
-                    print(f"[TTS] Pre-loaded custom voice: {voice_id}")
-                except Exception as e:
-                    print(f"[TTS] WARNING: Failed to pre-load voice '{voice_id}': {e}")
+                    logger.info("Pre-loaded custom voice", extra={"voice_id": vid})
+                except Exception:
+                    logger.warning("Failed to pre-load custom voice", exc_info=True, extra={"voice_id": vid})
 
-    print("=" * 60)
-    print(f"VOICE ENGINE READY — {len(voice_cache)} voices loaded")
-    print("=" * 60)
+    logger.info("Voice Engine ready", extra={"voices_loaded": len(voice_cache)})
 
     yield
 
@@ -166,6 +207,7 @@ async def lifespan(app: FastAPI):
     models.clear()
     voice_cache.clear()
     gc.collect()
+    logger.info("Voice Engine shut down")
 
 
 app = FastAPI(title="Tzurot Voice Engine", lifespan=lifespan)
@@ -173,7 +215,7 @@ app = FastAPI(title="Tzurot Voice Engine", lifespan=lifespan)
 # Optional API key authentication — if VOICE_ENGINE_API_KEY is set, all
 # endpoints except /health require it via X-API-Key header or Bearer token.
 # When unset, endpoints are unauthenticated (rely on Railway private networking).
-_API_KEY = os.environ.get("VOICE_ENGINE_API_KEY")
+_API_KEY: str | None = os.environ.get("VOICE_ENGINE_API_KEY")
 if _API_KEY is not None and not _API_KEY.strip():
     raise RuntimeError(
         "VOICE_ENGINE_API_KEY is set but empty/whitespace — all requests would get 401. "
@@ -182,7 +224,7 @@ if _API_KEY is not None and not _API_KEY.strip():
 
 
 @app.middleware("http")
-async def check_api_key(request: Request, call_next):
+async def check_api_key(request: Request, call_next: Any) -> Response:
     if _API_KEY is not None and request.url.path != "/health":
         provided = request.headers.get("x-api-key", "")
         if not provided:
@@ -200,7 +242,7 @@ async def check_api_key(request: Request, call_next):
 # Health check
 # ---------------------------------------------------------------------------
 @app.get("/health")
-def health():
+def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "asr_loaded": "asr" in models,
@@ -213,7 +255,7 @@ def health():
 # STT Endpoint
 # ---------------------------------------------------------------------------
 @app.post("/v1/transcribe")
-async def transcribe(file: UploadFile = File(...)):
+async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
     """
     Transcribe audio to text with native punctuation and capitalization.
 
@@ -235,6 +277,8 @@ async def transcribe(file: UploadFile = File(...)):
         loop = asyncio.get_running_loop()
         async with _inference_semaphore:
             # librosa handles MP3, OGG, FLAC, WAV (soundfile can't decode MP3)
+            audio_array: np.ndarray[Any, np.dtype[np.floating[Any]]]
+            sample_rate: int
             audio_array, sample_rate = await loop.run_in_executor(
                 None, partial(librosa.load, io.BytesIO(audio_bytes), sr=None, mono=True)
             )
@@ -247,21 +291,22 @@ async def transcribe(file: UploadFile = File(...)):
                 )
 
             # Transcribe — NeMo returns objects with .text attribute
-            transcriptions = await loop.run_in_executor(
+            transcriptions: list[Any] = await loop.run_in_executor(
                 None, asr_model.transcribe, [audio_array]
             )
-            text = transcriptions[0].text if transcriptions else ""
+            text: str = transcriptions[0].text if transcriptions else ""
 
         # Cleanup
         del audio_bytes, audio_array
         gc.collect()
 
+        logger.info("Transcribed audio", extra={"chars": len(text)})
         return {"text": text}
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"[STT] Transcription error: {e}")
+    except Exception:
+        logger.error("Transcription failed", exc_info=True)
         gc.collect()
         raise HTTPException(status_code=500, detail="Transcription failed")
 
@@ -271,14 +316,13 @@ async def transcribe(file: UploadFile = File(...)):
 async def transcribe_openai_compat(
     file: UploadFile = File(...),
     model: str = Form("parakeet-tdt-0.6b-v3"),
-):
+) -> dict[str, str]:
     """OpenAI Whisper API-compatible endpoint.
 
     Note: ``model`` is accepted for API compatibility but currently ignored.
     All requests use Parakeet TDT.
-
-    TODO(phase2): Route to different backends based on ``model`` param.
     """
+    _ = model  # accepted for API compat, unused
     result = await transcribe(file)
     return result
 
@@ -292,7 +336,7 @@ async def text_to_speech(
     text: str = Form(...),
     voice_id: str = Form("alba"),
     reference_audio: UploadFile | None = File(None),
-):
+) -> Response:
     """
     Generate speech from text using Pocket TTS.
 
@@ -323,14 +367,14 @@ async def text_to_speech(
         # Strip ElevenLabs-style audio tags (not supported by Pocket TTS)
         clean_text = _AUDIO_TAG_RE.sub("", text).strip()
         if clean_text != text.strip():
-            print(f"[TTS] Stripped audio tags from text for voice '{voice_id}'")
+            logger.info("Stripped audio tags from TTS text", extra={"voice_id": voice_id})
 
         if not clean_text:
             raise HTTPException(status_code=400, detail="No text to synthesize")
 
         # Read reference audio before acquiring semaphore (I/O, not model work)
         loop = asyncio.get_running_loop()
-        ref_tmp_path = None
+        ref_tmp_path: str | None = None
         try:
             if reference_audio:
                 ref_audio_bytes = await reference_audio.read()
@@ -362,7 +406,7 @@ async def text_to_speech(
                 # Get or create voice state
                 if ref_tmp_path is not None:
                     # Zero-shot cloning from uploaded audio
-                    voice_state = await loop.run_in_executor(
+                    voice_state: Any = await loop.run_in_executor(
                         None, tts_model.get_state_for_audio_prompt, ref_tmp_path
                     )
                     _cache_voice(voice_id, voice_state)
@@ -379,42 +423,42 @@ async def text_to_speech(
                             None, tts_model.get_state_for_audio_prompt, voice_id
                         )
                         _cache_voice(voice_id, voice_state)
-                    except Exception as e:
-                        print(f"[TTS] Voice '{voice_id}' not found: {e}")
+                    except Exception:
+                        logger.warning("Voice not found", extra={"voice_id": voice_id})
                         raise HTTPException(
                             status_code=404,
                             detail=f"Voice '{voice_id}' not found",
                         )
 
                 # Generate audio
-                audio_tensor = await loop.run_in_executor(
+                audio_tensor: Any = await loop.run_in_executor(
                     None, tts_model.generate_audio, voice_state, clean_text
                 )
         finally:
             # Clean up temp file regardless of semaphore/model errors
             if ref_tmp_path is not None and os.path.exists(ref_tmp_path):
                 os.unlink(ref_tmp_path)
-        audio_np = audio_tensor.numpy()
-
-        # Convert float32 [-1.0, 1.0] to int16 for broad player compatibility
-        audio_int16 = np.clip(audio_np * 32767, -32768, 32767).astype(np.int16)
+        audio_np: np.ndarray[Any, np.dtype[np.int16]] = np.clip(
+            audio_tensor.numpy() * 32767, -32768, 32767
+        ).astype(np.int16)
 
         # Convert to WAV bytes
         wav_buffer = io.BytesIO()
-        scipy.io.wavfile.write(wav_buffer, tts_model.sample_rate, audio_int16)
+        scipy.io.wavfile.write(wav_buffer, tts_model.sample_rate, audio_np)
         wav_buffer.seek(0)
-        wav_bytes = wav_buffer.read()
+        wav_bytes: bytes = wav_buffer.read()
 
         # Cleanup
-        del audio_tensor, audio_np, audio_int16
+        del audio_tensor, audio_np
         gc.collect()
 
+        logger.info("Generated TTS audio", extra={"voice_id": voice_id, "chars": len(clean_text)})
         return Response(content=wav_bytes, media_type="audio/wav")
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"[TTS] Speech generation error: {e}")
+    except Exception:
+        logger.error("Speech generation failed", exc_info=True, extra={"voice_id": voice_id})
         gc.collect()
         raise HTTPException(status_code=500, detail="Speech generation failed")
 
@@ -425,15 +469,14 @@ async def tts_openai_compat(
     input: str = Form(...),
     model: str = Form("pocket-tts"),
     voice: str = Form("alba"),
-):
+) -> Response:
     """OpenAI-inspired TTS endpoint (uses Form fields, not JSON body).
 
     Not a true drop-in for the official OpenAI SDK — use /v1/tts for
     the native interface. ``model`` is accepted for API compatibility
     but currently ignored; all requests use Pocket TTS.
-
-    TODO(phase2): Route to different backends based on ``model`` param.
     """
+    _ = model  # accepted for API compat, unused
     return await text_to_speech(text=input, voice_id=voice)
 
 
@@ -441,11 +484,11 @@ async def tts_openai_compat(
 # Voice Management
 # ---------------------------------------------------------------------------
 @app.get("/v1/voices")
-def list_voices():
+def list_voices() -> dict[str, list[dict[str, str]]]:
     """List all available voices."""
     return {
         "voices": [
-            {"id": vid, "type": "cached"} for vid in voice_cache.keys()
+            {"id": vid, "type": "cached"} for vid in voice_cache
         ]
     }
 
@@ -454,7 +497,7 @@ def list_voices():
 async def register_voice(
     voice_id: str = Form(...),
     audio: UploadFile = File(...),
-):
+) -> dict[str, str]:
     """
     Register a new voice from a reference audio file.
     The voice state is cached in memory for subsequent TTS requests.
@@ -502,14 +545,14 @@ async def register_voice(
         # for large uploads (up to MAX_AUDIO_UPLOAD_BYTES = 50MB).
         loop = asyncio.get_running_loop()
 
-        def _write_file(path, data):
+        def _write_file(path: str, data: bytes) -> None:
             with open(path, "wb") as f:
                 f.write(data)
 
         try:
             await loop.run_in_executor(None, _write_file, voice_path, audio_bytes)
             async with _inference_semaphore:
-                voice_state = await loop.run_in_executor(
+                voice_state: Any = await loop.run_in_executor(
                     None, tts_model.get_state_for_audio_prompt, voice_path
                 )
             _cache_voice(voice_id, voice_state)
@@ -521,12 +564,13 @@ async def register_voice(
         del audio_bytes
         gc.collect()
 
+        logger.info("Voice registered successfully", extra={"voice_id": voice_id})
         return {"status": "ok", "voice_id": voice_id}
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"[TTS] Voice registration error: {e}")
+    except Exception:
+        logger.error("Voice registration failed", exc_info=True, extra={"voice_id": voice_id})
         gc.collect()
         raise HTTPException(status_code=500, detail="Voice registration failed")
 

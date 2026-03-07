@@ -204,6 +204,29 @@ describe('config', () => {
       expect(result.PORT).toBe(8080);
     });
 
+    it('should accept optional VOICE_ENGINE_URL and VOICE_ENGINE_API_KEY', () => {
+      // Undefined by default
+      const defaults = envSchema.parse({});
+      expect(defaults.VOICE_ENGINE_URL).toBeUndefined();
+      expect(defaults.VOICE_ENGINE_API_KEY).toBeUndefined();
+
+      // Accepts valid values
+      const withValues = envSchema.parse({
+        VOICE_ENGINE_URL: 'https://voice-engine.up.railway.app',
+        VOICE_ENGINE_API_KEY: 'my-secret-key',
+      });
+      expect(withValues.VOICE_ENGINE_URL).toBe('https://voice-engine.up.railway.app');
+      expect(withValues.VOICE_ENGINE_API_KEY).toBe('my-secret-key');
+
+      // Empty string transforms to undefined
+      const withEmpty = envSchema.parse({
+        VOICE_ENGINE_URL: '',
+        VOICE_ENGINE_API_KEY: '',
+      });
+      expect(withEmpty.VOICE_ENGINE_URL).toBeUndefined();
+      expect(withEmpty.VOICE_ENGINE_API_KEY).toBeUndefined();
+    });
+
     it('should transform ENABLE_HEALTH_SERVER correctly', () => {
       const enabled = envSchema.parse({ ENABLE_HEALTH_SERVER: 'true' });
       expect(enabled.ENABLE_HEALTH_SERVER).toBe(true);

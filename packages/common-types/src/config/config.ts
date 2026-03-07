@@ -138,6 +138,10 @@ export const envSchema = z.object({
   ELEVENLABS_API_KEY: optionalNonEmptyString(),
   IMAGE_GENERATION_API_KEY: optionalNonEmptyString(),
 
+  // Voice Engine (self-hosted STT/TTS service)
+  VOICE_ENGINE_URL: optionalNonEmptyString(), // e.g., https://voice-engine-production.up.railway.app
+  VOICE_ENGINE_API_KEY: optionalNonEmptyString(), // Shared secret for voice-engine auth
+
   // Worker Configuration
   WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default(5),
   QUEUE_NAME: z.string().default('ai-requests'),
@@ -257,6 +261,10 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     // Optional Services
     ELEVENLABS_API_KEY: undefined,
     IMAGE_GENERATION_API_KEY: undefined,
+
+    // Voice Engine
+    VOICE_ENGINE_URL: undefined,
+    VOICE_ENGINE_API_KEY: undefined,
 
     // Worker
     WORKER_CONCURRENCY: 5,
