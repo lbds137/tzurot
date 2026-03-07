@@ -179,6 +179,12 @@ _AUDIO_TAG_RE = re.compile(
     flags=re.IGNORECASE,
 )
 
+# Voice ID validation — prevents path traversal (CWE-22) in /v1/voices/register
+_VOICE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+# TTS text length cap — prevents OOM on CPU inference (Railway 4GB ceiling)
+MAX_TTS_TEXT_LENGTH = 2000
+
 
 @app.post("/v1/tts")
 async def text_to_speech(
@@ -201,6 +207,12 @@ async def text_to_speech(
         raise HTTPException(status_code=503, detail="TTS model not loaded")
 
     try:
+        if len(text) > MAX_TTS_TEXT_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Text too long ({len(text)} chars). Maximum: {MAX_TTS_TEXT_LENGTH}",
+            )
+
         # Strip ElevenLabs-style audio tags (not supported by Pocket TTS)
         clean_text = _AUDIO_TAG_RE.sub("", text).strip()
 
@@ -217,9 +229,11 @@ async def text_to_speech(
                 tmp.write(audio_bytes)
                 tmp_path = tmp.name
 
-            voice_state = tts_model.get_state_for_audio_prompt(tmp_path)
-            voice_cache[voice_id] = voice_state  # Cache for future use
-            os.unlink(tmp_path)
+            try:
+                voice_state = tts_model.get_state_for_audio_prompt(tmp_path)
+                voice_cache[voice_id] = voice_state  # Cache for future use
+            finally:
+                os.unlink(tmp_path)
             del audio_bytes
 
         elif voice_id in voice_cache:
@@ -271,7 +285,11 @@ async def tts_openai_compat(
     model: str = Form("pocket-tts"),  # TODO(phase2): Route to different backends based on model param
     voice: str = Form("alba"),
 ):
-    """OpenAI TTS API-compatible endpoint."""
+    """OpenAI-inspired TTS endpoint (uses Form fields, not JSON body).
+
+    Not a true drop-in for the official OpenAI SDK — use /v1/tts for
+    the native interface.
+    """
     return await text_to_speech(text=input, voice_id=voice)
 
 
@@ -298,6 +316,12 @@ async def register_voice(
     The voice state is cached in memory for subsequent TTS requests.
     For persistent storage, save the audio file to the voices/ directory.
     """
+    if not _VOICE_ID_RE.match(voice_id):
+        raise HTTPException(
+            status_code=400,
+            detail="voice_id must contain only alphanumeric characters, hyphens, or underscores",
+        )
+
     tts_model = models.get("tts")
     if not tts_model:
         raise HTTPException(status_code=503, detail="TTS model not loaded")
