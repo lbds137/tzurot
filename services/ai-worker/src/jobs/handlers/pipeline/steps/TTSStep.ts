@@ -73,20 +73,22 @@ export class TTSStep implements IPipelineStep {
     }
 
     try {
-      // Apply timeout to the entire TTS process
+      // Apply timeout to the entire TTS process (clear timer on completion to avoid leak)
+      let timeoutId: NodeJS.Timeout;
       const ttsResult = await Promise.race([
-        this.performTTS(client, registrationService, text, slug, context),
-        new Promise<null>((_, reject) =>
-          setTimeout(
+        this.performTTS(client, registrationService, text, slug, context).finally(() =>
+          clearTimeout(timeoutId)
+        ),
+        new Promise<null>((_, reject) => {
+          timeoutId = setTimeout(
             () => reject(new Error(`TTS timed out after ${TTS_TIMEOUT_MS}ms`)),
             TTS_TIMEOUT_MS
-          )
-        ),
+          );
+        }),
       ]);
 
       if (ttsResult !== null && context.result?.metadata !== undefined) {
         context.result.metadata.ttsAudioKey = ttsResult.key;
-        context.result.metadata.ttsContentType = ttsResult.contentType;
         logger.info(
           { slug, audioSize: ttsResult.audioSize, key: ttsResult.key },
           'TTS audio stored in Redis'
@@ -138,21 +140,17 @@ export class TTSStep implements IPipelineStep {
     text: string,
     slug: string,
     context: GenerationContext
-  ): Promise<{ key: string; contentType: string; audioSize: number }> {
+  ): Promise<{ key: string; audioSize: number }> {
     // Ensure voice is registered
     await registrationService.ensureVoiceRegistered(slug);
 
     // Synthesize (with chunking for long text)
-    const { audioBuffer, contentType } = await synthesizeWithChunking(
-      voiceEngineClient,
-      text,
-      slug
-    );
+    const { audioBuffer } = await synthesizeWithChunking(voiceEngineClient, text, slug);
 
     // Store audio in Redis
     const jobId = context.job.id ?? context.job.data.requestId;
     const key = await redisService.storeTTSAudio(jobId, audioBuffer);
 
-    return { key, contentType, audioSize: audioBuffer.length };
+    return { key, audioSize: audioBuffer.length };
   }
 }

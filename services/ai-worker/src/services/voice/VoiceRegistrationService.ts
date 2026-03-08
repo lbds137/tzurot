@@ -72,7 +72,7 @@ export class VoiceRegistrationService {
       throw new Error('GATEWAY_URL not configured — cannot fetch voice reference');
     }
 
-    const voiceUrl = `${gatewayUrl}/voices/${encodeURIComponent(slug)}`;
+    const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
     logger.info({ slug }, 'Fetching voice reference from gateway');
 
     const response = await fetch(voiceUrl);

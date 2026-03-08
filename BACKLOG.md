@@ -405,6 +405,7 @@ Enable personalities to speak — generate voice responses from LLM text output.
 - [ ] Bot-client: send voice response as Discord audio attachment
 - [ ] Voice registration flow — admin uploads reference audio for a personality, creates voice state
 - [ ] Strip ElevenLabs audio tags (`[whisper]`, `[shout]`) for Pocket TTS free tier
+- [ ] Wire `voiceTranscriptionEnabled` cascade field to bot-client — field exists in ConfigOverridesSchema but isn't consumed yet (check before calling `VoiceTranscriptionService.transcribe()`)
 
 #### Phase 4: ElevenLabs Premium Tier
 

@@ -105,8 +105,6 @@ const generationPayloadSchema = z.object({
       showModelFooter: z.boolean().optional(),
       /** Redis key for TTS audio buffer (format: tts-audio:{jobId}) */
       ttsAudioKey: z.string().optional(),
-      /** MIME type of TTS audio (e.g., 'audio/wav') */
-      ttsContentType: z.string().optional(),
     })
     .optional(),
 });
