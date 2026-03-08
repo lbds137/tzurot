@@ -17,7 +17,12 @@ const MAX_CHUNK_LENGTH = 2000;
 /** WAV header size in bytes */
 const WAV_HEADER_SIZE = 44;
 
-/** Sentence boundary regex — splits after sentence-ending punctuation followed by whitespace */
+/**
+ * Sentence boundary regex — splits after sentence-ending punctuation followed by whitespace.
+ * Known limitation: splits on abbreviations like "Dr.", "U.S.", "etc." which may introduce
+ * brief pauses in TTS output. Acceptable trade-off — TTS engines handle mid-sentence chunks
+ * gracefully, and a more sophisticated NLP-based splitter would add significant complexity.
+ */
 const SENTENCE_BOUNDARY = /(?<=[.!?])\s+/;
 
 /** Default sample rate when WAV header is invalid (Pocket TTS default) */
@@ -100,6 +105,10 @@ export function splitTextIntoChunks(text: string): string[] {
  */
 export function extractPcmData(wavBuffer: Buffer): Buffer {
   if (wavBuffer.length <= WAV_HEADER_SIZE) {
+    logger.warn(
+      { bufferLength: wavBuffer.length, headerSize: WAV_HEADER_SIZE },
+      'WAV buffer too small to contain PCM data — returning empty buffer'
+    );
     return Buffer.alloc(0);
   }
   // Validate expected WAV structure (RIFF header + "data" sub-chunk at offset 36)

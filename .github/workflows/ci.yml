@@ -295,6 +295,14 @@ jobs:
         if: steps.filter.outputs.voice-engine == 'true'
         run: pip install -r services/voice-engine/requirements-dev.txt
 
+      - name: Run ruff linter
+        if: steps.filter.outputs.voice-engine == 'true'
+        run: cd services/voice-engine && ruff check .
+
+      - name: Run mypy type checker
+        if: steps.filter.outputs.voice-engine == 'true'
+        run: cd services/voice-engine && mypy --strict server.py
+
       - name: Run voice-engine tests
         if: steps.filter.outputs.voice-engine == 'true'
         run: cd services/voice-engine && python -m pytest tests/ -v --cov=server --cov-report=xml:coverage.xml
