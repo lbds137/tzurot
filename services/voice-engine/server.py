@@ -60,7 +60,7 @@ class _JsonFormatter(logging.Formatter):
 
 
 def _setup_logging() -> logging.Logger:
-    """Configure root and voice-engine logger with JSON output."""
+    """Configure voice-engine logger with JSON output."""
     handler = logging.StreamHandler()
     handler.setFormatter(_JsonFormatter())
     log = logging.getLogger("voice-engine")

@@ -93,7 +93,7 @@ async function transcribeWithVoiceEngine(
     if (error instanceof VoiceEngineError && error.isAuthError) {
       logger.error({ err: error }, 'Voice engine auth error — check VOICE_ENGINE_API_KEY config');
     } else {
-      logger.warn({ err: error }, 'Voice engine transcription failed, falling back to Whisper');
+      logger.warn({ err: error }, '[FALLBACK] Voice engine unavailable — transcribing via Whisper');
     }
     return null;
   }
