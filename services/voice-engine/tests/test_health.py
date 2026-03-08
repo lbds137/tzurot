@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import httpx
 
-from server import models, voice_cache
+from server import voice_cache
 
 
 async def test_health_returns_model_status(client: httpx.AsyncClient, mock_asr: MagicMock, mock_tts: MagicMock) -> None:

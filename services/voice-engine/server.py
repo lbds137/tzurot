@@ -16,18 +16,18 @@ import os
 import re
 import secrets
 import tempfile
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager, suppress
 from functools import partial
-from collections.abc import Awaitable, Callable
-from typing import Any, AsyncIterator
+from typing import Any
 
-import librosa  # type: ignore[import-untyped] -- no type stubs available
-import nemo.collections.asr as nemo_asr  # type: ignore[import-untyped] -- NeMo lacks stubs
+import librosa
+import nemo.collections.asr as nemo_asr
 import numpy as np
-import scipy.io.wavfile  # type: ignore[import-untyped] -- scipy stubs incomplete for io.wavfile
+import scipy.io.wavfile
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
-from pocket_tts import TTSModel  # type: ignore[import-untyped] -- no type stubs available
+from pocket_tts import TTSModel
 
 # ---------------------------------------------------------------------------
 # Logging — JSON-structured for Railway log aggregation
@@ -44,7 +44,7 @@ class _JsonFormatter(logging.Formatter):
         logging.LogRecord("", 0, "", 0, "", (), None).__dict__
     )
 
-    def format(self, record: logging.LogRecord) -> str:  # noqa: A003 -- overrides Formatter.format
+    def format(self, record: logging.LogRecord) -> str:
         # Intentionally does NOT call super().format() — that would set record.message
         # as a side effect, which would then leak into the extra-field merge below.
         log_entry: dict[str, Any] = {
@@ -333,7 +333,7 @@ async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
     except Exception:
         logger.error("Transcription failed", exc_info=True)
         gc.collect()
-        raise HTTPException(status_code=500, detail="Transcription failed")
+        raise HTTPException(status_code=500, detail="Transcription failed") from None
 
 
 # OpenAI Whisper API-compatible endpoint for drop-in replacement
@@ -417,7 +417,7 @@ async def text_to_speech(
                         f"Allowed: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
                     )
                 ext = _AUDIO_EXTENSIONS.get(
-                    reference_audio.content_type, _DEFAULT_AUDIO_EXT
+                    reference_audio.content_type or "", _DEFAULT_AUDIO_EXT
                 )
                 with tempfile.NamedTemporaryFile(
                     suffix=ext, delete=False
@@ -453,7 +453,7 @@ async def text_to_speech(
                         raise HTTPException(
                             status_code=404,
                             detail=f"Voice '{voice_id}' not found",
-                        )
+                        ) from None
 
                 # Generate audio
                 audio_tensor: Any = await loop.run_in_executor(
@@ -485,7 +485,7 @@ async def text_to_speech(
     except Exception:
         logger.error("Speech generation failed", exc_info=True, extra={"voice_id": voice_id})
         gc.collect()
-        raise HTTPException(status_code=500, detail="Speech generation failed")
+        raise HTTPException(status_code=500, detail="Speech generation failed") from None
 
 
 # OpenAI-inspired TTS endpoint (Form fields, NOT JSON — not a true drop-in)
@@ -549,7 +549,7 @@ async def register_voice(
         # deployments need shared storage (e.g., Railway volume or S3) in Phase 2.
         voices_dir = os.environ.get("VOICES_DIR", "./voices")
         os.makedirs(voices_dir, exist_ok=True)
-        ext = _AUDIO_EXTENSIONS.get(audio.content_type, _DEFAULT_AUDIO_EXT)
+        ext = _AUDIO_EXTENSIONS.get(audio.content_type or "", _DEFAULT_AUDIO_EXT)
         voice_path = os.path.join(voices_dir, f"{voice_id}{ext}")
 
         # Clean up stale files from prior registrations with different MIME types
@@ -560,10 +560,8 @@ async def register_voice(
             if os.path.splitext(existing)[0] == voice_id:
                 existing_path = os.path.join(voices_dir, existing)
                 if existing_path != voice_path:
-                    try:
+                    with suppress(FileNotFoundError):
                         os.unlink(existing_path)
-                    except FileNotFoundError:
-                        pass
 
         # Write and process — clean up on any failure (disk full, model error).
         # File write is offloaded to executor to avoid blocking the event loop
@@ -597,7 +595,7 @@ async def register_voice(
     except Exception:
         logger.error("Voice registration failed", exc_info=True, extra={"voice_id": voice_id})
         gc.collect()
-        raise HTTPException(status_code=500, detail="Voice registration failed")
+        raise HTTPException(status_code=500, detail="Voice registration failed") from None
 
 
 if __name__ == "__main__":

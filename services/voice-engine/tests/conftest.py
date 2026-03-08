@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import sys
 from collections.abc import AsyncGenerator, Generator
-from typing import Any
 from unittest.mock import MagicMock
 
 import httpx
@@ -29,8 +28,8 @@ for _mod_name in (
     if _mod_name not in sys.modules:
         sys.modules[_mod_name] = MagicMock()  # type: ignore[assignment]
 
-from server import app, models, voice_cache
-from tests.helpers import FakeTranscription
+from server import app, models, voice_cache  # noqa: E402 -- must import after sys.modules mocking above
+from tests.helpers import FakeTranscription  # noqa: E402 -- must import after sys.modules mocking above
 
 
 @pytest.fixture(autouse=True)
