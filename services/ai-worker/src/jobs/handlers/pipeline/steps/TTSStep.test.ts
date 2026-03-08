@@ -5,6 +5,10 @@
  * - shouldRunTTS logic (voice mode, voice enabled, success state)
  * - Successful TTS flow (register → synthesize → store)
  * - Graceful degradation on errors and timeouts
+ *
+ * WARNING: TTSStep uses a lazy singleton for VoiceRegistrationService.
+ * Always call resetTTSStepState() in beforeEach/afterEach to prevent
+ * stale singleton state from leaking between test files.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -78,7 +78,9 @@ export class TTSStep implements IPipelineStep {
       let timeoutId: NodeJS.Timeout | undefined;
       const ttsPromise = this.performTTS(registrationService, text, slug, context);
 
-      // Observe dangling completion after timeout (makes background work visible in logs)
+      // Observe dangling completion/rejection after timeout (makes background work visible in logs).
+      // If timeout wins the race, the outer catch handles the timeout error but NOT any later
+      // rejection from performTTS — without this observer, late failures would be silently swallowed.
       void ttsPromise.then(
         result => {
           if (timedOut) {
@@ -88,8 +90,12 @@ export class TTSStep implements IPipelineStep {
             );
           }
         },
-        // eslint-disable-next-line @typescript-eslint/no-empty-function -- rejection handled by outer catch; observer is fire-and-forget
-        () => {}
+        (err: unknown) => {
+          if (timedOut) {
+            logger.warn({ err, slug }, 'TTS failed after timeout (result already discarded)');
+          }
+          // Pre-timeout rejections are handled by the outer catch via Promise.race
+        }
       );
 
       const ttsResult = await Promise.race([
