@@ -72,6 +72,9 @@ export class VoiceRegistrationService {
       throw new Error('GATEWAY_URL not configured — cannot fetch voice reference');
     }
 
+    // /voice-references/:slug is intentionally public (no auth required) — it serves
+    // the binary audio file directly from the database. Internal Railway networking
+    // ensures this is only reachable from other services, not the public internet.
     const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
     logger.info({ slug }, 'Fetching voice reference from gateway');
 

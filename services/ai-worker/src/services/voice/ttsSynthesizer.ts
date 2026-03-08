@@ -116,7 +116,9 @@ export function extractPcmData(wavBuffer: Buffer): Buffer {
 
 /**
  * Build a WAV header for the given PCM data length.
- * Assumes 16-bit mono PCM at the specified sample rate.
+ * Assumes 16-bit mono PCM at the specified sample rate — coupled to
+ * voice-engine's Pocket TTS output format. If Pocket TTS changes to
+ * stereo or different bit depth, this must be updated to match.
  *
  * @internal Exported for testing
  */
@@ -177,6 +179,7 @@ export async function synthesizeWithChunking(
   text: string,
   voiceId: string
 ): Promise<SynthesisResult> {
+  // splitTextIntoChunks always returns at least one element (even for empty string)
   const chunks = splitTextIntoChunks(text);
 
   if (chunks.length === 1) {

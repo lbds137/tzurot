@@ -1146,6 +1146,27 @@ describe('DiscordResponseSender', () => {
       expect(filesArg).toBeUndefined();
     });
 
+    it('should skip attachment when audio exceeds Discord file size limit', async () => {
+      const { redisService } = await import('../redis.js');
+      // Fake a buffer-like object with length > 8 MB to avoid OOM from real allocation
+      const oversizedBuffer = { length: 9 * 1024 * 1024 } as unknown as Buffer;
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(oversizedBuffer);
+
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Hello!',
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:oversized',
+      });
+
+      // Should send text but no files
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
+      expect(filesArg).toBeUndefined();
+    });
+
     it('should attach audio to last chunk only for multi-chunk responses', async () => {
       const { redisService } = await import('../redis.js');
       const audioBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46]);
