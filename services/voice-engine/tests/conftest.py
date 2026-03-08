@@ -13,13 +13,7 @@ import httpx
 import pytest
 
 from server import app, models, voice_cache
-
-
-class FakeTranscription:
-    """Mimics NeMo's transcription result (has .text attribute)."""
-
-    def __init__(self, text: str = "Hello, this is a test transcription.") -> None:
-        self.text = text
+from tests.helpers import FakeTranscription
 
 
 @pytest.fixture(autouse=True)

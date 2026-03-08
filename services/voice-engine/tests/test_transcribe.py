@@ -21,9 +21,7 @@ async def test_transcribe_returns_text(client: httpx.AsyncClient, mock_asr: Magi
 
     assert response.status_code == 200
     body = response.json()
-    assert "text" in body
-    assert isinstance(body["text"], str)
-    assert len(body["text"]) > 0
+    assert body["text"] == "Hello, this is a test transcription."
 
 
 async def test_transcribe_returns_503_when_model_not_loaded(client: httpx.AsyncClient) -> None:
@@ -91,7 +89,7 @@ async def test_transcribe_accepts_x_api_key_header(
 async def test_transcribe_returns_empty_string_for_silent_audio(
     client: httpx.AsyncClient, mock_asr: MagicMock
 ) -> None:
-    from tests.conftest import FakeTranscription
+    from tests.helpers import FakeTranscription
 
     mock_asr.transcribe.return_value = [FakeTranscription("")]
 

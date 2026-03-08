@@ -44,7 +44,9 @@ class _JsonFormatter(logging.Formatter):
         logging.LogRecord("", 0, "", 0, "", (), None).__dict__
     )
 
-    def format(self, record: logging.LogRecord) -> str:
+    def format(self, record: logging.LogRecord) -> str:  # noqa: A003 -- overrides Formatter.format
+        # Intentionally does NOT call super().format() — that would set record.message
+        # as a side effect, which would then leak into the extra-field merge below.
         log_entry: dict[str, Any] = {
             "level": record.levelname,
             "msg": record.getMessage(),
