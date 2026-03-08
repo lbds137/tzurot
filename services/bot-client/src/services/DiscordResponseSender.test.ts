@@ -1105,7 +1105,6 @@ describe('DiscordResponseSender', () => {
         personality: mockPersonality,
         message: mockMessage,
         ttsAudioKey: 'tts-audio:job-123',
-        ttsContentType: 'audio/wav',
       });
 
       expect(redisService.getTTSAudio).toHaveBeenCalledWith('tts-audio:job-123');
@@ -1189,7 +1188,6 @@ describe('DiscordResponseSender', () => {
         personality: mockPersonality,
         message: mockMessage,
         ttsAudioKey: 'tts-audio:job-123',
-        ttsContentType: 'audio/wav',
       });
 
       expect(mockChannel.send).toHaveBeenCalledWith({

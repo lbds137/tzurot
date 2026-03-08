@@ -174,13 +174,15 @@ export async function synthesizeWithChunking(
     'Multi-chunk TTS synthesis'
   );
 
-  // Synthesize all chunks
-  const results = await Promise.all(
-    chunks.map(async (chunk, index) => {
-      logger.debug({ voiceId, chunkIndex: index, chunkLength: chunk.length }, 'Synthesizing chunk');
-      return client.synthesize(chunk, voiceId);
-    })
-  );
+  // Synthesize chunks sequentially to avoid overwhelming the single-process voice-engine
+  const results: SynthesisResult[] = [];
+  for (let index = 0; index < chunks.length; index++) {
+    logger.debug(
+      { voiceId, chunkIndex: index, chunkLength: chunks[index].length },
+      'Synthesizing chunk'
+    );
+    results.push(await client.synthesize(chunks[index], voiceId));
+  }
 
   // Extract PCM data from each WAV result and concatenate
   const sampleRate = inferSampleRate(results[0].audioBuffer);

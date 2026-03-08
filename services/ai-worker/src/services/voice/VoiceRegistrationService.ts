@@ -19,6 +19,8 @@ const REGISTRATION_CACHE_MAX_SIZE = 200;
 
 export class VoiceRegistrationService {
   private readonly registrationCache: TTLCache<boolean>;
+  /** In-flight registration promises to prevent concurrent duplicate registrations */
+  private readonly inflight = new Map<string, Promise<void>>();
 
   constructor(private readonly voiceEngineClient: VoiceEngineClient) {
     this.registrationCache = new TTLCache<boolean>({
@@ -29,8 +31,8 @@ export class VoiceRegistrationService {
 
   /**
    * Ensure a voice is registered with the voice-engine service.
-   * Checks cache first, then queries voice-engine, then fetches reference
-   * audio from api-gateway and registers if needed.
+   * Checks cache first, deduplicates concurrent calls for the same slug,
+   * then queries voice-engine and registers if needed.
    *
    * @throws Error if voice reference cannot be fetched or registration fails
    */
@@ -40,6 +42,18 @@ export class VoiceRegistrationService {
       return;
     }
 
+    // Deduplicate concurrent registration attempts for the same slug
+    const existing = this.inflight.get(slug);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const promise = this.doRegister(slug).finally(() => this.inflight.delete(slug));
+    this.inflight.set(slug, promise);
+    return promise;
+  }
+
+  private async doRegister(slug: string): Promise<void> {
     // Check if already registered on the voice-engine
     try {
       const voices = await this.voiceEngineClient.listVoices();

@@ -31,13 +31,6 @@ export function validateAIConfig(config = getConfig()): void {
 }
 
 /**
- * Build health check response
- * @param memoryHealthy Whether memory manager health check passed
- * @param workerHealthy Whether worker is running (not paused)
- * @param memoryDisabled Whether memory manager is disabled
- * @returns Health check response with status and component health
- */
-/**
  * One-shot voice engine health check at startup.
  * Logs whether the voice engine is configured and reachable.
  * Never throws — wrapped in try/catch for resilience.
@@ -54,13 +47,20 @@ export async function checkVoiceEngineHealth(): Promise<void> {
     if (healthy) {
       logger.info('[AIWorker] Voice engine healthy');
     } else {
-      logger.warn({}, '[AIWorker] Voice engine configured but not healthy');
+      logger.warn({ healthy: false }, '[AIWorker] Voice engine configured but not healthy');
     }
   } catch (error) {
     logger.warn({ err: error }, '[AIWorker] Voice engine health check failed');
   }
 }
 
+/**
+ * Build health check response
+ * @param memoryHealthy Whether memory manager health check passed
+ * @param workerHealthy Whether worker is running (not paused)
+ * @param memoryDisabled Whether memory manager is disabled
+ * @returns Health check response with status and component health
+ */
 export function buildHealthResponse(
   memoryHealthy: boolean,
   workerHealthy: boolean,

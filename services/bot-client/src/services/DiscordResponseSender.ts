@@ -67,8 +67,6 @@ interface SendResponseOptions {
   showModelFooter?: boolean;
   /** Redis key for TTS audio buffer (set by ai-worker TTSStep) */
   ttsAudioKey?: string;
-  /** Content type of TTS audio (e.g., 'audio/wav') */
-  ttsContentType?: string;
 }
 
 /** Shared options for internal send methods */
@@ -127,7 +125,7 @@ export class DiscordResponseSender {
     }
 
     const footer = this.buildFooter(options);
-    const ttsFiles = await this.fetchTTSFiles(options.ttsAudioKey, options.ttsContentType);
+    const ttsFiles = await this.fetchTTSFiles(options.ttsAudioKey);
 
     // Determine routing and build chunks
     const isWebhookChannel =
@@ -239,8 +237,7 @@ export class DiscordResponseSender {
 
   /** Fetch TTS audio files from Redis, if a key is provided */
   private async fetchTTSFiles(
-    ttsAudioKey?: string,
-    _ttsContentType?: string
+    ttsAudioKey?: string
   ): Promise<{ attachment: Buffer; name: string }[] | undefined> {
     if (ttsAudioKey === undefined) {
       return undefined;
