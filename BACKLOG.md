@@ -25,7 +25,7 @@ _New items go here. Triage to appropriate section weekly._
 - 🧹 `[CHORE]` **Voice-engine LRU eviction test** — `_cache_voice` eviction when `len(voice_cache) > MAX_VOICE_CACHE_SIZE` has no test coverage. Low risk (simple logic) but worth a follow-up.
 - ✨ `[FEAT]` **Voice-engine empty-transcription fallback toggle** — If voice-engine returns `""` for speech that contains words (model bug), there's no Whisper retry. Consider a `VOICE_ENGINE_EMPTY_FALLBACK=true` env toggle in Phase 3 if quality issues emerge.
 - 🏗️ `[LIFT]` **OpenAI Whisper client singleton** — `transcribeWithWhisper` creates a new `OpenAI` client per call, forfeiting connection pooling. Extract to a module-level singleton like `VoiceEngineClient`.
-- ✨ `[FEAT]` **Voice-engine startup health check** — Call `isHealthy()` on ai-worker startup when `VOICE_ENGINE_URL` is configured. Warns loudly if voice-engine returns 401/403 (misconfigured API key), catching mis-deployments before they generate sustained OpenAI fallback costs.
+- 🧹 `[CHORE]` **Voice-engine root logger JSON formatting** — `_setup_logging` attaches `_JsonFormatter` to the `voice-engine` logger only. Uvicorn/FastAPI/librosa emit on their own loggers as plain text, mixing formats in Railway's log stream. Attach handler to root logger at WARNING level to capture third-party logs in JSON too.
 
 ## 🎯 Current Focus
 
@@ -38,6 +38,10 @@ _Empty — pull next from Quick Wins or Active Epic._
 ## ⚡️ Quick Wins
 
 _Small tasks that can be done between major features. Good for momentum._
+
+### ✨ Voice-engine startup health check
+
+Call `isHealthy()` on ai-worker startup when `VOICE_ENGINE_URL` is configured. Warns loudly if voice-engine returns 401/403 (misconfigured API key), catching mis-deployments before they generate sustained OpenAI fallback costs. The method already exists — just needs wiring into worker init.
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
 

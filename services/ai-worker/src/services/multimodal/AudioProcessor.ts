@@ -71,13 +71,17 @@ async function transcribeWithVoiceEngine(
       attachment.contentType
     );
 
-    logger.info(
-      {
-        transcriptionLength: result.text.length,
-        duration: attachment.duration,
-      },
-      'Audio transcribed via voice-engine'
-    );
+    if (result.text.length === 0) {
+      logger.info(
+        { duration: attachment.duration },
+        'Voice engine returned empty transcription (silent or inaudible audio)'
+      );
+    } else {
+      logger.info(
+        { transcriptionLength: result.text.length, duration: attachment.duration },
+        'Audio transcribed via voice-engine'
+      );
+    }
 
     // Empty string is a valid result (silent/inaudible audio) — don't fall back to Whisper
     return result.text;
