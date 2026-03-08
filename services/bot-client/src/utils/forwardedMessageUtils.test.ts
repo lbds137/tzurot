@@ -18,6 +18,7 @@ import {
   extractAllForwardedContent,
   hasForwardedContent,
   hasForwardedVoiceAttachment,
+  hasVoiceAttachments,
   getEffectiveContent,
 } from './forwardedMessageUtils.js';
 
@@ -45,11 +46,14 @@ function createMockMessage(options: {
     contentType?: string;
     name?: string;
     size?: number;
+    duration?: number | null;
   }>;
   embeds?: Array<{ title?: string; description?: string }>;
 }): Message {
-  // Create attachments map
-  const attachmentsMap = new Map();
+  // Create attachments map with Discord.js Collection-like .some() method
+  const attachmentsMap = new Map() as Map<string, unknown> & {
+    some: (fn: (a: unknown) => boolean) => boolean;
+  };
   if (options.attachments) {
     options.attachments.forEach((att, index) => {
       attachmentsMap.set(`att-${index}`, {
@@ -57,9 +61,12 @@ function createMockMessage(options: {
         contentType: att.contentType ?? 'application/octet-stream',
         name: att.name ?? `file-${index}`,
         size: att.size ?? 1000,
+        duration: att.duration ?? null,
       });
     });
   }
+  attachmentsMap.some = (fn: (a: unknown) => boolean): boolean =>
+    [...attachmentsMap.values()].some(fn);
 
   // Create messageSnapshots collection
   let messageSnapshots: Collection<string, MessageSnapshot> | undefined;
@@ -543,6 +550,47 @@ describe('forwardedMessageUtils', () => {
       });
 
       expect(getEffectiveContent(message)).toBe('My reply');
+    });
+  });
+
+  describe('hasVoiceAttachments', () => {
+    it('should return true for direct audio attachment', () => {
+      const message = createMockMessage({
+        content: '',
+        attachments: [{ url: 'https://cdn.discord.com/voice.ogg', contentType: 'audio/ogg' }],
+      });
+
+      expect(hasVoiceAttachments(message)).toBe(true);
+    });
+
+    it('should return true for attachment with duration (voice message)', () => {
+      const message = createMockMessage({
+        content: '',
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice.ogg',
+            contentType: 'application/octet-stream',
+            duration: 5.5,
+          },
+        ],
+      });
+
+      expect(hasVoiceAttachments(message)).toBe(true);
+    });
+
+    it('should return false for non-audio attachment', () => {
+      const message = createMockMessage({
+        content: 'Hello',
+        attachments: [{ url: 'https://cdn.discord.com/image.png', contentType: 'image/png' }],
+      });
+
+      expect(hasVoiceAttachments(message)).toBe(false);
+    });
+
+    it('should return false when no attachments', () => {
+      const message = createMockMessage({ content: 'Hello' });
+
+      expect(hasVoiceAttachments(message)).toBe(false);
     });
   });
 });

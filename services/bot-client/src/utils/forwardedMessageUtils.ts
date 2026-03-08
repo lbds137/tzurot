@@ -294,6 +294,8 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
  * or within forwarded message snapshots.
  */
 export function hasVoiceAttachments(message: Message): boolean {
+  // Discord.js Attachment.duration is `number | null` → check !== null
+  // (vs AttachmentMetadata.duration which is `number | undefined` in hasForwardedVoiceAttachment)
   const hasDirectVoice = message.attachments.some(
     a => (a.contentType?.startsWith('audio/') ?? false) || a.duration !== null
   );

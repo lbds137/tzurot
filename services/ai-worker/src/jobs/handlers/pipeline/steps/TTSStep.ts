@@ -14,6 +14,7 @@
 import { createLogger } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { getVoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
+import type { VoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
 import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
 import { redisService } from '../../../../redis.js';
@@ -60,8 +61,8 @@ export class TTSStep implements IPipelineStep {
       return context;
     }
 
-    const voiceEngineClient = getVoiceEngineClient();
-    if (voiceEngineClient === null) {
+    const client = getVoiceEngineClient();
+    if (client === null) {
       logger.debug('Voice engine not configured, skipping TTS');
       return context;
     }
@@ -74,7 +75,7 @@ export class TTSStep implements IPipelineStep {
     try {
       // Apply timeout to the entire TTS process
       const ttsResult = await Promise.race([
-        this.performTTS(registrationService, text, slug, context),
+        this.performTTS(client, registrationService, text, slug, context),
         new Promise<null>((_, reject) =>
           setTimeout(
             () => reject(new Error(`TTS timed out after ${TTS_TIMEOUT_MS}ms`)),
@@ -132,16 +133,12 @@ export class TTSStep implements IPipelineStep {
   }
 
   private async performTTS(
+    voiceEngineClient: VoiceEngineClient,
     registrationService: VoiceRegistrationService,
     text: string,
     slug: string,
     context: GenerationContext
   ): Promise<{ key: string; contentType: string; audioSize: number }> {
-    const voiceEngineClient = getVoiceEngineClient();
-    if (voiceEngineClient === null) {
-      throw new Error('Voice engine client not available');
-    }
-
     // Ensure voice is registered
     await registrationService.ensureVoiceRegistered(slug);
 

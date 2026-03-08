@@ -80,6 +80,9 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   shareLtmAcrossPersonalities: false,
   showModelFooter: true,
   voiceResponseMode: 'never',
+  // TODO: voiceTranscriptionEnabled is defined in the cascade but not yet consumed
+  // by bot-client's VoiceMessageProcessor. Wiring it requires bot-client to fetch
+  // resolved config before transcription (currently happens in ai-worker pipeline).
   voiceTranscriptionEnabled: true,
 };
 
