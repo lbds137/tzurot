@@ -286,7 +286,12 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
 
   const { attachments } = extractAllForwardedContent(message);
 
-  return attachments.some(a => a.isVoiceMessage === true || a.duration !== undefined);
+  // Require audio contentType AND duration to avoid false positives from video attachments.
+  // Don't rely on isVoiceMessage alone — extractAttachments sets it based on duration !== null,
+  // which is also true for video attachments.
+  return attachments.some(
+    a => a.contentType?.startsWith('audio/') === true && a.duration !== undefined
+  );
 }
 
 /**
@@ -294,10 +299,11 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
  * or within forwarded message snapshots.
  */
 export function hasVoiceAttachments(message: Message): boolean {
-  // Discord.js Attachment.duration is `number | null` → check !== null
-  // (vs AttachmentMetadata.duration which is `number | undefined` in hasForwardedVoiceAttachment)
+  // Discord voice messages have both audio contentType AND a duration.
+  // Checking duration alone would false-positive on video attachments (MP4, GIF).
+  // Discord.js Attachment.duration is `number | null` → check !== null.
   const hasDirectVoice = message.attachments.some(
-    a => (a.contentType?.startsWith('audio/') ?? false) || a.duration !== null
+    a => (a.contentType?.startsWith('audio/') ?? false) && a.duration !== null
   );
   return hasDirectVoice || hasForwardedVoiceAttachment(message);
 }
