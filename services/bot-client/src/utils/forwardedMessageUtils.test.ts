@@ -464,7 +464,7 @@ describe('forwardedMessageUtils', () => {
       expect(hasForwardedVoiceAttachment(message)).toBe(true);
     });
 
-    it('should return true when forwarded attachment has duration', () => {
+    it('should return true when forwarded attachment has audio contentType and duration', () => {
       const message = createMockMessage({
         referenceType: MessageReferenceType.Forward,
         snapshots: [
@@ -472,8 +472,8 @@ describe('forwardedMessageUtils', () => {
             attachments: [
               {
                 url: 'https://cdn.discord.com/voice.ogg',
-                contentType: 'application/octet-stream',
-                duration: 10, // Has duration = voice message
+                contentType: 'audio/ogg',
+                duration: 10,
               },
             ],
           },
@@ -481,6 +481,25 @@ describe('forwardedMessageUtils', () => {
       });
 
       expect(hasForwardedVoiceAttachment(message)).toBe(true);
+    });
+
+    it('should return false when forwarded video has duration but no audio contentType', () => {
+      const message = createMockMessage({
+        referenceType: MessageReferenceType.Forward,
+        snapshots: [
+          {
+            attachments: [
+              {
+                url: 'https://cdn.discord.com/clip.mp4',
+                contentType: 'video/mp4',
+                duration: 15,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(hasForwardedVoiceAttachment(message)).toBe(false);
     });
 
     it('should return false when forwarded message has no voice attachments', () => {
@@ -554,28 +573,43 @@ describe('forwardedMessageUtils', () => {
   });
 
   describe('hasVoiceAttachments', () => {
-    it('should return true for direct audio attachment', () => {
-      const message = createMockMessage({
-        content: '',
-        attachments: [{ url: 'https://cdn.discord.com/voice.ogg', contentType: 'audio/ogg' }],
-      });
-
-      expect(hasVoiceAttachments(message)).toBe(true);
-    });
-
-    it('should return true for attachment with duration (voice message)', () => {
+    it('should return true for voice message (audio contentType + duration)', () => {
       const message = createMockMessage({
         content: '',
         attachments: [
           {
             url: 'https://cdn.discord.com/voice.ogg',
-            contentType: 'application/octet-stream',
+            contentType: 'audio/ogg',
             duration: 5.5,
           },
         ],
       });
 
       expect(hasVoiceAttachments(message)).toBe(true);
+    });
+
+    it('should return false for audio file upload without duration (not a voice message)', () => {
+      const message = createMockMessage({
+        content: '',
+        attachments: [{ url: 'https://cdn.discord.com/song.mp3', contentType: 'audio/mpeg' }],
+      });
+
+      expect(hasVoiceAttachments(message)).toBe(false);
+    });
+
+    it('should return false for video attachment with duration (not a voice message)', () => {
+      const message = createMockMessage({
+        content: '',
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/clip.mp4',
+            contentType: 'video/mp4',
+            duration: 10.0,
+          },
+        ],
+      });
+
+      expect(hasVoiceAttachments(message)).toBe(false);
     });
 
     it('should return false for non-audio attachment', () => {
