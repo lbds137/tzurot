@@ -130,6 +130,8 @@ let _checked = false;
 
 /**
  * Get the VoiceEngineClient singleton (or null if VOICE_ENGINE_URL is not configured).
+ * Config is read once at first call and cached — subsequent calls return the same result.
+ * This matches Railway's restart-on-env-change model (process restarts on config changes).
  */
 export function getVoiceEngineClient(): VoiceEngineClient | null {
   if (_checked) {

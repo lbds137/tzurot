@@ -18,6 +18,7 @@ import secrets
 import tempfile
 from contextlib import asynccontextmanager
 from functools import partial
+from collections.abc import Awaitable, Callable
 from typing import Any, AsyncIterator
 
 import librosa  # type: ignore[import-untyped] -- no type stubs available
@@ -36,7 +37,9 @@ from pocket_tts import TTSModel  # type: ignore[import-untyped] -- no type stubs
 class _JsonFormatter(logging.Formatter):
     """Emit one JSON object per log line for Railway/structured log ingestion."""
 
-    # Standard LogRecord attributes to exclude from extra-field merging
+    # Standard LogRecord attributes to exclude from extra-field merging.
+    # Derived from a dummy LogRecord's __dict__ — common pattern in logging libraries.
+    # If CPython adds new internal attrs in future versions, they'll be auto-excluded.
     _STANDARD_ATTRS: frozenset[str] = frozenset(
         logging.LogRecord("", 0, "", 0, "", (), None).__dict__
     )
@@ -230,7 +233,9 @@ if _API_KEY is not None and not _API_KEY.strip():
 
 
 @app.middleware("http")
-async def check_api_key(request: Request, call_next: Any) -> Response:
+async def check_api_key(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     if _API_KEY is not None and request.url.path != "/health":
         provided = request.headers.get("x-api-key", "")
         if not provided:
