@@ -73,7 +73,9 @@ export class VoiceEngineClient {
 
   /**
    * Check service health via GET /health. Returns true only when both ASR and TTS
-   * models are loaded ("fully ready"). Use `getHealth()` for per-model status.
+   * models are loaded ("fully ready"). For STT-only checks, use
+   * `getHealth().then(h => h.asr)` instead — this method will return false during
+   * TTS cold-start even if ASR is already available.
    */
   async isHealthy(): Promise<boolean> {
     const health = await this.getHealth();

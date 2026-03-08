@@ -14,7 +14,6 @@
 import { createLogger } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { getVoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
-import type { VoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
 import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
 import { redisService } from '../../../../redis.js';
@@ -61,31 +60,45 @@ export class TTSStep implements IPipelineStep {
       return context;
     }
 
-    const client = getVoiceEngineClient();
-    if (client === null) {
+    const registrationService = getRegistrationService();
+    if (registrationService === null) {
       logger.debug('Voice engine not configured, skipping TTS');
       return context;
     }
 
-    const registrationService = getRegistrationService();
-    if (registrationService === null) {
-      return context;
-    }
-
     try {
-      // Apply timeout to the entire TTS process (clear timer on completion to avoid leak)
+      // Apply timeout to the entire TTS process.
+      // When timeout wins the race, performTTS continues in the background — its result
+      // is discarded (ttsAudioKey never written), and the audio expires via Redis TTL.
+      let timedOut = false;
       let timeoutId: NodeJS.Timeout | undefined;
+      const ttsPromise = this.performTTS(registrationService, text, slug, context);
+
+      // Observe dangling completion after timeout (makes background work visible in logs)
+      void ttsPromise.then(
+        result => {
+          if (timedOut) {
+            logger.warn(
+              { slug, audioSize: result?.audioSize },
+              'TTS completed after timeout (result discarded)'
+            );
+          }
+        },
+        // eslint-disable-next-line @typescript-eslint/no-empty-function -- rejection handled by outer catch; observer is fire-and-forget
+        () => {}
+      );
+
       const ttsResult = await Promise.race([
-        this.performTTS(client, registrationService, text, slug, context).finally(() => {
+        ttsPromise.finally(() => {
           if (timeoutId !== undefined) {
             clearTimeout(timeoutId);
           }
         }),
         new Promise<null>((_, reject) => {
-          timeoutId = setTimeout(
-            () => reject(new Error(`TTS timed out after ${TTS_TIMEOUT_MS}ms`)),
-            TTS_TIMEOUT_MS
-          );
+          timeoutId = setTimeout(() => {
+            timedOut = true;
+            reject(new Error(`TTS timed out after ${TTS_TIMEOUT_MS}ms`));
+          }, TTS_TIMEOUT_MS);
         }),
       ]);
 
@@ -137,7 +150,6 @@ export class TTSStep implements IPipelineStep {
   }
 
   private async performTTS(
-    voiceEngineClient: VoiceEngineClient,
     registrationService: VoiceRegistrationService,
     text: string,
     slug: string,
@@ -147,7 +159,7 @@ export class TTSStep implements IPipelineStep {
     await registrationService.ensureVoiceRegistered(slug);
 
     // Synthesize (with chunking for long text)
-    const { audioBuffer } = await synthesizeWithChunking(voiceEngineClient, text, slug);
+    const { audioBuffer } = await synthesizeWithChunking(registrationService.client, text, slug);
 
     // Store audio in Redis
     const jobId = context.job.id ?? context.job.data.requestId;
