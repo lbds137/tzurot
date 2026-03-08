@@ -21,11 +21,7 @@ _Empty (2026-03-04)._
 
 _New items go here. Triage to appropriate section weekly._
 
-- 🧹 `[CHORE]` **Python CI for voice-engine tests** — 26 pytest tests exist but no CI step runs them. Add a GitHub Actions job with `pip install -r requirements-dev.txt` + `pytest`. Without this, tests will silently rot as `server.py` changes.
-- 🧹 `[CHORE]` **Voice-engine LRU eviction test** — `_cache_voice` eviction when `len(voice_cache) > MAX_VOICE_CACHE_SIZE` has no test coverage. Low risk (simple logic) but worth a follow-up.
-- ✨ `[FEAT]` **Voice-engine empty-transcription fallback toggle** — If voice-engine returns `""` for speech that contains words (model bug), there's no Whisper retry. Consider a `VOICE_ENGINE_EMPTY_FALLBACK=true` env toggle in Phase 3 if quality issues emerge.
 - 🏗️ `[LIFT]` **OpenAI Whisper client singleton** — `transcribeWithWhisper` creates a new `OpenAI` client per call, forfeiting connection pooling. Extract to a module-level singleton like `VoiceEngineClient`.
-- 🧹 `[CHORE]` **Voice-engine root logger JSON formatting** — `_setup_logging` attaches `_JsonFormatter` to the `voice-engine` logger only. Uvicorn/FastAPI/librosa emit on their own loggers as plain text, mixing formats in Railway's log stream. Attach handler to root logger at WARNING level to capture third-party logs in JSON too.
 
 ## 🎯 Current Focus
 
@@ -38,10 +34,6 @@ _Empty — pull next from Quick Wins or Active Epic._
 ## ⚡️ Quick Wins
 
 _Small tasks that can be done between major features. Good for momentum._
-
-### ✨ Voice-engine startup health check
-
-Call `isHealthy()` on ai-worker startup when `VOICE_ENGINE_URL` is configured. Warns loudly if voice-engine returns 401/403 (misconfigured API key), catching mis-deployments before they generate sustained OpenAI fallback costs. The method already exists — just needs wiring into worker init.
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
@@ -398,6 +390,16 @@ Replace current Whisper-based transcription with VoiceEngineClient that routes t
 #### Phase 3: TTS + Voice Cloning
 
 Enable personalities to speak — generate voice responses from LLM text output.
+
+**Pre-requisites (from Phase 2 review):**
+
+- [ ] Add Python CI for voice-engine tests (GitHub Actions job: `pip install -r requirements-dev.txt && pytest`)
+- [ ] Attach `_JsonFormatter` to root logger at WARNING level (third-party logs currently emit plain text)
+- [ ] Add startup health check — call `isHealthy()` on ai-worker boot when `VOICE_ENGINE_URL` is set
+- [ ] Add LRU eviction test for `_cache_voice`
+- [ ] Add `VOICE_ENGINE_EMPTY_FALLBACK` env toggle if quality issues emerge post-deployment
+
+**Core work:**
 
 - [ ] Add voice configuration to personality schema (`voiceEnabled`, `voiceId`, `referenceAudioUrl`)
 - [ ] Wire TTS into response pipeline — when `voiceEnabled`, generate audio from LLM response text

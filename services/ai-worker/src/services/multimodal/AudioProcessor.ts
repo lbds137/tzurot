@@ -29,6 +29,7 @@ async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
   const fetchTimeout = setTimeout(() => controller.abort(), TIMEOUTS.AUDIO_FETCH);
 
   try {
+    logger.debug({ url }, 'Fetching audio');
     const response = await fetch(url, { signal: controller.signal });
 
     if (!response.ok) {
@@ -72,7 +73,10 @@ async function transcribeWithVoiceEngine(
     );
 
     if (result.text.length === 0) {
-      logger.info(
+      // Warn if duration suggests real speech (>1s) — may indicate a model issue
+      const logLevel =
+        attachment.duration !== undefined && attachment.duration > 1 ? 'warn' : 'info';
+      logger[logLevel](
         { duration: attachment.duration },
         'Voice engine returned empty transcription (silent or inaudible audio)'
       );
@@ -91,9 +95,15 @@ async function transcribeWithVoiceEngine(
     // user gets a transcription even with misconfigured voice-engine, at the
     // cost of silent OpenAI API usage visible only in error logs).
     if (error instanceof VoiceEngineError && error.isAuthError) {
-      logger.error({ err: error }, 'Voice engine auth error — check VOICE_ENGINE_API_KEY config');
+      logger.error(
+        { err: error, voiceEngineFallback: true },
+        'Voice engine auth error — check VOICE_ENGINE_API_KEY config'
+      );
     } else {
-      logger.warn({ err: error }, '[FALLBACK] Voice engine unavailable — transcribing via Whisper');
+      logger.warn(
+        { err: error, voiceEngineFallback: true },
+        '[FALLBACK] Voice engine unavailable — transcribing via Whisper'
+      );
     }
     return null;
   }

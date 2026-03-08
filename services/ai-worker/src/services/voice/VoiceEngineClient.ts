@@ -98,6 +98,7 @@ export class VoiceEngineClient {
       return await fetch(`${this.baseUrl}${path}`, {
         ...init,
         signal: controller.signal,
+        // init.headers is always a plain object (or undefined) from internal callers only
         headers: { ...headers, ...(init.headers as Record<string, string>) },
       });
     } catch (error) {
