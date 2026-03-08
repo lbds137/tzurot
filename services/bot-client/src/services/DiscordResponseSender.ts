@@ -244,13 +244,10 @@ export class DiscordResponseSender {
     }
     const audioBuffer = await redisService.getTTSAudio(ttsAudioKey);
     if (audioBuffer === null) {
-      logger.warn({ ttsAudioKey }, '[DiscordResponseSender] TTS audio expired or not found');
+      logger.warn({ ttsAudioKey }, 'TTS audio expired or not found');
       return undefined;
     }
-    logger.debug(
-      { ttsAudioKey, audioSize: audioBuffer.length },
-      '[DiscordResponseSender] TTS audio fetched'
-    );
+    logger.debug({ ttsAudioKey, audioSize: audioBuffer.length }, 'TTS audio fetched');
     return [{ attachment: audioBuffer, name: 'voice.wav' }];
   }
 

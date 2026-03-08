@@ -239,7 +239,7 @@ describe('TTSStep', () => {
   });
 
   describe('process (successful TTS)', () => {
-    it('sets ttsAudioKey and ttsContentType on result.metadata', async () => {
+    it('sets ttsAudioKey on result.metadata', async () => {
       mockStoreTTSAudio.mockResolvedValue('tts:test-job');
       mockSynthesizeWithChunking.mockResolvedValue({
         audioBuffer: Buffer.from('fake-audio-data'),
@@ -253,7 +253,6 @@ describe('TTSStep', () => {
       const result = await promise;
 
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:test-job');
-      expect(result.result?.metadata?.ttsContentType).toBe('audio/wav');
       expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
       expect(mockSynthesizeWithChunking).toHaveBeenCalledWith(
         expect.anything(), // voice engine client

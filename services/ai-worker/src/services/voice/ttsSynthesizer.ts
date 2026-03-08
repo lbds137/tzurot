@@ -20,6 +20,9 @@ const WAV_HEADER_SIZE = 44;
 /** Sentence boundary regex — splits after sentence-ending punctuation followed by whitespace */
 const SENTENCE_BOUNDARY = /(?<=[.!?])\s+/;
 
+/** Default sample rate when WAV header is invalid (Pocket TTS default) */
+const DEFAULT_SAMPLE_RATE = 22050;
+
 /**
  * Force-split a sentence that exceeds MAX_CHUNK_LENGTH at word boundaries.
  * Returns the split chunks and any remaining text that fits within the limit.
@@ -89,13 +92,24 @@ export function splitTextIntoChunks(text: string): string[] {
 
 /**
  * Extract raw PCM data from a WAV buffer by skipping the 44-byte header.
- * Assumes standard RIFF WAV format (PCM, no extra chunks before data).
+ * Validates the RIFF/data markers before slicing. If the markers don't match
+ * (e.g., extra metadata chunks shifted the data offset), logs a warning but
+ * still slices at 44 — this is a contract with voice-engine's Pocket TTS output.
  *
  * @internal Exported for testing
  */
 export function extractPcmData(wavBuffer: Buffer): Buffer {
   if (wavBuffer.length <= WAV_HEADER_SIZE) {
     return Buffer.alloc(0);
+  }
+  // Validate expected WAV structure (RIFF header + "data" sub-chunk at offset 36)
+  const riffMarker = wavBuffer.subarray(0, 4).toString('ascii');
+  const dataMarker = wavBuffer.subarray(36, 40).toString('ascii');
+  if (riffMarker !== 'RIFF' || dataMarker !== 'data') {
+    logger.warn(
+      { riffMarker, dataMarker, bufferLength: wavBuffer.length },
+      'WAV buffer has unexpected header structure — PCM extraction may be incorrect'
+    );
   }
   return wavBuffer.subarray(WAV_HEADER_SIZE);
 }
@@ -137,10 +151,11 @@ export function buildWavHeader(pcmDataLength: number, sampleRate: number): Buffe
 
 /**
  * Infer sample rate from a WAV buffer header.
- * Falls back to 22050 (Pocket TTS default) if the header is invalid.
+ * Falls back to DEFAULT_SAMPLE_RATE (22050, Pocket TTS default) if the header is invalid.
+ *
+ * @internal Exported for testing
  */
-function inferSampleRate(wavBuffer: Buffer): number {
-  const DEFAULT_SAMPLE_RATE = 22050;
+export function inferSampleRate(wavBuffer: Buffer): number {
   if (wavBuffer.length < WAV_HEADER_SIZE) {
     return DEFAULT_SAMPLE_RATE;
   }
@@ -186,6 +201,16 @@ export async function synthesizeWithChunking(
 
   // Extract PCM data from each WAV result and concatenate
   const sampleRate = inferSampleRate(results[0].audioBuffer);
+  // Verify sample rate consistency across chunks (mismatches would produce garbled audio)
+  for (let i = 1; i < results.length; i++) {
+    const chunkRate = inferSampleRate(results[i].audioBuffer);
+    if (chunkRate !== sampleRate) {
+      logger.warn(
+        { chunkIndex: i, expected: sampleRate, got: chunkRate },
+        'Sample rate mismatch across TTS chunks'
+      );
+    }
+  }
   const pcmBuffers = results.map(r => extractPcmData(r.audioBuffer));
   const totalPcmLength = pcmBuffers.reduce((sum, buf) => sum + buf.length, 0);
 

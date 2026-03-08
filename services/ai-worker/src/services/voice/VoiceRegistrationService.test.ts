@@ -69,7 +69,7 @@ describe('VoiceRegistrationService', () => {
 
     await service.ensureVoiceRegistered('new-voice');
 
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/voices/new-voice');
+    expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/voice-references/new-voice');
     expect(mockVoiceEngineClient.registerVoice).toHaveBeenCalledWith(
       'new-voice',
       expect.any(Buffer),
@@ -101,7 +101,7 @@ describe('VoiceRegistrationService', () => {
 
     await service.ensureVoiceRegistered('fallback-voice');
 
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/voices/fallback-voice');
+    expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/voice-references/fallback-voice');
     expect(mockVoiceEngineClient.registerVoice).toHaveBeenCalledWith(
       'fallback-voice',
       expect.any(Buffer),
@@ -165,6 +165,8 @@ describe('VoiceRegistrationService', () => {
 
     await service.ensureVoiceRegistered('voice with spaces');
 
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/voices/voice%20with%20spaces');
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:3000/voice-references/voice%20with%20spaces'
+    );
   });
 });
