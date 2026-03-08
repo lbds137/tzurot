@@ -110,13 +110,13 @@ export const loadedPersonalitySchema = z.object({
   errorMessage: z.string().optional(),
 
   // Voice configuration (prerequisite for TTS — personality must have voice reference set up)
+  // TODO: Change to .default(false) after updating ~35 test fixtures (see BACKLOG Phase 3)
   /** Whether this personality has a voice reference configured for TTS.
    * Optional (not `.default(false)`) to avoid breaking ~35 test fixtures that construct
-   * LoadedPersonality without this field. DB always provides a value via @default(false),
-   * and TTSStep checks `!== true` which treats undefined the same as false.
+   * LoadedPersonality without this field. DB always provides a value via @default(false).
    *
-   * Convention: all consumers MUST use `voiceEnabled !== true` (not `=== false`)
-   * to correctly handle undefined as "disabled". */
+   * Use the `isVoiceEnabled()` helper instead of checking this field directly —
+   * it correctly handles undefined as "disabled". */
   voiceEnabled: z.boolean().optional(),
 });
 
