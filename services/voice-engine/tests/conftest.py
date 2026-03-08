@@ -1,16 +1,33 @@
 """Shared fixtures for voice-engine tests.
 
 Mocks NeMo ASR and Pocket TTS models so tests run without GPU/model files.
+Heavy ML packages (librosa, nemo_toolkit, pocket_tts) are pre-mocked via
+sys.modules so tests can run in CI without PyTorch or GPU drivers.
 """
 
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
 from unittest.mock import MagicMock
 
 import httpx
 import pytest
+
+# ---------------------------------------------------------------------------
+# Pre-mock heavy ML modules BEFORE importing server.py (which imports them at
+# top level). This lets tests run in CI with only numpy/scipy installed.
+# ---------------------------------------------------------------------------
+for _mod_name in (
+    "librosa",
+    "nemo",
+    "nemo.collections",
+    "nemo.collections.asr",
+    "pocket_tts",
+):
+    if _mod_name not in sys.modules:
+        sys.modules[_mod_name] = MagicMock()  # type: ignore[assignment]
 
 from server import app, models, voice_cache
 from tests.helpers import FakeTranscription

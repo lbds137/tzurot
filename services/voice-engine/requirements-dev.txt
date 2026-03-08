@@ -4,3 +4,15 @@ mypy>=1.13.0,<2.0.0
 pytest>=8.0.0,<9.0.0
 pytest-asyncio>=0.24.0,<1.0.0
 httpx>=0.27.0,<1.0.0
+
+# Web framework (server.py imports at top level, needed to run tests)
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.34.0,<1.0.0
+python-multipart>=0.0.18,<1.0.0
+
+# Audio processing (used by test fixtures and WAV generation in endpoints)
+numpy>=2.0,<3.0
+scipy>=1.14.0,<2.0.0
+
+# Heavy ML deps (librosa, nemo_toolkit, pocket-tts) are mocked via
+# sys.modules in conftest.py — they require PyTorch which is too large for CI.
