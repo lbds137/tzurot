@@ -172,6 +172,63 @@ describe('VoiceRegistrationService', () => {
     );
   });
 
+  it('should cache failure and reject immediately on retry (negative caching)', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    });
+
+    // First call: fails and caches
+    await expect(service.ensureVoiceRegistered('bad-voice')).rejects.toThrow(
+      'Failed to fetch voice reference for "bad-voice": 404 Not Found'
+    );
+
+    // Second call: fails immediately from negative cache without hitting gateway
+    mockFetch.mockClear();
+    mockVoiceEngineClient.listVoices.mockClear();
+
+    await expect(service.ensureVoiceRegistered('bad-voice')).rejects.toThrow(
+      'Voice registration for "bad-voice" recently failed'
+    );
+
+    // Should NOT have called listVoices or fetch on the second attempt
+    expect(mockVoiceEngineClient.listVoices).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('should retry after clearCache clears negative entries', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    });
+
+    // First call: fails and caches
+    await expect(service.ensureVoiceRegistered('retry-voice')).rejects.toThrow();
+
+    // Clear caches
+    service.clearCache();
+
+    // Now mock a successful response
+    mockVoiceEngineClient.registerVoice.mockResolvedValue(undefined);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(50)),
+      headers: { get: vi.fn().mockReturnValue('audio/wav') },
+    });
+
+    // Should succeed after cache clear
+    await service.ensureVoiceRegistered('retry-voice');
+    expect(mockVoiceEngineClient.registerVoice).toHaveBeenCalledWith(
+      'retry-voice',
+      expect.any(Buffer),
+      'audio/wav'
+    );
+  });
+
   it('should URL-encode the slug in the gateway request', async () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
     mockVoiceEngineClient.registerVoice.mockResolvedValue(undefined);

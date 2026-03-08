@@ -12,13 +12,18 @@ import type { VoiceEngineClient } from './VoiceEngineClient.js';
 
 const logger = createLogger('VoiceRegistrationService');
 
-/** TTL for registration cache entries (30 minutes) */
+/** TTL for successful registration cache entries (30 minutes) */
 const REGISTRATION_CACHE_TTL_MS = 30 * 60 * 1000;
+/** TTL for failed registration cache entries (5 minutes) — suppresses retry storms
+ * when a personality has a misconfigured voice reference (404, timeout, etc.) */
+const NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 /** Max number of cached registration statuses */
 const REGISTRATION_CACHE_MAX_SIZE = 200;
 
 export class VoiceRegistrationService {
   private readonly registrationCache: TTLCache<boolean>;
+  /** Negative cache — suppresses retries for slugs with known failures (404, timeout) */
+  private readonly negativeCache: TTLCache<string>;
   /** In-flight registration promises to prevent concurrent duplicate registrations */
   private readonly inflight = new Map<string, Promise<void>>();
 
@@ -31,6 +36,10 @@ export class VoiceRegistrationService {
       ttl: REGISTRATION_CACHE_TTL_MS,
       maxSize: REGISTRATION_CACHE_MAX_SIZE,
     });
+    this.negativeCache = new TTLCache<string>({
+      ttl: NEGATIVE_CACHE_TTL_MS,
+      maxSize: REGISTRATION_CACHE_MAX_SIZE,
+    });
   }
 
   /**
@@ -41,9 +50,15 @@ export class VoiceRegistrationService {
    * @throws Error if voice reference cannot be fetched or registration fails
    */
   async ensureVoiceRegistered(slug: string): Promise<void> {
-    // Check cache
+    // Check positive cache
     if (this.registrationCache.get(slug) === true) {
       return;
+    }
+
+    // Check negative cache — avoid retrying known failures
+    const failReason = this.negativeCache.get(slug);
+    if (failReason !== null) {
+      throw new Error(`Voice registration for "${slug}" recently failed: ${failReason}`);
     }
 
     // Deduplicate concurrent registration attempts for the same slug
@@ -52,7 +67,15 @@ export class VoiceRegistrationService {
       return existing;
     }
 
-    const promise = this.doRegister(slug).finally(() => this.inflight.delete(slug));
+    const promise = this.doRegister(slug)
+      .catch(error => {
+        // Cache the failure to suppress retry storms (e.g., 404 voice reference)
+        const reason = error instanceof Error ? error.message : String(error);
+        this.negativeCache.set(slug, reason);
+        logger.warn({ slug, reason }, 'Voice registration failed — cached for 5 min');
+        throw error; // Re-throw so TTSStep sees the error
+      })
+      .finally(() => this.inflight.delete(slug));
     this.inflight.set(slug, promise);
     return promise;
   }
@@ -115,8 +138,9 @@ export class VoiceRegistrationService {
     logger.info({ slug }, 'Voice registered successfully');
   }
 
-  /** Clear registration cache (for testing). */
+  /** Clear registration caches (for testing). */
   clearCache(): void {
     this.registrationCache.clear();
+    this.negativeCache.clear();
   }
 }
