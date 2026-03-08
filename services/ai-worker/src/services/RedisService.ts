@@ -234,6 +234,10 @@ export class RedisService {
 
   /**
    * Store TTS audio buffer in Redis with TTL.
+   *
+   * Intentionally does NOT catch errors — callers (TTSStep) handle failures
+   * as non-fatal and fall back to text-only responses.
+   *
    * @param jobId Job ID (used to build key: tts-audio:{jobId})
    * @param audio Audio buffer (binary)
    * @param ttlSeconds TTL in seconds (default: 300 = 5 minutes)

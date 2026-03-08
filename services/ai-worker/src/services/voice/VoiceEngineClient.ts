@@ -129,6 +129,8 @@ export class VoiceEngineClient {
     const formData = new FormData();
     formData.append('voice_id', voiceId);
     const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
+    // Extension is for the multipart filename hint only — voice-engine reads the actual
+    // audio format from the Content-Type header, not the file extension.
     formData.append('audio', blob, `${voiceId}.wav`);
 
     const response = await this.fetchWithTimeout('/v1/voices/register', {
