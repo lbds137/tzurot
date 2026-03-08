@@ -78,6 +78,9 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+.coverage
+coverage.xml
+.pytest_cache/
 services/voice-engine/voices/*
 !services/voice-engine/voices/.gitkeep
 

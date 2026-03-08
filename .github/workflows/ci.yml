@@ -297,7 +297,17 @@ jobs:
 
       - name: Run voice-engine tests
         if: steps.filter.outputs.voice-engine == 'true'
-        run: cd services/voice-engine && python -m pytest tests/ -v
+        run: cd services/voice-engine && python -m pytest tests/ -v --cov=server --cov-report=xml:coverage.xml
+
+      - name: Upload voice-engine coverage to Codecov
+        if: ${{ !cancelled() && steps.filter.outputs.voice-engine == 'true' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./services/voice-engine/coverage.xml
+          flags: voice-engine
+          fail_ci_if_error: true
+          verbose: true
 
   build:
     runs-on: ubuntu-latest

@@ -40,6 +40,9 @@ flags:
   common-types:
     paths:
       - packages/common-types/
+  voice-engine:
+    paths:
+      - services/voice-engine/
   # Integration tests cover all services
   integration:
     paths:
@@ -49,6 +52,7 @@ flags:
 ignore:
   - '**/*.test.ts'
   - '**/*.spec.ts'
+  - '**/tests/**'
   - '**/dist/**'
   - '**/node_modules/**'
   - 'scripts/**'
