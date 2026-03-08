@@ -21,8 +21,6 @@ _Empty (2026-03-04)._
 
 _New items go here. Triage to appropriate section weekly._
 
-- 🏗️ `[LIFT]` **OpenAI Whisper client singleton** — `transcribeWithWhisper` creates a new `OpenAI` client per call, forfeiting connection pooling. Extract to a module-level singleton like `VoiceEngineClient`.
-
 ## 🎯 Current Focus
 
 _This week's active work. Max 3 items._
@@ -398,6 +396,7 @@ Enable personalities to speak — generate voice responses from LLM text output.
 - [ ] Add startup health check — call `isHealthy()` on ai-worker boot when `VOICE_ENGINE_URL` is set
 - [ ] Add LRU eviction test for `_cache_voice`
 - [ ] Add `VOICE_ENGINE_EMPTY_FALLBACK` env toggle if quality issues emerge post-deployment
+- [ ] Extract OpenAI Whisper client to module-level singleton (connection pool reuse)
 
 **Core work:**
 

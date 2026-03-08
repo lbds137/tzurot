@@ -122,6 +122,17 @@ See Part 6 for full details. Quick checklist:
 
 ### Phase 3 Entry Points
 
+**Pre-requisites (from Phase 2 PR review — do these first):**
+
+- Add Python CI for voice-engine tests (GitHub Actions: `pip install -r requirements-dev.txt && pytest`)
+- Attach `_JsonFormatter` to root logger at WARNING level (third-party logs emit plain text)
+- Add startup health check — call `isHealthy()` on ai-worker boot when `VOICE_ENGINE_URL` is set
+- Add LRU eviction test for `_cache_voice`
+- Extract OpenAI Whisper client to module-level singleton (connection pool reuse)
+- Add `VOICE_ENGINE_EMPTY_FALLBACK` env toggle if quality issues emerge post-deployment
+
+**Core work:**
+
 - **Bot-client TTS integration** — `POST /v1/tts` for generating speech, sending as Discord audio attachment
 - **TTS filesystem cache + BullMQ cleanup job** — 1-hour TTL for generated audio files
 - **Voice registration slash commands** — `/voice register`, `/voice list`, `/voice remove`
