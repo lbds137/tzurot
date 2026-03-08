@@ -69,7 +69,10 @@ describe('VoiceRegistrationService', () => {
 
     await service.ensureVoiceRegistered('new-voice');
 
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/voice-references/new-voice');
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:3000/voice-references/new-voice',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
     expect(mockVoiceEngineClient.registerVoice).toHaveBeenCalledWith(
       'new-voice',
       expect.any(Buffer),
@@ -101,7 +104,10 @@ describe('VoiceRegistrationService', () => {
 
     await service.ensureVoiceRegistered('fallback-voice');
 
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/voice-references/fallback-voice');
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:3000/voice-references/fallback-voice',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
     expect(mockVoiceEngineClient.registerVoice).toHaveBeenCalledWith(
       'fallback-voice',
       expect.any(Buffer),
@@ -154,6 +160,18 @@ describe('VoiceRegistrationService', () => {
     );
   });
 
+  it('should throw descriptive error when gateway fetch times out', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    const abortError = new Error('The operation was aborted');
+    abortError.name = 'AbortError';
+    mockFetch.mockRejectedValue(abortError);
+
+    await expect(service.ensureVoiceRegistered('slow-voice')).rejects.toThrow(
+      'Gateway fetch timed out for voice reference "slow-voice"'
+    );
+  });
+
   it('should URL-encode the slug in the gateway request', async () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
     mockVoiceEngineClient.registerVoice.mockResolvedValue(undefined);
@@ -166,7 +184,8 @@ describe('VoiceRegistrationService', () => {
     await service.ensureVoiceRegistered('voice with spaces');
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:3000/voice-references/voice%20with%20spaces'
+      'http://localhost:3000/voice-references/voice%20with%20spaces',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
   });
 });
