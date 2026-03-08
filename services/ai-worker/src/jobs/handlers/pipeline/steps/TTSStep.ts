@@ -74,7 +74,8 @@ export class TTSStep implements IPipelineStep {
 
     try {
       // Apply timeout to the entire TTS process (clear timer on completion to avoid leak)
-      let timeoutId: NodeJS.Timeout;
+      // The timeout Promise executor runs synchronously, assigning timeoutId before performTTS settles
+      let timeoutId!: NodeJS.Timeout;
       const ttsResult = await Promise.race([
         this.performTTS(client, registrationService, text, slug, context).finally(() =>
           clearTimeout(timeoutId)

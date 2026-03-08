@@ -247,6 +247,14 @@ export class DiscordResponseSender {
       logger.warn({ ttsAudioKey }, 'TTS audio expired or not found');
       return undefined;
     }
+    // Discord non-Nitro servers have an 8 MB file upload limit
+    if (audioBuffer.length > DISCORD_LIMITS.FILE_UPLOAD_MAX_BYTES) {
+      logger.warn(
+        { ttsAudioKey, audioSize: audioBuffer.length, limit: DISCORD_LIMITS.FILE_UPLOAD_MAX_BYTES },
+        'TTS audio exceeds Discord file size limit, skipping attachment'
+      );
+      return undefined;
+    }
     logger.debug({ ttsAudioKey, audioSize: audioBuffer.length }, 'TTS audio fetched');
     return [{ attachment: audioBuffer, name: 'voice.wav' }];
   }
