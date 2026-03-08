@@ -10,6 +10,7 @@ import {
   splitTextIntoChunks,
   extractPcmData,
   buildWavHeader,
+  inferSampleRate,
   synthesizeWithChunking,
 } from './ttsSynthesizer.js';
 import type { VoiceEngineClient, SynthesisResult } from './VoiceEngineClient.js';
@@ -224,6 +225,46 @@ describe('buildWavHeader', () => {
   it('should set 16 bits per sample at offset 34', () => {
     const header = buildWavHeader(1000, 22050);
     expect(header.readUInt16LE(34)).toBe(16);
+  });
+});
+
+describe('inferSampleRate', () => {
+  it('should return sample rate from valid WAV header', () => {
+    const header = buildWavHeader(1000, 44100);
+    const wav = Buffer.concat([header, Buffer.alloc(1000)]);
+
+    expect(inferSampleRate(wav)).toBe(44100);
+  });
+
+  it('should return default sample rate for buffer shorter than WAV header', () => {
+    const shortBuffer = Buffer.alloc(20);
+
+    expect(inferSampleRate(shortBuffer)).toBe(22050);
+  });
+
+  it('should return default sample rate when rate is 0', () => {
+    const header = buildWavHeader(100, 22050);
+    // Overwrite sample rate at offset 24 with 0
+    header.writeUInt32LE(0, 24);
+    const wav = Buffer.concat([header, Buffer.alloc(100)]);
+
+    expect(inferSampleRate(wav)).toBe(22050);
+  });
+
+  it('should return default sample rate when rate exceeds 96000', () => {
+    const header = buildWavHeader(100, 22050);
+    // Overwrite sample rate at offset 24 with an absurd value
+    header.writeUInt32LE(200000, 24);
+    const wav = Buffer.concat([header, Buffer.alloc(100)]);
+
+    expect(inferSampleRate(wav)).toBe(22050);
+  });
+
+  it('should accept 96000 as a valid sample rate', () => {
+    const header = buildWavHeader(100, 96000);
+    const wav = Buffer.concat([header, Buffer.alloc(100)]);
+
+    expect(inferSampleRate(wav)).toBe(96000);
   });
 });
 
