@@ -98,8 +98,12 @@ export class VoiceEngineClient {
       return await fetch(`${this.baseUrl}${path}`, {
         ...init,
         signal: controller.signal,
-        // init.headers is always a plain object (or undefined) from internal callers only
-        headers: { ...headers, ...(init.headers as Record<string, string>) },
+        headers: {
+          ...headers,
+          ...(init.headers !== undefined
+            ? Object.fromEntries(new Headers(init.headers).entries())
+            : {}),
+        },
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
