@@ -256,6 +256,8 @@ export class DiscordResponseSender {
       return undefined;
     }
     logger.debug({ ttsAudioKey, audioSize: audioBuffer.length }, 'TTS audio fetched');
+    // Hardcoded to .wav — Pocket TTS always produces WAV. Update extension if
+    // voice-engine adds OGG/MP3 support (would also help with the 8 MB size limit).
     return [{ attachment: audioBuffer, name: 'voice.wav' }];
   }
 

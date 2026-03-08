@@ -120,7 +120,7 @@ describe('VoiceEngineClient', () => {
   });
 
   describe('isHealthy', () => {
-    it('should return true when asr_loaded is true', async () => {
+    it('should return true when both asr_loaded and tts_loaded are true', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue({
@@ -140,6 +140,21 @@ describe('VoiceEngineClient', () => {
         json: vi.fn().mockResolvedValue({
           status: 'ok',
           asr_loaded: false,
+          tts_loaded: true,
+        }),
+      });
+
+      const result = await client.isHealthy();
+      expect(result).toBe(false);
+    });
+
+    it('should return false when tts_loaded is false', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          status: 'ok',
+          asr_loaded: true,
+          tts_loaded: false,
         }),
       });
 

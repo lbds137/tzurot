@@ -71,15 +71,15 @@ export class VoiceEngineClient {
     return (await response.json()) as TranscriptionResult;
   }
 
-  /** Check service health via GET /health. Used for Phase 3 monitoring/readiness checks. */
+  /** Check service health via GET /health. Verifies both ASR and TTS models are loaded. */
   async isHealthy(): Promise<boolean> {
     try {
       const response = await this.fetchWithTimeout('/health', { method: 'GET' }, 5_000);
       if (!response.ok) {
         return false;
       }
-      const body = (await response.json()) as { asr_loaded?: boolean };
-      return body.asr_loaded === true;
+      const body = (await response.json()) as { asr_loaded?: boolean; tts_loaded?: boolean };
+      return body.asr_loaded === true && body.tts_loaded === true;
     } catch {
       return false;
     }
