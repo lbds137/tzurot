@@ -96,10 +96,15 @@ export function splitTextIntoChunks(text: string): string[] {
 }
 
 /**
- * Extract raw PCM data from a WAV buffer by skipping the 44-byte header.
- * Validates the RIFF/data markers before slicing. If the markers don't match
- * (e.g., extra metadata chunks shifted the data offset), logs a warning but
- * still slices at 44 — this is a contract with voice-engine's Pocket TTS output.
+ * Extract raw PCM data from a WAV buffer by scanning for the 'data' chunk.
+ *
+ * WAV files store audio in RIFF chunks. The 'data' chunk is *usually* at
+ * byte 36 (PCM data starts at 44), but optional chunks like LIST, INFO,
+ * or JUNK can shift it. This function scans for the actual 'data' marker
+ * rather than assuming a fixed offset, making it robust against format
+ * variations (e.g., if voice-engine or FFMPEG adds metadata chunks).
+ *
+ * Falls back to offset 44 if the RIFF header is missing (non-WAV buffer).
  *
  * @internal Exported for testing
  */
@@ -111,15 +116,35 @@ export function extractPcmData(wavBuffer: Buffer): Buffer {
     );
     return Buffer.alloc(0);
   }
-  // Validate expected WAV structure (RIFF header + "data" sub-chunk at offset 36)
+
   const riffMarker = wavBuffer.subarray(0, 4).toString('ascii');
-  const dataMarker = wavBuffer.subarray(36, 40).toString('ascii');
-  if (riffMarker !== 'RIFF' || dataMarker !== 'data') {
+  if (riffMarker !== 'RIFF') {
     logger.warn(
-      { riffMarker, dataMarker, bufferLength: wavBuffer.length },
-      'WAV buffer has unexpected header structure — PCM extraction may be incorrect'
+      { riffMarker, bufferLength: wavBuffer.length },
+      'Buffer missing RIFF header — falling back to fixed 44-byte offset'
     );
+    return wavBuffer.subarray(WAV_HEADER_SIZE);
   }
+
+  // Scan RIFF chunks to find the 'data' sub-chunk.
+  // Start after 'RIFF' (4) + fileSize (4) + 'WAVE' (4) = offset 12
+  let offset = 12;
+  while (offset + 8 <= wavBuffer.length) {
+    const chunkId = wavBuffer.subarray(offset, offset + 4).toString('ascii');
+    const chunkSize = wavBuffer.readUInt32LE(offset + 4);
+
+    if (chunkId === 'data') {
+      return wavBuffer.subarray(offset + 8);
+    }
+    // Advance past this chunk's header (8 bytes) + data
+    offset += 8 + chunkSize;
+  }
+
+  // 'data' chunk not found — fall back to fixed offset
+  logger.warn(
+    { bufferLength: wavBuffer.length },
+    'WAV data chunk not found — falling back to fixed 44-byte offset'
+  );
   return wavBuffer.subarray(WAV_HEADER_SIZE);
 }
 

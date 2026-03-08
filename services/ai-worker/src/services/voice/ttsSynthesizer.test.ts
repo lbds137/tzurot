@@ -144,15 +144,68 @@ describe('extractPcmData', () => {
     expect(result.length).toBe(0);
   });
 
-  it('should return everything after the 44-byte header for valid WAV', () => {
+  it('should extract PCM from standard WAV with data chunk at offset 36', () => {
     const pcmContent = Buffer.from([0x01, 0x02, 0x03, 0x04, 0x05]);
+    const wav = createFakeWav(pcmContent);
+
+    const result = extractPcmData(wav);
+
+    expect(result.length).toBe(5);
+    expect(Buffer.compare(result, pcmContent)).toBe(0);
+  });
+
+  it('should find data chunk when preceded by extra RIFF sub-chunks', () => {
+    // Build a WAV with a LIST chunk inserted between fmt and data
+    const pcmContent = Buffer.from([0xaa, 0xbb, 0xcc]);
+
+    // RIFF header (12 bytes)
+    const riff = Buffer.alloc(12);
+    riff.write('RIFF', 0);
+    riff.write('WAVE', 8);
+
+    // fmt sub-chunk (24 bytes: 8 header + 16 data)
+    const fmt = Buffer.alloc(24);
+    fmt.write('fmt ', 0);
+    fmt.writeUInt32LE(16, 4); // chunk size
+    fmt.writeUInt16LE(1, 8); // PCM format
+    fmt.writeUInt16LE(1, 10); // mono
+    fmt.writeUInt32LE(22050, 12); // sample rate
+    fmt.writeUInt32LE(44100, 16); // byte rate
+    fmt.writeUInt16LE(2, 20); // block align
+    fmt.writeUInt16LE(16, 22); // bits per sample
+
+    // LIST sub-chunk (20 bytes: 8 header + 12 data) — shifts data chunk
+    const listData = Buffer.from('extra_data!!'); // 12 bytes
+    const list = Buffer.alloc(8 + listData.length);
+    list.write('LIST', 0);
+    list.writeUInt32LE(listData.length, 4);
+    listData.copy(list, 8);
+
+    // data sub-chunk (8 header + PCM)
+    const dataHeader = Buffer.alloc(8);
+    dataHeader.write('data', 0);
+    dataHeader.writeUInt32LE(pcmContent.length, 4);
+
+    // Update RIFF size
+    const totalSize = fmt.length + list.length + dataHeader.length + pcmContent.length + 4; // +4 for 'WAVE'
+    riff.writeUInt32LE(totalSize, 4);
+
+    const wav = Buffer.concat([riff, fmt, list, dataHeader, pcmContent]);
+
+    const result = extractPcmData(wav);
+
+    expect(result.length).toBe(3);
+    expect(Buffer.compare(result, pcmContent)).toBe(0);
+  });
+
+  it('should fall back to offset 44 when RIFF header is missing', () => {
     const header = Buffer.alloc(44);
+    const pcmContent = Buffer.from([0x01, 0x02, 0x03]);
     const wavBuffer = Buffer.concat([header, pcmContent]);
 
     const result = extractPcmData(wavBuffer);
 
-    expect(result.length).toBe(5);
-    expect(Buffer.compare(result, pcmContent)).toBe(0);
+    expect(result.length).toBe(3);
   });
 });
 

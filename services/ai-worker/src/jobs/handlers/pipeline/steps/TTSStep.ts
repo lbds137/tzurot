@@ -11,7 +11,7 @@
  * - If voiceResponseMode === 'voice-only', the trigger was a voice message
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, isVoiceEnabled } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { getVoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
 import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegistrationService.js';
@@ -129,7 +129,7 @@ export class TTSStep implements IPipelineStep {
 
     // Personality must have voice enabled
     const { personality } = context.job.data;
-    if (personality.voiceEnabled !== true) {
+    if (!isVoiceEnabled(personality)) {
       return false;
     }
 

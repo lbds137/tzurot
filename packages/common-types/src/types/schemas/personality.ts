@@ -205,6 +205,15 @@ export const requestContextSchema = z.object({
 
 // Infer TypeScript types from schemas
 export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
+
+/**
+ * Check if a personality has voice enabled for TTS.
+ * Centralizes the `voiceEnabled !== true` convention — use this instead of
+ * checking the field directly to correctly handle undefined as "disabled".
+ */
+export function isVoiceEnabled(personality: LoadedPersonality): boolean {
+  return personality.voiceEnabled === true;
+}
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
 export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;
