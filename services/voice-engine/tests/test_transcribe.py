@@ -8,7 +8,6 @@ import httpx
 import pytest
 
 import server
-from server import MAX_AUDIO_UPLOAD_BYTES
 
 
 async def test_transcribe_returns_text(client: httpx.AsyncClient, mock_asr: MagicMock) -> None:
