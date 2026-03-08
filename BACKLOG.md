@@ -406,6 +406,7 @@ Enable personalities to speak — generate voice responses from LLM text output.
 - [ ] Voice registration flow — admin uploads reference audio for a personality, creates voice state
 - [ ] Strip ElevenLabs audio tags (`[whisper]`, `[shout]`) for Pocket TTS free tier
 - [ ] Wire `voiceTranscriptionEnabled` cascade field to bot-client — field exists in ConfigOverridesSchema but isn't consumed yet (check before calling `VoiceTranscriptionService.transcribe()`)
+- [ ] 🏗️ `[LIFT]` Audit `isHealthy()` call site in `AudioProcessor` — now returns `false` when TTS is cold-starting even if ASR is ready; consider using `getHealth().asr` for STT-only decisions, or rename to `isFullyReady()` with a new `isAsrReady()` helper
 - [ ] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — currently `.optional()` to avoid breaking ~35 test fixtures; update fixtures to include `voiceEnabled: false` for strict type safety
 
 #### Phase 4: ElevenLabs Premium Tier
