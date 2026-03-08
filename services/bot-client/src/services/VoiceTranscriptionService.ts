@@ -13,6 +13,9 @@ import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUt
 
 const logger = createLogger('VoiceTranscriptionService');
 
+/** Interval for refreshing the typing indicator (Discord expires at ~10s, matches JobTracker.ts) */
+const TYPING_INDICATOR_INTERVAL_MS = 8000;
+
 /** Attachment info for transcription */
 interface TranscriptionAttachment {
   url: string;
@@ -169,10 +172,18 @@ export class VoiceTranscriptionService {
     hasMention: boolean,
     isReply: boolean
   ): Promise<VoiceTranscriptionResult | null> {
+    let typingInterval: NodeJS.Timeout | undefined;
     try {
       // Show typing indicator (if channel supports it)
+      // Refresh every 8s to keep it alive during long transcriptions (Discord expires at ~10s)
       if ('sendTyping' in message.channel) {
-        await message.channel.sendTyping();
+        const channel = message.channel;
+        await channel.sendTyping();
+        typingInterval = setInterval(() => {
+          void (channel as { sendTyping: () => Promise<void> }).sendTyping().catch(err => {
+            logger.warn({ err }, '[VoiceTranscriptionService] Failed to refresh typing indicator');
+          });
+        }, TYPING_INDICATOR_INTERVAL_MS);
       }
 
       // Extract voice attachment metadata from direct attachments
@@ -262,6 +273,10 @@ export class VoiceTranscriptionService {
           );
         });
       return null;
+    } finally {
+      if (typingInterval !== undefined) {
+        clearInterval(typingInterval);
+      }
     }
   }
 }

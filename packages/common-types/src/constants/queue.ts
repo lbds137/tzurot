@@ -75,6 +75,8 @@ export const REDIS_KEY_PREFIXES = {
   PROCESSED_MESSAGE: 'processed:',
   /** Prefix for vision failure negative cache (prevents re-hammering failed images) */
   VISION_FAILURE: 'vision:fail:',
+  /** Prefix for TTS audio buffer storage (binary, keyed by jobId) */
+  TTS_AUDIO: 'tts-audio:',
 } as const;
 
 /**

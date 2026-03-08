@@ -163,6 +163,8 @@ export class MessageHandler {
         thinkingContent: result.metadata?.thinkingContent,
         showThinking: result.metadata?.showThinking,
         showModelFooter: result.metadata?.showModelFooter,
+        ttsAudioKey: result.metadata?.ttsAudioKey,
+        ttsContentType: result.metadata?.ttsContentType,
       });
 
       // Save assistant message to conversation history

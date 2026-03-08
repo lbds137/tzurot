@@ -610,6 +610,38 @@ describe('BullMQ Job Contract Tests', () => {
       }
     });
 
+    it('should accept context with isVoiceMessage flag', () => {
+      const validJob: LLMGenerationJobData = {
+        requestId: 'req-voice-message-test',
+        jobType: JobType.LLMGeneration,
+        responseDestination: { type: 'discord', channelId: 'channel-123' },
+        personality: {
+          id: 'personality-123',
+          name: 'TestPersonality',
+          displayName: 'Test Personality',
+          slug: 'test',
+          systemPrompt: 'You are a helpful assistant',
+          model: 'gpt-4',
+          temperature: 0.7,
+          maxTokens: 2000,
+          contextWindowTokens: 8192,
+          characterInfo: 'A helpful test personality',
+          personalityTraits: 'Helpful, friendly',
+        },
+        message: 'Hello!',
+        context: {
+          userId: 'user-123',
+          isVoiceMessage: true,
+        },
+      };
+
+      const result = llmGenerationJobDataSchema.safeParse(validJob);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.context.isVoiceMessage).toBe(true);
+      }
+    });
+
     it('should accept context without participantGuildInfo (optional field)', () => {
       const validJob: LLMGenerationJobData = {
         requestId: 'req-no-guild-info',

@@ -351,6 +351,8 @@ describe('MessageContextBuilder', () => {
 
       expect(result.context.conversationHistory).toEqual([]);
       expect(result.conversationHistory).toEqual([]);
+      // Non-voice message should be false
+      expect(result.context.isVoiceMessage).toBe(false);
     });
 
     it('should extract and deduplicate referenced messages', async () => {
@@ -566,6 +568,8 @@ describe('MessageContextBuilder', () => {
 
       // Should complete successfully with debug logging
       expect(result.context.messageContent).toBe('Voice message');
+      // Should detect voice message from audio attachment with duration
+      expect(result.context.isVoiceMessage).toBe(true);
     });
 
     it('should not include referencedMessages in context when empty', async () => {

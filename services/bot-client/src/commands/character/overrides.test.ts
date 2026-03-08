@@ -69,6 +69,8 @@ describe('Character Overrides Dashboard', () => {
     crossChannelHistoryEnabled: false,
     shareLtmAcrossPersonalities: false,
     showModelFooter: true,
+    voiceResponseMode: 'never' as const,
+    voiceTranscriptionEnabled: true,
     sources: {
       maxMessages: 'personality',
       maxAge: 'personality',
@@ -79,6 +81,8 @@ describe('Character Overrides Dashboard', () => {
       crossChannelHistoryEnabled: 'personality',
       shareLtmAcrossPersonalities: 'personality',
       showModelFooter: 'hardcoded',
+      voiceResponseMode: 'hardcoded' as const,
+      voiceTranscriptionEnabled: 'hardcoded' as const,
     },
   };
 

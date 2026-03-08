@@ -2,7 +2,7 @@
  * VoiceTranscriptionService Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { VoiceTranscriptionService } from './VoiceTranscriptionService.js';
 import type { Message } from 'discord.js';
 import { MessageReferenceType } from 'discord.js';
@@ -45,6 +45,7 @@ describe('VoiceTranscriptionService', () => {
   };
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
 
     mockGatewayClient = {
@@ -52,6 +53,10 @@ describe('VoiceTranscriptionService', () => {
     };
 
     service = new VoiceTranscriptionService(mockGatewayClient as any);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('hasVoiceAttachment', () => {
@@ -428,6 +433,96 @@ describe('VoiceTranscriptionService', () => {
       // Should not throw
       const result = await service.transcribe(message, false, false);
       expect(result).toBeNull();
+    });
+
+    it('should refresh typing indicator every 8s during long transcriptions', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 30.0,
+          },
+        ],
+      });
+
+      // Make transcription take time so intervals fire
+      mockGatewayClient.transcribe.mockImplementation(
+        () =>
+          new Promise(resolve => {
+            // Resolve after timers advance
+            setTimeout(() => resolve({ content: 'Transcript' }), 20000);
+          })
+      );
+
+      const promise = service.transcribe(message, false, false);
+
+      // Initial sendTyping called immediately
+      expect((message.channel as any).sendTyping).toHaveBeenCalledTimes(1);
+
+      // Advance 8s — interval fires
+      await vi.advanceTimersByTimeAsync(8000);
+      expect((message.channel as any).sendTyping).toHaveBeenCalledTimes(2);
+
+      // Advance another 8s — interval fires again
+      await vi.advanceTimersByTimeAsync(8000);
+      expect((message.channel as any).sendTyping).toHaveBeenCalledTimes(3);
+
+      // Advance past the setTimeout (4s more to reach 20s total)
+      await vi.advanceTimersByTimeAsync(4000);
+
+      const result = await promise;
+      expect(result?.transcript).toBe('Transcript');
+    });
+
+    it('should clear typing interval on success', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Transcript',
+      });
+
+      await service.transcribe(message, false, false);
+
+      // After completion, advancing time should NOT trigger more sendTyping calls
+      const callCount = (message.channel as any).sendTyping.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(16000);
+      expect((message.channel as any).sendTyping).toHaveBeenCalledTimes(callCount);
+    });
+
+    it('should clear typing interval on error', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+
+      mockGatewayClient.transcribe.mockRejectedValue(new Error('Network error'));
+
+      await service.transcribe(message, false, false);
+
+      // After error, advancing time should NOT trigger more sendTyping calls
+      const callCount = (message.channel as any).sendTyping.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(16000);
+      expect((message.channel as any).sendTyping).toHaveBeenCalledTimes(callCount);
     });
 
     it('should skip typing indicator if channel does not support it', async () => {

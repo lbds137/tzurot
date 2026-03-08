@@ -103,6 +103,8 @@ export interface JobContext {
   isWeighIn?: boolean;
   /** Cross-channel conversation history (grouped by channel, for cross-channel context) */
   crossChannelHistory?: CrossChannelHistoryGroupEntry[];
+  /** Whether the triggering message was a voice message (used for voice-only TTS mode) */
+  isVoiceMessage?: boolean;
 }
 
 /**
@@ -325,6 +327,7 @@ const jobContextSchema = z.object({
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
   referencedChannels: z.array(referencedChannelSchema).optional(),
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
+  isVoiceMessage: z.boolean().optional(),
 });
 
 /**

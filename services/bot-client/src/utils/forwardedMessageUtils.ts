@@ -290,6 +290,17 @@ export function hasForwardedVoiceAttachment(message: Message): boolean {
 }
 
 /**
+ * Check if a message contains voice attachments, either as direct attachments
+ * or within forwarded message snapshots.
+ */
+export function hasVoiceAttachments(message: Message): boolean {
+  const hasDirectVoice = message.attachments.some(
+    a => (a.contentType?.startsWith('audio/') ?? false) || a.duration !== null
+  );
+  return hasDirectVoice || hasForwardedVoiceAttachment(message);
+}
+
+/**
  * Get the effective text content from any message type.
  *
  * This is the canonical method for getting text content from a message.

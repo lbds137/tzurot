@@ -20,6 +20,25 @@ import { VoiceEngineError, getVoiceEngineClient } from '../voice/VoiceEngineClie
 
 const logger = createLogger('AudioProcessor');
 
+// ---------------------------------------------------------------------------
+// Lazy OpenAI singleton — avoids creating a new client per transcription
+// ---------------------------------------------------------------------------
+let _openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (_openaiClient !== null) {
+    return _openaiClient;
+  }
+  const config = getConfig();
+  _openaiClient = new OpenAI({ apiKey: config.OPENAI_API_KEY, timeout: TIMEOUTS.WHISPER_API });
+  return _openaiClient;
+}
+
+/** Reset singleton for testing. */
+export function resetOpenAIClient(): void {
+  _openaiClient = null;
+}
+
 /**
  * Fetch audio from a URL with timeout, returning a Buffer.
  * Shared by both voice-engine and Whisper paths.
@@ -128,10 +147,7 @@ async function transcribeWithWhisper(
     'Transcribing audio with Whisper'
   );
 
-  const openai = new OpenAI({
-    apiKey: config.OPENAI_API_KEY,
-    timeout: TIMEOUTS.WHISPER_API,
-  });
+  const openai = getOpenAIClient();
 
   const blob = new Blob([audioBuffer], { type: attachment.contentType });
   const audioFile = new File(

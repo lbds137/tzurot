@@ -14,6 +14,7 @@ vi.mock('../redis.js', () => ({
   redisService: {
     storeWebhookMessage: vi.fn().mockResolvedValue(undefined),
     getWebhookPersonality: vi.fn(),
+    getTTSAudio: vi.fn().mockResolvedValue(null),
     checkHealth: vi.fn(),
     close: vi.fn(),
   },
@@ -1087,6 +1088,114 @@ describe('DiscordResponseSender', () => {
       // Subsequent thinking chunks should just have spoiler content
       const secondThinkingCall = mockWebhookManager.sendAsPersonality.mock.calls[1][2] as string;
       expect(secondThinkingCall).toMatch(/^\|\|.*\|\|$/s);
+    });
+  });
+
+  describe('sendResponse - TTS Audio', () => {
+    it('should attach audio file to last webhook chunk when ttsAudioKey present', async () => {
+      const { redisService } = await import('../redis.js');
+      const audioBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(audioBuffer);
+
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Hello from bot!',
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:job-123',
+        ttsContentType: 'audio/wav',
+      });
+
+      expect(redisService.getTTSAudio).toHaveBeenCalledWith('tts-audio:job-123');
+      // 4th argument is the files array
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
+      expect(filesArg).toEqual([{ attachment: audioBuffer, name: 'voice.wav' }]);
+    });
+
+    it('should not attach audio when ttsAudioKey is not present', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Hello!',
+        personality: mockPersonality,
+        message: mockMessage,
+      });
+
+      // 4th argument should be undefined (no files)
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
+      expect(filesArg).toBeUndefined();
+    });
+
+    it('should not attach audio when Redis returns null (expired)', async () => {
+      const { redisService } = await import('../redis.js');
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(null);
+
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Hello!',
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:expired',
+      });
+
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
+      expect(filesArg).toBeUndefined();
+    });
+
+    it('should attach audio to last chunk only for multi-chunk responses', async () => {
+      const { redisService } = await import('../redis.js');
+      const audioBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(audioBuffer);
+
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      mockWebhookManager.sendAsPersonality
+        .mockResolvedValueOnce({ id: 'msg-1' })
+        .mockResolvedValueOnce({ id: 'msg-2' });
+
+      await sender.sendResponse({
+        content: 'x'.repeat(3000),
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:job-123',
+      });
+
+      // First chunk: no files
+      const firstFiles = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
+      expect(firstFiles).toBeUndefined();
+
+      // Last chunk: has files
+      const lastFiles = mockWebhookManager.sendAsPersonality.mock.calls[1][3];
+      expect(lastFiles).toEqual([{ attachment: audioBuffer, name: 'voice.wav' }]);
+    });
+
+    it('should attach audio to DM via object send form', async () => {
+      const { redisService } = await import('../redis.js');
+      const audioBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(audioBuffer);
+
+      const mockChannel = createMockTextChannel('dm-123');
+      const mockMessage = createMockMessage(mockChannel, null);
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'dm-msg-123' });
+
+      await sender.sendResponse({
+        content: 'Hello in DM!',
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:job-123',
+        ttsContentType: 'audio/wav',
+      });
+
+      expect(mockChannel.send).toHaveBeenCalledWith({
+        content: expect.stringContaining('Test Bot:'),
+        files: [{ attachment: audioBuffer, name: 'voice.wav' }],
+      });
     });
   });
 });

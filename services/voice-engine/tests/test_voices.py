@@ -5,7 +5,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import httpx
+import pytest
 
+import server as server_mod
 from server import voice_cache
 
 
@@ -90,3 +92,40 @@ async def test_list_voices_requires_auth(client: httpx.AsyncClient, api_key: str
     response = await client.get("/v1/voices")
 
     assert response.status_code == 401
+
+
+def test_voice_cache_lru_eviction(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When cache exceeds MAX_VOICE_CACHE_SIZE, the oldest entry is evicted."""
+    monkeypatch.setattr(server_mod, "MAX_VOICE_CACHE_SIZE", 3)
+
+    server_mod._cache_voice("v1", {"state": "first"})
+    server_mod._cache_voice("v2", {"state": "second"})
+    server_mod._cache_voice("v3", {"state": "third"})
+    assert len(voice_cache) == 3
+
+    # Adding a 4th entry should evict the oldest (v1)
+    server_mod._cache_voice("v4", {"state": "fourth"})
+    assert len(voice_cache) == 3
+    assert "v1" not in voice_cache
+    assert "v2" in voice_cache
+    assert "v3" in voice_cache
+    assert "v4" in voice_cache
+
+
+def test_voice_cache_lru_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Re-caching an existing voice refreshes its LRU position."""
+    monkeypatch.setattr(server_mod, "MAX_VOICE_CACHE_SIZE", 3)
+
+    server_mod._cache_voice("v1", {"state": "first"})
+    server_mod._cache_voice("v2", {"state": "second"})
+    server_mod._cache_voice("v3", {"state": "third"})
+
+    # Refresh v1 — it becomes newest
+    server_mod._cache_voice("v1", {"state": "refreshed"})
+
+    # Adding v4 should evict v2 (now oldest), not v1
+    server_mod._cache_voice("v4", {"state": "fourth"})
+    assert "v1" in voice_cache
+    assert "v2" not in voice_cache
+    assert "v3" in voice_cache
+    assert "v4" in voice_cache

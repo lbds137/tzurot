@@ -26,8 +26,18 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+vi.mock('./services/voice/VoiceEngineClient.js', () => ({
+  getVoiceEngineClient: vi.fn(),
+}));
+
 import { HealthStatus } from '@tzurot/common-types';
-import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
+import { getVoiceEngineClient } from './services/voice/VoiceEngineClient.js';
+import {
+  validateRequiredEnvVars,
+  validateAIConfig,
+  buildHealthResponse,
+  checkVoiceEngineHealth,
+} from './startup.js';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {
@@ -160,6 +170,36 @@ describe('Startup Utilities', () => {
       // Verify it's a valid ISO date string
       expect(() => new Date(response.timestamp)).not.toThrow();
       expect(response.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    });
+  });
+
+  describe('checkVoiceEngineHealth', () => {
+    it('should not throw when voice engine is not configured', async () => {
+      vi.mocked(getVoiceEngineClient).mockReturnValue(null);
+
+      await expect(checkVoiceEngineHealth()).resolves.toBeUndefined();
+    });
+
+    it('should not throw when voice engine is healthy', async () => {
+      const mockClient = { isHealthy: vi.fn().mockResolvedValue(true) };
+      vi.mocked(getVoiceEngineClient).mockReturnValue(mockClient as never);
+
+      await expect(checkVoiceEngineHealth()).resolves.toBeUndefined();
+      expect(mockClient.isHealthy).toHaveBeenCalled();
+    });
+
+    it('should not throw when voice engine is unhealthy', async () => {
+      const mockClient = { isHealthy: vi.fn().mockResolvedValue(false) };
+      vi.mocked(getVoiceEngineClient).mockReturnValue(mockClient as never);
+
+      await expect(checkVoiceEngineHealth()).resolves.toBeUndefined();
+    });
+
+    it('should not throw when health check throws', async () => {
+      const mockClient = { isHealthy: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')) };
+      vi.mocked(getVoiceEngineClient).mockReturnValue(mockClient as never);
+
+      await expect(checkVoiceEngineHealth()).resolves.toBeUndefined();
     });
   });
 });

@@ -115,7 +115,7 @@ describe('VoiceEngineClient', () => {
 
       await expect(
         client.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav')
-      ).rejects.toThrow('Voice engine transcription failed (502): Bad Gateway');
+      ).rejects.toThrow('Voice engine request failed (502): Bad Gateway');
     });
   });
 
@@ -222,6 +222,143 @@ describe('VoiceEngineClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'http://voice-engine:8000/v1/transcribe',
         expect.any(Object)
+      );
+    });
+  });
+
+  describe('synthesize', () => {
+    it('should return audioBuffer and contentType on success', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        headers: { get: vi.fn().mockReturnValue('audio/wav') },
+      });
+
+      const result = await client.synthesize('Hello world', 'voice-1');
+
+      expect(result.audioBuffer).toBeInstanceOf(Buffer);
+      expect(result.audioBuffer.byteLength).toBe(100);
+      expect(result.contentType).toBe('audio/wav');
+    });
+
+    it('should throw VoiceEngineError on non-OK response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        json: vi.fn().mockResolvedValue({ detail: 'Invalid or missing API key' }),
+      });
+
+      await expect(client.synthesize('Hello', 'voice-1')).rejects.toMatchObject({
+        name: 'VoiceEngineError',
+        status: 401,
+        isAuthError: true,
+        message: expect.stringContaining('(401)'),
+      });
+    });
+
+    it('should send correct FormData fields to /v1/tts', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
+        headers: { get: vi.fn().mockReturnValue('audio/wav') },
+      });
+
+      await client.synthesize('Test text', 'my-voice');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://voice-engine:8000/v1/tts',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it('should fall back to audio/wav when content-type header is missing', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(50)),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      });
+
+      const result = await client.synthesize('Hello', 'voice-1');
+
+      expect(result.contentType).toBe('audio/wav');
+    });
+  });
+
+  describe('registerVoice', () => {
+    it('should succeed without throwing on 200', async () => {
+      mockFetch.mockResolvedValue({ ok: true });
+
+      await expect(
+        client.registerVoice('voice-1', Buffer.from('audio-data'), 'audio/wav')
+      ).resolves.toBeUndefined();
+    });
+
+    it('should throw VoiceEngineError on failure', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Server Error',
+        json: vi.fn().mockResolvedValue({ detail: 'Failed' }),
+      });
+
+      await expect(
+        client.registerVoice('voice-1', Buffer.from('audio-data'), 'audio/wav')
+      ).rejects.toMatchObject({
+        name: 'VoiceEngineError',
+        status: 500,
+      });
+    });
+
+    it('should send request to /v1/voices/register', async () => {
+      mockFetch.mockResolvedValue({ ok: true });
+
+      await client.registerVoice('voice-1', Buffer.from('audio-data'), 'audio/wav');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://voice-engine:8000/v1/voices/register',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+  });
+
+  describe('listVoices', () => {
+    it('should return array of voice IDs', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ voices: [{ id: 'voice-1' }, { id: 'voice-2' }] }),
+      });
+
+      const result = await client.listVoices();
+
+      expect(result).toEqual(['voice-1', 'voice-2']);
+    });
+
+    it('should throw VoiceEngineError on failure', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+        json: vi.fn().mockResolvedValue({ detail: 'TTS not loaded' }),
+      });
+
+      await expect(client.listVoices()).rejects.toMatchObject({
+        name: 'VoiceEngineError',
+        status: 503,
+      });
+    });
+
+    it('should send request to /v1/voices', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ voices: [] }),
+      });
+
+      await client.listVoices();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://voice-engine:8000/v1/voices',
+        expect.objectContaining({ method: 'GET' })
       );
     });
   });

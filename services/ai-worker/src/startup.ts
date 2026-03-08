@@ -5,6 +5,7 @@
  */
 
 import { createLogger, getConfig, HealthStatus } from '@tzurot/common-types';
+import { getVoiceEngineClient } from './services/voice/VoiceEngineClient.js';
 
 const logger = createLogger('ai-worker');
 
@@ -36,6 +37,30 @@ export function validateAIConfig(config = getConfig()): void {
  * @param memoryDisabled Whether memory manager is disabled
  * @returns Health check response with status and component health
  */
+/**
+ * One-shot voice engine health check at startup.
+ * Logs whether the voice engine is configured and reachable.
+ * Never throws — wrapped in try/catch for resilience.
+ */
+export async function checkVoiceEngineHealth(): Promise<void> {
+  try {
+    const client = getVoiceEngineClient();
+    if (client === null) {
+      logger.info('[AIWorker] Voice engine not configured (VOICE_ENGINE_URL not set)');
+      return;
+    }
+
+    const healthy = await client.isHealthy();
+    if (healthy) {
+      logger.info('[AIWorker] Voice engine healthy');
+    } else {
+      logger.warn({}, '[AIWorker] Voice engine configured but not healthy');
+    }
+  } catch (error) {
+    logger.warn({ err: error }, '[AIWorker] Voice engine health check failed');
+  }
+}
+
 export function buildHealthResponse(
   memoryHealthy: boolean,
   workerHealthy: boolean,

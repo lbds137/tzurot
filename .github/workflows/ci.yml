@@ -273,6 +273,32 @@ jobs:
           fail_ci_if_error: true
           verbose: true
 
+  voice-engine-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            voice-engine:
+              - 'services/voice-engine/**'
+
+      - name: Setup Python
+        if: steps.filter.outputs.voice-engine == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        if: steps.filter.outputs.voice-engine == 'true'
+        run: pip install -r services/voice-engine/requirements-dev.txt
+
+      - name: Run voice-engine tests
+        if: steps.filter.outputs.voice-engine == 'true'
+        run: cd services/voice-engine && python -m pytest tests/ -v
+
   build:
     runs-on: ubuntu-latest
     steps:

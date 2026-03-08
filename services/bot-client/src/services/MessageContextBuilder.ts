@@ -26,6 +26,7 @@ import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import { getThreadParentId } from '../utils/discordChannelTypes.js';
+import { hasVoiceAttachments } from '../utils/forwardedMessageUtils.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import type { DenylistCache } from './DenylistCache.js';
@@ -507,6 +508,8 @@ export class MessageContextBuilder {
         crossChannelGroups !== undefined
           ? mapCrossChannelToApiFormat(crossChannelGroups)
           : undefined,
+      // Detect voice messages for TTS voice-only mode
+      isVoiceMessage: hasVoiceAttachments(message),
     };
 
     logger.debug(

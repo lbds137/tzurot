@@ -65,6 +65,33 @@ interface SendResponseOptions {
   showThinking?: boolean;
   /** Whether to show the model indicator footer (from config cascade) */
   showModelFooter?: boolean;
+  /** Redis key for TTS audio buffer (set by ai-worker TTSStep) */
+  ttsAudioKey?: string;
+  /** Content type of TTS audio (e.g., 'audio/wav') */
+  ttsContentType?: string;
+}
+
+/** Shared options for internal send methods */
+interface ChunkedSendOptions {
+  chunks: string[];
+  personality: LoadedPersonality;
+  chunkMessageIds: string[];
+  ttsFiles?: { attachment: Buffer; name: string }[];
+}
+
+/**
+ * Append footer to the last chunk, or add as a new chunk if it would overflow.
+ */
+function appendFooterToChunks(chunks: string[], footer: string): void {
+  if (chunks.length === 0 || footer.length === 0) {
+    return;
+  }
+  const lastIndex = chunks.length - 1;
+  if (chunks[lastIndex].length + footer.length <= DISCORD_LIMITS.MESSAGE_LENGTH) {
+    chunks[lastIndex] += footer;
+  } else {
+    chunks.push(footer.trimStart());
+  }
 }
 
 /**
@@ -88,68 +115,36 @@ export class DiscordResponseSender {
    * - Redis webhook storage
    */
   async sendResponse(options: SendResponseOptions): Promise<DiscordSendResult> {
-    const {
-      content,
-      personality,
-      message,
-      modelUsed,
-      isGuestMode,
-      isAutoResponse,
-      focusModeEnabled,
-      incognitoModeActive,
-      thinkingContent,
-      showThinking,
-      showModelFooter,
-    } = options;
+    const { content, personality, message } = options;
 
     // Send thinking content as a separate message before the main response
-    // Only displayed if showThinking is enabled in the user's LLM config
-    if (showThinking === true && thinkingContent !== undefined && thinkingContent.length > 0) {
-      await this.sendThinkingBlock(message, personality, thinkingContent);
+    if (
+      options.showThinking === true &&
+      options.thinkingContent !== undefined &&
+      options.thinkingContent.length > 0
+    ) {
+      await this.sendThinkingBlock(message, personality, options.thinkingContent);
     }
 
-    // Build footer to append AFTER chunking (to preserve newline formatting)
-    // The chunker's word-level splitting replaces \n with spaces, so we add footer post-chunk
-    // Compact format: combine model + auto-response indicator on one line to minimize clutter
-    // NOTE: Footer text constants are centralized in BOT_FOOTER_TEXT (common-types)
-    let footer = '';
-    if (showModelFooter !== false && modelUsed !== undefined && modelUsed.length > 0) {
-      const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
-      const modelFooter = buildModelFooterText(modelUsed, modelUrl, isAutoResponse === true);
-      footer += `\n-# ${modelFooter}`;
-    } else if (isAutoResponse === true) {
-      // No model shown (hidden or absent) but still want to indicate auto-response
-      footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
-    }
-    if (isGuestMode === true) {
-      footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
-    }
-    if (focusModeEnabled === true) {
-      footer += `\n-# ${BOT_FOOTER_TEXT.FOCUS_MODE}`;
-    }
-    if (incognitoModeActive === true) {
-      footer += `\n-# ${BOT_FOOTER_TEXT.INCOGNITO_MODE}`;
-    }
+    const footer = this.buildFooter(options);
+    const ttsFiles = await this.fetchTTSFiles(options.ttsAudioKey, options.ttsContentType);
 
-    // Determine if this is a webhook-capable channel
+    // Determine routing and build chunks
     const isWebhookChannel =
       message.guild !== null &&
       (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
 
+    const rawContent = isWebhookChannel ? content : `**${personality.displayName}:** ${content}`;
+    const chunks = splitMessage(rawContent);
+    appendFooterToChunks(chunks, footer);
+
     const chunkMessageIds: string[] = [];
+    const sendOpts: ChunkedSendOptions = { chunks, personality, chunkMessageIds, ttsFiles };
 
     if (isWebhookChannel) {
-      // Guild channel - send via webhook
-      await this.sendViaWebhook(
-        message.channel as TextChannel | ThreadChannel,
-        personality,
-        content,
-        footer,
-        chunkMessageIds
-      );
+      await this.sendViaWebhook(message.channel as TextChannel | ThreadChannel, sendOpts);
     } else {
-      // DM - send as bot with personality prefix
-      await this.sendViaDM(message, personality, content, footer, chunkMessageIds);
+      await this.sendViaDM(message.channel as DMChannel, sendOpts);
     }
 
     logger.debug(
@@ -167,81 +162,99 @@ export class DiscordResponseSender {
     };
   }
 
-  /**
-   * Send via webhook (guild channels)
-   *
-   * Footer is appended to the last chunk to preserve newline formatting.
-   * If appending would exceed Discord's limit, footer becomes its own chunk.
-   */
+  /** Send via webhook (guild channels) */
   private async sendViaWebhook(
     channel: TextChannel | ThreadChannel,
-    personality: LoadedPersonality,
-    content: string,
-    footer: string,
-    chunkMessageIds: string[]
+    opts: ChunkedSendOptions
   ): Promise<void> {
-    const chunks = splitMessage(content);
+    const { chunks, personality, chunkMessageIds, ttsFiles } = opts;
 
-    // Append footer to last chunk, or make it a new chunk if it would overflow
-    if (chunks.length > 0 && footer.length > 0) {
-      const lastIndex = chunks.length - 1;
-      if (chunks[lastIndex].length + footer.length <= DISCORD_LIMITS.MESSAGE_LENGTH) {
-        chunks[lastIndex] += footer;
-      } else {
-        // Footer would overflow - add as separate chunk (trim leading newline)
-        chunks.push(footer.trimStart());
-      }
-    }
+    for (let i = 0; i < chunks.length; i++) {
+      // Attach TTS audio to the last chunk (same placement as footer)
+      const isLastChunk = i === chunks.length - 1;
+      const files = isLastChunk ? ttsFiles : undefined;
 
-    for (const chunk of chunks) {
-      const sentMessage = await this.webhookManager.sendAsPersonality(channel, personality, chunk);
+      const sentMessage =
+        files !== undefined
+          ? await this.webhookManager.sendAsPersonality(channel, personality, chunks[i], files)
+          : await this.webhookManager.sendAsPersonality(channel, personality, chunks[i]);
 
       if (sentMessage !== null && sentMessage !== undefined) {
-        // Store webhook message in Redis for reply routing (7 day TTL)
-        // Store personality ID (not name) to avoid slug/name collisions
         await redisService.storeWebhookMessage(sentMessage.id, personality.id);
         chunkMessageIds.push(sentMessage.id);
       }
     }
   }
 
-  /**
-   * Send via DM (add personality prefix)
-   *
-   * Footer is appended to the last chunk to preserve newline formatting.
-   * If appending would exceed Discord's limit, footer becomes its own chunk.
-   */
-  private async sendViaDM(
-    message: Message,
-    personality: LoadedPersonality,
-    content: string,
-    footer: string,
-    chunkMessageIds: string[]
-  ): Promise<void> {
-    // Add personality prefix BEFORE chunking to respect 2000 char limit
-    const dmContent = `**${personality.displayName}:** ${content}`;
-    const chunks = splitMessage(dmContent);
+  /** Send via DM (adds personality prefix) */
+  private async sendViaDM(dmChannel: DMChannel, opts: ChunkedSendOptions): Promise<void> {
+    const { chunks, personality, chunkMessageIds, ttsFiles } = opts;
 
-    // Append footer to last chunk, or make it a new chunk if it would overflow
-    if (chunks.length > 0 && footer.length > 0) {
-      const lastIndex = chunks.length - 1;
-      if (chunks[lastIndex].length + footer.length <= DISCORD_LIMITS.MESSAGE_LENGTH) {
-        chunks[lastIndex] += footer;
-      } else {
-        // Footer would overflow - add as separate chunk (trim leading newline)
-        chunks.push(footer.trimStart());
-      }
-    }
+    for (let i = 0; i < chunks.length; i++) {
+      // Attach TTS audio to the last chunk
+      const isLastChunk = i === chunks.length - 1;
+      const files = isLastChunk ? ttsFiles : undefined;
 
-    for (const chunk of chunks) {
-      // Send as plain message (not reply) - DMs don't need reply indicators
-      const sentMessage = await (message.channel as DMChannel).send(chunk);
+      const sentMessage =
+        files !== undefined
+          ? await dmChannel.send({
+              content: chunks[i],
+              files: files.map(f => ({ attachment: f.attachment, name: f.name })),
+            })
+          : await dmChannel.send(chunks[i]);
 
-      // Store DM message in Redis for reply routing (7 day TTL)
-      // Store personality ID (not name) to avoid slug/name collisions
       await redisService.storeWebhookMessage(sentMessage.id, personality.id);
       chunkMessageIds.push(sentMessage.id);
     }
+  }
+
+  /** Build the footer string from response options (model indicator, mode badges) */
+  private buildFooter(options: SendResponseOptions): string {
+    const {
+      modelUsed,
+      isGuestMode,
+      isAutoResponse,
+      focusModeEnabled,
+      incognitoModeActive,
+      showModelFooter,
+    } = options;
+    let footer = '';
+    if (showModelFooter !== false && modelUsed !== undefined && modelUsed.length > 0) {
+      const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
+      footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, isAutoResponse === true)}`;
+    } else if (isAutoResponse === true) {
+      footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
+    }
+    if (isGuestMode === true) {
+      footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
+    }
+    if (focusModeEnabled === true) {
+      footer += `\n-# ${BOT_FOOTER_TEXT.FOCUS_MODE}`;
+    }
+    if (incognitoModeActive === true) {
+      footer += `\n-# ${BOT_FOOTER_TEXT.INCOGNITO_MODE}`;
+    }
+    return footer;
+  }
+
+  /** Fetch TTS audio files from Redis, if a key is provided */
+  private async fetchTTSFiles(
+    ttsAudioKey?: string,
+    _ttsContentType?: string
+  ): Promise<{ attachment: Buffer; name: string }[] | undefined> {
+    if (ttsAudioKey === undefined) {
+      return undefined;
+    }
+    const audioBuffer = await redisService.getTTSAudio(ttsAudioKey);
+    if (audioBuffer === null) {
+      logger.warn({ ttsAudioKey }, '[DiscordResponseSender] TTS audio expired or not found');
+      return undefined;
+    }
+    logger.debug(
+      { ttsAudioKey, audioSize: audioBuffer.length },
+      '[DiscordResponseSender] TTS audio fetched'
+    );
+    return [{ attachment: audioBuffer, name: 'voice.wav' }];
   }
 
   /**

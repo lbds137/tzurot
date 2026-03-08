@@ -32,7 +32,12 @@ import {
   type PrismaClient,
   type AnyJobData,
 } from '@tzurot/common-types';
-import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
+import {
+  validateRequiredEnvVars,
+  validateAIConfig,
+  buildHealthResponse,
+  checkVoiceEngineHealth,
+} from './startup.js';
 import { setupCacheInvalidation } from './cacheInvalidation.js';
 import { initStopSequenceRedis } from './services/StopSequenceTracker.js';
 
@@ -403,6 +408,9 @@ async function main(): Promise<void> {
 
   process.on('SIGTERM', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
+
+  // Non-blocking voice engine health check (one-shot, no polling)
+  void checkVoiceEngineHealth();
 
   logger.info('[AIWorker] AI Worker is fully operational! 🚀');
 }

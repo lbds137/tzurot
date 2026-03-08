@@ -39,6 +39,7 @@ const PERSONALITY_SELECT = {
   conversationalGoals: true,
   conversationalExamples: true,
   errorMessage: true,
+  voiceEnabled: true,
   systemPrompt: {
     select: { content: true },
   },

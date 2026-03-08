@@ -25,6 +25,8 @@ describe('buildCascadeSettingsData', () => {
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
+      voiceResponseMode: 'never' as const,
+      voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'admin',
         maxAge: 'personality',
@@ -35,6 +37,8 @@ describe('buildCascadeSettingsData', () => {
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         showModelFooter: 'hardcoded',
+        voiceResponseMode: 'hardcoded' as const,
+        voiceTranscriptionEnabled: 'hardcoded' as const,
       },
     };
 
@@ -62,6 +66,8 @@ describe('buildCascadeSettingsData', () => {
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
+      voiceResponseMode: 'never' as const,
+      voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'channel',
         maxAge: 'hardcoded',
@@ -72,6 +78,8 @@ describe('buildCascadeSettingsData', () => {
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         showModelFooter: 'hardcoded',
+        voiceResponseMode: 'hardcoded' as const,
+        voiceTranscriptionEnabled: 'hardcoded' as const,
       },
     };
 
@@ -126,6 +134,8 @@ describe('buildCascadeSettingsData', () => {
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
+      voiceResponseMode: 'never' as const,
+      voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -136,6 +146,8 @@ describe('buildCascadeSettingsData', () => {
         crossChannelHistoryEnabled: 'hardcoded',
         shareLtmAcrossPersonalities: 'hardcoded',
         showModelFooter: 'hardcoded',
+        voiceResponseMode: 'hardcoded' as const,
+        voiceTranscriptionEnabled: 'hardcoded' as const,
       },
     };
 
@@ -189,6 +201,8 @@ describe('convertResolveDefaultsResponse', () => {
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
       showModelFooter: true,
+      voiceResponseMode: 'never' as const,
+      voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -199,6 +213,8 @@ describe('convertResolveDefaultsResponse', () => {
         memoryScoreThreshold: 'hardcoded',
         memoryLimit: 'hardcoded',
         showModelFooter: 'hardcoded',
+        voiceResponseMode: 'hardcoded' as const,
+        voiceTranscriptionEnabled: 'hardcoded' as const,
       },
       userOverrides: { maxMessages: 30 },
     };
@@ -223,6 +239,8 @@ describe('convertResolveDefaultsResponse', () => {
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
       showModelFooter: true,
+      voiceResponseMode: 'never' as const,
+      voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'hardcoded',
         maxAge: 'hardcoded',
@@ -233,6 +251,8 @@ describe('convertResolveDefaultsResponse', () => {
         memoryScoreThreshold: 'hardcoded',
         memoryLimit: 'hardcoded',
         showModelFooter: 'hardcoded',
+        voiceResponseMode: 'hardcoded' as const,
+        voiceTranscriptionEnabled: 'hardcoded' as const,
       },
       userOverrides: null,
     };
