@@ -37,12 +37,13 @@
 - [x] Config: `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` added to `envSchema` in common-types
 - [x] VoiceEngineClient: HTTP client with `transcribe()`, `isHealthy()`, lazy singleton
 - [x] AudioProcessor wiring: voice-engine as primary STT with Whisper fallback
-- [ ] Docker build + local smoke test (see Deployment Runbook below)
-- [ ] Railway deployment (see Deployment Runbook below)
+- [x] Docker build + local smoke test
+- [x] Railway deployment (Serverless mode, 4GB RAM, volume at `/app/voices`)
+- [x] IPv6 fix: bind uvicorn to `::` for Railway private networking compatibility
 
 ### Phase 2 Deployment Runbook
 
-These are the remaining operational steps to complete Phase 2. The code is merged — this is deploy-only.
+Phase 2 deployment is **COMPLETE** (2026-03-08). The steps below are preserved for reference.
 
 #### Step 1: Docker Build + Local Smoke Test
 
@@ -119,6 +120,9 @@ See Part 6 for full details. Quick checklist:
 - Python test suite uses `httpx.ASGITransport` for in-process FastAPI testing (no real server)
 - NeMo/Pocket TTS models mocked via `unittest.mock.patch` on the `models` global dict
 - Structured logging uses `_JsonFormatter` for Railway log aggregation compatibility
+- **Railway IPv6**: uvicorn must bind to `::` (not `0.0.0.0`) — Railway private networking uses IPv6 addresses (`fd12:...`). Dual-stack sockets also accept IPv4, so healthcheck at `[::1]` works.
+- **Railway logs**: NeMo/uvicorn write to stderr even for INFO-level messages, causing red `[err]` tags in Railway log viewer — these are not actual errors
+- Parakeet TDT transcription takes ~3s on CPU for typical voice messages (comparable to Whisper API latency)
 
 ### Phase 3 Entry Points
 
@@ -153,6 +157,7 @@ These patterns were caught during PR review of `server.py` and codified in `.cla
 | **MIME-to-extension mapping**     | Hardcoding `.wav` loses the original format, potentially confusing format-aware models.                                                  | Use a MIME→extension dict with a safe default.                                                                |
 | **Dependency pinning**            | Unpinned major versions allow breaking changes.                                                                                          | Pin upper bounds on all deps: `>=X.Y.Z,<(X+1).0.0`.                                                           |
 | **Constants placement**           | Constants defined after the functions that use them are harder to find.                                                                  | All module-level constants at the top, after imports.                                                         |
+| **Railway IPv6 binding**          | Railway private networking uses IPv6 (`fd12:...`). Binding to `0.0.0.0` causes `ECONNREFUSED` from other services.                       | Bind to `::` (IPv6 wildcard with dual-stack) instead of `0.0.0.0`. Update healthcheck to use `[::1]`.         |
 
 **Tooling to enforce these**: ruff catches some (unused imports, complexity), but most are domain-specific patterns enforced through code review. Standards codified in `.claude/rules/02-code-standards.md` (Python Standards section).
 
