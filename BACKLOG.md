@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-03-04
+> **Last Updated**: 2026-03-08
 > **Version**: v3.0.0-beta.88
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -369,8 +369,8 @@ Deploy `services/voice-engine/` — Python FastAPI microservice with Parakeet TD
 - [x] Add OpenAI-compatible endpoints (`/v1/audio/transcriptions`, `/v1/audio/speech`)
 - [x] Database migration: `voiceReferenceData` + `voiceReferenceType` on Personality model
 - [x] Voice reference processor, serving route, CRUD wiring in api-gateway
-- [ ] Docker build + local smoke tests
-- [ ] Deploy to Railway with Serverless mode enabled, 4GB RAM, Railway Volume for `/app/voices`
+- [x] Docker build + local smoke tests
+- [x] Deploy to Railway with Serverless mode enabled, 4GB RAM, Railway Volume for `/app/voices`
 
 #### Phase 2: ai-worker Integration — STT Upgrade
 
@@ -381,9 +381,9 @@ Replace current Whisper-based transcription with VoiceEngineClient that routes t
 - [x] Create `VoiceEngineClient` in ai-worker with health check and transcription methods
 - [x] Wire into existing `AudioProcessor` pipeline (voice-engine primary, Whisper fallback)
 - [x] Add `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` to config schema
-- [ ] Docker build + local smoke tests
-- [ ] Deploy to Railway, set env vars on ai-worker
-- [ ] Verify punctuation quality improvement over Whisper
+- [x] Docker build + local smoke tests
+- [x] Deploy to Railway, set env vars on ai-worker
+- [x] Verify transcription quality (comparable to Whisper, preserves filler words)
 
 #### Phase 3: TTS + Voice Cloning
 

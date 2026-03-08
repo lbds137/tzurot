@@ -1,13 +1,13 @@
 # Current
 
-> **Session**: 2026-03-07
+> **Session**: 2026-03-08
 > **Version**: v3.0.0-beta.88
 
 ---
 
 ## Session Goal
 
-_Voice Engine Phase 2: Python hardening + ai-worker integration._
+_Voice Engine Phase 2: Railway deployment + verification._
 
 ## Active Task
 
@@ -17,16 +17,17 @@ None — session complete.
 
 ## Completed This Session
 
-- **fix(api-gateway)**: Add proxy pattern comment to `hasVoiceReference` in formatters.ts
-- **fix(api-gateway)**: Remove slug from 404 error message in voiceReferences.ts (information disclosure nit)
-- **feat(voice-engine)**: Add `pyproject.toml` (ruff, mypy, pytest config) and `requirements-dev.txt`
-- **feat(voice-engine)**: Add full type hints to `server.py` (mypy --strict compatible)
-- **feat(voice-engine)**: Replace all `print()` with structured JSON logging via stdlib `logging`
-- **feat(voice-engine)**: Create pytest test suite (tests/conftest.py, test_health.py, test_transcribe.py, test_tts.py, test_voices.py)
-- **feat(common-types)**: Add `VOICE_ENGINE_URL` and `VOICE_ENGINE_API_KEY` to config schema
-- **feat(ai-worker)**: Create `VoiceEngineClient` with health check and transcription methods
-- **feat(ai-worker)**: Wire voice-engine into `AudioProcessor.ts` as primary STT path with Whisper fallback
-- **docs**: Add Python standards section to `.claude/rules/02-code-standards.md`
+- **fix(voice-engine)**: Bind uvicorn to `::` (IPv6 wildcard) for Railway private networking compatibility
+- **deploy**: Voice-engine service deployed to Railway (Serverless mode, 4GB RAM, volume at `/app/voices`)
+- **deploy**: Set `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` on ai-worker service
+- **verify**: Confirmed Parakeet TDT transcription working end-to-end (Discord voice message → voice-engine → ai-worker)
+- **verify**: Compared transcription quality — Parakeet TDT preserves filler words, comparable punctuation to Whisper
+
+## Completed Last Session (2026-03-07)
+
+- Voice Engine Phase 2 code: Python hardening, VoiceEngineClient, AudioProcessor wiring
+- PR #709 merged to `develop` (21 commits, 12 rounds of review feedback addressed)
+- All voice-engine follow-ups consolidated into Phase 3 pre-requisites in BACKLOG.md
 
 ## Recent Releases
 
@@ -36,9 +37,8 @@ None — session complete.
 
 ## Next Steps
 
-1. Docker build + local smoke test (`podman build`, `curl /health`)
-2. Deploy voice-engine to Railway, set `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` on ai-worker
-3. Start Voice Engine Phase 3: Bot-client TTS integration
+1. Start Voice Engine Phase 3 pre-requisites (Python CI, root logger, startup health check, etc.)
+2. Phase 3 core: Bot-client TTS integration
 
 ---
 
