@@ -213,13 +213,17 @@ export async function synthesizeWithChunking(
 
   // Extract PCM data from each WAV result and concatenate
   const sampleRate = inferSampleRate(results[0].audioBuffer);
-  // Verify sample rate consistency across chunks (mismatches would produce garbled audio)
+  // Verify sample rate consistency across chunks.
+  // Mismatched rates produce audible artifacts (pitch shift, speed distortion).
+  // We log a warning but still concatenate — voice-engine uses a single model,
+  // so rate mismatches should never happen in practice. If they do, the warning
+  // surfaces it for debugging while still producing best-effort audio output.
   for (let i = 1; i < results.length; i++) {
     const chunkRate = inferSampleRate(results[i].audioBuffer);
     if (chunkRate !== sampleRate) {
       logger.warn(
         { chunkIndex: i, expected: sampleRate, got: chunkRate },
-        'Sample rate mismatch across TTS chunks'
+        'Sample rate mismatch across TTS chunks — output audio may have artifacts'
       );
     }
   }

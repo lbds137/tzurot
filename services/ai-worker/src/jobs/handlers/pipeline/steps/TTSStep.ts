@@ -23,7 +23,11 @@ const logger = createLogger('TTSStep');
 /** TTS timeout — includes voice-engine cold start time on Railway Serverless */
 const TTS_TIMEOUT_MS = 60_000;
 
-/** Lazy singleton for voice registration (shares VoiceEngineClient lifecycle) */
+/**
+ * Lazy singleton for voice registration (shares VoiceEngineClient lifecycle).
+ * WARNING: Test files that import TTSStep must call resetTTSStepState() in
+ * beforeEach/afterEach to avoid stale singleton leaking between test files.
+ */
 let _registrationService: VoiceRegistrationService | null = null;
 
 function getRegistrationService(): VoiceRegistrationService | null {
