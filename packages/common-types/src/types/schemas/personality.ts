@@ -108,6 +108,9 @@ export const loadedPersonalitySchema = z.object({
 
   // Custom error message for this personality (shown to users on LLM failures)
   errorMessage: z.string().optional(),
+
+  // Voice configuration (prerequisite for TTS — personality must have voice reference set up)
+  voiceEnabled: z.boolean().optional(),
 });
 
 /**
@@ -189,6 +192,8 @@ export const requestContextSchema = z.object({
   isWeighIn: z.boolean().optional(),
   // Cross-channel conversation history (grouped by channel)
   crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
+  // Whether the triggering message was a voice message (for voice-only TTS mode)
+  isVoiceMessage: z.boolean().optional(),
 });
 
 // Infer TypeScript types from schemas

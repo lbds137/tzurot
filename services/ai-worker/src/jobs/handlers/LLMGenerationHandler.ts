@@ -37,6 +37,7 @@ import {
   AuthStep,
   ContextStep,
   GenerationStep,
+  TTSStep,
 } from './pipeline/index.js';
 
 const logger = createLogger('LLMGenerationHandler');
@@ -52,6 +53,7 @@ const logger = createLogger('LLMGenerationHandler');
  * 5. DependencyStep - Fetches preprocessing results (audio/image) from Redis
  * 6. ContextStep - Prepares conversation history and participants
  * 7. GenerationStep - Calls RAG service to generate response
+ * 8. TTSStep - Synthesizes audio from response text (non-critical, graceful degradation)
  *
  * Each step is stateless - context flows through as function arguments,
  * ensuring thread safety when handling concurrent jobs.
@@ -111,6 +113,7 @@ export class LLMGenerationHandler {
       new DependencyStep(),
       new ContextStep(),
       new GenerationStep(ragService, embeddingService),
+      new TTSStep(),
     ];
   }
 

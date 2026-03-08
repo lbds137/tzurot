@@ -369,6 +369,8 @@ describe('ConfigStep', () => {
           crossChannelHistoryEnabled: false,
           shareLtmAcrossPersonalities: false,
           showModelFooter: true,
+          voiceResponseMode: 'never' as const,
+          voiceTranscriptionEnabled: true,
           sources: {
             maxMessages: 'hardcoded' as const,
             maxAge: 'hardcoded' as const,
@@ -379,6 +381,8 @@ describe('ConfigStep', () => {
             crossChannelHistoryEnabled: 'hardcoded' as const,
             shareLtmAcrossPersonalities: 'hardcoded' as const,
             showModelFooter: 'hardcoded' as const,
+            voiceResponseMode: 'hardcoded' as const,
+            voiceTranscriptionEnabled: 'hardcoded' as const,
           },
         };
         vi.mocked(mockCascade.resolveOverrides).mockResolvedValue(mockOverrides);

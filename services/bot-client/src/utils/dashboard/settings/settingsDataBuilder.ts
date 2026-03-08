@@ -60,6 +60,8 @@ export interface ResolveDefaultsResponse {
   memoryScoreThreshold: number;
   memoryLimit: number;
   showModelFooter: boolean;
+  voiceResponseMode: 'always' | 'voice-only' | 'never';
+  voiceTranscriptionEnabled: boolean;
   sources: Record<string, ConfigOverrideSource>;
   userOverrides: Record<string, unknown> | null;
 }
@@ -83,6 +85,8 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     memoryScoreThreshold: response.memoryScoreThreshold,
     memoryLimit: response.memoryLimit,
     showModelFooter: response.showModelFooter,
+    voiceResponseMode: response.voiceResponseMode,
+    voiceTranscriptionEnabled: response.voiceTranscriptionEnabled,
     sources: response.sources as Record<keyof ConfigOverrides, ConfigOverrideSource>,
   };
   const userOverrides = (response.userOverrides ?? null) as Partial<ConfigOverrides> | null;

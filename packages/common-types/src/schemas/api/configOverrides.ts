@@ -39,6 +39,10 @@ export const ConfigOverridesSchema = z
     shareLtmAcrossPersonalities: z.boolean().optional(),
     /** Whether to show the model indicator footer on AI responses */
     showModelFooter: z.boolean().optional(),
+    /** Voice response mode: 'always' = every response, 'voice-only' = when user sends voice, 'never' = disabled */
+    voiceResponseMode: z.enum(['always', 'voice-only', 'never']).optional(),
+    /** Whether to auto-transcribe voice messages (runtime control; VOICE_ENGINE_URL remains infrastructure config) */
+    voiceTranscriptionEnabled: z.boolean().optional(),
   })
   .strip();
 
@@ -63,6 +67,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly crossChannelHistoryEnabled: false;
   readonly shareLtmAcrossPersonalities: false;
   readonly showModelFooter: true;
+  readonly voiceResponseMode: 'never';
+  readonly voiceTranscriptionEnabled: true;
 } = {
   maxMessages: 50,
   maxAge: null,
@@ -73,6 +79,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   crossChannelHistoryEnabled: false,
   shareLtmAcrossPersonalities: false,
   showModelFooter: true,
+  voiceResponseMode: 'never',
+  voiceTranscriptionEnabled: true,
 };
 
 // ============================================================================
@@ -109,6 +117,8 @@ export interface ResolvedConfigOverrides {
   crossChannelHistoryEnabled: boolean;
   shareLtmAcrossPersonalities: boolean;
   showModelFooter: boolean;
+  voiceResponseMode: 'always' | 'voice-only' | 'never';
+  voiceTranscriptionEnabled: boolean;
 
   /** Per-field source tracking: which tier provided each value */
   sources: Record<keyof ConfigOverrides, ConfigOverrideSource>;

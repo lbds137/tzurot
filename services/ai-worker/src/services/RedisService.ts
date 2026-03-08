@@ -233,6 +233,41 @@ export class RedisService {
   }
 
   /**
+   * Store TTS audio buffer in Redis with TTL.
+   * @param jobId Job ID (used to build key: tts-audio:{jobId})
+   * @param audio Audio buffer (binary)
+   * @param ttlSeconds TTL in seconds (default: 300 = 5 minutes)
+   * @returns Redis key for retrieval
+   */
+  async storeTTSAudio(jobId: string, audio: Buffer, ttlSeconds = 300): Promise<string> {
+    const key = `${REDIS_KEY_PREFIXES.TTS_AUDIO}${jobId}`;
+    // Store as binary via ioredis Buffer support
+    await this.redis.setex(key, ttlSeconds, audio);
+    logger.debug({ jobId, key, audioSize: audio.length }, '[RedisService] Stored TTS audio');
+    return key;
+  }
+
+  /**
+   * Fetch TTS audio buffer from Redis.
+   * @param key Redis key (tts-audio:{jobId})
+   * @returns Audio buffer or null if expired/not found
+   */
+  async getTTSAudio(key: string): Promise<Buffer | null> {
+    try {
+      const value = await this.redis.getBuffer(key);
+      if (value === null) {
+        logger.debug({ key }, '[RedisService] TTS audio not found or expired');
+        return null;
+      }
+      logger.debug({ key, audioSize: value.length }, '[RedisService] Retrieved TTS audio');
+      return value;
+    } catch (error) {
+      logger.error({ err: error, key }, '[RedisService] Failed to get TTS audio');
+      return null;
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   async close(): Promise<void> {

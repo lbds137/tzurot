@@ -60,6 +60,28 @@ export class RedisService {
   }
 
   /**
+   * Fetch TTS audio buffer from Redis.
+   * Audio is stored by ai-worker with a 5-minute TTL.
+   * @param key Full Redis key (tts-audio:{jobId})
+   * @returns Audio buffer or null if expired/not found
+   */
+  async getTTSAudio(key: string): Promise<Buffer | null> {
+    try {
+      // getBuffer returns raw binary data (not UTF-8 decoded string)
+      const value = await this.redis.getBuffer(key);
+      if (value === null) {
+        logger.debug({ key }, '[RedisService] TTS audio not found or expired');
+        return null;
+      }
+      logger.debug({ key, audioSize: value.length }, '[RedisService] Retrieved TTS audio');
+      return value;
+    } catch (error) {
+      logger.error({ err: error, key }, '[RedisService] Failed to get TTS audio');
+      return null;
+    }
+  }
+
+  /**
    * Health check
    */
   async checkHealth(): Promise<boolean> {

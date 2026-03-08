@@ -43,6 +43,23 @@ describe('ConfigOverridesSchema', () => {
       expect(ConfigOverridesSchema.safeParse({ showModelFooter: false }).success).toBe(true);
     });
 
+    it('should accept voiceResponseMode enum values', () => {
+      expect(ConfigOverridesSchema.safeParse({ voiceResponseMode: 'always' }).success).toBe(true);
+      expect(ConfigOverridesSchema.safeParse({ voiceResponseMode: 'voice-only' }).success).toBe(
+        true
+      );
+      expect(ConfigOverridesSchema.safeParse({ voiceResponseMode: 'never' }).success).toBe(true);
+    });
+
+    it('should accept voiceTranscriptionEnabled as boolean', () => {
+      expect(ConfigOverridesSchema.safeParse({ voiceTranscriptionEnabled: true }).success).toBe(
+        true
+      );
+      expect(ConfigOverridesSchema.safeParse({ voiceTranscriptionEnabled: false }).success).toBe(
+        true
+      );
+    });
+
     it('should accept maxAge as null (no limit)', () => {
       const result = ConfigOverridesSchema.safeParse({ maxAge: null });
       expect(result.success).toBe(true);
@@ -129,6 +146,16 @@ describe('ConfigOverridesSchema', () => {
       const result = ConfigOverridesSchema.safeParse({ showModelFooter: 'yes' });
       expect(result.success).toBe(false);
     });
+
+    it('should reject invalid voiceResponseMode value', () => {
+      const result = ConfigOverridesSchema.safeParse({ voiceResponseMode: 'sometimes' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-boolean voiceTranscriptionEnabled', () => {
+      const result = ConfigOverridesSchema.safeParse({ voiceTranscriptionEnabled: 'yes' });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('unknown key handling', () => {
@@ -162,6 +189,8 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.memoryLimit).toBe(20);
     expect(HARDCODED_CONFIG_DEFAULTS.focusModeEnabled).toBe(false);
     expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
+    expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('never');
+    expect(HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled).toBe(true);
   });
 
   it('should pass schema validation', () => {

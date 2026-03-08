@@ -103,6 +103,10 @@ const generationPayloadSchema = z.object({
       skipReason: z.string().optional(),
       /** Whether to show the model footer on the response (from config cascade) */
       showModelFooter: z.boolean().optional(),
+      /** Redis key for TTS audio buffer (format: tts-audio:{jobId}) */
+      ttsAudioKey: z.string().optional(),
+      /** MIME type of TTS audio (e.g., 'audio/wav') */
+      ttsContentType: z.string().optional(),
     })
     .optional(),
 });

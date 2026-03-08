@@ -150,4 +150,6 @@ export interface DatabasePersonality {
   conversationalExamples: string | null;
   // Custom error message for this personality
   errorMessage: string | null;
+  // Voice configuration
+  voiceEnabled: boolean;
 }

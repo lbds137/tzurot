@@ -438,6 +438,8 @@ describe('GenerationStep', () => {
         crossChannelHistoryEnabled: false,
         shareLtmAcrossPersonalities: false,
         showModelFooter: false,
+        voiceResponseMode: 'never' as const,
+        voiceTranscriptionEnabled: true,
         sources: {
           maxMessages: 'hardcoded' as const,
           maxAge: 'hardcoded' as const,
@@ -448,6 +450,8 @@ describe('GenerationStep', () => {
           crossChannelHistoryEnabled: 'hardcoded' as const,
           shareLtmAcrossPersonalities: 'hardcoded' as const,
           showModelFooter: 'user-default' as const,
+          voiceResponseMode: 'hardcoded' as const,
+          voiceTranscriptionEnabled: 'hardcoded' as const,
         },
       };
 

@@ -36,6 +36,7 @@ function createMockDatabasePersonality(
     conversationalGoals: null,
     conversationalExamples: null,
     errorMessage: null,
+    voiceEnabled: false,
     ...overrides,
   };
 }

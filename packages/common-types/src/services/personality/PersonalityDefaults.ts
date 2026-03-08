@@ -262,5 +262,8 @@ export function mapToPersonality(
 
     // Custom error message
     errorMessage: db.errorMessage ?? undefined,
+
+    // Voice configuration
+    voiceEnabled: db.voiceEnabled,
   };
 }

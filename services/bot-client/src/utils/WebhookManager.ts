@@ -159,7 +159,8 @@ export class WebhookManager {
   async sendAsPersonality(
     channel: TextChannel | ThreadChannel,
     personality: LoadedPersonality,
-    content: string
+    content: string,
+    files?: { attachment: Buffer; name: string }[]
   ): Promise<Message> {
     const webhook = await this.getWebhook(channel);
     const standardizedName = this.getStandardizedUsername(personality);
@@ -179,12 +180,18 @@ export class WebhookManager {
       avatarURL?: string;
       threadId?: string;
       allowedMentions: { parse: [] };
+      files?: { attachment: Buffer; name: string }[];
     } = {
       content,
       username: standardizedName,
       avatarURL,
       allowedMentions: { parse: [] },
     };
+
+    // Attach files (e.g., TTS audio) if provided
+    if (files !== undefined && files.length > 0) {
+      webhookOptions.files = files;
+    }
 
     // For threads, add threadId parameter (Discord.js v14 official API)
     if (channel.isThread()) {

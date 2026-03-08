@@ -544,6 +544,39 @@ describe('WebhookManager', () => {
       );
     });
 
+    it('should pass files to webhook.send when provided', async () => {
+      const client = createMockClient('TestBot#1234');
+      manager = new WebhookManager(client);
+
+      const personality = createMockPersonality('Lilith');
+      const channel = createMockTextChannel('channel-123', 'bot-123');
+      const files = [{ attachment: Buffer.from([0x52, 0x49, 0x46, 0x46]), name: 'voice.wav' }];
+
+      await manager.sendAsPersonality(channel, personality, 'Hello!', files);
+
+      const webhook = await manager.getWebhook(channel);
+      expect(webhook.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Hello!',
+          files: [{ attachment: expect.any(Buffer), name: 'voice.wav' }],
+        })
+      );
+    });
+
+    it('should not include files in webhook options when not provided', async () => {
+      const client = createMockClient('TestBot#1234');
+      manager = new WebhookManager(client);
+
+      const personality = createMockPersonality('Lilith');
+      const channel = createMockTextChannel('channel-123', 'bot-123');
+
+      await manager.sendAsPersonality(channel, personality, 'Hello!');
+
+      const webhook = await manager.getWebhook(channel);
+      const callArgs = (webhook.send as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(callArgs.files).toBeUndefined();
+    });
+
     describe('displayName fallback to name', () => {
       it('should use displayName for webhook username', async () => {
         const client = createMockClient('TestBot#1234');

@@ -35,6 +35,7 @@ describe('RedisService', () => {
     setex: ReturnType<typeof vi.fn>;
     set: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
+    getBuffer: ReturnType<typeof vi.fn>;
     del: ReturnType<typeof vi.fn>;
     quit: ReturnType<typeof vi.fn>;
   };
@@ -48,6 +49,7 @@ describe('RedisService', () => {
       setex: vi.fn(),
       set: vi.fn(),
       get: vi.fn(),
+      getBuffer: vi.fn(),
       del: vi.fn(),
       quit: vi.fn(),
     };
@@ -403,6 +405,66 @@ describe('RedisService', () => {
       mockRedis.del.mockResolvedValue(0);
 
       await expect(redisService.releaseMessageLock('discord-msg-123')).resolves.toBeUndefined();
+    });
+  });
+
+  describe('storeTTSAudio', () => {
+    it('should store audio buffer with default 5-minute TTL', async () => {
+      mockRedis.setex.mockResolvedValue('OK');
+
+      const audio = Buffer.from([0x52, 0x49, 0x46, 0x46]); // RIFF header start
+      const key = await redisService.storeTTSAudio('job-123', audio);
+
+      expect(key).toBe(`${REDIS_KEY_PREFIXES.TTS_AUDIO}job-123`);
+      expect(mockRedis.setex).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.TTS_AUDIO}job-123`,
+        300,
+        audio
+      );
+    });
+
+    it('should accept custom TTL', async () => {
+      mockRedis.setex.mockResolvedValue('OK');
+
+      await redisService.storeTTSAudio('job-123', Buffer.alloc(10), 600);
+
+      expect(mockRedis.setex).toHaveBeenCalledWith(expect.any(String), 600, expect.any(Buffer));
+    });
+
+    it('should propagate Redis errors', async () => {
+      mockRedis.setex.mockRejectedValue(new Error('Redis full'));
+
+      await expect(redisService.storeTTSAudio('job-123', Buffer.alloc(10))).rejects.toThrow(
+        'Redis full'
+      );
+    });
+  });
+
+  describe('getTTSAudio', () => {
+    it('should return audio buffer when found', async () => {
+      const audio = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00]);
+      mockRedis.getBuffer.mockResolvedValue(audio);
+
+      const result = await redisService.getTTSAudio('tts-audio:job-123');
+
+      expect(result).toEqual(audio);
+      expect(mockRedis.getBuffer).toHaveBeenCalledWith('tts-audio:job-123');
+    });
+
+    it('should return null when key not found', async () => {
+      mockRedis.getBuffer.mockResolvedValue(null);
+
+      const result = await redisService.getTTSAudio('tts-audio:expired');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null on Redis error', async () => {
+      mockRedis.getBuffer.mockRejectedValue(new Error('Connection lost'));
+
+      const result = await redisService.getTTSAudio('tts-audio:job-123');
+
+      expect(result).toBeNull();
     });
   });
 

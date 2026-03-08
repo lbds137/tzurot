@@ -13,12 +13,17 @@ export interface TranscriptionResult {
   text: string;
 }
 
+export interface SynthesisResult {
+  audioBuffer: Buffer;
+  contentType: string;
+}
+
 /** Error from voice-engine HTTP responses (carries status code for caller inspection). */
 export class VoiceEngineError extends Error {
   readonly status: number;
 
   constructor(status: number, detail: string) {
-    super(`Voice engine transcription failed (${status}): ${detail}`);
+    super(`Voice engine request failed (${status}): ${detail}`);
     this.name = 'VoiceEngineError';
     this.status = status;
   }
@@ -78,6 +83,60 @@ export class VoiceEngineClient {
     } catch {
       return false;
     }
+  }
+
+  /** Synthesize speech via POST /v1/tts. */
+  async synthesize(text: string, voiceId: string): Promise<SynthesisResult> {
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('voice_id', voiceId);
+
+    const response = await this.fetchWithTimeout('/v1/tts', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const detail = await this.extractErrorDetail(response);
+      throw new VoiceEngineError(response.status, detail);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return {
+      audioBuffer: Buffer.from(arrayBuffer),
+      contentType: response.headers.get('content-type') ?? 'audio/wav',
+    };
+  }
+
+  /** Register a voice via POST /v1/voices/register. */
+  async registerVoice(voiceId: string, audioBuffer: Buffer, contentType: string): Promise<void> {
+    const formData = new FormData();
+    formData.append('voice_id', voiceId);
+    const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
+    formData.append('audio', blob, `${voiceId}.wav`);
+
+    const response = await this.fetchWithTimeout('/v1/voices/register', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const detail = await this.extractErrorDetail(response);
+      throw new VoiceEngineError(response.status, detail);
+    }
+  }
+
+  /** List registered voices via GET /v1/voices. */
+  async listVoices(): Promise<string[]> {
+    const response = await this.fetchWithTimeout('/v1/voices', { method: 'GET' }, 10_000);
+
+    if (!response.ok) {
+      const detail = await this.extractErrorDetail(response);
+      throw new VoiceEngineError(response.status, detail);
+    }
+
+    const body = (await response.json()) as { voices: { id: string }[] };
+    return body.voices.map(v => v.id);
   }
 
   private async fetchWithTimeout(

@@ -1,0 +1,161 @@
+/**
+ * TTS Step
+ *
+ * Post-generation step that synthesizes the AI response into audio.
+ * Non-critical: errors are caught and logged, text response is still delivered.
+ *
+ * Prerequisites checked before synthesis:
+ * - Generation succeeded (result.success === true)
+ * - Personality has voice enabled (voiceEnabled === true)
+ * - Config cascade allows TTS (voiceResponseMode !== 'never')
+ * - If voiceResponseMode === 'voice-only', the trigger was a voice message
+ */
+
+import { createLogger } from '@tzurot/common-types';
+import type { IPipelineStep, GenerationContext } from '../types.js';
+import { getVoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
+import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegistrationService.js';
+import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
+import { redisService } from '../../../../redis.js';
+
+const logger = createLogger('TTSStep');
+
+/** TTS timeout — includes voice-engine cold start time on Railway Serverless */
+const TTS_TIMEOUT_MS = 60_000;
+
+/** Lazy singleton for voice registration (shares VoiceEngineClient lifecycle) */
+let _registrationService: VoiceRegistrationService | null = null;
+
+function getRegistrationService(): VoiceRegistrationService | null {
+  if (_registrationService !== null) {
+    return _registrationService;
+  }
+  const client = getVoiceEngineClient();
+  if (client === null) {
+    return null;
+  }
+  _registrationService = new VoiceRegistrationService(client);
+  return _registrationService;
+}
+
+/** Reset singleton (for testing). */
+export function resetTTSStepState(): void {
+  _registrationService = null;
+}
+
+export class TTSStep implements IPipelineStep {
+  readonly name = 'TTSStep';
+
+  async process(context: GenerationContext): Promise<GenerationContext> {
+    // Check prerequisites
+    if (!this.shouldRunTTS(context)) {
+      return context;
+    }
+
+    const { personality } = context.job.data;
+    const slug = personality.slug;
+    const text = context.result?.content;
+
+    if (text === undefined || text.length === 0) {
+      return context;
+    }
+
+    const voiceEngineClient = getVoiceEngineClient();
+    if (voiceEngineClient === null) {
+      logger.debug('Voice engine not configured, skipping TTS');
+      return context;
+    }
+
+    const registrationService = getRegistrationService();
+    if (registrationService === null) {
+      return context;
+    }
+
+    try {
+      // Apply timeout to the entire TTS process
+      const ttsResult = await Promise.race([
+        this.performTTS(registrationService, text, slug, context),
+        new Promise<null>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`TTS timed out after ${TTS_TIMEOUT_MS}ms`)),
+            TTS_TIMEOUT_MS
+          )
+        ),
+      ]);
+
+      if (ttsResult !== null && context.result?.metadata !== undefined) {
+        context.result.metadata.ttsAudioKey = ttsResult.key;
+        context.result.metadata.ttsContentType = ttsResult.contentType;
+        logger.info(
+          { slug, audioSize: ttsResult.audioSize, key: ttsResult.key },
+          'TTS audio stored in Redis'
+        );
+      }
+    } catch (error) {
+      // Non-critical: log warning and return context unchanged (text still delivered)
+      logger.warn({ err: error, slug }, 'TTS synthesis failed, delivering text-only response');
+    }
+
+    return context;
+  }
+
+  private shouldRunTTS(context: GenerationContext): boolean {
+    // Must have a successful generation result
+    if (context.result?.success !== true) {
+      return false;
+    }
+
+    // Personality must have voice enabled
+    const { personality } = context.job.data;
+    if (personality.voiceEnabled !== true) {
+      return false;
+    }
+
+    // Check config cascade for voice response mode
+    const voiceResponseMode = context.configOverrides?.voiceResponseMode ?? 'never';
+
+    if (voiceResponseMode === 'never') {
+      return false;
+    }
+
+    if (voiceResponseMode === 'voice-only') {
+      // Only run TTS when the triggering message was a voice message
+      const isVoiceMessage = context.job.data.context.isVoiceMessage === true;
+      if (!isVoiceMessage) {
+        logger.debug('voiceResponseMode is voice-only but trigger was not a voice message');
+        return false;
+      }
+    }
+
+    // voiceResponseMode === 'always' falls through to return true
+    return true;
+  }
+
+  private async performTTS(
+    registrationService: VoiceRegistrationService,
+    text: string,
+    slug: string,
+    context: GenerationContext
+  ): Promise<{ key: string; contentType: string; audioSize: number }> {
+    const voiceEngineClient = getVoiceEngineClient();
+    if (voiceEngineClient === null) {
+      throw new Error('Voice engine client not available');
+    }
+
+    // Ensure voice is registered
+    await registrationService.ensureVoiceRegistered(slug);
+
+    // Synthesize (with chunking for long text)
+    const { audioBuffer, contentType } = await synthesizeWithChunking(
+      voiceEngineClient,
+      text,
+      slug
+    );
+
+    // Store audio in Redis
+    const jobId = context.job.id ?? context.job.data.requestId;
+    const key = await redisService.storeTTSAudio(jobId, audioBuffer);
+
+    return { key, contentType, audioSize: audioBuffer.length };
+  }
+}

@@ -10,3 +10,4 @@ export { ConfigStep } from './steps/ConfigStep.js';
 export { AuthStep } from './steps/AuthStep.js';
 export { ContextStep } from './steps/ContextStep.js';
 export { GenerationStep } from './steps/GenerationStep.js';
+export { TTSStep } from './steps/TTSStep.js';

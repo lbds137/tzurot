@@ -76,3 +76,48 @@ def test_json_formatter_excludes_standard_log_attrs() -> None:
     assert "level" in parsed
     assert "msg" in parsed
     assert "logger" in parsed
+
+
+def test_root_logger_warning_produces_json(capfd: object) -> None:
+    """Third-party loggers emitting WARNING+ should produce JSON via root handler."""
+    # _setup_logging() was called at import time, so root logger already has our handler.
+    # Use a unique logger name to simulate a third-party lib (e.g. NeMo, uvicorn).
+    third_party = logging.getLogger("nemo_test_fake")
+    third_party.warning("Model download slow", extra={"model": "parakeet"})
+
+    # The root handler writes to stderr; capfd captures both stdout and stderr
+    import sys
+    sys.stderr.flush()
+
+    # Verify the root logger has at least one handler with _JsonFormatter
+    root = logging.getLogger()
+    json_handlers = [
+        h for h in root.handlers
+        if isinstance(h.formatter, _JsonFormatter)
+    ]
+    assert len(json_handlers) > 0, "Root logger should have a _JsonFormatter handler"
+
+    # Verify the handler produces valid JSON
+    formatter = json_handlers[0].formatter
+    assert formatter is not None
+    record = logging.LogRecord(
+        name="nemo_test_fake",
+        level=logging.WARNING,
+        pathname="test.py",
+        lineno=1,
+        msg="Model download slow",
+        args=(),
+        exc_info=None,
+    )
+    record.model = "parakeet"  # type: ignore[attr-defined]
+    output = formatter.format(record)
+    parsed = json.loads(output)
+    assert parsed["level"] == "WARNING"
+    assert parsed["msg"] == "Model download slow"
+    assert parsed["model"] == "parakeet"
+
+
+def test_voice_engine_logger_no_propagation() -> None:
+    """voice-engine logger should not propagate to root (prevents double-logging)."""
+    log = logging.getLogger("voice-engine")
+    assert log.propagate is False

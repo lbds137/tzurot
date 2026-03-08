@@ -62,12 +62,24 @@ class _JsonFormatter(logging.Formatter):
 
 
 def _setup_logging() -> logging.Logger:
-    """Configure voice-engine logger with JSON output."""
+    """Configure voice-engine logger with JSON output.
+
+    Also attaches a JSON formatter to the root logger at WARNING level so
+    third-party libraries (NeMo, uvicorn) emit structured JSON on Railway.
+    """
     handler = logging.StreamHandler()
     handler.setFormatter(_JsonFormatter())
     log = logging.getLogger("voice-engine")
     log.addHandler(handler)
     log.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
+    log.propagate = False  # prevent double-logging to root
+
+    # Root logger: third-party WARNING+ gets JSON formatting
+    root_handler = logging.StreamHandler()
+    root_handler.setFormatter(_JsonFormatter())
+    root_handler.setLevel(logging.WARNING)
+    logging.getLogger().addHandler(root_handler)
+
     return log
 
 
