@@ -197,7 +197,7 @@ export class DiscordResponseSender {
 
       const sentMessage = await dmChannel.send({
         content: chunks[i],
-        files: files?.map(f => ({ attachment: f.attachment, name: f.name })),
+        ...(files !== undefined && { files }),
       });
 
       await redisService.storeWebhookMessage(sentMessage.id, personality.id);

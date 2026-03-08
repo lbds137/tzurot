@@ -33,7 +33,7 @@ function forceSplitLongSentence(sentence: string): { splitChunks: string[]; rema
 
   while (remaining.length > MAX_CHUNK_LENGTH) {
     const splitIndex = remaining.lastIndexOf(' ', MAX_CHUNK_LENGTH);
-    const breakAt = splitIndex > 0 ? splitIndex : MAX_CHUNK_LENGTH;
+    const breakAt = splitIndex !== -1 ? splitIndex : MAX_CHUNK_LENGTH;
     splitChunks.push(remaining.substring(0, breakAt).trim());
     remaining = remaining.substring(breakAt).trim();
   }
