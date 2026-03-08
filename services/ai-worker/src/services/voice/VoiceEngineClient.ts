@@ -73,19 +73,27 @@ export class VoiceEngineClient {
 
   /**
    * Check service health via GET /health. Returns true only when both ASR and TTS
-   * models are loaded ("fully ready"). Callers needing STT-only availability should
-   * check individually rather than using this method.
+   * models are loaded ("fully ready"). Use `getHealth()` for per-model status.
    */
   async isHealthy(): Promise<boolean> {
+    const health = await this.getHealth();
+    return health.asr && health.tts;
+  }
+
+  /** Get per-model health status. Returns `{ asr: false, tts: false }` on any error. */
+  async getHealth(): Promise<{ asr: boolean; tts: boolean }> {
     try {
       const response = await this.fetchWithTimeout('/health', { method: 'GET' }, 5_000);
       if (!response.ok) {
-        return false;
+        return { asr: false, tts: false };
       }
       const body = (await response.json()) as { asr_loaded?: boolean; tts_loaded?: boolean };
-      return body.asr_loaded === true && body.tts_loaded === true;
+      return {
+        asr: body.asr_loaded === true,
+        tts: body.tts_loaded === true,
+      };
     } catch {
-      return false;
+      return { asr: false, tts: false };
     }
   }
 
