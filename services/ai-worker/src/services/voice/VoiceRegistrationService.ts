@@ -22,7 +22,11 @@ export class VoiceRegistrationService {
   /** In-flight registration promises to prevent concurrent duplicate registrations */
   private readonly inflight = new Map<string, Promise<void>>();
 
-  constructor(private readonly voiceEngineClient: VoiceEngineClient) {
+  /** The underlying voice engine client (exposed for callers that need both services). */
+  readonly client: VoiceEngineClient;
+
+  constructor(voiceEngineClient: VoiceEngineClient) {
+    this.client = voiceEngineClient;
     this.registrationCache = new TTLCache<boolean>({
       ttl: REGISTRATION_CACHE_TTL_MS,
       maxSize: REGISTRATION_CACHE_MAX_SIZE,
@@ -56,7 +60,7 @@ export class VoiceRegistrationService {
   private async doRegister(slug: string): Promise<void> {
     // Check if already registered on the voice-engine
     try {
-      const voices = await this.voiceEngineClient.listVoices();
+      const voices = await this.client.listVoices();
       if (voices.includes(slug)) {
         this.registrationCache.set(slug, true);
         return;
@@ -90,7 +94,7 @@ export class VoiceRegistrationService {
 
     // Register with voice-engine
     logger.info({ slug, audioSize: audioBuffer.length }, 'Registering voice with voice-engine');
-    await this.voiceEngineClient.registerVoice(slug, audioBuffer, contentType);
+    await this.client.registerVoice(slug, audioBuffer, contentType);
 
     this.registrationCache.set(slug, true);
     logger.info({ slug }, 'Voice registered successfully');

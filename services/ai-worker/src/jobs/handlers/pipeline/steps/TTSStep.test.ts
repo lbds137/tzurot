@@ -29,8 +29,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 const mockEnsureVoiceRegistered = vi.fn().mockResolvedValue(undefined);
 
+const mockVoiceEngineClient = { synthesize: vi.fn() };
+
 vi.mock('../../../../services/voice/VoiceRegistrationService.js', () => ({
   VoiceRegistrationService: class MockVoiceRegistrationService {
+    client = mockVoiceEngineClient;
     ensureVoiceRegistered = mockEnsureVoiceRegistered;
   },
 }));
@@ -164,9 +167,10 @@ describe('TTSStep', () => {
       expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
     });
 
-    it('skips when personality.voiceEnabled is undefined', async () => {
+    it('skips when personality.voiceEnabled is missing (legacy job payloads)', async () => {
       const ctx = createContext();
-      ctx.job.data.personality.voiceEnabled = undefined;
+      // Cast to handle in-flight jobs from before voiceEnabled had a default
+      (ctx.job.data.personality as Record<string, unknown>).voiceEnabled = undefined;
 
       const result = await step.process(ctx);
 
