@@ -169,6 +169,8 @@ async function transcribeWithWhisper(
 /**
  * Transcribe audio (voice message or audio file).
  * Tries voice-engine first (if configured), falls back to Whisper.
+ * Empty string from voice-engine is returned as-is (silent/inaudible audio) —
+ * only null (unconfigured or failed) triggers the Whisper fallback.
  * Throws errors to allow retry logic to handle them.
  *
  * @param attachment - Audio attachment to transcribe
