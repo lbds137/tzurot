@@ -82,7 +82,22 @@ export class VoiceRegistrationService {
     const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
     logger.info({ slug }, 'Fetching voice reference from gateway');
 
-    const response = await fetch(voiceUrl);
+    // 15s timeout — tighter than TTSStep's 60s outer timeout so the failure
+    // surfaces as a gateway fetch error rather than a generic TTS timeout.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    let response: globalThis.Response;
+    try {
+      response = await fetch(voiceUrl, { signal: controller.signal });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Gateway fetch timed out for voice reference "${slug}"`, { cause: error });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+
     if (!response.ok) {
       throw new Error(
         `Failed to fetch voice reference for "${slug}": ${response.status} ${response.statusText}`

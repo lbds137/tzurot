@@ -57,6 +57,7 @@ describe('VoiceTranscriptionService', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   describe('hasVoiceAttachment', () => {
