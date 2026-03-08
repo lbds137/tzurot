@@ -181,22 +181,22 @@ describe('Startup Utilities', () => {
     });
 
     it('should not throw when voice engine is healthy', async () => {
-      const mockClient = { isHealthy: vi.fn().mockResolvedValue(true) };
+      const mockClient = { getHealth: vi.fn().mockResolvedValue({ asr: true, tts: true }) };
       vi.mocked(getVoiceEngineClient).mockReturnValue(mockClient as never);
 
       await expect(checkVoiceEngineHealth()).resolves.toBeUndefined();
-      expect(mockClient.isHealthy).toHaveBeenCalled();
+      expect(mockClient.getHealth).toHaveBeenCalled();
     });
 
     it('should not throw when voice engine is unhealthy', async () => {
-      const mockClient = { isHealthy: vi.fn().mockResolvedValue(false) };
+      const mockClient = { getHealth: vi.fn().mockResolvedValue({ asr: true, tts: false }) };
       vi.mocked(getVoiceEngineClient).mockReturnValue(mockClient as never);
 
       await expect(checkVoiceEngineHealth()).resolves.toBeUndefined();
     });
 
     it('should not throw when health check throws', async () => {
-      const mockClient = { isHealthy: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')) };
+      const mockClient = { getHealth: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')) };
       vi.mocked(getVoiceEngineClient).mockReturnValue(mockClient as never);
 
       await expect(checkVoiceEngineHealth()).resolves.toBeUndefined();

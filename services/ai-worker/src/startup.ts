@@ -43,11 +43,14 @@ export async function checkVoiceEngineHealth(): Promise<void> {
       return;
     }
 
-    const healthy = await client.isHealthy();
-    if (healthy) {
-      logger.info('[AIWorker] Voice engine healthy');
+    const health = await client.getHealth();
+    if (health.asr && health.tts) {
+      logger.info('[AIWorker] Voice engine healthy (ASR + TTS loaded)');
     } else {
-      logger.warn({ healthy: false }, '[AIWorker] Voice engine configured but not healthy');
+      logger.warn(
+        { asrLoaded: health.asr, ttsLoaded: health.tts },
+        '[AIWorker] Voice engine configured but not fully healthy'
+      );
     }
   } catch (error) {
     logger.warn({ err: error }, '[AIWorker] Voice engine health check failed');

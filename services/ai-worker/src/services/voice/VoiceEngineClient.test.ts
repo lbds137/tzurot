@@ -119,8 +119,66 @@ describe('VoiceEngineClient', () => {
     });
   });
 
+  describe('getHealth', () => {
+    it('should return both true when both models are loaded', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          status: 'ok',
+          asr_loaded: true,
+          tts_loaded: true,
+        }),
+      });
+
+      const result = await client.getHealth();
+      expect(result).toEqual({ asr: true, tts: true });
+    });
+
+    it('should return asr false when asr_loaded is false', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          status: 'ok',
+          asr_loaded: false,
+          tts_loaded: true,
+        }),
+      });
+
+      const result = await client.getHealth();
+      expect(result).toEqual({ asr: false, tts: true });
+    });
+
+    it('should return tts false when tts_loaded is false', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          status: 'ok',
+          asr_loaded: true,
+          tts_loaded: false,
+        }),
+      });
+
+      const result = await client.getHealth();
+      expect(result).toEqual({ asr: true, tts: false });
+    });
+
+    it('should return both false on network error', async () => {
+      mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
+
+      const result = await client.getHealth();
+      expect(result).toEqual({ asr: false, tts: false });
+    });
+
+    it('should return both false on non-200 response', async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+      const result = await client.getHealth();
+      expect(result).toEqual({ asr: false, tts: false });
+    });
+  });
+
   describe('isHealthy', () => {
-    it('should return true when both asr_loaded and tts_loaded are true', async () => {
+    it('should return true when both models are loaded', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue({
@@ -134,21 +192,7 @@ describe('VoiceEngineClient', () => {
       expect(result).toBe(true);
     });
 
-    it('should return false when asr_loaded is false', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          status: 'ok',
-          asr_loaded: false,
-          tts_loaded: true,
-        }),
-      });
-
-      const result = await client.isHealthy();
-      expect(result).toBe(false);
-    });
-
-    it('should return false when tts_loaded is false', async () => {
+    it('should return false when either model is not loaded', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue({
@@ -157,20 +201,6 @@ describe('VoiceEngineClient', () => {
           tts_loaded: false,
         }),
       });
-
-      const result = await client.isHealthy();
-      expect(result).toBe(false);
-    });
-
-    it('should return false on network error', async () => {
-      mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
-
-      const result = await client.isHealthy();
-      expect(result).toBe(false);
-    });
-
-    it('should return false on non-200 response', async () => {
-      mockFetch.mockResolvedValue({ ok: false, status: 500 });
 
       const result = await client.isHealthy();
       expect(result).toBe(false);

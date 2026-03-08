@@ -78,7 +78,8 @@ describe('DiscordResponseSender', () => {
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledWith(
         mockChannel,
         mockPersonality,
-        'Hello from bot!'
+        'Hello from bot!',
+        undefined
       );
       expect(result.chunkMessageIds).toEqual(['msg-123']);
       expect(result.chunkCount).toBe(1);
@@ -472,8 +473,16 @@ describe('DiscordResponseSender', () => {
         message: mockMessage,
       });
 
-      expect(mockChannel.send).toHaveBeenCalledWith(expect.stringContaining('Test Bot:'));
-      expect(mockChannel.send).toHaveBeenCalledWith(expect.stringContaining('Hello in DM!'));
+      expect(mockChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Test Bot:'),
+        })
+      );
+      expect(mockChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Hello in DM!'),
+        })
+      );
       expect(result.chunkMessageIds).toEqual(['dm-msg-123']);
     });
 
@@ -494,8 +503,8 @@ describe('DiscordResponseSender', () => {
       });
 
       // Should have added prefix before chunking
-      const firstCallContent = (mockChannel.send as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      expect(firstCallContent).toContain('**Test Bot:**');
+      const firstCallArg = (mockChannel.send as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(firstCallArg.content).toContain('**Test Bot:**');
 
       expect(result.chunkMessageIds).toEqual(['dm-msg-1', 'dm-msg-2']);
       expect(result.chunkCount).toBe(2);
@@ -516,7 +525,8 @@ describe('DiscordResponseSender', () => {
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledWith(
         mockChannel,
         mockPersonality,
-        'Thread message'
+        'Thread message',
+        undefined
       );
     });
   });

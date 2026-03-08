@@ -172,10 +172,12 @@ export class DiscordResponseSender {
       const isLastChunk = i === chunks.length - 1;
       const files = isLastChunk ? ttsFiles : undefined;
 
-      const sentMessage =
-        files !== undefined
-          ? await this.webhookManager.sendAsPersonality(channel, personality, chunks[i], files)
-          : await this.webhookManager.sendAsPersonality(channel, personality, chunks[i]);
+      const sentMessage = await this.webhookManager.sendAsPersonality(
+        channel,
+        personality,
+        chunks[i],
+        files
+      );
 
       if (sentMessage !== null && sentMessage !== undefined) {
         await redisService.storeWebhookMessage(sentMessage.id, personality.id);
@@ -193,13 +195,10 @@ export class DiscordResponseSender {
       const isLastChunk = i === chunks.length - 1;
       const files = isLastChunk ? ttsFiles : undefined;
 
-      const sentMessage =
-        files !== undefined
-          ? await dmChannel.send({
-              content: chunks[i],
-              files: files.map(f => ({ attachment: f.attachment, name: f.name })),
-            })
-          : await dmChannel.send(chunks[i]);
+      const sentMessage = await dmChannel.send({
+        content: chunks[i],
+        files: files?.map(f => ({ attachment: f.attachment, name: f.name })),
+      });
 
       await redisService.storeWebhookMessage(sentMessage.id, personality.id);
       chunkMessageIds.push(sentMessage.id);
