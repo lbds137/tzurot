@@ -103,7 +103,10 @@ export class ElevenLabsVoiceService {
   private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
     const voiceName = `${VOICE_NAME_PREFIX}${slug}`;
 
-    // Check if voice already exists in user's account (avoids re-cloning)
+    // Check if voice already exists in user's account (avoids re-cloning).
+    // Note: matches by name only — a manually-created voice with the same
+    // "tzurot-{slug}" name would be reused. Could verify description in a
+    // follow-up for stricter provenance checking.
     try {
       const voices = await elevenLabsListVoices(apiKey);
       const existing = voices.find(v => v.name === voiceName);

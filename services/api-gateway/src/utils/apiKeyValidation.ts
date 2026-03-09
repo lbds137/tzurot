@@ -115,8 +115,6 @@ export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValid
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
-
     if (response.status === 401 || response.status === 403) {
       return { valid: false, errorCode: 'INVALID_KEY', error: 'Invalid API key' };
     }
@@ -150,8 +148,6 @@ export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValid
 
     return { valid: true, credits: remaining };
   } catch (error) {
-    clearTimeout(timeout);
-
     if (error instanceof Error && error.name === 'AbortError') {
       return { valid: false, errorCode: 'TIMEOUT', error: 'Validation request timed out' };
     }
@@ -161,6 +157,8 @@ export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValid
       errorCode: 'UNKNOWN',
       error: error instanceof Error ? error.message : 'Validation failed',
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
