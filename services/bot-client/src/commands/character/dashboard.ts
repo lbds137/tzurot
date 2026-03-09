@@ -149,10 +149,11 @@ async function handleSectionModalSubmit(
       );
     }
 
-    // Refresh dashboard using shared options builder
-    const embed = buildDashboardEmbed(dashboardConfig, updated);
+    // Rebuild config with updated hasVoiceReference for conditional actions
+    const refreshConfig = getCharacterDashboardConfig(isAdmin, updated.hasVoiceReference);
+    const embed = buildDashboardEmbed(refreshConfig, updated);
     const components = buildDashboardComponents(
-      dashboardConfig,
+      refreshConfig,
       updated.slug,
       updated,
       buildCharacterDashboardOptions(sessionData)
@@ -349,7 +350,51 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 }
 
 /**
- * Handle dashboard actions (visibility toggle, avatar upload, etc.)
+ * Refresh the dashboard after a character update.
+ * Handles session preservation and dashboard rebuild.
+ */
+async function refreshDashboardAfterUpdate(
+  interaction: StringSelectMenuInteraction,
+  entityId: string,
+  updated: CharacterData
+): Promise<void> {
+  const isAdmin = isBotOwner(interaction.user.id);
+  const dashboardConfig = getCharacterDashboardConfig(isAdmin, updated.hasVoiceReference);
+
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<CharacterSessionData>(
+    interaction.user.id,
+    'character',
+    entityId
+  );
+
+  const sessionData: CharacterSessionData = {
+    ...updated,
+    canEdit: session?.data?.canEdit,
+    _isAdmin: isAdmin,
+    browseContext: session?.data?.browseContext,
+  };
+
+  await sessionManager.update<CharacterSessionData>(
+    interaction.user.id,
+    'character',
+    entityId,
+    sessionData
+  );
+
+  const embed = buildDashboardEmbed(dashboardConfig, updated);
+  const components = buildDashboardComponents(
+    dashboardConfig,
+    updated.slug,
+    updated,
+    buildCharacterDashboardOptions(sessionData)
+  );
+
+  await interaction.editReply({ embeds: [embed], components });
+}
+
+/**
+ * Handle dashboard actions (visibility toggle, avatar upload, voice, etc.)
  */
 async function handleAction(
   interaction: StringSelectMenuInteraction,
@@ -360,13 +405,11 @@ async function handleAction(
   if (actionId === 'visibility') {
     await interaction.deferUpdate();
 
-    // Get current character (entityId is the slug)
     const character = await fetchCharacter(entityId, config, interaction.user.id);
     if (!character) {
       return;
     }
 
-    // Toggle visibility using dedicated endpoint
     const result = await toggleVisibility(
       entityId,
       !character.isPublic,
@@ -374,47 +417,8 @@ async function handleAction(
       config
     );
 
-    // Update character data with new visibility
     const updated: CharacterData = { ...character, isPublic: result.isPublic };
-
-    // Determine admin status for dashboard config
-    const isAdmin = isBotOwner(interaction.user.id);
-    const dashboardConfig = getCharacterDashboardConfig(isAdmin);
-
-    // Get session to check for browse context and build session data
-    const sessionManager = getSessionManager();
-    const session = await sessionManager.get<CharacterSessionData>(
-      interaction.user.id,
-      'character',
-      entityId
-    );
-
-    // Build session data with preserved browse context
-    const sessionData: CharacterSessionData = {
-      ...updated,
-      canEdit: session?.data?.canEdit, // Preserve canEdit from original session
-      _isAdmin: isAdmin,
-      browseContext: session?.data?.browseContext, // Preserve browse context
-    };
-
-    // Update session
-    await sessionManager.update<CharacterSessionData>(
-      interaction.user.id,
-      'character',
-      entityId,
-      sessionData
-    );
-
-    // Refresh dashboard using shared options builder
-    const embed = buildDashboardEmbed(dashboardConfig, updated);
-    const components = buildDashboardComponents(
-      dashboardConfig,
-      updated.slug,
-      updated,
-      buildCharacterDashboardOptions(sessionData)
-    );
-
-    await interaction.editReply({ embeds: [embed], components });
+    await refreshDashboardAfterUpdate(interaction, entityId, updated);
 
     const status = result.isPublic ? '🌐 Public' : '🔒 Private';
     logger.info({ slug: entityId, isPublic: result.isPublic }, `Character visibility: ${status}`);
@@ -422,8 +426,6 @@ async function handleAction(
   }
 
   if (actionId === 'avatar') {
-    // Avatar upload requires a different flow - prompt user to use /character avatar command
-    // or we could create a follow-up message asking them to upload an attachment
     await interaction.reply({
       content:
         '🖼️ **Avatar Upload**\n\n' +
@@ -431,6 +433,41 @@ async function handleAction(
         '(Discord modals cannot accept file uploads)',
       flags: MessageFlags.Ephemeral,
     });
+    return;
+  }
+
+  if (actionId === 'voice') {
+    await interaction.reply({
+      content:
+        '🎤 **Voice Reference**\n\n' +
+        'Use `/character voice` to upload a voice reference for TTS cloning.\n' +
+        'Use `/character voice-clear` to remove it and disable TTS.\n' +
+        '(Discord modals cannot accept file uploads)',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (actionId === 'voice-toggle') {
+    await interaction.deferUpdate();
+
+    const character = await fetchCharacter(entityId, config, interaction.user.id);
+    if (!character) {
+      return;
+    }
+
+    const newVoiceEnabled = !character.voiceEnabled;
+    const updated = await updateCharacter(
+      entityId,
+      { voiceEnabled: newVoiceEnabled },
+      interaction.user.id,
+      config
+    );
+
+    await refreshDashboardAfterUpdate(interaction, entityId, updated);
+
+    const status = newVoiceEnabled ? '🔊 Enabled' : '🔇 Disabled';
+    logger.info({ slug: entityId, voiceEnabled: newVoiceEnabled }, `Character voice: ${status}`);
     return;
   }
 

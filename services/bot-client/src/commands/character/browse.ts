@@ -412,7 +412,10 @@ export async function handleBrowseSelect(
     }
 
     // Get dashboard config based on edit permissions
-    const dashboardConfig = getCharacterDashboardConfig(character.canEdit);
+    const dashboardConfig = getCharacterDashboardConfig(
+      character.canEdit,
+      character.hasVoiceReference
+    );
 
     // Create session data with browse context for back navigation
     const sessionData: CharacterData = {

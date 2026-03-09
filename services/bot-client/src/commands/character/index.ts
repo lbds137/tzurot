@@ -88,7 +88,7 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         view: (ctx: DeferredCommandContext) => handleView(ctx, config),
         browse: (ctx: DeferredCommandContext) => handleBrowse(ctx, config),
         avatar: (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
-        'voice-upload': (ctx: DeferredCommandContext) => handleVoice(ctx, config),
+        voice: (ctx: DeferredCommandContext) => handleVoice(ctx, config),
         'voice-clear': (ctx: DeferredCommandContext) => handleVoice(ctx, config),
         import: (ctx: DeferredCommandContext) => handleImport(ctx, config),
         export: (ctx: DeferredCommandContext) => handleExport(ctx, config),
@@ -281,7 +281,7 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('voice-upload')
+        .setName('voice')
         .setDescription('Upload a voice reference audio file for TTS cloning')
         .addStringOption(option =>
           option

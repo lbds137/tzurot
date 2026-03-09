@@ -366,7 +366,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
   {
     "description": "Upload a voice reference audio file for TTS cloning",
     "description_localizations": undefined,
-    "name": "voice-upload",
+    "name": "voice",
     "name_localizations": undefined,
     "options": [
       {

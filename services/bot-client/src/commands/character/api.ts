@@ -119,6 +119,7 @@ export async function fetchAllCharacters(
       birthDay: null,
       birthYear: null,
       voiceEnabled: false,
+      hasVoiceReference: false,
       imageEnabled: false,
       avatarData: null,
       createdAt: '',

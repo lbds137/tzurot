@@ -123,7 +123,7 @@ export async function handleRefreshButton(
   }
 
   const isAdmin = isBotOwner(interaction.user.id);
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+  const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
 
   // Preserve browseContext from existing session
   const sessionData: CharacterSessionData = {

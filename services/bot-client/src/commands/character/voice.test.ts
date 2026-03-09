@@ -55,9 +55,9 @@ describe('handleVoice', () => {
     vi.clearAllMocks();
   });
 
-  describe('voice-upload', () => {
+  describe('voice', () => {
     it('should reject non-audio files', async () => {
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: { contentType: 'image/png', size: 1024, url: 'https://cdn.discordapp.com/file.png' },
       });
@@ -69,7 +69,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject files that are too large', async () => {
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -84,7 +84,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject if character not found', async () => {
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'nonexistent',
         audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
       });
@@ -97,7 +97,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject if user cannot edit character', async () => {
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
       });
@@ -123,7 +123,7 @@ describe('handleVoice', () => {
       };
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockFetchResponse));
 
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -158,7 +158,7 @@ describe('handleVoice', () => {
     it('should handle download failure', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
 
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -179,7 +179,7 @@ describe('handleVoice', () => {
     });
 
     it('should accept null contentType as invalid', async () => {
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: { contentType: null, size: 1024, url: 'https://cdn.discordapp.com/file' },
       });
@@ -190,7 +190,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject malformed attachment URLs', async () => {
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
@@ -206,7 +206,7 @@ describe('handleVoice', () => {
     });
 
     it('should reject non-Discord CDN URLs', async () => {
-      const context = createMockContext('voice-upload', {
+      const context = createMockContext('voice', {
         character: 'test-char',
         audio: {
           contentType: 'audio/wav',
