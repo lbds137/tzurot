@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const { mockChatOpenAI, mockConfigData } = vi.hoisted(() => ({
   mockChatOpenAI: vi.fn(),
   mockConfigData: {
-    AI_PROVIDER: 'openrouter' as const,
+    AI_PROVIDER: 'openrouter' as string,
     DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
     OPENROUTER_API_KEY: 'test-openrouter-key',
     OPENROUTER_APP_TITLE: undefined as string | undefined,
@@ -34,6 +34,7 @@ vi.mock('@tzurot/common-types', () => ({
   getConfig: () => mockConfigData,
   AIProvider: {
     OpenRouter: 'openrouter',
+    ElevenLabs: 'elevenlabs',
   },
   AI_DEFAULTS: {
     MAX_TOKENS: 4096,
@@ -64,6 +65,7 @@ describe('ModelFactory', () => {
     mockChatOpenAI.mockClear();
     mockIsReasoningModel.mockClear();
     mockIsReasoningModel.mockReturnValue(false); // Default: not a reasoning model
+    mockConfigData.AI_PROVIDER = 'openrouter'; // Reset per test
     mockConfigData.OPENROUTER_APP_TITLE = undefined; // Reset per test
     mockConfigData.OPENROUTER_APP_URL = undefined; // Reset per test
   });
@@ -946,6 +948,20 @@ describe('ModelFactory', () => {
         'HTTP-Referer': 'https://myapp.example.com',
         'X-Title': 'MyBot',
       });
+    });
+  });
+
+  // ===================================
+  // Unsupported provider guard
+  // ===================================
+
+  describe('unsupported provider guard', () => {
+    it('should throw when AI_PROVIDER is set to ElevenLabs (voice-only provider)', () => {
+      mockConfigData.AI_PROVIDER = 'elevenlabs';
+
+      expect(() => createChatModel({ modelName: 'test-model' })).toThrow(
+        'ElevenLabs is a voice provider, not an LLM provider'
+      );
     });
   });
 });
