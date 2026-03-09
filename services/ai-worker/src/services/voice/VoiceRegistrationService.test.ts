@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VoiceRegistrationService } from './VoiceRegistrationService.js';
+import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import * as commonTypes from '@tzurot/common-types';
@@ -282,6 +283,49 @@ describe('VoiceRegistrationService', () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue(['undici-voice']);
     await service.ensureVoiceRegistered('undici-voice');
     expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledTimes(2);
+  });
+
+  it('should NOT negatively cache 503 VoiceEngineError (partial cold start)', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    // Voice engine HTTP server is up but models still loading → 503
+    mockFetch.mockRejectedValue(new VoiceEngineError(503, 'TTS model not loaded'));
+
+    await expect(service.ensureVoiceRegistered('cold-voice')).rejects.toThrow(
+      'Voice engine request failed (503)'
+    );
+
+    // Second call: should retry (NOT hit negative cache)
+    mockFetch.mockClear();
+    mockVoiceEngineClient.listVoices.mockClear();
+
+    // Voice engine is now fully ready
+    mockVoiceEngineClient.listVoices.mockResolvedValue(['cold-voice']);
+
+    await service.ensureVoiceRegistered('cold-voice');
+
+    // Should have called listVoices again (not blocked by negative cache)
+    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
+  });
+
+  it('should negatively cache non-503 VoiceEngineError (e.g., 400)', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    // Voice engine returns 400 (bad request) — this IS a permanent error
+    mockFetch.mockRejectedValue(new VoiceEngineError(400, 'Invalid audio format'));
+
+    await expect(service.ensureVoiceRegistered('bad-audio')).rejects.toThrow(
+      'Voice engine request failed (400)'
+    );
+
+    // Second call: should be negatively cached
+    mockFetch.mockClear();
+    mockVoiceEngineClient.listVoices.mockClear();
+
+    await expect(service.ensureVoiceRegistered('bad-audio')).rejects.toThrow(
+      'Voice registration for "bad-audio" recently failed'
+    );
+    expect(mockVoiceEngineClient.listVoices).not.toHaveBeenCalled();
   });
 
   it('should negatively cache errors with "fetch failed" substring in longer message', async () => {
