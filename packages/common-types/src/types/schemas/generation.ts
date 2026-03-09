@@ -105,7 +105,9 @@ const generationPayloadSchema = z.object({
       showModelFooter: z.boolean().optional(),
       /** Redis key for TTS audio buffer (format: tts-audio:{jobId}) */
       ttsAudioKey: z.string().optional(),
-      /** MIME type of TTS audio (e.g., 'audio/wav', 'audio/mpeg') for file extension */
+      /** MIME type of TTS audio — determines Discord file extension (.wav or .mp3).
+       *  Expected values: 'audio/wav' (voice-engine) or 'audio/mpeg' (ElevenLabs).
+       *  Consumer defaults to .wav for unrecognized types. */
       ttsAudioContentType: z.string().optional(),
     })
     .optional(),
