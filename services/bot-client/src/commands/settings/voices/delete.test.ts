@@ -4,7 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
-import { handleDeleteVoice, handleVoiceAutocomplete } from './delete.js';
+import {
+  handleDeleteVoice,
+  handleVoiceAutocomplete,
+  _clearVoiceCacheForTesting,
+} from './delete.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -113,6 +117,7 @@ describe('handleVoiceAutocomplete', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    _clearVoiceCacheForTesting();
   });
 
   function createMockAutocomplete(query = ''): AutocompleteInteraction {
@@ -164,6 +169,25 @@ describe('handleVoiceAutocomplete', () => {
     await handleVoiceAutocomplete(createMockAutocomplete('ali'));
 
     expect(mockRespond).toHaveBeenCalledWith([{ name: 'alice', value: 'v1' }]);
+  });
+
+  it('should use cached voices on subsequent calls', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: [{ voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
+        totalSlots: 10,
+        tzurotCount: 1,
+      },
+    });
+
+    // First call populates cache
+    await handleVoiceAutocomplete(createMockAutocomplete());
+    // Second call should use cache (no additional API call)
+    await handleVoiceAutocomplete(createMockAutocomplete('ali'));
+
+    expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+    expect(mockRespond).toHaveBeenCalledTimes(2);
   });
 
   it('should return empty on API error', async () => {
