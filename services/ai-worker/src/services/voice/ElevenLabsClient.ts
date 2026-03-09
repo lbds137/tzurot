@@ -21,6 +21,8 @@ const BASE_URL = AI_ENDPOINTS.ELEVENLABS_BASE_URL;
 
 /** Timeout for ElevenLabs API calls (60s — TTS can be slow for long text) */
 const ELEVENLABS_TIMEOUT_MS = 60_000;
+/** Shorter timeout for lightweight operations (list voices, delete voice) */
+const ELEVENLABS_FAST_TIMEOUT_MS = 15_000;
 
 export interface ElevenLabsTTSOptions {
   text: string;
@@ -234,7 +236,12 @@ export async function elevenLabsCloneVoice(
  * List voices in the user's ElevenLabs account.
  */
 export async function elevenLabsListVoices(apiKey: string): Promise<ElevenLabsVoiceInfo[]> {
-  const response = await elevenLabsFetch('/voices', apiKey, { method: 'GET' }, 15_000);
+  const response = await elevenLabsFetch(
+    '/voices',
+    apiKey,
+    { method: 'GET' },
+    ELEVENLABS_FAST_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const detail = await extractErrorDetail(response);
@@ -254,7 +261,7 @@ export async function elevenLabsDeleteVoice(voiceId: string, apiKey: string): Pr
     `/voices/${encodeURIComponent(voiceId)}`,
     apiKey,
     { method: 'DELETE' },
-    15_000
+    ELEVENLABS_FAST_TIMEOUT_MS
   );
 
   if (!response.ok) {

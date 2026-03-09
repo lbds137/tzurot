@@ -251,7 +251,11 @@ export class KeyValidationService {
 
   /**
    * Validate ElevenLabs API key
-   * Uses the /v1/user endpoint to check key validity and subscription status
+   * Uses the /v1/user endpoint to check key validity and subscription status.
+   *
+   * Note: Similar validation exists in api-gateway's apiKeyValidation.ts
+   * (validateElevenLabsKey). Gateway validates on key submission; this
+   * validates on job execution. Intentionally separate per service boundary.
    */
   private async validateElevenLabsKey(apiKey: string): Promise<KeyValidationResult> {
     const provider = AIProvider.ElevenLabs;

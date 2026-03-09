@@ -101,6 +101,12 @@ export async function validateOpenRouterKey(apiKey: string): Promise<ApiKeyValid
  * Uses the /v1/user endpoint to check:
  * - Key validity (401 = invalid)
  * - Subscription info (character_count, character_limit)
+ *
+ * Note: Intentionally duplicates validation logic from
+ * ai-worker's KeyValidationService.validateElevenLabsKey().
+ * Gateway validates on key submission (user-facing flow);
+ * worker validates on job execution (runtime health check).
+ * Different service boundaries, different error handling.
  */
 export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValidationResult> {
   const controller = new AbortController();

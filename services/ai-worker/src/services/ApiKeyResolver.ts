@@ -194,6 +194,9 @@ export class ApiKeyResolver {
       case AIProvider.OpenRouter:
         return config.OPENROUTER_API_KEY ?? null;
       case AIProvider.ElevenLabs:
+        // System fallback key for ElevenLabs. In v1 this is BYOK-only —
+        // no system key is typically configured. Present for completeness
+        // and to support future operator-provided fallback if needed.
         return config.ELEVENLABS_API_KEY ?? null;
       default: {
         // Type guard for exhaustive check - add new providers above
