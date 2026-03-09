@@ -5,23 +5,15 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, DISCORD_LIMITS, TTLCache } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import type { VoiceEntry, VoicesListResponse } from './types.js';
 
 const logger = createLogger('settings-voices-delete');
 
-interface VoiceEntry {
-  voiceId: string;
-  name: string;
-  slug: string;
-}
-
-interface VoicesListResponse {
-  voices: VoiceEntry[];
-  totalSlots: number;
-  tzurotCount: number;
-}
+/** Cache voice lists per user to avoid hitting ElevenLabs API on every autocomplete keystroke */
+const voiceCache = new TTLCache<VoiceEntry[]>({ ttl: 30_000, maxSize: 100 });
 
 interface VoiceDeleteResponse {
   deleted: boolean;
@@ -78,17 +70,24 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
   const query = focused.toLowerCase();
 
   try {
-    const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-      userId,
-      timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
-    });
+    let voices = voiceCache.get(userId);
 
-    if (!result.ok) {
-      await interaction.respond([]);
-      return;
+    if (voices === null) {
+      const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
+        userId,
+        timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
+      });
+
+      if (!result.ok) {
+        await interaction.respond([]);
+        return;
+      }
+
+      voices = result.data.voices;
+      voiceCache.set(userId, voices);
     }
 
-    const filtered = result.data.voices
+    const filtered = voices
       .filter(v => v.slug.toLowerCase().includes(query) || v.voiceId.toLowerCase().includes(query))
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
@@ -102,4 +101,12 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
     logger.error({ err: error, userId }, '[Voices Autocomplete] Error');
     await interaction.respond([]);
   }
+}
+
+/**
+ * Clear the voice autocomplete cache.
+ * @internal For testing only
+ */
+export function _clearVoiceCacheForTesting(): void {
+  voiceCache.clear();
 }

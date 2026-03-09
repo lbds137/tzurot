@@ -197,6 +197,7 @@ describe('Voice Management Routes', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('INTERNAL_ERROR');
+      expect(res.body.message).toBe('Failed to delete voice');
     });
   });
 
