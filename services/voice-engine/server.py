@@ -132,6 +132,22 @@ def _is_valid_voice_id(voice_id: str) -> bool:
     return len(voice_id) <= MAX_VOICE_ID_LENGTH and bool(_VOICE_ID_RE.match(voice_id))
 
 
+def _safe_voice_path(voices_dir: str, filename: str) -> str:
+    """Construct a path within voices_dir with containment verification.
+
+    Defense-in-depth against path traversal (CWE-22). The voice_id regex
+    already prevents dangerous characters, but this check satisfies static
+    analysis tools (CodeQL py/path-injection) and guards against future
+    changes to the validation logic.
+    """
+    candidate = os.path.join(voices_dir, filename)
+    real_dir = os.path.realpath(voices_dir)
+    real_candidate = os.path.realpath(candidate)
+    if not real_candidate.startswith(real_dir + os.sep):
+        raise ValueError(f"Path escapes voices directory: {filename}")
+    return candidate
+
+
 # ---------------------------------------------------------------------------
 # Global model references (populated on startup)
 # ---------------------------------------------------------------------------
@@ -558,7 +574,7 @@ async def register_voice(
         voices_dir = os.environ.get("VOICES_DIR", "./voices")
         os.makedirs(voices_dir, exist_ok=True)
         ext = _AUDIO_EXTENSIONS.get(audio.content_type or "", _DEFAULT_AUDIO_EXT)
-        voice_path = os.path.join(voices_dir, f"{voice_id}{ext}")
+        voice_path = _safe_voice_path(voices_dir, f"{voice_id}{ext}")
 
         # Clean up stale files from prior registrations with different MIME types
         # (e.g., re-registering "alice" as MP3 after it was WAV leaves alice.wav).
