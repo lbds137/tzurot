@@ -39,10 +39,11 @@ async function handleVoiceUpload(
   const attachment = interaction.options.getAttachment('audio', true);
   const userId = context.user.id;
 
-  // Validate attachment type (optional chain satisfies both prefer-optional-chain
-  // and strict-boolean-expressions lint rules; === true handles null contentType).
-  // Narrow contentType to string after the guard for use in the data URI below.
-  const isAudio = attachment.contentType?.startsWith(VALID_AUDIO_PREFIX) === true;
+  // Validate attachment type — extract contentType for TypeScript narrowing.
+  // Optional chain + === true satisfies both prefer-optional-chain and
+  // strict-boolean-expressions lint rules while handling null contentType.
+  const { contentType } = attachment;
+  const isAudio = contentType?.startsWith(VALID_AUDIO_PREFIX) === true;
   if (!isAudio) {
     await context.editReply(
       `❌ Invalid file type. Please upload an audio file (WAV, MP3, OGG, or FLAC).\n` +
@@ -50,7 +51,8 @@ async function handleVoiceUpload(
     );
     return;
   }
-  // After isAudio guard, contentType is guaranteed non-null at runtime.
+  // After isAudio guard, contentType is narrowed to string at runtime
+  // (TypeScript can't infer this from the boolean variable, but it's safe).
 
   // Validate size
   if (attachment.size > MAX_UPLOAD_BYTES) {
@@ -106,7 +108,7 @@ async function handleVoiceUpload(
     }
 
     const rawBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    const base64Audio = `data:${attachment.contentType};base64,${rawBuffer.toString('base64')}`;
+    const base64Audio = `data:${contentType};base64,${rawBuffer.toString('base64')}`;
 
     // Update character with voice reference and auto-enable voice
     await updateCharacter(

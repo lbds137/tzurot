@@ -614,6 +614,15 @@ async function start(): Promise<void> {
       }
     }
 
+    // Warn about deprecated env var (now controlled via config cascade)
+    if (envConfig.AUTO_TRANSCRIBE_VOICE !== undefined) {
+      logger.warn(
+        {},
+        '[Bot] AUTO_TRANSCRIBE_VOICE env var is deprecated and ignored. ' +
+          'Voice transcription is now controlled via admin config cascade (voiceTranscriptionEnabled).'
+      );
+    }
+
     // Initialize command handler
     logger.info('[Bot] Loading slash commands...');
     commandHandler = new CommandHandler();

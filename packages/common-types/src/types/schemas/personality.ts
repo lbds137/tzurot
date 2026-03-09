@@ -204,8 +204,8 @@ export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 
 /**
  * Check if a personality has voice enabled for TTS.
- * Centralizes the `voiceEnabled !== true` convention — use this instead of
- * checking the field directly to correctly handle undefined as "disabled".
+ * Centralizes the check — use this instead of reading the field directly
+ * so TTS gating logic has a single source of truth.
  */
 export function isVoiceEnabled(personality: LoadedPersonality): boolean {
   return personality.voiceEnabled === true;

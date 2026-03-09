@@ -75,21 +75,31 @@ function buildUpdateData(
   return updateData;
 }
 
+async function invalidatePersonalityCache(
+  personalityId: string,
+  reason: string,
+  cacheInvalidationService?: CacheInvalidationService
+): Promise<void> {
+  if (cacheInvalidationService) {
+    try {
+      await cacheInvalidationService.invalidatePersonality(personalityId);
+      logger.info({ personalityId, reason }, '[User] Invalidated personality cache');
+    } catch (error) {
+      logger.warn(
+        { err: error, personalityId, reason },
+        '[User] Failed to invalidate personality cache'
+      );
+    }
+  }
+}
+
 async function handleAvatarCacheInvalidation(
   slug: string,
   personalityId: string,
   cacheInvalidationService?: CacheInvalidationService
 ): Promise<void> {
   await deleteAllAvatarVersions(slug, 'User avatar update');
-
-  if (cacheInvalidationService) {
-    try {
-      await cacheInvalidationService.invalidatePersonality(personalityId);
-      logger.info({ personalityId }, '[User] Invalidated personality cache after avatar update');
-    } catch (error) {
-      logger.warn({ err: error, personalityId }, '[User] Failed to invalidate personality cache');
-    }
-  }
+  await invalidatePersonalityCache(personalityId, 'avatar update', cacheInvalidationService);
 }
 
 async function handleSlugCacheInvalidation(
@@ -98,19 +108,9 @@ async function handleSlugCacheInvalidation(
   personalityId: string,
   cacheInvalidationService?: CacheInvalidationService
 ): Promise<void> {
-  // Delete cached avatars for both old and new slugs (all versions)
   await deleteAllAvatarVersions(oldSlug, 'Slug update - old slug');
   await deleteAllAvatarVersions(newSlug, 'Slug update - new slug');
-
-  // Invalidate personality cache
-  if (cacheInvalidationService) {
-    try {
-      await cacheInvalidationService.invalidatePersonality(personalityId);
-      logger.info({ personalityId }, '[User] Invalidated personality cache after slug update');
-    } catch (error) {
-      logger.warn({ err: error, personalityId }, '[User] Failed to invalidate personality cache');
-    }
-  }
+  await invalidatePersonalityCache(personalityId, 'slug update', cacheInvalidationService);
 }
 
 /** Process media uploads (avatar + voice reference), returning fields to merge */
@@ -239,6 +239,16 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     if (avatarUpdated) {
       await handleAvatarCacheInvalidation(slug, personality.id, cacheInvalidationService);
+    }
+
+    // Invalidate personality cache when voice settings change (voiceEnabled and
+    // voiceReferenceData are part of cached LoadedPersonality used by ai-worker for TTS)
+    const voiceSettingsChanged =
+      body.voiceEnabled !== undefined ||
+      mediaFields.voiceReferenceData !== undefined ||
+      mediaFields.voiceReferenceType !== undefined;
+    if (voiceSettingsChanged) {
+      await invalidatePersonalityCache(personality.id, 'voice settings', cacheInvalidationService);
     }
 
     // Invalidate caches when slug changes (avatar files may be cached by slug)
