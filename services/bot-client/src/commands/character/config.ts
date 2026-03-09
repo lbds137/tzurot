@@ -97,9 +97,12 @@ export function buildCharacterDashboardOptions(data: CharacterData): ActionButto
 }
 
 /**
- * Character Dashboard Configuration
+ * Base character dashboard configuration.
+ *
+ * Not exported — callers MUST use {@link getCharacterDashboardConfig} to get a
+ * config with the correct admin sections and conditional voice actions applied.
  */
-export const characterDashboardConfig: DashboardConfig<CharacterData> = {
+const baseCharacterDashboardConfig: DashboardConfig<CharacterData> = {
   entityType: 'character',
   getTitle: (data: CharacterData) => {
     const displayName = data.displayName ?? data.name;
@@ -150,7 +153,7 @@ export const characterDashboardConfig: DashboardConfig<CharacterData> = {
 /**
  * Get character dashboard config with optional admin sections and conditional actions.
  *
- * Use this instead of `characterDashboardConfig` directly so that admin-only
+ * Use this instead of `baseCharacterDashboardConfig` directly so that admin-only
  * sections and voice-dependent actions are correctly included/excluded.
  *
  * @param isAdmin - Whether the current user is a bot owner (adds admin section)
@@ -166,7 +169,7 @@ export function getCharacterDashboardConfig(
     sections.push(adminSection);
   }
 
-  const actions = [...(characterDashboardConfig.actions ?? [])];
+  const actions = [...(baseCharacterDashboardConfig.actions ?? [])];
   if (hasVoiceReference) {
     actions.push({
       id: 'voice-toggle',
@@ -176,7 +179,7 @@ export function getCharacterDashboardConfig(
     });
   }
 
-  return { ...characterDashboardConfig, sections, actions };
+  return { ...baseCharacterDashboardConfig, sections, actions };
 }
 
 /**

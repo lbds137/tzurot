@@ -3,12 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  characterDashboardConfig,
-  characterSeedFields,
-  getCharacterDashboardConfig,
-  type CharacterData,
-} from './config.js';
+import { characterSeedFields, getCharacterDashboardConfig, type CharacterData } from './config.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types';
 import { SectionStatus, type DashboardContext } from '../../utils/dashboard/index.js';
 
@@ -47,20 +42,23 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
 }
 
 describe('Character Dashboard Configuration', () => {
+  // Use the factory function (base config is intentionally unexported)
+  const dashboardConfig = getCharacterDashboardConfig(false);
+
   describe('section structure', () => {
     it('should have exactly 4 sections', () => {
-      expect(characterDashboardConfig.sections).toHaveLength(4);
+      expect(dashboardConfig.sections).toHaveLength(4);
     });
 
     it('should have sections in correct order', () => {
-      const sectionIds = characterDashboardConfig.sections.map(s => s.id);
+      const sectionIds = dashboardConfig.sections.map(s => s.id);
       expect(sectionIds).toEqual(['identity', 'biography', 'preferences', 'conversation']);
     });
 
     it('should not exceed Discord modal field limit (5) for any section', () => {
       const DISCORD_MODAL_MAX_FIELDS = 5;
 
-      for (const section of characterDashboardConfig.sections) {
+      for (const section of dashboardConfig.sections) {
         expect(
           section.fields.length,
           `Section "${section.id}" has ${section.fields.length} fields, max is ${DISCORD_MODAL_MAX_FIELDS}`
@@ -69,7 +67,7 @@ describe('Character Dashboard Configuration', () => {
     });
 
     it('should have matching fieldIds and fields arrays', () => {
-      for (const section of characterDashboardConfig.sections) {
+      for (const section of dashboardConfig.sections) {
         const fieldIds = section.fields.map(f => f.id);
         expect(fieldIds).toEqual(section.fieldIds);
       }
@@ -77,7 +75,7 @@ describe('Character Dashboard Configuration', () => {
   });
 
   describe('Identity & Basics section', () => {
-    const identitySection = characterDashboardConfig.sections.find(s => s.id === 'identity')!;
+    const identitySection = dashboardConfig.sections.find(s => s.id === 'identity')!;
 
     it('should have correct fields', () => {
       expect(identitySection.fieldIds).toEqual([
@@ -131,7 +129,7 @@ describe('Character Dashboard Configuration', () => {
   });
 
   describe('Biography & Appearance section', () => {
-    const biographySection = characterDashboardConfig.sections.find(s => s.id === 'biography')!;
+    const biographySection = dashboardConfig.sections.find(s => s.id === 'biography')!;
 
     it('should have correct fields', () => {
       expect(biographySection.fieldIds).toEqual(['characterInfo', 'personalityAppearance']);
@@ -176,7 +174,7 @@ describe('Character Dashboard Configuration', () => {
   });
 
   describe('Preferences section', () => {
-    const preferencesSection = characterDashboardConfig.sections.find(s => s.id === 'preferences')!;
+    const preferencesSection = dashboardConfig.sections.find(s => s.id === 'preferences')!;
 
     it('should have correct fields', () => {
       expect(preferencesSection.fieldIds).toEqual(['personalityLikes', 'personalityDislikes']);
@@ -221,9 +219,7 @@ describe('Character Dashboard Configuration', () => {
   });
 
   describe('Conversation section', () => {
-    const conversationSection = characterDashboardConfig.sections.find(
-      s => s.id === 'conversation'
-    )!;
+    const conversationSection = dashboardConfig.sections.find(s => s.id === 'conversation')!;
 
     it('should have correct fields including errorMessage', () => {
       expect(conversationSection.fieldIds).toEqual([
@@ -310,30 +306,30 @@ describe('Character Dashboard Configuration', () => {
 
   describe('dashboard config metadata', () => {
     it('should have entityType set to character', () => {
-      expect(characterDashboardConfig.entityType).toBe('character');
+      expect(dashboardConfig.entityType).toBe('character');
     });
 
     it('should generate correct title with display name', () => {
       const character = createTestCharacter({ displayName: 'Luna the Wise' });
-      expect(characterDashboardConfig.getTitle(character)).toContain('Luna the Wise');
+      expect(dashboardConfig.getTitle(character)).toContain('Luna the Wise');
     });
 
     it('should generate correct title with name when no displayName', () => {
       const character = createTestCharacter({ name: 'TestBot', displayName: null });
-      expect(characterDashboardConfig.getTitle(character)).toContain('TestBot');
+      expect(dashboardConfig.getTitle(character)).toContain('TestBot');
     });
 
     it('should include slug in description', () => {
       const character = createTestCharacter({ slug: 'my-character' });
-      expect(characterDashboardConfig.getDescription!(character)).toContain('my-character');
+      expect(dashboardConfig.getDescription!(character)).toContain('my-character');
     });
 
     it('should show visibility status in description', () => {
       const publicChar = createTestCharacter({ isPublic: true });
       const privateChar = createTestCharacter({ isPublic: false });
 
-      expect(characterDashboardConfig.getDescription!(publicChar)).toContain('Public');
-      expect(characterDashboardConfig.getDescription!(privateChar)).toContain('Private');
+      expect(dashboardConfig.getDescription!(publicChar)).toContain('Public');
+      expect(dashboardConfig.getDescription!(privateChar)).toContain('Private');
     });
 
     it('should include footer with dates', () => {
@@ -341,13 +337,13 @@ describe('Character Dashboard Configuration', () => {
         createdAt: '2024-06-15T00:00:00Z',
         updatedAt: '2024-07-20T00:00:00Z',
       });
-      const footer = characterDashboardConfig.getFooter!(character);
+      const footer = dashboardConfig.getFooter!(character);
       expect(footer).toContain('Created:');
       expect(footer).toContain('Updated:');
     });
 
     it('should have visibility, avatar, and voice actions', () => {
-      const actionIds = characterDashboardConfig.actions!.map(a => a.id);
+      const actionIds = dashboardConfig.actions!.map(a => a.id);
       expect(actionIds).toContain('visibility');
       expect(actionIds).toContain('avatar');
       expect(actionIds).toContain('voice');
@@ -367,9 +363,9 @@ describe('Character Dashboard Configuration', () => {
         voiceEnabled: false,
       });
 
-      expect(characterDashboardConfig.getDescription!(voiceOnChar)).toContain('Voice On');
-      expect(characterDashboardConfig.getDescription!(voiceOffChar)).toContain('Voice Off');
-      expect(characterDashboardConfig.getDescription!(noVoiceChar)).not.toContain('Voice');
+      expect(dashboardConfig.getDescription!(voiceOnChar)).toContain('Voice On');
+      expect(dashboardConfig.getDescription!(voiceOffChar)).toContain('Voice Off');
+      expect(dashboardConfig.getDescription!(noVoiceChar)).not.toContain('Voice');
     });
   });
 
