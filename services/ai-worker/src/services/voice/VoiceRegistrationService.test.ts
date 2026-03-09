@@ -306,7 +306,7 @@ describe('VoiceRegistrationService', () => {
     mockVoiceEngineClient.listVoices.mockClear();
     mockVoiceEngineClient.registerVoice.mockClear();
 
-    // Voice engine is now fully ready — voice already registered from first attempt
+    // Second attempt: engine is now ready and voice was registered between calls
     mockVoiceEngineClient.listVoices.mockResolvedValue(['cold-voice']);
 
     await service.ensureVoiceRegistered('cold-voice');
