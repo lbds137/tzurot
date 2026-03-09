@@ -68,6 +68,32 @@ vi.mock('./preset/autocomplete.js', () => ({
   handleAutocomplete: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock voice handlers
+vi.mock('./voices/browse.js', () => ({
+  handleBrowseVoices: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./voices/delete.js', () => ({
+  handleDeleteVoice: vi.fn().mockResolvedValue(undefined),
+  handleVoiceAutocomplete: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./voices/clear.js', () => ({
+  handleClearVoices: vi.fn().mockResolvedValue(undefined),
+  handleVoiceClearButton: vi.fn().mockResolvedValue(undefined),
+  handleVoiceClearModal: vi.fn().mockResolvedValue(undefined),
+  VOICE_CLEAR_OPERATION: 'voice-clear',
+}));
+
+// Mock destructive confirmation utilities
+vi.mock('../../utils/destructiveConfirmation.js', () => ({
+  buildDestructiveWarning: vi.fn(),
+  createHardDeleteConfig: vi.fn(),
+  handleDestructiveConfirmButton: vi.fn(),
+  handleDestructiveCancel: vi.fn(),
+  handleDestructiveModalSubmit: vi.fn(),
+}));
+
 // Mock defaults handlers
 vi.mock('./defaults/edit.js', () => ({
   handleDefaultsEdit: vi.fn().mockResolvedValue(undefined),
@@ -171,6 +197,23 @@ describe('Settings Command Index', () => {
         (defaultsGroup as { options?: Array<{ name: string }> })?.options ?? []
       ).map(s => s.name);
       expect(subcommands).toContain('edit');
+    });
+
+    it('should have voices subcommand group with browse, delete, clear', () => {
+      const json = data.toJSON();
+      const options = json.options ?? [];
+
+      const groups = options.filter((opt: { type: number }) => opt.type === 2);
+      const voicesGroup = groups.find((g: { name: string }) => g.name === 'voices');
+
+      expect(voicesGroup).toBeDefined();
+
+      const subcommands = (
+        (voicesGroup as { options?: Array<{ name: string }> })?.options ?? []
+      ).map(s => s.name);
+      expect(subcommands).toContain('browse');
+      expect(subcommands).toContain('delete');
+      expect(subcommands).toContain('clear');
     });
 
     it('should have componentPrefixes for user-defaults-settings', () => {
@@ -328,6 +371,35 @@ describe('Settings Command Index', () => {
       });
     });
 
+    describe('voices group', () => {
+      it('should route to voices browse handler', async () => {
+        const { handleBrowseVoices } = await import('./voices/browse.js');
+        const context = createMockContext('voices', 'browse');
+
+        await execute(context);
+
+        expect(handleBrowseVoices).toHaveBeenCalledWith(context);
+      });
+
+      it('should route to voices delete handler', async () => {
+        const { handleDeleteVoice } = await import('./voices/delete.js');
+        const context = createMockContext('voices', 'delete');
+
+        await execute(context);
+
+        expect(handleDeleteVoice).toHaveBeenCalledWith(context);
+      });
+
+      it('should route to voices clear handler', async () => {
+        const { handleClearVoices } = await import('./voices/clear.js');
+        const context = createMockContext('voices', 'clear');
+
+        await execute(context);
+
+        expect(handleClearVoices).toHaveBeenCalledWith(context);
+      });
+    });
+
     it('should handle unknown group gracefully', async () => {
       const context = createMockContext('unknown', 'test');
 
@@ -378,6 +450,18 @@ describe('Settings Command Index', () => {
       expect(handleUserDefaultsButton).toHaveBeenCalledWith(interaction);
     });
 
+    it('should route voice-clear destructive buttons to voice handler', async () => {
+      const { handleVoiceClearButton } = await import('./voices/clear.js');
+
+      const interaction = {
+        customId: 'settings::destructive::confirm_button::voice-clear::all',
+      } as any;
+
+      await handleButton(interaction);
+
+      expect(handleVoiceClearButton).toHaveBeenCalledWith(interaction);
+    });
+
     it('should log warning for unknown button custom ID', async () => {
       const interaction = {
         customId: 'unknown-entity::action::id',
@@ -408,6 +492,20 @@ describe('Settings Command Index', () => {
 
       // Should not throw
       await handleSelectMenu(interaction);
+    });
+  });
+
+  describe('handleModal - voice-clear routing', () => {
+    it('should route voice-clear destructive modals to voice handler', async () => {
+      const { handleVoiceClearModal } = await import('./voices/clear.js');
+
+      const interaction = {
+        customId: 'settings::destructive::modal_submit::voice-clear::all',
+      } as any;
+
+      await handleModal(interaction);
+
+      expect(handleVoiceClearModal).toHaveBeenCalledWith(interaction);
     });
   });
 
@@ -443,6 +541,21 @@ describe('Settings Command Index', () => {
       await autocomplete(interaction);
 
       expect(handlePresetAutocomplete).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route voice autocomplete to voice handler', async () => {
+      const { handleVoiceAutocomplete } = await import('./voices/delete.js');
+
+      const interaction = {
+        options: {
+          getFocused: () => ({ name: 'voice', value: 'ali' }),
+          getSubcommandGroup: () => 'voices',
+        },
+      } as any;
+
+      await autocomplete(interaction);
+
+      expect(handleVoiceAutocomplete).toHaveBeenCalledWith(interaction);
     });
 
     it('should return empty array for unknown options', async () => {

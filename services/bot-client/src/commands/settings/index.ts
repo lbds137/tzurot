@@ -7,6 +7,7 @@
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
  * - /settings preset browse|set|reset|default|clear-default - Manage preset overrides
  * - /settings defaults edit - Manage global default settings (config cascade)
+ * - /settings voices browse|delete|clear - Manage ElevenLabs cloned voices
  *
  * HISTORY:
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
@@ -43,7 +44,7 @@ import { handleBrowse as handleWalletBrowse } from './apikey/browse.js';
 import { handleRemoveKey } from './apikey/remove.js';
 import { handleTestKey } from './apikey/test.js';
 import { handleApikeyModalSubmit } from './apikey/modal.js';
-import { ApikeyCustomIds } from '../../utils/customIds.js';
+import { ApikeyCustomIds, DestructiveCustomIds } from '../../utils/customIds.js';
 
 // Preset handlers
 import { handleBrowseOverrides } from './preset/browse.js';
@@ -52,6 +53,16 @@ import { handleReset as handlePresetReset } from './preset/reset.js';
 import { handleDefault as handlePresetDefault } from './preset/default.js';
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
+
+// Voice management handlers
+import { handleBrowseVoices } from './voices/browse.js';
+import { handleDeleteVoice, handleVoiceAutocomplete } from './voices/delete.js';
+import {
+  handleClearVoices,
+  handleVoiceClearButton,
+  handleVoiceClearModal,
+  VOICE_CLEAR_OPERATION,
+} from './voices/clear.js';
 
 // Defaults handlers (user-default config cascade settings)
 import {
@@ -107,6 +118,18 @@ const presetRouter = createTypedSubcommandRouter(
 );
 
 /**
+ * Voices subcommand group router (all deferred)
+ */
+const voicesRouter = createTypedSubcommandRouter(
+  {
+    browse: handleBrowseVoices,
+    delete: handleDeleteVoice,
+    clear: handleClearVoices,
+  },
+  { logger, logPrefix: '[Settings/Voices]' }
+);
+
+/**
  * Command execution router
  */
 async function execute(context: SafeCommandContext): Promise<void> {
@@ -120,6 +143,8 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await presetRouter(context as DeferredCommandContext);
   } else if (group === 'defaults') {
     await handleDefaultsEdit(context as DeferredCommandContext);
+  } else if (group === 'voices') {
+    await voicesRouter(context as DeferredCommandContext);
   } else {
     logger.warn({ group }, '[Settings] Unknown subcommand group');
     await (context as DeferredCommandContext).editReply({
@@ -144,6 +169,15 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     return;
   }
 
+  // Check if this is a voice-clear destructive confirmation modal
+  if (DestructiveCustomIds.isDestructive(interaction.customId)) {
+    const parsed = DestructiveCustomIds.parse(interaction.customId);
+    if (parsed?.operation === VOICE_CLEAR_OPERATION) {
+      await handleVoiceClearModal(interaction);
+      return;
+    }
+  }
+
   logger.warn({ customId: interaction.customId }, '[Settings] Unknown modal customId');
 }
 
@@ -154,6 +188,15 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   if (isUserDefaultsInteraction(interaction.customId)) {
     await handleUserDefaultsButton(interaction);
     return;
+  }
+
+  // Voice-clear destructive confirmation buttons
+  if (DestructiveCustomIds.isDestructive(interaction.customId)) {
+    const parsed = DestructiveCustomIds.parse(interaction.customId);
+    if (parsed?.operation === VOICE_CLEAR_OPERATION) {
+      await handleVoiceClearButton(interaction);
+      return;
+    }
   }
 
   logger.warn({ customId: interaction.customId }, '[Settings] Unknown button customId');
@@ -199,6 +242,8 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     // Personality and preset autocomplete for preset commands
     // The handlePresetAutocomplete handles both 'personality' and 'preset' options
     await handlePresetAutocomplete(interaction);
+  } else if (subcommandGroup === 'voices' && focusedOption.name === 'voice') {
+    await handleVoiceAutocomplete(interaction);
   } else {
     await interaction.respond([]);
   }
@@ -343,6 +388,30 @@ export default defineCommand({
         .setDescription('Manage your global default settings')
         .addSubcommand(subcommand =>
           subcommand.setName('edit').setDescription('Open your default settings dashboard')
+        )
+    )
+    // Voices subcommand group (ElevenLabs cloned voice management)
+    .addSubcommandGroup(group =>
+      group
+        .setName('voices')
+        .setDescription('Manage your ElevenLabs cloned voices')
+        .addSubcommand(subcommand =>
+          subcommand.setName('browse').setDescription('Browse your cloned voices')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('delete')
+            .setDescription('Delete a single cloned voice')
+            .addStringOption(option =>
+              option
+                .setName('voice')
+                .setDescription('The voice to delete')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand.setName('clear').setDescription('Delete all Tzurot cloned voices')
         )
     ),
   execute,
