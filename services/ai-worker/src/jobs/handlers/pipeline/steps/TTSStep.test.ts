@@ -313,8 +313,9 @@ describe('TTSStep', () => {
       const result = await promise;
 
       // With fake timers, Date.now() only advances on setTimeout fires, so the
-      // poll count is deterministic: 75_000 / 3_000 = 25 polls + 1 final check = 26.
-      expect(mockVoiceEngineClient.getHealth.mock.calls.length).toBeGreaterThanOrEqual(20);
+      // poll count is deterministic: 75_000 / 3_000 = 25 polls (each followed by
+      // a 3s sleep; after the 25th sleep Date.now() == deadline, loop exits).
+      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledTimes(25);
       expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
     });
