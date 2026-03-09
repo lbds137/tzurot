@@ -31,17 +31,24 @@ export class VoiceMessageProcessor implements IMessageProcessor {
   async process(message: Message): Promise<boolean> {
     const config = getConfig();
 
-    // Check if auto-transcription is enabled via config cascade (admin-level toggle)
-    const adminSettings = await this.gatewayClient.getAdminSettings();
-    const voiceTranscriptionEnabled =
-      adminSettings?.configDefaults?.voiceTranscriptionEnabled ??
-      HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled;
-    if (!voiceTranscriptionEnabled) {
+    // Check for voice attachment first (synchronous, cheap) before async gateway call
+    if (!this.voiceService.hasVoiceAttachment(message)) {
       return false; // Continue to next processor
     }
 
-    // Check if message has voice attachment
-    if (!this.voiceService.hasVoiceAttachment(message)) {
+    // Check if auto-transcription is enabled via config cascade (admin-level toggle)
+    let voiceTranscriptionEnabled: boolean = HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled;
+    try {
+      const adminSettings = await this.gatewayClient.getAdminSettings();
+      voiceTranscriptionEnabled =
+        adminSettings?.configDefaults?.voiceTranscriptionEnabled ?? voiceTranscriptionEnabled;
+    } catch (err) {
+      logger.warn(
+        { err },
+        'Failed to fetch admin settings, using default voice transcription setting'
+      );
+    }
+    if (!voiceTranscriptionEnabled) {
       return false; // Continue to next processor
     }
 
