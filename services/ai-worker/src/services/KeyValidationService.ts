@@ -10,7 +10,7 @@
  * - Errors are specific to help users understand failures
  */
 
-import { createLogger, AIProvider, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
+import { createLogger, AIProvider, AI_ENDPOINTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
 import { withTimeout } from '../utils/retry.js';
 
 const logger = createLogger('KeyValidationService');
@@ -167,6 +167,8 @@ export class KeyValidationService {
       switch (provider) {
         case AIProvider.OpenRouter:
           return await this.validateOpenRouterKey(apiKey);
+        case AIProvider.ElevenLabs:
+          return await this.validateElevenLabsKey(apiKey);
         default: {
           const _exhaustive: never = provider;
           logger.warn(
@@ -238,6 +240,69 @@ export class KeyValidationService {
         valid: true,
         provider,
         metadata: { creditBalance: calculateCreditBalance(data?.data) },
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('timed out')) {
+        throw new ValidationTimeoutError(provider);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Validate ElevenLabs API key
+   * Uses the /v1/user endpoint to check key validity and subscription status
+   */
+  private async validateElevenLabsKey(apiKey: string): Promise<KeyValidationResult> {
+    const provider = AIProvider.ElevenLabs;
+
+    try {
+      const response = await withTimeout(
+        signal =>
+          fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/user`, {
+            method: 'GET',
+            headers: { 'xi-api-key': apiKey },
+            signal,
+          }),
+        VALIDATION_TIMEOUTS.API_KEY_VALIDATION,
+        'ElevenLabs key validation'
+      );
+
+      if (response.status === 401 || response.status === 403) {
+        throw new InvalidApiKeyError(provider, 'Key rejected by ElevenLabs');
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new InvalidApiKeyError(provider, `HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = (await response.json()) as {
+        subscription?: {
+          character_count?: number;
+          character_limit?: number;
+        };
+      };
+
+      const used = data.subscription?.character_count;
+      const limit = data.subscription?.character_limit;
+
+      if (typeof used === 'number' && typeof limit === 'number' && used >= limit) {
+        throw new QuotaExceededError(provider, 'Character quota exhausted');
+      }
+
+      const remaining =
+        typeof used === 'number' && typeof limit === 'number' ? limit - used : undefined;
+
+      logger.info(
+        { hasSubscription: !!data.subscription, remaining },
+        '[KeyValidationService] ElevenLabs key validated successfully'
+      );
+
+      return {
+        valid: true,
+        provider,
+        metadata: { creditBalance: remaining },
       };
     } catch (error) {
       if (error instanceof Error && error.message.includes('timed out')) {

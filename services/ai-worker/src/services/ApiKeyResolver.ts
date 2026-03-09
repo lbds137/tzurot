@@ -193,6 +193,8 @@ export class ApiKeyResolver {
     switch (provider) {
       case AIProvider.OpenRouter:
         return config.OPENROUTER_API_KEY ?? null;
+      case AIProvider.ElevenLabs:
+        return config.ELEVENLABS_API_KEY ?? null;
       default: {
         // Type guard for exhaustive check - add new providers above
         const _exhaustive: never = provider;

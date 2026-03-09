@@ -20,10 +20,12 @@ vi.mock('@tzurot/common-types', async () => {
     getConfig: () => ({
       API_KEY_ENCRYPTION_KEY: 'test-encryption-key-32-bytes-long!',
       OPENROUTER_API_KEY: 'system-openrouter-key',
+      ELEVENLABS_API_KEY: 'system-elevenlabs-key',
     }),
     decryptApiKey: vi.fn(),
     AIProvider: {
       OpenRouter: 'openrouter',
+      ElevenLabs: 'elevenlabs',
     },
   };
 });
@@ -288,6 +290,34 @@ describe('ApiKeyResolver', () => {
       await resolver.resolveApiKey('user-1', AIProvider.OpenRouter);
       await resolver.resolveApiKey('user-2', AIProvider.OpenRouter);
       expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(4);
+    });
+  });
+
+  describe('ElevenLabs system key', () => {
+    it('should fall back to ElevenLabs system key when user has no key', async () => {
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveApiKey('user-123', AIProvider.ElevenLabs);
+
+      expect(result).toEqual({
+        apiKey: 'system-elevenlabs-key',
+        source: 'system',
+        provider: AIProvider.ElevenLabs,
+        userId: 'user-123',
+        isGuestMode: true,
+      });
+    });
+
+    it('should cache ElevenLabs and OpenRouter keys separately', async () => {
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      const openRouterResult = await resolver.resolveApiKey('user-123', AIProvider.OpenRouter);
+      const elevenLabsResult = await resolver.resolveApiKey('user-123', AIProvider.ElevenLabs);
+
+      expect(openRouterResult.apiKey).toBe('system-openrouter-key');
+      expect(elevenLabsResult.apiKey).toBe('system-elevenlabs-key');
+      expect(openRouterResult.provider).toBe(AIProvider.OpenRouter);
+      expect(elevenLabsResult.provider).toBe(AIProvider.ElevenLabs);
     });
   });
 

@@ -222,13 +222,15 @@ export function extractDiscordId(personaId: string | undefined): string | undefi
 /**
  * AI Provider choices for Discord slash commands
  *
- * Currently only OpenRouter is supported for BYOK.
- * OpenAI is not offered because BYOK doesn't cover embeddings/whisper costs.
- * Gemini is not offered (we use OpenRouter for all LLM calls).
+ * OpenRouter: LLM chat/generation (access to all AI models)
+ * ElevenLabs: Premium voice synthesis and cloning (BYOK)
  *
- * These are the choices displayed in /wallet and /llm-config commands.
+ * These are the choices displayed in /settings apikey commands.
  */
-export const DISCORD_PROVIDER_CHOICES = [{ name: 'OpenRouter', value: 'openrouter' }] as const;
+export const DISCORD_PROVIDER_CHOICES = [
+  { name: 'OpenRouter', value: 'openrouter' },
+  { name: 'ElevenLabs (Voice)', value: 'elevenlabs' },
+] as const;
 
 /**
  * Bot-added footer text constants.

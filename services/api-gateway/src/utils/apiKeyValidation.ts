@@ -96,6 +96,75 @@ export async function validateOpenRouterKey(apiKey: string): Promise<ApiKeyValid
 }
 
 /**
+ * Validate an ElevenLabs API key
+ *
+ * Uses the /v1/user endpoint to check:
+ * - Key validity (401 = invalid)
+ * - Subscription info (character_count, character_limit)
+ */
+export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValidationResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUTS.API_KEY_VALIDATION);
+
+  try {
+    const response = await fetch('https://api.elevenlabs.io/v1/user', {
+      method: 'GET',
+      headers: {
+        'xi-api-key': apiKey,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (response.status === 401 || response.status === 403) {
+      return { valid: false, errorCode: 'INVALID_KEY', error: 'Invalid API key' };
+    }
+
+    if (!response.ok) {
+      return { valid: false, errorCode: 'UNKNOWN', error: `HTTP ${response.status}` };
+    }
+
+    const data = (await response.json()) as {
+      subscription?: {
+        character_count?: number;
+        character_limit?: number;
+      };
+    };
+
+    const used = data.subscription?.character_count;
+    const limit = data.subscription?.character_limit;
+
+    // Check remaining character quota
+    if (typeof used === 'number' && typeof limit === 'number' && used >= limit) {
+      return {
+        valid: false,
+        errorCode: 'QUOTA_EXCEEDED',
+        error: 'ElevenLabs character quota exhausted',
+        credits: limit - used,
+      };
+    }
+
+    const remaining =
+      typeof used === 'number' && typeof limit === 'number' ? limit - used : undefined;
+
+    return { valid: true, credits: remaining };
+  } catch (error) {
+    clearTimeout(timeout);
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      return { valid: false, errorCode: 'TIMEOUT', error: 'Validation request timed out' };
+    }
+
+    return {
+      valid: false,
+      errorCode: 'UNKNOWN',
+      error: error instanceof Error ? error.message : 'Validation failed',
+    };
+  }
+}
+
+/**
  * Validate an API key for any supported provider
  *
  * @param apiKey - The API key to validate
@@ -111,6 +180,8 @@ export async function validateApiKey(
   switch (provider) {
     case AIProvider.OpenRouter:
       return validateOpenRouterKey(apiKey);
+    case AIProvider.ElevenLabs:
+      return validateElevenLabsKey(apiKey);
     default: {
       const _exhaustive: never = provider;
       return {
