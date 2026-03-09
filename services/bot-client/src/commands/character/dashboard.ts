@@ -115,8 +115,10 @@ async function handleSectionModalSubmit(
     logger.warn({ entityId, sectionId }, 'Session not found for modal submit');
   }
 
-  // Get the appropriate dashboard config based on admin status
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+  // Get the appropriate dashboard config based on admin status.
+  // hasVoiceReference=false is fine here — this config is only used for
+  // extractAndMergeSectionValues (section field mapping), not action rendering.
+  const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
 
   // Extract and merge modal values with session data
   const extracted = extractAndMergeSectionValues(
@@ -186,9 +188,11 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   const value = interaction.values[0];
   const entityId = parsed.entityId;
 
-  // Determine admin status for context-aware features
+  // Determine admin status for context-aware features.
+  // hasVoiceReference=false is fine here — config is only used for section
+  // lookup and modal building, not action rendering.
   const isAdmin = isBotOwner(interaction.user.id);
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+  const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
   const context: DashboardContext = { isAdmin, userId: interaction.user.id };
 
   // Handle section edit selection
