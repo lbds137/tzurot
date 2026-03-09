@@ -177,6 +177,10 @@ export class ElevenLabsVoiceService {
    * Uses first 4 + last 8 characters (12 total) to minimize collision risk
    * while keeping cache keys short and the full key out of log output.
    * Not a security boundary — the raw key is already in process memory.
+   *
+   * Assumes keys are at least 12 chars (ElevenLabs keys are ~32+ chars).
+   * For shorter keys the slices overlap, producing a longer-than-12-char
+   * suffix — still unique, just not optimally compact.
    */
   private getKeySuffix(apiKey: string): string {
     return `${apiKey.slice(0, 4)}${apiKey.slice(-8)}`;

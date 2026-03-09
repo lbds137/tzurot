@@ -367,6 +367,8 @@ export class ConversationalRAGService {
         context.preprocessedExtendedContextAttachments,
         getPrismaClient(),
         visionDescriptionCache,
+        // ElevenLabs STT key not threaded here — history enrichment uses
+        // voice-engine/Whisper. See AudioProcessor.transcribeAudio() for BYOK STT.
         atts => processAttachments(atts, personality, isGuestMode, userApiKey)
       );
 

@@ -67,7 +67,10 @@ export class ConversationInputProcessor {
         'Using pre-processed attachments from dependency jobs'
       );
     } else if (context.attachments && context.attachments.length > 0) {
-      // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
+      // Fallback: process attachments inline (shouldn't happen with job chain, but defensive).
+      // ElevenLabs STT key not threaded here — this path uses voice-engine/Whisper.
+      // The primary STT path (AudioTranscriptionJob) threads elevenlabsApiKey; this
+      // inline fallback is a rare safety net. See AudioProcessor.transcribeAudio().
       processedAttachments = await processAttachments(
         context.attachments,
         personality,
