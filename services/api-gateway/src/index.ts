@@ -335,7 +335,8 @@ async function main(): Promise<void> {
   const prisma = getPrismaClient();
   await prisma.$connect();
   logger.info('[Gateway] Database connection established');
-  // 20MB to accommodate base64-encoded voice reference audio (up to 10MB raw → ~13.3MB base64)
+  // 20MB to accommodate base64-encoded voice reference audio (up to 10MB raw → ~13.3MB base64).
+  // Applied globally — acceptable for single-tenant bot. Could be scoped per-route if needed.
   app.use(express.json({ limit: '20mb' }));
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- pino-http is imported via CommonJS require() and has 'any' type. Functionally correct, just lacks type definitions.
   app.use(pinoHttp({ logger }));

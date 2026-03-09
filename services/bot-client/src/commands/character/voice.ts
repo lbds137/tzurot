@@ -39,7 +39,8 @@ async function handleVoiceUpload(
   const userId = context.user.id;
 
   // Validate attachment type (optional chain satisfies both prefer-optional-chain
-  // and strict-boolean-expressions lint rules; !== true handles null contentType)
+  // and strict-boolean-expressions lint rules; === true handles null contentType).
+  // Narrow contentType to string after the guard for use in the data URI below.
   const isAudio = attachment.contentType?.startsWith(VALID_AUDIO_PREFIX) === true;
   if (!isAudio) {
     await context.editReply(
@@ -48,6 +49,7 @@ async function handleVoiceUpload(
     );
     return;
   }
+  // After isAudio guard, contentType is guaranteed non-null at runtime.
 
   // Validate size
   if (attachment.size > MAX_UPLOAD_BYTES) {
@@ -111,13 +113,13 @@ async function handleVoiceUpload(
       config
     );
 
-    await context.editReply(
-      `✅ Voice reference uploaded for **${character.displayName ?? character.name}**! Voice is now enabled.`
-    );
-
     logger.info(
       { slug, userId, sizeKB: Math.round(rawBuffer.length / 1024) },
       'Character voice reference uploaded'
+    );
+
+    await context.editReply(
+      `✅ Voice reference uploaded for **${character.displayName ?? character.name}**! Voice is now enabled.`
     );
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to upload voice reference');
@@ -172,8 +174,7 @@ export async function handleVoice(
 ): Promise<void> {
   const subcommand = context.interaction.options.getSubcommand();
 
-  // The subcommand group is 'voice', the sub-subcommand is the action
-  // But since Discord flattens subcommand groups, we get the action directly
+  // Subcommands are registered flat: 'voice-upload', 'voice-clear'
   if (subcommand === 'voice-upload') {
     await handleVoiceUpload(context, config);
   } else if (subcommand === 'voice-clear') {
