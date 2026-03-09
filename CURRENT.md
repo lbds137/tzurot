@@ -1,55 +1,51 @@
 # Current
 
 > **Session**: 2026-03-09
-> **Version**: v3.0.0-beta.88 (v3.0.0-beta.89 in PR #714)
+> **Version**: v3.0.0-beta.89
 
 ---
 
 ## Session Goal
 
-_Voice Engine Phase 3b — Address PR #714 review feedback, improve Python test coverage, prepare release._
+_Voice Engine v3.0.0-beta.89 release — merge, deploy, post-release cleanup._
 
 ## Active Task
 
-Finalizing PR review feedback + Python test coverage improvements for PR #714.
+Release complete. Follow-up items added to BACKLOG.md inbox.
 
 ---
 
 ## Completed This Session
 
-- **fix(bot-client)**: Add `encodeURIComponent` to `modelUsed` in OpenRouter URL (SSRF defense-in-depth)
-- **fix(ai-worker)**: Tighten `isConnectionError` — exact match on `'fetch failed'` instead of `.includes()` to prevent false positives
-- **refactor(ai-worker)**: Move `voiceTranscriptCache` from dynamic import to top-level static import in AudioProcessor
-- **docs(ai-worker)**: Add clarifying comments for JSON casts in VoiceEngineClient (internal service contract)
-- **docs(ai-worker)**: Add invariant comment on `splitTextIntoChunks` return guarantee in ttsSynthesizer
-- **docs(ai-worker)**: Add comment explaining mid-word break fallback in `forceSplitLongSentence`
-- **docs(voice-engine)**: Document cold-start timing budget limitation in deployment gotchas
-- **test(ai-worker)**: Add tests for exact `'fetch failed'` match and substring non-match in VoiceRegistrationService
-- **test(voice-engine)**: Add Python tests for OpenAI-compat endpoints, TTS reference audio, voice registration errors
+- **release**: v3.0.0-beta.89 merged to main and deployed (102 commits, 193 files)
+- **fix(voice-engine)**: Address 3 rounds of PR #714 review feedback + Python test coverage (~68% → ~80%)
+- **fix(voice-engine)**: MIME validation on `/v1/voices/register`, commaIndex invariant comment
+- **fix(ai-worker)**: Tighten `isConnectionError` to exact match, TTS timeout 60s → 90s
+- **fix(bot-client)**: SSRF defense-in-depth for `modelUsed` in OpenRouter URL
+- **docs**: Long-lived branch protection rules (near-miss: almost deleted `develop`)
+- **docs**: Post-mortem added to CLAUDE.md for branch deletion near-miss
+- **chore**: DB migration applied to prod (`voiceReferenceData` + `voiceReferenceType`)
 
-## Completed Last Session (2026-03-08)
+## Post-Deploy Checklist
 
-- **feat(voice-engine)**: Phase 3b voice commands + cascade wiring merged (PR #710)
-- Deployed to Railway development: fixed GATEWAY_URL, HF_TOKEN, volume permissions, first-run timeout
-- Verified end-to-end TTS flow working in production
-- Health check retry loop for Railway Serverless cold starts (5 attempts × 3s)
-- Negative cache bypass for transient connection errors (ECONNREFUSED cause chain traversal)
-- PR #714 created for v3.0.0-beta.89 release
+- [x] Merge PR #714 to main (local fast-forward, GitHub couldn't rebase 102 commits)
+- [x] Create release tag + GitHub release notes
+- [x] DB migration applied to prod
+- [ ] Run `/admin db-sync` in Discord to sync voice references to prod
+- [ ] Smoke test voice commands in production
 
 ## Recent Releases
 
+- **v3.0.0-beta.89** (2026-03-09) — Voice Engine Phases 1–3b: Python STT/TTS service, ai-worker integration, voice commands, settings dashboards
 - **v3.0.0-beta.88** (2026-03-04) — Custom ID fix, tar security patch, interaction error resilience, XML wrapper stripping
 - **v3.0.0-beta.87** (2026-03-04) — showModelFooter config cascade, XML tool-use wrapper stripping
-- **v3.0.0-beta.86** (2026-03-03) — LLM response quality fixes
 
-## Next Steps
+## Follow-Up Items (in BACKLOG inbox)
 
-1. Run tests + quality checks (sequential on Steam Deck)
-2. Push changes, wait for CI green
-3. Merge PR #714 to `main` (rebase, delete branch)
-4. Deploy to production (Railway auto-deploys from `main`)
-5. Run `pnpm ops db:migrate --env prod` if migration included
-6. Re-upload voice references in production (voice references don't sync via `/admin db-sync`)
+- Log warning on `voiceReferenceType` WAV fallback
+- Comment on `shouldRunTTS` default
+- Expand `mypy --strict` to test files
+- Clean up completed voice-engine proposal doc
 
 ---
 
