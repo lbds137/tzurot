@@ -77,6 +77,12 @@ function getProviderInfo(provider: AIProvider): {
         placeholder: API_KEY_FORMATS.OPENROUTER_PLACEHOLDER,
         helpUrl: 'https://openrouter.ai/keys',
       };
+    case AIProvider.ElevenLabs:
+      return {
+        displayName: 'ElevenLabs',
+        placeholder: API_KEY_FORMATS.ELEVENLABS_PLACEHOLDER,
+        helpUrl: 'https://elevenlabs.io/app/settings/api-keys',
+      };
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;

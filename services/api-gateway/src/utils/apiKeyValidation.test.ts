@@ -4,7 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AIProvider } from '@tzurot/common-types';
-import { validateApiKey, validateOpenRouterKey } from './apiKeyValidation.js';
+import {
+  validateApiKey,
+  validateOpenRouterKey,
+  validateElevenLabsKey,
+} from './apiKeyValidation.js';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -158,6 +162,91 @@ describe('apiKeyValidation', () => {
     });
   });
 
+  describe('validateElevenLabsKey', () => {
+    it('should return valid=true for valid key with character quota', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          subscription: { character_count: 1000, character_limit: 10000 },
+        }),
+      });
+
+      const result = await validateElevenLabsKey('sk_valid_key');
+
+      expect(result.valid).toBe(true);
+      expect(result.credits).toBe(9000);
+    });
+
+    it('should return valid=false with INVALID_KEY for 401', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+      });
+
+      const result = await validateElevenLabsKey('sk_invalid');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('INVALID_KEY');
+    });
+
+    it('should return valid=false with QUOTA_EXCEEDED when characters exhausted', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          subscription: { character_count: 10000, character_limit: 10000 },
+        }),
+      });
+
+      const result = await validateElevenLabsKey('sk_exhausted');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('QUOTA_EXCEEDED');
+    });
+
+    it('should return valid=true when subscription info is missing', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      });
+
+      const result = await validateElevenLabsKey('sk_key');
+
+      expect(result.valid).toBe(true);
+      expect(result.credits).toBeUndefined();
+    });
+
+    it('should send xi-api-key header', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ subscription: {} }),
+      });
+
+      await validateElevenLabsKey('sk_test_key');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.elevenlabs.io/v1/user',
+        expect.objectContaining({
+          headers: expect.objectContaining({ 'xi-api-key': 'sk_test_key' }),
+        })
+      );
+    });
+
+    it('should return valid=false with TIMEOUT for aborted request', async () => {
+      const abortError = new Error('Aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValue(abortError);
+
+      const result = await validateElevenLabsKey('sk_slow');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('TIMEOUT');
+    });
+  });
+
   describe('validateApiKey', () => {
     it('should route OpenRouter keys to validateOpenRouterKey', async () => {
       mockFetch.mockResolvedValue({
@@ -171,6 +260,22 @@ describe('apiKeyValidation', () => {
       expect(result.valid).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://openrouter.ai/api/v1/auth/key',
+        expect.any(Object)
+      );
+    });
+
+    it('should route ElevenLabs keys to validateElevenLabsKey', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ subscription: { character_count: 0, character_limit: 10000 } }),
+      });
+
+      const result = await validateApiKey('sk_eleven_key', AIProvider.ElevenLabs);
+
+      expect(result.valid).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.elevenlabs.io/v1/user',
         expect.any(Object)
       );
     });

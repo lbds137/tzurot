@@ -396,6 +396,11 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
       };
     }
 
+    case AIProvider.ElevenLabs:
+      throw new Error(
+        'ElevenLabs is a voice provider, not an LLM provider. Use VoiceEngineClient or ElevenLabsClient for voice operations.'
+      );
+
     default: {
       const _exhaustive: never = provider;
       throw new Error(`Unsupported AI provider: ${String(_exhaustive)}`);
