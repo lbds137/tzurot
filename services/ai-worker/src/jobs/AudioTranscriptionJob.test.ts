@@ -254,6 +254,77 @@ describe('AudioTranscriptionJob', () => {
       expect(mockWithRetry).toHaveBeenCalled();
     });
 
+    it('should pass elevenlabsApiKey to transcribeAudio when provided', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-audio-key',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+          duration: 10,
+        },
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'audio-test-key',
+        data: jobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      const testApiKey = 'el-test-key-123';
+      await processAudioTranscriptionJob(job, testApiKey);
+
+      // Verify withRetry was called with a function that passes the key
+      expect(mockWithRetry).toHaveBeenCalledTimes(1);
+      const retryFn = mockWithRetry.mock.calls[0][0];
+      await retryFn();
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, testApiKey);
+    });
+
+    it('should not pass elevenlabsApiKey when not provided', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-audio-nokey',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+          duration: 10,
+        },
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'audio-test-nokey',
+        data: jobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      await processAudioTranscriptionJob(job);
+
+      // Verify withRetry was called with a function that does NOT pass a key
+      expect(mockWithRetry).toHaveBeenCalledTimes(1);
+      const retryFn = mockWithRetry.mock.calls[0][0];
+      await retryFn();
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, undefined);
+    });
+
     it('should include retry metadata in result', async () => {
       const jobData: AudioTranscriptionJobData = {
         requestId: 'test-req-audio-5',

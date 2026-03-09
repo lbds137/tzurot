@@ -15,6 +15,7 @@ import { LlmConfigResolver, type ConfigCascadeResolver } from '@tzurot/common-ty
 import { PersonaResolver } from '../services/resolvers/index.js';
 import {
   createLogger,
+  AIProvider,
   type AnyJobData,
   type AnyJobResult,
   type AudioTranscriptionJobData,
@@ -152,7 +153,21 @@ export class AIJobProcessor {
   private async processAudioTranscriptionJobWrapper(
     job: Job<AudioTranscriptionJobData>
   ): Promise<AudioTranscriptionResult> {
-    const result = await processAudioTranscriptionJob(job);
+    // Resolve ElevenLabs BYOK key for premium STT (if user has one configured)
+    let elevenlabsApiKey: string | undefined;
+    try {
+      const elResult = await this.apiKeyResolver.resolveApiKey(
+        job.data.context.userId,
+        AIProvider.ElevenLabs
+      );
+      if (!elResult.isGuestMode && elResult.apiKey !== undefined) {
+        elevenlabsApiKey = elResult.apiKey;
+      }
+    } catch {
+      // No-op — fall back to voice-engine STT
+    }
+
+    const result = await processAudioTranscriptionJob(job, elevenlabsApiKey);
 
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;
