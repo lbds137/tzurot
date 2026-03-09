@@ -308,6 +308,8 @@ export interface DuplicateRetryConfig {
 export interface GenerateResponseOptions {
   /** User's BYOK API key (for BYOK users) */
   userApiKey?: string;
+  /** ElevenLabs BYOK API key for premium STT (voice transcription) */
+  elevenlabsApiKey?: string;
   /** Whether user is in guest mode (uses free models). Default: false */
   isGuestMode?: boolean;
   /** Retry configuration for duplicate detection retries */

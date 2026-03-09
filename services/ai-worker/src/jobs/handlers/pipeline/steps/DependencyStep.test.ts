@@ -406,6 +406,7 @@ describe('DependencyStep', () => {
         [expect.objectContaining({ url: 'https://example.com/cat.jpg' })],
         TEST_PERSONALITY,
         false,
+        undefined,
         undefined
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
@@ -466,7 +467,8 @@ describe('DependencyStep', () => {
         [expect.objectContaining({ url: 'https://example.com/dog.jpg' })],
         TEST_PERSONALITY,
         false, // isGuestMode from auth context
-        'user-test-key-12345' // userApiKey from auth context (BYOK)
+        'user-test-key-12345', // userApiKey from auth context (BYOK)
+        undefined // elevenlabsApiKey (not set in this test)
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
@@ -525,7 +527,8 @@ describe('DependencyStep', () => {
         [expect.objectContaining({ url: 'https://example.com/bird.jpg' })],
         GUEST_EFFECTIVE_PERSONALITY, // Uses resolved config with free visionModel
         true, // isGuestMode = true for guest users
-        'system-openrouter-key' // System key (guests don't have BYOK)
+        'system-openrouter-key', // System key (guests don't have BYOK)
+        undefined // elevenlabsApiKey (guests don't have ElevenLabs key)
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
 
@@ -672,7 +675,8 @@ describe('DependencyStep', () => {
         [expect.objectContaining({ url: 'https://example.com/noauth.jpg' })],
         TEST_PERSONALITY,
         false, // isGuestMode defaults to false when auth missing
-        undefined // userApiKey is undefined (system key fallback)
+        undefined, // userApiKey is undefined (system key fallback)
+        undefined // elevenlabsApiKey (no auth context)
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
@@ -722,7 +726,8 @@ describe('DependencyStep', () => {
         [expect.objectContaining({ url: 'https://example.com/fallback.jpg' })],
         TEST_PERSONALITY, // Falls back to job.data.personality
         false,
-        undefined
+        undefined,
+        undefined // elevenlabsApiKey (no config context)
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });

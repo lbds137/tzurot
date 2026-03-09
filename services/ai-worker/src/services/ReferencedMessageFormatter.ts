@@ -55,6 +55,7 @@ export class ReferencedMessageFormatter {
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
    * @param userApiKey - User's BYOK API key (for BYOK users)
+   * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
    * @returns Formatted string ready for prompt
    */
   async formatReferencedMessages(
@@ -62,8 +63,10 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode = false,
     preprocessedAttachments?: Record<number, ProcessedAttachment[]>,
-    userApiKey?: string
+    apiKeys?: { userApiKey?: string; elevenlabsApiKey?: string }
   ): Promise<string> {
+    const userApiKey = apiKeys?.userApiKey;
+    const elevenlabsApiKey = apiKeys?.elevenlabsApiKey;
     const referenceElements: string[] = [];
 
     // Process each reference into XML
@@ -91,7 +94,7 @@ export class ReferencedMessageFormatter {
           personality,
           isGuestMode,
           preprocessedAttachments?.[ref.referenceNumber],
-          userApiKey
+          { userApiKey, elevenlabsApiKey }
         );
         referenceElements.push(forwardedElement);
         continue;
@@ -103,7 +106,7 @@ export class ReferencedMessageFormatter {
         personality,
         isGuestMode,
         preprocessedAttachments?.[ref.referenceNumber],
-        userApiKey
+        { userApiKey, elevenlabsApiKey }
       );
       referenceElements.push(standardElement);
     }
@@ -135,8 +138,9 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    userApiKey?: string
+    apiKeys?: { userApiKey?: string; elevenlabsApiKey?: string }
   ): Promise<string> {
+    const { userApiKey, elevenlabsApiKey } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
     let attachmentLines: string[] = [];
@@ -148,6 +152,7 @@ export class ReferencedMessageFormatter {
         isGuestMode,
         preprocessedAttachments: preprocessedForRef,
         userApiKey,
+        elevenlabsApiKey,
       });
     }
 
@@ -172,8 +177,9 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    userApiKey?: string
+    apiKeys?: { userApiKey?: string; elevenlabsApiKey?: string }
   ): Promise<string> {
+    const { userApiKey, elevenlabsApiKey } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
     const forwardedContent: ForwardedMessageContent = {
@@ -191,6 +197,7 @@ export class ReferencedMessageFormatter {
         isGuestMode,
         preprocessedAttachments: preprocessedForRef,
         userApiKey,
+        elevenlabsApiKey,
       });
 
       if (attachmentLines.length > 0) {
