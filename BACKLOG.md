@@ -391,20 +391,26 @@ Enable personalities to speak — generate voice responses from LLM text output.
 
 **Pre-requisites (from Phase 2 review):**
 
-- [ ] Add Python CI for voice-engine tests (GitHub Actions job: `pip install -r requirements-dev.txt && pytest`)
-- [ ] Attach `_JsonFormatter` to root logger at WARNING level (third-party logs currently emit plain text)
-- [ ] Add startup health check — call `isHealthy()` on ai-worker boot when `VOICE_ENGINE_URL` is set
-- [ ] Add LRU eviction test for `_cache_voice`
-- [ ] Add `VOICE_ENGINE_EMPTY_FALLBACK` env toggle if quality issues emerge post-deployment
-- [ ] Extract OpenAI Whisper client to module-level singleton (connection pool reuse)
+- [x] Add Python CI for voice-engine tests (ruff + mypy --strict + pytest) — PR #710
+- [x] Attach `_JsonFormatter` to root logger at WARNING level — PR #710
+- [x] Add startup health check — call `isHealthy()` on ai-worker boot when `VOICE_ENGINE_URL` is set — PR #710
+- [x] Add LRU eviction test for `_cache_voice` — PR #710
+- [x] Extract OpenAI Whisper client to module-level singleton (connection pool reuse) — PR #710
+- ⏸️ `VOICE_ENGINE_EMPTY_FALLBACK` env toggle — deferred (quality is fine)
 
 **Core work:**
 
-- [ ] Add voice configuration to personality schema (`voiceEnabled`, `voiceId`, `referenceAudioUrl`)
-- [ ] Wire TTS into response pipeline — when `voiceEnabled`, generate audio from LLM response text
-- [ ] Bot-client: send voice response as Discord audio attachment
-- [ ] Voice registration flow — admin uploads reference audio for a personality, creates voice state
-- [ ] Strip ElevenLabs audio tags (`[whisper]`, `[shout]`) for Pocket TTS free tier
+- [x] Add `voiceEnabled` to LoadedPersonality schema + `isVoiceEnabled()` helper — PR #710
+- [x] Add `voiceResponseMode` / `voiceTranscriptionEnabled` to config cascade — PR #710
+- [x] Wire TTS into response pipeline (TTSStep) — PR #710
+- [x] Bot-client: send voice response as Discord audio attachment — PR #710
+- [x] Voice registration flow (VoiceRegistrationService: 3-tier caching) — PR #710
+- [x] Chunked TTS synthesis for long text (sentence-boundary splitting, WAV PCM concatenation) — PR #710
+- [x] Redis binary storage for TTS audio (`tts-audio:{jobId}`, 5-min TTL) — PR #710
+- [x] Typing indicator fix (8s interval refresh during transcription) — PR #710
+
+**Remaining follow-ups:**
+
 - [ ] Wire `voiceTranscriptionEnabled` cascade field to bot-client — field exists in ConfigOverridesSchema but isn't consumed yet (check before calling `VoiceTranscriptionService.transcribe()`)
 - [ ] 🏗️ `[LIFT]` Audit `isHealthy()` call site in `AudioProcessor` — now returns `false` when TTS is cold-starting even if ASR is ready; consider using `getHealth().asr` for STT-only decisions, or rename to `isFullyReady()` with a new `isAsrReady()` helper
 - [ ] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — currently `.optional()` to avoid breaking ~35 test fixtures; update fixtures to include `voiceEnabled: false` for strict type safety

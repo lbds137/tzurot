@@ -7,7 +7,7 @@
 
 ## Session Goal
 
-_Voice Engine Phase 2: Railway deployment + verification._
+_Voice Engine Phase 3: Merge PR #710 (TTS integration + voice config cascade)._
 
 ## Active Task
 
@@ -17,17 +17,21 @@ None — session complete.
 
 ## Completed This Session
 
-- **fix(voice-engine)**: Bind uvicorn to `::` (IPv6 wildcard) for Railway private networking compatibility
-- **deploy**: Voice-engine service deployed to Railway (Serverless mode, 4GB RAM, volume at `/app/voices`)
-- **deploy**: Set `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` on ai-worker service
-- **verify**: Confirmed Parakeet TDT transcription working end-to-end (Discord voice message → voice-engine → ai-worker)
-- **verify**: Compared transcription quality — Parakeet TDT preserves filler words, comparable punctuation to Whisper
+- **feat(voice-engine)**: Phase 3 TTS integration merged to `develop` (PR #710, 19 rounds of review feedback)
+  - TTSStep pipeline step: synthesize LLM response to audio, store in Redis, attach to Discord message
+  - VoiceRegistrationService: 3-tier caching (positive 30min, negative 5min, in-flight dedup)
+  - Chunked TTS: sentence-boundary splitting, WAV PCM concatenation for text >2000 chars
+  - Config cascade: `voiceResponseMode` (always/voice-only/never) + `voiceTranscriptionEnabled`
+  - Typing indicator bug fix: 8s interval refresh during voice transcription
+  - Python CI: ruff + mypy --strict + pytest in GitHub Actions
+  - Root logger JSON formatting for third-party libs (NeMo/uvicorn)
+  - Startup health check (one-shot, non-blocking)
+  - LRU eviction test, OpenAI Whisper singleton extraction
 
-## Completed Last Session (2026-03-07)
+## Completed Last Session (2026-03-08)
 
-- Voice Engine Phase 2 code: Python hardening, VoiceEngineClient, AudioProcessor wiring
-- PR #709 merged to `develop` (21 commits, 12 rounds of review feedback addressed)
-- All voice-engine follow-ups consolidated into Phase 3 pre-requisites in BACKLOG.md
+- Voice Engine Phase 2 deployment + verification
+- Confirmed Parakeet TDT transcription working end-to-end
 
 ## Recent Releases
 
@@ -37,8 +41,10 @@ None — session complete.
 
 ## Next Steps
 
-1. Start Voice Engine Phase 3 pre-requisites (Python CI, root logger, startup health check, etc.)
-2. Phase 3 core: Bot-client TTS integration
+1. Deploy Phase 3 to Railway (ai-worker, bot-client, voice-engine)
+2. Configure a test personality with `voiceEnabled: true` + `voiceResponseMode: 'always'`
+3. Verify end-to-end TTS flow (text → voice-engine → audio attachment in Discord)
+4. Wire `voiceTranscriptionEnabled` cascade field to bot-client (Phase 3 follow-up)
 
 ---
 
