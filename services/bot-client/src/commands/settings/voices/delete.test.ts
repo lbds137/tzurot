@@ -1,0 +1,184 @@
+/**
+ * Tests for Voice Delete Handler and Autocomplete
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import { handleDeleteVoice, handleVoiceAutocomplete } from './delete.js';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+const mockCallGatewayApi = vi.fn();
+vi.mock('../../../utils/userGatewayClient.js', () => ({
+  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+}));
+
+describe('handleDeleteVoice', () => {
+  const mockEditReply = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createMockContext(voiceId = 'voice-1'): DeferredCommandContext {
+    const mockInteraction = {
+      user: { id: 'user-123' },
+      editReply: mockEditReply,
+    } as unknown as ChatInputCommandInteraction;
+
+    return {
+      interaction: mockInteraction,
+      user: mockInteraction.user,
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'settings',
+      isEphemeral: true,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn().mockReturnValue(voiceId),
+      getSubcommand: vi.fn().mockReturnValue('delete'),
+      getSubcommandGroup: vi.fn().mockReturnValue('voices'),
+    } as unknown as DeferredCommandContext;
+  }
+
+  it('should delete a voice successfully', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { deleted: true, voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' },
+    });
+
+    await handleDeleteVoice(createMockContext());
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/voices/voice-1',
+      expect.objectContaining({ method: 'DELETE', userId: 'user-123' })
+    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: '🗑️ Voice Deleted',
+            description: expect.stringContaining('alice'),
+          }),
+        }),
+      ],
+    });
+  });
+
+  it('should handle not found error', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      status: 404,
+      error: 'Voice not found',
+    });
+
+    await handleDeleteVoice(createMockContext('nonexistent'));
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Voice not found',
+    });
+  });
+
+  it('should handle exceptions', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+    await handleDeleteVoice(createMockContext());
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An unexpected error occurred. Please try again.',
+    });
+  });
+});
+
+describe('handleVoiceAutocomplete', () => {
+  const mockRespond = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createMockAutocomplete(query = ''): AutocompleteInteraction {
+    return {
+      user: { id: 'user-123' },
+      options: {
+        getFocused: vi.fn().mockReturnValue(query),
+        getSubcommandGroup: vi.fn().mockReturnValue('voices'),
+        getSubcommand: vi.fn().mockReturnValue('delete'),
+      },
+      respond: mockRespond,
+    } as unknown as AutocompleteInteraction;
+  }
+
+  it('should return voice choices', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: [
+          { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
+          { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
+        ],
+        totalSlots: 10,
+        tzurotCount: 2,
+      },
+    });
+
+    await handleVoiceAutocomplete(createMockAutocomplete());
+
+    expect(mockRespond).toHaveBeenCalledWith([
+      { name: 'alice', value: 'v1' },
+      { name: 'bob', value: 'v2' },
+    ]);
+  });
+
+  it('should filter by query', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: [
+          { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
+          { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
+        ],
+        totalSlots: 10,
+        tzurotCount: 2,
+      },
+    });
+
+    await handleVoiceAutocomplete(createMockAutocomplete('ali'));
+
+    expect(mockRespond).toHaveBeenCalledWith([{ name: 'alice', value: 'v1' }]);
+  });
+
+  it('should return empty on API error', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404, error: 'Not found' });
+
+    await handleVoiceAutocomplete(createMockAutocomplete());
+
+    expect(mockRespond).toHaveBeenCalledWith([]);
+  });
+
+  it('should return empty on exception', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('timeout'));
+
+    await handleVoiceAutocomplete(createMockAutocomplete());
+
+    expect(mockRespond).toHaveBeenCalledWith([]);
+  });
+});
