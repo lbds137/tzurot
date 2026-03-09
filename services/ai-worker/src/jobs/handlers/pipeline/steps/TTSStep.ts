@@ -23,6 +23,11 @@ const logger = createLogger('TTSStep');
 /** TTS timeout — includes voice-engine cold start time on Railway Serverless */
 const TTS_TIMEOUT_MS = 60_000;
 
+/** Delay between health check retries when waiting for voice engine cold start */
+const HEALTH_RETRY_DELAY_MS = 3_000;
+/** Max health check attempts before proceeding anyway */
+const HEALTH_RETRY_MAX_ATTEMPTS = 5;
+
 /**
  * Lazy singleton for voice registration (shares VoiceEngineClient lifecycle).
  * WARNING: Test files that import TTSStep must call resetTTSStepState() in
@@ -166,12 +171,10 @@ export class TTSStep implements IPipelineStep {
     context: GenerationContext
   ): Promise<{ key: string; audioSize: number } | null> {
     // Pre-warm: ping /health to wake voice engine from Railway Serverless sleep.
-    // Fire-and-forget — we proceed with registration even if the ping fails,
-    // because the TCP connection itself triggers Railway to start the container.
-    const health = await registrationService.client.getHealth();
-    if (!health.tts) {
-      logger.info({ slug }, 'Voice engine TTS not ready — proceeding anyway (may be waking up)');
-    }
+    // Voice engine cold boot takes ~7s (models cached on disk), so retry a few
+    // times with short delays. The first ping's TCP connection triggers Railway
+    // to start the container.
+    await this.waitForVoiceEngine(registrationService, slug);
 
     // Ensure voice is registered
     await registrationService.ensureVoiceRegistered(slug);
@@ -188,5 +191,31 @@ export class TTSStep implements IPipelineStep {
     const key = await redisService.storeTTSAudio(jobId, audioBuffer);
 
     return { key, audioSize: audioBuffer.length };
+  }
+
+  /**
+   * Wait for the voice engine to become ready, retrying health checks with delays.
+   * The first ping wakes Railway Serverless; subsequent pings wait for model loading (~7s).
+   * Proceeds after max attempts regardless — registration/synthesis will fail with a
+   * clear error if the engine truly isn't available.
+   */
+  private async waitForVoiceEngine(
+    registrationService: VoiceRegistrationService,
+    slug: string
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= HEALTH_RETRY_MAX_ATTEMPTS; attempt++) {
+      const health = await registrationService.client.getHealth();
+      if (health.tts) {
+        return;
+      }
+      if (attempt < HEALTH_RETRY_MAX_ATTEMPTS) {
+        logger.info(
+          { slug, attempt, maxAttempts: HEALTH_RETRY_MAX_ATTEMPTS },
+          'Voice engine TTS not ready — waiting for cold start'
+        );
+        await new Promise(resolve => setTimeout(resolve, HEALTH_RETRY_DELAY_MS));
+      }
+    }
+    logger.warn({ slug }, 'Voice engine TTS still not ready after retries — proceeding anyway');
   }
 }

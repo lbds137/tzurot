@@ -273,8 +273,12 @@ describe('TTSStep', () => {
       expect(mockStoreTTSAudio).toHaveBeenCalledWith('test-job', Buffer.from('fake-audio-data'));
     });
 
-    it('proceeds with TTS even when health check reports tts not ready (cold start)', async () => {
-      mockVoiceEngineClient.getHealth.mockResolvedValue({ asr: true, tts: false });
+    it('retries health check during cold start and succeeds when engine wakes', async () => {
+      // Engine wakes on 3rd health check (after ~6s of retries)
+      mockVoiceEngineClient.getHealth
+        .mockResolvedValueOnce({ asr: false, tts: false })
+        .mockResolvedValueOnce({ asr: true, tts: false })
+        .mockResolvedValueOnce({ asr: true, tts: true });
       mockStoreTTSAudio.mockResolvedValue('tts:cold-job');
       mockSynthesizeWithChunking.mockResolvedValue({
         audioBuffer: Buffer.from('cold-start-audio'),
@@ -287,10 +291,31 @@ describe('TTSStep', () => {
       await vi.runAllTimersAsync();
       const result = await promise;
 
-      // Should still attempt TTS despite health check failure
-      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledOnce();
+      // Should have retried health check 3 times then succeeded
+      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledTimes(3);
       expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:cold-job');
+    });
+
+    it('proceeds with TTS after max health retries exhausted', async () => {
+      // Engine never reports ready within retry window
+      mockVoiceEngineClient.getHealth.mockResolvedValue({ asr: false, tts: false });
+      mockStoreTTSAudio.mockResolvedValue('tts:retry-job');
+      mockSynthesizeWithChunking.mockResolvedValue({
+        audioBuffer: Buffer.from('late-audio'),
+        contentType: 'audio/wav',
+      });
+
+      const ctx = createContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Should exhaust all 5 attempts then proceed anyway
+      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledTimes(5);
+      expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
     });
 
     it('returns context unchanged when voice engine client is null', async () => {
