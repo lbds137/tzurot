@@ -18,6 +18,7 @@ import {
 import type { ModalSubmitInteraction } from 'discord.js';
 import {
   createLogger,
+  isBotOwner,
   normalizeSlugForUser,
   type EnvConfig,
   DISCORD_LIMITS,
@@ -31,7 +32,7 @@ import {
   getSessionManager,
 } from '../../utils/dashboard/index.js';
 import {
-  characterDashboardConfig,
+  getCharacterDashboardConfig,
   characterSeedFields,
   buildCharacterDashboardOptions,
 } from './config.js';
@@ -113,9 +114,12 @@ export async function handleSeedModalSubmit(
     // Build and send dashboard
     // Use slug as entityId (not UUID) because fetchCharacter expects slug
     // User just created this character, so they own it (canEdit: true from API)
-    const embed = buildDashboardEmbed(characterDashboardConfig, character);
+    // New characters never have a voice reference yet (hasVoiceReference: false)
+    const isAdmin = isBotOwner(interaction.user.id);
+    const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
+    const embed = buildDashboardEmbed(dashboardConfig, character);
     const components = buildDashboardComponents(
-      characterDashboardConfig,
+      dashboardConfig,
       character.slug,
       character,
       buildCharacterDashboardOptions(character)
