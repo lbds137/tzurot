@@ -55,6 +55,14 @@ async function handleVoiceUpload(
     return;
   }
 
+  // Validate attachment URL is from Discord CDN (SSRF defense-in-depth)
+  const attachmentHost = new URL(attachment.url).hostname;
+  if (!DISCORD_CDN_HOSTS.includes(attachmentHost)) {
+    logger.warn({ url: attachment.url, host: attachmentHost }, 'Unexpected attachment URL host');
+    await context.editReply('❌ Invalid attachment URL.');
+    return;
+  }
+
   try {
     // Check permissions
     const character = await fetchCharacter(slug, config, userId);
@@ -67,14 +75,6 @@ async function handleVoiceUpload(
         `❌ You don't have permission to edit \`${slug}\`.\n` +
           'You can only edit characters you own.'
       );
-      return;
-    }
-
-    // Validate attachment URL is from Discord CDN (SSRF defense-in-depth)
-    const attachmentHost = new URL(attachment.url).hostname;
-    if (!DISCORD_CDN_HOSTS.includes(attachmentHost)) {
-      logger.warn({ url: attachment.url, host: attachmentHost }, 'Unexpected attachment URL host');
-      await context.editReply('❌ Invalid attachment URL.');
       return;
     }
 
@@ -165,5 +165,6 @@ export async function handleVoice(
     await handleVoiceClear(context, config);
   } else {
     logger.warn({ subcommand }, 'Unexpected voice subcommand');
+    await context.editReply('❌ Unknown voice command.');
   }
 }

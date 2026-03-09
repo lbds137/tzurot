@@ -23,7 +23,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   const subcommand = interaction.options.getSubcommand(false);
 
   try {
-    // Determine if we should only show owned characters
+    // Determine if we should only show owned characters.
+    // getSubcommand(false) returns string | null — null when focused option isn't in a subcommand.
     const ownedOnlySubcommands = ['edit', 'avatar', 'voice-upload', 'voice-clear'];
     const ownedOnly = subcommand !== null && ownedOnlySubcommands.includes(subcommand);
 
