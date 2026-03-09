@@ -426,6 +426,8 @@ describe('Character Dashboard', () => {
         'user-123',
         expect.any(Object)
       );
+      // Dashboard should be rebuilt with updated state
+      expect(mockInteraction.editReply).toHaveBeenCalled();
     });
 
     it('should handle action-avatar selection with prompt', async () => {
