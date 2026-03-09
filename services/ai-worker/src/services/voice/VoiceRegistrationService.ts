@@ -84,13 +84,10 @@ export class VoiceRegistrationService {
       .catch(error => {
         const reason = error instanceof Error ? error.message : String(error);
 
-        // Connection errors are transient (cold start, sleeping service) — don't
-        // negatively cache them so the next request retries immediately.
+        // Transient errors (connection failures, 502/503) indicate cold start or
+        // sleeping service — don't negatively cache so the next request retries immediately.
         if (isConnectionError(error) || isTransientServiceError(error)) {
-          logger.warn(
-            { slug, reason },
-            'Voice registration failed (connection error — not cached)'
-          );
+          logger.warn({ slug, reason }, 'Voice registration failed (transient error — not cached)');
         } else {
           this.negativeCache.set(slug, reason);
           logger.warn({ slug, reason }, 'Voice registration failed — cached for 5 min');
@@ -169,12 +166,13 @@ export class VoiceRegistrationService {
 }
 
 /**
- * Check if an error is a transient HTTP service error (e.g., 503 Service Unavailable).
- * Voice engine returns 503 during cold start when the HTTP server is up but models
- * haven't finished loading — this should NOT be negatively cached.
+ * Check if an error is a transient HTTP service error (502/503).
+ * - 503: Voice engine HTTP server is up but models haven't finished loading
+ * - 502: Railway load balancer is up but the app hasn't bound its port yet
+ * Neither should be negatively cached — the next request should retry immediately.
  */
 function isTransientServiceError(error: unknown): boolean {
-  return error instanceof VoiceEngineError && error.status === 503;
+  return error instanceof VoiceEngineError && (error.status === 502 || error.status === 503);
 }
 
 /**

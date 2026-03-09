@@ -312,10 +312,9 @@ describe('TTSStep', () => {
       await vi.runAllTimersAsync();
       const result = await promise;
 
-      // Time-based budget: 75s / 3s poll interval = ~25 polls, but exact count
-      // depends on timing. Verify it polled multiple times and still proceeded.
-      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalled();
-      expect(mockVoiceEngineClient.getHealth.mock.calls.length).toBeGreaterThan(5);
+      // With fake timers, Date.now() only advances on setTimeout fires, so the
+      // poll count is deterministic: 75_000 / 3_000 = 25 polls + 1 final check = 26.
+      expect(mockVoiceEngineClient.getHealth.mock.calls.length).toBeGreaterThanOrEqual(20);
       expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
     });
