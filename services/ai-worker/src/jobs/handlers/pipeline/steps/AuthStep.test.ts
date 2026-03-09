@@ -293,6 +293,112 @@ describe('AuthStep', () => {
       expect(result.config?.effectivePersonality.model).toBe('custom/free-model');
     });
 
+    it('should resolve ElevenLabs API key when available', async () => {
+      const openRouterResult: ApiKeyResolutionResult = {
+        apiKey: 'sk-or-test',
+        provider: AIProvider.OpenRouter,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      const elevenLabsResult: ApiKeyResolutionResult = {
+        apiKey: 'sk_el_test',
+        provider: AIProvider.ElevenLabs,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(openRouterResult)
+        .mockResolvedValueOnce(elevenLabsResult);
+
+      step = new AuthStep(mockApiKeyResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      const result = await step.process(context);
+
+      expect(result.auth?.apiKey).toBe('sk-or-test');
+      expect(result.auth?.elevenlabsApiKey).toBe('sk_el_test');
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(2);
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+        'user-456',
+        AIProvider.ElevenLabs
+      );
+    });
+
+    it('should skip ElevenLabs resolution in guest mode', async () => {
+      const keyResult: ApiKeyResolutionResult = {
+        apiKey: 'system-key',
+        provider: AIProvider.OpenRouter,
+        source: 'system',
+        isGuestMode: true,
+      };
+
+      vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue(keyResult);
+      vi.mocked(mockConfigResolver.getFreeDefaultConfig).mockResolvedValue(null);
+
+      step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      const result = await step.process(context);
+
+      expect(result.auth?.elevenlabsApiKey).toBeUndefined();
+      // Only called once (OpenRouter), not twice
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(1);
+    });
+
+    it('should silently handle ElevenLabs resolution failure', async () => {
+      const openRouterResult: ApiKeyResolutionResult = {
+        apiKey: 'sk-or-test',
+        provider: AIProvider.OpenRouter,
+        source: 'user',
+        isGuestMode: false,
+      };
+
+      vi.mocked(mockApiKeyResolver.resolveApiKey)
+        .mockResolvedValueOnce(openRouterResult)
+        .mockRejectedValueOnce(new Error('No ElevenLabs key'));
+
+      step = new AuthStep(mockApiKeyResolver);
+
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config,
+      };
+
+      const result = await step.process(context);
+
+      expect(result.auth?.apiKey).toBe('sk-or-test');
+      expect(result.auth?.elevenlabsApiKey).toBeUndefined();
+      expect(result.auth?.isGuestMode).toBe(false);
+    });
+
     it('should clear non-free vision model in guest mode', async () => {
       const personalityWithVision: LoadedPersonality = {
         ...TEST_PERSONALITY,

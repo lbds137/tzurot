@@ -67,6 +67,8 @@ interface SendResponseOptions {
   showModelFooter?: boolean;
   /** Redis key for TTS audio buffer (set by ai-worker TTSStep) */
   ttsAudioKey?: string;
+  /** MIME type of TTS audio (e.g., 'audio/wav', 'audio/mpeg') for file extension */
+  ttsAudioContentType?: string;
 }
 
 /** Shared options for internal send methods */
@@ -125,7 +127,7 @@ export class DiscordResponseSender {
     }
 
     const footer = this.buildFooter(options);
-    const ttsFiles = await this.fetchTTSFiles(options.ttsAudioKey);
+    const ttsFiles = await this.fetchTTSFiles(options.ttsAudioKey, options.ttsAudioContentType);
 
     // Determine routing and build chunks
     const isWebhookChannel =
@@ -236,7 +238,8 @@ export class DiscordResponseSender {
 
   /** Fetch TTS audio files from Redis, if a key is provided */
   private async fetchTTSFiles(
-    ttsAudioKey?: string
+    ttsAudioKey?: string,
+    contentType?: string
   ): Promise<{ attachment: Buffer; name: string }[] | undefined> {
     if (ttsAudioKey === undefined) {
       return undefined;
@@ -255,9 +258,10 @@ export class DiscordResponseSender {
       return undefined;
     }
     logger.debug({ ttsAudioKey, audioSize: audioBuffer.length }, 'TTS audio fetched');
-    // Hardcoded to .wav — Pocket TTS always produces WAV. Update extension if
-    // voice-engine adds OGG/MP3 support (would also help with the 8 MB size limit).
-    return [{ attachment: audioBuffer, name: 'voice.wav' }];
+    // Determine file extension from content type — ElevenLabs returns MP3 (~10x smaller),
+    // voice-engine returns WAV. MP3 also helps stay under the 8 MB Discord limit.
+    const extension = contentType === 'audio/mpeg' ? 'mp3' : 'wav';
+    return [{ attachment: audioBuffer, name: `voice.${extension}` }];
   }
 
   /**
