@@ -331,6 +331,7 @@ export class ConversationalRAGService {
   ): Promise<RAGResponse> {
     const {
       userApiKey,
+      elevenlabsApiKey,
       isGuestMode = false,
       retryConfig,
       diagnosticCollector: diagnosticCollectorRef,
@@ -340,13 +341,11 @@ export class ConversationalRAGService {
 
     try {
       // Step 1: Process inputs (attachments, messages, search query)
-      const inputs = await this.inputProcessor.processInputs(
-        personality,
-        message,
-        context,
+      const inputs = await this.inputProcessor.processInputs(personality, message, context, {
         isGuestMode,
-        userApiKey
-      );
+        userApiKey,
+        elevenlabsApiKey,
+      });
 
       // Record input processing for diagnostics
       if (diagnosticCollector) {
@@ -367,9 +366,7 @@ export class ConversationalRAGService {
         context.preprocessedExtendedContextAttachments,
         getPrismaClient(),
         visionDescriptionCache,
-        // ElevenLabs STT key not threaded here — history enrichment uses
-        // voice-engine/Whisper. See AudioProcessor.transcribeAudio() for BYOK STT.
-        atts => processAttachments(atts, personality, isGuestMode, userApiKey)
+        atts => processAttachments(atts, personality, isGuestMode, userApiKey, elevenlabsApiKey)
       );
 
       // Step 2: Load personas and resolve user references

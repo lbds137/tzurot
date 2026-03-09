@@ -490,13 +490,13 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Reply to this', context);
 
-      // Includes preprocessedAttachments (undefined) and userApiKey (undefined) for BYOK support
+      // Includes preprocessedAttachments (undefined) and apiKeys for BYOK support
       expect(getReferencedMessageFormatterMock().formatReferencedMessages).toHaveBeenCalledWith(
         referencedMessages,
         personality,
         false,
         undefined,
-        undefined
+        { userApiKey: undefined, elevenlabsApiKey: undefined }
       );
     });
 
@@ -614,11 +614,12 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'What is this?', context);
 
-      // Includes isGuestMode (false) and userApiKey (undefined) for BYOK support
+      // Includes isGuestMode (false), userApiKey (undefined), and elevenlabsApiKey (undefined) for BYOK support
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         attachments,
         personality,
         false,
+        undefined,
         undefined
       );
     });
@@ -639,11 +640,12 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, '', context);
 
-      // Includes isGuestMode (false) and userApiKey (undefined) for BYOK support
+      // Includes isGuestMode (false), userApiKey (undefined), and elevenlabsApiKey (undefined) for BYOK support
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         attachments,
         personality,
         false,
+        undefined,
         undefined
       );
     });

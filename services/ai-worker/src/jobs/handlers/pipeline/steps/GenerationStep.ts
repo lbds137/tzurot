@@ -93,6 +93,7 @@ export class GenerationStep implements IPipelineStep {
     conversationContext: ConversationContext;
     recentAssistantMessages: string[];
     apiKey: string | undefined;
+    elevenlabsApiKey: string | undefined;
     isGuestMode: boolean;
     jobId: string | undefined;
     diagnosticCollector?: DiagnosticCollector;
@@ -145,6 +146,7 @@ export class GenerationStep implements IPipelineStep {
       try {
         response = await this.ragService.generateResponse(personality, message, attemptContext, {
           userApiKey: apiKey,
+          elevenlabsApiKey: opts.elevenlabsApiKey,
           isGuestMode,
           retryConfig: { attempt, ...retryConfig },
           skipMemoryStorage: true,
@@ -318,6 +320,7 @@ export class GenerationStep implements IPipelineStep {
           conversationContext,
           recentAssistantMessages,
           apiKey,
+          elevenlabsApiKey: auth.elevenlabsApiKey,
           isGuestMode,
           jobId: job.id,
           diagnosticCollector,

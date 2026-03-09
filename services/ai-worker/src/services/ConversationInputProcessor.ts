@@ -48,16 +48,19 @@ export class ConversationInputProcessor {
    * @param personality - Personality configuration
    * @param message - User's message content
    * @param context - Conversation context
-   * @param isGuestMode - Whether user is in guest mode (uses free models)
-   * @param userApiKey - User's BYOK API key (for BYOK users)
+   * @param authOptions - Authentication options (guest mode, API keys)
    */
   async processInputs(
     personality: LoadedPersonality,
     message: MessageContent,
     context: ConversationContext,
-    isGuestMode: boolean,
-    userApiKey?: string
+    authOptions: {
+      isGuestMode: boolean;
+      userApiKey?: string;
+      elevenlabsApiKey?: string;
+    }
   ): Promise<ProcessedInputs> {
+    const { isGuestMode, userApiKey, elevenlabsApiKey } = authOptions;
     // Use pre-processed attachments from dependency jobs if available
     let processedAttachments: ProcessedAttachment[] = [];
     if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
@@ -67,15 +70,13 @@ export class ConversationInputProcessor {
         'Using pre-processed attachments from dependency jobs'
       );
     } else if (context.attachments && context.attachments.length > 0) {
-      // Fallback: process attachments inline (shouldn't happen with job chain, but defensive).
-      // ElevenLabs STT key not threaded here — this path uses voice-engine/Whisper.
-      // The primary STT path (AudioTranscriptionJob) threads elevenlabsApiKey; this
-      // inline fallback is a rare safety net. See AudioProcessor.transcribeAudio().
+      // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
       processedAttachments = await processAttachments(
         context.attachments,
         personality,
         isGuestMode,
-        userApiKey
+        userApiKey,
+        elevenlabsApiKey
       );
       logger.info(
         { count: processedAttachments.length },
@@ -100,7 +101,7 @@ export class ConversationInputProcessor {
             personality,
             isGuestMode,
             context.preprocessedReferenceAttachments,
-            userApiKey
+            { userApiKey, elevenlabsApiKey }
           )
         : undefined;
 
