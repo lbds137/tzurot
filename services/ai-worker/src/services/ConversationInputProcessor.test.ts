@@ -50,6 +50,7 @@ describe('ConversationInputProcessor', () => {
     contextWindowTokens: 131072,
     characterInfo: 'Test character',
     personalityTraits: 'Test traits',
+    voiceEnabled: false,
     ...overrides,
   });
 

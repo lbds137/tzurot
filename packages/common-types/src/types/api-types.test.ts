@@ -64,6 +64,7 @@ describe('API Endpoint Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'Hello, world!',
         context: {
@@ -122,6 +123,7 @@ describe('API Endpoint Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'String message',
         context: { userId: 'user-123' },
@@ -144,6 +146,7 @@ describe('API Endpoint Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: { type: 'multimodal', content: 'Object message' },
         context: { userId: 'user-123' },
@@ -336,6 +339,7 @@ describe('API Endpoint Contract Tests', () => {
         contextWindowTokens: 8192,
         characterInfo: 'A helpful test personality',
         personalityTraits: 'Helpful, friendly',
+        voiceEnabled: false,
       };
 
       const result = loadedPersonalitySchema.safeParse(validPersonality);

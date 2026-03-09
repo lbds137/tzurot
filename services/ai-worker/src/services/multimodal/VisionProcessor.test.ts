@@ -24,6 +24,7 @@ function createMockPersonality(overrides: Partial<LoadedPersonality> = {}): Load
     contextWindowTokens: 8000,
     characterInfo: '',
     personalityTraits: '',
+    voiceEnabled: false,
     ...overrides,
   } as LoadedPersonality;
 }

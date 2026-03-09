@@ -14,7 +14,7 @@ const logger = createLogger('character-autocomplete');
 /**
  * Handle autocomplete for /character commands
  *
- * - For 'edit' and 'avatar': only shows user-owned characters
+ * - For 'edit', 'avatar', 'voice-upload', 'voice-clear': only shows user-owned characters
  * - For 'view', 'chat', etc.: shows all accessible characters (owned + public)
  *
  * Note: Delete is now handled via the edit dashboard, not a standalone command.
@@ -24,7 +24,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
 
   try {
     // Determine if we should only show owned characters
-    const ownedOnly = subcommand === 'edit' || subcommand === 'avatar';
+    const ownedOnlySubcommands = ['edit', 'avatar', 'voice-upload', 'voice-clear'];
+    const ownedOnly = subcommand !== null && ownedOnlySubcommands.includes(subcommand);
 
     const handled = await handlePersonalityAutocomplete(interaction, {
       optionName: 'character',

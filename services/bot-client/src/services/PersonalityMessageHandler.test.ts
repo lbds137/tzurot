@@ -861,6 +861,7 @@ function createMockPersonality(): LoadedPersonality {
     name: 'test-bot',
     displayName: 'Test Bot',
     systemPrompt: 'You are a test bot',
+    voiceEnabled: false,
     llmConfig: {
       model: 'test-model',
       temperature: 0.7,

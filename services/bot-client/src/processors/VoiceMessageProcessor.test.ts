@@ -2,7 +2,7 @@
  * Voice Message Processor Tests
  *
  * Tests voice message auto-transcription, forwarded message handling,
- * and processor chain behavior.
+ * and processor chain behavior using config cascade settings.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -10,6 +10,7 @@ import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import type { Message } from 'discord.js';
 import type { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
+import type { GatewayClient } from '../utils/GatewayClient.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -66,6 +67,9 @@ describe('VoiceMessageProcessor', () => {
   let mockPersonalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
   };
+  let mockGatewayClient: {
+    getAdminSettings: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,17 +83,27 @@ describe('VoiceMessageProcessor', () => {
       loadPersonality: vi.fn(),
     };
 
+    mockGatewayClient = {
+      getAdminSettings: vi.fn().mockResolvedValue({
+        configDefaults: { voiceTranscriptionEnabled: true },
+      }),
+    };
+
+    (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
+      BOT_MENTION_CHAR: '@',
+    });
+
     processor = new VoiceMessageProcessor(
       mockVoiceService as unknown as VoiceTranscriptionService,
-      mockPersonalityService as unknown as IPersonalityLoader
+      mockPersonalityService as unknown as IPersonalityLoader,
+      mockGatewayClient as unknown as GatewayClient
     );
   });
 
   describe('Configuration checks', () => {
-    it('should continue processing when AUTO_TRANSCRIBE_VOICE is disabled', async () => {
-      (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-        AUTO_TRANSCRIBE_VOICE: 'false',
-        BOT_MENTION_CHAR: '@',
+    it('should continue processing when voiceTranscriptionEnabled is false via admin cascade', async () => {
+      mockGatewayClient.getAdminSettings.mockResolvedValue({
+        configDefaults: { voiceTranscriptionEnabled: false },
       });
 
       const message = createMockMessage();
@@ -99,12 +113,34 @@ describe('VoiceMessageProcessor', () => {
       expect(mockVoiceService.hasVoiceAttachment).not.toHaveBeenCalled();
     });
 
-    it('should continue processing when no voice attachment', async () => {
-      (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-        AUTO_TRANSCRIBE_VOICE: 'true',
-        BOT_MENTION_CHAR: '@',
+    it('should default to enabled when admin settings are null', async () => {
+      mockGatewayClient.getAdminSettings.mockResolvedValue(null);
+
+      const message = createMockMessage();
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(false);
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(false);
+      // Should still check for voice attachments (transcription enabled by default)
+      expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
+    });
+
+    it('should default to enabled when configDefaults is null', async () => {
+      mockGatewayClient.getAdminSettings.mockResolvedValue({
+        configDefaults: null,
       });
 
+      const message = createMockMessage();
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(false);
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(false);
+      expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
+    });
+
+    it('should continue processing when no voice attachment', async () => {
       mockVoiceService.hasVoiceAttachment.mockReturnValue(false);
 
       const message = createMockMessage();
@@ -116,13 +152,6 @@ describe('VoiceMessageProcessor', () => {
   });
 
   describe('Voice-only messages', () => {
-    beforeEach(() => {
-      (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-        AUTO_TRANSCRIBE_VOICE: 'true',
-        BOT_MENTION_CHAR: '@',
-      });
-    });
-
     it('should continue chain for voice-only messages (for activated channels)', async () => {
       const message = createMockMessage({ content: '' });
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
@@ -159,13 +188,6 @@ describe('VoiceMessageProcessor', () => {
   });
 
   describe('Voice + personality targeting', () => {
-    beforeEach(() => {
-      (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-        AUTO_TRANSCRIBE_VOICE: 'true',
-        BOT_MENTION_CHAR: '@',
-      });
-    });
-
     it('should continue processing for voice+mention', async () => {
       const message = createMockMessage({ content: '@lilith' });
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
@@ -244,13 +266,6 @@ describe('VoiceMessageProcessor', () => {
   });
 
   describe('Forwarded message handling', () => {
-    beforeEach(() => {
-      (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-        AUTO_TRANSCRIBE_VOICE: 'true',
-        BOT_MENTION_CHAR: '@',
-      });
-    });
-
     it('should detect voice attachments in forwarded message snapshots', async () => {
       const message = createMockMessage();
       // hasVoiceAttachment checks both direct attachments and snapshots
@@ -272,13 +287,6 @@ describe('VoiceMessageProcessor', () => {
   });
 
   describe('Error handling', () => {
-    beforeEach(() => {
-      (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-        AUTO_TRANSCRIBE_VOICE: 'true',
-        BOT_MENTION_CHAR: '@',
-      });
-    });
-
     it('should stop processing when transcription fails', async () => {
       const message = createMockMessage();
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);

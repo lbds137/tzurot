@@ -59,6 +59,7 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
         contextWindowTokens: 131072,
         characterInfo: '',
         personalityTraits: '',
+        voiceEnabled: false,
       } as unknown as LoadedPersonality);
     }),
 

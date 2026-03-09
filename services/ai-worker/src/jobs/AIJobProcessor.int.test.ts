@@ -164,6 +164,7 @@ describe('AIJobProcessor Component Test', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A test bot',
           personalityTraits: 'Helpful',
+          voiceEnabled: false,
         },
         message: 'Hello, test bot!',
         context: {
@@ -234,6 +235,7 @@ describe('AIJobProcessor Component Test', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A test bot',
           personalityTraits: 'Helpful',
+          voiceEnabled: false,
         },
         message: 'What did I say earlier?',
         context: {
@@ -321,6 +323,7 @@ describe('AIJobProcessor Component Test', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A test bot',
           personalityTraits: 'Helpful',
+          voiceEnabled: false,
         },
         message: 'This will fail',
         context: {
@@ -368,6 +371,7 @@ describe('AIJobProcessor Component Test', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A test bot',
           personalityTraits: 'Helpful',
+          voiceEnabled: false,
         },
         message: 'Test routing',
         context: {
@@ -430,6 +434,7 @@ describe('AIJobProcessor Component Test', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A test bot',
           personalityTraits: 'Helpful',
+          voiceEnabled: false,
         },
         message: 'Test persistence',
         context: {

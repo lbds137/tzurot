@@ -63,6 +63,7 @@ describe('RedisDeduplicationCache', () => {
       contextWindowTokens: 8000,
       characterInfo: 'Test character info',
       personalityTraits: 'Test personality traits',
+      voiceEnabled: false,
     },
     message,
     context: {

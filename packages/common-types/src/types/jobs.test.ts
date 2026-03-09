@@ -118,6 +118,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         context: {
           userId: 'user-123',
@@ -147,6 +148,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         context: { userId: 'user-123', channelId: 'channel-123' },
       };
@@ -275,6 +277,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'Hello, world!',
         context: {
@@ -306,6 +309,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'Hello, world!',
         context: {
@@ -390,6 +394,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'String message',
         context: { userId: 'user-123' },
@@ -415,6 +420,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: { type: 'multimodal', content: 'Object message' },
         context: { userId: 'user-123' },
@@ -465,6 +471,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         context: { userId: 'user-123', channelId: 'channel-123' },
       };
@@ -490,6 +497,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'Test message',
         context: { userId: 'user-123' },
@@ -569,6 +577,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'Hello!',
         context: {
@@ -627,6 +636,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'Hello!',
         context: {
@@ -659,6 +669,7 @@ describe('BullMQ Job Contract Tests', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         message: 'Hello!',
         context: {

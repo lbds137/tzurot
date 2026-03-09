@@ -55,6 +55,7 @@ describe('LongTermMemoryService', () => {
     temperature: 0.7,
     maxTokens: 2000,
     contextWindowTokens: 8000,
+    voiceEnabled: false,
   };
 
   const baseContext: ConversationContext = {

@@ -205,7 +205,7 @@ function createServices(): Services {
     new BotMessageFilter(),
     new DenylistFilter(denylistCache),
     new EmptyMessageFilter(),
-    new VoiceMessageProcessor(voiceTranscription, personalityIdCache),
+    new VoiceMessageProcessor(voiceTranscription, personalityIdCache, gatewayClient),
     new ReplyMessageProcessor(replyResolver, personalityHandler),
     new ActivatedChannelProcessor(gatewayClient, personalityIdCache, personalityHandler),
     new DMSessionProcessor(gatewayClient, personalityIdCache, personalityHandler),

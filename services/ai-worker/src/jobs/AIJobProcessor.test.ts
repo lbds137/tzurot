@@ -279,6 +279,7 @@ describe('AIJobProcessor', () => {
           contextWindowTokens: 8192,
           characterInfo: 'A helpful test personality',
           personalityTraits: 'Helpful, friendly',
+          voiceEnabled: false,
         },
         context: baseContext,
         responseDestination: baseResponseDestination,
@@ -390,6 +391,7 @@ describe('AIJobProcessor', () => {
         contextWindowTokens: 8192,
         characterInfo: 'A helpful test personality',
         personalityTraits: 'Helpful, friendly',
+        voiceEnabled: false,
       },
       context: {
         ...baseContext,

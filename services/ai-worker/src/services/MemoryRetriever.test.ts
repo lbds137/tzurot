@@ -61,6 +61,7 @@ describe('MemoryRetriever', () => {
     personalityDislikes: undefined,
     conversationalGoals: undefined,
     conversationalExamples: undefined,
+    voiceEnabled: false,
   };
 
   beforeEach(() => {

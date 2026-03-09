@@ -58,6 +58,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   contextWindowTokens: 8192,
   characterInfo: 'A helpful test personality',
   personalityTraits: 'Helpful, friendly',
+  voiceEnabled: false,
 };
 
 // Guest mode personality with free model and free vision model (simulates resolved config for guest users)

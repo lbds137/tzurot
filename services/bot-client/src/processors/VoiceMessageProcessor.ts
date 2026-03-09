@@ -1,15 +1,16 @@
 /**
  * Voice Message Processor
  *
- * Handles voice message auto-transcription when enabled.
+ * Handles voice message auto-transcription when enabled via config cascade.
  * Transcribes voice, sends to Discord, and determines if personality handling should continue.
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, HARDCODED_CONFIG_DEFAULTS } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
+import type { GatewayClient } from '../utils/GatewayClient.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 
 const logger = createLogger('VoiceMessageProcessor');
@@ -23,14 +24,19 @@ const VOICE_TRANSCRIPT_KEY = Symbol('voiceTranscript');
 export class VoiceMessageProcessor implements IMessageProcessor {
   constructor(
     private readonly voiceService: VoiceTranscriptionService,
-    private readonly personalityService: IPersonalityLoader
+    private readonly personalityService: IPersonalityLoader,
+    private readonly gatewayClient: GatewayClient
   ) {}
 
   async process(message: Message): Promise<boolean> {
     const config = getConfig();
 
-    // Check if auto-transcription is enabled
-    if (config.AUTO_TRANSCRIBE_VOICE !== 'true') {
+    // Check if auto-transcription is enabled via config cascade (admin-level toggle)
+    const adminSettings = await this.gatewayClient.getAdminSettings();
+    const voiceTranscriptionEnabled =
+      adminSettings?.configDefaults?.voiceTranscriptionEnabled ??
+      HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled;
+    if (!voiceTranscriptionEnabled) {
       return false; // Continue to next processor
     }
 

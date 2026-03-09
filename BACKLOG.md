@@ -409,13 +409,13 @@ Enable personalities to speak — generate voice responses from LLM text output.
 - [x] Redis binary storage for TTS audio (`tts-audio:{jobId}`, 5-min TTL) — PR #710
 - [x] Typing indicator fix (8s interval refresh during transcription) — PR #710
 
-**Phase 3b — Voice Commands + Cascade Wiring (IN PROGRESS):**
+**Phase 3b — Voice Commands + Cascade Wiring (COMPLETE):**
 
-- [ ] `/character voice` slash command — upload voice reference audio via Discord attachment (follows `/character avatar` pattern). API layer is ready (`voiceReferenceData` accepted by create/update routes).
-- [ ] Auto-enable `voiceEnabled: true` when voice reference uploaded, disable when cleared
-- [ ] Wire `voiceTranscriptionEnabled` cascade field to bot-client — replace `AUTO_TRANSCRIBE_VOICE` env var check in `VoiceMessageProcessor` with cascade lookup
-- [ ] 🏗️ `[LIFT]` Audit `isHealthy()` — returns `false` during TTS cold-start even if ASR is ready; `AudioProcessor` doesn't call it (confirmed), but semantics should be cleaned up
-- [ ] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — currently `.optional()` to avoid breaking ~35 test fixtures; update fixtures to include `voiceEnabled: false` for strict type safety
+- [x] `/character voice` slash command — upload voice reference audio via Discord attachment (follows `/character avatar` pattern). API layer is ready (`voiceReferenceData` accepted by create/update routes).
+- [x] Auto-enable `voiceEnabled: true` when voice reference uploaded, disable when cleared
+- [x] Wire `voiceTranscriptionEnabled` cascade field to bot-client — replace `AUTO_TRANSCRIBE_VOICE` env var check in `VoiceMessageProcessor` with cascade lookup
+- [x] 🏗️ `[LIFT]` Audit `isHealthy()` — no action needed: `startup.ts` already logs granular per-capability health; `AudioProcessor` doesn't call it
+- [x] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — updated ~40 test fixtures to include `voiceEnabled: false` for strict type safety
 
 #### Phase 4: ElevenLabs Premium Tier
 
