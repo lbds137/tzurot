@@ -308,6 +308,27 @@ describe('VoiceRegistrationService', () => {
     expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
   });
 
+  it('should NOT negatively cache 502 VoiceEngineError (Railway load balancer during boot)', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    // Railway LB returns 502 when app hasn't bound its port yet
+    mockFetch.mockRejectedValue(new VoiceEngineError(502, 'Bad Gateway'));
+
+    await expect(service.ensureVoiceRegistered('boot-voice')).rejects.toThrow(
+      'Voice engine request failed (502)'
+    );
+
+    // Second call: should retry (NOT hit negative cache)
+    mockFetch.mockClear();
+    mockVoiceEngineClient.listVoices.mockClear();
+
+    mockVoiceEngineClient.listVoices.mockResolvedValue(['boot-voice']);
+
+    await service.ensureVoiceRegistered('boot-voice');
+
+    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
+  });
+
   it('should negatively cache non-503 VoiceEngineError (e.g., 400)', async () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
 

@@ -216,16 +216,17 @@ export class TTSStep implements IPipelineStep {
       if (health.tts) {
         return;
       }
-      // Don't sleep if we've already exhausted the budget
-      if (Date.now() + HEALTH_POLL_INTERVAL_MS < deadline) {
-        logger.info(
-          { slug, attempt, remainingMs: deadline - Date.now() },
-          'Voice engine TTS not ready — waiting for cold start'
-        );
-        await new Promise(resolve => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS));
-      } else {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
         break;
       }
+      logger.info(
+        { slug, attempt, remainingMs: remaining },
+        'Voice engine TTS not ready — waiting for cold start'
+      );
+      await new Promise(resolve =>
+        setTimeout(resolve, Math.min(HEALTH_POLL_INTERVAL_MS, remaining))
+      );
     }
     logger.warn(
       { slug, attempts: attempt },
