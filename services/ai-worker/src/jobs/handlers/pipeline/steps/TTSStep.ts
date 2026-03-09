@@ -94,7 +94,7 @@ export class TTSStep implements IPipelineStep {
           if (timedOut) {
             logger.warn({ err, slug }, 'TTS failed after timeout (result already discarded)');
           }
-          // Pre-timeout rejections are handled by the outer catch via Promise.race
+          // else: pre-timeout error — already rejected in Promise.race, outer catch handles it
         }
       );
 

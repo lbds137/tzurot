@@ -101,7 +101,9 @@ export class VoiceEngineClient {
     }
   }
 
-  /** Synthesize speech via POST /v1/tts. */
+  /** Synthesize speech via POST /v1/tts.
+   *  No explicit timeout — inherits `this.timeoutMs` (3 min) to accommodate
+   *  Railway Serverless cold starts. See constructor comment for rationale. */
   async synthesize(text: string, voiceId: string): Promise<SynthesisResult> {
     const formData = new FormData();
     formData.append('text', text);
