@@ -4,7 +4,7 @@
  * Coordinates processing of images and audio to extract text descriptions/transcriptions.
  * Delegates to specialized processors:
  * - VisionProcessor: Image descriptions using vision models
- * - AudioProcessor: Audio transcriptions using Whisper
+ * - AudioProcessor: Audio transcriptions via ElevenLabs STT or voice-engine
  *
  * This allows multimodal content to be:
  * 1. Stored as text in conversation history (for long-term context)

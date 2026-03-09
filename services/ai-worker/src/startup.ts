@@ -20,17 +20,6 @@ export function validateRequiredEnvVars(config = getConfig()): void {
 }
 
 /**
- * Validate AI-specific configuration
- * @throws Error if AI-specific environment variables are missing
- */
-export function validateAIConfig(config = getConfig()): void {
-  if (config.OPENAI_API_KEY === undefined || config.OPENAI_API_KEY.length === 0) {
-    logger.fatal('OPENAI_API_KEY environment variable is required for memory embeddings');
-    throw new Error('OPENAI_API_KEY environment variable is required for memory embeddings');
-  }
-}
-
-/**
  * One-shot voice engine health check at startup.
  * Logs whether the voice engine is configured and reachable.
  * Never throws — wrapped in try/catch for resilience.

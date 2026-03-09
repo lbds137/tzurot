@@ -67,11 +67,9 @@ export const envSchema = z.object({
   OPENROUTER_API_KEY: optionalNonEmptyString(),
   OPENROUTER_APP_TITLE: optionalNonEmptyString(),
   OPENROUTER_APP_URL: optionalNonEmptyString(),
-  OPENAI_API_KEY: optionalNonEmptyString(),
   DEFAULT_AI_MODEL: optionalNonEmptyString().transform(val => val ?? MODEL_DEFAULTS.DEFAULT_MODEL),
 
   // AI Model Defaults
-  WHISPER_MODEL: z.string().default(MODEL_DEFAULTS.WHISPER),
   VISION_FALLBACK_MODEL: z.string().default(MODEL_DEFAULTS.VISION_FALLBACK),
   // Note: Embeddings are local (Xenova/bge-small-en-v1.5) - no env config needed
 
@@ -225,11 +223,9 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     OPENROUTER_API_KEY: undefined,
     OPENROUTER_APP_TITLE: undefined,
     OPENROUTER_APP_URL: undefined,
-    OPENAI_API_KEY: undefined,
     DEFAULT_AI_MODEL: MODEL_DEFAULTS.DEFAULT_MODEL,
 
     // AI Model Defaults
-    WHISPER_MODEL: MODEL_DEFAULTS.WHISPER,
     VISION_FALLBACK_MODEL: MODEL_DEFAULTS.VISION_FALLBACK,
 
     // Redis

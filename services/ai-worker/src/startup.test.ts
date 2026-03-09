@@ -20,7 +20,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
     getConfig: vi.fn(() => ({
       REDIS_URL: 'redis://localhost:6379',
-      OPENAI_API_KEY: 'test-openai-key',
     })),
     HealthStatus: actual.HealthStatus,
   };
@@ -32,12 +31,7 @@ vi.mock('./services/voice/VoiceEngineClient.js', () => ({
 
 import { HealthStatus } from '@tzurot/common-types';
 import { getVoiceEngineClient } from './services/voice/VoiceEngineClient.js';
-import {
-  validateRequiredEnvVars,
-  validateAIConfig,
-  buildHealthResponse,
-  checkVoiceEngineHealth,
-} from './startup.js';
+import { validateRequiredEnvVars, buildHealthResponse, checkVoiceEngineHealth } from './startup.js';
 
 describe('Startup Utilities', () => {
   beforeEach(() => {
@@ -76,35 +70,6 @@ describe('Startup Utilities', () => {
           config as ReturnType<typeof import('@tzurot/common-types').getConfig>
         )
       ).toThrow('REDIS_URL environment variable is required');
-    });
-  });
-
-  describe('validateAIConfig', () => {
-    it('should not throw when OPENAI_API_KEY is set', () => {
-      const config = {
-        OPENAI_API_KEY: 'test-key',
-      };
-      expect(() =>
-        validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
-      ).not.toThrow();
-    });
-
-    it('should throw when OPENAI_API_KEY is undefined', () => {
-      const config = {
-        OPENAI_API_KEY: undefined,
-      };
-      expect(() =>
-        validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
-      ).toThrow('OPENAI_API_KEY environment variable is required for memory embeddings');
-    });
-
-    it('should throw when OPENAI_API_KEY is empty', () => {
-      const config = {
-        OPENAI_API_KEY: '',
-      };
-      expect(() =>
-        validateAIConfig(config as ReturnType<typeof import('@tzurot/common-types').getConfig>)
-      ).toThrow('OPENAI_API_KEY environment variable is required for memory embeddings');
     });
   });
 

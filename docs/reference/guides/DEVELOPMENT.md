@@ -239,7 +239,6 @@ See `.env.example` for all available environment variables.
 
 - `DISCORD_TOKEN` - Your Discord bot token
 - `OPENROUTER_API_KEY` - For LLM completions
-- `OPENAI_API_KEY` - For embeddings
 - `REDIS_URL` / `REDIS_HOST` - Redis connection
 
 # No QDRANT_URL needed - pgvector uses DATABASE_URL
@@ -298,7 +297,7 @@ pnpm --filter @tzurot/ai-worker dev  # Logs to stdout
 
 **"No API key available"**
 
-- Set OPENROUTER_API_KEY or OPENAI_API_KEY in .env
+- Set OPENROUTER_API_KEY in .env
 - For BYOK, user must provide their own key
 
 **"Worker not processing jobs"**

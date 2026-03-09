@@ -16,7 +16,7 @@ import { TIMEOUTS, RETRY_CONFIG } from '../constants/index.js';
  *
  * @example
  * // Audio: 210s per attempt × 3 attempts + delays (1s + 2s)
- * calculateTimeoutWithRetries(210000, 3) // 633000ms (633s)
+ * calculateTimeoutWithRetries(210_000, 3) // 633000ms (633s)
  *
  * @example
  * // Vision: 90s per attempt × 3 attempts + delays (1s + 2s)
@@ -52,7 +52,7 @@ function calculateTimeoutWithRetries(
  * preprocessing jobs retry up to 3 times with exponential backoff.
  *
  * Component breakdown (all independent, WITH RETRIES):
- * - Audio processing: (30s fetch + 180s whisper) × 3 attempts + delays = 633s
+ * - Audio processing: (30s fetch + 180s STT) × 3 attempts + delays = 633s
  * - Image processing: 90s × 3 attempts + delays = 273s
  * - LLM invocation: 480s total (already includes retry budget)
  * - System overhead: 15s for DB, queue, network operations
@@ -89,9 +89,11 @@ export function calculateJobTimeout(imageCount: number, audioCount = 0): number 
   const imageProcessingTime =
     imageCount > 0 ? calculateTimeoutWithRetries(TIMEOUTS.VISION_MODEL) : 0;
 
-  // Audio: (30s fetch + 180s whisper) per attempt × 3 attempts + backoff delays = 633s
+  // Audio: (30s fetch + 180s STT) per attempt × 3 attempts + backoff delays = 633s
   const audioProcessingTime =
-    audioCount > 0 ? calculateTimeoutWithRetries(TIMEOUTS.AUDIO_FETCH + TIMEOUTS.WHISPER_API) : 0;
+    audioCount > 0
+      ? calculateTimeoutWithRetries(TIMEOUTS.AUDIO_FETCH + TIMEOUTS.VOICE_ENGINE_API)
+      : 0;
 
   const attachmentTime = Math.max(imageProcessingTime, audioProcessingTime);
 

@@ -80,7 +80,6 @@ describe('setupRailwayVariables', () => {
     mockReadFileSync.mockReturnValue(`
 AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=sk-test-key
-OPENAI_API_KEY=sk-openai-key
 DISCORD_TOKEN=test-discord-token
 DISCORD_CLIENT_ID=123456789
 BOT_OWNER_ID=987654321
@@ -169,8 +168,7 @@ DISCORD_CLIENT_ID=123456789
 
       const output = consoleLogs.join('\n');
       // Should use defaults
-      expect(output).toContain('WHISPER_MODEL: whisper-1');
-      // Note: EMBEDDING_MODEL removed - local embeddings don't need env config
+      expect(output).toContain('VISION_FALLBACK_MODEL: qwen/qwen3.5-397b-a17b');
     });
 
     it('should report 0 variables when .env file is missing', async () => {

@@ -3,7 +3,7 @@
  *
  * NEW ARCHITECTURE: Independent component budgets WITH RETRY SUPPORT
  * - Preprocessing jobs retry up to 3 times with exponential backoff
- * - Each component gets full timeout budget regardless of other components
+ * - Each component gets its full timeout budget regardless of other components
  */
 
 import { describe, it, expect } from 'vitest';
@@ -48,7 +48,7 @@ describe('calculateJobTimeout - Independent Component Budgets with Retries', () 
   describe('Audio attachments (with retries)', () => {
     it('should calculate timeout for 1 audio with retries + independent LLM budget', () => {
       // SYSTEM_OVERHEAD: 15s
-      // AUDIO_FETCH + WHISPER_API with retries: 210s × 3 attempts + 3s delays = 633s
+      // AUDIO_FETCH + VOICE_ENGINE_API with retries: 210s × 3 attempts + 3s delays = 633s
       // LLM_INVOCATION: 480s
       // Total: 15s + 633s + 480s = 1128s
       const timeout = calculateJobTimeout(0, 1);

@@ -42,9 +42,9 @@ export class VoiceEngineClient {
     // Strip trailing slash for consistent URL construction
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.apiKey = apiKey;
-    // Reuses WHISPER_API timeout (3min) intentionally — Railway Serverless cold starts
+    // Uses VOICE_ENGINE_API timeout (3min) — Railway Serverless cold starts
     // take 30-120s for model loading, so a shorter timeout would cause false failures.
-    this.timeoutMs = timeoutMs ?? TIMEOUTS.WHISPER_API;
+    this.timeoutMs = timeoutMs ?? TIMEOUTS.VOICE_ENGINE_API;
   }
 
   /** Transcribe audio via POST /v1/transcribe (native endpoint). */
