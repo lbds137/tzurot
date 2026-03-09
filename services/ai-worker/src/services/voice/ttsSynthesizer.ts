@@ -136,6 +136,14 @@ export function extractPcmData(wavBuffer: Buffer): Buffer {
     if (chunkId === 'data') {
       return wavBuffer.subarray(offset + 8);
     }
+    // Guard against malformed chunk sizes that extend beyond the buffer
+    if (offset + 8 + chunkSize > wavBuffer.length) {
+      logger.warn(
+        { chunkId, chunkSize, offset, bufferLength: wavBuffer.length },
+        'WAV chunk extends beyond buffer — falling back to fixed 44-byte offset'
+      );
+      return wavBuffer.subarray(WAV_HEADER_SIZE);
+    }
     // Advance past this chunk's header (8 bytes) + data
     offset += 8 + chunkSize;
   }
