@@ -77,6 +77,11 @@ function formatSettingValue(
       }
       break;
     }
+    case SettingType.ENUM: {
+      const choice = setting.choices?.find(c => c.value === effectiveValue);
+      display = choice !== undefined ? `${choice.emoji} ${choice.label}` : String(effectiveValue);
+      break;
+    }
     default:
       display = String(effectiveValue);
   }
@@ -176,6 +181,12 @@ export function buildSettingEmbed(
         const durationValue = value.effectiveValue as number | null;
         inheritedDisplay =
           durationValue === null ? 'Off' : Duration.fromSeconds(durationValue).toHuman();
+        break;
+      }
+      case SettingType.ENUM: {
+        const choice = setting.choices?.find(c => c.value === value.effectiveValue);
+        inheritedDisplay =
+          choice !== undefined ? `${choice.emoji} ${choice.label}` : String(value.effectiveValue);
         break;
       }
       default:
@@ -278,6 +289,53 @@ export function buildTriStateButtons(
       .setEmoji('❌')
       .setStyle(localValue === false ? ButtonStyle.Danger : ButtonStyle.Secondary)
   );
+
+  return row;
+}
+
+/**
+ * Build enum buttons for enum settings (Auto + one per choice)
+ */
+export function buildEnumButtons(
+  config: SettingsDashboardConfig,
+  session: SettingsDashboardSession,
+  setting: SettingDefinition
+): ActionRowBuilder<MessageActionRowComponentBuilder> {
+  const value = session.data[
+    setting.id as keyof typeof session.data
+  ] as unknown as SettingValue<string>;
+  const localValue = value.localValue;
+
+  const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();
+
+  // Auto button (inherit from parent)
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(
+        buildSettingsCustomId(config.entityType, 'set', session.entityId, `${setting.id}:auto`)
+      )
+      .setLabel('Auto (Inherit)')
+      .setEmoji('🔄')
+      .setStyle(localValue === null ? ButtonStyle.Primary : ButtonStyle.Secondary)
+  );
+
+  // One button per choice
+  for (const choice of setting.choices ?? []) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(
+          buildSettingsCustomId(
+            config.entityType,
+            'set',
+            session.entityId,
+            `${setting.id}:${choice.value}`
+          )
+        )
+        .setLabel(choice.label)
+        .setEmoji(choice.emoji)
+        .setStyle(localValue === choice.value ? ButtonStyle.Success : ButtonStyle.Secondary)
+    );
+  }
 
   return row;
 }
@@ -390,6 +448,8 @@ export function buildSettingMessage(
   // Add appropriate controls based on setting type
   if (setting.type === SettingType.TRI_STATE) {
     components.push(buildTriStateButtons(config, session, setting));
+  } else if (setting.type === SettingType.ENUM) {
+    components.push(buildEnumButtons(config, session, setting));
   } else {
     components.push(buildEditButtons(config, session, setting));
   }

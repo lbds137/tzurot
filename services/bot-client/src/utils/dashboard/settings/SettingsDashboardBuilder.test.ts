@@ -9,6 +9,7 @@ import {
   buildSettingEmbed,
   buildSettingsSelectMenu,
   buildTriStateButtons,
+  buildEnumButtons,
   buildEditButtons,
   buildBackButton,
   buildCloseButton,
@@ -90,6 +91,16 @@ const createTestSession = (
       source: 'hardcoded',
     },
     showModelFooter: {
+      localValue: null,
+      effectiveValue: true,
+      source: 'hardcoded',
+    },
+    voiceResponseMode: {
+      localValue: null,
+      effectiveValue: 'always',
+      source: 'hardcoded',
+    },
+    voiceTranscriptionEnabled: {
       localValue: null,
       effectiveValue: true,
       source: 'hardcoded',
@@ -495,6 +506,88 @@ describe('SettingsDashboardBuilder', () => {
     });
   });
 
+  describe('buildEnumButtons', () => {
+    const enumSetting: SettingDefinition = {
+      id: 'voiceResponseMode',
+      label: 'Voice Response Mode',
+      emoji: '🔊',
+      description: 'Controls when AI responses are converted to voice audio.',
+      type: SettingType.ENUM,
+      choices: [
+        { value: 'always', label: 'Always', emoji: '🔊' },
+        { value: 'voice-only', label: 'Voice Only', emoji: '🎙️' },
+        { value: 'never', label: 'Never', emoji: '🔇' },
+      ],
+    };
+
+    const createEnumSession = (
+      localValue: string | null,
+      effectiveValue: string,
+      source: 'admin' | 'hardcoded' = 'hardcoded'
+    ) => {
+      return createTestSession({
+        voiceResponseMode: { localValue, effectiveValue, source },
+      });
+    };
+
+    it('should create Auto + one button per choice', () => {
+      const config = createTestConfig();
+      const session = createEnumSession(null, 'always');
+
+      const row = buildEnumButtons(config, session, enumSetting);
+      const buttons = getButtons(row);
+
+      expect(buttons).toHaveLength(4); // Auto + 3 choices
+      expect(buttons[0].label).toBe('Auto (Inherit)');
+      expect(buttons[1].label).toBe('Always');
+      expect(buttons[2].label).toBe('Voice Only');
+      expect(buttons[3].label).toBe('Never');
+    });
+
+    it('should highlight Auto when localValue is null', () => {
+      const config = createTestConfig();
+      const session = createEnumSession(null, 'always');
+
+      const row = buildEnumButtons(config, session, enumSetting);
+      const buttons = getButtons(row);
+
+      expect(buttons[0].style).toBe(ButtonStyle.Primary);
+      expect(buttons[1].style).toBe(ButtonStyle.Secondary);
+      expect(buttons[2].style).toBe(ButtonStyle.Secondary);
+      expect(buttons[3].style).toBe(ButtonStyle.Secondary);
+    });
+
+    it('should highlight the active choice when local override set', () => {
+      const config = createTestConfig();
+      const session = createEnumSession('voice-only', 'voice-only', 'admin');
+
+      const row = buildEnumButtons(config, session, enumSetting);
+      const buttons = getButtons(row);
+
+      expect(buttons[0].style).toBe(ButtonStyle.Secondary);
+      expect(buttons[1].style).toBe(ButtonStyle.Secondary);
+      expect(buttons[2].style).toBe(ButtonStyle.Success); // voice-only highlighted
+      expect(buttons[3].style).toBe(ButtonStyle.Secondary);
+    });
+
+    it('should have correct custom IDs', () => {
+      const config = createTestConfig();
+      const session = createEnumSession(null, 'always');
+
+      const row = buildEnumButtons(config, session, enumSetting);
+      const buttons = getButtons(row);
+
+      expect(buttons[0].custom_id).toBe('test-settings::set::test-entity::voiceResponseMode:auto');
+      expect(buttons[1].custom_id).toBe(
+        'test-settings::set::test-entity::voiceResponseMode:always'
+      );
+      expect(buttons[2].custom_id).toBe(
+        'test-settings::set::test-entity::voiceResponseMode:voice-only'
+      );
+      expect(buttons[3].custom_id).toBe('test-settings::set::test-entity::voiceResponseMode:never');
+    });
+  });
+
   describe('buildEditButtons', () => {
     it('should create Edit and Reset buttons', () => {
       const config = createTestConfig();
@@ -610,6 +703,28 @@ describe('SettingsDashboardBuilder', () => {
       expect(message.embeds).toHaveLength(1);
       expect(message.components).toHaveLength(2); // edit buttons + back button
     });
+
+    it('should return embed and components for enum setting', () => {
+      const config = createTestConfig();
+      const session = createTestSession();
+      const enumSetting: SettingDefinition = {
+        id: 'voiceResponseMode',
+        label: 'Voice Response Mode',
+        emoji: '🔊',
+        description: 'Controls voice responses.',
+        type: SettingType.ENUM,
+        choices: [
+          { value: 'always', label: 'Always', emoji: '🔊' },
+          { value: 'voice-only', label: 'Voice Only', emoji: '🎙️' },
+          { value: 'never', label: 'Never', emoji: '🔇' },
+        ],
+      };
+
+      const message = buildSettingMessage(config, session, enumSetting);
+
+      expect(message.embeds).toHaveLength(1);
+      expect(message.components).toHaveLength(2); // enum buttons + back button
+    });
   });
 
   describe('getSettingById', () => {
@@ -649,6 +764,18 @@ describe('SettingsDashboardBuilder', () => {
 
       const showModelFooter = getSettingById('showModelFooter');
       expect(showModelFooter?.type).toBe(SettingType.TRI_STATE);
+    });
+
+    it('should find voice settings', () => {
+      expect(getSettingById('voiceTranscriptionEnabled')).toBeDefined();
+      expect(getSettingById('voiceResponseMode')).toBeDefined();
+
+      const transcription = getSettingById('voiceTranscriptionEnabled');
+      expect(transcription?.type).toBe(SettingType.TRI_STATE);
+
+      const responseMode = getSettingById('voiceResponseMode');
+      expect(responseMode?.type).toBe(SettingType.ENUM);
+      expect(responseMode?.choices).toHaveLength(3);
     });
   });
 });

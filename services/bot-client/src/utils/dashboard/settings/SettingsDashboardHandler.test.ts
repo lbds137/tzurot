@@ -90,6 +90,16 @@ const createTestData = (): SettingsData => ({
     effectiveValue: true,
     source: 'hardcoded',
   },
+  voiceResponseMode: {
+    localValue: null,
+    effectiveValue: 'always',
+    source: 'hardcoded',
+  },
+  voiceTranscriptionEnabled: {
+    localValue: null,
+    effectiveValue: true,
+    source: 'hardcoded',
+  },
 });
 
 const createMockInteraction = (overrides = {}) => ({
@@ -416,6 +426,8 @@ describe('SettingsDashboardHandler', () => {
         memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
         memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
         showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
+        voiceResponseMode: { localValue: null, effectiveValue: 'always', source: 'hardcoded' },
+        voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();
@@ -452,6 +464,8 @@ describe('SettingsDashboardHandler', () => {
         memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
         memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
         showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
+        voiceResponseMode: { localValue: null, effectiveValue: 'always', source: 'hardcoded' },
+        voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();

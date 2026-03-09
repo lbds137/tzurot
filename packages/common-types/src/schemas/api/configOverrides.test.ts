@@ -189,7 +189,7 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.memoryLimit).toBe(20);
     expect(HARDCODED_CONFIG_DEFAULTS.focusModeEnabled).toBe(false);
     expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
-    expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('never');
+    expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('always');
     expect(HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled).toBe(true);
   });
 

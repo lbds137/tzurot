@@ -182,7 +182,7 @@ describe('TTSStep', () => {
       expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
     });
 
-    it('skips when voiceResponseMode is never (default)', async () => {
+    it('skips when voiceResponseMode is never', async () => {
       const ctx = createContext({
         configOverrides: {
           voiceResponseMode: 'never',

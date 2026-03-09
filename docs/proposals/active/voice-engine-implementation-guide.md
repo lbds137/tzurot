@@ -7,7 +7,7 @@
 | Phase 1  | Python service + voice reference blob storage | COMPLETE        |
 | Phase 2  | Python hardening + ai-worker STT integration  | COMPLETE        |
 | Phase 3a | TTS pipeline + config cascade (ai-worker)     | COMPLETE (#710) |
-| Phase 3b | Voice commands + cascade wiring (bot-client)  | IN PROGRESS     |
+| Phase 3b | Voice commands + cascade wiring (bot-client)  | COMPLETE        |
 | Phase 4  | ElevenLabs Premium Tier                       | Not started     |
 | Phase 5  | Shapes.inc Voice Field Import                 | Not started     |
 
@@ -156,13 +156,13 @@ See Part 6 for full details. Quick checklist:
 - Guide proposed filesystem cache + BullMQ cleanup job; replaced with Redis binary keys + 5-min TTL (simpler, no cleanup job needed)
 - Guide proposed `/voice register|list|remove` as top-level commands; redesigned as `/character voice` subcommand (follows existing avatar pattern)
 
-### Phase 3b: Voice Commands + Cascade Wiring — IN PROGRESS
+### Phase 3b: Voice Commands + Cascade Wiring — COMPLETE
 
-- [ ] `/character voice` slash command — upload voice reference audio (follows `/character avatar` pattern)
-- [ ] Auto-enable `voiceEnabled: true` when voice reference uploaded
-- [ ] Wire `voiceTranscriptionEnabled` cascade field to bot-client `VoiceMessageProcessor` (replace `AUTO_TRANSCRIBE_VOICE` env var)
-- [ ] 🏗️ `isHealthy()` audit — returns false during TTS cold-start even if ASR is ready
-- [ ] 🏗️ `voiceEnabled` schema `.default(false)` — update ~35 test fixtures
+- [x] `/character voice` slash command — upload voice reference audio (follows `/character avatar` pattern)
+- [x] Auto-enable `voiceEnabled: true` when voice reference uploaded
+- [x] Wire `voiceTranscriptionEnabled` cascade field to bot-client `VoiceMessageProcessor` (replace `AUTO_TRANSCRIBE_VOICE` env var)
+- [x] 🏗️ `isHealthy()` audit — returns false during TTS cold-start even if ASR is ready
+- [x] 🏗️ `voiceEnabled` schema `.default(false)` — update ~35 test fixtures
 
 ### Python Standards Lessons Learned (from Phase 1 PR Review)
 

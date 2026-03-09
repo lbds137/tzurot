@@ -136,9 +136,50 @@ export const DISPLAY_SETTINGS: SettingDefinition[] = [
   },
 ];
 
+/**
+ * Voice settings definitions (all voice fields — admin tier only)
+ */
+export const VOICE_SETTINGS: SettingDefinition[] = [
+  {
+    id: 'voiceTranscriptionEnabled',
+    label: 'Voice Transcription',
+    emoji: '🎙️',
+    description:
+      'Auto-transcribe voice messages to text before AI processing. ' +
+      'When enabled, voice messages are converted to text using the voice engine.',
+    type: SettingType.TRI_STATE,
+    helpText: 'Requires a running voice engine service (VOICE_ENGINE_URL)',
+  },
+  {
+    id: 'voiceResponseMode',
+    label: 'Voice Response Mode',
+    emoji: '🔊',
+    description:
+      'Controls when AI responses are converted to voice audio. ' +
+      '"Always" sends voice for every response, "Voice Only" only when the user sends voice, ' +
+      '"Never" disables TTS entirely.',
+    type: SettingType.ENUM,
+    choices: [
+      { value: 'always', label: 'Always', emoji: '🔊' },
+      { value: 'voice-only', label: 'Voice Only', emoji: '🎙️' },
+      { value: 'never', label: 'Never', emoji: '🔇' },
+    ],
+  },
+];
+
+/**
+ * Voice cascade settings (voiceResponseMode only — for non-admin tiers).
+ * voiceTranscriptionEnabled is only read at admin tier, so exposing it
+ * in non-admin dashboards would mislead users.
+ */
+export const VOICE_CASCADE_SETTINGS: SettingDefinition[] = [
+  VOICE_SETTINGS[1], // voiceResponseMode
+];
+
 /** All known settings across all groups. Single source of truth for setting lookups. */
 export const ALL_SETTINGS: SettingDefinition[] = [
   ...EXTENDED_CONTEXT_SETTINGS,
   ...MEMORY_SETTINGS,
   ...DISPLAY_SETTINGS,
+  ...VOICE_SETTINGS,
 ];
