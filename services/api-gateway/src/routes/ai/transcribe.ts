@@ -1,6 +1,6 @@
 /**
  * POST /ai/transcribe
- * Transcribe audio attachments using Whisper
+ * Transcribe audio attachments via ElevenLabs STT (BYOK) or voice-engine
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -34,7 +34,7 @@ export function createTranscribeRoute(
   /**
    * POST /transcribe
    *
-   * Transcribe audio attachments using Whisper.
+   * Transcribe audio attachments via ElevenLabs STT (BYOK) or voice-engine.
    * Creates an AudioTranscriptionJob for each audio attachment.
    *
    * Query parameters:

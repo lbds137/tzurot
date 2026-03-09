@@ -22,8 +22,8 @@ export const TIMEOUTS = {
   // Individual component timeouts (PER ATTEMPT - with 3 retries via job chain)
   /** Vision model invocation timeout per attempt (90 seconds - handles slow models and high-res images) */
   VISION_MODEL: 90000,
-  /** Whisper transcription timeout per attempt (180 seconds - handles long voice messages up to ~15 min) */
-  WHISPER_API: 180000,
+  /** Voice engine / STT transcription timeout per attempt (180 seconds - handles long voice messages up to ~15 min) */
+  VOICE_ENGINE_API: 180000,
   /** Audio file download timeout (30 seconds - Discord CDN is fast) */
   AUDIO_FETCH: 30000,
   /** LLM invocation timeout for all retry attempts combined (8 minutes) */

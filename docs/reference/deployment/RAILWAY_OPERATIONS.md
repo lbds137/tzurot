@@ -120,9 +120,7 @@ The script reads from your `.env` file and sets variables in Railway.
 | `REDIS_URL`             | Redis connection                          |
 | `AI_PROVIDER`           | AI provider (e.g., `openrouter`)          |
 | `OPENROUTER_API_KEY`    | OpenRouter API key                        |
-| `OPENAI_API_KEY`        | OpenAI key (for Whisper transcription)    |
 | `DEFAULT_AI_MODEL`      | Default model                             |
-| `WHISPER_MODEL`         | Audio transcription (`whisper-1`)         |
 | `VISION_FALLBACK_MODEL` | Image analysis model                      |
 | `NODE_ENV`              | Environment (`production`/`development`)  |
 | `LOG_LEVEL`             | Logging verbosity                         |

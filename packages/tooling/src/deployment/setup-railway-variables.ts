@@ -45,24 +45,11 @@ const SHARED_VARIABLES: VariableConfig[] = [
   },
   { key: 'OPENROUTER_API_KEY', description: 'OpenRouter API key', isSecret: true, required: true },
   {
-    key: 'OPENAI_API_KEY',
-    description: 'OpenAI API key (embeddings/Whisper)',
-    isSecret: true,
-    required: false,
-  },
-  {
     key: 'DEFAULT_AI_MODEL',
     description: 'Default AI model',
     isSecret: false,
     required: true,
     defaultValue: 'anthropic/claude-haiku-4.5',
-  },
-  {
-    key: 'WHISPER_MODEL',
-    description: 'Audio transcription model',
-    isSecret: false,
-    required: true,
-    defaultValue: 'whisper-1',
   },
   {
     key: 'VISION_FALLBACK_MODEL',

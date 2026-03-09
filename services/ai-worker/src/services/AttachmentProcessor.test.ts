@@ -204,7 +204,7 @@ describe('AttachmentProcessor', () => {
     });
 
     it('should handle voice transcription failures gracefully', async () => {
-      mockTranscribeAudio.mockRejectedValue(new Error('Whisper failed'));
+      mockTranscribeAudio.mockRejectedValue(new Error('STT failed'));
 
       const result = await processAttachmentsParallel({
         attachments: [
