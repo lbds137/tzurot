@@ -7,20 +7,9 @@ import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import type { VoicesListResponse } from './types.js';
 
 const logger = createLogger('settings-voices-browse');
-
-interface VoiceEntry {
-  voiceId: string;
-  name: string;
-  slug: string;
-}
-
-interface VoicesListResponse {
-  voices: VoiceEntry[];
-  totalSlots: number;
-  tzurotCount: number;
-}
 
 /**
  * Build the browse embed for voice listing

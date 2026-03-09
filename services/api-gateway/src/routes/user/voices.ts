@@ -145,7 +145,7 @@ async function handleListVoices(
     voices: voices.map(v => ({
       voiceId: v.voice_id,
       name: v.name,
-      slug: v.name.replace(VOICE_NAME_PREFIX, ''),
+      slug: v.name.slice(VOICE_NAME_PREFIX.length),
     })),
     totalSlots,
     tzurotCount: voices.length,
@@ -179,15 +179,15 @@ async function handleDeleteVoice(
 
   if (!deleteResponse.ok) {
     logger.error(
-      { discordUserId, voiceId, status: deleteResponse.status },
-      '[Voices] Failed to delete voice'
+      {
+        discordUserId,
+        voiceId,
+        status: deleteResponse.status,
+        statusText: deleteResponse.statusText,
+      },
+      '[Voices] Failed to delete voice from ElevenLabs'
     );
-    sendError(
-      res,
-      ErrorResponses.internalError(
-        `Failed to delete voice: ${deleteResponse.status} ${deleteResponse.statusText}`
-      )
-    );
+    sendError(res, ErrorResponses.internalError('Failed to delete voice'));
     return;
   }
 
@@ -197,7 +197,7 @@ async function handleDeleteVoice(
     deleted: true,
     voiceId,
     name: voice.name,
-    slug: voice.name.replace(VOICE_NAME_PREFIX, ''),
+    slug: voice.name.slice(VOICE_NAME_PREFIX.length),
   });
 }
 
@@ -222,20 +222,23 @@ async function handleClearVoices(
     return;
   }
 
+  const results = await Promise.allSettled(
+    voices.map(async voice => {
+      const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
+      if (!deleteResponse.ok) {
+        throw new Error(`${voice.name}: ${deleteResponse.status}`);
+      }
+      return voice;
+    })
+  );
+
   let deleted = 0;
   const errors: string[] = [];
-
-  for (const voice of voices) {
-    try {
-      const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
-
-      if (deleteResponse.ok) {
-        deleted++;
-      } else {
-        errors.push(`${voice.name}: ${deleteResponse.status}`);
-      }
-    } catch (error) {
-      errors.push(`${voice.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      deleted++;
+    } else {
+      errors.push(result.reason instanceof Error ? result.reason.message : 'Unknown error');
     }
   }
 

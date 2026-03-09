@@ -16,23 +16,12 @@ import {
   handleDestructiveModalSubmit,
 } from '../../../utils/destructiveConfirmation.js';
 import { DestructiveCustomIds } from '../../../utils/customIds.js';
+import type { VoicesListResponse } from './types.js';
 
 const logger = createLogger('settings-voices-clear');
 
 /** Operation name for destructive confirmation custom IDs */
 export const VOICE_CLEAR_OPERATION = 'voice-clear';
-
-interface VoiceEntry {
-  voiceId: string;
-  name: string;
-  slug: string;
-}
-
-interface VoicesListResponse {
-  voices: VoiceEntry[];
-  totalSlots: number;
-  tzurotCount: number;
-}
 
 interface VoiceClearResponse {
   deleted: number;
@@ -149,7 +138,9 @@ export async function handleVoiceClearModalSubmit(
  */
 export async function handleVoiceClearButton(interaction: ButtonInteraction): Promise<void> {
   const parsed = DestructiveCustomIds.parse(interaction.customId);
-  if (parsed === null) {return;}
+  if (parsed === null) {
+    return;
+  }
 
   if (parsed.action === 'cancel_button') {
     await handleDestructiveCancel(interaction, 'Voice clear cancelled.');
@@ -166,7 +157,9 @@ export async function handleVoiceClearButton(interaction: ButtonInteraction): Pr
  */
 export async function handleVoiceClearModal(interaction: ModalSubmitInteraction): Promise<void> {
   const parsed = DestructiveCustomIds.parse(interaction.customId);
-  if (parsed === null) {return;}
+  if (parsed === null) {
+    return;
+  }
 
   if (parsed.action === 'modal_submit') {
     await handleVoiceClearModalSubmit(interaction);
