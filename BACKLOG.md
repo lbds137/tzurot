@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-03-09
-> **Version**: v3.0.0-beta.88 (v3.0.0-beta.89 pending)
+> **Version**: v3.0.0-beta.89
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -22,6 +22,10 @@ _Empty (2026-03-04)._
 _New items go here. Triage to appropriate section weekly._
 
 - 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure) but worth hardening.
+- 🐛 `[FIX]` **Log warning on `voiceReferenceType` WAV fallback** — `voiceReferences.ts` falls back to `audio/wav` if stored MIME type is missing/invalid. Add a log warning before the fallback to aid debugging if it ever fires.
+- 🧹 `[CHORE]` **Add comment on `shouldRunTTS` default** — `voiceResponseMode ?? 'never'` silently defaults to never when `configOverrides` is absent. One-line comment clarifying the safe default.
+- 🧹 `[CHORE]` **Expand `mypy --strict` to test files** — CI currently only checks `server.py`. Add `tests/` to catch type issues as the Python test suite grows.
+- 🧹 `[CHORE]` **Clean up completed voice-engine proposal** — `docs/proposals/active/voice-engine-implementation-guide.md` is fully implemented. Per lifecycle rules: verify reference docs exist, then delete.
 
 ## 🎯 Current Focus
 
@@ -351,7 +355,9 @@ _Beyond text: voice and images._
 
 ### Theme: Voice Engine
 
-_Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for both STT and TTS. Target: working before mid-March 2026._
+_Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for both STT and TTS._
+
+**Status**: Phases 1–3b shipped in v3.0.0-beta.89 (2026-03-09). Free tier fully operational.
 
 **Full implementation guide**: `docs/proposals/active/voice-engine-implementation-guide.md`
 
