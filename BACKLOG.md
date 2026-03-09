@@ -31,7 +31,7 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-- ✨ `[FEAT]` **ElevenLabs BYOK** (Voice Engine Phase 4) — PR #727 in review
+_Empty — pull from Quick Wins or Active Epic._
 
 ---
 
@@ -357,7 +357,7 @@ _Beyond text: voice and images._
 
 _Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for both STT and TTS._
 
-**Status**: Phases 1–3b shipped in v3.0.0-beta.89 (2026-03-09). Free tier fully operational. Phase 4 (ElevenLabs BYOK) in PR #727.
+**Status**: Phases 1–4 shipped. Free tier (Parakeet TDT + Pocket TTS) in v3.0.0-beta.89. ElevenLabs BYOK (Phase 4) merged in PR #727.
 
 **Full implementation guide**: `docs/proposals/active/voice-engine-implementation-guide.md`
 
@@ -425,7 +425,7 @@ Enable personalities to speak — generate voice responses from LLM text output.
 - [x] 🏗️ `[LIFT]` Audit `isHealthy()` — no action needed: `startup.ts` already logs granular per-capability health; `AudioProcessor` doesn't call it
 - [x] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — updated ~40 test fixtures to include `voiceEnabled: false` for strict type safety
 
-#### Phase 4: ElevenLabs Premium Tier (PR #727 — IN REVIEW)
+#### Phase 4: ElevenLabs Premium Tier (PR #727 — MERGED)
 
 BYOK ElevenLabs support for users who want premium voice quality.
 
@@ -437,7 +437,7 @@ BYOK ElevenLabs support for users who want premium voice quality.
 - [x] TTS routing: ElevenLabs BYOK → voice-engine → fallback chain
 - [x] STT routing: ElevenLabs → voice-engine → Whisper fallback chain
 - [x] Content type threading: MP3 (ElevenLabs) vs WAV (voice-engine) → correct Discord file extension
-- [ ] Thread ElevenLabs key through `AudioTranscriptionJob` (v1 only covers inline transcription path)
+- [ ] Thread ElevenLabs key through `AudioTranscriptionJob` + inline STT callers (`ConversationInputProcessor`, `ConversationalRAGService`)
 - [ ] Voice slot management UX — `/settings apikey voices` list/clear cloned voices
 
 #### Phase 5: Shapes.inc Voice Field Import
@@ -496,6 +496,10 @@ Auto-inject `[ServiceName]` prefix in logs instead of hardcoding in every log ca
 - [ ] Extend Pino logger factory to auto-add service name prefix
 - [ ] Remove manual `[ServiceName]` prefixes from log messages
 - [ ] Consider structured `service` field instead of string prefix
+
+#### 🏗️ Typed Sentinel Error for `withTimeout`
+
+`KeyValidationService` detects timeouts via `error.message.includes('timed out')` — fragile if the message text changes. Replace with a typed `TimeoutError` class thrown by `withTimeout()` so callers can use `instanceof` checks. Affects both OpenRouter and ElevenLabs validation paths. Discovered during PR #727 review.
 
 #### 🏗️ Audit Error Sanitization in Log Pipeline
 

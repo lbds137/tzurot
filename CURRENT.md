@@ -11,7 +11,7 @@ _ElevenLabs BYOK implementation (Voice Engine Phase 4) — premium STT/TTS for u
 
 ## Active Task
 
-PR #727 open for review: https://github.com/lbds137/tzurot/pull/727
+PR #727 merged to develop. Backlog and docs updated.
 
 ---
 
