@@ -166,13 +166,17 @@ export class VoiceRegistrationService {
 }
 
 /**
- * Check if an error is a transient HTTP service error (502/503).
- * - 503: Voice engine HTTP server is up but models haven't finished loading
+ * Check if an error is a transient HTTP service error (502/503/504).
  * - 502: Railway load balancer is up but the app hasn't bound its port yet
- * Neither should be negatively cached — the next request should retry immediately.
+ * - 503: Voice engine HTTP server is up but models haven't finished loading
+ * - 504: Railway load balancer timeout during slow boot
+ * None should be negatively cached — the next request should retry immediately.
  */
 function isTransientServiceError(error: unknown): boolean {
-  return error instanceof VoiceEngineError && (error.status === 502 || error.status === 503);
+  if (!(error instanceof VoiceEngineError)) {
+    return false;
+  }
+  return error.status === 502 || error.status === 503 || error.status === 504;
 }
 
 /**

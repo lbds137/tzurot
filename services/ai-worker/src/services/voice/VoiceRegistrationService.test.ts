@@ -341,6 +341,31 @@ describe('VoiceRegistrationService', () => {
     expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
   });
 
+  it('should NOT negatively cache 504 VoiceEngineError (Railway LB timeout during boot)', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      headers: { get: vi.fn().mockReturnValue('audio/wav') },
+    });
+    mockVoiceEngineClient.registerVoice.mockRejectedValue(
+      new VoiceEngineError(504, 'Gateway Timeout')
+    );
+
+    await expect(service.ensureVoiceRegistered('timeout-voice')).rejects.toThrow(
+      'Voice engine request failed (504)'
+    );
+
+    mockVoiceEngineClient.listVoices.mockClear();
+    mockVoiceEngineClient.registerVoice.mockClear();
+
+    mockVoiceEngineClient.listVoices.mockResolvedValue(['timeout-voice']);
+
+    await service.ensureVoiceRegistered('timeout-voice');
+
+    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
+  });
+
   it('should negatively cache non-transient VoiceEngineError (e.g., 400)', async () => {
     // Realistic path: listVoices returns empty, gateway fetch succeeds,
     // but registerVoice throws 400 (bad audio format — permanent error)
