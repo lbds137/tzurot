@@ -346,7 +346,7 @@ export function buildEnumButtons(
   );
 
   // One button per choice
-  for (const choice of setting.choices ?? []) {
+  for (const choice of choices) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(
