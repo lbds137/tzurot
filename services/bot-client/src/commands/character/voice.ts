@@ -8,6 +8,7 @@
  * Auto-toggles voiceEnabled: upload sets true, clear sets false.
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { createLogger, type EnvConfig, VOICE_REFERENCE_LIMITS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { fetchCharacter, updateCharacter } from './api.js';
@@ -77,12 +78,14 @@ async function handleVoiceUpload(
     // Check permissions
     const character = await fetchCharacter(slug, config, userId);
     if (!character) {
-      await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
+      await context.editReply(
+        `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
+      );
       return;
     }
     if (!character.canEdit) {
       await context.editReply(
-        `❌ You don't have permission to edit \`${slug}\`.\n` +
+        `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
           'You can only edit characters you own.'
       );
       return;
@@ -139,12 +142,14 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
     // Check permissions
     const character = await fetchCharacter(slug, config, userId);
     if (!character) {
-      await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
+      await context.editReply(
+        `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
+      );
       return;
     }
     if (!character.canEdit) {
       await context.editReply(
-        `❌ You don't have permission to edit \`${slug}\`.\n` +
+        `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
           'You can only edit characters you own.'
       );
       return;
@@ -165,8 +170,8 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
 }
 
 /**
- * Handle /character voice subcommand group
- * Routes to upload or clear based on sub-subcommand
+ * Handle /character voice subcommands
+ * Routes to upload or clear based on subcommand name
  */
 export async function handleVoice(
   context: DeferredCommandContext,
