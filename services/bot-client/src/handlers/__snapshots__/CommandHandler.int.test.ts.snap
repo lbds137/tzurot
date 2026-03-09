@@ -949,6 +949,52 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     ],
     "type": 2,
   },
+  {
+    "description": "Manage your ElevenLabs cloned voices",
+    "description_localizations": undefined,
+    "name": "voices",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "description": "Browse your cloned voices",
+        "description_localizations": undefined,
+        "name": "browse",
+        "name_localizations": undefined,
+        "options": [],
+        "type": 1,
+      },
+      {
+        "description": "Delete a single cloned voice",
+        "description_localizations": undefined,
+        "name": "delete",
+        "name_localizations": undefined,
+        "options": [
+          {
+            "autocomplete": true,
+            "choices": undefined,
+            "description": "The voice to delete",
+            "description_localizations": undefined,
+            "max_length": undefined,
+            "min_length": undefined,
+            "name": "voice",
+            "name_localizations": undefined,
+            "required": true,
+            "type": 3,
+          },
+        ],
+        "type": 1,
+      },
+      {
+        "description": "Delete all Tzurot cloned voices",
+        "description_localizations": undefined,
+        "name": "clear",
+        "name_localizations": undefined,
+        "options": [],
+        "type": 1,
+      },
+    ],
+    "type": 2,
+  },
 ]
 `;
 

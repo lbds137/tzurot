@@ -2,14 +2,15 @@
 
 ## Status
 
-| Phase    | Scope                                         | Status          |
-| -------- | --------------------------------------------- | --------------- |
-| Phase 1  | Python service + voice reference blob storage | COMPLETE        |
-| Phase 2  | Python hardening + ai-worker STT integration  | COMPLETE        |
-| Phase 3a | TTS pipeline + config cascade (ai-worker)     | COMPLETE (#710) |
-| Phase 3b | Voice commands + cascade wiring (bot-client)  | COMPLETE        |
-| Phase 4  | ElevenLabs Premium Tier                       | Not started     |
-| Phase 5  | Shapes.inc Voice Field Import                 | Not started     |
+| Phase     | Scope                                         | Status          |
+| --------- | --------------------------------------------- | --------------- |
+| Phase 1   | Python service + voice reference blob storage | COMPLETE        |
+| Phase 2   | Python hardening + ai-worker STT integration  | COMPLETE        |
+| Phase 3a  | TTS pipeline + config cascade (ai-worker)     | COMPLETE (#710) |
+| Phase 3b  | Voice commands + cascade wiring (bot-client)  | COMPLETE        |
+| Phase 4   | ElevenLabs Premium Tier                       | COMPLETE (#727) |
+| Phase 4.5 | BYOK Hardening + Whisper Removal + Voice UX   | COMPLETE        |
+| Phase 5   | Shapes.inc Voice Field Import                 | Not started     |
 
 ### Phase 1 Checklist
 
@@ -123,14 +124,14 @@ See Part 6 for full details. Quick checklist:
 
 ### Deployment Gotchas (Lessons Learned)
 
-| Issue                              | Symptom                                          | Fix                                                                         |
-| ---------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------- |
-| Missing `GATEWAY_URL` on ai-worker | `ECONNREFUSED` in VoiceRegistrationService       | Set `GATEWAY_URL` to api-gateway private domain                             |
-| Missing `HF_TOKEN` on voice-engine | `VOICE_CLONING_UNSUPPORTED` error                | Set `HF_TOKEN` with gated repo access                                       |
-| Volume permissions                 | `PermissionError` writing to `/app/voices`       | Dockerfile runs as root (no `USER` directive) — matches api-gateway pattern |
-| First TTS timeout                  | `TTS completed after timeout (result discarded)` | One-time model download; retry and it works                                 |
-| Negative cache after failure       | Voice registration skipped for 5 min after error | Wait for `VoiceRegistrationService` negative cache (5 min TTL) to expire    |
-| First cold-start TTS timeout       | Long responses may timeout on first request       | 90s budget: health retries (12s) + voice registration (15s) + synthesis (~63s). Multi-chunk TTS on first cold-start may still exceed budget. Falls back to text-only gracefully. |
+| Issue                              | Symptom                                          | Fix                                                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing `GATEWAY_URL` on ai-worker | `ECONNREFUSED` in VoiceRegistrationService       | Set `GATEWAY_URL` to api-gateway private domain                                                                                                                                  |
+| Missing `HF_TOKEN` on voice-engine | `VOICE_CLONING_UNSUPPORTED` error                | Set `HF_TOKEN` with gated repo access                                                                                                                                            |
+| Volume permissions                 | `PermissionError` writing to `/app/voices`       | Dockerfile runs as root (no `USER` directive) — matches api-gateway pattern                                                                                                      |
+| First TTS timeout                  | `TTS completed after timeout (result discarded)` | One-time model download; retry and it works                                                                                                                                      |
+| Negative cache after failure       | Voice registration skipped for 5 min after error | Wait for `VoiceRegistrationService` negative cache (5 min TTL) to expire                                                                                                         |
+| First cold-start TTS timeout       | Long responses may timeout on first request      | 90s budget: health retries (12s) + voice registration (15s) + synthesis (~63s). Multi-chunk TTS on first cold-start may still exceed budget. Falls back to text-only gracefully. |
 
 ### Phase 2 Implementation Notes
 

@@ -25,7 +25,7 @@ _New items go here. Triage to appropriate section weekly._
 - 🐛 `[FIX]` **Log warning on `voiceReferenceType` WAV fallback** — `voiceReferences.ts` falls back to `audio/wav` if stored MIME type is missing/invalid. Add a log warning before the fallback to aid debugging if it ever fires.
 - 🧹 `[CHORE]` **Add comment on `shouldRunTTS` default** — `voiceResponseMode ?? 'never'` silently defaults to never when `configOverrides` is absent. One-line comment clarifying the safe default.
 - 🧹 `[CHORE]` **Expand `mypy --strict` to test files** — CI currently only checks `server.py`. Add `tests/` to catch type issues as the Python test suite grows.
-- 🧹 `[CHORE]` **Clean up completed voice-engine proposal** — `docs/proposals/active/voice-engine-implementation-guide.md` is fully implemented. Per lifecycle rules: verify reference docs exist, then delete.
+- 🧹 `[CHORE]` **Update voice-engine proposal** — `docs/proposals/active/voice-engine-implementation-guide.md` Phases 1-4.5 complete. Phase 5 (shapes.inc voice import) remains. Update status table.
 
 ## 🎯 Current Focus
 
@@ -437,8 +437,18 @@ BYOK ElevenLabs support for users who want premium voice quality.
 - [x] TTS routing: ElevenLabs BYOK → voice-engine → fallback chain
 - [x] STT routing: ElevenLabs → voice-engine → Whisper fallback chain
 - [x] Content type threading: MP3 (ElevenLabs) vs WAV (voice-engine) → correct Discord file extension
-- [ ] Thread ElevenLabs key through `AudioTranscriptionJob` + inline STT callers (`ConversationInputProcessor`, `ConversationalRAGService`)
-- [ ] Voice slot management UX — `/settings apikey voices` list/clear cloned voices
+- [x] Thread ElevenLabs key through `AudioTranscriptionJob` + inline STT callers — Phase 4.5
+- [x] Voice slot management UX — `/settings voices browse|delete|clear` — Phase 4.5
+
+#### Phase 4.5: BYOK Hardening + Whisper Removal
+
+Tighten ElevenLabs BYOK from PR #727 follow-ups and simplify the STT fallback chain by removing the OpenAI Whisper code path. Two-tier STT: ElevenLabs (BYOK) → voice-engine (free). No third fallback.
+
+- [x] Thread `elevenlabsApiKey` through `AudioTranscriptionJob` payload + handler
+- [x] Thread `elevenlabsApiKey` through inline STT callers (`ConversationInputProcessor`, `ConversationalRAGService`)
+- [x] Remove OpenAI Whisper STT fallback (simplify to: ElevenLabs BYOK → voice-engine, no third tier)
+- [x] Clean up Whisper-related code, config, and `OPENAI_API_KEY` env var
+- [x] Voice slot management UX — `/settings voices browse|delete|clear` commands
 
 #### Phase 5: Shapes.inc Voice Field Import
 
