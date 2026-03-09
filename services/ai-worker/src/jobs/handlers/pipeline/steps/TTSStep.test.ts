@@ -55,6 +55,18 @@ vi.mock('../../../../services/voice/ttsSynthesizer.js', () => ({
   synthesizeWithChunking: (...args: unknown[]) => mockSynthesizeWithChunking(...args),
 }));
 
+const mockEnsureVoiceCloned = vi.fn();
+vi.mock('../../../../services/voice/ElevenLabsVoiceService.js', () => ({
+  ElevenLabsVoiceService: class MockElevenLabsVoiceService {
+    ensureVoiceCloned = mockEnsureVoiceCloned;
+  },
+}));
+
+const mockElevenLabsTTS = vi.fn();
+vi.mock('../../../../services/voice/ElevenLabsClient.js', () => ({
+  elevenLabsTTS: (...args: unknown[]) => mockElevenLabsTTS(...args),
+}));
+
 const mockStoreTTSAudio = vi.fn();
 vi.mock('../../../../redis.js', () => ({
   redisService: {
@@ -330,6 +342,105 @@ describe('TTSStep', () => {
       expect(result).toBe(ctx);
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
       expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('ElevenLabs BYOK TTS', () => {
+    it('routes to ElevenLabs when elevenlabsApiKey is present', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-123');
+      mockElevenLabsTTS.mockResolvedValue({
+        audioBuffer: Buffer.from('mp3-audio'),
+        contentType: 'audio/mpeg',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:el-job');
+
+      const ctx = createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+      });
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockEnsureVoiceCloned).toHaveBeenCalledWith('testbot', 'sk_el_test');
+      expect(mockElevenLabsTTS).toHaveBeenCalledWith({
+        text: 'Hello world',
+        voiceId: 'el-voice-123',
+        apiKey: 'sk_el_test',
+      });
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:el-job');
+      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/mpeg');
+      // Should NOT use voice-engine path
+      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+      expect(mockEnsureVoiceRegistered).not.toHaveBeenCalled();
+    });
+
+    it('skips voice-engine check when ElevenLabs key is present (no voice-engine needed)', async () => {
+      mockGetVoiceEngineClient.mockReturnValue(null);
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-456');
+      mockElevenLabsTTS.mockResolvedValue({
+        audioBuffer: Buffer.from('mp3-data'),
+        contentType: 'audio/mpeg',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:no-ve-job');
+
+      const ctx = createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+      });
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // ElevenLabs works even without voice-engine
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:no-ve-job');
+    });
+
+    it('falls back gracefully when ElevenLabs TTS fails', async () => {
+      mockEnsureVoiceCloned.mockRejectedValue(new Error('Clone failed'));
+
+      const ctx = createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+      });
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Should degrade gracefully — text still delivered
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+      expect(result.result?.content).toBe('Hello world');
+    });
+
+    it('sets ttsAudioContentType for voice-engine path', async () => {
+      mockSynthesizeWithChunking.mockResolvedValue({
+        audioBuffer: Buffer.from('wav-audio'),
+        contentType: 'audio/wav',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:ve-job');
+
+      const ctx = createContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
     });
   });
 

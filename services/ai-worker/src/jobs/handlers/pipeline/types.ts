@@ -93,6 +93,8 @@ export interface ResolvedAuth {
   provider: string | undefined;
   /** Whether in guest mode (free models only) */
   isGuestMode: boolean;
+  /** ElevenLabs API key for BYOK voice (undefined = use self-hosted voice-engine) */
+  elevenlabsApiKey?: string;
 }
 
 /**
