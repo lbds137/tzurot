@@ -31,7 +31,7 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-_Empty — pull next from Quick Wins or Active Epic._
+- ✨ `[FEAT]` **ElevenLabs BYOK** (Voice Engine Phase 4) — PR #727 in review
 
 ---
 
@@ -357,7 +357,7 @@ _Beyond text: voice and images._
 
 _Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for both STT and TTS._
 
-**Status**: Phases 1–3b shipped in v3.0.0-beta.89 (2026-03-09). Free tier fully operational.
+**Status**: Phases 1–3b shipped in v3.0.0-beta.89 (2026-03-09). Free tier fully operational. Phase 4 (ElevenLabs BYOK) in PR #727.
 
 **Full implementation guide**: `docs/proposals/active/voice-engine-implementation-guide.md`
 
@@ -425,14 +425,20 @@ Enable personalities to speak — generate voice responses from LLM text output.
 - [x] 🏗️ `[LIFT]` Audit `isHealthy()` — no action needed: `startup.ts` already logs granular per-capability health; `AudioProcessor` doesn't call it
 - [x] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — updated ~40 test fixtures to include `voiceEnabled: false` for strict type safety
 
-#### Phase 4: ElevenLabs Premium Tier
+#### Phase 4: ElevenLabs Premium Tier (PR #727 — IN REVIEW)
 
 BYOK ElevenLabs support for users who want premium voice quality.
 
-- [ ] Add `elevenlabsApiKey` to user credential storage (reuse `UserCredential` pattern from shapes.inc)
-- [ ] ElevenLabs Scribe v2 STT — audio events (`[laughter]`, `[sigh]`) passed as LLM context
-- [ ] ElevenLabs v3 TTS — audio tag injection in system prompt for emotional voice control
-- [ ] Instant Voice Clone setup via ElevenLabs API, store `voice_id` per personality
+- [x] `AIProvider.ElevenLabs` enum + exhaustive switch cascade (7 locations)
+- [x] ElevenLabs API key validation (`GET /v1/user` with `xi-api-key` header)
+- [x] `ElevenLabsClient.ts` — stateless functions: TTS, STT, voice cloning, listing, deletion
+- [x] `ElevenLabsVoiceService.ts` — auto-clone voices per BYOK user (TTLCache, negative cache, in-flight dedup)
+- [x] Auth resolution: `elevenlabsApiKey` in pipeline context (independent from OpenRouter, skipped in guest mode)
+- [x] TTS routing: ElevenLabs BYOK → voice-engine → fallback chain
+- [x] STT routing: ElevenLabs → voice-engine → Whisper fallback chain
+- [x] Content type threading: MP3 (ElevenLabs) vs WAV (voice-engine) → correct Discord file extension
+- [ ] Thread ElevenLabs key through `AudioTranscriptionJob` (v1 only covers inline transcription path)
+- [ ] Voice slot management UX — `/settings apikey voices` list/clear cloned voices
 
 #### Phase 5: Shapes.inc Voice Field Import
 

@@ -7,28 +7,35 @@
 
 ## Session Goal
 
-_Voice Engine v3.0.0-beta.89 release — merge, deploy, post-release cleanup._
+_ElevenLabs BYOK implementation (Voice Engine Phase 4) — premium STT/TTS for users with their own API key._
 
 ## Active Task
 
-Release complete. Follow-up items added to BACKLOG.md inbox.
+PR #727 open for review: https://github.com/lbds137/tzurot/pull/727
 
 ---
 
 ## Completed This Session
 
+- **feat(common-types)**: Add `AIProvider.ElevenLabs` enum, `ELEVENLABS_BASE_URL`, Discord provider choice
+- **feat(ai-worker)**: ElevenLabs client (`ElevenLabsClient.ts`) — stateless API functions for TTS, STT, voice cloning, listing, deletion
+- **feat(ai-worker)**: ElevenLabs voice service (`ElevenLabsVoiceService.ts`) — auto-clone voices with TTLCache, negative cache, in-flight dedup
+- **feat(ai-worker)**: Auth resolution for ElevenLabs BYOK key (independent from OpenRouter, skipped in guest mode)
+- **feat(ai-worker)**: TTS routing — ElevenLabs BYOK priority over self-hosted voice-engine
+- **feat(ai-worker)**: STT routing — ElevenLabs → voice-engine → Whisper fallback chain
+- **feat(bot-client)**: Content type threading (MP3 vs WAV → correct Discord file extension)
+- **chore**: Exhaustive switch cascade updates across 7 files for new `AIProvider.ElevenLabs`
+- **test**: 37 new tests across ElevenLabsClient, ElevenLabsVoiceService, AuthStep, TTSStep, AudioProcessor, DiscordResponseSender
+
+## Previous Session
+
 - **release**: v3.0.0-beta.89 merged to main and deployed (102 commits, 193 files)
 - **fix(voice-engine)**: Address 3 rounds of PR #714 review feedback + Python test coverage (~68% → ~80%)
-- **fix(voice-engine)**: MIME validation on `/v1/voices/register`, commaIndex invariant comment
-- **fix(ai-worker)**: Tighten `isConnectionError` to exact match, TTS timeout 60s → 90s
-- **fix(bot-client)**: SSRF defense-in-depth for `modelUsed` in OpenRouter URL
 - **docs**: Long-lived branch protection rules (near-miss: almost deleted `develop`)
-- **docs**: Post-mortem added to CLAUDE.md for branch deletion near-miss
-- **chore**: DB migration applied to prod (`voiceReferenceData` + `voiceReferenceType`)
 
-## Post-Deploy Checklist
+## Post-Deploy Checklist (from v3.0.0-beta.89)
 
-- [x] Merge PR #714 to main (local fast-forward, GitHub couldn't rebase 102 commits)
+- [x] Merge PR #714 to main
 - [x] Create release tag + GitHub release notes
 - [x] DB migration applied to prod
 - [ ] Run `/admin db-sync` in Discord to sync voice references to prod
@@ -40,8 +47,10 @@ Release complete. Follow-up items added to BACKLOG.md inbox.
 - **v3.0.0-beta.88** (2026-03-04) — Custom ID fix, tar security patch, interaction error resilience, XML wrapper stripping
 - **v3.0.0-beta.87** (2026-03-04) — showModelFooter config cascade, XML tool-use wrapper stripping
 
-## Follow-Up Items (in BACKLOG inbox)
+## Follow-Up Items
 
+- Thread ElevenLabs key through `AudioTranscriptionJob` for full STT coverage (v1 only covers inline transcription)
+- Voice slot management UX (backlog item — `/settings apikey voices`)
 - Log warning on `voiceReferenceType` WAV fallback
 - Comment on `shouldRunTTS` default
 - Expand `mypy --strict` to test files
