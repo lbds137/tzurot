@@ -293,6 +293,9 @@ export function buildTriStateButtons(
   return row;
 }
 
+/** Discord limits action rows to 5 buttons */
+const DISCORD_MAX_BUTTONS_PER_ROW = 5;
+
 /**
  * Build enum buttons for enum settings (Auto + one per choice)
  */
@@ -301,6 +304,15 @@ export function buildEnumButtons(
   session: SettingsDashboardSession,
   setting: SettingDefinition
 ): ActionRowBuilder<MessageActionRowComponentBuilder> {
+  const choiceCount = setting.choices?.length ?? 0;
+  const totalButtons = 1 + choiceCount; // Auto + choices
+  if (totalButtons > DISCORD_MAX_BUTTONS_PER_ROW) {
+    throw new Error(
+      `ENUM setting "${setting.id}" has ${choiceCount} choices — ` +
+        `exceeds Discord's ${DISCORD_MAX_BUTTONS_PER_ROW}-button row limit (1 Auto + ${DISCORD_MAX_BUTTONS_PER_ROW - 1} max choices)`
+    );
+  }
+
   const value = session.data[
     setting.id as keyof typeof session.data
   ] as unknown as SettingValue<string>;

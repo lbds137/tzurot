@@ -586,6 +586,29 @@ describe('SettingsDashboardBuilder', () => {
       );
       expect(buttons[3].custom_id).toBe('test-settings::set::test-entity::voiceResponseMode:never');
     });
+
+    it('should throw when choices exceed Discord button limit', () => {
+      const config = createTestConfig();
+      const session = createEnumSession(null, 'a');
+      const overflowSetting = {
+        id: 'voiceResponseMode',
+        label: 'Overflow',
+        emoji: '💥',
+        description: 'Too many choices',
+        type: SettingType.ENUM,
+        choices: [
+          { value: 'a', label: 'A', emoji: '1️⃣' },
+          { value: 'b', label: 'B', emoji: '2️⃣' },
+          { value: 'c', label: 'C', emoji: '3️⃣' },
+          { value: 'd', label: 'D', emoji: '4️⃣' },
+          { value: 'e', label: 'E', emoji: '5️⃣' },
+        ],
+      } satisfies typeof enumSetting;
+
+      expect(() => buildEnumButtons(config, session, overflowSetting)).toThrow(
+        /exceeds Discord's 5-button row limit/
+      );
+    });
   });
 
   describe('buildEditButtons', () => {
