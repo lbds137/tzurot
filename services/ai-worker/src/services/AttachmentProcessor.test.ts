@@ -39,6 +39,7 @@ describe('AttachmentProcessor', () => {
       contextWindowTokens: 131072,
       characterInfo: 'Test character',
       personalityTraits: 'Test traits',
+      voiceEnabled: false,
     };
   });
 

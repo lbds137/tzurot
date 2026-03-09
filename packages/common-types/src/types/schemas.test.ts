@@ -44,6 +44,7 @@ describe('loadedPersonalitySchema', () => {
       personalityDislikes: 'Tea',
       conversationalGoals: 'Be helpful',
       conversationalExamples: 'Example 1',
+      voiceEnabled: false,
     };
 
     const result = loadedPersonalitySchema.safeParse(validPersonality);

@@ -22,7 +22,7 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { setupTestEnvironment, loadPGliteSchema, type TestEnvironment } from '@tzurot/test-utils';
 
 // Mock the queue module to prevent BullMQ from trying to connect to Redis
-vi.mock('../../../queue.js', () => ({
+vi.mock('../../queue.js', () => ({
   aiQueue: {
     add: vi.fn().mockResolvedValue({ id: 'mock-job-id' }),
     getJob: vi.fn().mockResolvedValue(null),
@@ -36,10 +36,12 @@ vi.mock('../../../queue.js', () => ({
     off: vi.fn(),
     once: vi.fn(),
   },
+  closeQueue: vi.fn().mockResolvedValue(undefined),
+  checkQueueHealth: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock deduplication cache singleton
-vi.mock('../../../utils/deduplicationCache.js', () => ({
+vi.mock('../../utils/deduplicationCache.js', () => ({
   deduplicationCache: {
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue(undefined),

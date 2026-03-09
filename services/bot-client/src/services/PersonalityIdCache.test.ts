@@ -39,6 +39,7 @@ describe('PersonalityIdCache', () => {
       isPublic: true,
       ownerId: null,
       model: 'test-model',
+      voiceEnabled: false,
       ...overrides,
     }) as LoadedPersonality;
 

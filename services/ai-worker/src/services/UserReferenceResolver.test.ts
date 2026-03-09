@@ -639,6 +639,7 @@ describe('UserReferenceResolver', () => {
       contextWindowTokens: 8000,
       characterInfo: '',
       personalityTraits: '',
+      voiceEnabled: false,
       ...overrides,
     });
 

@@ -44,6 +44,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   contextWindowTokens: 8192,
   characterInfo: 'A helpful test personality',
   personalityTraits: 'Helpful, friendly',
+  voiceEnabled: false,
   errorMessage: 'Sorry, something went wrong.',
 };
 

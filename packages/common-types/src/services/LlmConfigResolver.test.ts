@@ -53,6 +53,7 @@ describe('LlmConfigResolver', () => {
     systemPrompt: 'Test system prompt',
     characterInfo: 'A test personality',
     personalityTraits: 'Helpful',
+    voiceEnabled: false,
   };
 
   beforeEach(() => {

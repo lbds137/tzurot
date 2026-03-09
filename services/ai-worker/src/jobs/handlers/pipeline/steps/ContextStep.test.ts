@@ -51,6 +51,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   contextWindowTokens: 8192,
   characterInfo: 'A helpful test personality',
   personalityTraits: 'Helpful, friendly',
+  voiceEnabled: false,
 };
 
 function createValidJobData(overrides: Partial<LLMGenerationJobData> = {}): LLMGenerationJobData {

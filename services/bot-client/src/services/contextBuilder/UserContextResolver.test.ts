@@ -95,6 +95,7 @@ describe('UserContextResolver', () => {
       contextWindowTokens: 131072,
       characterInfo: '',
       personalityTraits: '',
+      voiceEnabled: false,
     });
 
     const createMockDeps = () => ({

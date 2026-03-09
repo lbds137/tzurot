@@ -44,6 +44,7 @@ describe('ImageDescriptionJob', () => {
     contextWindowTokens: 100000,
     characterInfo: 'Test character',
     personalityTraits: 'Helpful',
+    voiceEnabled: false,
   };
 
   beforeEach(() => {

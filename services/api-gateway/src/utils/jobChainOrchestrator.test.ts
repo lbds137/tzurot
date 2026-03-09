@@ -42,6 +42,7 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
     contextWindowTokens: 4096,
     characterInfo: 'Test character',
     personalityTraits: 'Test traits',
+    voiceEnabled: false,
   };
 
   const mockResponseDestination: ResponseDestination = {

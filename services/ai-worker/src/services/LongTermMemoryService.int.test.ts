@@ -63,6 +63,7 @@ describe('LongTermMemoryService', () => {
     contextWindowTokens: 8000,
     characterInfo: 'A test personality',
     personalityTraits: 'Helpful',
+    voiceEnabled: false,
   };
 
   const testContext: ConversationContext = {

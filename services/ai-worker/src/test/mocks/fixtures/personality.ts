@@ -29,6 +29,7 @@ export function createMockPersonality(overrides?: Partial<LoadedPersonality>): L
     contextWindowTokens: 8192,
     characterInfo: 'A friendly test bot',
     personalityTraits: 'Helpful, kind, knowledgeable',
+    voiceEnabled: false,
     ...overrides,
   } as LoadedPersonality;
 }

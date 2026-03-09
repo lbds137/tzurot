@@ -33,6 +33,7 @@ import { handleView } from './view.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleAvatar } from './avatar.js';
+import { handleVoice } from './voice.js';
 import {
   handleBrowse,
   handleBrowsePagination,
@@ -63,6 +64,9 @@ import {
 
 const logger = createLogger('character-command');
 
+/** Shared description for subcommands that modify a character */
+const CHARACTER_TO_UPDATE_DESC = 'Character to update';
+
 /**
  * Create character router with mixed deferral modes
  *
@@ -84,6 +88,8 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         view: (ctx: DeferredCommandContext) => handleView(ctx, config),
         browse: (ctx: DeferredCommandContext) => handleBrowse(ctx, config),
         avatar: (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
+        'voice-upload': (ctx: DeferredCommandContext) => handleVoice(ctx, config),
+        'voice-clear': (ctx: DeferredCommandContext) => handleVoice(ctx, config),
         import: (ctx: DeferredCommandContext) => handleImport(ctx, config),
         export: (ctx: DeferredCommandContext) => handleExport(ctx, config),
         template: (ctx: DeferredCommandContext) => handleTemplate(ctx, config),
@@ -262,7 +268,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to update')
+            .setDescription(CHARACTER_TO_UPDATE_DESC)
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -271,6 +277,36 @@ export default defineCommand({
             .setName('image')
             .setDescription('Avatar image (PNG, JPG, GIF, WebP)')
             .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('voice-upload')
+        .setDescription('Upload a voice reference audio file for TTS cloning')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription(CHARACTER_TO_UPDATE_DESC)
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addAttachmentOption(option =>
+          option
+            .setName('audio')
+            .setDescription('Audio file (WAV, MP3, OGG, FLAC)')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('voice-clear')
+        .setDescription('Remove voice reference and disable TTS for a character')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription(CHARACTER_TO_UPDATE_DESC)
+            .setRequired(true)
+            .setAutocomplete(true)
         )
     )
     .addSubcommand(subcommand =>

@@ -110,14 +110,10 @@ export const loadedPersonalitySchema = z.object({
   errorMessage: z.string().optional(),
 
   // Voice configuration (prerequisite for TTS — personality must have voice reference set up)
-  // TODO: Change to .default(false) after updating ~35 test fixtures (see BACKLOG Phase 3)
   /** Whether this personality has a voice reference configured for TTS.
-   * Optional (not `.default(false)`) to avoid breaking ~35 test fixtures that construct
-   * LoadedPersonality without this field. DB always provides a value via @default(false).
-   *
-   * Use the `isVoiceEnabled()` helper instead of checking this field directly —
-   * it correctly handles undefined as "disabled". */
-  voiceEnabled: z.boolean().optional(),
+   * Defaults to false — DB column has @default(false), and Zod provides the same default
+   * for objects constructed without this field. */
+  voiceEnabled: z.boolean().default(false),
 });
 
 /**

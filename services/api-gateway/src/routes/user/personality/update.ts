@@ -51,6 +51,7 @@ function buildUpdateData(
     'conversationalGoals',
     'conversationalExamples',
     'errorMessage',
+    'voiceEnabled',
   ];
 
   for (const field of simpleFields) {

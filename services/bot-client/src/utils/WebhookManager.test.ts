@@ -112,6 +112,7 @@ function createMockPersonality(
     displayName,
     systemPrompt: 'Test personality',
     avatarUrl,
+    voiceEnabled: false,
     llmConfig: {
       model: 'test-model',
       temperature: 0.7,
