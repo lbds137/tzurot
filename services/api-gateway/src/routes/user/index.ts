@@ -46,6 +46,9 @@
  * - GET /user/nsfw - Get NSFW verification status
  * - POST /user/nsfw/verify - Mark user as NSFW verified
  * - GET /user/conversation/message-personality - Get personality from Discord message ID (internal)
+ * - GET /user/voices - List ElevenLabs cloned voices (tzurot-prefixed)
+ * - DELETE /user/voices/:voiceId - Delete a single cloned voice
+ * - POST /user/voices/clear - Delete ALL tzurot-prefixed voices
  */
 
 import { Router } from 'express';
@@ -72,6 +75,7 @@ import { createConversationLookupRoutes } from './conversationLookup.js';
 import { createConfigOverrideRoutes } from './config-overrides.js';
 import { createPersonalityConfigOverrideRoutes } from './personality-config-overrides.js';
 import { createShapesRoutes } from './shapes/index.js';
+import { createVoicesRoutes } from './voices.js';
 
 /** Dependencies for creating the user router */
 interface UserRouterOptions {
@@ -144,6 +148,9 @@ export function createUserRouter(opts: UserRouterOptions): Router {
 
   // Shapes.inc import routes (credential management, import jobs)
   router.use('/shapes', createShapesRoutes(prisma, aiQueue));
+
+  // Voice management routes (ElevenLabs cloned voice CRUD)
+  router.use('/voices', createVoicesRoutes(prisma));
 
   return router;
 }
