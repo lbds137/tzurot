@@ -10,7 +10,7 @@
  * - Timeout protection against slow responses
  */
 
-import { createLogger, AIProvider, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
+import { createLogger, AIProvider, AI_ENDPOINTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
 
 const logger = createLogger('api-key-validation');
 
@@ -107,7 +107,7 @@ export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValid
   const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUTS.API_KEY_VALIDATION);
 
   try {
-    const response = await fetch('https://api.elevenlabs.io/v1/user', {
+    const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/user`, {
       method: 'GET',
       headers: {
         'xi-api-key': apiKey,
