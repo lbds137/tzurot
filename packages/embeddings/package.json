@@ -22,7 +22,7 @@
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
     "@tzurot/common-types": "workspace:*",
-    "onnxruntime-node": "^1.24.2"
+    "onnxruntime-node": "^1.24.3"
   },
   "devDependencies": {
     "@types/node": "^25.3.0"
