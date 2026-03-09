@@ -2,8 +2,9 @@
  * Audio Processor
  *
  * Processes audio (voice messages, audio files) to extract text transcriptions.
- * Primary path: self-hosted voice-engine (Parakeet TDT) when VOICE_ENGINE_URL is set.
- * Fallback: OpenAI Whisper when voice-engine is unavailable or unconfigured.
+ * Primary path: ElevenLabs STT (when BYOK key available).
+ * Secondary: self-hosted voice-engine (Parakeet TDT) when VOICE_ENGINE_URL is set.
+ * Fallback: OpenAI Whisper when neither is available.
  * Includes Redis caching for faster repeated access.
  */
 
@@ -17,6 +18,7 @@ import {
 } from '@tzurot/common-types';
 import OpenAI from 'openai';
 import { VoiceEngineError, getVoiceEngineClient } from '../voice/VoiceEngineClient.js';
+import { elevenLabsSTT, ElevenLabsApiError } from '../voice/ElevenLabsClient.js';
 
 const logger = createLogger('AudioProcessor');
 
@@ -183,15 +185,62 @@ async function transcribeWithWhisper(
 }
 
 /**
+ * Transcribe audio using ElevenLabs STT (BYOK path).
+ * Returns the transcription text, or null if the request fails.
+ */
+async function transcribeWithElevenLabs(
+  attachment: AttachmentMetadata,
+  audioBuffer: ArrayBuffer,
+  apiKey: string
+): Promise<string | null> {
+  try {
+    const filename =
+      attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'audio.ogg';
+
+    const result = await elevenLabsSTT({
+      audioBuffer: Buffer.from(audioBuffer),
+      filename,
+      contentType: attachment.contentType,
+      apiKey,
+    });
+
+    logger.info(
+      { transcriptionLength: result.text.length, duration: attachment.duration },
+      'Audio transcribed via ElevenLabs STT'
+    );
+
+    return result.text;
+  } catch (error) {
+    // Auth errors (401/403) are persistent config issues — log at error level
+    if (error instanceof ElevenLabsApiError && error.isAuthError) {
+      logger.error(
+        { err: error, fallback: 'voice-engine' },
+        'ElevenLabs STT auth error — falling back'
+      );
+    } else {
+      logger.warn(
+        { err: error, fallback: 'voice-engine' },
+        '[FALLBACK] ElevenLabs STT failed — trying voice-engine'
+      );
+    }
+    return null;
+  }
+}
+
+/**
  * Transcribe audio (voice message or audio file).
- * Tries voice-engine first (if configured), falls back to Whisper.
+ * Tries ElevenLabs STT first (if BYOK key), then voice-engine, falls back to Whisper.
  * Empty string from voice-engine is returned as-is (silent/inaudible audio) —
  * only null (unconfigured or failed) triggers the Whisper fallback.
  * Throws errors to allow retry logic to handle them.
  *
  * @param attachment - Audio attachment to transcribe
+ * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
  */
-export async function transcribeAudio(attachment: AttachmentMetadata): Promise<string> {
+export async function transcribeAudio(
+  attachment: AttachmentMetadata,
+  elevenlabsApiKey?: string
+): Promise<string> {
   // Check Redis cache first (if originalUrl is available).
   // Cache is populated by bot-client's VoiceTranscriptionService after receiving job results.
   if (attachment.originalUrl !== undefined && attachment.originalUrl.length > 0) {
@@ -218,10 +267,22 @@ export async function transcribeAudio(attachment: AttachmentMetadata): Promise<s
     }
   }
 
-  // Fetch audio once — shared by both voice-engine and Whisper paths
+  // Fetch audio once — shared by all transcription paths
   const audioBuffer = await fetchAudioBuffer(attachment.url);
 
-  // Try voice-engine first (returns null if unconfigured or failed)
+  // Try ElevenLabs STT first (BYOK premium path)
+  if (elevenlabsApiKey !== undefined) {
+    const elevenLabsResult = await transcribeWithElevenLabs(
+      attachment,
+      audioBuffer,
+      elevenlabsApiKey
+    );
+    if (elevenLabsResult !== null) {
+      return elevenLabsResult;
+    }
+  }
+
+  // Try voice-engine (returns null if unconfigured or failed)
   const voiceEngineResult = await transcribeWithVoiceEngine(attachment, audioBuffer);
   if (voiceEngineResult !== null) {
     return voiceEngineResult;
