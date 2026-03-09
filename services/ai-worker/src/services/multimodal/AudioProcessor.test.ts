@@ -40,6 +40,15 @@ vi.mock('../voice/VoiceEngineClient.js', async importOriginal => {
   };
 });
 
+const mockElevenLabsSTT = vi.fn();
+vi.mock('../voice/ElevenLabsClient.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../voice/ElevenLabsClient.js')>();
+  return {
+    ...actual,
+    elevenLabsSTT: (...args: unknown[]) => mockElevenLabsSTT(...args),
+  };
+});
+
 // Mock fetch
 global.fetch = vi.fn();
 
@@ -50,6 +59,7 @@ describe('AudioProcessor', () => {
     mockVoiceTranscriptCacheGet.mockResolvedValue(null);
     mockVoiceEngineClient = null;
     mockVoiceEngineTranscribe.mockReset();
+    mockElevenLabsSTT.mockReset();
   });
 
   afterEach(() => {
@@ -528,6 +538,68 @@ describe('AudioProcessor', () => {
         const result = await transcribeAudio(attachment);
 
         expect(result).toBe('Very long transcription...');
+      });
+    });
+
+    describe('ElevenLabs STT integration', () => {
+      const audioAttachment: AttachmentMetadata = {
+        url: 'https://example.com/audio.ogg',
+        name: 'audio.ogg',
+        contentType: CONTENT_TYPES.AUDIO_OGG,
+        size: 2048,
+      };
+
+      beforeEach(() => {
+        (global.fetch as any).mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048)),
+        });
+      });
+
+      it('should use ElevenLabs STT when apiKey is provided', async () => {
+        mockElevenLabsSTT.mockResolvedValue({ text: 'ElevenLabs transcription' });
+
+        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+
+        expect(result).toBe('ElevenLabs transcription');
+        expect(mockElevenLabsSTT).toHaveBeenCalledWith(
+          expect.objectContaining({
+            apiKey: 'sk_el_test',
+            filename: 'audio.ogg',
+            contentType: CONTENT_TYPES.AUDIO_OGG,
+          })
+        );
+        expect(mockWhisperCreate).not.toHaveBeenCalled();
+      });
+
+      it('should fall back to voice-engine when ElevenLabs fails', async () => {
+        mockElevenLabsSTT.mockRejectedValue(new Error('ElevenLabs down'));
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Voice engine result' });
+
+        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+
+        expect(result).toBe('Voice engine result');
+        expect(mockElevenLabsSTT).toHaveBeenCalled();
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
+      });
+
+      it('should fall back to Whisper when both ElevenLabs and voice-engine fail', async () => {
+        mockElevenLabsSTT.mockRejectedValue(new Error('ElevenLabs down'));
+        // No voice engine configured
+
+        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+
+        expect(result).toBe('Mocked transcription');
+        expect(mockElevenLabsSTT).toHaveBeenCalled();
+        expect(mockWhisperCreate).toHaveBeenCalled();
+      });
+
+      it('should skip ElevenLabs when no apiKey provided', async () => {
+        const result = await transcribeAudio(audioAttachment);
+
+        expect(mockElevenLabsSTT).not.toHaveBeenCalled();
+        expect(result).toBe('Mocked transcription');
       });
     });
   });

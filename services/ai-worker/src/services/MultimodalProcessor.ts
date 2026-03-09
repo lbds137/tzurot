@@ -45,12 +45,14 @@ export interface ProcessedAttachment {
  * @param personality - Personality configuration for vision/transcription
  * @param isGuestMode - Whether user is in guest mode (uses free models)
  * @param userApiKey - User's BYOK API key (for BYOK users)
+ * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
  */
 async function processSingleAttachment(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
   isGuestMode: boolean,
-  userApiKey?: string
+  userApiKey?: string,
+  elevenlabsApiKey?: string
 ): Promise<ProcessedAttachment | null> {
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
     const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
@@ -67,7 +69,7 @@ async function processSingleAttachment(
     attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
     attachment.isVoiceMessage === true
   ) {
-    const description = await transcribeAudio(attachment);
+    const description = await transcribeAudio(attachment, elevenlabsApiKey);
     logger.info({ name: attachment.name }, 'Processed audio attachment');
     return {
       type: AttachmentType.Audio,
@@ -88,12 +90,14 @@ async function processSingleAttachment(
  * @param personality - Personality configuration for vision/transcription
  * @param isGuestMode - Whether user is in guest mode (uses free models)
  * @param userApiKey - User's BYOK API key (for BYOK users)
+ * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
  */
 export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality,
   isGuestMode = false,
-  userApiKey?: string
+  userApiKey?: string,
+  elevenlabsApiKey?: string
 ): Promise<ProcessedAttachment[]> {
   logger.info(
     {
@@ -109,7 +113,8 @@ export async function processAttachments(
   // Use retryService for consistent retry behavior
   const results = await withParallelRetry(
     attachments,
-    attachment => processSingleAttachment(attachment, personality, isGuestMode, userApiKey),
+    attachment =>
+      processSingleAttachment(attachment, personality, isGuestMode, userApiKey, elevenlabsApiKey),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
