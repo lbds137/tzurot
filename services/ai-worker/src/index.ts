@@ -32,12 +32,7 @@ import {
   type PrismaClient,
   type AnyJobData,
 } from '@tzurot/common-types';
-import {
-  validateRequiredEnvVars,
-  validateAIConfig,
-  buildHealthResponse,
-  checkVoiceEngineHealth,
-} from './startup.js';
+import { validateRequiredEnvVars, buildHealthResponse, checkVoiceEngineHealth } from './startup.js';
 import { setupCacheInvalidation } from './cacheInvalidation.js';
 import { initStopSequenceRedis } from './services/StopSequenceTracker.js';
 
@@ -311,7 +306,6 @@ async function setupScheduledJobs(
  */
 async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
-  validateAIConfig();
 
   logger.info(
     {

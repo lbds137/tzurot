@@ -47,8 +47,6 @@ export const AI_DEFAULTS = {
   } as const,
   /** Temperature for vision models (lower = more deterministic) */
   VISION_TEMPERATURE: 0.3,
-  /** Default language for Whisper transcription */
-  WHISPER_LANGUAGE: 'en',
   /** Default memory score threshold for retrieval (0.0-1.0, higher = stricter matching) */
   MEMORY_SCORE_THRESHOLD: 0.5,
   /** Default number of memories to retrieve */
@@ -161,7 +159,6 @@ export const MODEL_DEFAULTS = {
   DEFAULT_MODEL: 'anthropic/claude-haiku-4.5',
 
   // Specialized models
-  WHISPER: 'whisper-1',
   /** Vision fallback for BYOK users (paid) — natively multimodal */
   VISION_FALLBACK: 'qwen/qwen3.5-397b-a17b',
   /** Vision fallback for free tier users (no BYOK) — 128k context, multimodal, less censored */
@@ -180,8 +177,8 @@ export const MODEL_DEFAULTS = {
  * OpenRouter: LLM chat/generation (BYOK for model access)
  * ElevenLabs: Voice synthesis and cloning (BYOK for premium TTS/STT)
  *
- * Note: The system still uses OPENAI_API_KEY internally for embeddings and
- * Whisper transcription, but users cannot select OpenAI as a provider.
+ * OpenRouter: LLM chat/generation (BYOK for model access)
+ * ElevenLabs: Voice synthesis, cloning, and STT (BYOK for premium features)
  */
 export enum AIProvider {
   OpenRouter = 'openrouter',

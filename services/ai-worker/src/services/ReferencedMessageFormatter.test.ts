@@ -581,7 +581,7 @@ describe('ReferencedMessageFormatter', () => {
 
     it('should handle voice transcription failures gracefully', async () => {
       // Use hoisted mock directly
-      mockTranscribeAudio.mockRejectedValue(new Error('Whisper API failed'));
+      mockTranscribeAudio.mockRejectedValue(new Error('STT failed'));
 
       const references: ReferencedMessage[] = [
         {
@@ -905,7 +905,7 @@ describe('ReferencedMessageFormatter', () => {
       expect(mockDescribeImage).not.toHaveBeenCalled();
     });
 
-    it('should use preprocessed voice transcriptions instead of calling Whisper API', async () => {
+    it('should use preprocessed voice transcriptions instead of calling STT API', async () => {
       // Uses hoisted mockTranscribeAudio - verify it's NOT called when preprocessed data exists
 
       const references: ReferencedMessage[] = [
@@ -964,7 +964,7 @@ describe('ReferencedMessageFormatter', () => {
         '- Voice Message (10s): "Preprocessed: Hello, this is a test message"'
       );
 
-      // Should NOT call Whisper API
+      // Should NOT call STT API
       expect(mockTranscribeAudio).not.toHaveBeenCalled();
     });
 

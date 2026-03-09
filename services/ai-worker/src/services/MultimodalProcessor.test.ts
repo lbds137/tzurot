@@ -11,8 +11,7 @@ import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types';
 const {
   mockModelInvoke,
   mockCreateChatModel,
-  mockWhisperCreate,
-  mockGetVoiceTranscript,
+  mockTranscribeAudio,
   mockCheckModelVisionSupport,
   mockVisionCacheGet,
   mockVisionCacheStore,
@@ -21,8 +20,7 @@ const {
 } = vi.hoisted(() => ({
   mockModelInvoke: vi.fn(),
   mockCreateChatModel: vi.fn(),
-  mockWhisperCreate: vi.fn(),
-  mockGetVoiceTranscript: vi.fn(),
+  mockTranscribeAudio: vi.fn(),
   mockCheckModelVisionSupport: vi.fn(),
   mockVisionCacheGet: vi.fn(),
   mockVisionCacheStore: vi.fn(),
@@ -49,22 +47,13 @@ vi.mock('../utils/apiErrorParser.js', () => ({
   shouldRetryError: () => true,
 }));
 
-vi.mock('openai', () => ({
-  default: class MockOpenAI {
-    audio = {
-      transcriptions: {
-        create: mockWhisperCreate,
-      },
-    };
-  },
+// Mock AudioProcessor — orchestrator tests shouldn't test STT internals
+vi.mock('./multimodal/AudioProcessor.js', () => ({
+  transcribeAudio: (...args: unknown[]) => mockTranscribeAudio(...args),
 }));
 
-// Mock fetch for audio downloads
-global.fetch = vi.fn();
-
-// Mock redis module (transcribeAudio tries to import it, VisionProcessor uses checkModelVisionSupport and visionDescriptionCache)
+// Mock redis module (VisionProcessor uses checkModelVisionSupport and visionDescriptionCache)
 vi.mock('../redis.js', () => ({
-  getVoiceTranscript: mockGetVoiceTranscript,
   checkModelVisionSupport: mockCheckModelVisionSupport,
   visionDescriptionCache: {
     get: mockVisionCacheGet,
@@ -104,11 +93,10 @@ describe('MultimodalProcessor', () => {
       modelName: 'test-model',
     });
 
-    // Whisper with response_format:'text' returns string directly, not {text: string}
-    mockWhisperCreate.mockResolvedValue('Mocked transcription');
+    // Mock transcribeAudio to return transcription text
+    mockTranscribeAudio.mockResolvedValue('Mocked transcription');
 
     // Reset redis mocks to default
-    mockGetVoiceTranscript.mockResolvedValue(null); // Return null to skip cache
     mockCheckModelVisionSupport.mockResolvedValue(false); // Default to no vision support
     mockVisionCacheGet.mockResolvedValue(null); // Default: cache miss
     mockVisionCacheStore.mockResolvedValue(undefined);
@@ -165,19 +153,13 @@ describe('MultimodalProcessor', () => {
         size: 1024,
       };
 
-      // Mock successful fetch
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
-      });
-
       const result = await transcribeAudio(attachment);
 
       expect(result).toBe('Mocked transcription');
-      expect(global.fetch).toHaveBeenCalledWith(attachment.url, expect.any(Object));
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(attachment);
     });
 
-    it('should handle fetch errors', async () => {
+    it('should handle transcription errors', async () => {
       const attachment: AttachmentMetadata = {
         url: 'https://example.com/audio.ogg',
         name: 'audio.ogg',
@@ -185,27 +167,9 @@ describe('MultimodalProcessor', () => {
         size: 1024,
       };
 
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+      mockTranscribeAudio.mockRejectedValue(new Error('No STT provider available'));
 
-      await expect(transcribeAudio(attachment)).rejects.toThrow('Network error');
-    });
-
-    it('should handle Whisper API errors', async () => {
-      const attachment: AttachmentMetadata = {
-        url: 'https://example.com/audio.ogg',
-        name: 'audio.ogg',
-        contentType: CONTENT_TYPES.AUDIO_OGG,
-        size: 1024,
-      };
-
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        arrayBuffer: () => Promise.resolve(new ArrayBuffer(1024)),
-      });
-
-      mockWhisperCreate.mockRejectedValue(new Error('Whisper API error'));
-
-      await expect(transcribeAudio(attachment)).rejects.toThrow('Whisper API error');
+      await expect(transcribeAudio(attachment)).rejects.toThrow('No STT provider available');
     });
   });
 
@@ -256,12 +220,6 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      // Ensure fetch is properly mocked
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048)),
-      });
-
       const results = await processAttachments(attachments, mockPersonality);
 
       expect(results).toHaveLength(1);
@@ -296,11 +254,6 @@ describe('MultimodalProcessor', () => {
           size: 2048,
         },
       ];
-
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048)),
-      });
 
       const results = await processAttachments(attachments, mockPersonality);
 
@@ -423,7 +376,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+      mockTranscribeAudio.mockRejectedValue(new Error('Network error'));
 
       const promise = processAttachments(attachments, mockPersonality);
 

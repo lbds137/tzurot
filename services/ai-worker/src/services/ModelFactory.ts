@@ -4,8 +4,8 @@
  * Supports:
  * - OpenRouter - via AI_PROVIDER=openrouter or OPENROUTER_API_KEY
  *
- * Note: OpenAI API key is used internally for embeddings/whisper, but not for chat models.
  * All chat/generation goes through OpenRouter which can route to any provider including OpenAI models.
+ * Embeddings are local (Xenova/bge-small-en-v1.5). STT uses ElevenLabs (BYOK) or voice-engine.
  */
 
 import { ChatOpenAI } from '@langchain/openai';

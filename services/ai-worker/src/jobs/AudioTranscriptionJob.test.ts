@@ -167,14 +167,14 @@ describe('AudioTranscriptionJob', () => {
       } as Job<AudioTranscriptionJobData>;
 
       // Simulate withRetry failing after all attempts
-      mockWithRetry.mockRejectedValue(new Error('Whisper API timeout after 3 attempts'));
+      mockWithRetry.mockRejectedValue(new Error('STT API timeout after 3 attempts'));
 
       const result = await processAudioTranscriptionJob(job);
 
       expect(result).toMatchObject({
         requestId: 'test-req-audio-2',
         success: false,
-        error: 'Whisper API timeout after 3 attempts',
+        error: 'STT API timeout after 3 attempts',
         metadata: {
           processingTimeMs: expect.any(Number),
           duration: undefined,
