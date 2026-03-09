@@ -34,7 +34,8 @@ import {
   type CharacterData,
   type CharacterSessionData,
 } from './config.js';
-import { fetchCharacter, updateCharacter, toggleVisibility } from './api.js';
+import { fetchCharacter, updateCharacter } from './api.js';
+import { handleAction } from './dashboardActions.js';
 import { handleSeedModalSubmit } from './create.js';
 import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandlers.js';
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
@@ -347,131 +348,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   if (action === 'delete') {
     await handleDeleteAction(interaction, entityId, config);
   }
-}
-
-/**
- * Refresh the dashboard after a character update.
- * Handles session preservation and dashboard rebuild.
- */
-async function refreshDashboardAfterUpdate(
-  interaction: StringSelectMenuInteraction,
-  entityId: string,
-  updated: CharacterData
-): Promise<void> {
-  const isAdmin = isBotOwner(interaction.user.id);
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin, updated.hasVoiceReference);
-
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<CharacterSessionData>(
-    interaction.user.id,
-    'character',
-    entityId
-  );
-
-  const sessionData: CharacterSessionData = {
-    ...updated,
-    canEdit: session?.data?.canEdit,
-    _isAdmin: isAdmin,
-    browseContext: session?.data?.browseContext,
-  };
-
-  await sessionManager.update<CharacterSessionData>(
-    interaction.user.id,
-    'character',
-    entityId,
-    sessionData
-  );
-
-  const embed = buildDashboardEmbed(dashboardConfig, updated);
-  const components = buildDashboardComponents(
-    dashboardConfig,
-    updated.slug,
-    updated,
-    buildCharacterDashboardOptions(sessionData)
-  );
-
-  await interaction.editReply({ embeds: [embed], components });
-}
-
-/**
- * Handle dashboard actions (visibility toggle, avatar upload, voice, etc.)
- */
-async function handleAction(
-  interaction: StringSelectMenuInteraction,
-  entityId: string,
-  actionId: string,
-  config: EnvConfig
-): Promise<void> {
-  if (actionId === 'visibility') {
-    await interaction.deferUpdate();
-
-    const character = await fetchCharacter(entityId, config, interaction.user.id);
-    if (!character) {
-      return;
-    }
-
-    const result = await toggleVisibility(
-      entityId,
-      !character.isPublic,
-      interaction.user.id,
-      config
-    );
-
-    const updated: CharacterData = { ...character, isPublic: result.isPublic };
-    await refreshDashboardAfterUpdate(interaction, entityId, updated);
-
-    const status = result.isPublic ? '🌐 Public' : '🔒 Private';
-    logger.info({ slug: entityId, isPublic: result.isPublic }, `Character visibility: ${status}`);
-    return;
-  }
-
-  if (actionId === 'avatar') {
-    await interaction.reply({
-      content:
-        '🖼️ **Avatar Upload**\n\n' +
-        'Please use `/character avatar` to upload a new avatar image.\n' +
-        '(Discord modals cannot accept file uploads)',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (actionId === 'voice') {
-    await interaction.reply({
-      content:
-        '🎤 **Voice Reference**\n\n' +
-        'Use `/character voice` to upload a voice reference for TTS cloning.\n' +
-        'Use `/character voice-clear` to remove it and disable TTS.\n' +
-        '(Discord modals cannot accept file uploads)',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (actionId === 'voice-toggle') {
-    await interaction.deferUpdate();
-
-    const character = await fetchCharacter(entityId, config, interaction.user.id);
-    if (!character) {
-      return;
-    }
-
-    const newVoiceEnabled = !character.voiceEnabled;
-    const updated = await updateCharacter(
-      entityId,
-      { voiceEnabled: newVoiceEnabled },
-      interaction.user.id,
-      config
-    );
-
-    await refreshDashboardAfterUpdate(interaction, entityId, updated);
-
-    const status = newVoiceEnabled ? '🔊 Enabled' : '🔇 Disabled';
-    logger.info({ slug: entityId, voiceEnabled: newVoiceEnabled }, `Character voice: ${status}`);
-    return;
-  }
-
-  logger.warn({ actionId }, 'Unknown action');
 }
 
 /** Dashboard-specific actions that this handler manages */
