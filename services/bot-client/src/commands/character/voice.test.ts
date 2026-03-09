@@ -59,7 +59,7 @@ describe('handleVoice', () => {
     it('should reject non-audio files', async () => {
       const context = createMockContext('voice-upload', {
         character: 'test-char',
-        audio: { contentType: 'image/png', size: 1024, url: 'https://cdn.discord.com/file.png' },
+        audio: { contentType: 'image/png', size: 1024, url: 'https://cdn.discordapp.com/file.png' },
       });
 
       await handleVoice(context, mockConfig);
@@ -74,7 +74,7 @@ describe('handleVoice', () => {
         audio: {
           contentType: 'audio/wav',
           size: 11 * 1024 * 1024, // 11MB, over the 10MB limit
-          url: 'https://cdn.discord.com/file.wav',
+          url: 'https://cdn.discordapp.com/file.wav',
         },
       });
 
@@ -86,7 +86,7 @@ describe('handleVoice', () => {
     it('should reject if character not found', async () => {
       const context = createMockContext('voice-upload', {
         character: 'nonexistent',
-        audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discord.com/file.wav' },
+        audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
       });
 
       (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -99,7 +99,7 @@ describe('handleVoice', () => {
     it('should reject if user cannot edit character', async () => {
       const context = createMockContext('voice-upload', {
         character: 'test-char',
-        audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discord.com/file.wav' },
+        audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
       });
 
       (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -128,7 +128,7 @@ describe('handleVoice', () => {
         audio: {
           contentType: 'audio/wav',
           size: mockAudioBuffer.length,
-          url: 'https://cdn.discord.com/file.wav',
+          url: 'https://cdn.discordapp.com/file.wav',
         },
       });
 
@@ -163,7 +163,7 @@ describe('handleVoice', () => {
         audio: {
           contentType: 'audio/wav',
           size: 1024,
-          url: 'https://cdn.discord.com/file.wav',
+          url: 'https://cdn.discordapp.com/file.wav',
         },
       });
 
@@ -181,12 +181,34 @@ describe('handleVoice', () => {
     it('should accept null contentType as invalid', async () => {
       const context = createMockContext('voice-upload', {
         character: 'test-char',
-        audio: { contentType: null, size: 1024, url: 'https://cdn.discord.com/file' },
+        audio: { contentType: null, size: 1024, url: 'https://cdn.discordapp.com/file' },
       });
 
       await handleVoice(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Invalid file type'));
+    });
+
+    it('should reject non-Discord CDN URLs', async () => {
+      const context = createMockContext('voice-upload', {
+        character: 'test-char',
+        audio: {
+          contentType: 'audio/wav',
+          size: 1024,
+          url: 'https://evil.example.com/malicious.wav',
+        },
+      });
+
+      (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
+        name: 'Test',
+        displayName: 'Test',
+        canEdit: true,
+      });
+
+      await handleVoice(context, mockConfig);
+
+      expect(context.editReply).toHaveBeenCalledWith('❌ Invalid attachment URL.');
+      expect(updateCharacter).not.toHaveBeenCalled();
     });
   });
 
@@ -238,6 +260,18 @@ describe('handleVoice', () => {
       expect(context.editReply).toHaveBeenCalledWith(
         expect.stringContaining('Voice reference removed')
       );
+    });
+  });
+
+  describe('unknown subcommand', () => {
+    it('should not call any handler for unknown subcommands', async () => {
+      const context = createMockContext('voice-unknown', { character: 'test-char' });
+
+      await handleVoice(context, mockConfig);
+
+      expect(fetchCharacter).not.toHaveBeenCalled();
+      expect(updateCharacter).not.toHaveBeenCalled();
+      expect(context.editReply).not.toHaveBeenCalled();
     });
   });
 });

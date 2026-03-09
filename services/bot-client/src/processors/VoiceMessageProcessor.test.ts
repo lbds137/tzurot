@@ -101,7 +101,19 @@ describe('VoiceMessageProcessor', () => {
   });
 
   describe('Configuration checks', () => {
+    it('should skip gateway call when no voice attachment', async () => {
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(false);
+
+      const message = createMockMessage();
+      const result = await processor.process(message);
+
+      expect(result).toBe(false); // Should continue to next processor
+      expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
+      expect(mockGatewayClient.getAdminSettings).not.toHaveBeenCalled();
+    });
+
     it('should continue processing when voiceTranscriptionEnabled is false via admin cascade', async () => {
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
       mockGatewayClient.getAdminSettings.mockResolvedValue({
         configDefaults: { voiceTranscriptionEnabled: false },
       });
@@ -110,20 +122,26 @@ describe('VoiceMessageProcessor', () => {
       const result = await processor.process(message);
 
       expect(result).toBe(false); // Should continue to next processor
-      expect(mockVoiceService.hasVoiceAttachment).not.toHaveBeenCalled();
+      expect(mockVoiceService.transcribe).not.toHaveBeenCalled();
     });
 
     it('should default to enabled when admin settings are null', async () => {
       mockGatewayClient.getAdminSettings.mockResolvedValue(null);
 
       const message = createMockMessage();
-      mockVoiceService.hasVoiceAttachment.mockReturnValue(false);
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
+      mockVoiceService.transcribe.mockResolvedValue({
+        transcript: 'test',
+        continueToPersonalityHandler: false,
+      });
+
+      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const result = await processor.process(message);
 
       expect(result).toBe(false);
-      // Should still check for voice attachments (transcription enabled by default)
-      expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
+      // Should proceed to transcription (transcription enabled by default)
+      expect(mockVoiceService.transcribe).toHaveBeenCalled();
     });
 
     it('should default to enabled when configDefaults is null', async () => {
@@ -132,22 +150,37 @@ describe('VoiceMessageProcessor', () => {
       });
 
       const message = createMockMessage();
-      mockVoiceService.hasVoiceAttachment.mockReturnValue(false);
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
+      mockVoiceService.transcribe.mockResolvedValue({
+        transcript: 'test',
+        continueToPersonalityHandler: false,
+      });
+
+      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const result = await processor.process(message);
 
       expect(result).toBe(false);
-      expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
+      expect(mockVoiceService.transcribe).toHaveBeenCalled();
     });
 
-    it('should continue processing when no voice attachment', async () => {
-      mockVoiceService.hasVoiceAttachment.mockReturnValue(false);
+    it('should default to enabled when getAdminSettings throws', async () => {
+      mockGatewayClient.getAdminSettings.mockRejectedValue(new Error('Gateway unreachable'));
 
       const message = createMockMessage();
+      mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
+      mockVoiceService.transcribe.mockResolvedValue({
+        transcript: 'test',
+        continueToPersonalityHandler: false,
+      });
+
+      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
       const result = await processor.process(message);
 
-      expect(result).toBe(false); // Should continue to next processor
-      expect(mockVoiceService.hasVoiceAttachment).toHaveBeenCalledWith(message);
+      expect(result).toBe(false);
+      // Should still transcribe using hardcoded default (enabled)
+      expect(mockVoiceService.transcribe).toHaveBeenCalled();
     });
   });
 

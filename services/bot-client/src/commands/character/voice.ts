@@ -23,6 +23,9 @@ const VALID_AUDIO_PREFIX = 'audio/';
 const MAX_UPLOAD_BYTES = VOICE_REFERENCE_LIMITS.MAX_SIZE;
 const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
 
+/** Allowed Discord CDN hostnames for SSRF defense-in-depth */
+const DISCORD_CDN_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
+
 /**
  * Handle /character voice upload
  */
@@ -64,6 +67,14 @@ async function handleVoiceUpload(
         `❌ You don't have permission to edit \`${slug}\`.\n` +
           'You can only edit characters you own.'
       );
+      return;
+    }
+
+    // Validate attachment URL is from Discord CDN (SSRF defense-in-depth)
+    const attachmentHost = new URL(attachment.url).hostname;
+    if (!DISCORD_CDN_HOSTS.includes(attachmentHost)) {
+      logger.warn({ url: attachment.url, host: attachmentHost }, 'Unexpected attachment URL host');
+      await context.editReply('❌ Invalid attachment URL.');
       return;
     }
 
@@ -152,5 +163,7 @@ export async function handleVoice(
     await handleVoiceUpload(context, config);
   } else if (subcommand === 'voice-clear') {
     await handleVoiceClear(context, config);
+  } else {
+    logger.warn({ subcommand }, 'Unexpected voice subcommand');
   }
 }
