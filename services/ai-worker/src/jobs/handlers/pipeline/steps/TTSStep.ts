@@ -21,14 +21,15 @@ import { redisService } from '../../../../redis.js';
 const logger = createLogger('TTSStep');
 
 /** TTS timeout — includes voice-engine cold start time on Railway Serverless.
- * Budget: health retries (12s) + voice registration (15s) + synthesis (~63s).
- * 90s accommodates multi-chunk TTS on first cold-start without unnecessary wait on true failures. */
-const TTS_TIMEOUT_MS = 90_000;
+ * Budget: health wait (75s) + voice registration (15s) + synthesis (~45s) + margin (15s).
+ * 150s accommodates the full ~56s cold start plus multi-chunk TTS. */
+const TTS_TIMEOUT_MS = 150_000;
 
-/** Delay between health check retries when waiting for voice engine cold start */
-const HEALTH_RETRY_DELAY_MS = 3_000;
-/** Max health check attempts before proceeding anyway */
-const HEALTH_RETRY_MAX_ATTEMPTS = 5;
+/** Total time budget for health polling during voice engine cold start (ms).
+ * Railway Serverless cold boot measured at ~56s — 75s gives comfortable margin. */
+const HEALTH_WAIT_BUDGET_MS = 75_000;
+/** Interval between health check polls (ms) */
+const HEALTH_POLL_INTERVAL_MS = 3_000;
 
 /**
  * Lazy singleton for voice registration (shares VoiceEngineClient lifecycle).
@@ -146,7 +147,8 @@ export class TTSStep implements IPipelineStep {
       return false;
     }
 
-    // Check config cascade for voice response mode
+    // Check config cascade for voice response mode.
+    // Defaults to 'never' when configOverrides is absent (e.g., guest mode, missing cascade).
     const voiceResponseMode = context.configOverrides?.voiceResponseMode ?? 'never';
 
     if (voiceResponseMode === 'never') {
@@ -173,9 +175,9 @@ export class TTSStep implements IPipelineStep {
     context: GenerationContext
   ): Promise<{ key: string; audioSize: number } | null> {
     // Pre-warm: ping /health to wake voice engine from Railway Serverless sleep.
-    // Voice engine cold boot takes ~7s (models cached on disk), so retry a few
-    // times with short delays. The first ping's TCP connection triggers Railway
-    // to start the container.
+    // Voice engine cold boot takes ~56s (model loading from disk). The first ping's
+    // TCP connection triggers Railway to start the container; subsequent polls wait
+    // for model readiness.
     await this.waitForVoiceEngine(registrationService, slug);
 
     // Ensure voice is registered
@@ -196,28 +198,38 @@ export class TTSStep implements IPipelineStep {
   }
 
   /**
-   * Wait for the voice engine to become ready, retrying health checks with delays.
-   * The first ping wakes Railway Serverless; subsequent pings wait for model loading (~7s).
-   * Proceeds after max attempts regardless — registration/synthesis will fail with a
-   * clear error if the engine truly isn't available.
+   * Wait for the voice engine to become ready, polling health checks on a time budget.
+   * The first ping wakes Railway Serverless; subsequent polls wait for model loading (~56s).
+   * Proceeds after budget exhausted — registration/synthesis will fail with a clear error
+   * if the engine truly isn't available.
    */
   private async waitForVoiceEngine(
     registrationService: VoiceRegistrationService,
     slug: string
   ): Promise<void> {
-    for (let attempt = 1; attempt <= HEALTH_RETRY_MAX_ATTEMPTS; attempt++) {
+    const deadline = Date.now() + HEALTH_WAIT_BUDGET_MS;
+    let attempt = 0;
+
+    while (Date.now() < deadline) {
+      attempt++;
       const health = await registrationService.client.getHealth();
       if (health.tts) {
         return;
       }
-      if (attempt < HEALTH_RETRY_MAX_ATTEMPTS) {
+      // Don't sleep if we've already exhausted the budget
+      if (Date.now() + HEALTH_POLL_INTERVAL_MS < deadline) {
         logger.info(
-          { slug, attempt, maxAttempts: HEALTH_RETRY_MAX_ATTEMPTS },
+          { slug, attempt, remainingMs: deadline - Date.now() },
           'Voice engine TTS not ready — waiting for cold start'
         );
-        await new Promise(resolve => setTimeout(resolve, HEALTH_RETRY_DELAY_MS));
+        await new Promise(resolve => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS));
+      } else {
+        break;
       }
     }
-    logger.warn({ slug }, 'Voice engine TTS still not ready after retries — proceeding anyway');
+    logger.warn(
+      { slug, attempts: attempt },
+      'Voice engine TTS still not ready after health budget — proceeding anyway'
+    );
   }
 }

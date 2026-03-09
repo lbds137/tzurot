@@ -297,8 +297,8 @@ describe('TTSStep', () => {
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:cold-job');
     });
 
-    it('proceeds with TTS after max health retries exhausted', async () => {
-      // Engine never reports ready within retry window
+    it('proceeds with TTS after health budget exhausted', async () => {
+      // Engine never reports ready within the 75s time budget
       mockVoiceEngineClient.getHealth.mockResolvedValue({ asr: false, tts: false });
       mockStoreTTSAudio.mockResolvedValue('tts:retry-job');
       mockSynthesizeWithChunking.mockResolvedValue({
@@ -312,8 +312,10 @@ describe('TTSStep', () => {
       await vi.runAllTimersAsync();
       const result = await promise;
 
-      // Should exhaust all 5 attempts then proceed anyway
-      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledTimes(5);
+      // Time-based budget: 75s / 3s poll interval = ~25 polls, but exact count
+      // depends on timing. Verify it polled multiple times and still proceeded.
+      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalled();
+      expect(mockVoiceEngineClient.getHealth.mock.calls.length).toBeGreaterThan(5);
       expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
     });
@@ -376,8 +378,8 @@ describe('TTSStep', () => {
       const ctx = createContext();
 
       const promise = step.process(ctx);
-      // Advance past the 90s timeout
-      await vi.advanceTimersByTimeAsync(90_000);
+      // Advance past the 150s timeout
+      await vi.advanceTimersByTimeAsync(150_000);
       const result = await promise;
 
       expect(result).toBe(ctx);
