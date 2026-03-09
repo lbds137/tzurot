@@ -35,8 +35,6 @@ const VOICE_NAME_PREFIX = 'tzurot-';
 
 interface CachedVoice {
   voiceId: string;
-  /** Suffix of the API key used — different users get different cache entries */
-  apiKeySuffix: string;
 }
 
 export class ElevenLabsVoiceService {
@@ -82,8 +80,7 @@ export class ElevenLabsVoiceService {
       return existing;
     }
 
-    const keySuffix = this.getKeySuffix(apiKey);
-    const promise = this.doEnsureCloned(slug, apiKey, keySuffix, cacheKey)
+    const promise = this.doEnsureCloned(slug, apiKey, cacheKey)
       .catch(error => {
         const reason = error instanceof Error ? error.message : String(error);
 
@@ -103,12 +100,7 @@ export class ElevenLabsVoiceService {
     return promise;
   }
 
-  private async doEnsureCloned(
-    slug: string,
-    apiKey: string,
-    keySuffix: string,
-    cacheKey: string
-  ): Promise<string> {
+  private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
     const voiceName = `${VOICE_NAME_PREFIX}${slug}`;
 
     // Check if voice already exists in user's account (avoids re-cloning)
@@ -116,7 +108,7 @@ export class ElevenLabsVoiceService {
       const voices = await elevenLabsListVoices(apiKey);
       const existing = voices.find(v => v.name === voiceName);
       if (existing !== undefined) {
-        this.cloneCache.set(cacheKey, { voiceId: existing.voiceId, apiKeySuffix: keySuffix });
+        this.cloneCache.set(cacheKey, { voiceId: existing.voiceId });
         logger.info({ slug, voiceId: existing.voiceId }, 'Found existing ElevenLabs voice');
         return existing.voiceId;
       }
@@ -167,7 +159,7 @@ export class ElevenLabsVoiceService {
       description: `Auto-cloned by Tzurot for personality "${slug}"`,
     });
 
-    this.cloneCache.set(cacheKey, { voiceId, apiKeySuffix: keySuffix });
+    this.cloneCache.set(cacheKey, { voiceId });
     logger.info({ slug, voiceId }, 'ElevenLabs voice cloned and cached');
     return voiceId;
   }
@@ -178,18 +170,19 @@ export class ElevenLabsVoiceService {
   }
 
   /**
-   * Extract a short suffix from the API key for cache key differentiation.
-   * Not a security boundary — the raw key is already in process memory (used
-   * in every ElevenLabs API call). This just keeps cache keys short and avoids
-   * the full key appearing in debug/log output of cache contents.
+   * Extract a fingerprint from the API key for cache key differentiation.
+   * Uses first 4 + last 8 characters (12 total) to minimize collision risk
+   * while keeping cache keys short and the full key out of log output.
+   * Not a security boundary — the raw key is already in process memory.
    */
   private getKeySuffix(apiKey: string): string {
-    return apiKey.slice(-8);
+    return `${apiKey.slice(0, 4)}${apiKey.slice(-8)}`;
   }
 
   /** Clear all caches (for testing). */
   clearCache(): void {
     this.cloneCache.clear();
     this.negativeCache.clear();
+    this.inflight.clear();
   }
 }

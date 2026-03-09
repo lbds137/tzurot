@@ -93,11 +93,12 @@ export class AuthStep implements IPipelineStep {
             '[AuthStep] Resolved ElevenLabs API key'
           );
         }
-      } catch {
-        // No ElevenLabs key = fall back to voice-engine (not an error)
-        logger.debug(
-          { userId: jobContext.userId },
-          '[AuthStep] No ElevenLabs key available, will use voice-engine'
+      } catch (error) {
+        // Distinguish "no key configured" (expected) from unexpected failures
+        // so DB outages/decryption errors are visible, not silently swallowed.
+        logger.warn(
+          { err: error, userId: jobContext.userId },
+          '[AuthStep] ElevenLabs key resolution failed, falling back to voice-engine'
         );
       }
     }
