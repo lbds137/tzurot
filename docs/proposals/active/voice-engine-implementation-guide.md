@@ -90,7 +90,10 @@ See Part 6 for full details. Quick checklist:
    DEFAULT_VOICES=alba,bria
    VOICES_DIR=/app/voices
    VOICE_ENGINE_API_KEY=<generate a strong secret>
+   HF_TOKEN=<HuggingFace token with gated repo read access>
    ```
+
+   **HF_TOKEN**: Required for voice cloning. Create a fine-grained token at https://huggingface.co/settings/tokens with "Read access to contents of all public gated repos you can access" permission. You must first accept the terms at https://huggingface.co/kyutai/pocket-tts.
 
 3. **Resource config:**
    - RAM: 4 GB minimum
@@ -107,11 +110,26 @@ See Part 6 for full details. Quick checklist:
    ```
    VOICE_ENGINE_URL=http://${{voice-engine.RAILWAY_PRIVATE_DOMAIN}}:8000
    VOICE_ENGINE_API_KEY=<same secret as above>
+   GATEWAY_URL=http://${{api-gateway.RAILWAY_PRIVATE_DOMAIN}}:${{api-gateway.PORT}}
    ```
+
+   **GATEWAY_URL**: Required for TTS voice registration — ai-worker fetches voice reference audio from api-gateway. Without this, voice registration fails with `ECONNREFUSED`.
 
 8. **Verify** via Railway logs:
    - voice-engine: `"msg": "Health check", "asr_loaded": true, "tts_loaded": true`
    - ai-worker: `Voice engine client initialized` (on first voice request)
+
+9. **First TTS request**: The voice cloning model downloads from HuggingFace on first use (~60s+). The first TTS request may time out — this is normal. Subsequent requests use the cached model.
+
+### Deployment Gotchas (Lessons Learned)
+
+| Issue                              | Symptom                                          | Fix                                                                         |
+| ---------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------- |
+| Missing `GATEWAY_URL` on ai-worker | `ECONNREFUSED` in VoiceRegistrationService       | Set `GATEWAY_URL` to api-gateway private domain                             |
+| Missing `HF_TOKEN` on voice-engine | `VOICE_CLONING_UNSUPPORTED` error                | Set `HF_TOKEN` with gated repo access                                       |
+| Volume permissions                 | `PermissionError` writing to `/app/voices`       | Dockerfile runs as root (no `USER` directive) — matches api-gateway pattern |
+| First TTS timeout                  | `TTS completed after timeout (result discarded)` | One-time model download; retry and it works                                 |
+| Negative cache after failure       | Voice registration skipped for 5 min after error | Wait for `VoiceRegistrationService` negative cache (5 min TTL) to expire    |
 
 ### Phase 2 Implementation Notes
 
@@ -163,6 +181,43 @@ See Part 6 for full details. Quick checklist:
 - [x] Wire `voiceTranscriptionEnabled` cascade field to bot-client `VoiceMessageProcessor` (replace `AUTO_TRANSCRIBE_VOICE` env var)
 - [x] 🏗️ `isHealthy()` audit — returns false during TTS cold-start even if ASR is ready
 - [x] 🏗️ `voiceEnabled` schema `.default(false)` — update ~35 test fixtures
+- [x] Voice settings dashboard (ENUM setting type for `voiceResponseMode`, TRI_STATE for `voiceTranscriptionEnabled`)
+- [x] Discriminated union for `SettingDefinition` types (ENUM requires `choices`, others forbid it)
+- [x] Dockerfile: removed `USER appuser` to fix Railway volume permissions (runs as root, matches api-gateway)
+
+### Release Test Plan (v3.0.0-beta.89)
+
+#### Database
+
+- [ ] Run `pnpm ops db:migrate --env prod` (migration: `20260306230115_add_voice_reference_data`)
+
+#### Voice Transcription (STT)
+
+- [ ] Send a voice message in a channel with an activated personality — should auto-transcribe
+- [ ] Send a voice message with a personality mention — should transcribe AND get AI response
+- [ ] Forwarded voice messages should still transcribe
+
+#### Voice Cloning (Upload/Clear)
+
+- [ ] `/character voice` with a WAV/MP3 file — should succeed
+- [ ] `/character voice` with a non-audio file — should reject
+- [ ] `/character voice-clear` — should succeed
+
+#### TTS (Text-to-Speech)
+
+- [ ] After uploading a voice reference, character responses should include audio attachment
+- [ ] After clearing voice reference, responses should be text-only again
+
+#### Dashboard Voice Controls
+
+- [ ] Edit dashboard shows "Toggle Voice" action only when character has a voice reference
+- [ ] Clicking "Toggle Voice" flips voiceEnabled (🎤 Voice On / 🔇 Voice Off)
+
+#### Regression
+
+- [ ] Normal text conversations still work
+- [ ] Avatar upload/clear still works
+- [ ] Video attachments don't trigger voice processing
 
 ### Python Standards Lessons Learned (from Phase 1 PR Review)
 
