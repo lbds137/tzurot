@@ -196,6 +196,19 @@ describe('Dashboard Actions', () => {
 
       expect(api.updateCharacter).not.toHaveBeenCalled();
     });
+
+    it('should refresh dashboard without updating when voice reference is missing', async () => {
+      const mockInteraction = createMockInteraction();
+      const character = createMockCharacter({ hasVoiceReference: false, voiceEnabled: false });
+      vi.mocked(api.fetchCharacter).mockResolvedValue(character);
+
+      await handleAction(mockInteraction, 'test-char', 'voice-toggle', mockConfig);
+
+      // Should NOT call updateCharacter — the toggle is invalid without a voice reference
+      expect(api.updateCharacter).not.toHaveBeenCalled();
+      // Should still refresh dashboard (removes the stale toggle button)
+      expect(mockInteraction.editReply).toHaveBeenCalled();
+    });
   });
 
   describe('refreshDashboardAfterUpdate', () => {
