@@ -161,6 +161,7 @@ describe('Character Dashboard', () => {
         birthDay: null,
         birthYear: null,
         voiceEnabled: false,
+        hasVoiceReference: false,
         imageEnabled: false,
         avatarData: null,
         createdAt: '',
@@ -224,6 +225,7 @@ describe('Character Dashboard', () => {
         birthDay: null,
         birthYear: null,
         voiceEnabled: false,
+        hasVoiceReference: false,
         imageEnabled: false,
         avatarData: null,
         createdAt: '',
@@ -299,6 +301,7 @@ describe('Character Dashboard', () => {
         birthDay: null,
         birthYear: null,
         voiceEnabled: false,
+        hasVoiceReference: false,
         imageEnabled: false,
         avatarData: null,
         createdAt: '',
@@ -322,6 +325,107 @@ describe('Character Dashboard', () => {
       await handleSelectMenu(mockInteraction);
 
       expect(api.toggleVisibility).toHaveBeenCalledWith('test-char', true, 'user-123', mockConfig);
+    });
+
+    it('should handle action-voice selection with prompt', async () => {
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'menu',
+        entityId: 'test-char',
+      });
+
+      const mockInteraction = createMockSelectInteraction(
+        'character::menu::test-char',
+        'action-voice'
+      );
+
+      await handleSelectMenu(mockInteraction);
+
+      expect(mockInteraction.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('/character voice'),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should handle action-voice-toggle selection', async () => {
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'menu',
+        entityId: 'test-char',
+      });
+
+      vi.mocked(api.fetchCharacter).mockResolvedValue({
+        id: 'uuid',
+        name: 'Test',
+        slug: 'test-char',
+        displayName: null,
+        isPublic: false,
+        ownerId: 'user-123',
+        characterInfo: '',
+        personalityTraits: '',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+        birthMonth: null,
+        birthDay: null,
+        birthYear: null,
+        voiceEnabled: true,
+        hasVoiceReference: true,
+        imageEnabled: false,
+        avatarData: null,
+        createdAt: '',
+        updatedAt: '',
+        canEdit: true,
+      });
+
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        id: 'uuid',
+        name: 'Test',
+        slug: 'test-char',
+        displayName: null,
+        isPublic: false,
+        ownerId: 'user-123',
+        characterInfo: '',
+        personalityTraits: '',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+        birthMonth: null,
+        birthDay: null,
+        birthYear: null,
+        voiceEnabled: false,
+        hasVoiceReference: true,
+        imageEnabled: false,
+        avatarData: null,
+        createdAt: '',
+        updatedAt: '',
+      });
+
+      const mockInteraction = createMockSelectInteraction(
+        'character::menu::test-char',
+        'action-voice-toggle'
+      );
+      mockInteraction.deferUpdate = vi.fn();
+      mockInteraction.editReply = vi.fn();
+
+      await handleSelectMenu(mockInteraction);
+
+      expect(api.updateCharacter).toHaveBeenCalledWith(
+        'test-char',
+        { voiceEnabled: false },
+        'user-123',
+        expect.any(Object)
+      );
     });
 
     it('should handle action-avatar selection with prompt', async () => {
@@ -446,6 +550,7 @@ describe('Character Dashboard', () => {
         birthDay: null,
         birthYear: null,
         voiceEnabled: false,
+        hasVoiceReference: false,
         imageEnabled: false,
         avatarData: null,
         createdAt: '',

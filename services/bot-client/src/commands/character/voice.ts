@@ -181,8 +181,8 @@ export async function handleVoice(
 ): Promise<void> {
   const subcommand = context.interaction.options.getSubcommand();
 
-  // Subcommands are registered flat: 'voice-upload', 'voice-clear'
-  if (subcommand === 'voice-upload') {
+  // Subcommands are registered flat: 'voice', 'voice-clear'
+  if (subcommand === 'voice') {
     await handleVoiceUpload(context, config);
   } else if (subcommand === 'voice-clear') {
     await handleVoiceClear(context, config);

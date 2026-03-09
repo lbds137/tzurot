@@ -40,6 +40,7 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     birthYear: null,
     isPublic: false,
     voiceEnabled: false,
+    hasVoiceReference: false,
     imageEnabled: false,
     ownerId: 'owner-123',
     avatarData: null,
@@ -170,6 +171,7 @@ describe('buildCharacterViewPage', () => {
       const character = createTestCharacter({
         isPublic: true,
         voiceEnabled: true,
+        hasVoiceReference: true,
         imageEnabled: false,
       });
       const { embed } = buildCharacterViewPage(character, 0);

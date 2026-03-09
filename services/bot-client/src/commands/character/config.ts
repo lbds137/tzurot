@@ -60,6 +60,8 @@ export interface CharacterData {
   birthYear: number | null;
   isPublic: boolean;
   voiceEnabled: boolean;
+  /** Whether the character has a voice reference uploaded (from API) */
+  hasVoiceReference: boolean;
   imageEnabled: boolean;
   ownerId: string;
   avatarData: string | null; // Base64-encoded
@@ -361,12 +363,7 @@ const adminSection: SectionDefinition<CharacterData> = {
   getPreview: (data: CharacterData) => `\`${data.slug}\``,
 };
 
-/**
- * Build dashboard action button options based on character data.
- *
- * @param data - Character data with optional browseContext
- * @returns ActionButtonOptions for buildDashboardComponents
- */
+/** Build dashboard action button options based on character data. */
 export function buildCharacterDashboardOptions(data: CharacterData): ActionButtonOptions {
   const hasBackContext = data.browseContext !== undefined;
   return {
@@ -382,13 +379,15 @@ export function buildCharacterDashboardOptions(data: CharacterData): ActionButto
  */
 export const characterDashboardConfig: DashboardConfig<CharacterData> = {
   entityType: 'character',
-  getTitle: (data: CharacterData) => {
-    const displayName = data.displayName ?? data.name;
-    return `📝 Editing: ${displayName}`;
-  },
+  getTitle: (data: CharacterData) => `📝 Editing: ${data.displayName ?? data.name}`,
   getDescription: (data: CharacterData) => {
     const visibility = data.isPublic ? '🌐 Public' : '🔒 Private';
-    const voice = data.voiceEnabled ? '🎤 Voice On' : '';
+    // Show voice status only when a voice reference exists
+    const voice = data.hasVoiceReference
+      ? data.voiceEnabled
+        ? '🎤 Voice On'
+        : '🔇 Voice Off'
+      : '';
     const image = data.imageEnabled ? '🖼️ Images On' : '';
     const features = [visibility, voice, image].filter(Boolean).join(' • ');
 
@@ -408,6 +407,12 @@ export const characterDashboardConfig: DashboardConfig<CharacterData> = {
       description: 'Upload a new avatar image',
       emoji: '🖼️',
     },
+    {
+      id: 'voice',
+      label: 'Change Voice',
+      description: 'Upload or clear a voice reference for TTS',
+      emoji: '🎤',
+    },
   ],
   getFooter: (data: CharacterData) => {
     const created = formatDateShort(data.createdAt);
@@ -418,25 +423,29 @@ export const characterDashboardConfig: DashboardConfig<CharacterData> = {
 };
 
 /**
- * Get character dashboard config with optional admin sections
- *
- * Use this function instead of characterDashboardConfig directly when
- * you need to conditionally include admin-only sections.
- *
- * @param isAdmin - Whether the current user is a bot admin
- * @returns Dashboard config with appropriate sections
+ * Get character dashboard config with optional admin sections and conditional actions.
+ * Use this instead of characterDashboardConfig directly.
  */
-export function getCharacterDashboardConfig(isAdmin: boolean): DashboardConfig<CharacterData> {
+export function getCharacterDashboardConfig(
+  isAdmin: boolean,
+  hasVoiceReference = false
+): DashboardConfig<CharacterData> {
   const sections = [identitySection, biographySection, preferencesSection, conversationSection];
-
   if (isAdmin) {
     sections.push(adminSection);
   }
 
-  return {
-    ...characterDashboardConfig,
-    sections,
-  };
+  const actions = [...(characterDashboardConfig.actions ?? [])];
+  if (hasVoiceReference) {
+    actions.push({
+      id: 'voice-toggle',
+      label: 'Toggle Voice',
+      description: 'Enable or disable TTS responses',
+      emoji: '🔊',
+    });
+  }
+
+  return { ...characterDashboardConfig, sections, actions };
 }
 
 /**

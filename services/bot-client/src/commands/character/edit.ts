@@ -56,7 +56,7 @@ export async function handleEdit(
 
     // Check if user is a bot admin (for admin-only sections)
     const isAdmin = isBotOwner(userId);
-    const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+    const dashboardConfig = getCharacterDashboardConfig(isAdmin, character.hasVoiceReference);
 
     // Build and send dashboard
     // Use slug as entityId (not UUID) because fetchCharacter expects slug

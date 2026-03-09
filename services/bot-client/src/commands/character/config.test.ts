@@ -36,6 +36,7 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
     birthYear: null,
     isPublic: false,
     voiceEnabled: false,
+    hasVoiceReference: false,
     imageEnabled: false,
     ownerId: 'owner-123',
     avatarData: null,
@@ -345,10 +346,30 @@ describe('Character Dashboard Configuration', () => {
       expect(footer).toContain('Updated:');
     });
 
-    it('should have visibility and avatar actions', () => {
+    it('should have visibility, avatar, and voice actions', () => {
       const actionIds = characterDashboardConfig.actions!.map(a => a.id);
       expect(actionIds).toContain('visibility');
       expect(actionIds).toContain('avatar');
+      expect(actionIds).toContain('voice');
+    });
+
+    it('should show voice status in description when voice reference exists', () => {
+      const voiceOnChar = createTestCharacter({
+        hasVoiceReference: true,
+        voiceEnabled: true,
+      });
+      const voiceOffChar = createTestCharacter({
+        hasVoiceReference: true,
+        voiceEnabled: false,
+      });
+      const noVoiceChar = createTestCharacter({
+        hasVoiceReference: false,
+        voiceEnabled: false,
+      });
+
+      expect(characterDashboardConfig.getDescription!(voiceOnChar)).toContain('Voice On');
+      expect(characterDashboardConfig.getDescription!(voiceOffChar)).toContain('Voice Off');
+      expect(characterDashboardConfig.getDescription!(noVoiceChar)).not.toContain('Voice');
     });
   });
 
@@ -381,6 +402,20 @@ describe('Character Dashboard Configuration', () => {
       expect(config.getTitle).toBeDefined();
       expect(config.getDescription).toBeDefined();
       expect(config.actions).toBeDefined();
+    });
+
+    it('should not include voice-toggle action when hasVoiceReference is false', () => {
+      const config = getCharacterDashboardConfig(false);
+      const actionIds = config.actions!.map(a => a.id);
+      expect(actionIds).not.toContain('voice-toggle');
+      expect(actionIds).toContain('voice'); // Change Voice always shown
+    });
+
+    it('should include voice-toggle action when hasVoiceReference is true', () => {
+      const config = getCharacterDashboardConfig(false, true);
+      const actionIds = config.actions!.map(a => a.id);
+      expect(actionIds).toContain('voice-toggle');
+      expect(actionIds).toContain('voice');
     });
   });
 
