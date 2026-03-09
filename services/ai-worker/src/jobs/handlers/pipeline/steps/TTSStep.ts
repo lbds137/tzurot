@@ -26,7 +26,9 @@ const logger = createLogger('TTSStep');
 const TTS_TIMEOUT_MS = 150_000;
 
 /** Total time budget for health polling during voice engine cold start (ms).
- * Railway Serverless cold boot measured at ~56s — 75s gives comfortable margin. */
+ * Railway Serverless cold boot measured at ~56s — 75s gives comfortable margin.
+ * Note: effective poll count varies — ECONNREFUSED resolves instantly (~25 polls),
+ * but once Railway's LB is up the 5s health timeout may reduce it to ~10 polls. */
 const HEALTH_WAIT_BUDGET_MS = 75_000;
 /** Interval between health check polls (ms) */
 const HEALTH_POLL_INTERVAL_MS = 3_000;
