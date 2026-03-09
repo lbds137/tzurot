@@ -214,6 +214,9 @@ export class TTSStep implements IPipelineStep {
 
     while (Date.now() < deadline) {
       attempt++;
+      // getHealth() is error-safe — wraps all errors (ECONNREFUSED, 502, etc.)
+      // and returns { asr: false, tts: false }. It never throws, so the loop
+      // is resilient to transient network failures during the full boot window.
       const health = await registrationService.client.getHealth();
       if (health.tts) {
         return;

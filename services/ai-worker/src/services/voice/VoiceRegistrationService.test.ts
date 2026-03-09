@@ -290,7 +290,7 @@ describe('VoiceRegistrationService', () => {
     [503, 'TTS model not loaded', 'voice-engine models still loading'],
     [504, 'Gateway Timeout', 'Railway LB timeout during boot'],
   ] as const)(
-    'should NOT negatively cache %i VoiceEngineError (%s)',
+    'should NOT negatively cache %i VoiceEngineError (%s — %s)',
     async (status, detail, _scenario) => {
       // Realistic path: listVoices returns empty, gateway fetch succeeds,
       // but registerVoice throws transient HTTP error during cold start
