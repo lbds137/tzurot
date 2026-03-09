@@ -285,86 +285,40 @@ describe('VoiceRegistrationService', () => {
     expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledTimes(2);
   });
 
-  it('should NOT negatively cache 503 VoiceEngineError (partial cold start)', async () => {
-    // Realistic path: listVoices returns empty, gateway fetch succeeds,
-    // but registerVoice throws 503 (voice-engine models still loading)
-    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
-    mockFetch.mockResolvedValue({
-      ok: true,
-      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
-      headers: { get: vi.fn().mockReturnValue('audio/wav') },
-    });
-    mockVoiceEngineClient.registerVoice.mockRejectedValue(
-      new VoiceEngineError(503, 'TTS model not loaded')
-    );
+  it.each([
+    [502, 'Bad Gateway', 'Railway LB up, app not yet ready'],
+    [503, 'TTS model not loaded', 'voice-engine models still loading'],
+    [504, 'Gateway Timeout', 'Railway LB timeout during boot'],
+  ] as const)(
+    'should NOT negatively cache %i VoiceEngineError (%s)',
+    async (status, detail, _scenario) => {
+      // Realistic path: listVoices returns empty, gateway fetch succeeds,
+      // but registerVoice throws transient HTTP error during cold start
+      mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+        headers: { get: vi.fn().mockReturnValue('audio/wav') },
+      });
+      mockVoiceEngineClient.registerVoice.mockRejectedValue(new VoiceEngineError(status, detail));
 
-    await expect(service.ensureVoiceRegistered('cold-voice')).rejects.toThrow(
-      'Voice engine request failed (503)'
-    );
+      const slug = `transient-${status}`;
+      await expect(service.ensureVoiceRegistered(slug)).rejects.toThrow(
+        `Voice engine request failed (${status})`
+      );
 
-    // Second call: should retry (NOT hit negative cache)
-    mockVoiceEngineClient.listVoices.mockClear();
-    mockVoiceEngineClient.registerVoice.mockClear();
+      // Second call: should retry (NOT hit negative cache)
+      mockVoiceEngineClient.listVoices.mockClear();
+      mockVoiceEngineClient.registerVoice.mockClear();
 
-    // Second attempt: engine is now ready and voice was registered between calls
-    mockVoiceEngineClient.listVoices.mockResolvedValue(['cold-voice']);
+      // Engine is now ready and voice was registered between calls
+      mockVoiceEngineClient.listVoices.mockResolvedValue([slug]);
 
-    await service.ensureVoiceRegistered('cold-voice');
+      await service.ensureVoiceRegistered(slug);
 
-    // Should have called listVoices again (not blocked by negative cache)
-    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
-  });
-
-  it('should NOT negatively cache 502 VoiceEngineError (Railway load balancer during boot)', async () => {
-    // Realistic path: listVoices returns empty, gateway fetch succeeds,
-    // but registerVoice throws 502 (Railway LB up, app not yet ready)
-    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
-    mockFetch.mockResolvedValue({
-      ok: true,
-      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
-      headers: { get: vi.fn().mockReturnValue('audio/wav') },
-    });
-    mockVoiceEngineClient.registerVoice.mockRejectedValue(new VoiceEngineError(502, 'Bad Gateway'));
-
-    await expect(service.ensureVoiceRegistered('boot-voice')).rejects.toThrow(
-      'Voice engine request failed (502)'
-    );
-
-    // Second call: should retry (NOT hit negative cache)
-    mockVoiceEngineClient.listVoices.mockClear();
-    mockVoiceEngineClient.registerVoice.mockClear();
-
-    mockVoiceEngineClient.listVoices.mockResolvedValue(['boot-voice']);
-
-    await service.ensureVoiceRegistered('boot-voice');
-
-    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
-  });
-
-  it('should NOT negatively cache 504 VoiceEngineError (Railway LB timeout during boot)', async () => {
-    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
-    mockFetch.mockResolvedValue({
-      ok: true,
-      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
-      headers: { get: vi.fn().mockReturnValue('audio/wav') },
-    });
-    mockVoiceEngineClient.registerVoice.mockRejectedValue(
-      new VoiceEngineError(504, 'Gateway Timeout')
-    );
-
-    await expect(service.ensureVoiceRegistered('timeout-voice')).rejects.toThrow(
-      'Voice engine request failed (504)'
-    );
-
-    mockVoiceEngineClient.listVoices.mockClear();
-    mockVoiceEngineClient.registerVoice.mockClear();
-
-    mockVoiceEngineClient.listVoices.mockResolvedValue(['timeout-voice']);
-
-    await service.ensureVoiceRegistered('timeout-voice');
-
-    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
-  });
+      expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
+    }
+  );
 
   it('should negatively cache non-transient VoiceEngineError (e.g., 400)', async () => {
     // Realistic path: listVoices returns empty, gateway fetch succeeds,
