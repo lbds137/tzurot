@@ -78,7 +78,11 @@ export class AuthStep implements IPipelineStep {
       }
     }
 
-    // Resolve ElevenLabs key independently (voice provider, not LLM)
+    // Resolve ElevenLabs key independently (voice provider, not LLM).
+    // Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
+    // so a user with ONLY an ElevenLabs key (no OpenRouter) won't get BYOK TTS.
+    // This is an intentional v1 coupling — decoupling requires ElevenLabs-specific
+    // guest mode logic and is tracked as a follow-up.
     let elevenlabsApiKey: string | undefined;
     if (this.apiKeyResolver && !isGuestMode) {
       try {

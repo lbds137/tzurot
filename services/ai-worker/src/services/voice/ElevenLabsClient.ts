@@ -169,6 +169,9 @@ export async function elevenLabsSTT(options: ElevenLabsSTTOptions): Promise<Elev
   const formData = new FormData();
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
   formData.append('file', blob, filename);
+  // Pin model to avoid silent behavior changes if ElevenLabs changes their default.
+  // Upgrade to 'scribe_v2' when audio event tags ([laughter], [sigh]) support is added.
+  formData.append('model_id', 'scribe_v1');
 
   const response = await elevenLabsFetch('/speech-to-text', apiKey, {
     method: 'POST',
