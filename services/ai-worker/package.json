@@ -30,7 +30,6 @@
     "ioredis": "^5.10.0",
     "langchain": "^1.2.30",
     "onnxruntime-node": "^1.24.3",
-    "openai": "^6.27.0",
     "pino": "^10.3.1",
     "redis": "^5.11.0",
     "sharp": "^0.34.5",
