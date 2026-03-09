@@ -16,6 +16,8 @@ import type { IPipelineStep, GenerationContext } from '../types.js';
 import { getVoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
 import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
+import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
+import { elevenLabsTTS } from '../../../../services/voice/ElevenLabsClient.js';
 import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');
@@ -39,6 +41,7 @@ const HEALTH_POLL_INTERVAL_MS = 3_000;
  * beforeEach/afterEach to avoid stale singleton leaking between test files.
  */
 let _registrationService: VoiceRegistrationService | null = null;
+let _elevenLabsVoiceService: ElevenLabsVoiceService | null = null;
 
 function getRegistrationService(): VoiceRegistrationService | null {
   if (_registrationService !== null) {
@@ -52,9 +55,15 @@ function getRegistrationService(): VoiceRegistrationService | null {
   return _registrationService;
 }
 
+function getElevenLabsVoiceService(): ElevenLabsVoiceService {
+  _elevenLabsVoiceService ??= new ElevenLabsVoiceService();
+  return _elevenLabsVoiceService;
+}
+
 /** Reset singleton (for testing). */
 export function resetTTSStepState(): void {
   _registrationService = null;
+  _elevenLabsVoiceService = null;
 }
 
 export class TTSStep implements IPipelineStep {
@@ -74,23 +83,29 @@ export class TTSStep implements IPipelineStep {
       return context;
     }
 
-    const registrationService = getRegistrationService();
-    if (registrationService === null) {
-      logger.debug('Voice engine not configured, skipping TTS');
-      return context;
+    // Route TTS: ElevenLabs BYOK takes priority over self-hosted voice-engine
+    const elevenlabsApiKey = context.auth?.elevenlabsApiKey;
+
+    if (elevenlabsApiKey === undefined) {
+      const registrationService = getRegistrationService();
+      if (registrationService === null) {
+        logger.debug('Voice engine not configured and no ElevenLabs key, skipping TTS');
+        return context;
+      }
     }
 
     try {
       // Apply timeout to the entire TTS process.
-      // When timeout wins the race, performTTS continues in the background — its result
+      // When timeout wins the race, the TTS continues in the background — its result
       // is discarded (ttsAudioKey never written), and the audio expires via Redis TTL.
       let timedOut = false;
       let timeoutId: NodeJS.Timeout | undefined;
-      const ttsPromise = this.performTTS(registrationService, text, slug, context);
+      const ttsPromise =
+        elevenlabsApiKey !== undefined
+          ? this.performElevenLabsTTS(text, slug, elevenlabsApiKey, context)
+          : this.performVoiceEngineTTS(text, slug, context);
 
       // Observe dangling completion/rejection after timeout (makes background work visible in logs).
-      // If timeout wins the race, the outer catch handles the timeout error but NOT any later
-      // rejection from performTTS — without this observer, late failures would be silently swallowed.
       void ttsPromise.then(
         result => {
           if (timedOut) {
@@ -104,7 +119,6 @@ export class TTSStep implements IPipelineStep {
           if (timedOut) {
             logger.warn({ err, slug }, 'TTS failed after timeout (result already discarded)');
           }
-          // else: pre-timeout error — already rejected in Promise.race, outer catch handles it
         }
       );
 
@@ -124,8 +138,14 @@ export class TTSStep implements IPipelineStep {
 
       if (ttsResult !== null && context.result?.metadata !== undefined) {
         context.result.metadata.ttsAudioKey = ttsResult.key;
+        context.result.metadata.ttsAudioContentType = ttsResult.contentType;
         logger.info(
-          { slug, audioSize: ttsResult.audioSize, key: ttsResult.key },
+          {
+            slug,
+            audioSize: ttsResult.audioSize,
+            contentType: ttsResult.contentType,
+            key: ttsResult.key,
+          },
           'TTS audio stored in Redis'
         );
       }
@@ -170,12 +190,41 @@ export class TTSStep implements IPipelineStep {
     return true;
   }
 
-  private async performTTS(
-    registrationService: VoiceRegistrationService,
+  private async performElevenLabsTTS(
+    text: string,
+    slug: string,
+    apiKey: string,
+    context: GenerationContext
+  ): Promise<{ key: string; audioSize: number; contentType: string } | null> {
+    // Clone or find voice in user's ElevenLabs account
+    const voiceService = getElevenLabsVoiceService();
+    const voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
+
+    // Synthesize — ElevenLabs handles up to 5000 chars natively, no chunking needed
+    logger.info({ slug, textLength: text.length }, 'Synthesizing via ElevenLabs TTS');
+    const { audioBuffer, contentType } = await elevenLabsTTS({ text, voiceId, apiKey });
+
+    // Store audio in Redis
+    const jobId = context.job.id ?? context.job.data.requestId;
+    if (jobId === undefined) {
+      logger.warn({ slug }, 'TTS: no job ID available, skipping audio storage');
+      return null;
+    }
+    const key = await redisService.storeTTSAudio(jobId, audioBuffer);
+
+    return { key, audioSize: audioBuffer.length, contentType };
+  }
+
+  private async performVoiceEngineTTS(
     text: string,
     slug: string,
     context: GenerationContext
-  ): Promise<{ key: string; audioSize: number } | null> {
+  ): Promise<{ key: string; audioSize: number; contentType: string } | null> {
+    const registrationService = getRegistrationService();
+    if (registrationService === null) {
+      return null;
+    }
+
     // Pre-warm: ping /health to wake voice engine from Railway Serverless sleep.
     // Voice engine cold boot takes ~56s (model loading from disk). The first ping's
     // TCP connection triggers Railway to start the container; subsequent polls wait
@@ -186,7 +235,11 @@ export class TTSStep implements IPipelineStep {
     await registrationService.ensureVoiceRegistered(slug);
 
     // Synthesize (with chunking for long text)
-    const { audioBuffer } = await synthesizeWithChunking(registrationService.client, text, slug);
+    const { audioBuffer, contentType } = await synthesizeWithChunking(
+      registrationService.client,
+      text,
+      slug
+    );
 
     // Store audio in Redis
     const jobId = context.job.id ?? context.job.data.requestId;
@@ -196,7 +249,7 @@ export class TTSStep implements IPipelineStep {
     }
     const key = await redisService.storeTTSAudio(jobId, audioBuffer);
 
-    return { key, audioSize: audioBuffer.length };
+    return { key, audioSize: audioBuffer.length, contentType };
   }
 
   /**

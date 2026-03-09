@@ -1205,6 +1205,26 @@ describe('DiscordResponseSender', () => {
       expect(lastFiles).toEqual([{ attachment: audioBuffer, name: 'voice.wav' }]);
     });
 
+    it('should use .mp3 extension when ttsAudioContentType is audio/mpeg', async () => {
+      const { redisService } = await import('../redis.js');
+      const audioBuffer = Buffer.from([0xff, 0xfb, 0x90, 0x00]);
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(audioBuffer);
+
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Hello from ElevenLabs!',
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:job-el',
+        ttsAudioContentType: 'audio/mpeg',
+      });
+
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
+      expect(filesArg).toEqual([{ attachment: audioBuffer, name: 'voice.mp3' }]);
+    });
+
     it('should attach audio to DM via object send form', async () => {
       const { redisService } = await import('../redis.js');
       const audioBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46]);

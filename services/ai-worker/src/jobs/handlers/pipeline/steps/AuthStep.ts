@@ -78,6 +78,30 @@ export class AuthStep implements IPipelineStep {
       }
     }
 
+    // Resolve ElevenLabs key independently (voice provider, not LLM)
+    let elevenlabsApiKey: string | undefined;
+    if (this.apiKeyResolver && !isGuestMode) {
+      try {
+        const elResult = await this.apiKeyResolver.resolveApiKey(
+          jobContext.userId,
+          AIProvider.ElevenLabs
+        );
+        if (!elResult.isGuestMode && elResult.apiKey !== undefined) {
+          elevenlabsApiKey = elResult.apiKey;
+          logger.debug(
+            { userId: jobContext.userId, source: elResult.source },
+            '[AuthStep] Resolved ElevenLabs API key'
+          );
+        }
+      } catch {
+        // No ElevenLabs key = fall back to voice-engine (not an error)
+        logger.debug(
+          { userId: jobContext.userId },
+          '[AuthStep] No ElevenLabs key available, will use voice-engine'
+        );
+      }
+    }
+
     // Update config with potentially modified personality
     const updatedConfig = {
       ...config,
@@ -91,6 +115,7 @@ export class AuthStep implements IPipelineStep {
         apiKey: resolvedApiKey,
         provider: resolvedProvider,
         isGuestMode,
+        elevenlabsApiKey,
       },
     };
   }
