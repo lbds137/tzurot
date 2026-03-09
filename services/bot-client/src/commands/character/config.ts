@@ -162,7 +162,7 @@ const baseCharacterDashboardConfig: DashboardConfig<CharacterData> = {
  */
 export function getCharacterDashboardConfig(
   isAdmin: boolean,
-  hasVoiceReference = false
+  hasVoiceReference: boolean
 ): DashboardConfig<CharacterData> {
   const sections = [identitySection, biographySection, preferencesSection, conversationSection];
   if (isAdmin) {

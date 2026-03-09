@@ -31,6 +31,8 @@ const logger = createLogger('character-dashboard-actions');
 /**
  * Refresh the dashboard after a character update.
  * Handles session preservation and dashboard rebuild.
+ *
+ * Exported for direct testing — only used internally by {@link handleAction}.
  */
 export async function refreshDashboardAfterUpdate(
   interaction: StringSelectMenuInteraction,

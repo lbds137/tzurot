@@ -43,7 +43,7 @@ function createTestCharacter(overrides: Partial<CharacterData> = {}): CharacterD
 
 describe('Character Dashboard Configuration', () => {
   // Use the factory function (base config is intentionally unexported)
-  const dashboardConfig = getCharacterDashboardConfig(false);
+  const dashboardConfig = getCharacterDashboardConfig(false, false);
 
   describe('section structure', () => {
     it('should have exactly 4 sections', () => {
@@ -371,29 +371,29 @@ describe('Character Dashboard Configuration', () => {
 
   describe('getCharacterDashboardConfig', () => {
     it('should return 4 sections for non-admins', () => {
-      const config = getCharacterDashboardConfig(false);
+      const config = getCharacterDashboardConfig(false, false);
       expect(config.sections).toHaveLength(4);
       const sectionIds = config.sections.map(s => s.id);
       expect(sectionIds).toEqual(['identity', 'biography', 'preferences', 'conversation']);
     });
 
     it('should return 5 sections for admins (including admin section)', () => {
-      const config = getCharacterDashboardConfig(true);
+      const config = getCharacterDashboardConfig(true, false);
       expect(config.sections).toHaveLength(5);
       const sectionIds = config.sections.map(s => s.id);
       expect(sectionIds).toEqual(['identity', 'biography', 'preferences', 'conversation', 'admin']);
     });
 
     it('should include admin section only for admins', () => {
-      const userConfig = getCharacterDashboardConfig(false);
-      const adminConfig = getCharacterDashboardConfig(true);
+      const userConfig = getCharacterDashboardConfig(false, false);
+      const adminConfig = getCharacterDashboardConfig(true, false);
 
       expect(userConfig.sections.find(s => s.id === 'admin')).toBeUndefined();
       expect(adminConfig.sections.find(s => s.id === 'admin')).toBeDefined();
     });
 
     it('should preserve entityType and other config properties', () => {
-      const config = getCharacterDashboardConfig(true);
+      const config = getCharacterDashboardConfig(true, false);
       expect(config.entityType).toBe('character');
       expect(config.getTitle).toBeDefined();
       expect(config.getDescription).toBeDefined();
@@ -401,7 +401,7 @@ describe('Character Dashboard Configuration', () => {
     });
 
     it('should not include voice-toggle action when hasVoiceReference is false', () => {
-      const config = getCharacterDashboardConfig(false);
+      const config = getCharacterDashboardConfig(false, false);
       const actionIds = config.actions!.map(a => a.id);
       expect(actionIds).not.toContain('voice-toggle');
       expect(actionIds).toContain('voice'); // Change Voice always shown
@@ -416,7 +416,7 @@ describe('Character Dashboard Configuration', () => {
   });
 
   describe('Admin section', () => {
-    const adminConfig = getCharacterDashboardConfig(true);
+    const adminConfig = getCharacterDashboardConfig(true, false);
     const adminSection = adminConfig.sections.find(s => s.id === 'admin')!;
 
     it('should have slug field', () => {
