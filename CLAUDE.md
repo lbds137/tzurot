@@ -46,17 +46,19 @@ All rules load automatically from `.claude/rules/`:
 
 ```bash
 gh pr create --base develop --title "feat: description"
-gh pr merge <number> --rebase --delete-branch  # ONLY with user approval
+gh pr merge <number> --rebase --delete-branch  # Feature PRs only, with user approval
+gh pr merge <number> --rebase                  # Release PRs (develop → main) — NEVER delete develop
 ```
 
 ## Post-Mortems
 
-| Date       | Incident                       | Rule                         |
-| ---------- | ------------------------------ | ---------------------------- |
-| 2026-02-03 | Context settings not cascading | Trace full runtime flow      |
-| 2026-01-30 | Gitignored data/ deleted       | Never rm -rf without okay    |
-| 2026-01-30 | Work reverted without consent  | Never abandon without asking |
-| 2026-01-24 | execSync with string commands  | Use execFileSync with arrays |
+| Date       | Incident                       | Rule                                         |
+| ---------- | ------------------------------ | -------------------------------------------- |
+| 2026-02-03 | Context settings not cascading | Trace full runtime flow                      |
+| 2026-01-30 | Gitignored data/ deleted       | Never rm -rf without okay                    |
+| 2026-01-30 | Work reverted without consent  | Never abandon without asking                 |
+| 2026-03-09 | Near-delete of develop branch  | Never --delete-branch on long-lived branches |
+| 2026-01-24 | execSync with string commands  | Use execFileSync with arrays                 |
 
 **Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
 

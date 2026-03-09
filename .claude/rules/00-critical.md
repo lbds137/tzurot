@@ -90,12 +90,30 @@ logger.info({ userId: user.id }, 'User authenticated');
 git merge develop
 git merge --no-ff feature-branch
 
-# ✅ CORRECT - Fast-forward only (fails if not possible)
-git rebase develop
+# ✅ CORRECT - Feature branch PRs (delete branch after merge)
 gh pr merge --rebase --delete-branch
+
+# ✅ CORRECT - Release PRs (develop → main — NEVER delete source branch)
+gh pr merge --rebase
 ```
 
 **To update main from develop**: Use GitHub PR with rebase merge, or ensure fast-forward is possible.
+
+### Long-Lived Branch Protection (CRITICAL)
+
+**NEVER delete `main` or `develop`.** These are permanent branches.
+
+- `--delete-branch` is ONLY for feature/fix branches (e.g., `feat/voice-engine`, `fix/timeout`)
+- Release PRs merge `develop → main` — the source branch (`develop`) must survive
+- If `gh pr merge` defaults to deleting the source, omit `--delete-branch`
+
+```bash
+# ❌ FORBIDDEN - Deletes develop after merging to main
+gh pr merge 714 --rebase --delete-branch  # PR from develop → main
+
+# ✅ CORRECT - Merge release without deleting source
+gh pr merge 714 --rebase                  # develop survives
+```
 
 ### Destructive Commands - ASK FIRST
 

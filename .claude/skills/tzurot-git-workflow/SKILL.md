@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-02-13'
+lastUpdated: '2026-03-09'
 ---
 
 # Git Workflow Procedures
@@ -108,7 +108,19 @@ Write release notes following the Conventional Changelog format defined in `.cla
 gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description"
 ```
 
-### 4. After Merge to Main
+### 4. Merge Release PR
+
+⚠️ **NEVER use `--delete-branch` for release PRs.** `develop` is a long-lived branch.
+
+```bash
+# ✅ CORRECT - Merge without deleting develop
+gh pr merge <number> --rebase
+
+# ❌ FORBIDDEN - Would delete develop!
+gh pr merge <number> --rebase --delete-branch
+```
+
+### 5. After Merge to Main
 
 ```bash
 git fetch --all
