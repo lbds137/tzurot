@@ -96,10 +96,10 @@ async function elevenLabsFetch(
       ...init,
       signal: controller.signal,
       headers: {
-        'xi-api-key': apiKey,
         ...(init.headers !== undefined
           ? Object.fromEntries(new Headers(init.headers).entries())
           : {}),
+        'xi-api-key': apiKey, // after spread — apiKey always wins
       },
     });
   } catch (error) {
@@ -201,7 +201,9 @@ export async function elevenLabsCloneVoice(
   const formData = new FormData();
   formData.append('name', name);
   const blob = new Blob([new Uint8Array(audioBuffer)], { type: contentType });
-  formData.append('files', blob, `${name}.wav`);
+  // Derive extension from content type — ElevenLabs may use filename as decoding hint
+  const ext = contentType.includes('mpeg') || contentType.includes('mp3') ? 'mp3' : 'wav';
+  formData.append('files', blob, `${name}.${ext}`);
   if (description !== undefined) {
     formData.append('description', description);
   }
