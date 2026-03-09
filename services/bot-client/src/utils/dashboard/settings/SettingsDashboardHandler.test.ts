@@ -864,6 +864,35 @@ describe('SettingsDashboardHandler', () => {
 
         expect(interaction.update).toHaveBeenCalled();
       });
+
+      it('should pass ENUM string value through to updateHandler', async () => {
+        mockSessionManager.get.mockReturnValue({
+          data: {
+            userId: 'user-123',
+            entityId: 'entity-1',
+            data: createTestData(),
+            view: 'setting',
+            activeSetting: 'voiceResponseMode',
+          },
+        });
+
+        const interaction = createButtonInteraction(
+          'test-settings::set::entity-1::voiceResponseMode:always'
+        );
+        const config = createTestConfig();
+        const updateHandler = vi
+          .fn()
+          .mockResolvedValue({ success: true, newData: createTestData() });
+
+        await handleSettingsButton(interaction as never, config, updateHandler);
+
+        expect(updateHandler).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'voiceResponseMode',
+          'always'
+        );
+      });
     });
 
     describe('edit button', () => {
