@@ -164,7 +164,15 @@ export class TTSStep implements IPipelineStep {
     text: string,
     slug: string,
     context: GenerationContext
-  ): Promise<{ key: string; audioSize: number }> {
+  ): Promise<{ key: string; audioSize: number } | null> {
+    // Pre-warm: ping /health to wake voice engine from Railway Serverless sleep.
+    // Fire-and-forget — we proceed with registration even if the ping fails,
+    // because the TCP connection itself triggers Railway to start the container.
+    const health = await registrationService.client.getHealth();
+    if (!health.tts) {
+      logger.info({ slug }, 'Voice engine TTS not ready — proceeding anyway (may be waking up)');
+    }
+
     // Ensure voice is registered
     await registrationService.ensureVoiceRegistered(slug);
 
@@ -173,6 +181,10 @@ export class TTSStep implements IPipelineStep {
 
     // Store audio in Redis
     const jobId = context.job.id ?? context.job.data.requestId;
+    if (jobId === undefined) {
+      logger.warn({ slug }, 'TTS: no job ID available, skipping audio storage');
+      return null;
+    }
     const key = await redisService.storeTTSAudio(jobId, audioBuffer);
 
     return { key, audioSize: audioBuffer.length };

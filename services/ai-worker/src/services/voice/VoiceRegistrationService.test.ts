@@ -229,6 +229,46 @@ describe('VoiceRegistrationService', () => {
     );
   });
 
+  it('should NOT negatively cache connection errors (ECONNREFUSED)', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    // First call: ECONNREFUSED (voice engine sleeping)
+    const connError = new Error('fetch failed');
+    (connError as NodeJS.ErrnoException).code = 'ECONNREFUSED';
+    mockFetch.mockRejectedValue(connError);
+
+    await expect(service.ensureVoiceRegistered('wake-voice')).rejects.toThrow('fetch failed');
+
+    // Second call: should retry (NOT hit negative cache)
+    mockFetch.mockClear();
+    mockVoiceEngineClient.listVoices.mockClear();
+
+    // Voice engine is now awake — mock success
+    mockVoiceEngineClient.listVoices.mockResolvedValue(['wake-voice']);
+
+    await service.ensureVoiceRegistered('wake-voice');
+
+    // Should have called listVoices again (not blocked by negative cache)
+    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
+  });
+
+  it('should NOT negatively cache errors with ECONNREFUSED in cause chain', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    // Node fetch wraps connection errors in a cause chain
+    const innerError = new Error('connect ECONNREFUSED');
+    (innerError as NodeJS.ErrnoException).code = 'ECONNREFUSED';
+    const outerError = new Error('fetch failed', { cause: innerError });
+    mockFetch.mockRejectedValue(outerError);
+
+    await expect(service.ensureVoiceRegistered('nested-voice')).rejects.toThrow('fetch failed');
+
+    // Second call: should retry (not cached)
+    mockVoiceEngineClient.listVoices.mockResolvedValue(['nested-voice']);
+    await service.ensureVoiceRegistered('nested-voice');
+    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledTimes(2);
+  });
+
   it('should URL-encode the slug in the gateway request', async () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
     mockVoiceEngineClient.registerVoice.mockResolvedValue(undefined);

@@ -11,11 +11,11 @@
  * service which fetches reference audio for voice cloning without user auth
  * context. If voice references become sensitive, add a shared service secret.
  *
- * CACHE NOTE: max-age=3600 (1 hour) means updated voice references may be
- * stale for up to 1 hour in downstream caches. Unlike avatars (which use
- * timestamp-based cache-busting URLs), voice references are served from DB
- * with no filesystem cache layer. Acceptable for Phase 1 since the voice-engine
- * service isn't wired to fetch from this endpoint yet.
+ * CACHE NOTE: max-age=3600 (1 hour) applies to downstream HTTP caches only.
+ * The ai-worker's VoiceRegistrationService has its own 30-min positive cache
+ * that is the actual user-visible latency bottleneck for voice reference updates.
+ * Unlike avatars (which use timestamp-based cache-busting URLs), voice references
+ * are served from DB with no filesystem cache layer.
  */
 
 import { Router } from 'express';

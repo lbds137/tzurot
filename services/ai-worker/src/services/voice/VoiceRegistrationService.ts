@@ -15,8 +15,20 @@ const logger = createLogger('VoiceRegistrationService');
 /** TTL for successful registration cache entries (30 minutes) */
 const REGISTRATION_CACHE_TTL_MS = 30 * 60 * 1000;
 /** TTL for failed registration cache entries (5 minutes) — suppresses retry storms
- * when a personality has a misconfigured voice reference (404, timeout, etc.) */
+ * when a personality has a misconfigured voice reference (404, bad audio, etc.) */
 const NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Connection error codes that indicate the voice engine is unreachable (cold start,
+ * sleeping, network issue). These are transient — NOT negatively cached, so the next
+ * TTS request retries immediately instead of waiting 5 minutes.
+ */
+const CONNECTION_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
 /** Max number of cached registration statuses */
 const REGISTRATION_CACHE_MAX_SIZE = 200;
 
@@ -69,10 +81,20 @@ export class VoiceRegistrationService {
 
     const promise = this.doRegister(slug)
       .catch(error => {
-        // Cache the failure to suppress retry storms (e.g., 404 voice reference)
         const reason = error instanceof Error ? error.message : String(error);
-        this.negativeCache.set(slug, reason);
-        logger.warn({ slug, reason }, 'Voice registration failed — cached for 5 min');
+
+        // Connection errors are transient (cold start, sleeping service) — don't
+        // negatively cache them so the next request retries immediately.
+        if (isConnectionError(error)) {
+          logger.warn(
+            { slug, reason },
+            'Voice registration failed (connection error — not cached)'
+          );
+        } else {
+          this.negativeCache.set(slug, reason);
+          logger.warn({ slug, reason }, 'Voice registration failed — cached for 5 min');
+        }
+
         throw error; // Re-throw so TTSStep sees the error
       })
       .finally(() => this.inflight.delete(slug));
@@ -143,4 +165,26 @@ export class VoiceRegistrationService {
     this.registrationCache.clear();
     this.negativeCache.clear();
   }
+}
+
+/**
+ * Check if an error is a transient connection failure (ECONNREFUSED, etc.).
+ * These errors indicate the service is unreachable (e.g., Railway Serverless cold start)
+ * and should NOT be negatively cached — the next request should retry immediately.
+ */
+function isConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  // Node.js network errors have a `code` property (e.g., ECONNREFUSED)
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code !== undefined && CONNECTION_ERROR_CODES.has(code)) {
+    return true;
+  }
+  // fetch() wraps connection errors — check the cause chain
+  if (error.cause !== undefined) {
+    return isConnectionError(error.cause);
+  }
+  // undici/node-fetch sometimes puts the code in the message
+  return error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed');
 }

@@ -186,21 +186,26 @@ export class VoiceTranscriptionService {
         }, TYPING_INDICATOR_INTERVAL_MS);
       }
 
-      // Extract voice attachment metadata from direct attachments
-      let attachments = Array.from(message.attachments.values()).map(attachment => ({
-        url: attachment.url,
-        contentType:
-          attachment.contentType !== null &&
-          attachment.contentType !== undefined &&
-          attachment.contentType.length > 0
-            ? attachment.contentType
-            : CONTENT_TYPES.BINARY,
-        name: attachment.name,
-        size: attachment.size,
-        isVoiceMessage: attachment.duration !== null,
-        duration: attachment.duration ?? undefined,
-        waveform: attachment.waveform ?? undefined,
-      }));
+      // Extract voice attachment metadata from direct attachments (audio-only)
+      let attachments = Array.from(message.attachments.values())
+        .filter(
+          a =>
+            (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
+        )
+        .map(attachment => ({
+          url: attachment.url,
+          contentType:
+            attachment.contentType !== null &&
+            attachment.contentType !== undefined &&
+            attachment.contentType.length > 0
+              ? attachment.contentType
+              : CONTENT_TYPES.BINARY,
+          name: attachment.name,
+          size: attachment.size,
+          isVoiceMessage: attachment.duration !== null,
+          duration: attachment.duration ?? undefined,
+          waveform: attachment.waveform ?? undefined,
+        }));
 
       // If no direct audio attachments, check forwarded message snapshots
       // Uses centralized utility for consistent forwarded message handling

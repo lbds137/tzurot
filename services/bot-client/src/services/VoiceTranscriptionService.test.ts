@@ -665,6 +665,38 @@ describe('VoiceTranscriptionService', () => {
       const call = mockGatewayClient.transcribe.mock.calls[0][0];
       expect(call[0].url).toBe('https://cdn.discord.com/voice/direct.ogg');
     });
+
+    it('should filter out non-audio attachments from direct attachments', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/audio.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice-message.ogg',
+            size: 30000,
+            duration: 3.0,
+          },
+          {
+            url: 'https://cdn.discord.com/images/photo.png',
+            contentType: 'image/png',
+            name: 'photo.png',
+            size: 500000,
+            duration: null,
+          },
+        ],
+      });
+
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Audio only transcript',
+      });
+
+      await service.transcribe(message, false, false);
+
+      // Should only send the audio attachment, not the image
+      const call = mockGatewayClient.transcribe.mock.calls[0][0];
+      expect(call).toHaveLength(1);
+      expect(call[0].url).toBe('https://cdn.discord.com/voice/audio.ogg');
+    });
   });
 });
 

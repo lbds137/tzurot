@@ -33,7 +33,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 const mockEnsureVoiceRegistered = vi.fn().mockResolvedValue(undefined);
 
-const mockVoiceEngineClient = { synthesize: vi.fn() };
+const mockVoiceEngineClient = {
+  synthesize: vi.fn(),
+  getHealth: vi.fn().mockResolvedValue({ asr: true, tts: true }),
+};
 
 vi.mock('../../../../services/voice/VoiceRegistrationService.js', () => ({
   VoiceRegistrationService: class MockVoiceRegistrationService {
@@ -270,6 +273,26 @@ describe('TTSStep', () => {
       expect(mockStoreTTSAudio).toHaveBeenCalledWith('test-job', Buffer.from('fake-audio-data'));
     });
 
+    it('proceeds with TTS even when health check reports tts not ready (cold start)', async () => {
+      mockVoiceEngineClient.getHealth.mockResolvedValue({ asr: true, tts: false });
+      mockStoreTTSAudio.mockResolvedValue('tts:cold-job');
+      mockSynthesizeWithChunking.mockResolvedValue({
+        audioBuffer: Buffer.from('cold-start-audio'),
+        contentType: 'audio/wav',
+      });
+
+      const ctx = createContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Should still attempt TTS despite health check failure
+      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledOnce();
+      expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:cold-job');
+    });
+
     it('returns context unchanged when voice engine client is null', async () => {
       mockGetVoiceEngineClient.mockReturnValue(null);
 
@@ -297,6 +320,26 @@ describe('TTSStep', () => {
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
       // Text content is preserved
       expect(result.result?.content).toBe('Hello world');
+    });
+
+    it('skips audio storage when job ID is undefined', async () => {
+      const ctx = createContext({
+        job: {
+          id: undefined,
+          data: {
+            ...createContext().job.data,
+            requestId: undefined as unknown as string,
+          },
+        } as Job<LLMGenerationJobData>,
+      });
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Should not store audio (no valid key)
+      expect(mockStoreTTSAudio).not.toHaveBeenCalled();
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
     });
 
     it('returns context unchanged when TTS times out', async () => {

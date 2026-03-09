@@ -159,7 +159,7 @@ def _cache_voice(voice_id: str, voice_state: Any) -> None:
     if len(voice_cache) > MAX_VOICE_CACHE_SIZE:
         oldest = next(iter(voice_cache))
         del voice_cache[oldest]
-        logger.info("Voice cache full, evicted oldest entry", extra={
+        logger.warning("Voice cache full, evicted oldest entry", extra={
             "voice_id": oldest, "voice_count": MAX_VOICE_CACHE_SIZE,
         })
 
