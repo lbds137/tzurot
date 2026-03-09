@@ -286,20 +286,27 @@ describe('VoiceRegistrationService', () => {
   });
 
   it('should NOT negatively cache 503 VoiceEngineError (partial cold start)', async () => {
+    // Realistic path: listVoices returns empty, gateway fetch succeeds,
+    // but registerVoice throws 503 (voice-engine models still loading)
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
-
-    // Voice engine HTTP server is up but models still loading → 503
-    mockFetch.mockRejectedValue(new VoiceEngineError(503, 'TTS model not loaded'));
+    mockFetch.mockResolvedValue({
+      ok: true,
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      headers: { get: vi.fn().mockReturnValue('audio/wav') },
+    });
+    mockVoiceEngineClient.registerVoice.mockRejectedValue(
+      new VoiceEngineError(503, 'TTS model not loaded')
+    );
 
     await expect(service.ensureVoiceRegistered('cold-voice')).rejects.toThrow(
       'Voice engine request failed (503)'
     );
 
     // Second call: should retry (NOT hit negative cache)
-    mockFetch.mockClear();
     mockVoiceEngineClient.listVoices.mockClear();
+    mockVoiceEngineClient.registerVoice.mockClear();
 
-    // Voice engine is now fully ready
+    // Voice engine is now fully ready — voice already registered from first attempt
     mockVoiceEngineClient.listVoices.mockResolvedValue(['cold-voice']);
 
     await service.ensureVoiceRegistered('cold-voice');
@@ -309,18 +316,23 @@ describe('VoiceRegistrationService', () => {
   });
 
   it('should NOT negatively cache 502 VoiceEngineError (Railway load balancer during boot)', async () => {
+    // Realistic path: listVoices returns empty, gateway fetch succeeds,
+    // but registerVoice throws 502 (Railway LB up, app not yet ready)
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
-
-    // Railway LB returns 502 when app hasn't bound its port yet
-    mockFetch.mockRejectedValue(new VoiceEngineError(502, 'Bad Gateway'));
+    mockFetch.mockResolvedValue({
+      ok: true,
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      headers: { get: vi.fn().mockReturnValue('audio/wav') },
+    });
+    mockVoiceEngineClient.registerVoice.mockRejectedValue(new VoiceEngineError(502, 'Bad Gateway'));
 
     await expect(service.ensureVoiceRegistered('boot-voice')).rejects.toThrow(
       'Voice engine request failed (502)'
     );
 
     // Second call: should retry (NOT hit negative cache)
-    mockFetch.mockClear();
     mockVoiceEngineClient.listVoices.mockClear();
+    mockVoiceEngineClient.registerVoice.mockClear();
 
     mockVoiceEngineClient.listVoices.mockResolvedValue(['boot-voice']);
 
@@ -329,19 +341,26 @@ describe('VoiceRegistrationService', () => {
     expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledOnce();
   });
 
-  it('should negatively cache non-503 VoiceEngineError (e.g., 400)', async () => {
+  it('should negatively cache non-transient VoiceEngineError (e.g., 400)', async () => {
+    // Realistic path: listVoices returns empty, gateway fetch succeeds,
+    // but registerVoice throws 400 (bad audio format — permanent error)
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
-
-    // Voice engine returns 400 (bad request) — this IS a permanent error
-    mockFetch.mockRejectedValue(new VoiceEngineError(400, 'Invalid audio format'));
+    mockFetch.mockResolvedValue({
+      ok: true,
+      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
+      headers: { get: vi.fn().mockReturnValue('audio/wav') },
+    });
+    mockVoiceEngineClient.registerVoice.mockRejectedValue(
+      new VoiceEngineError(400, 'Invalid audio format')
+    );
 
     await expect(service.ensureVoiceRegistered('bad-audio')).rejects.toThrow(
       'Voice engine request failed (400)'
     );
 
     // Second call: should be negatively cached
-    mockFetch.mockClear();
     mockVoiceEngineClient.listVoices.mockClear();
+    mockVoiceEngineClient.registerVoice.mockClear();
 
     await expect(service.ensureVoiceRegistered('bad-audio')).rejects.toThrow(
       'Voice registration for "bad-audio" recently failed'
