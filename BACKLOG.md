@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-03-08
-> **Version**: v3.0.0-beta.88
+> **Last Updated**: 2026-03-09
+> **Version**: v3.0.0-beta.88 (v3.0.0-beta.89 pending)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -20,6 +20,8 @@ _Empty (2026-03-04)._
 ## 📥 Inbox
 
 _New items go here. Triage to appropriate section weekly._
+
+- 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure) but worth hardening.
 
 ## 🎯 Current Focus
 

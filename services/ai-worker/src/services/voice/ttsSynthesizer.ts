@@ -38,6 +38,8 @@ function forceSplitLongSentence(sentence: string): { splitChunks: string[]; rema
 
   while (remaining.length > MAX_CHUNK_LENGTH) {
     const splitIndex = remaining.lastIndexOf(' ', MAX_CHUNK_LENGTH);
+    // If no word boundary exists within the limit (e.g., a 2000+ char word/URL),
+    // break at MAX_CHUNK_LENGTH mid-word to guarantee forward progress.
     const breakAt = splitIndex !== -1 ? splitIndex : MAX_CHUNK_LENGTH;
     splitChunks.push(remaining.substring(0, breakAt).trim());
     remaining = remaining.substring(breakAt).trim();
@@ -224,6 +226,7 @@ export async function synthesizeWithChunking(
   // splitTextIntoChunks always returns at least one element (even for empty string)
   const chunks = splitTextIntoChunks(text);
 
+  // Invariant: splitTextIntoChunks always returns >= 1 element (line 69–71 early return)
   if (chunks.length === 1) {
     logger.debug({ voiceId, textLength: text.length }, 'Single-chunk TTS synthesis');
     return client.synthesize(chunks[0], voiceId);

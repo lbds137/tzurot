@@ -196,6 +196,9 @@ export async function transcribeAudio(attachment: AttachmentMetadata): Promise<s
   // Cache is populated by bot-client's VoiceTranscriptionService after receiving job results.
   if (attachment.originalUrl !== undefined && attachment.originalUrl.length > 0) {
     try {
+      // Dynamic import: must stay dynamic for vi.mock() compatibility in tests.
+      // Static import causes "Cannot access before initialization" because vitest
+      // hoists vi.mock() above const declarations that the factory references.
       const { voiceTranscriptCache } = await import('../../redis.js');
       const cachedTranscript = await voiceTranscriptCache.get(attachment.originalUrl);
 

@@ -217,7 +217,7 @@ export class DiscordResponseSender {
     } = options;
     let footer = '';
     if (showModelFooter !== false && modelUsed !== undefined && modelUsed.length > 0) {
-      const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
+      const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${encodeURIComponent(modelUsed)}`;
       footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, isAutoResponse === true)}`;
     } else if (isAutoResponse === true) {
       footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;

@@ -376,8 +376,8 @@ describe('TTSStep', () => {
       const ctx = createContext();
 
       const promise = step.process(ctx);
-      // Advance past the 60s timeout
-      await vi.advanceTimersByTimeAsync(60_000);
+      // Advance past the 90s timeout
+      await vi.advanceTimersByTimeAsync(90_000);
       const result = await promise;
 
       expect(result).toBe(ctx);

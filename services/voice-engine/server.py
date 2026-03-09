@@ -502,7 +502,7 @@ async def tts_openai_compat(
     but currently ignored; all requests use Pocket TTS.
     """
     _ = model  # accepted for API compat; can't rename to _model (FastAPI derives form field name)
-    return await text_to_speech(text=input, voice_id=voice)
+    return await text_to_speech(text=input, voice_id=voice, reference_audio=None)
 
 
 # ---------------------------------------------------------------------------

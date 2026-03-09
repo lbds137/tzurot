@@ -269,6 +269,40 @@ describe('VoiceRegistrationService', () => {
     expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledTimes(2);
   });
 
+  it('should NOT negatively cache errors with exact "fetch failed" message (no code)', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    // undici emits 'fetch failed' without a code property — should still bypass negative cache
+    const fetchError = new Error('fetch failed');
+    mockFetch.mockRejectedValue(fetchError);
+
+    await expect(service.ensureVoiceRegistered('undici-voice')).rejects.toThrow('fetch failed');
+
+    // Second call: should retry (not cached)
+    mockVoiceEngineClient.listVoices.mockResolvedValue(['undici-voice']);
+    await service.ensureVoiceRegistered('undici-voice');
+    expect(mockVoiceEngineClient.listVoices).toHaveBeenCalledTimes(2);
+  });
+
+  it('should negatively cache errors with "fetch failed" substring in longer message', async () => {
+    mockVoiceEngineClient.listVoices.mockResolvedValue([]);
+
+    // An error that merely contains "fetch failed" in a longer message is NOT a connection error
+    const otherError = new Error('to fetch failed to parse response');
+    mockFetch.mockRejectedValue(otherError);
+
+    await expect(service.ensureVoiceRegistered('parse-voice')).rejects.toThrow();
+
+    // Second call: should be negatively cached (NOT retried)
+    mockFetch.mockClear();
+    mockVoiceEngineClient.listVoices.mockClear();
+
+    await expect(service.ensureVoiceRegistered('parse-voice')).rejects.toThrow(
+      'Voice registration for "parse-voice" recently failed'
+    );
+    expect(mockVoiceEngineClient.listVoices).not.toHaveBeenCalled();
+  });
+
   it('should URL-encode the slug in the gateway request', async () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
     mockVoiceEngineClient.registerVoice.mockResolvedValue(undefined);

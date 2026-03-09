@@ -68,6 +68,7 @@ export class VoiceEngineClient {
       throw new VoiceEngineError(response.status, detail);
     }
 
+    // Safe cast — we control the voice-engine response format (see server.py transcribe())
     return (await response.json()) as TranscriptionResult;
   }
 
@@ -93,6 +94,7 @@ export class VoiceEngineClient {
       if (!response.ok) {
         return { asr: false, tts: false };
       }
+      // Safe cast — we control the voice-engine /health response (see server.py health())
       const body = (await response.json()) as { asr_loaded?: boolean; tts_loaded?: boolean };
       return {
         asr: body.asr_loaded === true,
@@ -157,6 +159,7 @@ export class VoiceEngineClient {
       throw new VoiceEngineError(response.status, detail);
     }
 
+    // Safe cast — we control the voice-engine /v1/voices response (see server.py list_voices())
     const body = (await response.json()) as { voices: { id: string }[] };
     return body.voices.map(v => v.id);
   }

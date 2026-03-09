@@ -1,37 +1,40 @@
 # Current
 
-> **Session**: 2026-03-08
-> **Version**: v3.0.0-beta.88
+> **Session**: 2026-03-09
+> **Version**: v3.0.0-beta.88 (v3.0.0-beta.89 in PR #714)
 
 ---
 
 ## Session Goal
 
-_Voice Engine Phase 3: Merge PR #710 (TTS integration + voice config cascade)._
+_Voice Engine Phase 3b — Address PR #714 review feedback, improve Python test coverage, prepare release._
 
 ## Active Task
 
-None — session complete.
+Finalizing PR review feedback + Python test coverage improvements for PR #714.
 
 ---
 
 ## Completed This Session
 
-- **feat(voice-engine)**: Phase 3 TTS integration merged to `develop` (PR #710, 19 rounds of review feedback)
-  - TTSStep pipeline step: synthesize LLM response to audio, store in Redis, attach to Discord message
-  - VoiceRegistrationService: 3-tier caching (positive 30min, negative 5min, in-flight dedup)
-  - Chunked TTS: sentence-boundary splitting, WAV PCM concatenation for text >2000 chars
-  - Config cascade: `voiceResponseMode` (always/voice-only/never) + `voiceTranscriptionEnabled`
-  - Typing indicator bug fix: 8s interval refresh during voice transcription
-  - Python CI: ruff + mypy --strict + pytest in GitHub Actions
-  - Root logger JSON formatting for third-party libs (NeMo/uvicorn)
-  - Startup health check (one-shot, non-blocking)
-  - LRU eviction test, OpenAI Whisper singleton extraction
+- **fix(bot-client)**: Add `encodeURIComponent` to `modelUsed` in OpenRouter URL (SSRF defense-in-depth)
+- **fix(ai-worker)**: Tighten `isConnectionError` — exact match on `'fetch failed'` instead of `.includes()` to prevent false positives
+- **refactor(ai-worker)**: Move `voiceTranscriptCache` from dynamic import to top-level static import in AudioProcessor
+- **docs(ai-worker)**: Add clarifying comments for JSON casts in VoiceEngineClient (internal service contract)
+- **docs(ai-worker)**: Add invariant comment on `splitTextIntoChunks` return guarantee in ttsSynthesizer
+- **docs(ai-worker)**: Add comment explaining mid-word break fallback in `forceSplitLongSentence`
+- **docs(voice-engine)**: Document cold-start timing budget limitation in deployment gotchas
+- **test(ai-worker)**: Add tests for exact `'fetch failed'` match and substring non-match in VoiceRegistrationService
+- **test(voice-engine)**: Add Python tests for OpenAI-compat endpoints, TTS reference audio, voice registration errors
 
 ## Completed Last Session (2026-03-08)
 
-- Voice Engine Phase 2 deployment + verification
-- Confirmed Parakeet TDT transcription working end-to-end
+- **feat(voice-engine)**: Phase 3b voice commands + cascade wiring merged (PR #710)
+- Deployed to Railway development: fixed GATEWAY_URL, HF_TOKEN, volume permissions, first-run timeout
+- Verified end-to-end TTS flow working in production
+- Health check retry loop for Railway Serverless cold starts (5 attempts × 3s)
+- Negative cache bypass for transient connection errors (ECONNREFUSED cause chain traversal)
+- PR #714 created for v3.0.0-beta.89 release
 
 ## Recent Releases
 
@@ -41,10 +44,12 @@ None — session complete.
 
 ## Next Steps
 
-1. Deploy Phase 3 to Railway (ai-worker, bot-client, voice-engine)
-2. Configure a test personality with `voiceEnabled: true` + `voiceResponseMode: 'always'`
-3. Verify end-to-end TTS flow (text → voice-engine → audio attachment in Discord)
-4. Wire `voiceTranscriptionEnabled` cascade field to bot-client (Phase 3 follow-up)
+1. Run tests + quality checks (sequential on Steam Deck)
+2. Push changes, wait for CI green
+3. Merge PR #714 to `main` (rebase, delete branch)
+4. Deploy to production (Railway auto-deploys from `main`)
+5. Run `pnpm ops db:migrate --env prod` if migration included
+6. Re-upload voice references in production (voice references don't sync via `/admin db-sync`)
 
 ---
 

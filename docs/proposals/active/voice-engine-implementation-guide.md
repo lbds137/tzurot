@@ -130,6 +130,7 @@ See Part 6 for full details. Quick checklist:
 | Volume permissions                 | `PermissionError` writing to `/app/voices`       | Dockerfile runs as root (no `USER` directive) — matches api-gateway pattern |
 | First TTS timeout                  | `TTS completed after timeout (result discarded)` | One-time model download; retry and it works                                 |
 | Negative cache after failure       | Voice registration skipped for 5 min after error | Wait for `VoiceRegistrationService` negative cache (5 min TTL) to expire    |
+| First cold-start TTS timeout       | Long responses may timeout on first request       | 90s budget: health retries (12s) + voice registration (15s) + synthesis (~63s). Multi-chunk TTS on first cold-start may still exceed budget. Falls back to text-only gracefully. |
 
 ### Phase 2 Implementation Notes
 

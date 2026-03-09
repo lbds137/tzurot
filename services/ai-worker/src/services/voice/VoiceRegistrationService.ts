@@ -185,6 +185,7 @@ function isConnectionError(error: unknown): boolean {
   if (error.cause !== undefined) {
     return isConnectionError(error.cause);
   }
-  // undici/node-fetch sometimes puts the code in the message
-  return error.message.includes('ECONNREFUSED') || error.message.includes('fetch failed');
+  // undici/node-fetch sometimes puts the code in the message.
+  // Exact match on 'fetch failed' avoids false positives from unrelated error messages.
+  return error.message.includes('ECONNREFUSED') || error.message === 'fetch failed';
 }

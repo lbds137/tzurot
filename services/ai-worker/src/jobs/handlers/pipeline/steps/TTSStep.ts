@@ -20,8 +20,10 @@ import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');
 
-/** TTS timeout — includes voice-engine cold start time on Railway Serverless */
-const TTS_TIMEOUT_MS = 60_000;
+/** TTS timeout — includes voice-engine cold start time on Railway Serverless.
+ * Budget: health retries (12s) + voice registration (15s) + synthesis (~63s).
+ * 90s accommodates multi-chunk TTS on first cold-start without unnecessary wait on true failures. */
+const TTS_TIMEOUT_MS = 90_000;
 
 /** Delay between health check retries when waiting for voice engine cold start */
 const HEALTH_RETRY_DELAY_MS = 3_000;
