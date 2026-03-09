@@ -8,6 +8,7 @@
  */
 
 import { createLogger, TTLCache, getConfig } from '@tzurot/common-types';
+import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
 
 const logger = createLogger('VoiceRegistrationService');
@@ -85,7 +86,7 @@ export class VoiceRegistrationService {
 
         // Connection errors are transient (cold start, sleeping service) — don't
         // negatively cache them so the next request retries immediately.
-        if (isConnectionError(error)) {
+        if (isConnectionError(error) || isTransientServiceError(error)) {
           logger.warn(
             { slug, reason },
             'Voice registration failed (connection error — not cached)'
@@ -127,8 +128,8 @@ export class VoiceRegistrationService {
     const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
     logger.info({ slug }, 'Fetching voice reference from gateway');
 
-    // 15s timeout — tighter than TTSStep's 60s outer timeout so the failure
-    // surfaces as a gateway fetch error rather than a generic TTS timeout.
+    // 15s timeout — tighter than TTSStep's TTS_TIMEOUT_MS outer timeout so the
+    // failure surfaces as a gateway fetch error rather than a generic TTS timeout.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
     let response: globalThis.Response;
@@ -165,6 +166,15 @@ export class VoiceRegistrationService {
     this.registrationCache.clear();
     this.negativeCache.clear();
   }
+}
+
+/**
+ * Check if an error is a transient HTTP service error (e.g., 503 Service Unavailable).
+ * Voice engine returns 503 during cold start when the HTTP server is up but models
+ * haven't finished loading — this should NOT be negatively cached.
+ */
+function isTransientServiceError(error: unknown): boolean {
+  return error instanceof VoiceEngineError && error.status === 503;
 }
 
 /**
