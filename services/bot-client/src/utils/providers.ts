@@ -12,6 +12,8 @@ export function getProviderDisplayName(provider: AIProvider): string {
   switch (provider) {
     case AIProvider.OpenRouter:
       return 'OpenRouter';
+    case AIProvider.ElevenLabs:
+      return 'ElevenLabs';
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;

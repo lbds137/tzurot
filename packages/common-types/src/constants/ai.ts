@@ -146,6 +146,8 @@ export const AI_ENDPOINTS = {
   OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
   /** OpenRouter model card base URL (for model info links) */
   OPENROUTER_MODEL_CARD_URL: 'https://openrouter.ai',
+  /** ElevenLabs API base URL (voice synthesis/cloning) */
+  ELEVENLABS_BASE_URL: 'https://api.elevenlabs.io/v1',
 } as const;
 
 /**
@@ -175,12 +177,15 @@ export const MODEL_DEFAULTS = {
 /**
  * AI provider identifiers
  *
- * Note: Only OpenRouter is supported for user-facing BYOK. The system still uses
- * OPENAI_API_KEY internally for embeddings and Whisper transcription, but users
- * cannot select OpenAI as a provider for chat/generation.
+ * OpenRouter: LLM chat/generation (BYOK for model access)
+ * ElevenLabs: Voice synthesis and cloning (BYOK for premium TTS/STT)
+ *
+ * Note: The system still uses OPENAI_API_KEY internally for embeddings and
+ * Whisper transcription, but users cannot select OpenAI as a provider.
  */
 export enum AIProvider {
   OpenRouter = 'openrouter',
+  ElevenLabs = 'elevenlabs',
 }
 
 /**

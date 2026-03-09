@@ -168,6 +168,81 @@ describe('KeyValidationService', () => {
         expect(result.error).toBeInstanceOf(ValidationTimeoutError);
       });
     });
+
+    describe('ElevenLabs validation', () => {
+      it('should return valid=true for valid ElevenLabs key', async () => {
+        mockFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            subscription: { character_count: 500, character_limit: 10000 },
+          }),
+        });
+
+        const result = await service.validateKey('sk_valid_key', AIProvider.ElevenLabs);
+
+        expect(result.valid).toBe(true);
+        expect(result.provider).toBe(AIProvider.ElevenLabs);
+        expect(result.metadata?.creditBalance).toBe(9500);
+        expect(mockFetch).toHaveBeenCalledWith(
+          'https://api.elevenlabs.io/v1/user',
+          expect.objectContaining({
+            method: 'GET',
+            headers: { 'xi-api-key': 'sk_valid_key' },
+          })
+        );
+      });
+
+      it('should throw InvalidApiKeyError for 401 response', async () => {
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: 401,
+        });
+
+        const result = await service.validateKey('sk_invalid', AIProvider.ElevenLabs);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(InvalidApiKeyError);
+        expect((result.error as InvalidApiKeyError).provider).toBe(AIProvider.ElevenLabs);
+      });
+
+      it('should throw QuotaExceededError when characters exhausted', async () => {
+        mockFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            subscription: { character_count: 10000, character_limit: 10000 },
+          }),
+        });
+
+        const result = await service.validateKey('sk_exhausted', AIProvider.ElevenLabs);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(QuotaExceededError);
+      });
+
+      it('should handle missing subscription info', async () => {
+        mockFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+        });
+
+        const result = await service.validateKey('sk_key', AIProvider.ElevenLabs);
+
+        expect(result.valid).toBe(true);
+        expect(result.metadata?.creditBalance).toBeUndefined();
+      });
+
+      it('should handle timeout errors', async () => {
+        mockFetch.mockRejectedValue(new Error('TIMEOUT'));
+
+        const result = await service.validateKey('sk_slow', AIProvider.ElevenLabs);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(ValidationTimeoutError);
+      });
+    });
   });
 
   describe('error classes', () => {

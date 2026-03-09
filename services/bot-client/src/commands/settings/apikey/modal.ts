@@ -215,6 +215,11 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
       }
       return null;
 
+    case AIProvider.ElevenLabs:
+      // ElevenLabs keys have no strict prefix — accept any non-empty key
+      // Validation happens server-side via the ElevenLabs /v1/user endpoint
+      return null;
+
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;

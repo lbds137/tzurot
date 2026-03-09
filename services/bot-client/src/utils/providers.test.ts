@@ -11,5 +11,9 @@ describe('providers', () => {
     it('should return "OpenRouter" for OpenRouter provider', () => {
       expect(getProviderDisplayName(AIProvider.OpenRouter)).toBe('OpenRouter');
     });
+
+    it('should return "ElevenLabs" for ElevenLabs provider', () => {
+      expect(getProviderDisplayName(AIProvider.ElevenLabs)).toBe('ElevenLabs');
+    });
   });
 });
