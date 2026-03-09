@@ -409,10 +409,12 @@ Enable personalities to speak — generate voice responses from LLM text output.
 - [x] Redis binary storage for TTS audio (`tts-audio:{jobId}`, 5-min TTL) — PR #710
 - [x] Typing indicator fix (8s interval refresh during transcription) — PR #710
 
-**Remaining follow-ups:**
+**Phase 3b — Voice Commands + Cascade Wiring (IN PROGRESS):**
 
-- [ ] Wire `voiceTranscriptionEnabled` cascade field to bot-client — field exists in ConfigOverridesSchema but isn't consumed yet (check before calling `VoiceTranscriptionService.transcribe()`)
-- [ ] 🏗️ `[LIFT]` Audit `isHealthy()` call site in `AudioProcessor` — now returns `false` when TTS is cold-starting even if ASR is ready; consider using `getHealth().asr` for STT-only decisions, or rename to `isFullyReady()` with a new `isAsrReady()` helper
+- [ ] `/character voice` slash command — upload voice reference audio via Discord attachment (follows `/character avatar` pattern). API layer is ready (`voiceReferenceData` accepted by create/update routes).
+- [ ] Auto-enable `voiceEnabled: true` when voice reference uploaded, disable when cleared
+- [ ] Wire `voiceTranscriptionEnabled` cascade field to bot-client — replace `AUTO_TRANSCRIBE_VOICE` env var check in `VoiceMessageProcessor` with cascade lookup
+- [ ] 🏗️ `[LIFT]` Audit `isHealthy()` — returns `false` during TTS cold-start even if ASR is ready; `AudioProcessor` doesn't call it (confirmed), but semantics should be cleaned up
 - [ ] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — currently `.optional()` to avoid breaking ~35 test fixtures; update fixtures to include `voiceEnabled: false` for strict type safety
 
 #### Phase 4: ElevenLabs Premium Tier
