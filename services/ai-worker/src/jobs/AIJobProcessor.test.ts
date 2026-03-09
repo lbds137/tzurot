@@ -13,7 +13,9 @@ import { AIJobProcessor } from './AIJobProcessor.js';
 import type { Job } from 'bullmq';
 import type { PrismaClient } from '@tzurot/common-types';
 import type { ConversationalRAGService } from '../services/ConversationalRAGService.js';
+import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import {
+  AIProvider,
   JobType,
   CONTENT_TYPES,
   type AudioTranscriptionJobData,
@@ -94,6 +96,29 @@ function createMockRAGService(): ConversationalRAGService {
       modelUsed: 'test-model',
     }),
   } as unknown as ConversationalRAGService;
+}
+
+function createMockApiKeyResolver(elevenlabsApiKey?: string): ApiKeyResolver {
+  return {
+    resolveApiKey: vi.fn().mockImplementation((_userId: string, provider: AIProvider) => {
+      if (provider === AIProvider.ElevenLabs && elevenlabsApiKey !== undefined) {
+        return Promise.resolve({
+          apiKey: elevenlabsApiKey,
+          source: 'user',
+          provider: AIProvider.ElevenLabs,
+          isGuestMode: false,
+        });
+      }
+      // Default: guest mode (no key)
+      return Promise.resolve({
+        apiKey: 'system-key',
+        source: 'system',
+        provider: provider ?? AIProvider.OpenRouter,
+        isGuestMode: true,
+      });
+    }),
+    invalidateCacheForUser: vi.fn(),
+  } as unknown as ApiKeyResolver;
 }
 
 function createMockJob<T>(data: T, id = 'job-123'): Job<T> {
@@ -188,7 +213,7 @@ describe('AIJobProcessor', () => {
 
         const result = await processor.processJob(job);
 
-        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job);
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, undefined);
         expect(result).toEqual(audioResult);
       });
 
@@ -252,6 +277,58 @@ describe('AIJobProcessor', () => {
           'unknown:audio-job-123',
           audioResult
         );
+      });
+
+      it('should resolve and pass ElevenLabs API key to audio transcription job', async () => {
+        const elApiKey = 'el-test-key-abc';
+        const mockResolver = createMockApiKeyResolver(elApiKey);
+        const processorWithResolver = new AIJobProcessor({
+          prisma: mockPrisma,
+          ragService: mockRAGService,
+          apiKeyResolver: mockResolver,
+        });
+
+        vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
+        const job = createMockJob(audioJobData, 'audio-job-123');
+
+        await processorWithResolver.processJob(job);
+
+        expect(mockResolver.resolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.ElevenLabs);
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, elApiKey);
+      });
+
+      it('should pass undefined ElevenLabs key when user is in guest mode', async () => {
+        const mockResolver = createMockApiKeyResolver(); // No ElevenLabs key
+        const processorWithResolver = new AIJobProcessor({
+          prisma: mockPrisma,
+          ragService: mockRAGService,
+          apiKeyResolver: mockResolver,
+        });
+
+        vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
+        const job = createMockJob(audioJobData, 'audio-job-123');
+
+        await processorWithResolver.processJob(job);
+
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, undefined);
+      });
+
+      it('should pass undefined ElevenLabs key when resolver throws', async () => {
+        const mockResolver = createMockApiKeyResolver();
+        vi.mocked(mockResolver.resolveApiKey).mockRejectedValue(new Error('DB error'));
+        const processorWithResolver = new AIJobProcessor({
+          prisma: mockPrisma,
+          ragService: mockRAGService,
+          apiKeyResolver: mockResolver,
+        });
+
+        vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
+        const job = createMockJob(audioJobData, 'audio-job-123');
+
+        await processorWithResolver.processJob(job);
+
+        // Should gracefully fall back to no ElevenLabs key
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, undefined);
       });
     });
 

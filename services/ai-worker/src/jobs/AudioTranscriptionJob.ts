@@ -2,7 +2,7 @@
  * Audio Transcription Job Processor
  *
  * Handles audio transcription preprocessing jobs.
- * Extracts audio attachments and transcribes them using Whisper.
+ * Extracts audio attachments and transcribes them using available STT providers.
  * Results are stored in Redis for dependent jobs to consume.
  */
 
@@ -22,9 +22,13 @@ const logger = createLogger('AudioTranscriptionJob');
 
 /**
  * Process audio transcription job
+ *
+ * @param job - BullMQ job with audio transcription data
+ * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
  */
 export async function processAudioTranscriptionJob(
-  job: Job<AudioTranscriptionJobData>
+  job: Job<AudioTranscriptionJobData>,
+  elevenlabsApiKey?: string
 ): Promise<AudioTranscriptionResult> {
   const startTime = Date.now();
 
@@ -63,8 +67,7 @@ export async function processAudioTranscriptionJob(
     }
 
     // Transcribe the audio with retry logic (3 attempts)
-    // Note: Personality is optional for transcription (not currently used by Whisper API)
-    const result = await withRetry(() => transcribeAudio(attachment), {
+    const result = await withRetry(() => transcribeAudio(attachment, elevenlabsApiKey), {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
       operationName: `Audio transcription (${attachment.name})`,
