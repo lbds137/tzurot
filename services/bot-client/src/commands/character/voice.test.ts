@@ -189,6 +189,22 @@ describe('handleVoice', () => {
       expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Invalid file type'));
     });
 
+    it('should reject malformed attachment URLs', async () => {
+      const context = createMockContext('voice-upload', {
+        character: 'test-char',
+        audio: {
+          contentType: 'audio/wav',
+          size: 1024,
+          url: 'not-a-valid-url',
+        },
+      });
+
+      await handleVoice(context, mockConfig);
+
+      expect(context.editReply).toHaveBeenCalledWith('❌ Invalid attachment URL.');
+      expect(fetchCharacter).not.toHaveBeenCalled();
+    });
+
     it('should reject non-Discord CDN URLs', async () => {
       const context = createMockContext('voice-upload', {
         character: 'test-char',
