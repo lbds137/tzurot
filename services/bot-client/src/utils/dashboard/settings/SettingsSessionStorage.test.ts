@@ -41,6 +41,12 @@ describe('SettingsSessionStorage', () => {
       showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
       memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
       memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
+      voiceResponseMode: {
+        localValue: null,
+        effectiveValue: 'always' as const,
+        source: 'hardcoded',
+      },
+      voiceTranscriptionEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
     },
     view: 'overview' as never,
     userId: 'user-123',

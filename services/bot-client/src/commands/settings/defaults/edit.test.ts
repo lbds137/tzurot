@@ -203,7 +203,7 @@ describe('User Default Settings Dashboard', () => {
       expect(embedJson.title).toBe('Your Default Settings');
     });
 
-    it('should include all 9 settings fields', async () => {
+    it('should include all 10 settings fields', async () => {
       const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
@@ -215,7 +215,7 @@ describe('User Default Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(9);
+      expect(embedJson.fields).toHaveLength(10);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Max Messages'),
@@ -227,6 +227,7 @@ describe('User Default Settings Dashboard', () => {
           expect.stringContaining('Memory Relevance'),
           expect.stringContaining('Memory Limit'),
           expect.stringContaining('Model Footer'),
+          expect.stringContaining('Voice Response Mode'),
         ])
       );
     });

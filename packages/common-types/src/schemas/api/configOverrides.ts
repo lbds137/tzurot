@@ -67,7 +67,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly crossChannelHistoryEnabled: false;
   readonly shareLtmAcrossPersonalities: false;
   readonly showModelFooter: true;
-  readonly voiceResponseMode: 'never';
+  readonly voiceResponseMode: 'always';
   readonly voiceTranscriptionEnabled: true;
 } = {
   maxMessages: 50,
@@ -79,7 +79,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   crossChannelHistoryEnabled: false,
   shareLtmAcrossPersonalities: false,
   showModelFooter: true,
-  voiceResponseMode: 'never',
+  voiceResponseMode: 'always',
   voiceTranscriptionEnabled: true,
 };
 

@@ -25,7 +25,7 @@ describe('buildCascadeSettingsData', () => {
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
-      voiceResponseMode: 'never' as const,
+      voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'admin',
@@ -66,7 +66,7 @@ describe('buildCascadeSettingsData', () => {
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
-      voiceResponseMode: 'never' as const,
+      voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'channel',
@@ -134,7 +134,7 @@ describe('buildCascadeSettingsData', () => {
       crossChannelHistoryEnabled: false,
       shareLtmAcrossPersonalities: false,
       showModelFooter: true,
-      voiceResponseMode: 'never' as const,
+      voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'admin',
@@ -165,7 +165,7 @@ describe('buildCascadeSettingsData', () => {
     expect(result.maxImages.effectiveValue).toBe(5);
   });
 
-  it('should include all 9 config fields', () => {
+  it('should include all 11 config fields', () => {
     const result = buildCascadeSettingsData(null, null, 'admin');
 
     const expectedFields = [
@@ -178,6 +178,8 @@ describe('buildCascadeSettingsData', () => {
       'crossChannelHistoryEnabled',
       'shareLtmAcrossPersonalities',
       'showModelFooter',
+      'voiceResponseMode',
+      'voiceTranscriptionEnabled',
     ];
 
     for (const field of expectedFields) {
@@ -201,7 +203,7 @@ describe('convertResolveDefaultsResponse', () => {
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
       showModelFooter: true,
-      voiceResponseMode: 'never' as const,
+      voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'admin',
@@ -239,7 +241,7 @@ describe('convertResolveDefaultsResponse', () => {
       memoryScoreThreshold: 0.5,
       memoryLimit: 20,
       showModelFooter: true,
-      voiceResponseMode: 'never' as const,
+      voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
       sources: {
         maxMessages: 'hardcoded',

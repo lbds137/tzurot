@@ -439,7 +439,7 @@ describe('GenerationStep', () => {
         crossChannelHistoryEnabled: false,
         shareLtmAcrossPersonalities: false,
         showModelFooter: false,
-        voiceResponseMode: 'never' as const,
+        voiceResponseMode: 'always' as const,
         voiceTranscriptionEnabled: true,
         sources: {
           maxMessages: 'hardcoded' as const,

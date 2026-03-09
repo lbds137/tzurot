@@ -19,6 +19,8 @@ const SETTING_FIELDS = [
   'memoryScoreThreshold',
   'memoryLimit',
   'showModelFooter',
+  'voiceResponseMode',
+  'voiceTranscriptionEnabled',
 ] as const;
 
 /**

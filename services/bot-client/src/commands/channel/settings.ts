@@ -43,6 +43,7 @@ import {
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   DISPLAY_SETTINGS,
+  VOICE_CASCADE_SETTINGS,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
   convertResolveDefaultsResponse,
@@ -67,7 +68,12 @@ const CHANNEL_CONTEXT_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Channel',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS, ...DISPLAY_SETTINGS],
+  settings: [
+    ...EXTENDED_CONTEXT_SETTINGS,
+    ...MEMORY_SETTINGS,
+    ...DISPLAY_SETTINGS,
+    ...VOICE_CASCADE_SETTINGS,
+  ],
 };
 
 /**

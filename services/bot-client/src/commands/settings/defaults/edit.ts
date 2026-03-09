@@ -34,6 +34,7 @@ import {
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   DISPLAY_SETTINGS,
+  VOICE_CASCADE_SETTINGS,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
   buildFallbackSettingsData,
@@ -57,7 +58,12 @@ const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Your Default',
   color: DISCORD_COLORS.SUCCESS,
-  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS, ...DISPLAY_SETTINGS],
+  settings: [
+    ...EXTENDED_CONTEXT_SETTINGS,
+    ...MEMORY_SETTINGS,
+    ...DISPLAY_SETTINGS,
+    ...VOICE_CASCADE_SETTINGS,
+  ],
   descriptionNote: 'These defaults apply across all personalities unless overridden.',
 };
 

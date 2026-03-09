@@ -42,6 +42,7 @@ import {
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   DISPLAY_SETTINGS,
+  VOICE_CASCADE_SETTINGS,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
@@ -63,7 +64,12 @@ const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Character',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS, ...DISPLAY_SETTINGS],
+  settings: [
+    ...EXTENDED_CONTEXT_SETTINGS,
+    ...MEMORY_SETTINGS,
+    ...DISPLAY_SETTINGS,
+    ...VOICE_CASCADE_SETTINGS,
+  ],
 };
 
 /**

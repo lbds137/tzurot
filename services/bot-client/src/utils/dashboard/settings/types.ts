@@ -18,6 +18,8 @@ export enum SettingType {
   NUMERIC = 'numeric',
   /** Duration string with optional auto/off - uses modal */
   DURATION = 'duration',
+  /** Enum with predefined choices - uses buttons like tri-state */
+  ENUM = 'enum',
 }
 
 /**
@@ -48,6 +50,8 @@ export interface SettingDefinition {
   placeholder?: string;
   /** Help text for the modal */
   helpText?: string;
+  /** For enum: available choices */
+  choices?: { value: string; label: string; emoji: string }[];
 }
 
 /**
@@ -75,6 +79,8 @@ export interface SettingsData {
   memoryScoreThreshold: SettingValue<number>;
   memoryLimit: SettingValue<number>;
   showModelFooter: SettingValue<boolean>;
+  voiceResponseMode: SettingValue<string>;
+  voiceTranscriptionEnabled: SettingValue<boolean>;
 }
 
 /**

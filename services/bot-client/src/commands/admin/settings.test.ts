@@ -189,7 +189,7 @@ describe('Admin Settings Dashboard', () => {
       expect(embedJson.title).toBe('Global Settings');
     });
 
-    it('should include all 9 settings fields', async () => {
+    it('should include all 11 settings fields', async () => {
       const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
@@ -201,7 +201,7 @@ describe('Admin Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(9);
+      expect(embedJson.fields).toHaveLength(11);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Max Messages'),
@@ -213,6 +213,8 @@ describe('Admin Settings Dashboard', () => {
           expect.stringContaining('Memory Relevance'),
           expect.stringContaining('Memory Limit'),
           expect.stringContaining('Model Footer'),
+          expect.stringContaining('Voice Transcription'),
+          expect.stringContaining('Voice Response Mode'),
         ])
       );
     });

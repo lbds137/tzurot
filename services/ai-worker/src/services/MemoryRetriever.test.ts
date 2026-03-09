@@ -648,7 +648,7 @@ describe('MemoryRetriever', () => {
         crossChannelHistoryEnabled: false,
         shareLtmAcrossPersonalities: false,
         showModelFooter: true,
-        voiceResponseMode: 'never' as const,
+        voiceResponseMode: 'always' as const,
         voiceTranscriptionEnabled: true,
         sources: {
           maxMessages: 'user-personality',
