@@ -28,10 +28,8 @@ export enum SettingType {
  */
 export type SettingSource = ConfigOverrideSource;
 
-/**
- * A single setting definition
- */
-export interface SettingDefinition {
+/** Common fields shared by all setting types */
+interface BaseSettingFields {
   /** Unique setting ID */
   id: string;
   /** Display label */
@@ -40,19 +38,33 @@ export interface SettingDefinition {
   emoji: string;
   /** Description shown in drill-down view */
   description: string;
-  /** Type of setting (determines UI) */
-  type: SettingType;
   /** For numeric: min value */
   min?: number;
   /** For numeric: max value */
   max?: number;
-  /** For duration: placeholder hint */
+  /** For numeric/duration: placeholder hint */
   placeholder?: string;
   /** Help text for the modal */
   helpText?: string;
-  /** For enum: available choices */
-  choices?: { value: string; label: string; emoji: string }[];
 }
+
+/** Enum setting — choices is required */
+interface EnumSettingDefinition extends BaseSettingFields {
+  type: SettingType.ENUM;
+  choices: { value: string; label: string; emoji: string }[];
+}
+
+/** Non-enum setting — choices must not be provided */
+interface StandardSettingDefinition extends BaseSettingFields {
+  type: SettingType.TRI_STATE | SettingType.NUMERIC | SettingType.DURATION;
+  choices?: never;
+}
+
+/**
+ * A single setting definition.
+ * Discriminated union: ENUM settings require choices; other types forbid them.
+ */
+export type SettingDefinition = EnumSettingDefinition | StandardSettingDefinition;
 
 /**
  * Current value of a setting with source tracking
