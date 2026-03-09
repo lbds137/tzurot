@@ -46,6 +46,8 @@ interface ProcessSingleAttachmentOptions {
   preprocessedAttachments?: ProcessedAttachment[];
   /** User's BYOK API key (for BYOK users) */
   userApiKey?: string;
+  /** ElevenLabs BYOK API key for premium STT */
+  elevenlabsApiKey?: string;
 }
 
 /**
@@ -72,6 +74,8 @@ export interface ProcessAttachmentsOptions {
   isGuestMode: boolean;
   preprocessedAttachments?: ProcessedAttachment[];
   userApiKey?: string;
+  /** ElevenLabs BYOK API key for premium STT */
+  elevenlabsApiKey?: string;
 }
 
 /**
@@ -91,6 +95,7 @@ export async function processAttachmentsParallel(
     isGuestMode,
     preprocessedAttachments,
     userApiKey,
+    elevenlabsApiKey,
   } = options;
   if (!attachments || attachments.length === 0) {
     return [];
@@ -105,6 +110,7 @@ export async function processAttachmentsParallel(
       isGuestMode,
       preprocessedAttachments,
       userApiKey,
+      elevenlabsApiKey,
     })
   );
 
@@ -143,7 +149,8 @@ async function processVoiceAttachment(
   attachment: ProcessSingleAttachmentOptions['attachment'],
   index: number,
   referenceNumber: number,
-  preprocessed?: ProcessedAttachment
+  preprocessed?: ProcessedAttachment,
+  elevenlabsApiKey?: string
 ): Promise<ProcessedAttachmentResult> {
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug(
@@ -161,7 +168,7 @@ async function processVoiceAttachment(
       { referenceNumber, url: attachment.url, duration: attachment.duration },
       '[AttachmentProcessor] Transcribing voice message'
     );
-    const result = await withRetry(() => transcribeAudio(attachment), {
+    const result = await withRetry(() => transcribeAudio(attachment, elevenlabsApiKey), {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
       operationName: `Voice transcription (reference ${referenceNumber})`,
@@ -236,11 +243,18 @@ async function processSingleAttachment(
     isGuestMode,
     preprocessedAttachments,
     userApiKey,
+    elevenlabsApiKey,
   } = options;
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
   if (attachment.isVoiceMessage === true) {
-    return processVoiceAttachment(attachment, index, referenceNumber, preprocessed);
+    return processVoiceAttachment(
+      attachment,
+      index,
+      referenceNumber,
+      preprocessed,
+      elevenlabsApiKey
+    );
   }
 
   if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {

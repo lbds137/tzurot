@@ -155,7 +155,9 @@ describe('ConversationInputProcessor', () => {
       ];
       const context = createMockContext({ preprocessedAttachments });
 
-      const result = await processor.processInputs(mockPersonality, mockMessage, context, false);
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
 
       expect(result.processedAttachments).toEqual(preprocessedAttachments);
       expect(mockProcessAttachments).not.toHaveBeenCalled();
@@ -175,27 +177,25 @@ describe('ConversationInputProcessor', () => {
 
       const context = createMockContext({ attachments });
 
-      const result = await processor.processInputs(
-        mockPersonality,
-        mockMessage,
-        context,
-        false,
-        'user-api-key'
-      );
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+        userApiKey: 'user-api-key',
+      });
 
       expect(result.processedAttachments).toEqual(processedResult);
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         attachments,
         mockPersonality,
         false,
-        'user-api-key'
+        'user-api-key',
+        undefined // elevenlabsApiKey
       );
     });
 
     it('should format user message via PromptBuilder', async () => {
       const context = createMockContext();
 
-      await processor.processInputs(mockPersonality, mockMessage, context, false);
+      await processor.processInputs(mockPersonality, mockMessage, context, { isGuestMode: false });
 
       expect(mockPromptBuilder.formatUserMessage).toHaveBeenCalledWith(mockMessage, context);
     });
@@ -220,7 +220,7 @@ describe('ConversationInputProcessor', () => {
         rawConversationHistory: rawHistory,
       });
 
-      await processor.processInputs(mockPersonality, mockMessage, context, false);
+      await processor.processInputs(mockPersonality, mockMessage, context, { isGuestMode: false });
 
       expect(mockResponsePostProcessor.filterDuplicateReferences).toHaveBeenCalledWith(
         referencedMessages,
@@ -244,19 +244,16 @@ describe('ConversationInputProcessor', () => {
       ];
       const context = createMockContext({ referencedMessages });
 
-      const result = await processor.processInputs(
-        mockPersonality,
-        mockMessage,
-        context,
-        true // guest mode
-      );
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: true,
+      });
 
       expect(mockReferencedMessageFormatter.formatReferencedMessages).toHaveBeenCalledWith(
         referencedMessages,
         mockPersonality,
         true,
         undefined,
-        undefined
+        { userApiKey: undefined, elevenlabsApiKey: undefined }
       );
       expect(result.referencedMessagesDescriptions).toBe('<references>formatted</references>');
     });
@@ -264,7 +261,9 @@ describe('ConversationInputProcessor', () => {
     it('should not format references when none present', async () => {
       const context = createMockContext({ referencedMessages: [] });
 
-      const result = await processor.processInputs(mockPersonality, mockMessage, context, false);
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
 
       expect(mockReferencedMessageFormatter.formatReferencedMessages).not.toHaveBeenCalled();
       expect(result.referencedMessagesDescriptions).toBeUndefined();
@@ -286,7 +285,9 @@ describe('ConversationInputProcessor', () => {
       ];
       const context = createMockContext({ referencedMessages });
 
-      const result = await processor.processInputs(mockPersonality, mockMessage, context, false);
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
 
       expect(mockReferencedMessageFormatter.extractTextForSearch).toHaveBeenCalledWith(
         '<references>formatted</references>'
@@ -298,7 +299,7 @@ describe('ConversationInputProcessor', () => {
       const rawHistory = [{ id: 'msg1', content: 'previous' }];
       const context = createMockContext({ rawConversationHistory: rawHistory });
 
-      await processor.processInputs(mockPersonality, mockMessage, context, false);
+      await processor.processInputs(mockPersonality, mockMessage, context, { isGuestMode: false });
 
       expect(mockExtractRecentHistoryWindow).toHaveBeenCalledWith(rawHistory);
     });
@@ -331,7 +332,9 @@ describe('ConversationInputProcessor', () => {
         rawConversationHistory: [{ id: 'history1' }],
       });
 
-      const result = await processor.processInputs(mockPersonality, mockMessage, context, false);
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
 
       expect(mockPromptBuilder.buildSearchQuery).toHaveBeenCalledWith(
         'formatted user message',
@@ -369,21 +372,26 @@ describe('ConversationInputProcessor', () => {
         preprocessedReferenceAttachments,
       });
 
-      await processor.processInputs(mockPersonality, mockMessage, context, false, 'api-key');
+      await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+        userApiKey: 'api-key',
+      });
 
       expect(mockReferencedMessageFormatter.formatReferencedMessages).toHaveBeenCalledWith(
         referencedMessages,
         mockPersonality,
         false,
         preprocessedReferenceAttachments,
-        'api-key'
+        { userApiKey: 'api-key', elevenlabsApiKey: undefined }
       );
     });
 
     it('should return complete ProcessedInputs structure', async () => {
       const context = createMockContext();
 
-      const result = await processor.processInputs(mockPersonality, mockMessage, context, false);
+      const result = await processor.processInputs(mockPersonality, mockMessage, context, {
+        isGuestMode: false,
+      });
 
       expect(result).toHaveProperty('processedAttachments');
       expect(result).toHaveProperty('userMessage');

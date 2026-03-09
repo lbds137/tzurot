@@ -97,8 +97,11 @@ export class DependencyStep implements IPipelineStep {
         jobContext.extendedContextAttachments,
         personality,
         job.id,
-        auth?.isGuestMode ?? false,
-        auth?.apiKey
+        {
+          isGuestMode: auth?.isGuestMode ?? false,
+          userApiKey: auth?.apiKey,
+          elevenlabsApiKey: auth?.elevenlabsApiKey,
+        }
       );
       preprocessing.extendedContextAttachments = extendedContextAttachments;
     }
@@ -193,14 +196,15 @@ export class DependencyStep implements IPipelineStep {
    * @param jobId - Job ID for logging
    * @param isGuestMode - Whether user is in guest mode (uses free models)
    * @param userApiKey - User's BYOK API key (for BYOK users)
+   * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
    */
   private async processExtendedContextAttachments(
     attachments: AttachmentMetadata[],
     personality: GenerationContext['job']['data']['personality'],
     jobId: string | undefined,
-    isGuestMode: boolean,
-    userApiKey?: string
+    authOptions: { isGuestMode: boolean; userApiKey?: string; elevenlabsApiKey?: string }
   ): Promise<ProcessedAttachment[]> {
+    const { isGuestMode, userApiKey, elevenlabsApiKey } = authOptions;
     // Filter to only images
     const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'));
     if (imageAttachments.length === 0) {
@@ -227,7 +231,8 @@ export class DependencyStep implements IPipelineStep {
         imageAttachments,
         personality,
         isGuestMode,
-        userApiKey
+        userApiKey,
+        elevenlabsApiKey
       );
 
       logger.info(
