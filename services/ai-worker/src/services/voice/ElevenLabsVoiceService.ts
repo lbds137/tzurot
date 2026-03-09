@@ -21,7 +21,6 @@ import {
   elevenLabsListVoices,
   ElevenLabsApiError,
 } from './ElevenLabsClient.js';
-import { createHash } from 'crypto';
 
 const logger = createLogger('ElevenLabsVoiceService');
 
@@ -36,8 +35,8 @@ const VOICE_NAME_PREFIX = 'tzurot-';
 
 interface CachedVoice {
   voiceId: string;
-  /** Hash of the API key used — different users get different cache entries */
-  apiKeyHash: string;
+  /** Suffix of the API key used — different users get different cache entries */
+  apiKeySuffix: string;
 }
 
 export class ElevenLabsVoiceService {
@@ -83,8 +82,8 @@ export class ElevenLabsVoiceService {
       return existing;
     }
 
-    const keyHash = this.hashApiKey(apiKey);
-    const promise = this.doEnsureCloned(slug, apiKey, keyHash, cacheKey)
+    const keySuffix = this.getKeySuffix(apiKey);
+    const promise = this.doEnsureCloned(slug, apiKey, keySuffix, cacheKey)
       .catch(error => {
         const reason = error instanceof Error ? error.message : String(error);
 
@@ -107,7 +106,7 @@ export class ElevenLabsVoiceService {
   private async doEnsureCloned(
     slug: string,
     apiKey: string,
-    keyHash: string,
+    keySuffix: string,
     cacheKey: string
   ): Promise<string> {
     const voiceName = `${VOICE_NAME_PREFIX}${slug}`;
@@ -117,7 +116,7 @@ export class ElevenLabsVoiceService {
       const voices = await elevenLabsListVoices(apiKey);
       const existing = voices.find(v => v.name === voiceName);
       if (existing !== undefined) {
-        this.cloneCache.set(cacheKey, { voiceId: existing.voiceId, apiKeyHash: keyHash });
+        this.cloneCache.set(cacheKey, { voiceId: existing.voiceId, apiKeySuffix: keySuffix });
         logger.info({ slug, voiceId: existing.voiceId }, 'Found existing ElevenLabs voice');
         return existing.voiceId;
       }
@@ -168,19 +167,24 @@ export class ElevenLabsVoiceService {
       description: `Auto-cloned by Tzurot for personality "${slug}"`,
     });
 
-    this.cloneCache.set(cacheKey, { voiceId, apiKeyHash: keyHash });
+    this.cloneCache.set(cacheKey, { voiceId, apiKeySuffix: keySuffix });
     logger.info({ slug, voiceId }, 'ElevenLabs voice cloned and cached');
     return voiceId;
   }
 
-  /** Build a cache key that includes the API key hash (different users = different entries) */
+  /** Build a cache key that includes the API key suffix (different users = different entries) */
   private buildCacheKey(slug: string, apiKey: string): string {
-    return `${slug}:${this.hashApiKey(apiKey)}`;
+    return `${slug}:${this.getKeySuffix(apiKey)}`;
   }
 
-  /** Hash API key for cache key — avoids storing raw keys in memory */
-  private hashApiKey(apiKey: string): string {
-    return createHash('sha256').update(apiKey).digest('hex').substring(0, 16);
+  /**
+   * Extract a short suffix from the API key for cache key differentiation.
+   * Not a security boundary — the raw key is already in process memory (used
+   * in every ElevenLabs API call). This just keeps cache keys short and avoids
+   * the full key appearing in debug/log output of cache contents.
+   */
+  private getKeySuffix(apiKey: string): string {
+    return apiKey.slice(-8);
   }
 
   /** Clear all caches (for testing). */
