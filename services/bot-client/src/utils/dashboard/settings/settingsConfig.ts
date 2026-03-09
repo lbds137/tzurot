@@ -184,7 +184,11 @@ export const VOICE_SETTINGS: SettingDefinition[] = [
  */
 export const VOICE_CASCADE_SETTINGS: SettingDefinition[] = [VOICE_RESPONSE_MODE_SETTING];
 
-/** All known settings across all groups. Single source of truth for setting lookups. */
+/**
+ * All known settings across all groups. Single source of truth for setting lookups.
+ * Note: VOICE_CASCADE_SETTINGS is intentionally excluded — it's a render-time subset
+ * of VOICE_SETTINGS, not a separate group. All voice settings are included via VOICE_SETTINGS.
+ */
 export const ALL_SETTINGS: SettingDefinition[] = [
   ...EXTENDED_CONTEXT_SETTINGS,
   ...MEMORY_SETTINGS,

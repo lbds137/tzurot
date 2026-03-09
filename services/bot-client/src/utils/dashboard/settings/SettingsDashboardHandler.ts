@@ -272,8 +272,10 @@ async function handleSetButton(
     return;
   }
 
-  // Parse setting:value format
-  const [settingId, rawValue] = extra.split(':');
+  // Parse setting:value format (single split — values may contain colons)
+  const colonIdx = extra.indexOf(':');
+  const settingId = extra.slice(0, colonIdx);
+  const rawValue = extra.slice(colonIdx + 1);
   const setting = getSettingById(settingId);
 
   if (setting === undefined) {

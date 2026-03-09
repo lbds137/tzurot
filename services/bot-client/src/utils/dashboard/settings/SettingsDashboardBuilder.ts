@@ -313,6 +313,8 @@ export function buildEnumButtons(
     );
   }
 
+  // Cast required: dynamic key lookup on SettingsData can't narrow the generic type param.
+  // Same pattern as buildTriStateButtons. Safe because ENUM settings use string values.
   const value = session.data[
     setting.id as keyof typeof session.data
   ] as unknown as SettingValue<string>;
