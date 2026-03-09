@@ -8,21 +8,9 @@ import type { AttachmentMetadata } from '@tzurot/common-types';
 import { CONTENT_TYPES } from '@tzurot/common-types';
 
 // Create mock functions
-const mockWhisperCreate = vi.fn().mockResolvedValue('Mocked transcription');
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);
 const mockVoiceEngineTranscribe = vi.fn();
 let mockVoiceEngineClient: { transcribe: typeof mockVoiceEngineTranscribe } | null = null;
-
-// Mock dependencies
-vi.mock('openai', () => ({
-  default: class MockOpenAI {
-    audio = {
-      transcriptions: {
-        create: mockWhisperCreate,
-      },
-    };
-  },
-}));
 
 vi.mock('../../redis.js', () => ({
   voiceTranscriptCache: {
@@ -55,7 +43,6 @@ global.fetch = vi.fn();
 describe('AudioProcessor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockWhisperCreate.mockResolvedValue('Mocked transcription');
     mockVoiceTranscriptCacheGet.mockResolvedValue(null);
     mockVoiceEngineClient = null;
     mockVoiceEngineTranscribe.mockReset();
@@ -84,17 +71,18 @@ describe('AudioProcessor', () => {
         expect(result).toBe('Cached transcription from Redis');
         expect(mockVoiceTranscriptCacheGet).toHaveBeenCalledWith(attachment.originalUrl);
         expect(global.fetch).not.toHaveBeenCalled();
-        expect(mockWhisperCreate).not.toHaveBeenCalled();
       });
 
       it('should skip cache when originalUrl is not provided', async () => {
         const attachment: AttachmentMetadata = {
           url: 'https://example.com/audio.ogg',
-          // No originalUrl
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
         };
+
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -115,6 +103,9 @@ describe('AudioProcessor', () => {
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
         };
+
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -138,6 +129,9 @@ describe('AudioProcessor', () => {
 
         mockVoiceTranscriptCacheGet.mockRejectedValue(new Error('Redis connection failed'));
 
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Fallback result' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+
         (global.fetch as any).mockResolvedValue({
           ok: true,
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
@@ -145,9 +139,8 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment);
 
-        expect(result).toBe('Mocked transcription');
+        expect(result).toBe('Fallback result');
         expect(global.fetch).toHaveBeenCalled();
-        expect(mockWhisperCreate).toHaveBeenCalled();
       });
 
       it('should skip cache when cached value is null', async () => {
@@ -161,6 +154,9 @@ describe('AudioProcessor', () => {
 
         mockVoiceTranscriptCacheGet.mockResolvedValue(null);
 
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+
         (global.fetch as any).mockResolvedValue({
           ok: true,
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
@@ -169,7 +165,6 @@ describe('AudioProcessor', () => {
         await transcribeAudio(attachment);
 
         expect(global.fetch).toHaveBeenCalled();
-        expect(mockWhisperCreate).toHaveBeenCalled();
       });
 
       it('should skip cache when cached value is empty string', async () => {
@@ -183,6 +178,9 @@ describe('AudioProcessor', () => {
 
         mockVoiceTranscriptCacheGet.mockResolvedValue('');
 
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+
         (global.fetch as any).mockResolvedValue({
           ok: true,
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
@@ -191,7 +189,6 @@ describe('AudioProcessor', () => {
         await transcribeAudio(attachment);
 
         expect(global.fetch).toHaveBeenCalled();
-        expect(mockWhisperCreate).toHaveBeenCalled();
       });
     });
 
@@ -216,10 +213,9 @@ describe('AudioProcessor', () => {
 
         expect(result).toBe('Voice engine transcription');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
-        expect(mockWhisperCreate).not.toHaveBeenCalled();
       });
 
-      it('should return empty string from voice-engine without falling back to Whisper', async () => {
+      it('should return empty string from voice-engine without falling back', async () => {
         const attachment: AttachmentMetadata = {
           url: 'https://example.com/audio.ogg',
           name: 'audio.ogg',
@@ -239,10 +235,9 @@ describe('AudioProcessor', () => {
 
         expect(result).toBe('');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
-        expect(mockWhisperCreate).not.toHaveBeenCalled();
       });
 
-      it('should fall back to Whisper when voice-engine fails', async () => {
+      it('should throw when voice-engine fails and no other provider available', async () => {
         const attachment: AttachmentMetadata = {
           url: 'https://example.com/audio.ogg',
           name: 'audio.ogg',
@@ -258,14 +253,10 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment);
-
-        expect(result).toBe('Mocked transcription');
-        expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
-        expect(mockWhisperCreate).toHaveBeenCalled();
+        await expect(transcribeAudio(attachment)).rejects.toThrow('No STT provider available');
       });
 
-      it('should use Whisper directly when voice-engine not configured', async () => {
+      it('should throw when no STT provider is configured', async () => {
         const attachment: AttachmentMetadata = {
           url: 'https://example.com/audio.ogg',
           name: 'audio.ogg',
@@ -273,17 +264,14 @@ describe('AudioProcessor', () => {
           size: 1024,
         };
 
-        // mockVoiceEngineClient is null by default (no VOICE_ENGINE_URL)
+        // No voice engine, no ElevenLabs key
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment);
-
-        expect(result).toBe('Mocked transcription');
-        expect(mockWhisperCreate).toHaveBeenCalled();
+        await expect(transcribeAudio(attachment)).rejects.toThrow('No STT provider available');
       });
     });
 
@@ -296,6 +284,9 @@ describe('AudioProcessor', () => {
           size: 2048,
         };
 
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+
         (global.fetch as any).mockResolvedValue({
           ok: true,
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048)),
@@ -303,7 +294,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment);
 
-        expect(result).toBe('Mocked transcription');
+        expect(result).toBe('transcribed');
         expect(global.fetch).toHaveBeenCalledWith(
           attachment.url,
           expect.objectContaining({
@@ -359,143 +350,6 @@ describe('AudioProcessor', () => {
       });
     });
 
-    describe('Whisper transcription', () => {
-      it('should transcribe audio successfully', async () => {
-        const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          name: 'test-audio.ogg',
-          contentType: CONTENT_TYPES.AUDIO_OGG,
-          size: 4096,
-          duration: 30,
-        };
-
-        (global.fetch as any).mockResolvedValue({
-          ok: true,
-          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(4096)),
-        });
-
-        mockWhisperCreate.mockResolvedValue('This is a transcribed message');
-
-        const result = await transcribeAudio(attachment);
-
-        expect(result).toBe('This is a transcribed message');
-        expect(mockWhisperCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            file: expect.any(File),
-            model: expect.any(String),
-            language: expect.any(String),
-            response_format: 'text',
-          })
-        );
-      });
-
-      it('should create File object with correct name', async () => {
-        const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          name: 'my-recording.ogg',
-          contentType: CONTENT_TYPES.AUDIO_OGG,
-          size: 1024,
-        };
-
-        (global.fetch as any).mockResolvedValue({
-          ok: true,
-          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
-        });
-
-        await transcribeAudio(attachment);
-
-        const fileArg = mockWhisperCreate.mock.calls[0][0].file;
-        expect(fileArg.name).toBe('my-recording.ogg');
-      });
-
-      it('should use default name when attachment name is missing', async () => {
-        const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          // No name
-          contentType: CONTENT_TYPES.AUDIO_OGG,
-          size: 1024,
-        };
-
-        (global.fetch as any).mockResolvedValue({
-          ok: true,
-          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
-        });
-
-        await transcribeAudio(attachment);
-
-        const fileArg = mockWhisperCreate.mock.calls[0][0].file;
-        expect(fileArg.name).toBe('audio.ogg');
-      });
-
-      it('should use default name when attachment name is empty', async () => {
-        const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          name: '',
-          contentType: CONTENT_TYPES.AUDIO_OGG,
-          size: 1024,
-        };
-
-        (global.fetch as any).mockResolvedValue({
-          ok: true,
-          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
-        });
-
-        await transcribeAudio(attachment);
-
-        const fileArg = mockWhisperCreate.mock.calls[0][0].file;
-        expect(fileArg.name).toBe('audio.ogg');
-      });
-
-      it('should handle Whisper API errors', async () => {
-        const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          name: 'audio.ogg',
-          contentType: CONTENT_TYPES.AUDIO_OGG,
-          size: 1024,
-        };
-
-        (global.fetch as any).mockResolvedValue({
-          ok: true,
-          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
-        });
-
-        mockWhisperCreate.mockRejectedValue(new Error('Whisper API error'));
-
-        await expect(transcribeAudio(attachment)).rejects.toThrow('Whisper API error');
-      });
-    });
-
-    describe('different audio formats', () => {
-      const testFormats = [
-        { contentType: CONTENT_TYPES.AUDIO_OGG, name: 'OGG format' },
-        { contentType: 'audio/mpeg', name: 'MP3 format' },
-        { contentType: 'audio/wav', name: 'WAV format' },
-        { contentType: 'audio/webm', name: 'WebM format' },
-      ];
-
-      testFormats.forEach(({ contentType, name }) => {
-        it(`should handle ${name}`, async () => {
-          const attachment: AttachmentMetadata = {
-            url: 'https://example.com/audio',
-            name: 'audio',
-            contentType,
-            size: 1024,
-          };
-
-          (global.fetch as any).mockResolvedValue({
-            ok: true,
-            arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
-          });
-
-          const result = await transcribeAudio(attachment);
-
-          expect(result).toBe('Mocked transcription');
-          const fileArg = mockWhisperCreate.mock.calls[0][0].file;
-          expect(fileArg.type).toBe(contentType);
-        });
-      });
-    });
-
     describe('voice message handling', () => {
       it('should handle voice messages with duration', async () => {
         const attachment: AttachmentMetadata = {
@@ -503,9 +357,12 @@ describe('AudioProcessor', () => {
           name: 'voice.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 8192,
-          duration: 120, // 2 minutes
+          duration: 120,
           isVoiceMessage: true,
         };
+
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Voice message text' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -514,30 +371,8 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment);
 
-        expect(result).toBe('Mocked transcription');
-        expect(mockWhisperCreate).toHaveBeenCalled();
-      });
-
-      it('should handle very long voice messages', async () => {
-        const attachment: AttachmentMetadata = {
-          url: 'https://example.com/long-voice.ogg',
-          name: 'long-voice.ogg',
-          contentType: CONTENT_TYPES.AUDIO_OGG,
-          size: 32768,
-          duration: 900, // 15 minutes
-          isVoiceMessage: true,
-        };
-
-        (global.fetch as any).mockResolvedValue({
-          ok: true,
-          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(32768)),
-        });
-
-        mockWhisperCreate.mockResolvedValue('Very long transcription...');
-
-        const result = await transcribeAudio(attachment);
-
-        expect(result).toBe('Very long transcription...');
+        expect(result).toBe('Voice message text');
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
       });
     });
 
@@ -569,7 +404,6 @@ describe('AudioProcessor', () => {
             contentType: CONTENT_TYPES.AUDIO_OGG,
           })
         );
-        expect(mockWhisperCreate).not.toHaveBeenCalled();
       });
 
       it('should fall back to voice-engine when ElevenLabs fails', async () => {
@@ -584,22 +418,23 @@ describe('AudioProcessor', () => {
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
       });
 
-      it('should fall back to Whisper when both ElevenLabs and voice-engine fail', async () => {
+      it('should throw when both ElevenLabs and voice-engine fail', async () => {
         mockElevenLabsSTT.mockRejectedValue(new Error('ElevenLabs down'));
         // No voice engine configured
 
-        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
-
-        expect(result).toBe('Mocked transcription');
-        expect(mockElevenLabsSTT).toHaveBeenCalled();
-        expect(mockWhisperCreate).toHaveBeenCalled();
+        await expect(transcribeAudio(audioAttachment, 'sk_el_test')).rejects.toThrow(
+          'No STT provider available'
+        );
       });
 
       it('should skip ElevenLabs when no apiKey provided', async () => {
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'voice engine result' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+
         const result = await transcribeAudio(audioAttachment);
 
         expect(mockElevenLabsSTT).not.toHaveBeenCalled();
-        expect(result).toBe('Mocked transcription');
+        expect(result).toBe('voice engine result');
       });
     });
   });
