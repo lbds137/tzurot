@@ -543,6 +543,14 @@ async def register_voice(
         if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
             raise HTTPException(status_code=413, detail="Audio file too large")
 
+        # Validate MIME type — same check as /v1/tts reference_audio path
+        if audio.content_type and audio.content_type not in _AUDIO_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported audio type: {audio.content_type}. "
+                f"Allowed: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
+            )
+
         # Save to voices directory for persistence across restarts.
         # SINGLE_REPLICA_ONLY: This writes to local disk, so registered voices
         # are only visible to the replica that handled the request. Multi-replica

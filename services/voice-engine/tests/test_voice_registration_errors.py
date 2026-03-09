@@ -28,6 +28,20 @@ async def test_register_voice_rejects_oversized_audio(
     assert "too large" in response.json()["detail"].lower()
 
 
+async def test_register_voice_rejects_unsupported_mime_type(
+    client: httpx.AsyncClient, mock_tts: MagicMock
+) -> None:
+    """Unsupported MIME type should be rejected with 400."""
+    response = await client.post(
+        "/v1/voices/register",
+        data={"voice_id": "test-voice"},
+        files={"audio": ("test.png", b"fake-image", "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert "unsupported audio type" in response.json()["detail"].lower()
+
+
 async def test_register_voice_generic_error_returns_500(
     client: httpx.AsyncClient, mock_tts: MagicMock
 ) -> None:
