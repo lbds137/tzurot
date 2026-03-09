@@ -81,6 +81,8 @@ export class VoiceEngineClient {
    */
   async isHealthy(): Promise<boolean> {
     const health = await this.getHealth();
+    // Requires both capabilities — partial availability (ASR up, TTS down) is not
+    // considered healthy. Callers needing per-capability checks use getHealth().
     return health.asr && health.tts;
   }
 

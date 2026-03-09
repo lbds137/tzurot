@@ -198,6 +198,28 @@ describe('extractPcmData', () => {
     expect(Buffer.compare(result, pcmContent)).toBe(0);
   });
 
+  it('should fall back to offset 44 when chunk size exceeds buffer length', () => {
+    // Build a valid RIFF header + fmt chunk with a bogus chunkSize that overflows
+    const riff = Buffer.alloc(12);
+    riff.write('RIFF', 0);
+    riff.writeUInt32LE(100, 4);
+    riff.write('WAVE', 8);
+
+    // fmt chunk with absurdly large chunkSize (0xFFFFFF)
+    const fmt = Buffer.alloc(8);
+    fmt.write('fmt ', 0);
+    fmt.writeUInt32LE(0xffffff, 4); // Way beyond buffer
+
+    const pcmContent = Buffer.from([0xab, 0xcd]);
+    const wavBuffer = Buffer.concat([riff, fmt, pcmContent]);
+
+    // Should fall back to offset 44, not crash
+    const result = extractPcmData(wavBuffer);
+
+    // Buffer is smaller than 44 bytes offset, so fallback returns empty subarray
+    expect(result.length).toBe(0);
+  });
+
   it('should fall back to offset 44 when RIFF header is missing', () => {
     const header = Buffer.alloc(44);
     const pcmContent = Buffer.from([0x01, 0x02, 0x03]);
