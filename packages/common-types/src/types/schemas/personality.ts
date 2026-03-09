@@ -214,6 +214,7 @@ export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 export function isVoiceEnabled(personality: LoadedPersonality): boolean {
   return personality.voiceEnabled === true;
 }
+
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;
 export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;
