@@ -159,7 +159,7 @@ async function handleDeleteVoice(
   res: ExpressResponse
 ): Promise<void> {
   const discordUserId = req.userId;
-  const { voiceId } = req.params;
+  const voiceId = req.params.voiceId as string;
 
   const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
   if ('errorResponse' in keyResult) {
