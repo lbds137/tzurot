@@ -142,6 +142,14 @@ export async function handleAction(
       return;
     }
 
+    // Guard: the toggle button is only shown when hasVoiceReference is true,
+    // but a stale session could allow this action after voice-clear was run.
+    if (!character.hasVoiceReference) {
+      logger.warn({ slug: entityId }, 'voice-toggle called but no voice reference exists');
+      await refreshDashboardAfterUpdate(interaction, entityId, character);
+      return;
+    }
+
     const newVoiceEnabled = !character.voiceEnabled;
     const updated = await updateCharacter(
       entityId,
