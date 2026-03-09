@@ -609,6 +609,26 @@ describe('SettingsDashboardBuilder', () => {
         /exceeds Discord's 5-button row limit/
       );
     });
+
+    it('should throw when a choice uses a reserved value', () => {
+      const config = createTestConfig();
+      const session = createEnumSession(null, 'auto');
+      const reservedSetting = {
+        id: 'voiceResponseMode',
+        label: 'Reserved',
+        emoji: '🚫',
+        description: 'Has reserved value',
+        type: SettingType.ENUM,
+        choices: [
+          { value: 'auto', label: 'Auto', emoji: '🔄' },
+          { value: 'other', label: 'Other', emoji: '🔊' },
+        ],
+      } satisfies typeof enumSetting;
+
+      expect(() => buildEnumButtons(config, session, reservedSetting)).toThrow(
+        /reserved choice value "auto"/
+      );
+    });
   });
 
   describe('buildEditButtons', () => {

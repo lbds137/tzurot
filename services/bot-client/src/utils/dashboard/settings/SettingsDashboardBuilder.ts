@@ -296,6 +296,9 @@ export function buildTriStateButtons(
 /** Discord limits action rows to 5 buttons */
 const DISCORD_MAX_BUTTONS_PER_ROW = 5;
 
+/** Values reserved by handleSetButton's switch — mapped to non-string types */
+const RESERVED_ENUM_VALUES = ['auto', 'true', 'false'] as const;
+
 /**
  * Build enum buttons for enum settings (Auto + one per choice)
  */
@@ -304,13 +307,22 @@ export function buildEnumButtons(
   session: SettingsDashboardSession,
   setting: SettingDefinition
 ): ActionRowBuilder<MessageActionRowComponentBuilder> {
-  const choiceCount = setting.choices?.length ?? 0;
-  const totalButtons = 1 + choiceCount; // Auto + choices
+  const choices = setting.choices ?? [];
+  const totalButtons = 1 + choices.length; // Auto + choices
   if (totalButtons > DISCORD_MAX_BUTTONS_PER_ROW) {
     throw new Error(
-      `ENUM setting "${setting.id}" has ${choiceCount} choices — ` +
+      `ENUM setting "${setting.id}" has ${choices.length} choices — ` +
         `exceeds Discord's ${DISCORD_MAX_BUTTONS_PER_ROW}-button row limit (1 Auto + ${DISCORD_MAX_BUTTONS_PER_ROW - 1} max choices)`
     );
+  }
+
+  for (const choice of choices) {
+    if ((RESERVED_ENUM_VALUES as readonly string[]).includes(choice.value)) {
+      throw new Error(
+        `ENUM setting "${setting.id}" has reserved choice value "${choice.value}" — ` +
+          `"auto", "true", and "false" are reserved by the settings handler`
+      );
+    }
   }
 
   // Cast required: dynamic key lookup on SettingsData can't narrow the generic type param.
