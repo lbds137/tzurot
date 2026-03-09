@@ -38,8 +38,10 @@ async function handleVoiceUpload(
   const attachment = interaction.options.getAttachment('audio', true);
   const userId = context.user.id;
 
-  // Validate attachment type
-  if (attachment.contentType?.startsWith(VALID_AUDIO_PREFIX) !== true) {
+  // Validate attachment type (optional chain satisfies both prefer-optional-chain
+  // and strict-boolean-expressions lint rules; !== true handles null contentType)
+  const isAudio = attachment.contentType?.startsWith(VALID_AUDIO_PREFIX) === true;
+  if (!isAudio) {
     await context.editReply(
       `❌ Invalid file type. Please upload an audio file (WAV, MP3, OGG, or FLAC).\n` +
         `Allowed types: ${VOICE_REFERENCE_LIMITS.ALLOWED_TYPES.join(', ')}`
@@ -56,7 +58,13 @@ async function handleVoiceUpload(
   }
 
   // Validate attachment URL is from Discord CDN (SSRF defense-in-depth)
-  const attachmentHost = new URL(attachment.url).hostname;
+  let attachmentHost: string;
+  try {
+    attachmentHost = new URL(attachment.url).hostname;
+  } catch {
+    await context.editReply('❌ Invalid attachment URL.');
+    return;
+  }
   if (!DISCORD_CDN_HOSTS.includes(attachmentHost)) {
     logger.warn({ url: attachment.url, host: attachmentHost }, 'Unexpected attachment URL host');
     await context.editReply('❌ Invalid attachment URL.');
@@ -78,8 +86,15 @@ async function handleVoiceUpload(
       return;
     }
 
-    // Download audio from Discord CDN
-    const audioResponse = await fetch(attachment.url);
+    // Download audio from Discord CDN (30s timeout to avoid holding the deferred interaction)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    let audioResponse: Response;
+    try {
+      audioResponse = await fetch(attachment.url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!audioResponse.ok) {
       await context.editReply('❌ Failed to download the audio file. Please try again.');
       return;
