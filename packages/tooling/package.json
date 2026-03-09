@@ -36,9 +36,9 @@
   "devDependencies": {
     "@types/eslint": "^9.6.1",
     "@types/estree": "^1.0.8",
-    "@types/node": "^25.3.3",
+    "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^4.0.18",
-    "memfs": "^4.56.10",
+    "memfs": "^4.56.11",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
