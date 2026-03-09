@@ -31,11 +31,8 @@ RUN apt-get update && apt-get install -y build-essential \
 # Copy application code
 COPY server.py .
 
-# Create non-root user (CWE-250: least privilege)
-RUN useradd -m -u 1000 appuser \
-    && mkdir -p /app/voices \
-    && chown -R appuser:appuser /app/voices
-USER appuser
+# Ensure voices directory exists for volume mount
+RUN mkdir -p /app/voices
 
 # Default port (Railway will set PORT env var)
 ENV PORT=8000
