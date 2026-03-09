@@ -36,7 +36,8 @@ export class VoiceMessageProcessor implements IMessageProcessor {
       return false; // Continue to next processor
     }
 
-    // Check if auto-transcription is enabled via config cascade (admin-level toggle)
+    // Check if auto-transcription is enabled via config cascade (admin-level toggle).
+    // GatewayClient.getAdminSettings() is TTL-cached (30s), so this is a fast cache hit.
     let voiceTranscriptionEnabled: boolean = HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled;
     try {
       const adminSettings = await this.gatewayClient.getAdminSettings();

@@ -199,15 +199,11 @@ describe('handleVoice', () => {
         },
       });
 
-      (fetchCharacter as ReturnType<typeof vi.fn>).mockResolvedValue({
-        name: 'Test',
-        displayName: 'Test',
-        canEdit: true,
-      });
-
       await handleVoice(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith('❌ Invalid attachment URL.');
+      // Should reject before making any gateway calls
+      expect(fetchCharacter).not.toHaveBeenCalled();
       expect(updateCharacter).not.toHaveBeenCalled();
     });
   });
@@ -264,14 +260,14 @@ describe('handleVoice', () => {
   });
 
   describe('unknown subcommand', () => {
-    it('should not call any handler for unknown subcommands', async () => {
+    it('should reply with error for unknown subcommands', async () => {
       const context = createMockContext('voice-unknown', { character: 'test-char' });
 
       await handleVoice(context, mockConfig);
 
       expect(fetchCharacter).not.toHaveBeenCalled();
       expect(updateCharacter).not.toHaveBeenCalled();
-      expect(context.editReply).not.toHaveBeenCalled();
+      expect(context.editReply).toHaveBeenCalledWith('❌ Unknown voice command.');
     });
   });
 });
