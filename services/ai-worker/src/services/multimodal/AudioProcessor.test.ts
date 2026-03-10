@@ -462,6 +462,8 @@ describe('AudioProcessor', () => {
             contentType: CONTENT_TYPES.AUDIO_OGG,
           })
         );
+        // Voice-engine should NOT be called when ElevenLabs succeeds (early return)
+        expect(mockVoiceEngineTranscribe).not.toHaveBeenCalled();
       });
 
       it('should fall back to voice-engine when ElevenLabs fails', async () => {

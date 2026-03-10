@@ -11,6 +11,7 @@
  */
 
 import { Router, type Response as ExpressResponse } from 'express';
+import { z } from 'zod';
 import {
   createLogger,
   AI_ENDPOINTS,
@@ -34,17 +35,18 @@ const VOICE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 /** Max concurrent ElevenLabs delete calls per batch in bulk clear */
 const DELETE_BATCH_SIZE = 5;
 
-/** Shape of a voice entry from ElevenLabs GET /v1/voices */
-interface ElevenLabsVoice {
-  voice_id: string;
-  name: string;
-  category?: string;
-}
+/** Zod schemas for ElevenLabs API responses — validates at the external service boundary */
+const ElevenLabsVoiceSchema = z.object({
+  voice_id: z.string(),
+  name: z.string(),
+  category: z.string().optional(),
+});
 
-/** Response from ElevenLabs GET /v1/voices */
-interface ElevenLabsVoicesResponse {
-  voices: ElevenLabsVoice[];
-}
+const ElevenLabsVoicesResponseSchema = z.object({
+  voices: z.array(ElevenLabsVoiceSchema),
+});
+
+type ElevenLabsVoice = z.infer<typeof ElevenLabsVoiceSchema>;
 
 /**
  * Fetch all voices from ElevenLabs, filtered to tzurot-prefixed clones.
@@ -77,11 +79,18 @@ async function fetchTzurotVoices(
     };
   }
 
-  const data = (await response.json()) as ElevenLabsVoicesResponse;
-  const allVoices = Array.isArray(data.voices) ? data.voices : [];
-  const tzurotVoices = allVoices.filter(
-    v => typeof v.name === 'string' && v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)
-  );
+  const parseResult = ElevenLabsVoicesResponseSchema.safeParse(await response.json());
+  if (!parseResult.success) {
+    logger.error(
+      { errors: parseResult.error.format() },
+      '[Voices] Unexpected response format from ElevenLabs'
+    );
+    return {
+      errorResponse: ErrorResponses.internalError('Unexpected response from ElevenLabs API'),
+    };
+  }
+  const allVoices = parseResult.data.voices;
+  const tzurotVoices = allVoices.filter(v => v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX));
 
   return { voices: tzurotVoices, totalVoices: allVoices.length };
 }
@@ -123,13 +132,17 @@ async function fetchSingleVoice(
     };
   }
 
-  const voice = (await response.json()) as ElevenLabsVoice;
-  if (typeof voice.voice_id !== 'string' || typeof voice.name !== 'string') {
+  const parseResult = ElevenLabsVoiceSchema.safeParse(await response.json());
+  if (!parseResult.success) {
+    logger.error(
+      { errors: parseResult.error.format(), voiceId },
+      '[Voices] Unexpected voice response format from ElevenLabs'
+    );
     return {
       errorResponse: ErrorResponses.internalError('Unexpected voice response from ElevenLabs'),
     };
   }
-  return { voice };
+  return { voice: parseResult.data };
 }
 
 /** Delete a single ElevenLabs voice via the API */
