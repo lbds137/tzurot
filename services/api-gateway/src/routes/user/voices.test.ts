@@ -98,7 +98,7 @@ describe('Voice Management Routes', () => {
         name: 'tzurot-bob',
         slug: 'bob',
       });
-      expect(res.body.totalSlots).toBe(4);
+      expect(res.body.totalVoices).toBe(4);
       expect(res.body.tzurotCount).toBe(2);
     });
 

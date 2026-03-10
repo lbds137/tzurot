@@ -81,7 +81,7 @@ describe('handleBrowseVoices', () => {
           { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
           { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
-        totalSlots: 10,
+        totalVoices: 10,
         tzurotCount: 2,
       },
     });
@@ -112,7 +112,7 @@ describe('handleBrowseVoices', () => {
       ok: true,
       data: {
         voices,
-        totalSlots: 30,
+        totalVoices: 30,
         tzurotCount: 12,
       },
     });
@@ -143,7 +143,7 @@ describe('handleBrowseVoices', () => {
       ok: true,
       data: {
         voices: [{ voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
-        totalSlots: 5,
+        totalVoices: 5,
         tzurotCount: 1,
       },
     });
@@ -166,7 +166,7 @@ describe('handleBrowseVoices', () => {
       ok: true,
       data: {
         voices: [],
-        totalSlots: 5,
+        totalVoices: 5,
         tzurotCount: 0,
       },
     });
@@ -247,7 +247,7 @@ describe('handleVoiceBrowsePagination', () => {
 
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { voices, totalSlots: 30, tzurotCount: 12 },
+      data: { voices, totalVoices: 30, tzurotCount: 12 },
     });
 
     // Click "next" to go to page 1
