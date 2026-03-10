@@ -168,11 +168,13 @@ describe('Voice Management Routes', () => {
       expect(res.body.slug).toBe('alice');
     });
 
-    it('should reject deleting a non-tzurot voice', async () => {
+    it('should reject deleting a non-tzurot voice (IDOR guard)', async () => {
+      // voice-3 is 'my-custom-voice' — not tzurot-prefixed, so ownership check rejects
       const res = await request(app).delete('/voices/voice-3');
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('NOT_FOUND');
+      expect(res.body.message).toContain('not a Tzurot-cloned voice');
     });
 
     it('should reject deleting a nonexistent voice', async () => {
