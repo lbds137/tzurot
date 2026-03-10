@@ -190,6 +190,54 @@ describe('handleVoiceAutocomplete', () => {
     expect(mockRespond).toHaveBeenCalledTimes(2);
   });
 
+  it('should invalidate cache after successful delete', async () => {
+    // Pre-populate cache via autocomplete
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: [{ voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' }],
+        totalSlots: 10,
+        tzurotCount: 1,
+      },
+    });
+    await handleVoiceAutocomplete(createMockAutocomplete());
+    expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+
+    // Delete the voice — should invalidate cache
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { deleted: true, voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' },
+    });
+    const mockEditReply = vi.fn();
+    const mockContext = {
+      interaction: { user: { id: 'user-123' }, editReply: mockEditReply },
+      user: { id: 'user-123' },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'ch',
+      guildId: null,
+      commandName: 'settings',
+      isEphemeral: true,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn().mockReturnValue('voice-1'),
+      getSubcommand: vi.fn().mockReturnValue('delete'),
+      getSubcommandGroup: vi.fn().mockReturnValue('voices'),
+    } as unknown as DeferredCommandContext;
+    await handleDeleteVoice(mockContext);
+
+    // Autocomplete should re-fetch (cache was invalidated)
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { voices: [], totalSlots: 10, tzurotCount: 0 },
+    });
+    await handleVoiceAutocomplete(createMockAutocomplete());
+    expect(mockCallGatewayApi).toHaveBeenCalledTimes(3);
+  });
+
   it('should return empty on API error', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404, error: 'Not found' });
 
