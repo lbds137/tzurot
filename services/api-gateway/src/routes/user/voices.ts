@@ -16,6 +16,7 @@ import {
   decryptApiKey,
   AIProvider,
   AI_ENDPOINTS,
+  ELEVENLABS_VOICE_NAME_PREFIX,
   VALIDATION_TIMEOUTS,
   type PrismaClient,
 } from '@tzurot/common-types';
@@ -28,8 +29,8 @@ import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('VoicesRoute');
 
-/** Prefix used by ElevenLabsVoiceService when cloning voices */
-const VOICE_NAME_PREFIX = 'tzurot-';
+/** Validates ElevenLabs voice IDs — prevents unnecessary API round-trips for garbage input */
+const VOICE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Max concurrent ElevenLabs delete calls per batch in bulk clear */
 const DELETE_BATCH_SIZE = 5;
@@ -56,19 +57,22 @@ async function resolveElevenLabsKey(
 ): Promise<{ apiKey: string } | { errorResponse: ErrorResponse }> {
   const user = await prisma.user.findFirst({
     where: { discordId: discordUserId },
-    select: { id: true },
+    select: {
+      id: true,
+      apiKeys: {
+        where: { provider: AIProvider.ElevenLabs },
+        select: { iv: true, content: true, tag: true },
+        take: 1,
+      },
+    },
   });
 
   if (user === null) {
     return { errorResponse: ErrorResponses.notFound('User') };
   }
 
-  const storedKey = await prisma.userApiKey.findFirst({
-    where: { userId: user.id, provider: AIProvider.ElevenLabs },
-    select: { iv: true, content: true, tag: true },
-  });
-
-  if (storedKey === null) {
+  const storedKey = user.apiKeys[0];
+  if (storedKey === undefined) {
     return {
       errorResponse: ErrorResponses.notFound(
         'ElevenLabs API key. Set one with /settings apikey set'
@@ -124,7 +128,7 @@ async function fetchTzurotVoices(
   const data = (await response.json()) as ElevenLabsVoicesResponse;
   const allVoices = Array.isArray(data.voices) ? data.voices : [];
   const tzurotVoices = allVoices.filter(
-    v => typeof v.name === 'string' && v.name.startsWith(VOICE_NAME_PREFIX)
+    v => typeof v.name === 'string' && v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)
   );
 
   return { voices: tzurotVoices, totalSlots: allVoices.length };
@@ -219,7 +223,7 @@ async function handleListVoices(
     voices: voices.map(v => ({
       voiceId: v.voice_id,
       name: v.name,
-      slug: v.name.slice(VOICE_NAME_PREFIX.length),
+      slug: v.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length),
     })),
     totalSlots,
     tzurotCount: voices.length,
@@ -237,6 +241,11 @@ async function handleDeleteVoice(
   // Named route params (`:voiceId`) are always string, but the index signature is wider
   const voiceId = req.params.voiceId as string;
 
+  if (!VOICE_ID_RE.test(voiceId)) {
+    sendError(res, ErrorResponses.notFound('Voice'));
+    return;
+  }
+
   const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
   if ('errorResponse' in keyResult) {
     sendError(res, keyResult.errorResponse);
@@ -253,7 +262,7 @@ async function handleDeleteVoice(
 
   const { voice } = voiceResult;
 
-  if (!voice.name.startsWith(VOICE_NAME_PREFIX)) {
+  if (!voice.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)) {
     sendError(res, ErrorResponses.notFound('Voice not found or not a Tzurot-cloned voice'));
     return;
   }
@@ -280,11 +289,18 @@ async function handleDeleteVoice(
     deleted: true,
     voiceId,
     name: voice.name,
-    slug: voice.name.slice(VOICE_NAME_PREFIX.length),
+    slug: voice.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length),
   });
 }
 
-/** POST /clear handler — delete ALL tzurot-prefixed voices */
+/**
+ * POST /clear handler — delete ALL tzurot-prefixed voices.
+ *
+ * Always returns 200 OK, even on partial failure. Callers must inspect the
+ * response body: `{ deleted, total, errors? }`. When `errors` is present,
+ * some deletions failed but others succeeded. This mirrors the bot-client's
+ * expectation — it shows a warning embed for partial failures.
+ */
 async function handleClearVoices(
   prisma: PrismaClient,
   req: AuthenticatedRequest,

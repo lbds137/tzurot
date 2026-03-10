@@ -15,7 +15,12 @@
  * Voice naming: "tzurot-{slug}" — identifiable in ElevenLabs dashboard.
  */
 
-import { createLogger, TTLCache, getConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  TTLCache,
+  getConfig,
+  ELEVENLABS_VOICE_NAME_PREFIX,
+} from '@tzurot/common-types';
 import {
   elevenLabsCloneVoice,
   elevenLabsListVoices,
@@ -30,8 +35,6 @@ const CLONE_CACHE_TTL_MS = 30 * 60 * 1000;
 const NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 /** Max cached entries */
 const CACHE_MAX_SIZE = 200;
-/** Voice name prefix for identification in user's ElevenLabs dashboard */
-const VOICE_NAME_PREFIX = 'tzurot-';
 
 interface CachedVoice {
   voiceId: string;
@@ -101,7 +104,7 @@ export class ElevenLabsVoiceService {
   }
 
   private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
-    const voiceName = `${VOICE_NAME_PREFIX}${slug}`;
+    const voiceName = `${ELEVENLABS_VOICE_NAME_PREFIX}${slug}`;
 
     // Check if voice already exists in user's account (avoids re-cloning).
     // Note: matches by name only — a manually-created voice with the same

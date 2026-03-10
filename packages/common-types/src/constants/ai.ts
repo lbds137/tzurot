@@ -172,6 +172,15 @@ export const MODEL_DEFAULTS = {
 } as const;
 
 /**
+ * ElevenLabs voice cloning constants
+ *
+ * Cross-service contract: both ai-worker (clone creation) and api-gateway
+ * (voice management routes) must agree on the prefix used to identify
+ * Tzurot-cloned voices in a user's ElevenLabs account.
+ */
+export const ELEVENLABS_VOICE_NAME_PREFIX = 'tzurot-';
+
+/**
  * AI provider identifiers
  *
  * OpenRouter: LLM chat/generation (BYOK for model access)
