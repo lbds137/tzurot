@@ -441,6 +441,7 @@ describe('GenerationStep', () => {
         showModelFooter: false,
         voiceResponseMode: 'always' as const,
         voiceTranscriptionEnabled: true,
+        elevenlabsTtsModel: 'eleven_multilingual_v2',
         sources: {
           maxMessages: 'hardcoded' as const,
           maxAge: 'hardcoded' as const,
@@ -453,6 +454,7 @@ describe('GenerationStep', () => {
           showModelFooter: 'user-default' as const,
           voiceResponseMode: 'hardcoded' as const,
           voiceTranscriptionEnabled: 'hardcoded' as const,
+          elevenlabsTtsModel: 'hardcoded' as const,
         },
       };
 

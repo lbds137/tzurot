@@ -47,6 +47,11 @@ describe('SettingsSessionStorage', () => {
         source: 'hardcoded',
       },
       voiceTranscriptionEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
+      elevenlabsTtsModel: {
+        localValue: null,
+        effectiveValue: 'eleven_multilingual_v2',
+        source: 'hardcoded',
+      },
     },
     view: 'overview' as never,
     userId: 'user-123',
