@@ -44,9 +44,6 @@ describe('Voice Management Routes', () => {
     user: {
       findFirst: vi.fn(),
     },
-    userApiKey: {
-      findFirst: vi.fn(),
-    },
   } as unknown as PrismaClient;
 
   const mockVoicesResponse = {
@@ -65,12 +62,10 @@ describe('Voice Management Routes', () => {
     app.use(express.json());
     app.use('/voices', createVoicesRoutes(mockPrisma));
 
-    // Default: user exists and has encrypted key
-    (mockPrisma.user.findFirst as any).mockResolvedValue({ id: 'user-uuid-123' });
-    (mockPrisma.userApiKey.findFirst as any).mockResolvedValue({
-      iv: 'mock-iv',
-      content: 'mock-content',
-      tag: 'mock-tag',
+    // Default: user exists and has encrypted ElevenLabs key (single query with include)
+    (mockPrisma.user.findFirst as any).mockResolvedValue({
+      id: 'user-uuid-123',
+      apiKeys: [{ iv: 'mock-iv', content: 'mock-content', tag: 'mock-tag' }],
     });
 
     // Default: decryptApiKey returns test key (must re-apply after restoreAllMocks)
@@ -108,7 +103,10 @@ describe('Voice Management Routes', () => {
     });
 
     it('should return 404 when user has no ElevenLabs key', async () => {
-      (mockPrisma.userApiKey.findFirst as any).mockResolvedValue(null);
+      (mockPrisma.user.findFirst as any).mockResolvedValue({
+        id: 'user-uuid-123',
+        apiKeys: [],
+      });
 
       const res = await request(app).get('/voices');
 
@@ -197,6 +195,17 @@ describe('Voice Management Routes', () => {
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('NOT_FOUND');
       expect(res.body.message).toContain('not a Tzurot-cloned voice');
+    });
+
+    it('should reject malformed voiceId without calling ElevenLabs', async () => {
+      // URL-encode to ensure the full string reaches the route param
+      const badId = 'invalid%20voice%21%23id';
+      const res = await request(app).delete(`/voices/${badId}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('NOT_FOUND');
+      // Should not make any ElevenLabs API calls for obviously invalid IDs
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it('should reject deleting a nonexistent voice', async () => {

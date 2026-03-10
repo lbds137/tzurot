@@ -9,6 +9,7 @@ export {
   AI_DEFAULTS,
   AI_ENDPOINTS,
   MODEL_DEFAULTS,
+  ELEVENLABS_VOICE_NAME_PREFIX,
   AIProvider,
   GUEST_MODE,
   isFreeModel,
