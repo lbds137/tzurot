@@ -11,7 +11,7 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, type EnvConfig, VOICE_REFERENCE_LIMITS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { fetchCharacter, updateCharacter } from './api.js';
+import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
 
 const logger = createLogger('character-voice');
 
@@ -26,6 +26,33 @@ const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
 
 /** Allowed Discord CDN hostnames for SSRF defense-in-depth */
 const DISCORD_CDN_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
+
+/**
+ * Fetch a character and verify the user has edit permission.
+ * Sends error reply and returns null if the character is not found or not editable.
+ */
+async function fetchEditableCharacter(
+  slug: string,
+  config: EnvConfig,
+  userId: string,
+  context: DeferredCommandContext
+): Promise<FetchedCharacter | null> {
+  const character = await fetchCharacter(slug, config, userId);
+  if (!character) {
+    await context.editReply(
+      `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
+    );
+    return null;
+  }
+  if (!character.canEdit) {
+    await context.editReply(
+      `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
+        'You can only edit characters you own.'
+    );
+    return null;
+  }
+  return character;
+}
 
 /**
  * Handle /character voice upload
@@ -74,18 +101,8 @@ async function handleVoiceUpload(
 
   try {
     // Check permissions
-    const character = await fetchCharacter(slug, config, userId);
+    const character = await fetchEditableCharacter(slug, config, userId, context);
     if (!character) {
-      await context.editReply(
-        `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
-      );
-      return;
-    }
-    if (!character.canEdit) {
-      await context.editReply(
-        `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
-          'You can only edit characters you own.'
-      );
       return;
     }
 
@@ -138,18 +155,8 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
 
   try {
     // Check permissions
-    const character = await fetchCharacter(slug, config, userId);
+    const character = await fetchEditableCharacter(slug, config, userId, context);
     if (!character) {
-      await context.editReply(
-        `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
-      );
-      return;
-    }
-    if (!character.canEdit) {
-      await context.editReply(
-        `❌ You don't have permission to edit \`${escapeMarkdown(slug)}\`.\n` +
-          'You can only edit characters you own.'
-      );
       return;
     }
 
