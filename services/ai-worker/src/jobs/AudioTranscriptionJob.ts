@@ -15,7 +15,7 @@ import {
   type AudioTranscriptionResult,
   audioTranscriptionJobDataSchema,
 } from '@tzurot/common-types';
-import { transcribeAudio } from '../services/MultimodalProcessor.js';
+import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
 import { withRetry } from '../utils/retry.js';
 
 const logger = createLogger('AudioTranscriptionJob');

@@ -17,6 +17,7 @@ import {
 } from '../../../utils/destructiveConfirmation.js';
 import { DestructiveCustomIds } from '../../../utils/customIds.js';
 import type { VoicesListResponse } from './types.js';
+import { clearVoiceCacheForUser } from './delete.js';
 
 const logger = createLogger('settings-voices-clear');
 
@@ -126,6 +127,9 @@ export async function handleVoiceClearModalSubmit(
     } else {
       embed.setDescription(`Deleted **${deleted}** cloned voice${deleted !== 1 ? 's' : ''}.`);
     }
+
+    // Invalidate autocomplete cache so deleted voices don't appear in /settings voices delete
+    clearVoiceCacheForUser(userId);
 
     logger.info({ userId, deleted, total }, '[Voices Clear] Cleared voices');
 

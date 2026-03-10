@@ -107,7 +107,15 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
 }
 
 /**
- * Clear the voice autocomplete cache.
+ * Invalidate a user's cached voice list (e.g., after bulk clear).
+ * Called from clear.ts after a successful /user/voices/clear response.
+ */
+export function clearVoiceCacheForUser(userId: string): void {
+  voiceCache.delete(userId);
+}
+
+/**
+ * Clear the entire voice autocomplete cache.
  * @internal For testing only
  */
 export function _clearVoiceCacheForTesting(): void {
