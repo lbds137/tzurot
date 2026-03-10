@@ -450,6 +450,16 @@ Tighten ElevenLabs BYOK from PR #727 follow-ups and simplify the STT fallback ch
 - [x] Clean up Whisper-related code, config, and `OPENAI_API_KEY` env var
 - [x] Voice slot management UX — `/settings voices browse|delete|clear` commands
 
+#### Phase 4.6: Configurable ElevenLabs TTS Model
+
+Users should choose their preferred ElevenLabs TTS model — shapes.inc had a dropdown for this. Currently hardcoded to `eleven_multilingual_v2` in `ElevenLabsClient.ts:141`. The `ElevenLabsTTSOptions` interface already accepts an optional `modelId` but no caller passes it.
+
+- [ ] Call `GET /v1/models` on ElevenLabs API to discover available TTS models
+- [ ] Add `/settings voices model` subcommand with autocomplete dropdown of available models
+- [ ] Store user's preferred model in DB (per-user setting, not per-character)
+- [ ] Thread selected `modelId` through `TTSStep` → `ElevenLabsClient.textToSpeech()`
+- [ ] STT model (`scribe_v1`) stays pinned — fewer options, less user value
+
 #### Phase 5: Shapes.inc Voice Field Import
 
 Import voice configuration from shapes.inc character data.
