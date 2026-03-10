@@ -194,7 +194,7 @@ describe('Voice Management Routes', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('NOT_FOUND');
-      expect(res.body.message).toContain('not a Tzurot-cloned voice');
+      expect(res.body.message).toBe('Tzurot-cloned voice not found');
     });
 
     it('should reject malformed voiceId without calling ElevenLabs', async () => {
