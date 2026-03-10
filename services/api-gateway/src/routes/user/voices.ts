@@ -29,7 +29,8 @@ import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('VoicesRoute');
 
-/** Validates ElevenLabs voice IDs — prevents unnecessary API round-trips for garbage input */
+/** Validates ElevenLabs voice IDs — prevents unnecessary API round-trips for garbage input.
+ * See also: voice-engine's `_VOICE_ID_RE` in server.py (authoritative pattern). */
 const VOICE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Max concurrent ElevenLabs delete calls per batch in bulk clear */
