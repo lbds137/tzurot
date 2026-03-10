@@ -40,7 +40,7 @@ function buildVoiceBrowsePage(
   data: VoicesListResponse,
   page: number
 ): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] } {
-  const { voices, totalSlots, tzurotCount } = data;
+  const { voices, totalVoices, tzurotCount } = data;
 
   const embed = new EmbedBuilder()
     .setTitle('🎤 Cloned Voices')
@@ -51,7 +51,7 @@ function buildVoiceBrowsePage(
     embed.setDescription(
       'No Tzurot-cloned voices found.\n\n' +
         'Voices are auto-cloned when you talk to a character with voice enabled.\n' +
-        `Your ElevenLabs account has **${totalSlots}** total voice slots.`
+        `Your ElevenLabs account has **${totalVoices}** voices.`
     );
     return { embed, components: [] };
   }
@@ -67,7 +67,7 @@ function buildVoiceBrowsePage(
 
   embed.setDescription(voiceLines.join('\n'));
   embed.setFooter({
-    text: `${tzurotCount} Tzurot voice${tzurotCount !== 1 ? 's' : ''} / ${totalSlots} total ElevenLabs slots`,
+    text: `${tzurotCount} Tzurot voice${tzurotCount !== 1 ? 's' : ''} / ${totalVoices} total in ElevenLabs account`,
   });
 
   // Show management hints only on first page to avoid clutter

@@ -137,7 +137,7 @@ describe('handleVoiceAutocomplete', () => {
           { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
           { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
-        totalSlots: 10,
+        totalVoices: 10,
         tzurotCount: 2,
       },
     });
@@ -158,7 +158,7 @@ describe('handleVoiceAutocomplete', () => {
           { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
           { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
-        totalSlots: 10,
+        totalVoices: 10,
         tzurotCount: 2,
       },
     });
@@ -173,7 +173,7 @@ describe('handleVoiceAutocomplete', () => {
       ok: true,
       data: {
         voices: [{ voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
-        totalSlots: 10,
+        totalVoices: 10,
         tzurotCount: 1,
       },
     });
@@ -193,7 +193,7 @@ describe('handleVoiceAutocomplete', () => {
       ok: true,
       data: {
         voices: [{ voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' }],
-        totalSlots: 10,
+        totalVoices: 10,
         tzurotCount: 1,
       },
     });
@@ -229,7 +229,7 @@ describe('handleVoiceAutocomplete', () => {
     // Autocomplete should re-fetch (cache was invalidated)
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { voices: [], totalSlots: 10, tzurotCount: 0 },
+      data: { voices: [], totalVoices: 10, tzurotCount: 0 },
     });
     await handleVoiceAutocomplete(createMockAutocomplete());
     expect(mockCallGatewayApi).toHaveBeenCalledTimes(3);
