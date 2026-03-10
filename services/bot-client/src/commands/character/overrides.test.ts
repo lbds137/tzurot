@@ -71,6 +71,7 @@ describe('Character Overrides Dashboard', () => {
     showModelFooter: true,
     voiceResponseMode: 'always' as const,
     voiceTranscriptionEnabled: true,
+    elevenlabsTtsModel: 'eleven_multilingual_v2',
     sources: {
       maxMessages: 'personality',
       maxAge: 'personality',
@@ -83,6 +84,7 @@ describe('Character Overrides Dashboard', () => {
       showModelFooter: 'hardcoded',
       voiceResponseMode: 'hardcoded' as const,
       voiceTranscriptionEnabled: 'hardcoded' as const,
+      elevenlabsTtsModel: 'hardcoded' as const,
     },
   };
 

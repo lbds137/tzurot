@@ -11,6 +11,7 @@ import {
   elevenLabsSTT,
   elevenLabsCloneVoice,
   elevenLabsListVoices,
+  elevenLabsListModels,
   elevenLabsDeleteVoice,
   ElevenLabsApiError,
 } from './ElevenLabsClient.js';
@@ -305,6 +306,55 @@ describe('ElevenLabsClient', () => {
       });
 
       await expect(elevenLabsDeleteVoice('bad-id', 'sk_test')).rejects.toThrow(ElevenLabsApiError);
+    });
+  });
+
+  describe('elevenLabsListModels', () => {
+    it('should return TTS-capable models', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue([
+          {
+            model_id: 'eleven_multilingual_v2',
+            name: 'Multilingual v2',
+            can_do_text_to_speech: true,
+          },
+          { model_id: 'eleven_turbo_v2_5', name: 'Turbo v2.5', can_do_text_to_speech: true },
+          { model_id: 'scribe_v1', name: 'Scribe v1', can_do_text_to_speech: false },
+        ]),
+      });
+
+      const models = await elevenLabsListModels('sk_test');
+
+      expect(models).toEqual([
+        { modelId: 'eleven_multilingual_v2', name: 'Multilingual v2' },
+        { modelId: 'eleven_turbo_v2_5', name: 'Turbo v2.5' },
+      ]);
+    });
+
+    it('should return empty array when no TTS models', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi
+          .fn()
+          .mockResolvedValue([
+            { model_id: 'scribe_v1', name: 'Scribe v1', can_do_text_to_speech: false },
+          ]),
+      });
+
+      const models = await elevenLabsListModels('sk_test');
+      expect(models).toEqual([]);
+    });
+
+    it('should throw on API error', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        json: vi.fn().mockResolvedValue({ detail: 'Invalid key' }),
+      });
+
+      await expect(elevenLabsListModels('bad_key')).rejects.toThrow(ElevenLabsApiError);
     });
   });
 

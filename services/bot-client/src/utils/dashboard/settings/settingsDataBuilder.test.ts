@@ -27,6 +27,7 @@ describe('buildCascadeSettingsData', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      elevenlabsTtsModel: 'eleven_multilingual_v2',
       sources: {
         maxMessages: 'admin',
         maxAge: 'personality',
@@ -39,6 +40,7 @@ describe('buildCascadeSettingsData', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        elevenlabsTtsModel: 'hardcoded' as const,
       },
     };
 
@@ -68,6 +70,7 @@ describe('buildCascadeSettingsData', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      elevenlabsTtsModel: 'eleven_multilingual_v2',
       sources: {
         maxMessages: 'channel',
         maxAge: 'hardcoded',
@@ -80,6 +83,7 @@ describe('buildCascadeSettingsData', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        elevenlabsTtsModel: 'hardcoded' as const,
       },
     };
 
@@ -136,6 +140,7 @@ describe('buildCascadeSettingsData', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      elevenlabsTtsModel: 'eleven_multilingual_v2',
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -148,6 +153,7 @@ describe('buildCascadeSettingsData', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        elevenlabsTtsModel: 'hardcoded' as const,
       },
     };
 
@@ -165,7 +171,7 @@ describe('buildCascadeSettingsData', () => {
     expect(result.maxImages.effectiveValue).toBe(5);
   });
 
-  it('should include all 11 config fields', () => {
+  it('should include all 12 config fields', () => {
     const result = buildCascadeSettingsData(null, null, 'admin');
 
     const expectedFields = [
@@ -180,6 +186,7 @@ describe('buildCascadeSettingsData', () => {
       'showModelFooter',
       'voiceResponseMode',
       'voiceTranscriptionEnabled',
+      'elevenlabsTtsModel',
     ];
 
     for (const field of expectedFields) {
@@ -205,6 +212,7 @@ describe('convertResolveDefaultsResponse', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      elevenlabsTtsModel: 'eleven_multilingual_v2',
       sources: {
         maxMessages: 'admin',
         maxAge: 'hardcoded',
@@ -217,6 +225,7 @@ describe('convertResolveDefaultsResponse', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        elevenlabsTtsModel: 'hardcoded' as const,
       },
       userOverrides: { maxMessages: 30 },
     };
@@ -243,6 +252,7 @@ describe('convertResolveDefaultsResponse', () => {
       showModelFooter: true,
       voiceResponseMode: 'always' as const,
       voiceTranscriptionEnabled: true,
+      elevenlabsTtsModel: 'eleven_multilingual_v2',
       sources: {
         maxMessages: 'hardcoded',
         maxAge: 'hardcoded',
@@ -255,6 +265,7 @@ describe('convertResolveDefaultsResponse', () => {
         showModelFooter: 'hardcoded',
         voiceResponseMode: 'hardcoded' as const,
         voiceTranscriptionEnabled: 'hardcoded' as const,
+        elevenlabsTtsModel: 'hardcoded' as const,
       },
       userOverrides: null,
     };

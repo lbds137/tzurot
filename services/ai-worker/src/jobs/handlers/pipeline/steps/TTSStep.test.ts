@@ -372,6 +372,7 @@ describe('TTSStep', () => {
         text: 'Hello world',
         voiceId: 'el-voice-123',
         apiKey: 'sk_el_test',
+        modelId: undefined,
       });
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:el-job');
       expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/mpeg');
@@ -425,6 +426,42 @@ describe('TTSStep', () => {
       // Should degrade gracefully — text still delivered
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
       expect(result.result?.content).toBe('Hello world');
+    });
+
+    it('passes elevenlabsTtsModel from configOverrides to elevenLabsTTS', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-789');
+      mockElevenLabsTTS.mockResolvedValue({
+        audioBuffer: Buffer.from('turbo-audio'),
+        contentType: 'audio/mpeg',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:turbo-job');
+
+      const ctx = createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+        configOverrides: {
+          voiceResponseMode: 'always',
+          voiceTranscriptionEnabled: true,
+          showModelFooter: true,
+          shareLtmAcrossPersonalities: false,
+          elevenlabsTtsModel: 'eleven_turbo_v2_5',
+        } as GenerationContext['configOverrides'],
+      });
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockElevenLabsTTS).toHaveBeenCalledWith({
+        text: 'Hello world',
+        voiceId: 'el-voice-789',
+        apiKey: 'sk_el_test',
+        modelId: 'eleven_turbo_v2_5',
+      });
     });
 
     it('sets ttsAudioContentType for voice-engine path', async () => {

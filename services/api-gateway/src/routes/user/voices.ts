@@ -26,6 +26,7 @@ import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import { handleListModels } from './voiceModels.js';
 
 const logger = createLogger('VoicesRoute');
 
@@ -347,6 +348,15 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
       await handleListVoices(prisma, req, res);
+    })
+  );
+
+  // Register /models before /:voiceId so the wildcard doesn't shadow it
+  router.get(
+    '/models',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
+      await handleListModels(prisma, req, res);
     })
   );
 

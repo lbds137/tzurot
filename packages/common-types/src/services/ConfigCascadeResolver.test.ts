@@ -66,6 +66,7 @@ describe('ConfigCascadeResolver', () => {
         HARDCODED_CONFIG_DEFAULTS.shareLtmAcrossPersonalities
       );
       expect(result.showModelFooter).toBe(HARDCODED_CONFIG_DEFAULTS.showModelFooter);
+      expect(result.elevenlabsTtsModel).toBe(HARDCODED_CONFIG_DEFAULTS.elevenlabsTtsModel);
 
       // All sources should be 'hardcoded'
       for (const source of Object.values(result.sources)) {
@@ -217,6 +218,19 @@ describe('ConfigCascadeResolver', () => {
       // admin wins for memoryLimit (30) — no higher tier overrides it
       expect(result.memoryLimit).toBe(30);
       expect(result.sources.memoryLimit).toBe('admin');
+    });
+
+    it('should apply elevenlabsTtsModel override from user-default tier', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-id',
+        configDefaults: { elevenlabsTtsModel: 'eleven_turbo_v2_5' },
+        personalityConfigs: [],
+      });
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      expect(result.elevenlabsTtsModel).toBe('eleven_turbo_v2_5');
+      expect(result.sources.elevenlabsTtsModel).toBe('user-default');
     });
 
     it('should apply showModelFooter override from user-default tier', async () => {

@@ -194,8 +194,9 @@ export class TTSStep implements IPipelineStep {
     const voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
 
     // Synthesize — ElevenLabs handles up to 5000 chars natively, no chunking needed
-    logger.info({ slug, textLength: text.length }, 'Synthesizing via ElevenLabs TTS');
-    const { audioBuffer, contentType } = await elevenLabsTTS({ text, voiceId, apiKey });
+    const modelId = context.configOverrides?.elevenlabsTtsModel;
+    logger.info({ slug, textLength: text.length, modelId }, 'Synthesizing via ElevenLabs TTS');
+    const { audioBuffer, contentType } = await elevenLabsTTS({ text, voiceId, apiKey, modelId });
 
     // Store audio in Redis
     const jobId = context.job.id ?? context.job.data.requestId;
