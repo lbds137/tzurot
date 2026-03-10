@@ -26,7 +26,7 @@ export const VOICE_CLEAR_OPERATION = 'voice-clear';
 
 interface VoiceClearResponse {
   deleted: number;
-  total?: number;
+  total: number;
   message?: string;
   errors?: string[];
 }
