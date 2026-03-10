@@ -4,11 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
-import {
-  handleDeleteVoice,
-  handleVoiceAutocomplete,
-  _clearVoiceCacheForTesting,
-} from './delete.js';
+import { handleDeleteVoice, handleVoiceAutocomplete } from './delete.js';
+import { _clearVoiceCacheForTesting } from './voiceCache.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
