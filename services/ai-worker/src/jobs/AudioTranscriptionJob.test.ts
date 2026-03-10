@@ -9,7 +9,7 @@ import type { AudioTranscriptionJobData } from '@tzurot/common-types';
 import { JobType, CONTENT_TYPES } from '@tzurot/common-types';
 
 // Mock transcribeAudio and withRetry
-vi.mock('../services/MultimodalProcessor.js', () => ({
+vi.mock('../services/multimodal/AudioProcessor.js', () => ({
   transcribeAudio: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock('../utils/retry.js', () => ({
 }));
 
 // Import the mocked modules
-import { transcribeAudio } from '../services/MultimodalProcessor.js';
+import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
 import { withRetry } from '../utils/retry.js';
 
 // Get mocked functions
