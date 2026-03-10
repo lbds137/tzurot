@@ -88,6 +88,9 @@ export const GATEWAY_TIMEOUTS = {
    *  10s is generous for warmed DB connections — the api-gateway now calls
    *  prisma.$connect() at startup to eliminate cold-start latency. */
   DEFERRED: 10000,
+  /** Extended timeout for bulk operations (e.g., clearing all cloned voices).
+   *  These involve multiple sequential/batched external API calls. */
+  BULK_OPERATION: 30_000,
 } as const;
 
 /**

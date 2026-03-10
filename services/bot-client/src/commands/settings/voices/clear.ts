@@ -103,7 +103,7 @@ export async function handleVoiceClearModalSubmit(
     const result = await callGatewayApi<VoiceClearResponse>('/user/voices/clear', {
       method: 'POST',
       userId,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+      timeout: GATEWAY_TIMEOUTS.BULK_OPERATION,
     });
 
     if (!result.ok) {

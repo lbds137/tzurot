@@ -90,6 +90,9 @@ async function resolveElevenLabsKey(
  * Fetch all voices from ElevenLabs, filtered to tzurot-prefixed clones.
  * Returns an ErrorResponse for auth failures (401/403) so callers can surface
  * user-actionable messages instead of a generic 500.
+ *
+ * Note: Reuses VALIDATION_TIMEOUTS.API_KEY_VALIDATION (30s) for the per-call
+ * timeout — the value is appropriate for any single ElevenLabs API call.
  */
 async function fetchTzurotVoices(
   apiKey: string
@@ -181,7 +184,7 @@ async function handleDeleteVoice(
   res: ExpressResponse
 ): Promise<void> {
   const discordUserId = req.userId;
-  // Express types req.params values as string | string[] — cast is needed
+  // ParamsDictionary types values as string | string[] — cast needed for named params
   const voiceId = req.params.voiceId as string;
 
   const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
@@ -258,19 +261,29 @@ async function handleClearVoices(
     return;
   }
 
-  // Delete sequentially to avoid hitting ElevenLabs rate limits
+  // Delete in small batches to balance speed vs ElevenLabs rate limits.
+  // Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s) for this call.
+  const BATCH_SIZE = 5;
   let deleted = 0;
   const errors: string[] = [];
-  for (const voice of voices) {
-    try {
-      const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
-      if (!deleteResponse.ok) {
-        errors.push(`${voice.name}: ${deleteResponse.status}`);
-      } else {
+
+  for (let i = 0; i < voices.length; i += BATCH_SIZE) {
+    const batch = voices.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async voice => {
+        const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
+        if (!deleteResponse.ok) {
+          throw new Error(`${voice.name}: ${deleteResponse.status}`);
+        }
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
         deleted++;
+      } else {
+        errors.push(result.reason instanceof Error ? result.reason.message : 'Unknown error');
       }
-    } catch (error) {
-      errors.push(`${voice.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
