@@ -62,6 +62,11 @@ export interface ElevenLabsVoiceInfo {
   name: string;
 }
 
+export interface ElevenLabsModelInfo {
+  modelId: string;
+  name: string;
+}
+
 /** Error from ElevenLabs HTTP responses (carries status code for caller inspection). */
 export class ElevenLabsApiError extends Error {
   readonly status: number;
@@ -250,6 +255,35 @@ export async function elevenLabsListVoices(apiKey: string): Promise<ElevenLabsVo
 
   const data = (await response.json()) as { voices?: { voice_id: string; name: string }[] };
   return (data.voices ?? []).map(v => ({ voiceId: v.voice_id, name: v.name }));
+}
+
+/**
+ * List available TTS models from ElevenLabs, filtered to those supporting text-to-speech.
+ */
+export async function elevenLabsListModels(apiKey: string): Promise<ElevenLabsModelInfo[]> {
+  const response = await elevenLabsFetch(
+    '/models',
+    apiKey,
+    { method: 'GET' },
+    ELEVENLABS_FAST_TIMEOUT_MS
+  );
+
+  if (!response.ok) {
+    const detail = await extractErrorDetail(response);
+    throw new ElevenLabsApiError(response.status, detail);
+  }
+
+  const data = (await response.json()) as {
+    model_id?: string;
+    name?: string;
+    can_do_text_to_speech?: boolean;
+  }[];
+
+  // ElevenLabs /v1/models returns a top-level array of model objects
+  return (Array.isArray(data) ? data : [])
+    .filter(m => m.can_do_text_to_speech === true)
+    .map(m => ({ modelId: m.model_id ?? '', name: m.name ?? '' }))
+    .filter(m => m.modelId.length > 0);
 }
 
 /**

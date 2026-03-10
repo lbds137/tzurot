@@ -62,6 +62,7 @@ export interface ResolveDefaultsResponse {
   showModelFooter: boolean;
   voiceResponseMode: 'always' | 'voice-only' | 'never';
   voiceTranscriptionEnabled: boolean;
+  elevenlabsTtsModel: string;
   sources: Record<string, ConfigOverrideSource>;
   userOverrides: Record<string, unknown> | null;
 }
@@ -87,6 +88,7 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     showModelFooter: response.showModelFooter,
     voiceResponseMode: response.voiceResponseMode,
     voiceTranscriptionEnabled: response.voiceTranscriptionEnabled,
+    elevenlabsTtsModel: response.elevenlabsTtsModel,
     sources: response.sources as Record<keyof ConfigOverrides, ConfigOverrideSource>,
   };
   const userOverrides = (response.userOverrides ?? null) as Partial<ConfigOverrides> | null;

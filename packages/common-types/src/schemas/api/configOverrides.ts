@@ -43,6 +43,8 @@ export const ConfigOverridesSchema = z
     voiceResponseMode: z.enum(['always', 'voice-only', 'never']).optional(),
     /** Whether to auto-transcribe voice messages (runtime control; VOICE_ENGINE_URL remains infrastructure config) */
     voiceTranscriptionEnabled: z.boolean().optional(),
+    /** ElevenLabs TTS model ID for BYOK users (ignored for non-BYOK) */
+    elevenlabsTtsModel: z.string().min(1).max(100).optional(),
   })
   .strip();
 
@@ -69,6 +71,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly showModelFooter: true;
   readonly voiceResponseMode: 'always';
   readonly voiceTranscriptionEnabled: true;
+  readonly elevenlabsTtsModel: 'eleven_multilingual_v2';
 } = {
   maxMessages: 50,
   maxAge: null,
@@ -81,6 +84,7 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   showModelFooter: true,
   voiceResponseMode: 'always',
   voiceTranscriptionEnabled: true,
+  elevenlabsTtsModel: 'eleven_multilingual_v2',
 };
 
 // ============================================================================
@@ -119,6 +123,7 @@ export interface ResolvedConfigOverrides {
   showModelFooter: boolean;
   voiceResponseMode: 'always' | 'voice-only' | 'never';
   voiceTranscriptionEnabled: boolean;
+  elevenlabsTtsModel: string;
 
   /** Per-field source tracking: which tier provided each value */
   sources: Record<keyof ConfigOverrides, ConfigOverrideSource>;

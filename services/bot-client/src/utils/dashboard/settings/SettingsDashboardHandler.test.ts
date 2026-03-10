@@ -100,6 +100,11 @@ const createTestData = (): SettingsData => ({
     effectiveValue: true,
     source: 'hardcoded',
   },
+  elevenlabsTtsModel: {
+    localValue: null,
+    effectiveValue: 'eleven_multilingual_v2',
+    source: 'hardcoded',
+  },
 });
 
 const createMockInteraction = (overrides = {}) => ({
@@ -428,6 +433,11 @@ describe('SettingsDashboardHandler', () => {
         showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
         voiceResponseMode: { localValue: null, effectiveValue: 'always', source: 'hardcoded' },
         voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
+        elevenlabsTtsModel: {
+          localValue: null,
+          effectiveValue: 'eleven_multilingual_v2',
+          source: 'hardcoded',
+        },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();
@@ -466,6 +476,11 @@ describe('SettingsDashboardHandler', () => {
         showModelFooter: { localValue: null, effectiveValue: true, source: 'hardcoded' },
         voiceResponseMode: { localValue: null, effectiveValue: 'always', source: 'hardcoded' },
         voiceTranscriptionEnabled: { localValue: null, effectiveValue: true, source: 'hardcoded' },
+        elevenlabsTtsModel: {
+          localValue: null,
+          effectiveValue: 'eleven_multilingual_v2',
+          source: 'hardcoded',
+        },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();

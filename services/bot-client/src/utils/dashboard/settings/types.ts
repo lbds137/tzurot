@@ -93,6 +93,7 @@ export interface SettingsData {
   showModelFooter: SettingValue<boolean>;
   voiceResponseMode: SettingValue<string>;
   voiceTranscriptionEnabled: SettingValue<boolean>;
+  elevenlabsTtsModel: SettingValue<string>;
 }
 
 /**
