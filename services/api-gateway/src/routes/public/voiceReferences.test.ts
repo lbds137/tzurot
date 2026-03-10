@@ -7,13 +7,15 @@ import express from 'express';
 import request from 'supertest';
 import { StatusCodes } from 'http-status-codes';
 
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
+  createLogger: () => mockLogger,
   CACHE_CONTROL: {
     VOICE_REFERENCE_MAX_AGE: 3600,
   },
@@ -141,7 +143,7 @@ describe('Voice Reference Routes', () => {
       expect(response.headers['content-type']).toContain('audio/wav');
     });
 
-    it('should fall back to audio/wav for unexpected stored MIME type', async () => {
+    it('should fall back to audio/wav for unexpected stored MIME type and warn', async () => {
       const audioBuffer = Buffer.from('fake-audio');
       mockPrisma.personality.findUnique.mockResolvedValue({
         voiceReferenceData: audioBuffer,
@@ -152,6 +154,10 @@ describe('Voice Reference Routes', () => {
 
       expect(response.status).toBe(StatusCodes.OK);
       expect(response.headers['content-type']).toContain('audio/wav');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        { slug: 'testbot', storedType: 'text/html' },
+        'Invalid stored MIME type, falling back to audio/wav'
+      );
     });
 
     it('should handle database error gracefully', async () => {
