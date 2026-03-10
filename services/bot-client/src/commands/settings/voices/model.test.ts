@@ -2,7 +2,7 @@
  * Tests for Voice Model Selection Handler and Autocomplete
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
 import { handleModelSet, handleModelAutocomplete } from './model.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -31,6 +31,10 @@ describe('handleModelSet', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   function createMockContext(modelId = 'eleven_turbo_v2_5'): DeferredCommandContext {
@@ -114,6 +118,10 @@ describe('handleModelAutocomplete', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   function createMockAutocomplete(query = ''): AutocompleteInteraction {
