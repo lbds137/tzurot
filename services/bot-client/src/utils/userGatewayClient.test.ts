@@ -289,5 +289,13 @@ describe('userGatewayClient', () => {
     it('should have DEFERRED longer than AUTOCOMPLETE', () => {
       expect(GATEWAY_TIMEOUTS.DEFERRED).toBeGreaterThan(GATEWAY_TIMEOUTS.AUTOCOMPLETE);
     });
+
+    it('should have BULK_OPERATION timeout of 30000ms', () => {
+      expect(GATEWAY_TIMEOUTS.BULK_OPERATION).toBe(30000);
+    });
+
+    it('should have BULK_OPERATION longer than DEFERRED', () => {
+      expect(GATEWAY_TIMEOUTS.BULK_OPERATION).toBeGreaterThan(GATEWAY_TIMEOUTS.DEFERRED);
+    });
   });
 });
