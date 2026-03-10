@@ -367,6 +367,25 @@ describe('AudioTranscriptionJob', () => {
       expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, undefined);
     });
 
+    it('should throw on invalid job data (Zod validation failure)', async () => {
+      const invalidJobData = {
+        requestId: 'test-req-invalid',
+        // Missing jobType, attachment, context, responseDestination
+      };
+
+      const job = {
+        id: 'audio-test-invalid',
+        data: invalidJobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      await expect(processAudioTranscriptionJob(job)).rejects.toThrow(
+        'Audio transcription job validation failed'
+      );
+
+      // Should NOT attempt transcription for invalid payloads
+      expect(mockWithRetry).not.toHaveBeenCalled();
+    });
+
     it('should include retry metadata in result', async () => {
       const jobData: AudioTranscriptionJobData = {
         requestId: 'test-req-audio-5',
