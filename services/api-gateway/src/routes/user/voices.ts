@@ -267,19 +267,20 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
     })
   );
 
-  router.delete(
-    '/:voiceId',
-    requireUserAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
-      await handleDeleteVoice(prisma, req, res);
-    })
-  );
-
+  // Register /clear before /:voiceId so the wildcard doesn't shadow it
   router.post(
     '/clear',
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
       await handleClearVoices(prisma, req, res);
+    })
+  );
+
+  router.delete(
+    '/:voiceId',
+    requireUserAuth(),
+    asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
+      await handleDeleteVoice(prisma, req, res);
     })
   );
 
