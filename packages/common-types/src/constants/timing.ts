@@ -190,11 +190,13 @@ export const SYNC_LIMITS = {
 } as const;
 
 /**
- * External API validation timeouts
+ * External API timeouts for ElevenLabs operations
  */
 export const VALIDATION_TIMEOUTS = {
   /** Timeout for API key validation requests (30 seconds - allows for slow networks and provider load) */
-  API_KEY_VALIDATION: 30000,
+  API_KEY_VALIDATION: 30_000,
+  /** Timeout for general ElevenLabs API calls: voice list, single-voice fetch, delete (30 seconds) */
+  ELEVENLABS_API_CALL: 30_000,
 } as const;
 
 /**

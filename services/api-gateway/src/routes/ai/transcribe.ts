@@ -59,6 +59,10 @@ export function createTranscribeRoute(
       // Download attachments to local storage
       const localAttachments = await attachmentStorage.downloadAndStore(requestId, attachments);
 
+      if (localAttachments.length === 0) {
+        return sendError(res, ErrorResponses.internalError('Failed to download audio attachment'));
+      }
+
       // Use first audio attachment (transcribe endpoint expects single audio file)
       const audioAttachment = localAttachments[0];
 
