@@ -22,7 +22,7 @@ import type { ErrorResponse } from '../../utils/errorResponses.js';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
-import { ErrorResponses, createErrorResponse, ErrorCode } from '../../utils/errorResponses.js';
+import { ErrorResponses } from '../../utils/errorResponses.js';
 import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
@@ -50,7 +50,6 @@ interface ElevenLabsVoicesResponse {
  * Fetch all voices from ElevenLabs, filtered to tzurot-prefixed clones.
  * Returns an ErrorResponse for auth failures (401/403) so callers can surface
  * user-actionable messages instead of a generic 500.
- *
  */
 async function fetchTzurotVoices(
   apiKey: string
@@ -216,10 +215,7 @@ async function handleDeleteVoice(
   const { voice } = voiceResult;
 
   if (!voice.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)) {
-    sendError(
-      res,
-      createErrorResponse(ErrorCode.NOT_FOUND, 'Voice not found or not a Tzurot-cloned voice')
-    );
+    sendError(res, ErrorResponses.notFound('Tzurot-cloned voice'));
     return;
   }
 
