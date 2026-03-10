@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-03-10
-> **Version**: v3.0.0-beta.89
+> **Version**: v3.0.0-beta.90
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -28,7 +28,7 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-- 🧹 `[CHORE]` **Release beta.90** — Phase 4.6 merged. Deploy to dev, test, then cut release.
+_Empty — beta.90 released._
 
 ---
 
@@ -354,7 +354,7 @@ _Beyond text: voice and images._
 
 _Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for both STT and TTS._
 
-**Status**: Phases 1–4.6 shipped. Free tier (Parakeet TDT + Pocket TTS) in v3.0.0-beta.89. ElevenLabs BYOK (Phase 4) in PR #727. Configurable TTS model + cleanup (Phase 4.6) in PR #729.
+**Status**: Phases 1–4.6 shipped. Free tier (Parakeet TDT + Pocket TTS) in v3.0.0-beta.89. ElevenLabs BYOK (Phase 4) in PR #727. Configurable TTS model + cleanup (Phase 4.6) in PR #729. Dev-testing fixes (scoped-key detection, voice auto-reclone, STT userId) in v3.0.0-beta.90.
 
 | Tier               | STT                         | TTS               |
 | ------------------ | --------------------------- | ----------------- |
@@ -690,5 +690,4 @@ _Decided not to do yet._
 - [docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md](docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
 - Shapes.inc import: Phases 1-4 complete on develop (see Character Portability theme)
 - [docs/research/sillytavern-features.md](docs/research/sillytavern-features.md)
-- [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md) - Voice engine research summary
 - [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md) - Voice engine research summary + implementation map
