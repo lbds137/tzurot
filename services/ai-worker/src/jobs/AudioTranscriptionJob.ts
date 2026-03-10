@@ -66,9 +66,13 @@ export async function processAudioTranscriptionJob(
       throw new Error(`Invalid attachment type: ${attachment.contentType}. Expected audio.`);
     }
 
-    // Transcribe the audio with retry logic (3 attempts)
+    // Transcribe the audio with retry logic (3 attempts).
+    // Config errors ("No STT provider available") are non-retryable — fast-fail
+    // instead of wasting ~30s on guaranteed-identical failures.
     const result = await withRetry(() => transcribeAudio(attachment, elevenlabsApiKey), {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+      shouldRetry: err =>
+        !(err instanceof Error && err.message.startsWith('No STT provider available')),
       logger,
       operationName: `Audio transcription (${attachment.name})`,
     });

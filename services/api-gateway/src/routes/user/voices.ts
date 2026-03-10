@@ -194,7 +194,7 @@ async function handleDeleteVoice(
   const voiceId = req.params.voiceId as string;
 
   if (!VOICE_ID_RE.test(voiceId)) {
-    sendError(res, ErrorResponses.notFound('Voice'));
+    sendError(res, ErrorResponses.validationError('Invalid voice ID format'));
     return;
   }
 
