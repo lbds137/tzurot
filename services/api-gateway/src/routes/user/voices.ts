@@ -13,8 +13,6 @@
 import { Router, type Response as ExpressResponse } from 'express';
 import {
   createLogger,
-  decryptApiKey,
-  AIProvider,
   AI_ENDPOINTS,
   ELEVENLABS_VOICE_NAME_PREFIX,
   VALIDATION_TIMEOUTS,
@@ -25,6 +23,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses, createErrorResponse, ErrorCode } from '../../utils/errorResponses.js';
+import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('VoicesRoute');
@@ -45,52 +44,6 @@ interface ElevenLabsVoice {
 /** Response from ElevenLabs GET /v1/voices */
 interface ElevenLabsVoicesResponse {
   voices: ElevenLabsVoice[];
-}
-
-/**
- * Resolve and decrypt the user's ElevenLabs API key.
- * Returns the decrypted key or an ErrorResponse for the caller to send.
- */
-async function resolveElevenLabsKey(
-  prisma: PrismaClient,
-  discordUserId: string
-): Promise<{ apiKey: string } | { errorResponse: ErrorResponse }> {
-  const user = await prisma.user.findFirst({
-    where: { discordId: discordUserId },
-    select: {
-      id: true,
-      apiKeys: {
-        where: { provider: AIProvider.ElevenLabs },
-        select: { iv: true, content: true, tag: true },
-        take: 1,
-      },
-    },
-  });
-
-  if (user === null) {
-    return { errorResponse: ErrorResponses.notFound('User') };
-  }
-
-  const storedKey = user.apiKeys[0];
-  if (storedKey === undefined) {
-    return {
-      errorResponse: ErrorResponses.notFound(
-        'ElevenLabs API key. Set one with /settings apikey set'
-      ),
-    };
-  }
-
-  try {
-    const apiKey = decryptApiKey({
-      iv: storedKey.iv,
-      content: storedKey.content,
-      tag: storedKey.tag,
-    });
-    return { apiKey };
-  } catch (error) {
-    logger.error({ err: error, discordUserId }, '[Voices] Failed to decrypt ElevenLabs key');
-    return { errorResponse: ErrorResponses.internalError('Failed to decrypt stored API key') };
-  }
 }
 
 /**
