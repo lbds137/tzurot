@@ -175,9 +175,6 @@ export const MODEL_DEFAULTS = {
  * AI provider identifiers
  *
  * OpenRouter: LLM chat/generation (BYOK for model access)
- * ElevenLabs: Voice synthesis and cloning (BYOK for premium TTS/STT)
- *
- * OpenRouter: LLM chat/generation (BYOK for model access)
  * ElevenLabs: Voice synthesis, cloning, and STT (BYOK for premium features)
  */
 export enum AIProvider {

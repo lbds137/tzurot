@@ -45,6 +45,9 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
       return;
     }
 
+    // Invalidate cached voice list so autocomplete reflects the deletion
+    voiceCache.delete(userId);
+
     const embed = new EmbedBuilder()
       .setTitle('🗑️ Voice Deleted')
       .setDescription(`Removed cloned voice **${result.data.slug}** (\`${result.data.voiceId}\`)`)
