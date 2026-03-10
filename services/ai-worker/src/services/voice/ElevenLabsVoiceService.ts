@@ -115,6 +115,10 @@ export class ElevenLabsVoiceService {
         return existing.voiceId;
       }
     } catch (error) {
+      // Edge case: if listing repeatedly fails (transient network issues) and the
+      // positive cache expires (30 min TTL), we'll clone a new voice each time,
+      // accruing duplicate "tzurot-{slug}" entries. Low probability — listing is a
+      // simple GET. Users can clean up duplicates via `/settings voices clear`.
       logger.warn({ err: error, slug }, 'Failed to list ElevenLabs voices, attempting clone');
     }
 
