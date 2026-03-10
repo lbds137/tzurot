@@ -18,7 +18,7 @@ import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegist
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
 import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
 import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
-import { elevenLabsTTS } from '../../../../services/voice/ElevenLabsClient.js';
+import { elevenLabsTTS, ElevenLabsApiError } from '../../../../services/voice/ElevenLabsClient.js';
 import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');
@@ -189,16 +189,35 @@ export class TTSStep implements IPipelineStep {
     apiKey: string,
     context: GenerationContext
   ): Promise<{ key: string; audioSize: number; contentType: string } | null> {
-    // Clone or find voice in user's ElevenLabs account
     const voiceService = getElevenLabsVoiceService();
-    const voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
+    const modelId = context.configOverrides?.elevenlabsTtsModel;
+
+    // Clone or find voice in user's ElevenLabs account
+    let voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
 
     // Synthesize — ElevenLabs handles up to 5000 chars natively, no chunking needed
-    const modelId = context.configOverrides?.elevenlabsTtsModel;
     logger.info({ slug, textLength: text.length, modelId }, 'Synthesizing via ElevenLabs TTS');
-    const { audioBuffer, contentType } = await elevenLabsTTS({ text, voiceId, apiKey, modelId });
 
-    return this.storeTTSResult(context, audioBuffer, contentType, slug);
+    try {
+      const { audioBuffer, contentType } = await elevenLabsTTS({ text, voiceId, apiKey, modelId });
+      return this.storeTTSResult(context, audioBuffer, contentType, slug);
+    } catch (error) {
+      // Voice was deleted externally (e.g., /settings voices clear, ElevenLabs dashboard).
+      // Invalidate stale cache entry and re-clone from reference audio, then retry once.
+      if (error instanceof ElevenLabsApiError && error.status === 404) {
+        logger.info({ slug, voiceId }, 'Voice not found on ElevenLabs, re-cloning');
+        voiceService.invalidateVoice(slug, apiKey);
+        voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
+        const { audioBuffer, contentType } = await elevenLabsTTS({
+          text,
+          voiceId,
+          apiKey,
+          modelId,
+        });
+        return this.storeTTSResult(context, audioBuffer, contentType, slug);
+      }
+      throw error;
+    }
   }
 
   private async performVoiceEngineTTS(

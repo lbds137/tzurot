@@ -56,15 +56,29 @@ vi.mock('../../../../services/voice/ttsSynthesizer.js', () => ({
 }));
 
 const mockEnsureVoiceCloned = vi.fn();
+const mockInvalidateVoice = vi.fn();
 vi.mock('../../../../services/voice/ElevenLabsVoiceService.js', () => ({
   ElevenLabsVoiceService: class MockElevenLabsVoiceService {
     ensureVoiceCloned = mockEnsureVoiceCloned;
+    invalidateVoice = mockInvalidateVoice;
   },
 }));
 
 const mockElevenLabsTTS = vi.fn();
+
+/** Real ElevenLabsApiError for instanceof checks in TTSStep's 404 retry logic */
+class MockElevenLabsApiError extends Error {
+  readonly status: number;
+  constructor(status: number, detail: string) {
+    super(`ElevenLabs API error (${status}): ${detail}`);
+    this.name = 'ElevenLabsApiError';
+    this.status = status;
+  }
+}
+
 vi.mock('../../../../services/voice/ElevenLabsClient.js', () => ({
   elevenLabsTTS: (...args: unknown[]) => mockElevenLabsTTS(...args),
+  ElevenLabsApiError: MockElevenLabsApiError,
 }));
 
 const mockStoreTTSAudio = vi.fn();
@@ -405,6 +419,76 @@ describe('TTSStep', () => {
 
       // ElevenLabs works even without voice-engine
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:no-ve-job');
+    });
+
+    it('auto-reclones and retries when ElevenLabs returns 404 (voice deleted)', async () => {
+      // First ensureVoiceCloned returns the stale (deleted) voice ID
+      // After invalidation, second call returns a freshly cloned voice ID
+      mockEnsureVoiceCloned
+        .mockResolvedValueOnce('stale-voice-id')
+        .mockResolvedValueOnce('new-voice-id');
+
+      // First TTS call fails with 404, second succeeds with new voice
+      mockElevenLabsTTS
+        .mockRejectedValueOnce(
+          new MockElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
+        )
+        .mockResolvedValueOnce({
+          audioBuffer: Buffer.from('recloned-audio'),
+          contentType: 'audio/mpeg',
+        });
+      mockStoreTTSAudio.mockResolvedValue('tts:reclone-job');
+
+      const ctx = createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+      });
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Should have invalidated cache and re-cloned
+      expect(mockInvalidateVoice).toHaveBeenCalledWith('testbot', 'sk_el_test');
+      expect(mockEnsureVoiceCloned).toHaveBeenCalledTimes(2);
+      // Second TTS call uses the new voice ID
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(mockElevenLabsTTS).toHaveBeenLastCalledWith({
+        text: 'Hello world',
+        voiceId: 'new-voice-id',
+        apiKey: 'sk_el_test',
+        modelId: undefined,
+      });
+      // TTS succeeded after reclone
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:reclone-job');
+    });
+
+    it('propagates non-404 ElevenLabs errors without retry', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-500');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(500, 'Internal server error'));
+
+      const ctx = createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+      });
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Should NOT retry — just degrade gracefully
+      expect(mockInvalidateVoice).not.toHaveBeenCalled();
+      expect(mockEnsureVoiceCloned).toHaveBeenCalledTimes(1);
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
     });
 
     it('falls back gracefully when ElevenLabs TTS fails', async () => {
