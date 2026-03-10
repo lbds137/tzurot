@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -24,14 +24,10 @@ const mockedGetConfig = vi.mocked(getConfig);
 
 describe('fetchVoiceReference', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.clearAllMocks();
     mockedGetConfig.mockReturnValue({ GATEWAY_URL: 'http://localhost:3000' } as ReturnType<
       typeof getConfig
     >);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   it('returns audioBuffer and contentType on successful fetch', async () => {
@@ -62,9 +58,9 @@ describe('fetchVoiceReference', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('throws timeout error on AbortError', async () => {
-    const abortError = new DOMException('The operation was aborted', 'AbortError');
-    mockFetch.mockRejectedValue(abortError);
+  it('throws timeout error on TimeoutError', async () => {
+    const timeoutError = new DOMException('The operation timed out', 'TimeoutError');
+    mockFetch.mockRejectedValue(timeoutError);
 
     await expect(fetchVoiceReference('test-slug')).rejects.toThrow(
       'Gateway fetch timed out for voice reference "test-slug"'

@@ -164,9 +164,8 @@ describe('VoiceRegistrationService', () => {
   it('should throw descriptive error when gateway fetch times out', async () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
 
-    const abortError = new Error('The operation was aborted');
-    abortError.name = 'AbortError';
-    mockFetch.mockRejectedValue(abortError);
+    const timeoutError = new DOMException('The operation timed out', 'TimeoutError');
+    mockFetch.mockRejectedValue(timeoutError);
 
     await expect(service.ensureVoiceRegistered('slow-voice')).rejects.toThrow(
       'Gateway fetch timed out for voice reference "slow-voice"'
