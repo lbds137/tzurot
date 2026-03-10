@@ -7,9 +7,10 @@
  * status in-memory (TTLCache, 30 min) to avoid redundant registration calls.
  */
 
-import { createLogger, TTLCache, getConfig } from '@tzurot/common-types';
+import { createLogger, TTLCache } from '@tzurot/common-types';
 import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
+import { fetchVoiceReference } from './voiceReferenceHelper.js';
 
 const logger = createLogger('VoiceRegistrationService');
 
@@ -113,42 +114,7 @@ export class VoiceRegistrationService {
     }
 
     // Fetch reference audio from api-gateway
-    const config = getConfig();
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined) {
-      throw new Error('GATEWAY_URL not configured — cannot fetch voice reference');
-    }
-
-    // /voice-references/:slug is intentionally public (no auth required) — it serves
-    // the binary audio file directly from the database. Internal Railway networking
-    // ensures this is only reachable from other services, not the public internet.
-    const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
-    logger.info({ slug }, 'Fetching voice reference from gateway');
-
-    // 15s timeout — tighter than TTSStep's TTS_TIMEOUT_MS outer timeout so the
-    // failure surfaces as a gateway fetch error rather than a generic TTS timeout.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
-    let response: globalThis.Response;
-    try {
-      response = await fetch(voiceUrl, { signal: controller.signal });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Gateway fetch timed out for voice reference "${slug}"`, { cause: error });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch voice reference for "${slug}": ${response.status} ${response.statusText}`
-      );
-    }
-
-    const audioBuffer = Buffer.from(await response.arrayBuffer());
-    const contentType = response.headers.get('content-type') ?? 'audio/wav';
+    const { audioBuffer, contentType } = await fetchVoiceReference(slug);
 
     // Register with voice-engine
     logger.info({ slug, audioSize: audioBuffer.length }, 'Registering voice with voice-engine');

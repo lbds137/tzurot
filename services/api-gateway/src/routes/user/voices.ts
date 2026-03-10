@@ -25,6 +25,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
+import { fetchFromElevenLabs } from '../../utils/elevenLabsFetch.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { handleListModels } from './voiceModels.js';
 
@@ -58,40 +59,18 @@ type ElevenLabsVoice = z.infer<typeof ElevenLabsVoiceSchema>;
 async function fetchTzurotVoices(
   apiKey: string
 ): Promise<{ voices: ElevenLabsVoice[]; totalVoices: number } | { errorResponse: ErrorResponse }> {
-  const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices`, {
-    headers: { 'xi-api-key': apiKey },
-    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
+  const result = await fetchFromElevenLabs({
+    endpoint: '/voices',
+    apiKey,
+    schema: ElevenLabsVoicesResponseSchema,
+    resourceName: 'voices',
   });
 
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      logger.warn({ status: response.status }, '[Voices] ElevenLabs rejected API key');
-      return {
-        errorResponse: ErrorResponses.unauthorized(
-          'ElevenLabs API key is invalid or expired. Update it with /settings apikey set'
-        ),
-      };
-    }
-    logger.error(
-      { status: response.status, statusText: response.statusText },
-      '[Voices] ElevenLabs API error'
-    );
-    return {
-      errorResponse: ErrorResponses.internalError('Failed to fetch voices from ElevenLabs'),
-    };
+  if ('errorResponse' in result) {
+    return result;
   }
 
-  const parseResult = ElevenLabsVoicesResponseSchema.safeParse(await response.json());
-  if (!parseResult.success) {
-    logger.error(
-      { errors: parseResult.error.format() },
-      '[Voices] Unexpected response format from ElevenLabs'
-    );
-    return {
-      errorResponse: ErrorResponses.internalError('Unexpected response from ElevenLabs API'),
-    };
-  }
-  const allVoices = parseResult.data.voices;
+  const allVoices = result.data.voices;
   const tzurotVoices = allVoices.filter(v => v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX));
 
   return { voices: tzurotVoices, totalVoices: allVoices.length };

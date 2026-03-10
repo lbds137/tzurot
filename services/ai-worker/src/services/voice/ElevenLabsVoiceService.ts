@@ -15,17 +15,13 @@
  * Voice naming: "tzurot-{slug}" — identifiable in ElevenLabs dashboard.
  */
 
-import {
-  createLogger,
-  TTLCache,
-  getConfig,
-  ELEVENLABS_VOICE_NAME_PREFIX,
-} from '@tzurot/common-types';
+import { createLogger, TTLCache, ELEVENLABS_VOICE_NAME_PREFIX } from '@tzurot/common-types';
 import {
   elevenLabsCloneVoice,
   elevenLabsListVoices,
   ElevenLabsApiError,
 } from './ElevenLabsClient.js';
+import { fetchVoiceReference } from './voiceReferenceHelper.js';
 
 const logger = createLogger('ElevenLabsVoiceService');
 
@@ -123,37 +119,7 @@ export class ElevenLabsVoiceService {
     }
 
     // Fetch reference audio from api-gateway
-    const config = getConfig();
-    const gatewayUrl = config.GATEWAY_URL;
-    if (gatewayUrl === undefined) {
-      throw new Error('GATEWAY_URL not configured — cannot fetch voice reference');
-    }
-
-    const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
-    logger.info({ slug }, 'Fetching voice reference from gateway for ElevenLabs clone');
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
-    let response: globalThis.Response;
-    try {
-      response = await fetch(voiceUrl, { signal: controller.signal });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Gateway fetch timed out for voice reference "${slug}"`, { cause: error });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch voice reference for "${slug}": ${response.status} ${response.statusText}`
-      );
-    }
-
-    const audioBuffer = Buffer.from(await response.arrayBuffer());
-    const contentType = response.headers.get('content-type') ?? 'audio/wav';
+    const { audioBuffer, contentType } = await fetchVoiceReference(slug);
 
     // Clone voice via ElevenLabs
     logger.info({ slug, audioSize: audioBuffer.length }, 'Cloning voice via ElevenLabs');
