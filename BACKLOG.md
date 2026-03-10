@@ -22,6 +22,7 @@ _Empty (2026-03-04)._
 _New items go here. Triage to appropriate section weekly._
 
 - 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure) but worth hardening.
+- ⚡ `[FEAT]` **Cache ElevenLabs model list for autocomplete** — `/settings voices model` autocomplete hits ElevenLabs `/v1/models` on every keypress. A server-side TTL cache (5 min) on the api-gateway `/user/voices/models` route would make autocomplete snappy and resilient to ElevenLabs latency.
 
 ## 🎯 Current Focus
 

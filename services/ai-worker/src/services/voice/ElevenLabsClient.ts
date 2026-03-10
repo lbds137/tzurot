@@ -259,6 +259,10 @@ export async function elevenLabsListVoices(apiKey: string): Promise<ElevenLabsVo
 
 /**
  * List available TTS models from ElevenLabs, filtered to those supporting text-to-speech.
+ *
+ * NOTE: api-gateway has a parallel implementation in routes/user/voiceModels.ts that
+ * fetches and filters models the same way (can_do_text_to_speech === true). If the
+ * filter logic changes, update both places.
  */
 export async function elevenLabsListModels(apiKey: string): Promise<ElevenLabsModelInfo[]> {
   const response = await elevenLabsFetch(

@@ -29,18 +29,16 @@ export async function fetchVoiceReference(slug: string): Promise<VoiceReferenceR
   const voiceUrl = `${gatewayUrl}/voice-references/${encodeURIComponent(slug)}`;
   logger.info({ slug }, 'Fetching voice reference from gateway');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), VOICE_REFERENCE_TIMEOUT_MS);
   let response: globalThis.Response;
   try {
-    response = await fetch(voiceUrl, { signal: controller.signal });
+    response = await fetch(voiceUrl, {
+      signal: AbortSignal.timeout(VOICE_REFERENCE_TIMEOUT_MS),
+    });
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (error instanceof Error && error.name === 'TimeoutError') {
       throw new Error(`Gateway fetch timed out for voice reference "${slug}"`, { cause: error });
     }
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 
   if (!response.ok) {
