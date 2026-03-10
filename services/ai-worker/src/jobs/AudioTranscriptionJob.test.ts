@@ -92,9 +92,51 @@ describe('AudioTranscriptionJob', () => {
         expect.any(Function),
         expect.objectContaining({
           maxAttempts: 3,
+          shouldRetry: expect.any(Function),
           operationName: 'Audio transcription (audio.ogg)',
         })
       );
+    });
+
+    it('should not retry permanent config errors (no STT provider)', async () => {
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-config-error',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+          duration: 10,
+        },
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'audio-config-error',
+        data: jobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      mockWithRetry.mockImplementation(async fn => {
+        const value = await fn();
+        return { value, attempts: 1, totalTimeMs: 100 };
+      });
+
+      await processAudioTranscriptionJob(job);
+
+      // Verify shouldRetry callback rejects config errors
+      const retryOpts = mockWithRetry.mock.calls[0][1];
+      const shouldRetry = retryOpts!.shouldRetry!;
+      expect(shouldRetry(new Error('No STT provider available: configure...'))).toBe(false);
+      expect(shouldRetry(new Error('fetch failed'))).toBe(true);
+      expect(shouldRetry(new Error('Voice engine request timed out'))).toBe(true);
     });
 
     it('should use withRetry wrapper for transcription', async () => {

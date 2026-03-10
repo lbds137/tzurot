@@ -202,8 +202,9 @@ describe('Voice Management Routes', () => {
       const badId = 'invalid%20voice%21%23id';
       const res = await request(app).delete(`/voices/${badId}`);
 
-      expect(res.status).toBe(404);
-      expect(res.body.error).toBe('NOT_FOUND');
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('VALIDATION_ERROR');
+      expect(res.body.message).toBe('Invalid voice ID format');
       // Should not make any ElevenLabs API calls for obviously invalid IDs
       expect(mockFetch).not.toHaveBeenCalled();
     });
