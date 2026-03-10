@@ -52,7 +52,11 @@ function buildVoiceBrowseEmbed(data: VoicesListResponse): EmbedBuilder {
 
 /**
  * Handle /settings voices browse
- * Lists all tzurot-prefixed cloned voices from ElevenLabs
+ * Lists all tzurot-prefixed cloned voices from ElevenLabs.
+ *
+ * Intentionally does NOT use the voiceCache (autocomplete cache) — browse
+ * should always show fresh data since users invoke it to verify state after
+ * mutations. The cache is designed for autocomplete keystroke dedup only.
  */
 export async function handleBrowseVoices(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
