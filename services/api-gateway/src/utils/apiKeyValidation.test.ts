@@ -178,10 +178,47 @@ describe('apiKeyValidation', () => {
       expect(result.credits).toBe(9000);
     });
 
-    it('should return valid=false with INVALID_KEY for 401', async () => {
+    it('should return valid=false with INVALID_KEY for 401 (truly invalid key)', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 401,
+        json: async () => ({ detail: { status: 'invalid_api_key' } }),
+      });
+
+      const result = await validateElevenLabsKey('sk_invalid');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('INVALID_KEY');
+    });
+
+    it('should return valid=false with MISSING_PERMISSIONS for scoped key', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({
+          detail: {
+            status: 'missing_permissions',
+            message: 'The API key is missing the permission user_read',
+          },
+        }),
+      });
+
+      const result = await validateElevenLabsKey('sk_scoped');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('MISSING_PERMISSIONS');
+      expect(result.error).toContain('missing required permissions');
+      expect(result.error).toContain('Voices (Write)');
+      expect(result.error).toContain('User (Read)');
+    });
+
+    it('should fall back to INVALID_KEY when 401 body is not JSON', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => {
+          throw new Error('not JSON');
+        },
       });
 
       const result = await validateElevenLabsKey('sk_invalid');

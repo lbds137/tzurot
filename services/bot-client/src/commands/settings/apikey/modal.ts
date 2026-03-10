@@ -140,10 +140,10 @@ function getErrorMessage(
 
   switch (status) {
     case 400:
-      // Validation error
+      // Validation error (includes scoped-key permission errors)
       return (
         '❌ **Validation Error**\n\n' +
-        (errorData.message ?? 'The request was invalid.') +
+        (errorData.message ?? errorData.error ?? 'The request was invalid.') +
         '\n\nPlease check your API key and try again.'
       );
 

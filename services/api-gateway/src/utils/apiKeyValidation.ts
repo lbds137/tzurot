@@ -17,7 +17,12 @@ const logger = createLogger('api-key-validation');
 /**
  * Error codes returned from validation
  */
-export type ValidationErrorCode = 'INVALID_KEY' | 'QUOTA_EXCEEDED' | 'TIMEOUT' | 'UNKNOWN';
+export type ValidationErrorCode =
+  | 'INVALID_KEY'
+  | 'MISSING_PERMISSIONS'
+  | 'QUOTA_EXCEEDED'
+  | 'TIMEOUT'
+  | 'UNKNOWN';
 
 /**
  * Result of API key validation
@@ -122,6 +127,11 @@ export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValid
     });
 
     if (response.status === 401 || response.status === 403) {
+      // Check if this is a scoped key with missing permissions (vs truly invalid key)
+      const permError = await parseElevenLabsPermissionError(response);
+      if (permError !== null) {
+        return { valid: false, errorCode: 'MISSING_PERMISSIONS', error: permError };
+      }
       return { valid: false, errorCode: 'INVALID_KEY', error: 'Invalid API key' };
     }
 
@@ -195,4 +205,46 @@ export async function validateApiKey(
       };
     }
   }
+}
+
+/**
+ * Required ElevenLabs permissions for Tzurot features.
+ * Listed in the error message to help users configure scoped keys.
+ */
+const ELEVENLABS_REQUIRED_PERMISSIONS = [
+  'Text to Speech (Access)',
+  'Speech to Text (Access)',
+  'Voices (Write)',
+  'Models (Access)',
+  'User (Read)',
+];
+
+/**
+ * Parse ElevenLabs 401 response to detect scoped-key permission errors.
+ *
+ * ElevenLabs returns `{ detail: { status: "missing_permissions", message: "..." } }`
+ * for valid scoped keys that lack a specific endpoint permission.
+ * This is distinct from a truly invalid/revoked key.
+ *
+ * @returns User-friendly error message if permissions error, null otherwise
+ */
+async function parseElevenLabsPermissionError(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as {
+      detail?: { status?: string; message?: string };
+    };
+
+    if (body.detail?.status === 'missing_permissions') {
+      const required = ELEVENLABS_REQUIRED_PERMISSIONS.map(p => `• ${p}`).join('\n');
+      return (
+        'Your ElevenLabs API key is valid but missing required permissions. ' +
+        'If using a restricted key, enable these permissions in your ElevenLabs dashboard:\n' +
+        required
+      );
+    }
+  } catch {
+    // Response body not JSON or malformed — fall through to INVALID_KEY
+  }
+
+  return null;
 }

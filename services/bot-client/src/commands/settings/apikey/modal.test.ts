@@ -245,5 +245,27 @@ describe('handleApikeyModalSubmit', () => {
 
       expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
     });
+
+    it('should show descriptive error for missing permissions (400)', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: 'VALIDATION_ERROR',
+            message: 'Your ElevenLabs API key is valid but missing required permissions.',
+          }),
+      });
+
+      const interaction = createMockInteraction(
+        'settings::apikey::set::elevenlabs',
+        'sk_valid_scoped_key'
+      );
+      await handleApikeyModalSubmit(interaction);
+
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.stringContaining('missing required permissions')
+      );
+    });
   });
 });
