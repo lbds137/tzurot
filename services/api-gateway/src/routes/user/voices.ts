@@ -167,6 +167,8 @@ async function handleDeleteVoice(
     return;
   }
 
+  // Verify voiceId belongs to a tzurot-prefixed clone before deleting.
+  // Prevents deleting the user's own non-Tzurot voices by guessing IDs.
   const { voices } = await fetchTzurotVoices(keyResult.apiKey);
   const voice = voices.find(v => v.voice_id === voiceId);
 
@@ -218,7 +220,7 @@ async function handleClearVoices(
   const { voices } = await fetchTzurotVoices(keyResult.apiKey);
 
   if (voices.length === 0) {
-    sendCustomSuccess(res, { deleted: 0, message: 'No Tzurot voices to clear' });
+    sendCustomSuccess(res, { deleted: 0, total: 0, message: 'No Tzurot voices to clear' });
     return;
   }
 

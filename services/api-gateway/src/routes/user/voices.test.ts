@@ -181,6 +181,18 @@ describe('Voice Management Routes', () => {
       expect(res.status).toBe(404);
     });
 
+    it('should handle ElevenLabs API error during ownership check', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+
+      const res = await request(app).delete('/voices/voice-1');
+
+      expect(res.status).toBe(500);
+    });
+
     it('should handle ElevenLabs delete failure', async () => {
       mockFetch
         .mockResolvedValueOnce({
@@ -232,7 +244,20 @@ describe('Voice Management Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.deleted).toBe(0);
+      expect(res.body.total).toBe(0);
       expect(res.body.message).toContain('No Tzurot voices');
+    });
+
+    it('should handle ElevenLabs API error during voice listing', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+
+      const res = await request(app).post('/voices/clear');
+
+      expect(res.status).toBe(500);
     });
 
     it('should report partial failures', async () => {
