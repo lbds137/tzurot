@@ -94,15 +94,13 @@ async function resolveElevenLabsKey(
  * Returns an ErrorResponse for auth failures (401/403) so callers can surface
  * user-actionable messages instead of a generic 500.
  *
- * Note: Reuses VALIDATION_TIMEOUTS.API_KEY_VALIDATION (30s) for the per-call
- * timeout — the value is appropriate for any single ElevenLabs API call.
  */
 async function fetchTzurotVoices(
   apiKey: string
 ): Promise<{ voices: ElevenLabsVoice[]; totalSlots: number } | { errorResponse: ErrorResponse }> {
   const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices`, {
     headers: { 'xi-api-key': apiKey },
-    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.API_KEY_VALIDATION),
+    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
   });
 
   if (!response.ok) {
@@ -124,7 +122,7 @@ async function fetchTzurotVoices(
   }
 
   const data = (await response.json()) as ElevenLabsVoicesResponse;
-  const allVoices = data.voices;
+  const allVoices = Array.isArray(data.voices) ? data.voices : [];
   const tzurotVoices = allVoices.filter(v => v.name.startsWith(VOICE_NAME_PREFIX));
 
   return { voices: tzurotVoices, totalSlots: allVoices.length };
@@ -142,7 +140,7 @@ async function fetchSingleVoice(
     `${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices/${encodeURIComponent(voiceId)}`,
     {
       headers: { 'xi-api-key': apiKey },
-      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.API_KEY_VALIDATION),
+      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
     }
   );
 
@@ -168,6 +166,11 @@ async function fetchSingleVoice(
   }
 
   const voice = (await response.json()) as ElevenLabsVoice;
+  if (typeof voice.voice_id !== 'string' || typeof voice.name !== 'string') {
+    return {
+      errorResponse: ErrorResponses.internalError('Unexpected voice response from ElevenLabs'),
+    };
+  }
   return { voice };
 }
 
@@ -179,7 +182,7 @@ async function deleteElevenLabsVoice(
   return fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices/${encodeURIComponent(voiceId)}`, {
     method: 'DELETE',
     headers: { 'xi-api-key': apiKey },
-    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.API_KEY_VALIDATION),
+    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
   });
 }
 
@@ -307,6 +310,8 @@ async function handleClearVoices(
 
   // Delete in small batches to balance speed vs ElevenLabs rate limits.
   // Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s) for this call.
+  // If the gateway exceeds that, the bot-client aborts but deletions continue
+  // server-side — no data is lost, voices are eventually removed.
   let deleted = 0;
   const errors: string[] = [];
 
