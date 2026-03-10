@@ -37,6 +37,12 @@ function mapValidationErrorToResponse(validation: ApiKeyValidationResult): Error
   switch (validation.errorCode) {
     case 'INVALID_KEY':
       return ErrorResponses.unauthorized(validation.error ?? WALLET_ERROR_MESSAGES.INVALID_API_KEY);
+    case 'MISSING_PERMISSIONS':
+      // Scoped key with insufficient permissions — use 400 so bot-client shows
+      // the descriptive message instead of the hardcoded "Invalid API Key" text
+      return ErrorResponses.validationError(
+        validation.error ?? 'API key is missing required permissions'
+      );
     case 'QUOTA_EXCEEDED':
       return ErrorResponses.paymentRequired(
         validation.error ?? WALLET_ERROR_MESSAGES.INSUFFICIENT_CREDITS

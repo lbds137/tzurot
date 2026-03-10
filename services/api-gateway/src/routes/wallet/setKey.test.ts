@@ -264,6 +264,29 @@ describe('POST /wallet/set', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
+
+    it('should return 400 with descriptive message for missing permissions', async () => {
+      mockValidateApiKey.mockResolvedValue({
+        valid: false,
+        errorCode: 'MISSING_PERMISSIONS',
+        error: 'Your ElevenLabs API key is valid but missing required permissions.',
+      });
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.ElevenLabs,
+        apiKey: 'sk-eleven-scoped',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('missing required permissions'),
+        })
+      );
+    });
   });
 
   describe('successful key storage', () => {
