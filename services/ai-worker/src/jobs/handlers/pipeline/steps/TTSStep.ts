@@ -198,15 +198,7 @@ export class TTSStep implements IPipelineStep {
     logger.info({ slug, textLength: text.length, modelId }, 'Synthesizing via ElevenLabs TTS');
     const { audioBuffer, contentType } = await elevenLabsTTS({ text, voiceId, apiKey, modelId });
 
-    // Store audio in Redis
-    const jobId = context.job.id ?? context.job.data.requestId;
-    if (jobId === undefined) {
-      logger.warn({ slug }, 'TTS: no job ID available, skipping audio storage');
-      return null;
-    }
-    const key = await redisService.storeTTSAudio(jobId, audioBuffer);
-
-    return { key, audioSize: audioBuffer.length, contentType };
+    return this.storeTTSResult(context, audioBuffer, contentType, slug);
   }
 
   private async performVoiceEngineTTS(
@@ -236,14 +228,21 @@ export class TTSStep implements IPipelineStep {
       slug
     );
 
-    // Store audio in Redis
+    return this.storeTTSResult(context, audioBuffer, contentType, slug);
+  }
+
+  private async storeTTSResult(
+    context: GenerationContext,
+    audioBuffer: Buffer,
+    contentType: string,
+    slug: string
+  ): Promise<{ key: string; audioSize: number; contentType: string } | null> {
     const jobId = context.job.id ?? context.job.data.requestId;
     if (jobId === undefined) {
       logger.warn({ slug }, 'TTS: no job ID available, skipping audio storage');
       return null;
     }
     const key = await redisService.storeTTSAudio(jobId, audioBuffer);
-
     return { key, audioSize: audioBuffer.length, contentType };
   }
 }

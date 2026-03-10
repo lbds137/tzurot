@@ -9,16 +9,11 @@
  */
 
 import { z } from 'zod';
-import {
-  createLogger,
-  VALIDATION_TIMEOUTS,
-  AI_ENDPOINTS,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { createLogger, type PrismaClient } from '@tzurot/common-types';
 import type { Response as ExpressResponse } from 'express';
 import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
+import { fetchFromElevenLabs } from '../../utils/elevenLabsFetch.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('VoiceModelsRoute');
@@ -48,41 +43,19 @@ export async function handleListModels(
     return;
   }
 
-  const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/models`, {
-    headers: { 'xi-api-key': keyResult.apiKey },
-    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
+  const result = await fetchFromElevenLabs({
+    endpoint: '/models',
+    apiKey: keyResult.apiKey,
+    schema: ElevenLabsModelsResponseSchema,
+    resourceName: 'models',
   });
 
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      logger.warn({ status: response.status }, '[Models] ElevenLabs rejected API key');
-      sendError(
-        res,
-        ErrorResponses.unauthorized(
-          'ElevenLabs API key is invalid or expired. Update it with /settings apikey set'
-        )
-      );
-      return;
-    }
-    logger.error(
-      { status: response.status, statusText: response.statusText },
-      '[Models] ElevenLabs API error'
-    );
-    sendError(res, ErrorResponses.internalError('Failed to fetch models from ElevenLabs'));
+  if ('errorResponse' in result) {
+    sendError(res, result.errorResponse);
     return;
   }
 
-  const parseResult = ElevenLabsModelsResponseSchema.safeParse(await response.json());
-  if (!parseResult.success) {
-    logger.error(
-      { errors: parseResult.error.format() },
-      '[Models] Unexpected response format from ElevenLabs'
-    );
-    sendError(res, ErrorResponses.internalError('Unexpected response from ElevenLabs API'));
-    return;
-  }
-
-  const ttsModels = parseResult.data
+  const ttsModels = result.data
     .filter(m => m.can_do_text_to_speech === true)
     .map(m => ({ modelId: m.model_id, name: m.name }));
 
