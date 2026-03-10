@@ -167,11 +167,12 @@ describe('Voice Management Routes', () => {
 
   describe('DELETE /:voiceId - Delete a voice', () => {
     it('should delete a tzurot-prefixed voice', async () => {
-      // First call: fetch voices to verify; Second call: delete
+      // First call: fetch single voice to verify; Second call: delete
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve(mockVoicesResponse),
+          json: () =>
+            Promise.resolve({ voice_id: 'voice-1', name: 'tzurot-alice', category: 'cloned' }),
         })
         .mockResolvedValueOnce({ ok: true });
 
@@ -185,6 +186,12 @@ describe('Voice Management Routes', () => {
 
     it('should reject deleting a non-tzurot voice (IDOR guard)', async () => {
       // voice-3 is 'my-custom-voice' — not tzurot-prefixed, so ownership check rejects
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ voice_id: 'voice-3', name: 'my-custom-voice', category: 'cloned' }),
+      });
+
       const res = await request(app).delete('/voices/voice-3');
 
       expect(res.status).toBe(404);
@@ -193,6 +200,12 @@ describe('Voice Management Routes', () => {
     });
 
     it('should reject deleting a nonexistent voice', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
+
       const res = await request(app).delete('/voices/nonexistent');
 
       expect(res.status).toBe(404);
@@ -216,7 +229,8 @@ describe('Voice Management Routes', () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve(mockVoicesResponse),
+          json: () =>
+            Promise.resolve({ voice_id: 'voice-1', name: 'tzurot-alice', category: 'cloned' }),
         })
         .mockResolvedValueOnce({
           ok: false,

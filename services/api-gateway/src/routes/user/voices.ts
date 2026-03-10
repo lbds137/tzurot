@@ -31,6 +31,9 @@ const logger = createLogger('VoicesRoute');
 /** Prefix used by ElevenLabsVoiceService when cloning voices */
 const VOICE_NAME_PREFIX = 'tzurot-';
 
+/** Max concurrent ElevenLabs delete calls per batch in bulk clear */
+const DELETE_BATCH_SIZE = 5;
+
 /** Shape of a voice entry from ElevenLabs GET /v1/voices */
 interface ElevenLabsVoice {
   voice_id: string;
@@ -127,6 +130,47 @@ async function fetchTzurotVoices(
   return { voices: tzurotVoices, totalSlots: allVoices.length };
 }
 
+/**
+ * Fetch a single voice by ID from ElevenLabs.
+ * Used by the delete handler for O(1) IDOR verification instead of listing all voices.
+ */
+async function fetchSingleVoice(
+  apiKey: string,
+  voiceId: string
+): Promise<{ voice: ElevenLabsVoice } | { errorResponse: ErrorResponse }> {
+  const response = await fetch(
+    `${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices/${encodeURIComponent(voiceId)}`,
+    {
+      headers: { 'xi-api-key': apiKey },
+      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.API_KEY_VALIDATION),
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      logger.warn({ status: response.status }, '[Voices] ElevenLabs rejected API key');
+      return {
+        errorResponse: ErrorResponses.unauthorized(
+          'ElevenLabs API key is invalid or expired. Update it with /settings apikey set'
+        ),
+      };
+    }
+    if (response.status === 404) {
+      return { errorResponse: ErrorResponses.notFound('Voice') };
+    }
+    logger.error(
+      { status: response.status, statusText: response.statusText, voiceId },
+      '[Voices] ElevenLabs API error fetching voice'
+    );
+    return {
+      errorResponse: ErrorResponses.internalError('Failed to fetch voice from ElevenLabs'),
+    };
+  }
+
+  const voice = (await response.json()) as ElevenLabsVoice;
+  return { voice };
+}
+
 /** Delete a single ElevenLabs voice via the API */
 async function deleteElevenLabsVoice(
   apiKey: string,
@@ -193,17 +237,17 @@ async function handleDeleteVoice(
     return;
   }
 
-  // Verify voiceId belongs to a tzurot-prefixed clone before deleting.
-  // Prevents deleting the user's own non-Tzurot voices by guessing IDs.
-  const voicesResult = await fetchTzurotVoices(keyResult.apiKey);
-  if ('errorResponse' in voicesResult) {
-    sendError(res, voicesResult.errorResponse);
+  // Fetch the single voice to verify it exists and is tzurot-prefixed (IDOR guard).
+  // Uses GET /v1/voices/:voiceId — O(1) instead of listing all voices.
+  const voiceResult = await fetchSingleVoice(keyResult.apiKey, voiceId);
+  if ('errorResponse' in voiceResult) {
+    sendError(res, voiceResult.errorResponse);
     return;
   }
 
-  const voice = voicesResult.voices.find(v => v.voice_id === voiceId);
+  const { voice } = voiceResult;
 
-  if (voice === undefined) {
+  if (!voice.name.startsWith(VOICE_NAME_PREFIX)) {
     sendError(res, ErrorResponses.notFound('Voice not found or not a Tzurot-cloned voice'));
     return;
   }
@@ -263,12 +307,11 @@ async function handleClearVoices(
 
   // Delete in small batches to balance speed vs ElevenLabs rate limits.
   // Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s) for this call.
-  const BATCH_SIZE = 5;
   let deleted = 0;
   const errors: string[] = [];
 
-  for (let i = 0; i < voices.length; i += BATCH_SIZE) {
-    const batch = voices.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < voices.length; i += DELETE_BATCH_SIZE) {
+    const batch = voices.slice(i, i + DELETE_BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map(async voice => {
         const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
