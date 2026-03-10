@@ -28,7 +28,7 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-- ✨ `[FEAT]` **Voice Engine Phase 4.6** — see Active Epic below. Ship as beta.90 by EOD Tuesday 2026-03-10.
+- 🧹 `[CHORE]` **Release beta.90** — Phase 4.6 merged. Deploy to dev, test, then cut release.
 
 ---
 
@@ -46,7 +46,7 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140. Current: 139.
+**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140; voice feature grew to 152; PR #729 CPD pass → 146. Current: 146.
 
 ### Completed
 
@@ -106,7 +106,7 @@ Smaller wins in ai-worker internal patterns and tooling utilities.
 
 Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
 
-**Target**: <100 clones or <1.5%. Currently 140 clones.
+**Target**: <100 clones or <1.5%. Currently 146 clones.
 
 ---
 
@@ -354,9 +354,7 @@ _Beyond text: voice and images._
 
 _Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for both STT and TTS._
 
-**Status**: Phases 1–4 shipped. Free tier (Parakeet TDT + Pocket TTS) in v3.0.0-beta.89. ElevenLabs BYOK (Phase 4) merged in PR #727.
-
-**Full implementation guide**: `docs/proposals/active/voice-engine-implementation-guide.md`
+**Status**: Phases 1–4.6 shipped. Free tier (Parakeet TDT + Pocket TTS) in v3.0.0-beta.89. ElevenLabs BYOK (Phase 4) in PR #727. Configurable TTS model + cleanup (Phase 4.6) in PR #729.
 
 | Tier               | STT                         | TTS               |
 | ------------------ | --------------------------- | ----------------- |
@@ -447,23 +445,17 @@ Tighten ElevenLabs BYOK from PR #727 follow-ups and simplify the STT fallback ch
 - [x] Clean up Whisper-related code, config, and `OPENAI_API_KEY` env var
 - [x] Voice slot management UX — `/settings voices browse|delete|clear` commands
 
-#### Phase 4.6: Configurable ElevenLabs TTS Model + Cleanup (IN CURRENT FOCUS)
+#### Phase 4.6: Configurable ElevenLabs TTS Model + Cleanup (PR #729 — MERGED)
 
-Users should choose their preferred ElevenLabs TTS model — shapes.inc had a dropdown for this. Currently hardcoded to `eleven_multilingual_v2` in `ElevenLabsClient.ts:141`. The `ElevenLabsTTSOptions` interface already accepts an optional `modelId` but no caller passes it.
-
-**Configurable TTS model:**
-
-- [ ] Call `GET /v1/models` on ElevenLabs API to discover available TTS models
-- [ ] Add `/settings voices model` subcommand with autocomplete dropdown of available models
-- [ ] Store user's preferred model in DB (per-user setting, not per-character)
-- [ ] Thread selected `modelId` through `TTSStep` → `ElevenLabsClient.textToSpeech()`
-- [ ] STT model (`scribe_v1`) stays pinned — fewer options, less user value
-
-**Rolled-in chores (from Phase 4/4.5 follow-ups):**
-
-- [ ] 🐛 Log warning on `voiceReferenceType` WAV fallback — `voiceReferences.ts` silently falls back to `audio/wav`. Add `logger.warn()` before the fallback.
-- [ ] 🧹 Expand `mypy --strict` to test files — CI only checks `server.py`. Add `tests/` to the mypy command.
-- [ ] 🧹 Clean up voice-engine proposal doc — archive or trim `docs/proposals/active/voice-engine-implementation-guide.md` per doc lifecycle rules.
+- [x] Call `GET /v1/models` on ElevenLabs API to discover available TTS models
+- [x] Add `/settings voices model` subcommand with autocomplete dropdown of available models
+- [x] Store user's preferred model in DB via config cascade (`elevenlabsTtsModel` field)
+- [x] Thread selected `modelId` through `TTSStep` → `ElevenLabsClient.textToSpeech()`
+- [x] STT model (`scribe_v1`) stays pinned — fewer options, less user value
+- [x] 🐛 Log warning on `voiceReferenceType` WAV fallback
+- [x] 🧹 Expand `mypy --strict` to voice-engine test files
+- [x] 🧹 Delete completed voice-engine proposal doc
+- [x] 🏗️ Extract `voiceReferenceHelper.ts`, `elevenLabsFetch.ts`, `storeTTSResult` — CPD reduction (152→146 clones)
 
 #### Phase 5: Shapes.inc Voice Field Import
 
@@ -699,4 +691,4 @@ _Decided not to do yet._
 - Shapes.inc import: Phases 1-4 complete on develop (see Character Portability theme)
 - [docs/research/sillytavern-features.md](docs/research/sillytavern-features.md)
 - [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md) - Voice engine research summary
-- [docs/proposals/active/voice-engine-implementation-guide.md](docs/proposals/active/voice-engine-implementation-guide.md) - Full 9-part implementation guide
+- [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md) - Voice engine research summary + implementation map

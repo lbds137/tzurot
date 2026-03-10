@@ -1,7 +1,7 @@
 # Open-Source Voice Engine Research
 
 > **Date**: 2026-01-24 (initial), 2026-03-01 (updated)
-> **Status**: Active — implementation planned for March 2026
+> **Status**: Implemented — Phases 1–4.6 shipped (v3.0.0-beta.89–90)
 
 ## TL;DR
 
@@ -28,19 +28,16 @@ Self-hosted models run as a Python FastAPI microservice (`services/voice-engine/
 
 The initial Gemini consultation (Jan 2026) produced fabricated API names for Pocket TTS. The correct library is `pocket_tts` with `TTSModel.load_model()`. See the implementation guide for verified API usage.
 
-## Full Implementation Guide
+## Implementation
 
-**`docs/proposals/active/voice-engine-implementation-guide.md`** — Complete 9-part guide covering:
+The voice engine is fully implemented across the codebase:
 
-1. Self-hosted STT (Parakeet TDT)
-2. Self-hosted TTS (Pocket TTS) with correct API
-3. Premium tier (ElevenLabs BYOK)
-4. Python voice-engine service (server.py, Dockerfile)
-5. ai-worker TypeScript integration (VoiceService)
-6. Railway deployment + Serverless mode
-7. LLM prompt integration (audio tags)
-8. Testing & validation
-9. Known limitations & future upgrades
+- **Python service**: `services/voice-engine/` (FastAPI, Parakeet TDT STT, Pocket TTS)
+- **ai-worker integration**: `services/ai-worker/src/services/voice/` (VoiceEngineClient, ElevenLabsClient, ElevenLabsVoiceService, VoiceRegistrationService)
+- **Pipeline step**: `services/ai-worker/src/jobs/handlers/pipeline/steps/TTSStep.ts`
+- **API routes**: `services/api-gateway/src/routes/user/voices.ts`, `voiceModels.ts`
+- **Bot commands**: `/character voice`, `/settings voices`
+- **Config cascade**: `elevenlabsTtsModel` field for user-selectable TTS model
 
 ## Alternatives Considered
 
@@ -55,7 +52,6 @@ The initial Gemini consultation (Jan 2026) produced fabricated API names for Poc
 
 ## References
 
-- Implementation guide: `docs/proposals/active/voice-engine-implementation-guide.md`
 - Backlog: BACKLOG.md → Future Themes → Voice Engine
 - Pocket TTS GitHub: https://github.com/kyutai-labs/pocket-tts
 - Parakeet TDT HuggingFace: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
