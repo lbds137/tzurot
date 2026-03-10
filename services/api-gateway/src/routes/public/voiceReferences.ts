@@ -64,9 +64,13 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
         const buffer = personality.voiceReferenceData;
         // Defense-in-depth: validate stored MIME type against allowed list
         const storedType = personality.voiceReferenceType ?? '';
-        const contentType = VOICE_REFERENCE_LIMITS.ALLOWED_TYPES.includes(storedType)
-          ? storedType
-          : 'audio/wav';
+        let contentType: string;
+        if (VOICE_REFERENCE_LIMITS.ALLOWED_TYPES.includes(storedType)) {
+          contentType = storedType;
+        } else {
+          logger.warn({ slug, storedType }, 'Invalid stored MIME type, falling back to audio/wav');
+          contentType = 'audio/wav';
+        }
 
         res.set('Content-Type', contentType);
         res.set('Content-Length', String(buffer.length));
