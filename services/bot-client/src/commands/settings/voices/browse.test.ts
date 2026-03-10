@@ -3,9 +3,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { handleBrowseVoices } from './browse.js';
+import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import {
+  handleBrowseVoices,
+  handleVoiceBrowsePagination,
+  isVoiceBrowseInteraction,
+} from './browse.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import type { VoiceEntry } from './types.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -25,6 +30,15 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
+
+/** Generate N voice entries for pagination tests */
+function generateVoices(count: number): VoiceEntry[] {
+  return Array.from({ length: count }, (_, i) => ({
+    voiceId: `v${i + 1}`,
+    name: `tzurot-voice-${i + 1}`,
+    slug: `voice-${i + 1}`,
+  }));
+}
 
 describe('handleBrowseVoices', () => {
   const mockEditReply = vi.fn();
@@ -59,7 +73,7 @@ describe('handleBrowseVoices', () => {
     } as unknown as DeferredCommandContext;
   }
 
-  it('should list voices successfully', async () => {
+  it('should list voices successfully with no pagination buttons for small lists', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -87,7 +101,64 @@ describe('handleBrowseVoices', () => {
           }),
         }),
       ],
+      components: [], // No pagination needed for 2 voices
     });
+  });
+
+  it('should show pagination buttons when voices exceed page size', async () => {
+    const voices = generateVoices(12); // 12 voices = 2 pages at 10/page
+
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices,
+        totalSlots: 30,
+        tzurotCount: 12,
+      },
+    });
+
+    await handleBrowseVoices(createMockContext());
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: '🎤 Cloned Voices',
+            // First page shows voices 1-10
+            description: expect.stringContaining('voice-1'),
+          }),
+        }),
+      ],
+      components: [expect.any(Object)], // Pagination button row
+    });
+
+    // Verify first page only shows 10 voices
+    const embedDescription = mockEditReply.mock.calls[0][0].embeds[0].data.description;
+    expect(embedDescription).toContain('voice-10');
+    expect(embedDescription).not.toContain('voice-11');
+  });
+
+  it('should show management hints on first page only', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: [{ voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
+        totalSlots: 5,
+        tzurotCount: 1,
+      },
+    });
+
+    await handleBrowseVoices(createMockContext());
+
+    const embed = mockEditReply.mock.calls[0][0].embeds[0];
+    expect(embed.data.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: '💡 Management',
+          value: expect.stringContaining('/settings voices delete'),
+        }),
+      ])
+    );
   });
 
   it('should show empty state when no voices', async () => {
@@ -110,6 +181,7 @@ describe('handleBrowseVoices', () => {
           }),
         }),
       ],
+      components: [],
     });
   });
 
@@ -135,5 +207,106 @@ describe('handleBrowseVoices', () => {
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ An unexpected error occurred. Please try again.',
     });
+  });
+});
+
+describe('isVoiceBrowseInteraction', () => {
+  it('should match voice browse pagination custom IDs', () => {
+    expect(isVoiceBrowseInteraction('settings-voices::browse::0::all::')).toBe(true);
+    expect(isVoiceBrowseInteraction('settings-voices::browse::1::all::')).toBe(true);
+  });
+
+  it('should not match unrelated custom IDs', () => {
+    expect(isVoiceBrowseInteraction('character::browse::0::all::date::')).toBe(false);
+    expect(
+      isVoiceBrowseInteraction('settings::destructive::confirm_button::voice-clear::all')
+    ).toBe(false);
+    expect(isVoiceBrowseInteraction('user-defaults-settings::voice::edit')).toBe(false);
+  });
+});
+
+describe('handleVoiceBrowsePagination', () => {
+  const mockDeferUpdate = vi.fn();
+  const mockEditReply = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createMockButtonInteraction(customId: string): ButtonInteraction {
+    return {
+      customId,
+      user: { id: 'user-123' },
+      deferUpdate: mockDeferUpdate,
+      editReply: mockEditReply,
+    } as unknown as ButtonInteraction;
+  }
+
+  it('should navigate to requested page', async () => {
+    const voices = generateVoices(12);
+
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { voices, totalSlots: 30, tzurotCount: 12 },
+    });
+
+    // Click "next" to go to page 1
+    await handleVoiceBrowsePagination(
+      createMockButtonInteraction('settings-voices::browse::1::all::')
+    );
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            // Page 2 should show voices 11-12
+            description: expect.stringContaining('voice-11'),
+          }),
+        }),
+      ],
+      components: [expect.any(Object)],
+    });
+
+    // Page 2 should NOT show management hints
+    const embed = mockEditReply.mock.calls[0][0].embeds[0];
+    expect(embed.data.fields).toBeUndefined();
+  });
+
+  it('should ignore unparseable custom IDs', async () => {
+    await handleVoiceBrowsePagination(createMockButtonInteraction('garbage-custom-id'));
+
+    expect(mockDeferUpdate).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+  });
+
+  it('should handle API error during pagination', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'ElevenLabs key expired',
+    });
+
+    await handleVoiceBrowsePagination(
+      createMockButtonInteraction('settings-voices::browse::1::all::')
+    );
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ ElevenLabs key expired',
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('should keep existing content on fetch exception', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+    await handleVoiceBrowsePagination(
+      createMockButtonInteraction('settings-voices::browse::1::all::')
+    );
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    // Should NOT call editReply — keeps existing content visible
+    expect(mockEditReply).not.toHaveBeenCalled();
   });
 });
