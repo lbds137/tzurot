@@ -199,8 +199,8 @@ export class VoiceTranscriptionService {
         }
       }
 
-      // Send transcribe job to api-gateway
-      const response = await this.gatewayClient.transcribe(attachments);
+      // Send transcribe job to api-gateway (include userId for BYOK key resolution)
+      const response = await this.gatewayClient.transcribe(attachments, message.author.id);
 
       if (!response?.content) {
         throw new Error('No transcript returned from transcription service');

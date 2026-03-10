@@ -245,6 +245,47 @@ describe('GatewayClient', () => {
         expect.any(Object)
       );
     });
+
+    it('should include userId in request body when provided', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            jobId: 'job-1',
+            status: JobStatus.Completed,
+            result: { content: 'text' },
+          }),
+      });
+
+      await client.transcribe(
+        [{ url: 'http://test/audio.ogg', contentType: 'audio/ogg' }],
+        'user-123'
+      );
+
+      const fetchCall = mockFetch.mock.calls[0];
+      const body = JSON.parse(fetchCall[1].body as string);
+      expect(body.userId).toBe('user-123');
+    });
+
+    it('should omit userId from request body when not provided', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            jobId: 'job-1',
+            status: JobStatus.Completed,
+            result: { content: 'text' },
+          }),
+      });
+
+      await client.transcribe([{ url: 'http://test/audio.ogg', contentType: 'audio/ogg' }]);
+
+      const fetchCall = mockFetch.mock.calls[0];
+      const body = JSON.parse(fetchCall[1].body as string);
+      expect(body.userId).toBeUndefined();
+    });
   });
 
   describe('confirmDelivery()', () => {

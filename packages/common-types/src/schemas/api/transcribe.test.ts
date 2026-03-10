@@ -94,4 +94,33 @@ describe('TranscribeRequestSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('should accept optional userId', () => {
+    const result = TranscribeRequestSchema.safeParse({
+      attachments: [{ url: 'https://cdn.example.com/audio.ogg', contentType: 'audio/ogg' }],
+      userId: '123456789',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.userId).toBe('123456789');
+    }
+  });
+
+  it('should accept request without userId', () => {
+    const result = TranscribeRequestSchema.safeParse({
+      attachments: [{ url: 'https://cdn.example.com/audio.ogg', contentType: 'audio/ogg' }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.userId).toBeUndefined();
+    }
+  });
+
+  it('should reject empty userId', () => {
+    const result = TranscribeRequestSchema.safeParse({
+      attachments: [{ url: 'https://cdn.example.com/audio.ogg', contentType: 'audio/ogg' }],
+      userId: '',
+    });
+    expect(result.success).toBe(false);
+  });
 });

@@ -148,7 +148,8 @@ export class GatewayClient {
       isVoiceMessage?: boolean;
       duration?: number;
       waveform?: string;
-    }[]
+    }[],
+    userId?: string
   ): Promise<{
     content: string;
     metadata?: {
@@ -164,6 +165,7 @@ export class GatewayClient {
         },
         body: JSON.stringify({
           attachments,
+          ...(userId !== undefined && { userId }),
         }),
       });
 

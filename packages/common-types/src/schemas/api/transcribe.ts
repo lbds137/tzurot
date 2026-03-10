@@ -15,5 +15,6 @@ const TranscribeAttachmentSchema = z.object({
 
 export const TranscribeRequestSchema = z.object({
   attachments: z.array(TranscribeAttachmentSchema).min(1, 'At least one attachment is required'),
+  userId: z.string().min(1).optional(),
 });
 export type TranscribeRequestInput = z.infer<typeof TranscribeRequestSchema>;
