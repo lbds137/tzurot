@@ -1,45 +1,33 @@
 # Current
 
-> **Session**: 2026-03-09
+> **Session**: 2026-03-10
 > **Version**: v3.0.0-beta.89
 
 ---
 
 ## Session Goal
 
-_ElevenLabs BYOK implementation (Voice Engine Phase 4) — premium STT/TTS for users with their own API key._
+_Phase 4.6 cleanup + beta.90 release prep. Ship by EOD Tuesday (surgery Thursday)._
 
 ## Active Task
 
-PR #727 merged to develop. Backlog and docs updated.
+Inventory complete. Phase 4.6 defined — small chores rolled in alongside configurable TTS model.
 
 ---
 
 ## Completed This Session
 
-- **feat(common-types)**: Add `AIProvider.ElevenLabs` enum, `ELEVENLABS_BASE_URL`, Discord provider choice
-- **feat(ai-worker)**: ElevenLabs client (`ElevenLabsClient.ts`) — stateless API functions for TTS, STT, voice cloning, listing, deletion
-- **feat(ai-worker)**: ElevenLabs voice service (`ElevenLabsVoiceService.ts`) — auto-clone voices with TTLCache, negative cache, in-flight dedup
-- **feat(ai-worker)**: Auth resolution for ElevenLabs BYOK key (independent from OpenRouter, skipped in guest mode)
-- **feat(ai-worker)**: TTS routing — ElevenLabs BYOK priority over self-hosted voice-engine
-- **feat(ai-worker)**: STT routing — ElevenLabs → voice-engine → Whisper fallback chain
-- **feat(bot-client)**: Content type threading (MP3 vs WAV → correct Discord file extension)
-- **chore**: Exhaustive switch cascade updates across 7 files for new `AIProvider.ElevenLabs`
-- **test**: 37 new tests across ElevenLabsClient, ElevenLabsVoiceService, AuthStep, TTSStep, AudioProcessor, DiscordResponseSender
+- **chore**: Inventory of Voice Engine epic phases — confirmed Phases 1–4.5 fully shipped
+- **chore**: Updated CURRENT.md and BACKLOG.md to reflect current state
 
 ## Previous Session
 
-- **release**: v3.0.0-beta.89 merged to main and deployed (102 commits, 193 files)
-- **fix(voice-engine)**: Address 3 rounds of PR #714 review feedback + Python test coverage (~68% → ~80%)
-- **docs**: Long-lived branch protection rules (near-miss: almost deleted `develop`)
-
-## Post-Deploy Checklist (from v3.0.0-beta.89)
-
-- [x] Merge PR #714 to main
-- [x] Create release tag + GitHub release notes
-- [x] DB migration applied to prod
-- [ ] Run `/admin db-sync` in Discord to sync voice references to prod
-- [ ] Smoke test voice commands in production
+- **feat(ai-worker)**: Shared voice engine cold-start warm-up (`voiceEngineWarmup.ts`)
+- **feat(ai-worker,api-gateway,bot-client)**: 19 rounds of PR #728 review feedback
+- **refactor(ai-worker)**: Remove OpenAI Whisper STT fallback (two-tier: ElevenLabs → voice-engine)
+- **feat(bot-client)**: `/settings voices browse|delete|clear` commands
+- **feat(api-gateway)**: Voice management routes + Zod validation at ElevenLabs boundary
+- PR #728 merged to develop
 
 ## Recent Releases
 
@@ -49,12 +37,7 @@ PR #727 merged to develop. Backlog and docs updated.
 
 ## Follow-Up Items
 
-- Thread ElevenLabs key through `AudioTranscriptionJob` for full STT coverage (v1 only covers inline transcription)
-- Voice slot management UX (backlog item — `/settings apikey voices`)
-- Log warning on `voiceReferenceType` WAV fallback
-- Comment on `shouldRunTTS` default
-- Expand `mypy --strict` to test files
-- Clean up completed voice-engine proposal doc
+_All rolled into Phase 4.6 in BACKLOG.md._
 
 ---
 

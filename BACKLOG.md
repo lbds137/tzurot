@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-03-09
+> **Last Updated**: 2026-03-10
 > **Version**: v3.0.0-beta.89
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -22,16 +22,12 @@ _Empty (2026-03-04)._
 _New items go here. Triage to appropriate section weekly._
 
 - 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure) but worth hardening.
-- 🐛 `[FIX]` **Log warning on `voiceReferenceType` WAV fallback** — `voiceReferences.ts` falls back to `audio/wav` if stored MIME type is missing/invalid. Add a log warning before the fallback to aid debugging if it ever fires.
-- 🧹 `[CHORE]` **Add comment on `shouldRunTTS` default** — `voiceResponseMode ?? 'never'` silently defaults to never when `configOverrides` is absent. One-line comment clarifying the safe default.
-- 🧹 `[CHORE]` **Expand `mypy --strict` to test files** — CI currently only checks `server.py`. Add `tests/` to catch type issues as the Python test suite grows.
-- 🧹 `[CHORE]` **Update voice-engine proposal** — `docs/proposals/active/voice-engine-implementation-guide.md` Phases 1-4.5 complete. Phase 5 (shapes.inc voice import) remains. Update status table.
 
 ## 🎯 Current Focus
 
 _This week's active work. Max 3 items._
 
-_Empty — pull from Quick Wins or Active Epic._
+- ✨ `[FEAT]` **Voice Engine Phase 4.6** — see Active Epic below. Ship as beta.90 by EOD Tuesday 2026-03-10.
 
 ---
 
@@ -450,15 +446,23 @@ Tighten ElevenLabs BYOK from PR #727 follow-ups and simplify the STT fallback ch
 - [x] Clean up Whisper-related code, config, and `OPENAI_API_KEY` env var
 - [x] Voice slot management UX — `/settings voices browse|delete|clear` commands
 
-#### Phase 4.6: Configurable ElevenLabs TTS Model
+#### Phase 4.6: Configurable ElevenLabs TTS Model + Cleanup (IN CURRENT FOCUS)
 
 Users should choose their preferred ElevenLabs TTS model — shapes.inc had a dropdown for this. Currently hardcoded to `eleven_multilingual_v2` in `ElevenLabsClient.ts:141`. The `ElevenLabsTTSOptions` interface already accepts an optional `modelId` but no caller passes it.
+
+**Configurable TTS model:**
 
 - [ ] Call `GET /v1/models` on ElevenLabs API to discover available TTS models
 - [ ] Add `/settings voices model` subcommand with autocomplete dropdown of available models
 - [ ] Store user's preferred model in DB (per-user setting, not per-character)
 - [ ] Thread selected `modelId` through `TTSStep` → `ElevenLabsClient.textToSpeech()`
 - [ ] STT model (`scribe_v1`) stays pinned — fewer options, less user value
+
+**Rolled-in chores (from Phase 4/4.5 follow-ups):**
+
+- [ ] 🐛 Log warning on `voiceReferenceType` WAV fallback — `voiceReferences.ts` silently falls back to `audio/wav`. Add `logger.warn()` before the fallback.
+- [ ] 🧹 Expand `mypy --strict` to test files — CI only checks `server.py`. Add `tests/` to the mypy command.
+- [ ] 🧹 Clean up voice-engine proposal doc — archive or trim `docs/proposals/active/voice-engine-implementation-guide.md` per doc lifecycle rules.
 
 #### Phase 5: Shapes.inc Voice Field Import
 
