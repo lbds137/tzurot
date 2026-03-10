@@ -16,6 +16,7 @@ import type { IPipelineStep, GenerationContext } from '../types.js';
 import { getVoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
 import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
+import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
 import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
 import { elevenLabsTTS } from '../../../../services/voice/ElevenLabsClient.js';
 import { redisService } from '../../../../redis.js';
@@ -26,14 +27,6 @@ const logger = createLogger('TTSStep');
  * Budget: health wait (75s) + voice registration (15s) + synthesis (~45s) + margin (15s).
  * 150s accommodates the full ~56s cold start plus multi-chunk TTS. */
 const TTS_TIMEOUT_MS = 150_000;
-
-/** Total time budget for health polling during voice engine cold start (ms).
- * Railway Serverless cold boot measured at ~56s — 75s gives comfortable margin.
- * Note: effective poll count varies — ECONNREFUSED resolves instantly (~25 polls),
- * but once Railway's LB is up the 5s health timeout may reduce it to ~10 polls. */
-const HEALTH_WAIT_BUDGET_MS = 75_000;
-/** Interval between health check polls (ms) */
-const HEALTH_POLL_INTERVAL_MS = 3_000;
 
 /**
  * Lazy singleton for voice registration (shares VoiceEngineClient lifecycle).
@@ -228,8 +221,9 @@ export class TTSStep implements IPipelineStep {
     // Pre-warm: ping /health to wake voice engine from Railway Serverless sleep.
     // Voice engine cold boot takes ~56s (model loading from disk). The first ping's
     // TCP connection triggers Railway to start the container; subsequent polls wait
-    // for model readiness.
-    await this.waitForVoiceEngine(registrationService, slug);
+    // for model readiness. Proceeds even if budget exhausted — synthesis will fail
+    // with a clear error if the engine truly isn't available.
+    await waitForVoiceEngine(registrationService.client, 'tts');
 
     // Ensure voice is registered
     await registrationService.ensureVoiceRegistered(slug);
@@ -250,45 +244,5 @@ export class TTSStep implements IPipelineStep {
     const key = await redisService.storeTTSAudio(jobId, audioBuffer);
 
     return { key, audioSize: audioBuffer.length, contentType };
-  }
-
-  /**
-   * Wait for the voice engine to become ready, polling health checks on a time budget.
-   * The first ping wakes Railway Serverless; subsequent polls wait for model loading (~56s).
-   * Proceeds after budget exhausted — registration/synthesis will fail with a clear error
-   * if the engine truly isn't available.
-   */
-  private async waitForVoiceEngine(
-    registrationService: VoiceRegistrationService,
-    slug: string
-  ): Promise<void> {
-    const deadline = Date.now() + HEALTH_WAIT_BUDGET_MS;
-    let attempt = 0;
-
-    while (Date.now() < deadline) {
-      attempt++;
-      // getHealth() is error-safe — wraps all errors (ECONNREFUSED, 502, etc.)
-      // and returns { asr: false, tts: false }. It never throws, so the loop
-      // is resilient to transient network failures during the full boot window.
-      const health = await registrationService.client.getHealth();
-      if (health.tts) {
-        return;
-      }
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) {
-        break;
-      }
-      logger.info(
-        { slug, attempt, remainingMs: remaining },
-        'Voice engine TTS not ready — waiting for cold start'
-      );
-      await new Promise(resolve =>
-        setTimeout(resolve, Math.min(HEALTH_POLL_INTERVAL_MS, remaining))
-      );
-    }
-    logger.warn(
-      { slug, attempts: attempt },
-      'Voice engine TTS still not ready after health budget — proceeding anyway'
-    );
   }
 }
