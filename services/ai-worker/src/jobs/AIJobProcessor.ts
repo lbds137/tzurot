@@ -163,8 +163,11 @@ export class AIJobProcessor {
       if (!elResult.isGuestMode && elResult.apiKey !== undefined) {
         elevenlabsApiKey = elResult.apiKey;
       }
-    } catch {
-      // No-op — fall back to voice-engine STT
+    } catch (error) {
+      logger.warn(
+        { err: error, userId: job.data.context.userId },
+        '[AIJobProcessor] Failed to resolve ElevenLabs key — falling back to voice-engine STT'
+      );
     }
 
     const result = await processAudioTranscriptionJob(job, elevenlabsApiKey);

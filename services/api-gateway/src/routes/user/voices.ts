@@ -88,17 +88,33 @@ async function resolveElevenLabsKey(
 
 /**
  * Fetch all voices from ElevenLabs, filtered to tzurot-prefixed clones.
+ * Returns an ErrorResponse for auth failures (401/403) so callers can surface
+ * user-actionable messages instead of a generic 500.
  */
 async function fetchTzurotVoices(
   apiKey: string
-): Promise<{ voices: ElevenLabsVoice[]; totalSlots: number }> {
+): Promise<{ voices: ElevenLabsVoice[]; totalSlots: number } | { errorResponse: ErrorResponse }> {
   const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices`, {
     headers: { 'xi-api-key': apiKey },
     signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.API_KEY_VALIDATION),
   });
 
   if (!response.ok) {
-    throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`);
+    if (response.status === 401 || response.status === 403) {
+      logger.warn({ status: response.status }, '[Voices] ElevenLabs rejected API key');
+      return {
+        errorResponse: ErrorResponses.unauthorized(
+          'ElevenLabs API key is invalid or expired. Update it with /settings apikey set'
+        ),
+      };
+    }
+    logger.error(
+      { status: response.status, statusText: response.statusText },
+      '[Voices] ElevenLabs API error'
+    );
+    return {
+      errorResponse: ErrorResponses.internalError('Failed to fetch voices from ElevenLabs'),
+    };
   }
 
   const data = (await response.json()) as ElevenLabsVoicesResponse;
@@ -134,7 +150,13 @@ async function handleListVoices(
     return;
   }
 
-  const { voices, totalSlots } = await fetchTzurotVoices(keyResult.apiKey);
+  const voicesResult = await fetchTzurotVoices(keyResult.apiKey);
+  if ('errorResponse' in voicesResult) {
+    sendError(res, voicesResult.errorResponse);
+    return;
+  }
+
+  const { voices, totalSlots } = voicesResult;
 
   logger.info(
     { discordUserId, tzurotCount: voices.length, totalSlots },
@@ -159,6 +181,7 @@ async function handleDeleteVoice(
   res: ExpressResponse
 ): Promise<void> {
   const discordUserId = req.userId;
+  // Express types req.params values as string | string[] — cast is needed
   const voiceId = req.params.voiceId as string;
 
   const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
@@ -169,8 +192,13 @@ async function handleDeleteVoice(
 
   // Verify voiceId belongs to a tzurot-prefixed clone before deleting.
   // Prevents deleting the user's own non-Tzurot voices by guessing IDs.
-  const { voices } = await fetchTzurotVoices(keyResult.apiKey);
-  const voice = voices.find(v => v.voice_id === voiceId);
+  const voicesResult = await fetchTzurotVoices(keyResult.apiKey);
+  if ('errorResponse' in voicesResult) {
+    sendError(res, voicesResult.errorResponse);
+    return;
+  }
+
+  const voice = voicesResult.voices.find(v => v.voice_id === voiceId);
 
   if (voice === undefined) {
     sendError(res, ErrorResponses.notFound('Voice not found or not a Tzurot-cloned voice'));
@@ -217,30 +245,32 @@ async function handleClearVoices(
     return;
   }
 
-  const { voices } = await fetchTzurotVoices(keyResult.apiKey);
+  const voicesResult = await fetchTzurotVoices(keyResult.apiKey);
+  if ('errorResponse' in voicesResult) {
+    sendError(res, voicesResult.errorResponse);
+    return;
+  }
+
+  const { voices } = voicesResult;
 
   if (voices.length === 0) {
     sendCustomSuccess(res, { deleted: 0, total: 0, message: 'No Tzurot voices to clear' });
     return;
   }
 
-  const results = await Promise.allSettled(
-    voices.map(async voice => {
-      const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
-      if (!deleteResponse.ok) {
-        throw new Error(`${voice.name}: ${deleteResponse.status}`);
-      }
-      return voice;
-    })
-  );
-
+  // Delete sequentially to avoid hitting ElevenLabs rate limits
   let deleted = 0;
   const errors: string[] = [];
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      deleted++;
-    } else {
-      errors.push(result.reason instanceof Error ? result.reason.message : 'Unknown error');
+  for (const voice of voices) {
+    try {
+      const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
+      if (!deleteResponse.ok) {
+        errors.push(`${voice.name}: ${deleteResponse.status}`);
+      } else {
+        deleted++;
+      }
+    } catch (error) {
+      errors.push(`${voice.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
