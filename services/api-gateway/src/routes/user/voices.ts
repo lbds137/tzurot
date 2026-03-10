@@ -123,7 +123,9 @@ async function fetchTzurotVoices(
 
   const data = (await response.json()) as ElevenLabsVoicesResponse;
   const allVoices = Array.isArray(data.voices) ? data.voices : [];
-  const tzurotVoices = allVoices.filter(v => v.name.startsWith(VOICE_NAME_PREFIX));
+  const tzurotVoices = allVoices.filter(
+    v => typeof v.name === 'string' && v.name.startsWith(VOICE_NAME_PREFIX)
+  );
 
   return { voices: tzurotVoices, totalSlots: allVoices.length };
 }
