@@ -225,18 +225,21 @@ describe('VoiceTranscriptionService', () => {
       // Should send typing indicator
       expect((message.channel as { sendTyping?: unknown }).sendTyping).toHaveBeenCalledOnce();
 
-      // Should call gateway transcribe with attachment metadata
-      expect(mockGatewayClient.transcribe).toHaveBeenCalledWith([
-        {
-          url: 'https://cdn.discord.com/voice/123.ogg',
-          contentType: 'audio/ogg',
-          name: 'voice-message.ogg',
-          size: 50000,
-          isVoiceMessage: true,
-          duration: 5.2,
-          waveform: 'base64data',
-        },
-      ]);
+      // Should call gateway transcribe with attachment metadata and userId
+      expect(mockGatewayClient.transcribe).toHaveBeenCalledWith(
+        [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice-message.ogg',
+            size: 50000,
+            isVoiceMessage: true,
+            duration: 5.2,
+            waveform: 'base64data',
+          },
+        ],
+        'test-user-123'
+      );
 
       // Should reply with transcript (without pinging user)
       expect(message.reply).toHaveBeenCalledWith({
@@ -580,18 +583,21 @@ describe('VoiceTranscriptionService', () => {
         continueToPersonalityHandler: false,
       });
 
-      // Should call gateway transcribe with forwarded attachment metadata
-      expect(mockGatewayClient.transcribe).toHaveBeenCalledWith([
-        {
-          url: 'https://cdn.discord.com/voice/forwarded.ogg',
-          contentType: 'audio/ogg',
-          name: 'forwarded-voice.ogg',
-          size: 45000,
-          isVoiceMessage: true,
-          duration: 8.5,
-          waveform: 'forwardedWaveformData',
-        },
-      ]);
+      // Should call gateway transcribe with forwarded attachment metadata and userId
+      expect(mockGatewayClient.transcribe).toHaveBeenCalledWith(
+        [
+          {
+            url: 'https://cdn.discord.com/voice/forwarded.ogg',
+            contentType: 'audio/ogg',
+            name: 'forwarded-voice.ogg',
+            size: 45000,
+            isVoiceMessage: true,
+            duration: 8.5,
+            waveform: 'forwardedWaveformData',
+          },
+        ],
+        'test-user-123'
+      );
 
       // Should cache in Redis with forwarded attachment URL
       expect(voiceTranscriptCache.store).toHaveBeenCalledWith(
@@ -810,6 +816,7 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     messageSnapshots,
     reference,
     channel,
+    author: { id: 'test-user-123' },
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;
 }

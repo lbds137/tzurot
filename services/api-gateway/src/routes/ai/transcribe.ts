@@ -53,7 +53,7 @@ export function createTranscribeRoute(
         return sendZodError(res, parseResult.error);
       }
 
-      const { attachments } = parseResult.data;
+      const { attachments, userId } = parseResult.data;
       const requestId = randomUUID();
 
       // Download attachments to local storage
@@ -72,7 +72,7 @@ export function createTranscribeRoute(
         jobType: JobType.AudioTranscription,
         attachment: audioAttachment,
         context: {
-          userId: 'system',
+          userId: userId ?? 'system',
           channelId: 'api',
         },
         responseDestination: {

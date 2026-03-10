@@ -91,4 +91,61 @@ describe('POST /transcribe', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBeDefined();
   });
+
+  it('should pass userId to job data when provided', async () => {
+    const mockJob = {
+      id: 'audio-req-456',
+    } as Job;
+    aiQueue.add.mockResolvedValue(mockJob);
+
+    await request(app)
+      .post('/transcribe')
+      .send({
+        attachments: [
+          {
+            url: 'https://example.com/audio.ogg',
+            contentType: 'audio/ogg',
+          },
+        ],
+        userId: '123456789',
+      });
+
+    expect(aiQueue.add).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        context: expect.objectContaining({
+          userId: '123456789',
+        }),
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it('should default userId to system when not provided', async () => {
+    const mockJob = {
+      id: 'audio-req-789',
+    } as Job;
+    aiQueue.add.mockResolvedValue(mockJob);
+
+    await request(app)
+      .post('/transcribe')
+      .send({
+        attachments: [
+          {
+            url: 'https://example.com/audio.ogg',
+            contentType: 'audio/ogg',
+          },
+        ],
+      });
+
+    expect(aiQueue.add).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        context: expect.objectContaining({
+          userId: 'system',
+        }),
+      }),
+      expect.any(Object)
+    );
+  });
 });
