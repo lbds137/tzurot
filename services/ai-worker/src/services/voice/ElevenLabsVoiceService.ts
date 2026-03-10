@@ -155,6 +155,17 @@ export class ElevenLabsVoiceService {
     return `${apiKey.slice(0, 4)}${apiKey.slice(-8)}`;
   }
 
+  /**
+   * Invalidate cached voice for a specific slug + API key.
+   * Used by TTSStep when ElevenLabs returns 404 (voice deleted externally)
+   * to force re-cloning on the next ensureVoiceCloned() call.
+   */
+  invalidateVoice(slug: string, apiKey: string): void {
+    const cacheKey = this.buildCacheKey(slug, apiKey);
+    this.cloneCache.delete(cacheKey);
+    this.negativeCache.delete(cacheKey);
+  }
+
   /** Clear all caches (for testing). */
   clearCache(): void {
     this.cloneCache.clear();

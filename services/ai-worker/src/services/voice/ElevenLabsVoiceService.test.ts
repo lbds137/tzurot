@@ -208,6 +208,25 @@ describe('ElevenLabsVoiceService', () => {
     );
   });
 
+  it('should allow re-clone after invalidateVoice', async () => {
+    // First call: voice found in account, cached
+    mockListVoices.mockResolvedValueOnce([{ voiceId: 'old-v1', name: 'tzurot-stalebot' }]);
+
+    const oldVoice = await service.ensureVoiceCloned('stalebot', testApiKey);
+    expect(oldVoice).toBe('old-v1');
+
+    // Invalidate (simulates TTSStep detecting a 404 from ElevenLabs)
+    service.invalidateVoice('stalebot', testApiKey);
+
+    // Next call: voice no longer in account, triggers re-clone
+    mockListVoices.mockResolvedValueOnce([]);
+    mockCloneVoice.mockResolvedValueOnce({ voiceId: 'new-v1' });
+
+    const newVoice = await service.ensureVoiceCloned('stalebot', testApiKey);
+    expect(newVoice).toBe('new-v1');
+    expect(mockCloneVoice).toHaveBeenCalledTimes(1);
+  });
+
   it('should deduplicate concurrent calls for the same slug+key', async () => {
     mockListVoices.mockResolvedValue([]);
     mockCloneVoice.mockResolvedValue({ voiceId: 'dedup-v1' });
