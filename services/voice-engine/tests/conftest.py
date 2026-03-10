@@ -26,7 +26,7 @@ for _mod_name in (
     "pocket_tts",
 ):
     if _mod_name not in sys.modules:
-        sys.modules[_mod_name] = MagicMock()  # type: ignore[assignment]
+        sys.modules[_mod_name] = MagicMock()
 
 from server import app, models, voice_cache  # noqa: E402 -- must import after sys.modules mocking above
 from tests.helpers import FakeTranscription  # noqa: E402 -- must import after sys.modules mocking above
@@ -91,7 +91,7 @@ def api_key(monkeypatch: pytest.MonkeyPatch) -> str:
 async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
     """httpx async client wired to the FastAPI app (no real server)."""
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),  # type: ignore[arg-type]
+        transport=httpx.ASGITransport(app=app),
         base_url="http://testserver",
     ) as c:
         yield c

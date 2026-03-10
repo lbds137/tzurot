@@ -301,7 +301,7 @@ jobs:
 
       - name: Run mypy type checker
         if: steps.filter.outputs.voice-engine == 'true'
-        run: cd services/voice-engine && mypy --strict server.py
+        run: cd services/voice-engine && mypy --strict server.py tests/
 
       - name: Run voice-engine tests
         if: steps.filter.outputs.voice-engine == 'true'
