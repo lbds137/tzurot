@@ -320,5 +320,23 @@ describe('Voice Management Routes', () => {
       expect(res.body.total).toBe(2);
       expect(res.body.errors).toHaveLength(1);
     });
+
+    it('should show actionable message for rate-limited deletions', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockVoicesResponse),
+        })
+        .mockResolvedValueOnce({ ok: true }) // voice-1 succeeds
+        .mockResolvedValueOnce({ ok: false, status: 429, statusText: 'Too Many Requests' }); // voice-2 rate limited
+
+      const res = await request(app).post('/voices/clear');
+
+      expect(res.status).toBe(200);
+      expect(res.body.deleted).toBe(1);
+      expect(res.body.errors).toHaveLength(1);
+      expect(res.body.errors[0]).toContain('rate limited');
+      expect(res.body.errors[0]).toContain('try again shortly');
+    });
   });
 });

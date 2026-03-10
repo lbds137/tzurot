@@ -340,7 +340,12 @@ async function handleClearVoices(
       batch.map(async voice => {
         const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
         if (!deleteResponse.ok) {
-          throw new Error(`${voice.name}: ${deleteResponse.status}`);
+          // Surface actionable messages — "429" alone is meaningless to end users
+          const detail =
+            deleteResponse.status === 429
+              ? `${voice.name}: rate limited — try again shortly`
+              : `${voice.name}: ${deleteResponse.status}`;
+          throw new Error(detail);
         }
       })
     );

@@ -71,6 +71,10 @@ vi.mock('./preset/autocomplete.js', () => ({
 // Mock voice handlers
 vi.mock('./voices/browse.js', () => ({
   handleBrowseVoices: vi.fn().mockResolvedValue(undefined),
+  handleVoiceBrowsePagination: vi.fn().mockResolvedValue(undefined),
+  isVoiceBrowseInteraction: vi.fn((customId: string) =>
+    customId.startsWith('settings-voices::browse')
+  ),
 }));
 
 vi.mock('./voices/delete.js', () => ({
@@ -216,8 +220,11 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('clear');
     });
 
-    it('should have componentPrefixes for user-defaults-settings', () => {
-      expect(settingsCommand.componentPrefixes).toEqual(['user-defaults-settings']);
+    it('should have componentPrefixes for user-defaults and voice browse', () => {
+      expect(settingsCommand.componentPrefixes).toEqual([
+        'user-defaults-settings',
+        'settings-voices',
+      ]);
     });
 
     it('should have correct deferral modes', () => {
@@ -448,6 +455,18 @@ describe('Settings Command Index', () => {
       await handleButton(interaction);
 
       expect(handleUserDefaultsButton).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route voice browse pagination buttons to browse handler', async () => {
+      const { handleVoiceBrowsePagination } = await import('./voices/browse.js');
+
+      const interaction = {
+        customId: 'settings-voices::browse::1::all::',
+      } as any;
+
+      await handleButton(interaction);
+
+      expect(handleVoiceBrowsePagination).toHaveBeenCalledWith(interaction);
     });
 
     it('should route voice-clear destructive buttons to voice handler', async () => {
