@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -28,6 +28,10 @@ describe('fetchVoiceReference', () => {
     mockedGetConfig.mockReturnValue({ GATEWAY_URL: 'http://localhost:3000' } as ReturnType<
       typeof getConfig
     >);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('returns audioBuffer and contentType on successful fetch', async () => {

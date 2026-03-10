@@ -37,10 +37,20 @@ export async function fetchFromElevenLabs<T extends z.ZodType>(
   const { endpoint, apiKey, schema, resourceName } = options;
   const prefix = `[${resourceName.charAt(0).toUpperCase()}${resourceName.slice(1)}]`;
 
-  const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}${endpoint}`, {
-    headers: { 'xi-api-key': apiKey },
-    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
-  });
+  let response: globalThis.Response;
+  try {
+    response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}${endpoint}`, {
+      headers: { 'xi-api-key': apiKey },
+      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
+    });
+  } catch (error) {
+    logger.error({ err: error }, `${prefix} Network error calling ElevenLabs`);
+    return {
+      errorResponse: ErrorResponses.internalError(
+        `Failed to fetch ${resourceName} from ElevenLabs`
+      ),
+    };
+  }
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {

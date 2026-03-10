@@ -2,7 +2,7 @@
  * Tests for Voice Models Route
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { StatusCodes } from 'http-status-codes';
@@ -46,6 +46,10 @@ describe('Voice Models Route', () => {
       findFirst: vi.fn(),
     },
   } as unknown as PrismaClient;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
