@@ -10,7 +10,16 @@ import { CONTENT_TYPES } from '@tzurot/common-types';
 // Create mock functions
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);
 const mockVoiceEngineTranscribe = vi.fn();
-let mockVoiceEngineClient: { transcribe: typeof mockVoiceEngineTranscribe } | null = null;
+const mockGetHealth = vi.fn().mockResolvedValue({ asr: true, tts: true });
+let mockVoiceEngineClient: {
+  transcribe: typeof mockVoiceEngineTranscribe;
+  getHealth: typeof mockGetHealth;
+} | null = null;
+
+const mockWaitForVoiceEngine = vi.fn().mockResolvedValue(true);
+vi.mock('../voice/voiceEngineWarmup.js', () => ({
+  waitForVoiceEngine: (...args: unknown[]) => mockWaitForVoiceEngine(...args),
+}));
 
 vi.mock('../../redis.js', () => ({
   voiceTranscriptCache: {
@@ -46,6 +55,8 @@ describe('AudioProcessor', () => {
     mockVoiceTranscriptCacheGet.mockResolvedValue(null);
     mockVoiceEngineClient = null;
     mockVoiceEngineTranscribe.mockReset();
+    mockGetHealth.mockReset().mockResolvedValue({ asr: true, tts: true });
+    mockWaitForVoiceEngine.mockReset().mockResolvedValue(true);
     mockElevenLabsSTT.mockReset();
   });
 
@@ -82,7 +93,7 @@ describe('AudioProcessor', () => {
         };
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -105,7 +116,7 @@ describe('AudioProcessor', () => {
         };
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -130,7 +141,7 @@ describe('AudioProcessor', () => {
         mockVoiceTranscriptCacheGet.mockRejectedValue(new Error('Redis connection failed'));
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Fallback result' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -155,7 +166,7 @@ describe('AudioProcessor', () => {
         mockVoiceTranscriptCacheGet.mockResolvedValue(null);
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -179,7 +190,7 @@ describe('AudioProcessor', () => {
         mockVoiceTranscriptCacheGet.mockResolvedValue('');
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -202,7 +213,7 @@ describe('AudioProcessor', () => {
         };
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Voice engine transcription' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -224,7 +235,7 @@ describe('AudioProcessor', () => {
         };
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: '' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -246,7 +257,7 @@ describe('AudioProcessor', () => {
         };
 
         mockVoiceEngineTranscribe.mockRejectedValue(new Error('Voice engine down'));
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -275,6 +286,53 @@ describe('AudioProcessor', () => {
       });
     });
 
+    describe('voice-engine warm-up', () => {
+      const warmupAttachment: AttachmentMetadata = {
+        url: 'https://example.com/audio.ogg',
+        name: 'audio.ogg',
+        contentType: CONTENT_TYPES.AUDIO_OGG,
+        size: 1024,
+      };
+
+      beforeEach(() => {
+        (global.fetch as any).mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
+        });
+      });
+
+      it('calls waitForVoiceEngine with asr capability before transcription', async () => {
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'warm result' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+
+        await transcribeAudio(warmupAttachment);
+
+        expect(mockWaitForVoiceEngine).toHaveBeenCalledWith(mockVoiceEngineClient, 'asr');
+        expect(mockWaitForVoiceEngine).toHaveBeenCalledTimes(1);
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
+      });
+
+      it('proceeds with transcription even when warm-up returns false (budget exhausted)', async () => {
+        mockWaitForVoiceEngine.mockResolvedValue(false);
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'still works' });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+
+        const result = await transcribeAudio(warmupAttachment);
+
+        expect(result).toBe('still works');
+        expect(mockWaitForVoiceEngine).toHaveBeenCalledWith(mockVoiceEngineClient, 'asr');
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
+      });
+
+      it('does not call warm-up when voice engine client is null', async () => {
+        // No voice engine configured — should throw "No STT provider"
+        await expect(transcribeAudio(warmupAttachment)).rejects.toThrow(
+          'No STT provider available'
+        );
+        expect(mockWaitForVoiceEngine).not.toHaveBeenCalled();
+      });
+    });
+
     describe('audio fetching', () => {
       it('should fetch audio successfully', async () => {
         const attachment: AttachmentMetadata = {
@@ -285,7 +343,7 @@ describe('AudioProcessor', () => {
         };
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'transcribed' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -362,7 +420,7 @@ describe('AudioProcessor', () => {
         };
 
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Voice message text' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         (global.fetch as any).mockResolvedValue({
           ok: true,
@@ -408,7 +466,7 @@ describe('AudioProcessor', () => {
 
       it('should fall back to voice-engine when ElevenLabs fails', async () => {
         mockElevenLabsSTT.mockRejectedValue(new Error('ElevenLabs down'));
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Voice engine result' });
 
         const result = await transcribeAudio(audioAttachment, 'sk_el_test');
@@ -429,7 +487,7 @@ describe('AudioProcessor', () => {
 
       it('should skip ElevenLabs when no apiKey provided', async () => {
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'voice engine result' });
-        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe };
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
         const result = await transcribeAudio(audioAttachment);
 
