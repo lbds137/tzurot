@@ -29,6 +29,10 @@ const ElevenLabsModelsResponseSchema = z.array(ElevenLabsModelSchema);
 
 /**
  * GET /models handler — list TTS-capable models from ElevenLabs.
+ *
+ * NOTE: ai-worker has a parallel implementation in services/voice/ElevenLabsClient.ts
+ * (elevenLabsListModels) that filters models the same way (can_do_text_to_speech === true).
+ * If the filter logic changes, update both places.
  */
 export async function handleListModels(
   prisma: PrismaClient,
