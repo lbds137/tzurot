@@ -2,7 +2,7 @@
  * Tests for ElevenLabs Fetch Helper
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -30,6 +30,10 @@ const TestSchema = z.object({
 describe('fetchFromElevenLabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should return parsed data on successful fetch', async () => {
@@ -134,6 +138,40 @@ describe('fetchFromElevenLabs', () => {
     if ('errorResponse' in result) {
       expect(result.errorResponse.error).toBe('INTERNAL_ERROR');
       expect(result.errorResponse.message).toBe('Unexpected response from ElevenLabs API');
+    }
+  });
+
+  it('should return internalError ErrorResponse on network error', async () => {
+    mockFetch.mockRejectedValue(new Error('fetch failed'));
+
+    const result = await fetchFromElevenLabs({
+      endpoint: '/test',
+      apiKey: 'test-key',
+      schema: TestSchema,
+      resourceName: 'widgets',
+    });
+
+    expect('errorResponse' in result).toBe(true);
+    if ('errorResponse' in result) {
+      expect(result.errorResponse.error).toBe('INTERNAL_ERROR');
+      expect(result.errorResponse.message).toBe('Failed to fetch widgets from ElevenLabs');
+    }
+  });
+
+  it('should return internalError ErrorResponse on timeout', async () => {
+    mockFetch.mockRejectedValue(new DOMException('The operation timed out', 'TimeoutError'));
+
+    const result = await fetchFromElevenLabs({
+      endpoint: '/test',
+      apiKey: 'test-key',
+      schema: TestSchema,
+      resourceName: 'models',
+    });
+
+    expect('errorResponse' in result).toBe(true);
+    if ('errorResponse' in result) {
+      expect(result.errorResponse.error).toBe('INTERNAL_ERROR');
+      expect(result.errorResponse.message).toBe('Failed to fetch models from ElevenLabs');
     }
   });
 
