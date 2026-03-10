@@ -233,7 +233,8 @@ async function handleDeleteVoice(
   res: ExpressResponse
 ): Promise<void> {
   const discordUserId = req.userId;
-  // ParamsDictionary types values as string | string[] — cast needed for named params
+  // @types/express-serve-static-core ParamsDictionary: [key: string]: string | string[]
+  // Named route params (`:voiceId`) are always string, but the index signature is wider
   const voiceId = req.params.voiceId as string;
 
   const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
