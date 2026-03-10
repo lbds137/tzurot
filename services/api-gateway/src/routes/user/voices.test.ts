@@ -137,7 +137,7 @@ describe('Voice Management Routes', () => {
       expect(res.body.error).toBe('INTERNAL_ERROR');
     });
 
-    it('should handle ElevenLabs API errors', async () => {
+    it('should return 403 when ElevenLabs rejects the API key', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 401,
@@ -146,7 +146,22 @@ describe('Voice Management Routes', () => {
 
       const res = await request(app).get('/voices');
 
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('UNAUTHORIZED');
+      expect(res.body.message).toContain('invalid or expired');
+    });
+
+    it('should return 500 for non-auth ElevenLabs API errors', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 502,
+        statusText: 'Bad Gateway',
+      });
+
+      const res = await request(app).get('/voices');
+
       expect(res.status).toBe(500);
+      expect(res.body.error).toBe('INTERNAL_ERROR');
     });
   });
 
@@ -183,16 +198,18 @@ describe('Voice Management Routes', () => {
       expect(res.status).toBe(404);
     });
 
-    it('should handle ElevenLabs API error during ownership check', async () => {
+    it('should return 403 when ElevenLabs rejects key during ownership check', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
+        status: 403,
+        statusText: 'Forbidden',
       });
 
       const res = await request(app).delete('/voices/voice-1');
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('UNAUTHORIZED');
+      expect(res.body.message).toContain('invalid or expired');
     });
 
     it('should handle ElevenLabs delete failure', async () => {
@@ -250,7 +267,7 @@ describe('Voice Management Routes', () => {
       expect(res.body.message).toContain('No Tzurot voices');
     });
 
-    it('should handle ElevenLabs API error during voice listing', async () => {
+    it('should return 403 when ElevenLabs rejects key during voice listing', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -259,7 +276,9 @@ describe('Voice Management Routes', () => {
 
       const res = await request(app).post('/voices/clear');
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('UNAUTHORIZED');
+      expect(res.body.message).toContain('invalid or expired');
     });
 
     it('should report partial failures', async () => {
