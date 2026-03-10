@@ -5,15 +5,13 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, DISCORD_LIMITS, TTLCache } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
-import type { VoiceEntry, VoicesListResponse } from './types.js';
+import type { VoicesListResponse } from './types.js';
+import { getCachedVoices, setCachedVoices, invalidateVoiceCache } from './voiceCache.js';
 
 const logger = createLogger('settings-voices-delete');
-
-/** Cache voice lists per user to avoid hitting ElevenLabs API on every autocomplete keystroke */
-const voiceCache = new TTLCache<VoiceEntry[]>({ ttl: 30_000, maxSize: 100 });
 
 interface VoiceDeleteResponse {
   deleted: boolean;
@@ -46,7 +44,7 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
     }
 
     // Invalidate cached voice list so autocomplete reflects the deletion
-    voiceCache.delete(userId);
+    invalidateVoiceCache(userId);
 
     const embed = new EmbedBuilder()
       .setTitle('🗑️ Voice Deleted')
@@ -73,7 +71,7 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
   const query = focused.toLowerCase();
 
   try {
-    let voices = voiceCache.get(userId);
+    let voices = getCachedVoices(userId);
 
     if (voices === null) {
       const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
@@ -87,7 +85,7 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
       }
 
       voices = result.data.voices;
-      voiceCache.set(userId, voices);
+      setCachedVoices(userId, voices);
     }
 
     const filtered = voices
@@ -104,20 +102,4 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
     logger.error({ err: error, userId }, '[Voices Autocomplete] Error');
     await interaction.respond([]);
   }
-}
-
-/**
- * Invalidate a user's cached voice list (e.g., after bulk clear).
- * Called from clear.ts after a successful /user/voices/clear response.
- */
-export function clearVoiceCacheForUser(userId: string): void {
-  voiceCache.delete(userId);
-}
-
-/**
- * Clear the entire voice autocomplete cache.
- * @internal For testing only
- */
-export function _clearVoiceCacheForTesting(): void {
-  voiceCache.clear();
 }

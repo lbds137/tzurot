@@ -17,7 +17,7 @@ import {
 } from '../../../utils/destructiveConfirmation.js';
 import { DestructiveCustomIds } from '../../../utils/customIds.js';
 import type { VoicesListResponse } from './types.js';
-import { clearVoiceCacheForUser } from './delete.js';
+import { invalidateVoiceCache } from './voiceCache.js';
 
 const logger = createLogger('settings-voices-clear');
 
@@ -129,7 +129,7 @@ export async function handleVoiceClearModalSubmit(
     }
 
     // Invalidate autocomplete cache so deleted voices don't appear in /settings voices delete
-    clearVoiceCacheForUser(userId);
+    invalidateVoiceCache(userId);
 
     logger.info({ userId, deleted, total }, '[Voices Clear] Cleared voices');
 
