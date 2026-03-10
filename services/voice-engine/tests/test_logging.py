@@ -39,8 +39,8 @@ def test_json_formatter_includes_extra_fields() -> None:
         args=(),
         exc_info=None,
     )
-    record.chars = 42  # type: ignore[attr-defined]
-    record.voice_id = "alba"  # type: ignore[attr-defined]
+    record.chars = 42
+    record.voice_id = "alba"
 
     output = formatter.format(record)
     parsed = json.loads(output)
@@ -109,7 +109,7 @@ def test_root_logger_warning_produces_json(capfd: object) -> None:
         args=(),
         exc_info=None,
     )
-    record.model = "parakeet"  # type: ignore[attr-defined]
+    record.model = "parakeet"
     output = formatter.format(record)
     parsed = json.loads(output)
     assert parsed["level"] == "WARNING"
