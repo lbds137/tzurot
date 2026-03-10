@@ -75,7 +75,10 @@ export type TestWalletKeyResponse = z.infer<typeof TestWalletKeyResponseSchema>;
  */
 export const SetWalletKeySchema = z.object({
   provider: AIProviderSchema,
-  apiKey: z.string().min(1, 'apiKey is required'),
+  apiKey: z
+    .string()
+    .transform(s => s.trim())
+    .pipe(z.string().min(1, 'apiKey is required')),
 });
 export type SetWalletKeyInput = z.infer<typeof SetWalletKeySchema>;
 

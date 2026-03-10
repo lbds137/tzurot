@@ -208,10 +208,29 @@ describe('Wallet API Contract Tests', () => {
       expect(result.success).toBe(false);
     });
 
+    it('should trim whitespace from apiKey', () => {
+      const result = SetWalletKeySchema.safeParse({
+        provider: 'openrouter',
+        apiKey: '  sk-test-12345  \n',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.apiKey).toBe('sk-test-12345');
+      }
+    });
+
     it('should reject empty apiKey', () => {
       const result = SetWalletKeySchema.safeParse({
         provider: 'openrouter',
         apiKey: '',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject whitespace-only apiKey', () => {
+      const result = SetWalletKeySchema.safeParse({
+        provider: 'openrouter',
+        apiKey: '   \n',
       });
       expect(result.success).toBe(false);
     });

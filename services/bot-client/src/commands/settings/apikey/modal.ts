@@ -55,10 +55,10 @@ async function handleSetKeySubmit(
   // Defer reply immediately (ephemeral for security)
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const apiKey = interaction.fields.getTextInputValue('apiKey');
+  const apiKey = interaction.fields.getTextInputValue('apiKey').trim();
 
   // Basic validation
-  if (apiKey.trim().length === 0) {
+  if (apiKey.length === 0) {
     await interaction.editReply('❌ API key cannot be empty');
     return;
   }

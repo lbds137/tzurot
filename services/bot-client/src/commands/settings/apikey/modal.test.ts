@@ -140,6 +140,29 @@ describe('handleApikeyModalSubmit', () => {
       );
     });
 
+    it('should trim whitespace from API key before sending', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const interaction = createMockInteraction(
+        'settings::apikey::set::openrouter',
+        '  sk-or-valid-key-here  \n'
+      );
+      await handleApikeyModalSubmit(interaction);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3000/wallet/set',
+        expect.objectContaining({
+          body: JSON.stringify({
+            provider: 'openrouter',
+            apiKey: 'sk-or-valid-key-here',
+          }),
+        })
+      );
+    });
+
     it('should handle successful key storage', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
