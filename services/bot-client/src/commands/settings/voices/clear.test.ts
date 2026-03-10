@@ -104,7 +104,7 @@ describe('handleClearVoices', () => {
           { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
           { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
-        totalSlots: 10,
+        totalVoices: 10,
         tzurotCount: 2,
       },
     });
@@ -123,7 +123,7 @@ describe('handleClearVoices', () => {
   it('should show message when no voices to clear', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { voices: [], totalSlots: 5, tzurotCount: 0 },
+      data: { voices: [], totalVoices: 5, tzurotCount: 0 },
     });
 
     await handleClearVoices(createMockContext());

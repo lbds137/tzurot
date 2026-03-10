@@ -54,7 +54,7 @@ interface ElevenLabsVoicesResponse {
  */
 async function fetchTzurotVoices(
   apiKey: string
-): Promise<{ voices: ElevenLabsVoice[]; totalSlots: number } | { errorResponse: ErrorResponse }> {
+): Promise<{ voices: ElevenLabsVoice[]; totalVoices: number } | { errorResponse: ErrorResponse }> {
   const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices`, {
     headers: { 'xi-api-key': apiKey },
     signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
@@ -84,7 +84,7 @@ async function fetchTzurotVoices(
     v => typeof v.name === 'string' && v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)
   );
 
-  return { voices: tzurotVoices, totalSlots: allVoices.length };
+  return { voices: tzurotVoices, totalVoices: allVoices.length };
 }
 
 /**
@@ -165,10 +165,10 @@ async function handleListVoices(
     return;
   }
 
-  const { voices, totalSlots } = voicesResult;
+  const { voices, totalVoices } = voicesResult;
 
   logger.info(
-    { discordUserId, tzurotCount: voices.length, totalSlots },
+    { discordUserId, tzurotCount: voices.length, totalVoices },
     '[Voices] Listed cloned voices'
   );
 
@@ -178,7 +178,7 @@ async function handleListVoices(
       name: v.name,
       slug: v.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length),
     })),
-    totalSlots,
+    totalVoices,
     tzurotCount: voices.length,
   });
 }
@@ -296,7 +296,9 @@ async function handleClearVoices(
       batch.map(async voice => {
         const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
         if (!deleteResponse.ok) {
-          // Surface actionable messages — "429" alone is meaningless to end users
+          // Surface actionable messages — "429" alone is meaningless to end users.
+          // voice.name is safe to embed directly in Discord: it's always tzurot-* prefixed
+          // (filtered by fetchTzurotVoices), so no user-controlled injection risk.
           const detail =
             deleteResponse.status === 429
               ? `${voice.name}: rate limited — try again shortly`

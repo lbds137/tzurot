@@ -11,6 +11,6 @@ export interface VoiceEntry {
 
 export interface VoicesListResponse {
   voices: VoiceEntry[];
-  totalSlots: number;
+  totalVoices: number;
   tzurotCount: number;
 }
