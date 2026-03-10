@@ -24,7 +24,7 @@ import type { ErrorResponse } from '../../utils/errorResponses.js';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../utils/errorResponses.js';
+import { ErrorResponses, createErrorResponse, ErrorCode } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('VoicesRoute');
@@ -263,7 +263,10 @@ async function handleDeleteVoice(
   const { voice } = voiceResult;
 
   if (!voice.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)) {
-    sendError(res, ErrorResponses.notFound('Voice not found or not a Tzurot-cloned voice'));
+    sendError(
+      res,
+      createErrorResponse(ErrorCode.NOT_FOUND, 'Voice not found or not a Tzurot-cloned voice')
+    );
     return;
   }
 
