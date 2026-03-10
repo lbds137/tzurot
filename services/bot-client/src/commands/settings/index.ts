@@ -55,7 +55,11 @@ import { handleClearDefault as handlePresetClearDefault } from './preset/clear-d
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 
 // Voice management handlers
-import { handleBrowseVoices } from './voices/browse.js';
+import {
+  handleBrowseVoices,
+  handleVoiceBrowsePagination,
+  isVoiceBrowseInteraction,
+} from './voices/browse.js';
 import { handleDeleteVoice, handleVoiceAutocomplete } from './voices/delete.js';
 import {
   handleClearVoices,
@@ -187,6 +191,12 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   if (isUserDefaultsInteraction(interaction.customId)) {
     await handleUserDefaultsButton(interaction);
+    return;
+  }
+
+  // Voice browse pagination buttons
+  if (isVoiceBrowseInteraction(interaction.customId)) {
+    await handleVoiceBrowsePagination(interaction);
     return;
   }
 
@@ -419,5 +429,5 @@ export default defineCommand({
   handleModal,
   handleButton,
   handleSelectMenu,
-  componentPrefixes: ['user-defaults-settings'],
+  componentPrefixes: ['user-defaults-settings', 'settings-voices'],
 });
