@@ -161,6 +161,19 @@ describe('Voice Management Routes', () => {
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('INTERNAL_ERROR');
     });
+
+    it('should return 500 when ElevenLabs returns malformed response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ unexpected: 'format' }),
+      });
+
+      const res = await request(app).get('/voices');
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('INTERNAL_ERROR');
+      expect(res.body.message).toContain('Unexpected response');
+    });
   });
 
   describe('DELETE /:voiceId - Delete a voice', () => {

@@ -119,9 +119,16 @@ export async function handleVoiceClearModalSubmit(
       .setTimestamp();
 
     if (errors !== undefined && errors.length > 0) {
+      // Truncate error list to avoid exceeding Discord's 2048-char embed description limit.
+      // With ~50 voices and verbose error messages, the full list can easily overflow.
+      const MAX_ERRORS_SHOWN = 5;
+      const shownErrors = errors.slice(0, MAX_ERRORS_SHOWN);
+      const overflow =
+        errors.length > MAX_ERRORS_SHOWN ? `\n…and ${errors.length - MAX_ERRORS_SHOWN} more` : '';
       embed.setDescription(
         `Deleted **${deleted}/${total}** voices. ${errors.length} failed:\n` +
-          errors.map(e => `• ${e}`).join('\n')
+          shownErrors.map(e => `• ${e}`).join('\n') +
+          overflow
       );
       embed.setColor(DISCORD_COLORS.WARNING);
     } else {
