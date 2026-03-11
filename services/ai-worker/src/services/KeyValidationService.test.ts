@@ -29,6 +29,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+/** Sentinel message thrown by tests to trigger the mock's timeout path.
+ * Only used in this test file — not a real error from any production code. */
+const MOCK_TIMEOUT_SIGNAL = 'MOCK_TIMEOUT_SIGNAL';
+
 // Mock withTimeout while preserving real TimeoutError class for instanceof checks
 vi.mock('../utils/retry.js', async importOriginal => {
   const actual = await importOriginal<typeof import('../utils/retry.js')>();
@@ -43,7 +47,7 @@ vi.mock('../utils/retry.js', async importOriginal => {
       try {
         return await fn(controller.signal);
       } catch (error) {
-        if (error instanceof Error && error.message === 'TIMEOUT') {
+        if (error instanceof Error && error.message === MOCK_TIMEOUT_SIGNAL) {
           throw new actual.TimeoutError(timeout, operation, error);
         }
         throw error;
@@ -162,7 +166,7 @@ describe('KeyValidationService', () => {
       });
 
       it('should handle timeout errors', async () => {
-        mockFetch.mockRejectedValue(new Error('TIMEOUT'));
+        mockFetch.mockRejectedValue(new Error(MOCK_TIMEOUT_SIGNAL));
 
         const result = await service.validateKey('sk-or-slow', AIProvider.OpenRouter);
 
@@ -237,7 +241,7 @@ describe('KeyValidationService', () => {
       });
 
       it('should handle timeout errors', async () => {
-        mockFetch.mockRejectedValue(new Error('TIMEOUT'));
+        mockFetch.mockRejectedValue(new Error(MOCK_TIMEOUT_SIGNAL));
 
         const result = await service.validateKey('sk_slow', AIProvider.ElevenLabs);
 
