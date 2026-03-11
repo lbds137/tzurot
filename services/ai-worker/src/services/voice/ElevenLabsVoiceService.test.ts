@@ -29,6 +29,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 const mockListVoices = vi.fn();
 const mockCloneVoice = vi.fn();
+const mockDeleteVoice = vi.fn();
 
 vi.mock('./ElevenLabsClient.js', async importOriginal => {
   const actual = await importOriginal<typeof import('./ElevenLabsClient.js')>();
@@ -36,6 +37,7 @@ vi.mock('./ElevenLabsClient.js', async importOriginal => {
     ...actual,
     elevenLabsListVoices: (...args: unknown[]) => mockListVoices(...args),
     elevenLabsCloneVoice: (...args: unknown[]) => mockCloneVoice(...args),
+    elevenLabsDeleteVoice: (...args: unknown[]) => mockDeleteVoice(...args),
   };
 });
 
@@ -241,5 +243,126 @@ describe('ElevenLabsVoiceService', () => {
     expect(result2).toBe('dedup-v1');
     // Should only clone once despite two concurrent calls
     expect(mockCloneVoice).toHaveBeenCalledTimes(1);
+  });
+
+  describe('voice slot eviction', () => {
+    const voiceLimitError = new ElevenLabsApiError(
+      400,
+      'You have reached the maximum number of voices'
+    );
+
+    it('should evict stale voice and re-clone on voice limit error', async () => {
+      mockListVoices.mockResolvedValue([
+        { voiceId: 'stale-v1', name: 'tzurot-oldbot' },
+        { voiceId: 'other-v1', name: 'tzurot-otherbot' },
+      ]);
+      mockCloneVoice
+        .mockRejectedValueOnce(voiceLimitError)
+        .mockResolvedValueOnce({ voiceId: 'new-clone-v1' });
+      mockDeleteVoice.mockResolvedValue(undefined);
+
+      const voiceId = await service.ensureVoiceCloned('newbot', testApiKey);
+
+      expect(voiceId).toBe('new-clone-v1');
+      expect(mockDeleteVoice).toHaveBeenCalledWith('stale-v1', testApiKey);
+      expect(mockCloneVoice).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw when all tzurot voices are warm (in cache)', async () => {
+      // Pre-warm the cache by finding an existing voice
+      mockListVoices.mockResolvedValueOnce([{ voiceId: 'warm-v1', name: 'tzurot-warmbot' }]);
+      await service.ensureVoiceCloned('warmbot', testApiKey);
+
+      // Now try to clone a new voice — limit hit, but warmbot is cached
+      mockListVoices.mockResolvedValueOnce([{ voiceId: 'warm-v1', name: 'tzurot-warmbot' }]);
+      mockCloneVoice.mockRejectedValueOnce(voiceLimitError);
+
+      await expect(service.ensureVoiceCloned('newbot', testApiKey)).rejects.toThrow(
+        'No evictable voices'
+      );
+      expect(mockDeleteVoice).not.toHaveBeenCalled();
+    });
+
+    it('should skip warm (cached) voices and evict cold ones', async () => {
+      // Pre-warm one voice in cache
+      mockListVoices.mockResolvedValueOnce([{ voiceId: 'warm-v1', name: 'tzurot-warmbot' }]);
+      await service.ensureVoiceCloned('warmbot', testApiKey);
+
+      // Now try to clone — list has warm + cold voice
+      mockListVoices.mockResolvedValueOnce([
+        { voiceId: 'warm-v1', name: 'tzurot-warmbot' },
+        { voiceId: 'cold-v1', name: 'tzurot-coldbot' },
+      ]);
+      mockCloneVoice
+        .mockRejectedValueOnce(voiceLimitError)
+        .mockResolvedValueOnce({ voiceId: 'new-v1' });
+      mockDeleteVoice.mockResolvedValue(undefined);
+
+      const voiceId = await service.ensureVoiceCloned('newbot', testApiKey);
+
+      expect(voiceId).toBe('new-v1');
+      // Should evict cold, not warm
+      expect(mockDeleteVoice).toHaveBeenCalledWith('cold-v1', testApiKey);
+    });
+
+    // Note: inflight filtering is a defensive safety net that's structurally
+    // untestable through the full service flow — a voice being cloned (inflight)
+    // won't appear in the voice list (it doesn't exist yet), so it can't be an
+    // eviction candidate regardless. The cache-based filtering is validated by
+    // the "skip warm" test above, which covers the same filtering pattern.
+
+    it('should propagate error when delete fails during eviction', async () => {
+      mockListVoices.mockResolvedValue([{ voiceId: 'stale-v1', name: 'tzurot-stalebot' }]);
+      mockCloneVoice.mockRejectedValueOnce(voiceLimitError);
+      mockDeleteVoice.mockRejectedValue(new ElevenLabsApiError(404, 'Voice not found'));
+
+      await expect(service.ensureVoiceCloned('newbot', testApiKey)).rejects.toThrow(
+        'Voice not found'
+      );
+    });
+
+    it('should propagate error when re-clone fails after eviction', async () => {
+      mockListVoices.mockResolvedValue([{ voiceId: 'stale-v1', name: 'tzurot-stalebot' }]);
+      mockCloneVoice
+        .mockRejectedValueOnce(voiceLimitError)
+        .mockRejectedValueOnce(new ElevenLabsApiError(400, 'Audio too short'));
+      mockDeleteVoice.mockResolvedValue(undefined);
+
+      await expect(service.ensureVoiceCloned('newbot', testApiKey)).rejects.toThrow(
+        'Audio too short'
+      );
+      expect(mockDeleteVoice).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not trigger eviction for non-limit 400 error', async () => {
+      mockListVoices.mockResolvedValue([{ voiceId: 'stale-v1', name: 'tzurot-stalebot' }]);
+      mockCloneVoice.mockRejectedValueOnce(new ElevenLabsApiError(400, 'Bad request'));
+
+      await expect(service.ensureVoiceCloned('newbot', testApiKey)).rejects.toThrow('Bad request');
+      expect(mockDeleteVoice).not.toHaveBeenCalled();
+    });
+
+    it('should throw when voice list is empty (listing failed earlier)', async () => {
+      mockListVoices.mockRejectedValue(new Error('Network error'));
+      mockCloneVoice.mockRejectedValueOnce(voiceLimitError);
+
+      await expect(service.ensureVoiceCloned('newbot', testApiKey)).rejects.toThrow(
+        'No evictable voices'
+      );
+      expect(mockDeleteVoice).not.toHaveBeenCalled();
+    });
+
+    it('should not evict non-tzurot voices', async () => {
+      mockListVoices.mockResolvedValue([
+        { voiceId: 'personal-v1', name: 'My Custom Voice' },
+        { voiceId: 'personal-v2', name: 'Another Voice' },
+      ]);
+      mockCloneVoice.mockRejectedValueOnce(voiceLimitError);
+
+      await expect(service.ensureVoiceCloned('newbot', testApiKey)).rejects.toThrow(
+        'No evictable voices'
+      );
+      expect(mockDeleteVoice).not.toHaveBeenCalled();
+    });
   });
 });

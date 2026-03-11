@@ -100,6 +100,16 @@ export class ElevenLabsApiError extends Error {
   get isTransient(): boolean {
     return this.isRateLimited || this.status >= 500;
   }
+
+  /** True when ElevenLabs rejects voice creation due to account voice slot limit.
+   * Conservative pattern — if the message format changes, we log the raw error
+   * and fall through to existing error handling (no eviction, no regression). */
+  get isVoiceLimitError(): boolean {
+    if (this.status !== 400 && this.status !== 422) {
+      return false;
+    }
+    return /maximum.*voice|voice.*limit|too many voice/i.test(this.message);
+  }
 }
 
 /**
