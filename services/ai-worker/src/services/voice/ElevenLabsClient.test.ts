@@ -14,6 +14,7 @@ import {
   elevenLabsListModels,
   elevenLabsDeleteVoice,
   ElevenLabsApiError,
+  ElevenLabsTimeoutError,
 } from './ElevenLabsClient.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -122,14 +123,14 @@ describe('ElevenLabsClient', () => {
       expect((error as ElevenLabsApiError).isRateLimited).toBe(true);
     });
 
-    it('should throw timeout error on abort', async () => {
+    it('should throw ElevenLabsTimeoutError on abort', async () => {
       const abortError = new Error('Aborted');
       abortError.name = 'AbortError';
       mockFetch.mockRejectedValue(abortError);
 
       await expect(
         elevenLabsTTS({ text: 'test', voiceId: 'v1', apiKey: 'sk_test' })
-      ).rejects.toThrow('timed out');
+      ).rejects.toThrow(ElevenLabsTimeoutError);
     });
   });
 
