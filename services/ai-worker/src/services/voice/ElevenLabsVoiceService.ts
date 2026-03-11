@@ -116,6 +116,7 @@ export class ElevenLabsVoiceService {
     const voiceName = `${ELEVENLABS_VOICE_NAME_PREFIX}${slug}`;
 
     // 1. List voices → find existing → cache & return
+    // Captured here for eviction fallback if clone hits voice limit (step 3)
     let voices: ElevenLabsVoiceInfo[] = [];
     try {
       voices = await elevenLabsListVoices(apiKey);
@@ -192,6 +193,7 @@ export class ElevenLabsVoiceService {
       if (!v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)) {
         return false;
       }
+      // Defense-in-depth: voice could be created externally between list and clone
       if (v.name === voiceName) {
         return false;
       }
@@ -202,7 +204,7 @@ export class ElevenLabsVoiceService {
 
     if (candidates.length === 0) {
       throw new Error(
-        `No evictable voices found for "${slug}" — all tzurot voices are in active use`
+        `No evictable voices found for "${slug}" — all tzurot voices are warm in cache`
       );
     }
 
