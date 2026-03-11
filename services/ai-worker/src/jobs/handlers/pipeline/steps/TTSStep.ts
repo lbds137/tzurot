@@ -230,9 +230,12 @@ export class TTSStep implements IPipelineStep {
     apiKey: string,
     context: GenerationContext
   ): Promise<{ key: string; audioSize: number; contentType: string } | null> {
+    const elevenLabsStartMs = Date.now();
     try {
       return await this.performElevenLabsTTS(text, slug, apiKey, context);
     } catch (error) {
+      const elapsedMs = Date.now() - elevenLabsStartMs;
+
       // No voice-engine configured → rethrow (outer catch delivers text-only)
       const registrationService = getRegistrationService();
       if (registrationService === null) {
@@ -245,12 +248,12 @@ export class TTSStep implements IPipelineStep {
 
       if (originalError instanceof ElevenLabsApiError && originalError.isAuthError) {
         logger.error(
-          { err: originalError, slug },
+          { err: originalError, slug, elapsedMs },
           '[FALLBACK] ElevenLabs auth error, falling back to voice-engine'
         );
       } else {
         logger.warn(
-          { err: originalError, slug },
+          { err: originalError, slug, elapsedMs },
           '[FALLBACK] ElevenLabs TTS failed, trying voice-engine'
         );
       }
