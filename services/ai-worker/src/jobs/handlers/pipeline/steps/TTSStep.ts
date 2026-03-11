@@ -29,9 +29,16 @@ const logger = createLogger('TTSStep');
  * 150s accommodates the full ~56s cold start plus multi-chunk TTS. */
 const TTS_TIMEOUT_MS = 150_000;
 
-/** Max ElevenLabs TTS attempts (1 initial + 1 retry). Kept low to preserve
- * timeout budget for voice-engine fallback (~89s after worst-case 2×30s + backoff). */
+/** Max ElevenLabs TTS attempts (1 initial + 1 retry). */
 const ELEVENLABS_MAX_ATTEMPTS = 2;
+
+/** Global timeout for all ElevenLabs retry attempts combined.
+ * Each ElevenLabs call has a 60s AbortController timeout, so worst case without
+ * this cap would be 2×60s + backoff = ~121s — leaving only ~29s for voice-engine
+ * fallback (which needs up to 75s for cold start alone).
+ * 90s cap: allows 1 full timeout (60s) + partial 2nd attempt, leaves ~60s for
+ * voice-engine fallback — enough for a warm engine, tight for cold start. */
+const ELEVENLABS_RETRY_TIMEOUT_MS = 90_000;
 
 /** Classify errors as transient (worth retrying) for ElevenLabs TTS.
  * Covers: 429 rate limit, 5xx server errors, network timeouts, connection failures. */
@@ -41,9 +48,16 @@ function isTransientElevenLabsError(error: unknown): boolean {
   }
   // Network-level failures from elevenLabsFetch:
   // - Timeout: Error("ElevenLabs request timed out after 60000ms") with AbortError cause
-  // - Connection failures: TypeError from fetch() (ECONNREFUSED, ECONNRESET, etc.)
+  // - Connection failures: TypeError("fetch failed") from Node undici fetch
+  //   (ECONNREFUSED, ECONNRESET, DNS failures — details in error.cause)
+  // Only match fetch-related TypeErrors to avoid retrying programming bugs.
   if (error instanceof Error) {
-    return error.message.includes('timed out') || error.name === 'TypeError';
+    if (error.message.includes('timed out')) {
+      return true;
+    }
+    if (error.name === 'TypeError') {
+      return error.message.includes('fetch') || error.message.includes('network');
+    }
   }
   return false;
 }
@@ -265,6 +279,7 @@ export class TTSStep implements IPipelineStep {
       },
       {
         maxAttempts: ELEVENLABS_MAX_ATTEMPTS,
+        globalTimeoutMs: ELEVENLABS_RETRY_TIMEOUT_MS,
         shouldRetry: isTransientElevenLabsError,
         operationName: 'ElevenLabs TTS',
         logger,
