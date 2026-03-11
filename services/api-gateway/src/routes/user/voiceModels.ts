@@ -62,8 +62,11 @@ export async function handleListModels(
 
   // Check cache before DB + external API calls. Keyed by userId (not API key)
   // so key rotation or revocation may serve stale model data for up to 5 min.
-  // Acceptable tradeoff: model lists are identical across keys and the data
-  // is benign (no secrets), while the cache skips a DB + external API round-trip.
+  // Acceptable tradeoff: model lists are currently identical across keys and the
+  // data is benign (no secrets), while the cache skips a DB + external API round-trip.
+  // Per-user keying (vs. a single global key) future-proofs against ElevenLabs
+  // introducing tier-based model availability — a global key would silently serve
+  // the wrong model list if different accounts see different models.
   const cached = modelCache.get(discordUserId);
   if (cached !== null) {
     logger.debug({ discordUserId }, '[Models] Cache hit for ElevenLabs models');
