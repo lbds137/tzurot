@@ -23,7 +23,7 @@ import {
   ElevenLabsApiError,
   ElevenLabsTimeoutError,
 } from '../../../../services/voice/ElevenLabsClient.js';
-import { withRetry, RetryError } from '../../../../utils/retry.js';
+import { withRetry, RetryError, TimeoutError } from '../../../../utils/retry.js';
 import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');
@@ -165,7 +165,7 @@ export class TTSStep implements IPipelineStep {
         new Promise<null>((_, reject) => {
           timeoutId = setTimeout(() => {
             timedOut = true;
-            reject(new Error(`TTS timed out after ${TTS_TIMEOUT_MS}ms`));
+            reject(new TimeoutError(TTS_TIMEOUT_MS, 'TTS processing'));
           }, TTS_TIMEOUT_MS);
         }),
       ]);

@@ -14,6 +14,7 @@
  */
 
 import { createLogger, AI_ENDPOINTS } from '@tzurot/common-types';
+import { TimeoutError } from '../../utils/retry.js';
 
 const logger = createLogger('ElevenLabsClient');
 
@@ -69,9 +70,9 @@ export interface ElevenLabsModelInfo {
 
 /** Error thrown when an ElevenLabs API call times out (AbortController fires).
  * Typed sentinel replaces fragile message-string matching in retry logic. */
-export class ElevenLabsTimeoutError extends Error {
+export class ElevenLabsTimeoutError extends TimeoutError {
   constructor(timeoutMs: number, cause: Error) {
-    super(`ElevenLabs request timed out after ${timeoutMs}ms`, { cause });
+    super(timeoutMs, 'ElevenLabs API request', cause);
     this.name = 'ElevenLabsTimeoutError';
   }
 }
