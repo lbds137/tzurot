@@ -110,7 +110,7 @@ export class ElevenLabsApiError extends Error {
     if (this.status !== 400 && this.status !== 422) {
       return false;
     }
-    return /maximum.*voice|voice.*limit|too many voice/i.test(this.detail);
+    return /maximum.*voice|voice.*limit|too many voices/i.test(this.detail);
   }
 }
 

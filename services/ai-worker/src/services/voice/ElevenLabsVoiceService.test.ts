@@ -311,13 +311,26 @@ describe('ElevenLabsVoiceService', () => {
     // eviction candidate regardless. The cache-based filtering is validated by
     // the "skip warm" test above, which covers the same filtering pattern.
 
-    it('should propagate error when delete fails during eviction', async () => {
+    it('should proceed with clone when delete returns 404 (concurrent eviction)', async () => {
       mockListVoices.mockResolvedValue([{ voiceId: 'stale-v1', name: 'tzurot-stalebot' }]);
-      mockCloneVoice.mockRejectedValueOnce(voiceLimitError);
+      mockCloneVoice
+        .mockRejectedValueOnce(voiceLimitError)
+        .mockResolvedValueOnce({ voiceId: 'after-race-v1' });
       mockDeleteVoice.mockRejectedValue(new ElevenLabsApiError(404, 'Voice not found'));
 
+      const voiceId = await service.ensureVoiceCloned('newbot', testApiKey);
+
+      expect(voiceId).toBe('after-race-v1');
+      expect(mockDeleteVoice).toHaveBeenCalledTimes(1);
+    });
+
+    it('should propagate non-404 delete errors during eviction', async () => {
+      mockListVoices.mockResolvedValue([{ voiceId: 'stale-v1', name: 'tzurot-stalebot' }]);
+      mockCloneVoice.mockRejectedValueOnce(voiceLimitError);
+      mockDeleteVoice.mockRejectedValue(new ElevenLabsApiError(500, 'Internal server error'));
+
       await expect(service.ensureVoiceCloned('newbot', testApiKey)).rejects.toThrow(
-        'Voice not found'
+        'Internal server error'
       );
     });
 
