@@ -33,7 +33,8 @@ const logger = createLogger('TTSStep');
  * 150s accommodates the full ~56s cold start plus multi-chunk TTS. */
 const TTS_TIMEOUT_MS = 150_000;
 
-/** Max ElevenLabs TTS attempts (1 initial + 1 retry). */
+/** Max ElevenLabs TTS outer retry attempts (1 initial + 1 retry).
+ * Each attempt may make 1 extra elevenLabsTTS call if 404 triggers re-clone. */
 const ELEVENLABS_MAX_ATTEMPTS = 2;
 
 /** Global timeout for all ElevenLabs retry attempts combined.
@@ -44,8 +45,9 @@ const ELEVENLABS_MAX_ATTEMPTS = 2;
  * voice-engine fallback — enough for a warm engine, tight for cold start. */
 const ELEVENLABS_RETRY_TIMEOUT_MS = 90_000;
 
-/** Initial backoff delay for ElevenLabs TTS retry. 5s gives rate limits
- * (typically 30-60s window) a better chance of clearing than the 1s default. */
+/** Initial backoff delay for ElevenLabs TTS retry. Intentionally short — the
+ * retry primarily helps with brief 5xx blips. For sustained 429 rate limits
+ * (30-60s windows), the voice-engine fallback is the real safety net. */
 const ELEVENLABS_RETRY_DELAY_MS = 5_000;
 
 /** Classify errors as transient (worth retrying) for ElevenLabs TTS.
@@ -237,16 +239,20 @@ export class TTSStep implements IPipelineStep {
         throw error;
       }
 
-      // Unwrap RetryError to classify the original failure
+      // Unwrap RetryError to get the original error for classification and logging.
+      // Pino won't auto-unwrap RetryError.lastError, so log the original directly.
       const originalError = error instanceof RetryError ? error.lastError : error;
 
       if (originalError instanceof ElevenLabsApiError && originalError.isAuthError) {
         logger.error(
-          { err: error, slug },
+          { err: originalError, slug },
           '[FALLBACK] ElevenLabs auth error, falling back to voice-engine'
         );
       } else {
-        logger.warn({ err: error, slug }, '[FALLBACK] ElevenLabs TTS failed, trying voice-engine');
+        logger.warn(
+          { err: originalError, slug },
+          '[FALLBACK] ElevenLabs TTS failed, trying voice-engine'
+        );
       }
 
       return this.performVoiceEngineTTS(text, slug, context);
