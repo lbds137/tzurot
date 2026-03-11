@@ -66,10 +66,14 @@ vi.mock('../../../../services/voice/ElevenLabsVoiceService.js', () => ({
 
 const mockElevenLabsTTS = vi.fn();
 
+// Import the real TimeoutError — withRetry/RetryError use the real module (no mock),
+// so the mock subclass must extend the real base for instanceof checks to work.
+const { TimeoutError: RealTimeoutError } = await import('../../../../utils/retry.js');
+
 /** Typed sentinel for ElevenLabs timeout errors (instanceof check in retry logic) */
-class MockElevenLabsTimeoutError extends Error {
+class MockElevenLabsTimeoutError extends RealTimeoutError {
   constructor(timeoutMs: number) {
-    super(`ElevenLabs request timed out after ${timeoutMs}ms`);
+    super(timeoutMs, 'ElevenLabs API request');
     this.name = 'ElevenLabsTimeoutError';
   }
 }

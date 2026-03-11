@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { transcribeAudio } from './AudioProcessor.js';
 import type { AttachmentMetadata } from '@tzurot/common-types';
 import { CONTENT_TYPES } from '@tzurot/common-types';
+import { TimeoutError } from '../../utils/retry.js';
 
 // Create mock functions
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);
@@ -392,7 +393,7 @@ describe('AudioProcessor', () => {
         );
       });
 
-      it('should handle fetch timeout with AbortError', async () => {
+      it('should throw TimeoutError on fetch abort', async () => {
         const attachment: AttachmentMetadata = {
           url: 'https://example.com/audio.ogg',
           name: 'audio.ogg',
@@ -404,7 +405,10 @@ describe('AudioProcessor', () => {
         abortError.name = 'AbortError';
         (global.fetch as any).mockRejectedValue(abortError);
 
-        await expect(transcribeAudio(attachment)).rejects.toThrow('Audio file download timed out');
+        const error = await transcribeAudio(attachment).catch(e => e);
+        expect(error).toBeInstanceOf(TimeoutError);
+        expect(error.operationName).toBe('audio file download');
+        expect(error.timeoutMs).toBe(30_000);
       });
     });
 
