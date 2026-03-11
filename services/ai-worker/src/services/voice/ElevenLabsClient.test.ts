@@ -378,5 +378,35 @@ describe('ElevenLabsClient', () => {
       expect(error.isAuthError).toBe(false);
       expect(error.isRateLimited).toBe(false);
     });
+
+    describe('isTransient', () => {
+      it('returns true for 429 rate limit', () => {
+        expect(new ElevenLabsApiError(429, 'Rate limited').isTransient).toBe(true);
+      });
+
+      it('returns true for 500 internal server error', () => {
+        expect(new ElevenLabsApiError(500, 'Internal Server Error').isTransient).toBe(true);
+      });
+
+      it('returns true for 502 bad gateway', () => {
+        expect(new ElevenLabsApiError(502, 'Bad Gateway').isTransient).toBe(true);
+      });
+
+      it('returns true for 503 service unavailable', () => {
+        expect(new ElevenLabsApiError(503, 'Service Unavailable').isTransient).toBe(true);
+      });
+
+      it('returns false for 401 unauthorized', () => {
+        expect(new ElevenLabsApiError(401, 'Unauthorized').isTransient).toBe(false);
+      });
+
+      it('returns false for 400 bad request', () => {
+        expect(new ElevenLabsApiError(400, 'Bad Request').isTransient).toBe(false);
+      });
+
+      it('returns false for 404 not found', () => {
+        expect(new ElevenLabsApiError(404, 'Not Found').isTransient).toBe(false);
+      });
+    });
   });
 });

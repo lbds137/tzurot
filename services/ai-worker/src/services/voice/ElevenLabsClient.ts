@@ -84,6 +84,12 @@ export class ElevenLabsApiError extends Error {
   get isRateLimited(): boolean {
     return this.status === 429;
   }
+
+  /** True for transient errors worth retrying: 429 rate limit, 5xx server errors.
+   * Does NOT include 404 (handled separately by re-clone logic). */
+  get isTransient(): boolean {
+    return this.isRateLimited || this.status >= 500;
+  }
 }
 
 /**
