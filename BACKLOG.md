@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-03-10
+> **Last Updated**: 2026-03-11
 > **Version**: v3.0.0-beta.90
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -21,8 +21,7 @@ _Empty (2026-03-04)._
 
 _New items go here. Triage to appropriate section weekly._
 
-- 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure) but worth hardening.
-- ⚡ `[FEAT]` **Cache ElevenLabs model list for autocomplete** — `/settings voices model` autocomplete hits ElevenLabs `/v1/models` on every keypress. A server-side TTL cache (5 min) on the api-gateway `/user/voices/models` route would make autocomplete snappy and resilient to ElevenLabs latency. Once cached, ai-worker's `elevenLabsListModels()` could call the gateway instead of ElevenLabs directly, eliminating the duplicated `can_do_text_to_speech` filter logic.
+- 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure). ⚠️ IP-based rate limiting would penalize legitimate users at scale (shared IPs, NAT). Needs a smarter approach (token-bucket per route, cache headers, or auth-gated access) if pursued.
 
 ## 🎯 Current Focus
 
@@ -46,23 +45,11 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140; voice feature grew to 152; PR #729 CPD pass → 146. Current: 146.
+**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140; voice feature grew to 152; PR #729 CPD pass → 146; PR #733 → 145. Current: 145.
 
-### Completed
+### Completed (Phases 1-4)
 
-- [x] Redis setup factory (`initCoreRedisServices` in common-types) — PR #667
-- [x] CommandHandler error reply helper (`sendErrorReply`) — PR #667
-- [x] API gateway shared route test utilities — PR #667
-- [x] Personality response formatters — PR #666
-- [x] High-value extractions — PR #599, #665
-- [x] Phase 4: API gateway route boilerplate — PR #668
-  - `resolvePersonalityForEdit<T>` (personality CRUD: update, delete, visibility)
-  - Memory route helpers (`getUserByDiscordId`, `getDefaultPersonaId`, `getPersonalityById`, `parseTimeframeFilter`)
-  - `resolveOwnedPersona` / `resolvePersonalityBySlug` (persona routes)
-  - `verifyConfigAccess` / `tryInvalidateUserLlmConfigCache` (model-override)
-  - `getOrCreateInternalUser` promoted to shared `userHelpers.ts`
-  - `guard:duplicate-exports` tooling command + CI integration
-  - Fixed double "not found" error messages across all routes
+Phases 1-4 shipped in PRs #599, #665-#668, #704 — Redis setup factory, error reply helpers, route test utilities, personality formatters, API gateway route boilerplate extractions. See git history for details.
 
 ### Phase 5: Bot-Client Dashboard Patterns (~16 clones)
 
@@ -80,7 +67,6 @@ Subcommand routing, browse/pagination, custom IDs, and command-specific duplicat
 - [ ] Consolidate subcommand routers — parameterized router with context-type generic (3 clones)
 - [ ] Migrate browse consumers to `browse/` utilities, delete `paginationBuilder.ts` (4 clones)
 - [ ] Servers command: use `createBrowseCustomIdHelpers` instead of inline parsing (4 clones)
-- [x] Extract memory command detail action handler — `handleMemoryDetailAction` shared router (PR #704)
 - [ ] Extract memory command shared helpers — `formatMemoryLine` (remaining clones)
 
 ### Phase 7: Cross-Service & Common-Types (~15 clones)
@@ -106,7 +92,7 @@ Smaller wins in ai-worker internal patterns and tooling utilities.
 
 Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
 
-**Target**: <100 clones or <1.5%. Currently 146 clones.
+**Target**: <100 clones or <1.5%. Currently 145 clones.
 
 ---
 
@@ -205,19 +191,15 @@ Import V2/V3 character cards (PNG with embedded metadata). SillyTavern compatibi
 - [ ] Map character card fields to v3 personality schema
 - [ ] `/character import` support for PNG files
 
-#### ✨ Shapes.inc Import (Implemented)
+#### ✨ Shapes.inc Import
 
-Full automated import from shapes.inc via `/shapes` command group. Shipped on develop.
+Phases 1-4 shipped (PRs #593-#662): schema, data fetcher, import pipeline, `/shapes` commands. Remaining backlogged phases:
 
-- [x] Phase 1: Schema (UserCredential, ImportJob tables + `type` column on memories) + `/shapes auth|logout`
-- [x] Phase 2: Data fetcher service (TypeScript, split cookie handling, username lookup, memory pagination)
-- [x] Phase 3: Import pipeline (BullMQ job → personality + system prompt + LLM config + pgvector memories)
-- [x] Phase 4: `/shapes browse|import|export|status` slash commands (UX overhaul: detail view, autocomplete, retry logic — PR #662)
-- [ ] Phase 5 (backlogged): Sidecar prompt injection — data preserved in customFields, proper system-prompt injection is "User System Prompts" feature
-- [ ] Phase 6 (backlogged): Voice/image field import — shapes.inc has `voice_model`, `voice_id`, `voice_stability`, `image_jailbreak`, `image_size` etc. Currently set `voiceEnabled: false`, `imageEnabled: false`. Voice import tracked in Voice Engine epic Phase 5. Image import deferred until image generation support is added.
-- [ ] Phase 7 (backlogged): Training data import — shapes.inc has training pairs (see `debug/shapes/lilith-training.json`). Tzurot has no training data schema yet. Needs: define training data schema → import from shapes.inc.
-- [ ] Phase 8 (backlogged): Resolve memory sender UUIDs to display names — memories include sender UUIDs instead of human-readable names. Resolve via `GET https://talk.shapes.inc/api/user/{uuid}` (public, no auth). Batch-resolve unique UUIDs, build `Map<uuid, displayName>`, include in Markdown export headings. Graceful fallback if API fails.
-- [ ] Phase 9 (backlogged): Configurable export sections — let users choose which sections to include (`include_config`, `include_memories`, `include_stories`, `include_personalization`). Add optional boolean options to `/shapes export` slash command, pass through to job payload, conditionally skip sections in formatters.
+- [ ] Phase 5: Sidecar prompt injection (depends on "User System Prompts" feature)
+- [ ] Phase 6: Voice/image field import (voice tracked in Voice Engine Phase 5; image deferred)
+- [ ] Phase 7: Training data import (needs training data schema first)
+- [ ] Phase 8: Resolve memory sender UUIDs to display names via shapes.inc API
+- [ ] Phase 9: Configurable export sections (`include_config`, `include_memories`, etc.)
 
 ---
 
@@ -361,101 +343,17 @@ _Focus: Two-tier voice system (self-hosted free + ElevenLabs BYOK premium) for b
 | Free (self-hosted) | NVIDIA Parakeet TDT 0.6B v3 | Kyutai Pocket TTS |
 | Premium (BYOK)     | ElevenLabs Scribe v2        | ElevenLabs v3     |
 
-#### Phase 1: Python Voice-Engine Service
+#### Phases 1-4.6 (COMPLETE)
 
-Deploy `services/voice-engine/` — Python FastAPI microservice with Parakeet TDT (STT) and Pocket TTS (TTS). Railway Serverless mode for cost control ($5-10/month vs $42 always-on).
+All shipped across beta.89-90 + PRs #710, #727, #729, #731-733. Key milestones:
 
-- [x] Create `services/voice-engine/` with `server.py`, `Dockerfile`, `requirements.txt`
-- [x] Implement `/v1/transcribe` (Parakeet TDT STT with native punctuation)
-- [x] Implement `/v1/tts` (Pocket TTS with zero-shot voice cloning)
-- [x] Implement `/v1/voices/register` and `/v1/voices` (voice management)
-- [x] Add OpenAI-compatible endpoints (`/v1/audio/transcriptions`, `/v1/audio/speech`)
-- [x] Database migration: `voiceReferenceData` + `voiceReferenceType` on Personality model
-- [x] Voice reference processor, serving route, CRUD wiring in api-gateway
-- [x] Docker build + local smoke tests
-- [x] Deploy to Railway with Serverless mode enabled, 4GB RAM, Railway Volume for `/app/voices`
+- **Phase 1**: Python FastAPI voice-engine service (Parakeet TDT STT + Pocket TTS), Railway Serverless
+- **Phase 2**: ai-worker VoiceEngineClient integration, replaced Whisper STT
+- **Phase 3/3b**: TTS pipeline (TTSStep, chunked synthesis, Redis audio storage), `/character voice` command, config cascade wiring
+- **Phase 4/4.5**: ElevenLabs BYOK (TTS, STT, voice cloning, slot management), Whisper removal
+- **Phase 4.6**: Configurable TTS model (`/settings voices model`), CPD cleanup (152→146)
 
-#### Phase 2: ai-worker Integration — STT Upgrade
-
-Replace current Whisper-based transcription with VoiceEngineClient that routes to voice-engine (free) with Whisper fallback. Fixes the "wall of text" punctuation problem.
-
-- [x] Python quality hardening: type hints (mypy --strict), structured logging (stdlib logging), ruff/pytest tooling
-- [x] Python test suite (pytest + httpx, mocked models): health, transcribe, TTS, voice management, auth
-- [x] Create `VoiceEngineClient` in ai-worker with health check and transcription methods
-- [x] Wire into existing `AudioProcessor` pipeline (voice-engine primary, Whisper fallback)
-- [x] Add `VOICE_ENGINE_URL` + `VOICE_ENGINE_API_KEY` to config schema
-- [x] Docker build + local smoke tests
-- [x] Deploy to Railway, set env vars on ai-worker
-- [x] Verify transcription quality (comparable to Whisper, preserves filler words)
-
-#### Phase 3: TTS + Voice Cloning
-
-Enable personalities to speak — generate voice responses from LLM text output.
-
-**Pre-requisites (from Phase 2 review):**
-
-- [x] Add Python CI for voice-engine tests (ruff + mypy --strict + pytest) — PR #710
-- [x] Attach `_JsonFormatter` to root logger at WARNING level — PR #710
-- [x] Add startup health check — call `isHealthy()` on ai-worker boot when `VOICE_ENGINE_URL` is set — PR #710
-- [x] Add LRU eviction test for `_cache_voice` — PR #710
-- [x] Extract OpenAI Whisper client to module-level singleton (connection pool reuse) — PR #710
-- ⏸️ `VOICE_ENGINE_EMPTY_FALLBACK` env toggle — deferred (quality is fine)
-
-**Core work:**
-
-- [x] Add `voiceEnabled` to LoadedPersonality schema + `isVoiceEnabled()` helper — PR #710
-- [x] Add `voiceResponseMode` / `voiceTranscriptionEnabled` to config cascade — PR #710
-- [x] Wire TTS into response pipeline (TTSStep) — PR #710
-- [x] Bot-client: send voice response as Discord audio attachment — PR #710
-- [x] Voice registration flow (VoiceRegistrationService: 3-tier caching) — PR #710
-- [x] Chunked TTS synthesis for long text (sentence-boundary splitting, WAV PCM concatenation) — PR #710
-- [x] Redis binary storage for TTS audio (`tts-audio:{jobId}`, 5-min TTL) — PR #710
-- [x] Typing indicator fix (8s interval refresh during transcription) — PR #710
-
-**Phase 3b — Voice Commands + Cascade Wiring (COMPLETE):**
-
-- [x] `/character voice` slash command — upload voice reference audio via Discord attachment (follows `/character avatar` pattern). API layer is ready (`voiceReferenceData` accepted by create/update routes).
-- [x] Auto-enable `voiceEnabled: true` when voice reference uploaded, disable when cleared
-- [x] Wire `voiceTranscriptionEnabled` cascade field to bot-client — replace `AUTO_TRANSCRIBE_VOICE` env var check in `VoiceMessageProcessor` with cascade lookup
-- [x] 🏗️ `[LIFT]` Audit `isHealthy()` — no action needed: `startup.ts` already logs granular per-capability health; `AudioProcessor` doesn't call it
-- [x] 🏗️ `[LIFT]` Make `voiceEnabled` schema `.default(false)` — updated ~40 test fixtures to include `voiceEnabled: false` for strict type safety
-
-#### Phase 4: ElevenLabs Premium Tier (PR #727 — MERGED)
-
-BYOK ElevenLabs support for users who want premium voice quality.
-
-- [x] `AIProvider.ElevenLabs` enum + exhaustive switch cascade (7 locations)
-- [x] ElevenLabs API key validation (`GET /v1/user` with `xi-api-key` header)
-- [x] `ElevenLabsClient.ts` — stateless functions: TTS, STT, voice cloning, listing, deletion
-- [x] `ElevenLabsVoiceService.ts` — auto-clone voices per BYOK user (TTLCache, negative cache, in-flight dedup)
-- [x] Auth resolution: `elevenlabsApiKey` in pipeline context (independent from OpenRouter, skipped in guest mode)
-- [x] TTS routing: ElevenLabs BYOK → voice-engine → fallback chain
-- [x] STT routing: ElevenLabs → voice-engine → Whisper fallback chain
-- [x] Content type threading: MP3 (ElevenLabs) vs WAV (voice-engine) → correct Discord file extension
-- [x] Thread ElevenLabs key through `AudioTranscriptionJob` + inline STT callers — Phase 4.5
-- [x] Voice slot management UX — `/settings voices browse|delete|clear` — Phase 4.5
-
-#### Phase 4.5: BYOK Hardening + Whisper Removal
-
-Tighten ElevenLabs BYOK from PR #727 follow-ups and simplify the STT fallback chain by removing the OpenAI Whisper code path. Two-tier STT: ElevenLabs (BYOK) → voice-engine (free). No third fallback.
-
-- [x] Thread `elevenlabsApiKey` through `AudioTranscriptionJob` payload + handler
-- [x] Thread `elevenlabsApiKey` through inline STT callers (`ConversationInputProcessor`, `ConversationalRAGService`)
-- [x] Remove OpenAI Whisper STT fallback (simplify to: ElevenLabs BYOK → voice-engine, no third tier)
-- [x] Clean up Whisper-related code, config, and `OPENAI_API_KEY` env var
-- [x] Voice slot management UX — `/settings voices browse|delete|clear` commands
-
-#### Phase 4.6: Configurable ElevenLabs TTS Model + Cleanup (PR #729 — MERGED)
-
-- [x] Call `GET /v1/models` on ElevenLabs API to discover available TTS models
-- [x] Add `/settings voices model` subcommand with autocomplete dropdown of available models
-- [x] Store user's preferred model in DB via config cascade (`elevenlabsTtsModel` field)
-- [x] Thread selected `modelId` through `TTSStep` → `ElevenLabsClient.textToSpeech()`
-- [x] STT model (`scribe_v1`) stays pinned — fewer options, less user value
-- [x] 🐛 Log warning on `voiceReferenceType` WAV fallback
-- [x] 🧹 Expand `mypy --strict` to voice-engine test files
-- [x] 🧹 Delete completed voice-engine proposal doc
-- [x] 🏗️ Extract `voiceReferenceHelper.ts`, `elevenLabsFetch.ts`, `storeTTSResult` — CPD reduction (152→146 clones)
+See git history for detailed task lists.
 
 #### Phase 5: Shapes.inc Voice Field Import
 
@@ -514,12 +412,6 @@ Auto-inject `[ServiceName]` prefix in logs instead of hardcoding in every log ca
 - [ ] Remove manual `[ServiceName]` prefixes from log messages
 - [ ] Consider structured `service` field instead of string prefix
 
-#### 🏗️ ~~Typed Sentinel Error for `withTimeout`~~ ✅ Done (#732)
-
-#### 🏗️ Audit Manual Timeout Throws for Typed Sentinels
-
-Several places construct raw `Error`s for timeouts outside of `withTimeout`: `LocalEmbeddingService.ts:182`, `TTSStep.ts:168`, `AudioProcessor.ts:36`, `VoiceEngineClient.ts:194`. Audit these for the same `instanceof`-friendly treatment. Also consider making `ElevenLabsTimeoutError extends TimeoutError` so callers can `instanceof TimeoutError` as a catch-all across both ElevenLabs and general timeout paths. Discovered during PR #732 review.
-
 #### 🏗️ Audit Error Sanitization in Log Pipeline
 
 Two gaps: (1) Enumerable Error properties (e.g. Axios `error.config.url`) bypass `sanitizeObject()` early-return for `instanceof Error`. (2) `getErrorContext` callback results spread into log objects without sanitization. Check OpenRouter/LangChain error objects, document API contract. Discovered during PR #700.
@@ -552,7 +444,6 @@ Move hardcoded model patterns to database for admin updates without deployment.
 
 Pre-push hook runs CPD and depcruise in warning-only mode (non-blocking). ESLint has warnings for complexity/statements that don't block CI. As we hit targets, tighten the ratchet:
 
-- [x] **depcruise**: Already blocking in pre-push hook (`.husky/pre-push` line 129-135). Done.
 - [ ] **CPD**: Currently non-blocking in pre-push. Once under target (<100 clones), add threshold check that blocks push
 - [ ] **Duplicate Exports**: `guard:duplicate-exports` runs in CI with `continue-on-error: true`. Add ratchet (baseline count file + "new duplicates above baseline" check) so it blocks CI while still allowing existing allowlisted duplicates. Then drop `continue-on-error`
 - [ ] **ESLint warnings**: `max-statements`, `complexity`, `max-lines-per-function` are warn-level. Audit current violation count, set a baseline, block new violations
