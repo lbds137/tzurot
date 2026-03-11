@@ -427,5 +427,40 @@ describe('ElevenLabsClient', () => {
         expect(new ElevenLabsApiError(404, 'Not Found').isTransient).toBe(false);
       });
     });
+
+    describe('isVoiceLimitError', () => {
+      it('returns true for 400 with "maximum number of voices" message', () => {
+        expect(
+          new ElevenLabsApiError(400, 'You have reached the maximum number of voices')
+            .isVoiceLimitError
+        ).toBe(true);
+      });
+
+      it('returns true for 422 with "voice limit" message', () => {
+        expect(
+          new ElevenLabsApiError(422, 'voice limit reached for your plan').isVoiceLimitError
+        ).toBe(true);
+      });
+
+      it('returns true for 400 with "too many voices" message', () => {
+        expect(
+          new ElevenLabsApiError(400, 'too many voices in your account').isVoiceLimitError
+        ).toBe(true);
+      });
+
+      it('returns false for 400 with unrelated message', () => {
+        expect(new ElevenLabsApiError(400, 'Audio too short').isVoiceLimitError).toBe(false);
+      });
+
+      it('returns false for 500 even with matching message', () => {
+        expect(new ElevenLabsApiError(500, 'maximum number of voices').isVoiceLimitError).toBe(
+          false
+        );
+      });
+
+      it('returns false for 401 auth error', () => {
+        expect(new ElevenLabsApiError(401, 'Unauthorized').isVoiceLimitError).toBe(false);
+      });
+    });
   });
 });

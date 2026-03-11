@@ -19,8 +19,10 @@ import { createLogger, TTLCache, ELEVENLABS_VOICE_NAME_PREFIX } from '@tzurot/co
 import {
   elevenLabsCloneVoice,
   elevenLabsListVoices,
+  elevenLabsDeleteVoice,
   ElevenLabsApiError,
 } from './ElevenLabsClient.js';
+import type { ElevenLabsVoiceInfo } from './ElevenLabsClient.js';
 import { fetchVoiceReference } from './voiceReferenceHelper.js';
 
 const logger = createLogger('ElevenLabsVoiceService');
@@ -34,6 +36,16 @@ const CACHE_MAX_SIZE = 200;
 
 interface CachedVoice {
   voiceId: string;
+}
+
+interface EvictAndCloneOptions {
+  slug: string;
+  apiKey: string;
+  cacheKey: string;
+  voices: ElevenLabsVoiceInfo[];
+  voiceName: string;
+  audioBuffer: Buffer;
+  contentType: string;
 }
 
 export class ElevenLabsVoiceService {
@@ -102,12 +114,10 @@ export class ElevenLabsVoiceService {
   private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
     const voiceName = `${ELEVENLABS_VOICE_NAME_PREFIX}${slug}`;
 
-    // Check if voice already exists in user's account (avoids re-cloning).
-    // Note: matches by name only — a manually-created voice with the same
-    // "tzurot-{slug}" name would be reused. Could verify description in a
-    // follow-up for stricter provenance checking.
+    // 1. List voices → find existing → cache & return
+    let voices: ElevenLabsVoiceInfo[] = [];
     try {
-      const voices = await elevenLabsListVoices(apiKey);
+      voices = await elevenLabsListVoices(apiKey);
       const existing = voices.find(v => v.name === voiceName);
       if (existing !== undefined) {
         this.cloneCache.set(cacheKey, { voiceId: existing.voiceId });
@@ -115,18 +125,85 @@ export class ElevenLabsVoiceService {
         return existing.voiceId;
       }
     } catch (error) {
-      // Edge case: if listing repeatedly fails (transient network issues) and the
-      // positive cache expires (30 min TTL), we'll clone a new voice each time,
-      // accruing duplicate "tzurot-{slug}" entries. Low probability — listing is a
-      // simple GET. Users can clean up duplicates via `/settings voices clear`.
       logger.warn({ err: error, slug }, 'Failed to list ElevenLabs voices, attempting clone');
     }
 
-    // Fetch reference audio from api-gateway
+    // 2. Fetch reference audio from api-gateway
     const { audioBuffer, contentType } = await fetchVoiceReference(slug);
 
-    // Clone voice via ElevenLabs
-    logger.info({ slug, audioSize: audioBuffer.length }, 'Cloning voice via ElevenLabs');
+    // 3. Clone — with eviction fallback on voice limit error
+    try {
+      logger.info({ slug, audioSize: audioBuffer.length }, 'Cloning voice via ElevenLabs');
+      const { voiceId } = await elevenLabsCloneVoice({
+        name: voiceName,
+        audioBuffer,
+        contentType,
+        apiKey,
+        description: `Auto-cloned by Tzurot for personality "${slug}"`,
+      });
+
+      this.cloneCache.set(cacheKey, { voiceId });
+      logger.info({ slug, voiceId }, 'ElevenLabs voice cloned and cached');
+      return voiceId;
+    } catch (error) {
+      if (error instanceof ElevenLabsApiError && error.isVoiceLimitError) {
+        logger.warn({ slug }, 'Voice slot limit reached, attempting eviction');
+        return this.evictAndClone({
+          slug,
+          apiKey,
+          cacheKey,
+          voices,
+          voiceName,
+          audioBuffer,
+          contentType,
+        });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Evict a stale tzurot-prefixed voice and retry the clone.
+   *
+   * Eviction candidates: tzurot-prefixed voices NOT in the warm clone cache
+   * (recently used) and NOT in the inflight map (mid-clone). This is
+   * approximate LRU — warm voices survive, cold voices get evicted.
+   */
+  private async evictAndClone(opts: EvictAndCloneOptions): Promise<string> {
+    const { slug, apiKey, cacheKey, voices, voiceName, audioBuffer, contentType } = opts;
+    const keySuffix = this.getKeySuffix(apiKey);
+
+    const candidates = voices.filter(v => {
+      if (!v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)) {
+        return false;
+      }
+      if (v.name === voiceName) {
+        return false;
+      }
+      const candidateSlug = v.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length);
+      const candidateKey = `${candidateSlug}:${keySuffix}`;
+      return !this.cloneCache.has(candidateKey) && !this.inflight.has(candidateKey);
+    });
+
+    if (candidates.length === 0) {
+      throw new Error(
+        `No evictable voices found for "${slug}" — all tzurot voices are in active use`
+      );
+    }
+
+    const victim = candidates[0];
+    logger.info(
+      { slug, evictedVoice: victim.name, evictedVoiceId: victim.voiceId },
+      'Evicting stale voice to free slot'
+    );
+
+    await elevenLabsDeleteVoice(victim.voiceId, apiKey);
+
+    // Clear any stale cache entry for the evicted voice
+    const victimSlug = victim.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length);
+    this.cloneCache.delete(`${victimSlug}:${keySuffix}`);
+
+    // Retry clone
     const { voiceId } = await elevenLabsCloneVoice({
       name: voiceName,
       audioBuffer,
@@ -136,7 +213,7 @@ export class ElevenLabsVoiceService {
     });
 
     this.cloneCache.set(cacheKey, { voiceId });
-    logger.info({ slug, voiceId }, 'ElevenLabs voice cloned and cached');
+    logger.info({ slug, voiceId, evictedVoice: victim.name }, 'Voice cloned after eviction');
     return voiceId;
   }
 
