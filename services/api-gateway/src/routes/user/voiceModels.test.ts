@@ -185,7 +185,8 @@ describe('Voice Models Route', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     // Simulate cache expiry (lru-cache caches performance.now at load time,
-    // so vi.useFakeTimers doesn't advance its internal clock)
+    // so vi.useFakeTimers doesn't advance its internal clock).
+    // TTL expiry timing is covered by TTLCache's own unit tests.
     resetModelCache();
 
     // Next call — cache cleared, re-fetches
