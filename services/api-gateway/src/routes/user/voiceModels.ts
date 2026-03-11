@@ -58,17 +58,19 @@ export async function handleListModels(
 ): Promise<void> {
   const discordUserId = req.userId;
 
-  const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
-  if ('errorResponse' in keyResult) {
-    sendError(res, keyResult.errorResponse);
-    return;
-  }
-
-  // Check cache before making external API call
+  // Check cache before DB + external API calls. The 5-min TTL means a revoked
+  // key could serve stale (but benign) model list data briefly — acceptable
+  // tradeoff for skipping a DB round-trip on every cache hit.
   const cached = modelCache.get(discordUserId);
   if (cached !== null) {
     logger.debug({ discordUserId }, '[Models] Cache hit for ElevenLabs models');
     sendCustomSuccess(res, cached);
+    return;
+  }
+
+  const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
+  if ('errorResponse' in keyResult) {
+    sendError(res, keyResult.errorResponse);
     return;
   }
 
