@@ -514,9 +514,11 @@ Auto-inject `[ServiceName]` prefix in logs instead of hardcoding in every log ca
 - [ ] Remove manual `[ServiceName]` prefixes from log messages
 - [ ] Consider structured `service` field instead of string prefix
 
-#### 🏗️ Typed Sentinel Error for `withTimeout`
+#### 🏗️ ~~Typed Sentinel Error for `withTimeout`~~ ✅ Done (#732)
 
-`KeyValidationService` detects timeouts via `error.message.includes('timed out')` — fragile if the message text changes. Replace with a typed `TimeoutError` class thrown by `withTimeout()` so callers can use `instanceof` checks. Affects both OpenRouter and ElevenLabs validation paths. Discovered during PR #727 review.
+#### 🏗️ Audit Manual Timeout Throws for Typed Sentinels
+
+Several places construct raw `Error`s for timeouts outside of `withTimeout`: `LocalEmbeddingService.ts:182`, `TTSStep.ts:168`, `AudioProcessor.ts:36`, `VoiceEngineClient.ts:194`. Audit these for the same `instanceof`-friendly treatment. Discovered during PR #732 review.
 
 #### 🏗️ Audit Error Sanitization in Log Pipeline
 
