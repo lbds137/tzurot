@@ -32,7 +32,6 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-import { decryptApiKey } from '@tzurot/common-types';
 import { handleListModels, resetModelCache } from './voiceModels.js';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -68,8 +67,6 @@ describe('Voice Models Route', () => {
       id: 'user-uuid-123',
       apiKeys: [{ iv: 'mock-iv', content: 'mock-content', tag: 'mock-tag' }],
     });
-
-    vi.mocked(decryptApiKey).mockReturnValue('test-elevenlabs-key');
   });
 
   it('should return TTS-capable models', async () => {
