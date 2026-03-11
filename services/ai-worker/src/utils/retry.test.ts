@@ -416,20 +416,24 @@ describe('retryService', () => {
 
       const promise = withTimeout(fn, timeoutMs, 'test-operation');
 
-      // Attach handler before advancing timers
-      const assertionPromise = expect(promise).rejects.toThrow(TimeoutError);
+      // Attach rejection handler before advancing timers to avoid unhandled rejection
+      let caught: unknown;
+      const catcher = promise.catch(e => {
+        caught = e;
+      });
 
       // Advance timers to trigger the timeout
       await vi.advanceTimersByTimeAsync(timeoutMs);
+      await catcher;
 
-      await assertionPromise;
-
-      // Verify TimeoutError properties (reuse the caught error from the same promise)
-      await expect(promise).rejects.toMatchObject({
-        timeoutMs: 50,
-        message: 'test-operation timed out after 50ms',
-        name: 'TimeoutError',
-      });
+      // Verify typed sentinel and all properties in one place
+      expect(caught).toBeInstanceOf(TimeoutError);
+      const err = caught as TimeoutError;
+      expect(err.timeoutMs).toBe(50);
+      expect(err.operationName).toBe('test-operation');
+      expect(err.message).toBe('test-operation timed out after 50ms');
+      expect(err.name).toBe('TimeoutError');
+      expect(err.cause).toBeDefined();
     });
 
     it('should propagate non-timeout errors', async () => {

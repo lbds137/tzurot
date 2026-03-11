@@ -79,7 +79,7 @@ export class RetryError extends Error {
 export class TimeoutError extends Error {
   constructor(
     public readonly timeoutMs: number,
-    operationName: string,
+    public readonly operationName: string,
     cause: Error
   ) {
     super(`${operationName} timed out after ${timeoutMs}ms`, { cause });
