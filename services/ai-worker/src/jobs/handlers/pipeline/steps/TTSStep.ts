@@ -38,7 +38,9 @@ const ELEVENLABS_MAX_ATTEMPTS = 2;
  * this cap would be 2×60s + backoff = ~121s — leaving only ~29s for voice-engine
  * fallback (which needs up to 75s for cold start alone).
  * 90s cap: allows 1 full timeout (60s) + partial 2nd attempt, leaves ~60s for
- * voice-engine fallback — enough for a warm engine, tight for cold start. */
+ * voice-engine fallback — enough for a warm engine, tight for cold start (~75s).
+ * If cold-start races cause timeouts in production, monitor elapsedMs in
+ * fallback log messages and consider reducing this cap or widening TTS_TIMEOUT_MS. */
 const ELEVENLABS_RETRY_TIMEOUT_MS = 90_000;
 
 /** Initial backoff delay for ElevenLabs TTS retry. Intentionally short — the
@@ -291,6 +293,8 @@ export class TTSStep implements IPipelineStep {
           // Voice was deleted externally (e.g., /settings voices clear, ElevenLabs dashboard).
           // Invalidate stale cache entry and re-clone from reference audio, then retry the call.
           // 404 is a state fix (not transience), so handle before shouldRetry sees it.
+          // If the re-cloned voice also 404s, shouldRetry returns false (404 isn't transient)
+          // and the error propagates to performElevenLabsTTSWithFallback for voice-engine fallback.
           if (error instanceof ElevenLabsApiError && error.status === 404) {
             logger.info({ slug, voiceId }, 'Voice not found on ElevenLabs, re-cloning');
             voiceService.invalidateVoice(slug, apiKey);
