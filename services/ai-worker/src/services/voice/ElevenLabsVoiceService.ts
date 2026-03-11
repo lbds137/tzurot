@@ -126,10 +126,11 @@ export class ElevenLabsVoiceService {
         return existing.voiceId;
       }
     } catch (error) {
-      // Edge case: if listing repeatedly fails (transient network issues) and the
-      // positive cache expires (30 min TTL), we'll clone a new voice each time,
-      // accruing duplicate "tzurot-{slug}" entries. Low probability — listing is a
-      // simple GET. Users can clean up duplicates via `/settings voices clear`.
+      // Edge case: if listing fails, voices stays []. This means:
+      // 1. We may clone duplicates (no existing-voice check)
+      // 2. If the clone then hits the voice limit, evictAndClone gets an empty
+      //    list → "No evictable voices" → negatively cached for 5 min.
+      // Low probability — listing is a simple GET.
       logger.warn({ err: error, slug }, 'Failed to list ElevenLabs voices, attempting clone');
     }
 
@@ -211,7 +212,19 @@ export class ElevenLabsVoiceService {
       'Evicting stale voice to free slot'
     );
 
-    await elevenLabsDeleteVoice(victim.voiceId, apiKey);
+    try {
+      await elevenLabsDeleteVoice(victim.voiceId, apiKey);
+    } catch (err) {
+      // Concurrent eviction already freed this slot — proceed to clone
+      if (err instanceof ElevenLabsApiError && err.status === 404) {
+        logger.info(
+          { slug, evictedVoice: victim.name },
+          'Victim already deleted (concurrent eviction)'
+        );
+      } else {
+        throw err;
+      }
+    }
 
     // Retry clone
     const { voiceId } = await elevenLabsCloneVoice({
