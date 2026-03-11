@@ -66,7 +66,7 @@ vi.mock('../../../../services/voice/ElevenLabsVoiceService.js', () => ({
 
 const mockElevenLabsTTS = vi.fn();
 
-/** Real ElevenLabsApiError for instanceof checks in TTSStep's 404 retry logic */
+/** Real ElevenLabsApiError for instanceof checks in TTSStep's retry/fallback logic */
 class MockElevenLabsApiError extends Error {
   readonly status: number;
   constructor(status: number, detail: string) {
@@ -74,12 +74,26 @@ class MockElevenLabsApiError extends Error {
     this.name = 'ElevenLabsApiError';
     this.status = status;
   }
+
+  get isAuthError(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+
+  get isRateLimited(): boolean {
+    return this.status === 429;
+  }
+
+  get isTransient(): boolean {
+    return this.isRateLimited || this.status >= 500;
+  }
 }
 
 vi.mock('../../../../services/voice/ElevenLabsClient.js', () => ({
   elevenLabsTTS: (...args: unknown[]) => mockElevenLabsTTS(...args),
   ElevenLabsApiError: MockElevenLabsApiError,
 }));
+
+// withRetry/RetryError: no mock needed — real module used, fake timers handle backoff delays
 
 const mockStoreTTSAudio = vi.fn();
 vi.mock('../../../../redis.js', () => ({
@@ -467,9 +481,11 @@ describe('TTSStep', () => {
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:reclone-job');
     });
 
-    it('propagates non-404 ElevenLabs errors without retry', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-500');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(500, 'Internal server error'));
+    it('propagates non-retryable ElevenLabs errors without retry (401 auth)', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-401');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(401, 'Invalid API key'));
+      // No voice-engine → no fallback
+      mockGetVoiceEngineClient.mockReturnValue(null);
 
       const ctx = createContext({
         auth: {
@@ -484,15 +500,20 @@ describe('TTSStep', () => {
       await vi.runAllTimersAsync();
       const result = await promise;
 
-      // Should NOT retry — just degrade gracefully
+      // 401 is non-retryable — fast-fail, no retry, degrade to text-only
       expect(mockInvalidateVoice).not.toHaveBeenCalled();
       expect(mockEnsureVoiceCloned).toHaveBeenCalledTimes(1);
       expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
     });
 
-    it('falls back gracefully when ElevenLabs TTS fails', async () => {
+    it('falls back to voice-engine when ElevenLabs clone fails', async () => {
       mockEnsureVoiceCloned.mockRejectedValue(new Error('Clone failed'));
+      mockSynthesizeWithChunking.mockResolvedValue({
+        audioBuffer: Buffer.from('fallback-clone-audio'),
+        contentType: 'audio/wav',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:clone-fallback');
 
       const ctx = createContext({
         auth: {
@@ -507,9 +528,9 @@ describe('TTSStep', () => {
       await vi.runAllTimersAsync();
       const result = await promise;
 
-      // Should degrade gracefully — text still delivered
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      expect(result.result?.content).toBe('Hello world');
+      // ElevenLabs clone failed → voice-engine fallback succeeded
+      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:clone-fallback');
     });
 
     it('passes elevenlabsTtsModel from configOverrides to elevenLabsTTS', async () => {
@@ -562,6 +583,192 @@ describe('TTSStep', () => {
       const result = await promise;
 
       expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
+    });
+  });
+
+  describe('ElevenLabs retry', () => {
+    function createElevenLabsContext(overrides?: Partial<GenerationContext>): GenerationContext {
+      return createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+        ...overrides,
+      });
+    }
+
+    it('retries 429 rate limit and succeeds on 2nd attempt', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-retry');
+      mockElevenLabsTTS
+        .mockRejectedValueOnce(new MockElevenLabsApiError(429, 'Rate limited'))
+        .mockResolvedValueOnce({
+          audioBuffer: Buffer.from('retry-audio'),
+          contentType: 'audio/mpeg',
+        });
+      mockStoreTTSAudio.mockResolvedValue('tts:retry-job');
+      // No voice-engine — tests pure retry (no fallback)
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
+    });
+
+    it('retries 500 server error and succeeds on 2nd attempt', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-500');
+      mockElevenLabsTTS
+        .mockRejectedValueOnce(new MockElevenLabsApiError(500, 'Internal server error'))
+        .mockResolvedValueOnce({
+          audioBuffer: Buffer.from('retry-500-audio'),
+          contentType: 'audio/mpeg',
+        });
+      mockStoreTTSAudio.mockResolvedValue('tts:500-retry-job');
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:500-retry-job');
+    });
+
+    it('does NOT retry 401 auth error (fast-fails)', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-auth');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(401, 'Invalid API key'));
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Only 1 attempt — fast-fail, no retry
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+    });
+
+    it('exhausts retries when both attempts fail with 429', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-exhausted');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // 2 attempts (ELEVENLABS_MAX_ATTEMPTS = 2), both failed
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+    });
+  });
+
+  describe('ElevenLabs fallback to voice-engine', () => {
+    function createElevenLabsContext(overrides?: Partial<GenerationContext>): GenerationContext {
+      return createContext({
+        auth: {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          elevenlabsApiKey: 'sk_el_test',
+        },
+        ...overrides,
+      });
+    }
+
+    it('falls back to voice-engine after retries exhaust (429)', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-fallback');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
+      // Voice-engine is available for fallback
+      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
+      mockSynthesizeWithChunking.mockResolvedValue({
+        audioBuffer: Buffer.from('fallback-audio'),
+        contentType: 'audio/wav',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:fallback-job');
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // ElevenLabs retried and exhausted
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      // Voice-engine fallback succeeded
+      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:fallback-job');
+      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
+    });
+
+    it('falls back on auth error (401) — skips retry, goes to voice-engine', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-auth-fb');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(401, 'Invalid API key'));
+      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
+      mockSynthesizeWithChunking.mockResolvedValue({
+        audioBuffer: Buffer.from('auth-fallback-audio'),
+        contentType: 'audio/wav',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:auth-fallback-job');
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // 401 fast-fails (1 attempt), then voice-engine fallback
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
+      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:auth-fallback-job');
+    });
+
+    it('no fallback when voice-engine not configured → text-only', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-no-ve');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(500, 'Server error'));
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // No voice-engine → no fallback, text-only
+      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+      expect(result.result?.content).toBe('Hello world');
+    });
+
+    it('voice-engine fallback also fails → text-only gracefully', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-double-fail');
+      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
+      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
+      mockSynthesizeWithChunking.mockRejectedValue(new Error('Voice engine also unavailable'));
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Both ElevenLabs and voice-engine failed → graceful degradation to text-only
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+      expect(result.result?.content).toBe('Hello world');
     });
   });
 
