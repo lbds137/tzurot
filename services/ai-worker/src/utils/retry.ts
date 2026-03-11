@@ -82,10 +82,8 @@ export class TimeoutError extends Error {
     public readonly operationName: string,
     cause?: Error
   ) {
-    super(
-      `${operationName} timed out after ${timeoutMs}ms`,
-      ...(cause !== undefined ? [{ cause }] : [])
-    );
+    // Error superclass ignores undefined cause, so passing { cause } is safe either way
+    super(`${operationName} timed out after ${timeoutMs}ms`, { cause });
     this.name = 'TimeoutError';
   }
 }
@@ -380,8 +378,8 @@ export async function withTimeout<T>(
     return result;
   } catch (error) {
     clearTimeout(timeoutId);
-    if ((error as Error).name === 'AbortError') {
-      throw new TimeoutError(timeoutMs, operationName, error as Error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new TimeoutError(timeoutMs, operationName, error);
     }
     throw error;
   }
