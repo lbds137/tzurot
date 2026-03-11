@@ -80,11 +80,13 @@ export class ElevenLabsTimeoutError extends TimeoutError {
 /** Error from ElevenLabs HTTP responses (carries status code for caller inspection). */
 export class ElevenLabsApiError extends Error {
   readonly status: number;
+  readonly detail: string;
 
   constructor(status: number, detail: string) {
     super(`ElevenLabs API error (${status}): ${detail}`);
     this.name = 'ElevenLabsApiError';
     this.status = status;
+    this.detail = detail;
   }
 
   get isAuthError(): boolean {
@@ -103,15 +105,12 @@ export class ElevenLabsApiError extends Error {
 
   /** True when ElevenLabs rejects voice creation due to account voice slot limit.
    * Conservative pattern — if the message format changes, we log the raw error
-   * and fall through to existing error handling (no eviction, no regression).
-   * Tests against the detail portion only (after the "ElevenLabs API error (N): " prefix)
-   * to avoid false positives from the status-code prefix. */
+   * and fall through to existing error handling (no eviction, no regression). */
   get isVoiceLimitError(): boolean {
     if (this.status !== 400 && this.status !== 422) {
       return false;
     }
-    const detail = this.message.slice(this.message.indexOf(': ') + 2);
-    return /maximum.*voice|voice.*limit|too many voice/i.test(detail);
+    return /maximum.*voice|voice.*limit|too many voice/i.test(this.detail);
   }
 }
 

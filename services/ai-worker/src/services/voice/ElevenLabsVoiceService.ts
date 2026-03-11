@@ -46,6 +46,7 @@ interface EvictAndCloneOptions {
   voiceName: string;
   audioBuffer: Buffer;
   contentType: string;
+  description: string;
 }
 
 export class ElevenLabsVoiceService {
@@ -134,6 +135,7 @@ export class ElevenLabsVoiceService {
 
     // 2. Fetch reference audio from api-gateway
     const { audioBuffer, contentType } = await fetchVoiceReference(slug);
+    const description = `Auto-cloned by Tzurot for personality "${slug}"`;
 
     // 3. Clone — with eviction fallback on voice limit error
     try {
@@ -143,7 +145,7 @@ export class ElevenLabsVoiceService {
         audioBuffer,
         contentType,
         apiKey,
-        description: `Auto-cloned by Tzurot for personality "${slug}"`,
+        description,
       });
 
       this.cloneCache.set(cacheKey, { voiceId });
@@ -160,6 +162,7 @@ export class ElevenLabsVoiceService {
           voiceName,
           audioBuffer,
           contentType,
+          description,
         });
       }
       throw error;
@@ -179,7 +182,8 @@ export class ElevenLabsVoiceService {
    * Low probability and self-healing (negative cache expires).
    */
   private async evictAndClone(opts: EvictAndCloneOptions): Promise<string> {
-    const { slug, apiKey, cacheKey, voices, voiceName, audioBuffer, contentType } = opts;
+    const { slug, apiKey, cacheKey, voices, voiceName, audioBuffer, contentType, description } =
+      opts;
     const keySuffix = this.getKeySuffix(apiKey);
 
     const candidates = voices.filter(v => {
@@ -215,7 +219,7 @@ export class ElevenLabsVoiceService {
       audioBuffer,
       contentType,
       apiKey,
-      description: `Auto-cloned by Tzurot for personality "${slug}"`,
+      description,
     });
 
     this.cloneCache.set(cacheKey, { voiceId });
