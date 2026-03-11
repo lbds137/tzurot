@@ -16,6 +16,7 @@ import {
   ElevenLabsApiError,
   ElevenLabsTimeoutError,
 } from './ElevenLabsClient.js';
+import { TimeoutError } from '../../utils/retry.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -131,6 +132,23 @@ describe('ElevenLabsClient', () => {
       await expect(
         elevenLabsTTS({ text: 'test', voiceId: 'v1', apiKey: 'sk_test' })
       ).rejects.toThrow(ElevenLabsTimeoutError);
+    });
+
+    it('should throw error that is also instanceof TimeoutError (base class)', async () => {
+      const abortError = new Error('Aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValue(abortError);
+
+      const error = await elevenLabsTTS({
+        text: 'test',
+        voiceId: 'v1',
+        apiKey: 'sk_test',
+      }).catch(e => e);
+
+      expect(error).toBeInstanceOf(ElevenLabsTimeoutError);
+      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error.timeoutMs).toBe(60_000);
+      expect(error.operationName).toBe('ElevenLabs API request');
     });
   });
 

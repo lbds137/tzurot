@@ -10,6 +10,7 @@ import {
 } from './VoiceEngineClient.js';
 import * as commonTypes from '@tzurot/common-types';
 import type { EnvConfig } from '@tzurot/common-types';
+import { TimeoutError } from '../../utils/retry.js';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -216,16 +217,19 @@ describe('VoiceEngineClient', () => {
       vi.useRealTimers();
     });
 
-    it('should throw descriptive error on timeout', async () => {
+    it('should throw TimeoutError on abort', async () => {
       const shortTimeoutClient = new VoiceEngineClient('http://voice-engine:8000', 'test-key', 100);
 
       const abortError = new Error('The operation was aborted');
       abortError.name = 'AbortError';
       mockFetch.mockRejectedValue(abortError);
 
-      await expect(
-        shortTimeoutClient.transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav')
-      ).rejects.toThrow('Voice engine request timed out');
+      const error = await shortTimeoutClient
+        .transcribe(Buffer.from('fake-audio'), 'test.wav', 'audio/wav')
+        .catch(e => e);
+      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error.timeoutMs).toBe(100);
+      expect(error.operationName).toBe('voice engine request');
     });
 
     it('should abort request after configured timeout delay', async () => {
@@ -248,7 +252,7 @@ describe('VoiceEngineClient', () => {
       );
 
       const promise = shortTimeoutClient.transcribe(Buffer.from('audio'), 'test.wav', 'audio/wav');
-      const assertion = expect(promise).rejects.toThrow('Voice engine request timed out');
+      const assertion = expect(promise).rejects.toThrow(TimeoutError);
       await vi.advanceTimersByTimeAsync(1001);
       await assertion;
     });

@@ -6,6 +6,7 @@
  */
 
 import { createLogger, getConfig, TIMEOUTS } from '@tzurot/common-types';
+import { TimeoutError } from '../../utils/retry.js';
 
 const logger = createLogger('VoiceEngineClient');
 
@@ -191,9 +192,7 @@ export class VoiceEngineClient {
       });
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Voice engine request timed out after ${effectiveTimeout}ms`, {
-          cause: error,
-        });
+        throw new TimeoutError(effectiveTimeout, 'voice engine request', error);
       }
       throw error;
     } finally {

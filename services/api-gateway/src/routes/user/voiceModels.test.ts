@@ -33,7 +33,7 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 import { decryptApiKey } from '@tzurot/common-types';
-import { handleListModels } from './voiceModels.js';
+import { handleListModels, resetModelCache } from './voiceModels.js';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import type { AuthenticatedRequest } from '../../types.js';
@@ -53,6 +53,7 @@ describe('Voice Models Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetModelCache();
 
     app = express();
     app.get(
@@ -139,5 +140,60 @@ describe('Voice Models Route', () => {
     const response = await request(app).get('/models');
 
     expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
+  });
+
+  it('should return cached models on second call without re-fetching', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve([
+          {
+            model_id: 'eleven_multilingual_v2',
+            name: 'Multilingual v2',
+            can_do_text_to_speech: true,
+          },
+        ]),
+    });
+
+    // First call — cache miss, fetches from ElevenLabs
+    const first = await request(app).get('/models');
+    expect(first.status).toBe(StatusCodes.OK);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Second call — cache hit, no new fetch
+    const second = await request(app).get('/models');
+    expect(second.status).toBe(StatusCodes.OK);
+    expect(second.body.models).toEqual([
+      { modelId: 'eleven_multilingual_v2', name: 'Multilingual v2' },
+    ]);
+    expect(mockFetch).toHaveBeenCalledTimes(1); // still 1 — served from cache
+  });
+
+  it('should re-fetch after cache is cleared (simulates expiry)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve([
+          {
+            model_id: 'eleven_multilingual_v2',
+            name: 'Multilingual v2',
+            can_do_text_to_speech: true,
+          },
+        ]),
+    });
+
+    // First call — fills cache
+    const first = await request(app).get('/models');
+    expect(first.status).toBe(StatusCodes.OK);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Simulate cache expiry (lru-cache caches performance.now at load time,
+    // so vi.useFakeTimers doesn't advance its internal clock)
+    resetModelCache();
+
+    // Next call — cache cleared, re-fetches
+    const second = await request(app).get('/models');
+    expect(second.status).toBe(StatusCodes.OK);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

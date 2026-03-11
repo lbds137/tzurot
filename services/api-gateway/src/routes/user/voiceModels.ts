@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, TTLCache, type PrismaClient } from '@tzurot/common-types';
 import type { Response as ExpressResponse } from 'express';
 import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
 import { fetchFromElevenLabs } from '../../utils/elevenLabsFetch.js';
@@ -17,6 +17,23 @@ import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('VoiceModelsRoute');
+
+interface CachedModelList {
+  models: { modelId: string; name: string }[];
+}
+
+const MODEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MODEL_CACHE_MAX_SIZE = 50; // max user entries
+
+const modelCache = new TTLCache<CachedModelList>({
+  ttl: MODEL_CACHE_TTL,
+  maxSize: MODEL_CACHE_MAX_SIZE,
+});
+
+/** Reset cache — exported for tests */
+export function resetModelCache(): void {
+  modelCache.clear();
+}
 
 /** Zod schema for ElevenLabs model list response */
 const ElevenLabsModelSchema = z.object({
@@ -47,6 +64,14 @@ export async function handleListModels(
     return;
   }
 
+  // Check cache before making external API call
+  const cached = modelCache.get(discordUserId);
+  if (cached !== null) {
+    logger.debug({ discordUserId }, '[Models] Cache hit for ElevenLabs models');
+    sendCustomSuccess(res, cached);
+    return;
+  }
+
   const result = await fetchFromElevenLabs({
     endpoint: '/models',
     apiKey: keyResult.apiKey,
@@ -68,5 +93,7 @@ export async function handleListModels(
     '[Models] Listed ElevenLabs TTS models'
   );
 
-  sendCustomSuccess(res, { models: ttsModels });
+  const modelResult = { models: ttsModels };
+  modelCache.set(discordUserId, modelResult);
+  sendCustomSuccess(res, modelResult);
 }

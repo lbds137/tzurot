@@ -8,6 +8,7 @@
  */
 
 import { createLogger, TIMEOUTS, type AttachmentMetadata } from '@tzurot/common-types';
+import { TimeoutError } from '../../utils/retry.js';
 import { VoiceEngineError, getVoiceEngineClient } from '../voice/VoiceEngineClient.js';
 import { waitForVoiceEngine } from '../voice/voiceEngineWarmup.js';
 import { elevenLabsSTT, ElevenLabsApiError } from '../voice/ElevenLabsClient.js';
@@ -33,9 +34,7 @@ async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
     return await response.arrayBuffer();
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Audio file download timed out after ${TIMEOUTS.AUDIO_FETCH}ms`, {
-        cause: error,
-      });
+      throw new TimeoutError(TIMEOUTS.AUDIO_FETCH, 'audio file download', error);
     }
     throw error;
   } finally {
