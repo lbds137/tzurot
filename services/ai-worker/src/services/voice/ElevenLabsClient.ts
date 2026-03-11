@@ -281,7 +281,9 @@ export async function elevenLabsListVoices(apiKey: string): Promise<ElevenLabsVo
  *
  * NOTE: api-gateway has a parallel implementation in routes/user/voiceModels.ts that
  * fetches and filters models the same way (can_do_text_to_speech === true). If the
- * filter logic changes, update both places.
+ * filter logic changes, update both places. Validation differs by design: this path
+ * uses manual Array.isArray() and returns [] on unexpected shapes (silent degradation),
+ * while api-gateway uses Zod and surfaces parse failures as 500 errors to the caller.
  */
 export async function elevenLabsListModels(apiKey: string): Promise<ElevenLabsModelInfo[]> {
   const response = await elevenLabsFetch(

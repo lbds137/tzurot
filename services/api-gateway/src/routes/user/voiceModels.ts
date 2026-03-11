@@ -49,7 +49,9 @@ const ElevenLabsModelsResponseSchema = z.array(ElevenLabsModelSchema);
  *
  * NOTE: ai-worker has a parallel implementation in services/voice/ElevenLabsClient.ts
  * (elevenLabsListModels) that filters models the same way (can_do_text_to_speech === true).
- * If the filter logic changes, update both places.
+ * If the filter logic changes, update both places. Validation differs by design: this
+ * path uses Zod and surfaces parse failures as 500 errors, while ai-worker uses manual
+ * Array.isArray() and returns [] on unexpected shapes (silent degradation for job context).
  */
 export async function handleListModels(
   prisma: PrismaClient,
