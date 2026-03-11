@@ -33,9 +33,12 @@ const TTS_TIMEOUT_MS = 150_000;
  * Each attempt may make 1 extra elevenLabsTTS call if 404 triggers re-clone. */
 const ELEVENLABS_MAX_ATTEMPTS = 2;
 
-/** Global timeout for all ElevenLabs retry attempts combined.
- * Each ElevenLabs call has a 60s AbortController timeout, so worst case without
- * this cap would be 2×60s + backoff = ~121s — leaving only ~29s for voice-engine
+/** Soft global timeout for all ElevenLabs retry attempts combined.
+ * "Soft" because withRetry checks this between attempts, not mid-operation —
+ * a single attempt can exceed this cap (e.g., 60s AbortController timeout).
+ * The real budget enforcer is TTS_TIMEOUT_MS (150s) via Promise.race.
+ *
+ * Without this cap: 2×60s + backoff = ~121s, leaving only ~29s for voice-engine
  * fallback (which needs up to 75s for cold start alone).
  * 90s cap: allows 1 full timeout (60s) + partial 2nd attempt, leaves ~60s for
  * voice-engine fallback — enough for a warm engine, tight for cold start (~75s).
