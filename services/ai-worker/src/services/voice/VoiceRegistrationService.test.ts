@@ -8,6 +8,7 @@ import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import * as commonTypes from '@tzurot/common-types';
+import { TimeoutError } from '../../utils/retry.js';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -161,15 +162,17 @@ describe('VoiceRegistrationService', () => {
     );
   });
 
-  it('should throw descriptive error when gateway fetch times out', async () => {
+  it('should throw typed TimeoutError when gateway fetch times out', async () => {
     mockVoiceEngineClient.listVoices.mockResolvedValue([]);
 
     const timeoutError = new DOMException('The operation timed out', 'TimeoutError');
     mockFetch.mockRejectedValue(timeoutError);
 
-    await expect(service.ensureVoiceRegistered('slow-voice')).rejects.toThrow(
-      'Gateway fetch timed out for voice reference "slow-voice"'
-    );
+    const error = await service.ensureVoiceRegistered('slow-voice').catch(e => e);
+
+    expect(error).toBeInstanceOf(TimeoutError);
+    expect((error as TimeoutError).operationName).toBe('voice reference fetch for "slow-voice"');
+    expect((error as TimeoutError).timeoutMs).toBe(15_000);
   });
 
   it('should cache failure and reject immediately on retry (negative caching)', async () => {
