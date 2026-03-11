@@ -29,12 +29,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock the retry withTimeout function
-vi.mock('../utils/retry.js', async () => {
+// Mock withTimeout while preserving real TimeoutError class for instanceof checks
+vi.mock('../utils/retry.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../utils/retry.js')>();
   return {
+    ...actual,
     withTimeout: async <T>(
       fn: (signal: AbortSignal) => Promise<T>,
-      _timeout: number,
+      timeout: number,
       operation: string
     ): Promise<T> => {
       const controller = new AbortController();
@@ -42,7 +44,7 @@ vi.mock('../utils/retry.js', async () => {
         return await fn(controller.signal);
       } catch (error) {
         if (error instanceof Error && error.message === 'TIMEOUT') {
-          throw new Error(`${operation} timed out`);
+          throw new actual.TimeoutError(timeout, operation, error);
         }
         throw error;
       }
