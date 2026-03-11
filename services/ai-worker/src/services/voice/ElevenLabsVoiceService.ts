@@ -209,7 +209,12 @@ export class ElevenLabsVoiceService {
     // Pick first candidate — ElevenLabs response order is arbitrary, but any cold voice is valid
     const victim = candidates[0];
     logger.info(
-      { slug, evictedVoice: victim.name, evictedVoiceId: victim.voiceId },
+      {
+        slug,
+        evictedVoice: victim.name,
+        evictedVoiceId: victim.voiceId,
+        candidateCount: candidates.length,
+      },
       'Evicting stale voice to free slot'
     );
 

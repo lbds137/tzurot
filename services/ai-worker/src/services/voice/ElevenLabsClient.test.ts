@@ -449,6 +449,12 @@ describe('ElevenLabsClient', () => {
         ).toBe(true);
       });
 
+      it('returns true for 422 with "too many voices" message', () => {
+        expect(
+          new ElevenLabsApiError(422, 'too many voices in your account').isVoiceLimitError
+        ).toBe(true);
+      });
+
       it('returns false for 400 with unrelated message', () => {
         expect(new ElevenLabsApiError(400, 'Audio too short').isVoiceLimitError).toBe(false);
       });
