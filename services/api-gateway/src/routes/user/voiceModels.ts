@@ -23,7 +23,7 @@ interface CachedModelList {
 }
 
 const MODEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const MODEL_CACHE_MAX_SIZE = 50; // max user entries
+const MODEL_CACHE_MAX_SIZE = 200; // max user entries (each entry is a small model list)
 
 const modelCache = new TTLCache<CachedModelList>({
   ttl: MODEL_CACHE_TTL,
