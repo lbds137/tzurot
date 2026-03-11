@@ -59,12 +59,17 @@ function isTransientElevenLabsError(error: unknown): boolean {
     return true;
   }
   // Network-level connection failures: Node undici throws TypeError("fetch failed")
-  // for ECONNREFUSED, ECONNRESET, DNS failures (details in error.cause).
-  // Strict equality on the known undici message to avoid retrying programming TypeErrors.
-  // NOTE: This is an undici implementation detail. If it breaks after a Node major bump,
-  // check error.cause for POSIX codes (ECONNREFUSED, ECONNRESET, ETIMEDOUT).
-  if (error instanceof Error && error.name === 'TypeError' && error.message === 'fetch failed') {
-    return true;
+  // with a cause carrying a POSIX error code (ECONNREFUSED, ECONNRESET, ETIMEDOUT).
+  // Check both the known message string and the cause code for robustness across
+  // Node versions — the message is an undici implementation detail that may change.
+  if (error instanceof TypeError) {
+    if (error.message === 'fetch failed') {
+      return true;
+    }
+    const causeCode = (error.cause as NodeJS.ErrnoException | undefined)?.code;
+    if (causeCode === 'ECONNREFUSED' || causeCode === 'ECONNRESET' || causeCode === 'ETIMEDOUT') {
+      return true;
+    }
   }
   return false;
 }
@@ -237,8 +242,7 @@ export class TTSStep implements IPipelineStep {
       const elapsedMs = Date.now() - elevenLabsStartMs;
 
       // No voice-engine configured → rethrow (outer catch delivers text-only)
-      const registrationService = getRegistrationService();
-      if (registrationService === null) {
+      if (getVoiceEngineClient() === null) {
         throw error;
       }
 
