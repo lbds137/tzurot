@@ -62,9 +62,9 @@ function isTransientElevenLabsError(error: unknown): boolean {
   }
   // Network-level connection failures: Node undici throws TypeError("fetch failed")
   // for ECONNREFUSED, ECONNRESET, DNS failures (details in error.cause).
-  // Match only the known undici message to avoid retrying programming TypeErrors.
-  if (error instanceof Error && error.name === 'TypeError') {
-    return error.message.includes('fetch failed');
+  // Strict equality on the known undici message to avoid retrying programming TypeErrors.
+  if (error instanceof Error && error.name === 'TypeError' && error.message === 'fetch failed') {
+    return true;
   }
   return false;
 }
