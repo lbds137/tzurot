@@ -66,7 +66,15 @@ vi.mock('../../../../services/voice/ElevenLabsVoiceService.js', () => ({
 
 const mockElevenLabsTTS = vi.fn();
 
-/** Real ElevenLabsApiError for instanceof checks in TTSStep's retry/fallback logic */
+/** Typed sentinel for ElevenLabs timeout errors (instanceof check in retry logic) */
+class MockElevenLabsTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`ElevenLabs request timed out after ${timeoutMs}ms`);
+    this.name = 'ElevenLabsTimeoutError';
+  }
+}
+
+/** Mirrors ElevenLabsApiError getters — update if classification logic changes */
 class MockElevenLabsApiError extends Error {
   readonly status: number;
   constructor(status: number, detail: string) {
@@ -91,9 +99,11 @@ class MockElevenLabsApiError extends Error {
 vi.mock('../../../../services/voice/ElevenLabsClient.js', () => ({
   elevenLabsTTS: (...args: unknown[]) => mockElevenLabsTTS(...args),
   ElevenLabsApiError: MockElevenLabsApiError,
+  ElevenLabsTimeoutError: MockElevenLabsTimeoutError,
 }));
 
-// withRetry/RetryError: no mock needed — real module used, fake timers handle backoff delays
+// NOTE: withRetry/RetryError use the real module (no mock).
+// Backoff delays are handled by vi.useFakeTimers() + vi.runAllTimersAsync().
 
 const mockStoreTTSAudio = vi.fn();
 vi.mock('../../../../redis.js', () => ({
@@ -677,7 +687,7 @@ describe('TTSStep', () => {
     it('retries network timeout error and succeeds on 2nd attempt', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-timeout');
       mockElevenLabsTTS
-        .mockRejectedValueOnce(new Error('ElevenLabs request timed out after 60000ms'))
+        .mockRejectedValueOnce(new MockElevenLabsTimeoutError(60_000))
         .mockResolvedValueOnce({
           audioBuffer: Buffer.from('timeout-retry-audio'),
           contentType: 'audio/mpeg',
