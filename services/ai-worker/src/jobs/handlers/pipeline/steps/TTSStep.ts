@@ -38,12 +38,15 @@ const ELEVENLABS_MAX_ATTEMPTS = 2;
  * a single attempt can exceed this cap (e.g., 60s AbortController timeout).
  * The real budget enforcer is TTS_TIMEOUT_MS (150s) via Promise.race.
  *
- * Without this cap: 2×60s + backoff = ~121s, leaving only ~29s for voice-engine
- * fallback (which needs up to 75s for cold start alone).
- * 90s cap: allows 1 full timeout (60s) + partial 2nd attempt, leaves ~60s for
- * voice-engine fallback — enough for a warm engine, tight for cold start (~75s).
+ * With maxAttempts=2: attempt 1 starts at ~0s, attempt 2 at ~65s (60s timeout +
+ * 5s backoff) — both under 90s, so this cap is effectively inert today. Worst-case
+ * wall time is ~125s (2×60s + 5s), leaving ~25s for voice-engine fallback. That's
+ * tight for cold starts (~75s) but sufficient for warm engines. The cap becomes
+ * effective if maxAttempts is raised to 3+.
+ *
  * If cold-start races cause timeouts in production, monitor elapsedMs in
- * fallback log messages and consider reducing this cap or widening TTS_TIMEOUT_MS. */
+ * fallback log messages and consider reducing maxAttempts to 1 or widening
+ * TTS_TIMEOUT_MS. */
 const ELEVENLABS_RETRY_TIMEOUT_MS = 90_000;
 
 /** Initial backoff delay for ElevenLabs TTS retry. Intentionally short — the
