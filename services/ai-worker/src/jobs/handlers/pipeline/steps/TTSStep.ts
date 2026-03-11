@@ -19,6 +19,7 @@ import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesize
 import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
 import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
 import { elevenLabsTTS, ElevenLabsApiError } from '../../../../services/voice/ElevenLabsClient.js';
+import { withRetry, RetryError } from '../../../../utils/retry.js';
 import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');
@@ -27,6 +28,25 @@ const logger = createLogger('TTSStep');
  * Budget: health wait (75s) + voice registration (15s) + synthesis (~45s) + margin (15s).
  * 150s accommodates the full ~56s cold start plus multi-chunk TTS. */
 const TTS_TIMEOUT_MS = 150_000;
+
+/** Max ElevenLabs TTS attempts (1 initial + 1 retry). Kept low to preserve
+ * timeout budget for voice-engine fallback (~89s after worst-case 2×30s + backoff). */
+const ELEVENLABS_MAX_ATTEMPTS = 2;
+
+/** Classify errors as transient (worth retrying) for ElevenLabs TTS.
+ * Covers: 429 rate limit, 5xx server errors, network timeouts, connection failures. */
+function isTransientElevenLabsError(error: unknown): boolean {
+  if (error instanceof ElevenLabsApiError) {
+    return error.isTransient;
+  }
+  // Network-level failures from elevenLabsFetch:
+  // - Timeout: Error("ElevenLabs request timed out after 60000ms") with AbortError cause
+  // - Connection failures: TypeError from fetch() (ECONNREFUSED, ECONNRESET, etc.)
+  if (error instanceof Error) {
+    return error.message.includes('timed out') || error.name === 'TypeError';
+  }
+  return false;
+}
 
 /**
  * Lazy singleton for voice registration (shares VoiceEngineClient lifecycle).
@@ -95,7 +115,7 @@ export class TTSStep implements IPipelineStep {
       let timeoutId: NodeJS.Timeout | undefined;
       const ttsPromise =
         elevenlabsApiKey !== undefined
-          ? this.performElevenLabsTTS(text, slug, elevenlabsApiKey, context)
+          ? this.performElevenLabsTTSWithFallback(text, slug, elevenlabsApiKey, context)
           : this.performVoiceEngineTTS(text, slug, context);
 
       // Observe dangling completion/rejection after timeout (makes background work visible in logs).
@@ -183,6 +203,34 @@ export class TTSStep implements IPipelineStep {
     return true;
   }
 
+  private async performElevenLabsTTSWithFallback(
+    text: string,
+    slug: string,
+    apiKey: string,
+    context: GenerationContext
+  ): Promise<{ key: string; audioSize: number; contentType: string } | null> {
+    try {
+      return await this.performElevenLabsTTS(text, slug, apiKey, context);
+    } catch (error) {
+      // No voice-engine configured → rethrow (outer catch delivers text-only)
+      const registrationService = getRegistrationService();
+      if (registrationService === null) {
+        throw error;
+      }
+
+      // Unwrap RetryError to classify the original failure
+      const originalError = error instanceof RetryError ? error.lastError : error;
+
+      if (originalError instanceof ElevenLabsApiError && originalError.isAuthError) {
+        logger.error({ err: error, slug }, 'ElevenLabs auth error, falling back to voice-engine');
+      } else {
+        logger.warn({ err: error, slug }, '[FALLBACK] ElevenLabs TTS failed, trying voice-engine');
+      }
+
+      return this.performVoiceEngineTTS(text, slug, context);
+    }
+  }
+
   private async performElevenLabsTTS(
     text: string,
     slug: string,
@@ -198,26 +246,32 @@ export class TTSStep implements IPipelineStep {
     // Synthesize — ElevenLabs handles up to 5000 chars natively, no chunking needed
     logger.info({ slug, textLength: text.length, modelId }, 'Synthesizing via ElevenLabs TTS');
 
-    try {
-      const { audioBuffer, contentType } = await elevenLabsTTS({ text, voiceId, apiKey, modelId });
-      return this.storeTTSResult(context, audioBuffer, contentType, slug);
-    } catch (error) {
-      // Voice was deleted externally (e.g., /settings voices clear, ElevenLabs dashboard).
-      // Invalidate stale cache entry and re-clone from reference audio, then retry once.
-      if (error instanceof ElevenLabsApiError && error.status === 404) {
-        logger.info({ slug, voiceId }, 'Voice not found on ElevenLabs, re-cloning');
-        voiceService.invalidateVoice(slug, apiKey);
-        voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
-        const { audioBuffer, contentType } = await elevenLabsTTS({
-          text,
-          voiceId,
-          apiKey,
-          modelId,
-        });
-        return this.storeTTSResult(context, audioBuffer, contentType, slug);
+    const { value } = await withRetry(
+      async () => {
+        try {
+          return await elevenLabsTTS({ text, voiceId, apiKey, modelId });
+        } catch (error) {
+          // Voice was deleted externally (e.g., /settings voices clear, ElevenLabs dashboard).
+          // Invalidate stale cache entry and re-clone from reference audio, then retry the call.
+          // 404 is a state fix (not transience), so handle before shouldRetry sees it.
+          if (error instanceof ElevenLabsApiError && error.status === 404) {
+            logger.info({ slug, voiceId }, 'Voice not found on ElevenLabs, re-cloning');
+            voiceService.invalidateVoice(slug, apiKey);
+            voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
+            return elevenLabsTTS({ text, voiceId, apiKey, modelId });
+          }
+          throw error;
+        }
+      },
+      {
+        maxAttempts: ELEVENLABS_MAX_ATTEMPTS,
+        shouldRetry: isTransientElevenLabsError,
+        operationName: 'ElevenLabs TTS',
+        logger,
       }
-      throw error;
-    }
+    );
+
+    return this.storeTTSResult(context, value.audioBuffer, value.contentType, slug);
   }
 
   private async performVoiceEngineTTS(
