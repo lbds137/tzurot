@@ -58,11 +58,11 @@ function isTransientElevenLabsError(error: unknown): boolean {
   if (error instanceof ElevenLabsTimeoutError) {
     return true;
   }
-  // Network-level connection failures: TypeError("fetch failed") from Node undici fetch
-  // (ECONNREFUSED, ECONNRESET, DNS failures — details in error.cause).
-  // Only match fetch-related TypeErrors to avoid retrying programming bugs.
+  // Network-level connection failures: Node undici throws TypeError("fetch failed")
+  // for ECONNREFUSED, ECONNRESET, DNS failures (details in error.cause).
+  // Match only the known undici message to avoid retrying programming TypeErrors.
   if (error instanceof Error && error.name === 'TypeError') {
-    return error.message.includes('fetch') || error.message.includes('network');
+    return error.message.includes('fetch failed');
   }
   return false;
 }
@@ -241,7 +241,10 @@ export class TTSStep implements IPipelineStep {
       const originalError = error instanceof RetryError ? error.lastError : error;
 
       if (originalError instanceof ElevenLabsApiError && originalError.isAuthError) {
-        logger.error({ err: error, slug }, 'ElevenLabs auth error, falling back to voice-engine');
+        logger.error(
+          { err: error, slug },
+          '[FALLBACK] ElevenLabs auth error, falling back to voice-engine'
+        );
       } else {
         logger.warn({ err: error, slug }, '[FALLBACK] ElevenLabs TTS failed, trying voice-engine');
       }
