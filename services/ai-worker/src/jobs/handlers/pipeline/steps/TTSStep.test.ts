@@ -586,19 +586,19 @@ describe('TTSStep', () => {
     });
   });
 
-  describe('ElevenLabs retry', () => {
-    function createElevenLabsContext(overrides?: Partial<GenerationContext>): GenerationContext {
-      return createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: 'openrouter',
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-        },
-        ...overrides,
-      });
-    }
+  function createElevenLabsContext(overrides?: Partial<GenerationContext>): GenerationContext {
+    return createContext({
+      auth: {
+        apiKey: 'sk-or-key',
+        provider: 'openrouter',
+        isGuestMode: false,
+        elevenlabsApiKey: 'sk_el_test',
+      },
+      ...overrides,
+    });
+  }
 
+  describe('ElevenLabs retry', () => {
     it('retries 429 rate limit and succeeds on 2nd attempt', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-retry');
       mockElevenLabsTTS
@@ -673,21 +673,67 @@ describe('TTSStep', () => {
       expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
     });
+
+    it('retries network timeout error and succeeds on 2nd attempt', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-timeout');
+      mockElevenLabsTTS
+        .mockRejectedValueOnce(new Error('ElevenLabs request timed out after 60000ms'))
+        .mockResolvedValueOnce({
+          audioBuffer: Buffer.from('timeout-retry-audio'),
+          contentType: 'audio/mpeg',
+        });
+      mockStoreTTSAudio.mockResolvedValue('tts:timeout-retry-job');
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:timeout-retry-job');
+    });
+
+    it('retries fetch connection failure (TypeError) and succeeds on 2nd attempt', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-connfail');
+      const fetchError = new TypeError('fetch failed');
+      mockElevenLabsTTS.mockRejectedValueOnce(fetchError).mockResolvedValueOnce({
+        audioBuffer: Buffer.from('connfail-retry-audio'),
+        contentType: 'audio/mpeg',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:connfail-retry-job');
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:connfail-retry-job');
+    });
+
+    it('does NOT retry programming TypeError (not network-related)', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-bug');
+      const programmingError = new TypeError('Cannot read properties of null');
+      mockElevenLabsTTS.mockRejectedValue(programmingError);
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Programming TypeError fast-fails — only 1 attempt
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+    });
   });
 
   describe('ElevenLabs fallback to voice-engine', () => {
-    function createElevenLabsContext(overrides?: Partial<GenerationContext>): GenerationContext {
-      return createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: 'openrouter',
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-        },
-        ...overrides,
-      });
-    }
-
     it('falls back to voice-engine after retries exhaust (429)', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-fallback');
       mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
