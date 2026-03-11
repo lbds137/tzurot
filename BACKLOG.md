@@ -518,7 +518,7 @@ Auto-inject `[ServiceName]` prefix in logs instead of hardcoding in every log ca
 
 #### 🏗️ Audit Manual Timeout Throws for Typed Sentinels
 
-Several places construct raw `Error`s for timeouts outside of `withTimeout`: `LocalEmbeddingService.ts:182`, `TTSStep.ts:168`, `AudioProcessor.ts:36`, `VoiceEngineClient.ts:194`. Audit these for the same `instanceof`-friendly treatment. Discovered during PR #732 review.
+Several places construct raw `Error`s for timeouts outside of `withTimeout`: `LocalEmbeddingService.ts:182`, `TTSStep.ts:168`, `AudioProcessor.ts:36`, `VoiceEngineClient.ts:194`. Audit these for the same `instanceof`-friendly treatment. Also consider making `ElevenLabsTimeoutError extends TimeoutError` so callers can `instanceof TimeoutError` as a catch-all across both ElevenLabs and general timeout paths. Discovered during PR #732 review.
 
 #### 🏗️ Audit Error Sanitization in Log Pipeline
 

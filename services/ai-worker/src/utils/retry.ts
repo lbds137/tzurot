@@ -75,14 +75,17 @@ export class RetryError extends Error {
 
 /** Typed sentinel for {@link withTimeout} — replaces fragile message-string
  * matching (`error.message.includes('timed out')`) with `instanceof` checks.
- * Preserves the original `AbortError` as `cause` for debugging. */
+ * Preserves the original `AbortError` as `cause` for debugging when available. */
 export class TimeoutError extends Error {
   constructor(
     public readonly timeoutMs: number,
     public readonly operationName: string,
-    cause: Error
+    cause?: Error
   ) {
-    super(`${operationName} timed out after ${timeoutMs}ms`, { cause });
+    super(
+      `${operationName} timed out after ${timeoutMs}ms`,
+      ...(cause !== undefined ? [{ cause }] : [])
+    );
     this.name = 'TimeoutError';
   }
 }
