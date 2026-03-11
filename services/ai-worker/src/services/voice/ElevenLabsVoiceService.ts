@@ -179,8 +179,9 @@ export class ElevenLabsVoiceService {
    *
    * Race note: two concurrent requests for the same API key may both hit the
    * voice limit and independently call evictAndClone. If both pick the same
-   * victim, one delete returns 404 → propagates → negatively cached for 5 min.
-   * Low probability and self-healing (negative cache expires).
+   * victim, one delete returns 404 (swallowed — slot is already freed). Both
+   * then retry the clone; whichever finishes second may hit the limit again →
+   * negatively cached for 5 min. Low probability and self-healing.
    */
   private async evictAndClone(opts: EvictAndCloneOptions): Promise<string> {
     const { slug, apiKey, cacheKey, voices, voiceName, audioBuffer, contentType, description } =
@@ -225,6 +226,11 @@ export class ElevenLabsVoiceService {
         throw err;
       }
     }
+
+    // Clear any stale negative cache for the evicted voice's slug so it can be
+    // re-cloned immediately if requested (rather than waiting for 5-min expiry)
+    const victimSlug = victim.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length);
+    this.negativeCache.delete(`${victimSlug}:${keySuffix}`);
 
     // Retry clone
     const { voiceId } = await elevenLabsCloneVoice({
