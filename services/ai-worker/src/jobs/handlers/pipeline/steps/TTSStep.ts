@@ -18,11 +18,7 @@ import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegist
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
 import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
 import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
-import {
-  elevenLabsTTS,
-  ElevenLabsApiError,
-  ElevenLabsTimeoutError,
-} from '../../../../services/voice/ElevenLabsClient.js';
+import { elevenLabsTTS, ElevenLabsApiError } from '../../../../services/voice/ElevenLabsClient.js';
 import { withRetry, RetryError, TimeoutError } from '../../../../utils/retry.js';
 import { redisService } from '../../../../redis.js';
 
@@ -56,8 +52,10 @@ function isTransientElevenLabsError(error: unknown): boolean {
   if (error instanceof ElevenLabsApiError) {
     return error.isTransient;
   }
-  // Typed sentinel from elevenLabsFetch AbortController timeout
-  if (error instanceof ElevenLabsTimeoutError) {
+  // Typed sentinel from elevenLabsFetch AbortController timeout.
+  // Broad TimeoutError check covers ElevenLabsTimeoutError (subclass)
+  // and any future timeout subclasses without updating this classifier.
+  if (error instanceof TimeoutError) {
     return true;
   }
   // Network-level connection failures: Node undici throws TypeError("fetch failed")

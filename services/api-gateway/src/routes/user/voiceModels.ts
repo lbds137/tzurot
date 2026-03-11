@@ -60,9 +60,10 @@ export async function handleListModels(
 ): Promise<void> {
   const discordUserId = req.userId;
 
-  // Check cache before DB + external API calls. The 5-min TTL means a revoked
-  // key could serve stale (but benign) model list data briefly — acceptable
-  // tradeoff for skipping a DB round-trip on every cache hit.
+  // Check cache before DB + external API calls. Keyed by userId (not API key)
+  // so key rotation or revocation may serve stale model data for up to 5 min.
+  // Acceptable tradeoff: model lists are identical across keys and the data
+  // is benign (no secrets), while the cache skips a DB + external API round-trip.
   const cached = modelCache.get(discordUserId);
   if (cached !== null) {
     logger.debug({ discordUserId }, '[Models] Cache hit for ElevenLabs models');
