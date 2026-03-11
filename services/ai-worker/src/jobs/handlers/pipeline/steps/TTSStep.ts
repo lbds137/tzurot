@@ -61,6 +61,8 @@ function isTransientElevenLabsError(error: unknown): boolean {
   // Network-level connection failures: Node undici throws TypeError("fetch failed")
   // for ECONNREFUSED, ECONNRESET, DNS failures (details in error.cause).
   // Strict equality on the known undici message to avoid retrying programming TypeErrors.
+  // NOTE: This is an undici implementation detail. If it breaks after a Node major bump,
+  // check error.cause for POSIX codes (ECONNREFUSED, ECONNRESET, ETIMEDOUT).
   if (error instanceof Error && error.name === 'TypeError' && error.message === 'fetch failed') {
     return true;
   }
@@ -266,7 +268,9 @@ export class TTSStep implements IPipelineStep {
     const voiceService = getElevenLabsVoiceService();
     const modelId = context.configOverrides?.elevenlabsTtsModel;
 
-    // Clone or find voice in user's ElevenLabs account
+    // Clone or find voice in user's ElevenLabs account.
+    // voiceId is intentionally mutable — a 404 re-clone inside the retry callback
+    // updates it, and subsequent retry attempts reuse the fresh voice ID.
     let voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
 
     // Synthesize — ElevenLabs handles up to 5000 chars natively, no chunking needed
