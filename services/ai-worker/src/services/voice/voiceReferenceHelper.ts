@@ -7,6 +7,7 @@
  */
 
 import { createLogger, getConfig } from '@tzurot/common-types';
+import { TimeoutError } from '../../utils/retry.js';
 
 const logger = createLogger('VoiceReferenceHelper');
 
@@ -35,8 +36,15 @@ export async function fetchVoiceReference(slug: string): Promise<VoiceReferenceR
       signal: AbortSignal.timeout(VOICE_REFERENCE_TIMEOUT_MS),
     });
   } catch (error) {
+    // AbortSignal.timeout() throws a DOMException with name 'TimeoutError' — that's
+    // the Web API sentinel, not our custom TimeoutError. Detect by name string, then
+    // re-throw as our typed sentinel so callers can use instanceof.
     if (error instanceof Error && error.name === 'TimeoutError') {
-      throw new Error(`Gateway fetch timed out for voice reference "${slug}"`, { cause: error });
+      throw new TimeoutError(
+        VOICE_REFERENCE_TIMEOUT_MS,
+        `voice reference fetch for "${slug}"`,
+        error
+      );
     }
     throw error;
   }

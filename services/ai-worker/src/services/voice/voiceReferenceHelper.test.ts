@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TimeoutError } from '../../utils/retry.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -62,13 +63,17 @@ describe('fetchVoiceReference', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('throws timeout error on TimeoutError', async () => {
+  it('throws typed TimeoutError on AbortSignal timeout', async () => {
+    // AbortSignal.timeout() throws a DOMException with name 'TimeoutError'
     const timeoutError = new DOMException('The operation timed out', 'TimeoutError');
     mockFetch.mockRejectedValue(timeoutError);
 
-    await expect(fetchVoiceReference('test-slug')).rejects.toThrow(
-      'Gateway fetch timed out for voice reference "test-slug"'
-    );
+    const error = await fetchVoiceReference('test-slug').catch(e => e);
+
+    expect(error).toBeInstanceOf(TimeoutError);
+    expect((error as TimeoutError).timeoutMs).toBe(15_000);
+    expect((error as TimeoutError).operationName).toBe('voice reference fetch for "test-slug"');
+    expect((error as TimeoutError).cause).toBe(timeoutError);
   });
 
   it('re-throws non-abort fetch errors', async () => {
