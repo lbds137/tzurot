@@ -125,6 +125,10 @@ export class ElevenLabsVoiceService {
         return existing.voiceId;
       }
     } catch (error) {
+      // Edge case: if listing repeatedly fails (transient network issues) and the
+      // positive cache expires (30 min TTL), we'll clone a new voice each time,
+      // accruing duplicate "tzurot-{slug}" entries. Low probability — listing is a
+      // simple GET. Users can clean up duplicates via `/settings voices clear`.
       logger.warn({ err: error, slug }, 'Failed to list ElevenLabs voices, attempting clone');
     }
 
@@ -168,6 +172,11 @@ export class ElevenLabsVoiceService {
    * Eviction candidates: tzurot-prefixed voices NOT in the warm clone cache
    * (recently used) and NOT in the inflight map (mid-clone). This is
    * approximate LRU — warm voices survive, cold voices get evicted.
+   *
+   * Race note: two concurrent requests for the same API key may both hit the
+   * voice limit and independently call evictAndClone. If both pick the same
+   * victim, one delete returns 404 → propagates → negatively cached for 5 min.
+   * Low probability and self-healing (negative cache expires).
    */
   private async evictAndClone(opts: EvictAndCloneOptions): Promise<string> {
     const { slug, apiKey, cacheKey, voices, voiceName, audioBuffer, contentType } = opts;
@@ -191,6 +200,7 @@ export class ElevenLabsVoiceService {
       );
     }
 
+    // Pick first candidate — ElevenLabs response order is arbitrary, but any cold voice is valid
     const victim = candidates[0];
     logger.info(
       { slug, evictedVoice: victim.name, evictedVoiceId: victim.voiceId },
@@ -198,10 +208,6 @@ export class ElevenLabsVoiceService {
     );
 
     await elevenLabsDeleteVoice(victim.voiceId, apiKey);
-
-    // Clear any stale cache entry for the evicted voice
-    const victimSlug = victim.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length);
-    this.cloneCache.delete(`${victimSlug}:${keySuffix}`);
 
     // Retry clone
     const { voiceId } = await elevenLabsCloneVoice({
