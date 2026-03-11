@@ -393,6 +393,7 @@ describe('ElevenLabsClient', () => {
     it('should have correct properties for generic error', () => {
       const error = new ElevenLabsApiError(500, 'Server Error');
       expect(error.status).toBe(500);
+      expect(error.detail).toBe('Server Error');
       expect(error.name).toBe('ElevenLabsApiError');
       expect(error.isAuthError).toBe(false);
       expect(error.isRateLimited).toBe(false);
