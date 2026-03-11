@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from 'pino';
-import { withRetry, withTimeout, RetryError } from './retry.js';
+import { withRetry, withTimeout, RetryError, TimeoutError } from './retry.js';
 
 describe('retryService', () => {
   let mockLogger: Logger;
@@ -399,7 +399,7 @@ describe('retryService', () => {
       expect(fn).toHaveBeenCalledWith(expect.any(AbortSignal));
     });
 
-    it('should throw timeout error if operation exceeds timeout', async () => {
+    it('should throw TimeoutError if operation exceeds timeout', async () => {
       const timeoutMs = 50;
 
       // A function that never resolves, simulating a long-running operation
@@ -417,14 +417,19 @@ describe('retryService', () => {
       const promise = withTimeout(fn, timeoutMs, 'test-operation');
 
       // Attach handler before advancing timers
-      const assertionPromise = expect(promise).rejects.toThrow(
-        'test-operation timed out after 50ms'
-      );
+      const assertionPromise = expect(promise).rejects.toThrow(TimeoutError);
 
       // Advance timers to trigger the timeout
       await vi.advanceTimersByTimeAsync(timeoutMs);
 
       await assertionPromise;
+
+      // Verify TimeoutError properties (reuse the caught error from the same promise)
+      await expect(promise).rejects.toMatchObject({
+        timeoutMs: 50,
+        message: 'test-operation timed out after 50ms',
+        name: 'TimeoutError',
+      });
     });
 
     it('should propagate non-timeout errors', async () => {

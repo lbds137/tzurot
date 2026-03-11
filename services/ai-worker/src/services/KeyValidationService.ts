@@ -11,7 +11,7 @@
  */
 
 import { createLogger, AIProvider, AI_ENDPOINTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
-import { withTimeout } from '../utils/retry.js';
+import { withTimeout, TimeoutError } from '../utils/retry.js';
 
 const logger = createLogger('KeyValidationService');
 
@@ -242,7 +242,7 @@ export class KeyValidationService {
         metadata: { creditBalance: calculateCreditBalance(data?.data) },
       };
     } catch (error) {
-      if (error instanceof Error && error.message.includes('timed out')) {
+      if (error instanceof TimeoutError) {
         throw new ValidationTimeoutError(provider);
       }
       throw error;
@@ -309,7 +309,7 @@ export class KeyValidationService {
         metadata: { creditBalance: remaining },
       };
     } catch (error) {
-      if (error instanceof Error && error.message.includes('timed out')) {
+      if (error instanceof TimeoutError) {
         throw new ValidationTimeoutError(provider);
       }
       throw error;

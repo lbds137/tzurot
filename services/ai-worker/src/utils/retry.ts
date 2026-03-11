@@ -73,6 +73,20 @@ export class RetryError extends Error {
   }
 }
 
+/** Typed sentinel for {@link withTimeout} — replaces fragile message-string
+ * matching (`error.message.includes('timed out')`) with `instanceof` checks.
+ * Preserves the original `AbortError` as `cause` for debugging. */
+export class TimeoutError extends Error {
+  constructor(
+    public readonly timeoutMs: number,
+    operationName: string,
+    cause: Error
+  ) {
+    super(`${operationName} timed out after ${timeoutMs}ms`, { cause });
+    this.name = 'TimeoutError';
+  }
+}
+
 /**
  * Normalize a caught error for Pino logging.
  *
@@ -364,7 +378,7 @@ export async function withTimeout<T>(
   } catch (error) {
     clearTimeout(timeoutId);
     if ((error as Error).name === 'AbortError') {
-      throw new Error(`${operationName} timed out after ${timeoutMs}ms`, { cause: error });
+      throw new TimeoutError(timeoutMs, operationName, error as Error);
     }
     throw error;
   }
