@@ -18,7 +18,11 @@ import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegist
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
 import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
 import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
-import { elevenLabsTTS, ElevenLabsApiError } from '../../../../services/voice/ElevenLabsClient.js';
+import {
+  elevenLabsTTS,
+  ElevenLabsApiError,
+  ElevenLabsTimeoutError,
+} from '../../../../services/voice/ElevenLabsClient.js';
 import { withRetry, RetryError } from '../../../../utils/retry.js';
 import { redisService } from '../../../../redis.js';
 
@@ -40,24 +44,25 @@ const ELEVENLABS_MAX_ATTEMPTS = 2;
  * voice-engine fallback — enough for a warm engine, tight for cold start. */
 const ELEVENLABS_RETRY_TIMEOUT_MS = 90_000;
 
+/** Initial backoff delay for ElevenLabs TTS retry. 5s gives rate limits
+ * (typically 30-60s window) a better chance of clearing than the 1s default. */
+const ELEVENLABS_RETRY_DELAY_MS = 5_000;
+
 /** Classify errors as transient (worth retrying) for ElevenLabs TTS.
  * Covers: 429 rate limit, 5xx server errors, network timeouts, connection failures. */
 function isTransientElevenLabsError(error: unknown): boolean {
   if (error instanceof ElevenLabsApiError) {
     return error.isTransient;
   }
-  // Network-level failures from elevenLabsFetch:
-  // - Timeout: Error("ElevenLabs request timed out after 60000ms") with AbortError cause
-  // - Connection failures: TypeError("fetch failed") from Node undici fetch
-  //   (ECONNREFUSED, ECONNRESET, DNS failures — details in error.cause)
+  // Typed sentinel from elevenLabsFetch AbortController timeout
+  if (error instanceof ElevenLabsTimeoutError) {
+    return true;
+  }
+  // Network-level connection failures: TypeError("fetch failed") from Node undici fetch
+  // (ECONNREFUSED, ECONNRESET, DNS failures — details in error.cause).
   // Only match fetch-related TypeErrors to avoid retrying programming bugs.
-  if (error instanceof Error) {
-    if (error.message.includes('timed out')) {
-      return true;
-    }
-    if (error.name === 'TypeError') {
-      return error.message.includes('fetch') || error.message.includes('network');
-    }
+  if (error instanceof Error && error.name === 'TypeError') {
+    return error.message.includes('fetch') || error.message.includes('network');
   }
   return false;
 }
@@ -279,6 +284,7 @@ export class TTSStep implements IPipelineStep {
       },
       {
         maxAttempts: ELEVENLABS_MAX_ATTEMPTS,
+        initialDelayMs: ELEVENLABS_RETRY_DELAY_MS,
         globalTimeoutMs: ELEVENLABS_RETRY_TIMEOUT_MS,
         shouldRetry: isTransientElevenLabsError,
         operationName: 'ElevenLabs TTS',
