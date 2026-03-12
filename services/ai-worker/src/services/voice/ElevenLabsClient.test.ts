@@ -148,7 +148,7 @@ describe('ElevenLabsClient', () => {
       expect(error).toBeInstanceOf(ElevenLabsTimeoutError);
       expect(error).toBeInstanceOf(TimeoutError);
       expect(error.timeoutMs).toBe(60_000);
-      expect(error.operationName).toBe('ElevenLabs API request');
+      expect(error.operationName).toBe('ElevenLabs /text-to-speech/v1');
     });
   });
 

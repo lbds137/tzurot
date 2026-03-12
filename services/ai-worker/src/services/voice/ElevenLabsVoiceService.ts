@@ -283,7 +283,7 @@ export class ElevenLabsVoiceService {
     this.negativeCache.delete(cacheKey);
   }
 
-  /** Clear all caches (for testing). */
+  /** @internal Clear all caches (for testing only). */
   clearCache(): void {
     this.cloneCache.clear();
     this.negativeCache.clear();

@@ -69,10 +69,12 @@ export interface ElevenLabsModelInfo {
 }
 
 /** Error thrown when an ElevenLabs API call times out (AbortController fires).
- * Typed sentinel replaces fragile message-string matching in retry logic. */
+ * Typed sentinel replaces fragile message-string matching in retry logic.
+ * Includes the endpoint path for actionable production logs (e.g.,
+ * "ElevenLabs /text-to-speech/abc123 timed out after 60000ms"). */
 export class ElevenLabsTimeoutError extends TimeoutError {
-  constructor(timeoutMs: number, cause: Error) {
-    super(timeoutMs, 'ElevenLabs API request', cause);
+  constructor(timeoutMs: number, endpoint: string, cause: Error) {
+    super(timeoutMs, `ElevenLabs ${endpoint}`, cause);
     this.name = 'ElevenLabsTimeoutError';
   }
 }
@@ -143,7 +145,7 @@ async function elevenLabsFetch(
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new ElevenLabsTimeoutError(timeoutMs, error);
+      throw new ElevenLabsTimeoutError(timeoutMs, path, error);
     }
     throw error;
   } finally {

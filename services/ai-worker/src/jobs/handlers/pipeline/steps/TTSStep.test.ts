@@ -666,7 +666,9 @@ describe('TTSStep', () => {
     it('retries network timeout error and succeeds on 2nd attempt', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-timeout');
       mockElevenLabsTTS
-        .mockRejectedValueOnce(new ElevenLabsTimeoutError(60_000, new Error('Aborted')))
+        .mockRejectedValueOnce(
+          new ElevenLabsTimeoutError(60_000, '/text-to-speech/test', new Error('Aborted'))
+        )
         .mockResolvedValueOnce({
           audioBuffer: Buffer.from('timeout-retry-audio'),
           contentType: 'audio/mpeg',
