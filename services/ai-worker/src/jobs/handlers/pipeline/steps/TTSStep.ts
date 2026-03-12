@@ -35,7 +35,9 @@ const logger = createLogger('TTSStep');
 const TTS_TIMEOUT_MS = 150_000;
 
 /** Max ElevenLabs TTS outer retry attempts (1 initial + 1 retry).
- * Each attempt may make 1 extra elevenLabsTTS call if 404 triggers re-clone. */
+ * Each attempt may make 1 extra elevenLabsTTS call if 404 triggers re-clone.
+ * Coupled with ELEVENLABS_RETRY_TIMEOUT_MS — if raised to 3+, review the
+ * soft timeout cap and voice-engine fallback budget (see TTS_TIMEOUT_MS). */
 const ELEVENLABS_MAX_ATTEMPTS = 2;
 
 /** Soft global timeout for ElevenLabs retry attempts. Checked between attempts,

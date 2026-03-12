@@ -30,7 +30,7 @@ const modelCache = new TTLCache<CachedModelList>({
   maxSize: MODEL_CACHE_MAX_SIZE,
 });
 
-/** Reset cache — exported for tests */
+/** @internal Reset cache (for testing only). */
 export function resetModelCache(): void {
   modelCache.clear();
 }
