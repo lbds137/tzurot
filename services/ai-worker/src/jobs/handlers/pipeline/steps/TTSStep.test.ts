@@ -730,6 +730,28 @@ describe('TTSStep', () => {
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:connrefused-job');
     });
 
+    it('retries TypeError with ECONNRESET cause code', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-connreset');
+      const connError = new TypeError('other undici error', {
+        cause: { code: 'ECONNRESET' },
+      });
+      mockElevenLabsTTS.mockRejectedValueOnce(connError).mockResolvedValueOnce({
+        audioBuffer: Buffer.from('connreset-retry-audio'),
+        contentType: 'audio/mpeg',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:connreset-job');
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:connreset-job');
+    });
+
     it('does NOT retry programming TypeError (not network-related)', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-bug');
       const programmingError = new TypeError('Cannot read properties of null');

@@ -69,7 +69,7 @@ export async function handleListModels(
   // the wrong model list if different accounts see different models.
   const cached = modelCache.get(discordUserId);
   if (cached !== null) {
-    logger.debug({ discordUserId }, '[Models] Cache hit for ElevenLabs models');
+    logger.debug({ discordUserId }, 'Cache hit for ElevenLabs models');
     sendCustomSuccess(res, cached);
     return;
   }
@@ -96,10 +96,7 @@ export async function handleListModels(
     .filter(m => m.can_do_text_to_speech === true)
     .map(m => ({ modelId: m.model_id, name: m.name }));
 
-  logger.info(
-    { discordUserId, modelCount: ttsModels.length },
-    '[Models] Listed ElevenLabs TTS models'
-  );
+  logger.info({ discordUserId, modelCount: ttsModels.length }, 'Listed ElevenLabs TTS models');
 
   const modelResult = { models: ttsModels };
   modelCache.set(discordUserId, modelResult);
