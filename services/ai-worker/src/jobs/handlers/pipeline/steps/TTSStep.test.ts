@@ -66,45 +66,20 @@ vi.mock('../../../../services/voice/ElevenLabsVoiceService.js', () => ({
 
 const mockElevenLabsTTS = vi.fn();
 
-// Import the real TimeoutError — withRetry/RetryError use the real module (no mock),
-// so the mock subclass must extend the real base for instanceof checks to work.
-const { TimeoutError: RealTimeoutError } = await import('../../../../utils/retry.js');
+// Use importOriginal to preserve real error classes — eliminates mock drift risk
+// from duplicated getters. Only elevenLabsTTS is mocked; error classification
+// (isAuthError, isTransient, isVoiceLimitError) uses the real class logic.
+vi.mock('../../../../services/voice/ElevenLabsClient.js', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../../../../services/voice/ElevenLabsClient.js')>();
+  return {
+    ...actual,
+    elevenLabsTTS: (...args: unknown[]) => mockElevenLabsTTS(...args),
+  };
+});
 
-/** Typed sentinel for ElevenLabs timeout errors (instanceof check in retry logic) */
-class MockElevenLabsTimeoutError extends RealTimeoutError {
-  constructor(timeoutMs: number) {
-    super(timeoutMs, 'ElevenLabs API request');
-    this.name = 'ElevenLabsTimeoutError';
-  }
-}
-
-/** Mirrors ElevenLabsApiError getters — update if classification logic changes */
-class MockElevenLabsApiError extends Error {
-  readonly status: number;
-  constructor(status: number, detail: string) {
-    super(`ElevenLabs API error (${status}): ${detail}`);
-    this.name = 'ElevenLabsApiError';
-    this.status = status;
-  }
-
-  get isAuthError(): boolean {
-    return this.status === 401 || this.status === 403;
-  }
-
-  get isRateLimited(): boolean {
-    return this.status === 429;
-  }
-
-  get isTransient(): boolean {
-    return this.isRateLimited || this.status >= 500;
-  }
-}
-
-vi.mock('../../../../services/voice/ElevenLabsClient.js', () => ({
-  elevenLabsTTS: (...args: unknown[]) => mockElevenLabsTTS(...args),
-  ElevenLabsApiError: MockElevenLabsApiError,
-  ElevenLabsTimeoutError: MockElevenLabsTimeoutError,
-}));
+const { ElevenLabsApiError, ElevenLabsTimeoutError } =
+  await import('../../../../services/voice/ElevenLabsClient.js');
 
 // NOTE: withRetry/RetryError use the real module (no mock).
 // Backoff delays are handled by vi.useFakeTimers() + vi.runAllTimersAsync().
@@ -459,7 +434,7 @@ describe('TTSStep', () => {
       // First TTS call fails with 404, second succeeds with new voice
       mockElevenLabsTTS
         .mockRejectedValueOnce(
-          new MockElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
+          new ElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
         )
         .mockResolvedValueOnce({
           audioBuffer: Buffer.from('recloned-audio'),
@@ -497,7 +472,7 @@ describe('TTSStep', () => {
 
     it('propagates non-retryable ElevenLabs errors without retry (401 auth)', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-401');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(401, 'Invalid API key'));
+      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(401, 'Invalid API key'));
       // No voice-engine → no fallback
       mockGetVoiceEngineClient.mockReturnValue(null);
 
@@ -616,7 +591,7 @@ describe('TTSStep', () => {
     it('retries 429 rate limit and succeeds on 2nd attempt', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-retry');
       mockElevenLabsTTS
-        .mockRejectedValueOnce(new MockElevenLabsApiError(429, 'Rate limited'))
+        .mockRejectedValueOnce(new ElevenLabsApiError(429, 'Rate limited'))
         .mockResolvedValueOnce({
           audioBuffer: Buffer.from('retry-audio'),
           contentType: 'audio/mpeg',
@@ -638,7 +613,7 @@ describe('TTSStep', () => {
     it('retries 500 server error and succeeds on 2nd attempt', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-500');
       mockElevenLabsTTS
-        .mockRejectedValueOnce(new MockElevenLabsApiError(500, 'Internal server error'))
+        .mockRejectedValueOnce(new ElevenLabsApiError(500, 'Internal server error'))
         .mockResolvedValueOnce({
           audioBuffer: Buffer.from('retry-500-audio'),
           contentType: 'audio/mpeg',
@@ -658,7 +633,7 @@ describe('TTSStep', () => {
 
     it('does NOT retry 401 auth error (fast-fails)', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-auth');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(401, 'Invalid API key'));
+      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(401, 'Invalid API key'));
       mockGetVoiceEngineClient.mockReturnValue(null);
 
       const ctx = createElevenLabsContext();
@@ -674,7 +649,7 @@ describe('TTSStep', () => {
 
     it('exhausts retries when both attempts fail with 429', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-exhausted');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
+      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(429, 'Rate limited'));
       mockGetVoiceEngineClient.mockReturnValue(null);
 
       const ctx = createElevenLabsContext();
@@ -691,7 +666,7 @@ describe('TTSStep', () => {
     it('retries network timeout error and succeeds on 2nd attempt', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-timeout');
       mockElevenLabsTTS
-        .mockRejectedValueOnce(new MockElevenLabsTimeoutError(60_000))
+        .mockRejectedValueOnce(new ElevenLabsTimeoutError(60_000, new Error('Aborted')))
         .mockResolvedValueOnce({
           audioBuffer: Buffer.from('timeout-retry-audio'),
           contentType: 'audio/mpeg',
@@ -729,6 +704,30 @@ describe('TTSStep', () => {
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:connfail-retry-job');
     });
 
+    it('retries TypeError with ECONNREFUSED cause code (cause-code path)', async () => {
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-connrefused');
+      // TypeError with a non-"fetch failed" message but a POSIX cause code —
+      // tests the cause-code fallback path in isTransientElevenLabsError
+      const connError = new TypeError('other undici error', {
+        cause: { code: 'ECONNREFUSED' },
+      });
+      mockElevenLabsTTS.mockRejectedValueOnce(connError).mockResolvedValueOnce({
+        audioBuffer: Buffer.from('connrefused-retry-audio'),
+        contentType: 'audio/mpeg',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:connrefused-job');
+      mockGetVoiceEngineClient.mockReturnValue(null);
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:connrefused-job');
+    });
+
     it('does NOT retry programming TypeError (not network-related)', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-bug');
       const programmingError = new TypeError('Cannot read properties of null');
@@ -750,7 +749,7 @@ describe('TTSStep', () => {
   describe('ElevenLabs fallback to voice-engine', () => {
     it('falls back to voice-engine after retries exhaust (429)', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-fallback');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
+      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(429, 'Rate limited'));
       // Voice-engine is available for fallback
       mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
       mockSynthesizeWithChunking.mockResolvedValue({
@@ -775,7 +774,7 @@ describe('TTSStep', () => {
 
     it('falls back on auth error (401) — skips retry, goes to voice-engine', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-auth-fb');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(401, 'Invalid API key'));
+      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(401, 'Invalid API key'));
       mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
       mockSynthesizeWithChunking.mockResolvedValue({
         audioBuffer: Buffer.from('auth-fallback-audio'),
@@ -797,7 +796,7 @@ describe('TTSStep', () => {
 
     it('no fallback when voice-engine not configured → text-only', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-no-ve');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(500, 'Server error'));
+      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(500, 'Server error'));
       mockGetVoiceEngineClient.mockReturnValue(null);
 
       const ctx = createElevenLabsContext();
@@ -823,10 +822,10 @@ describe('TTSStep', () => {
       // 404 is not retryable, so withRetry does not retry — error propagates to fallback.
       mockElevenLabsTTS
         .mockRejectedValueOnce(
-          new MockElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
+          new ElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
         )
         .mockRejectedValueOnce(
-          new MockElevenLabsApiError(404, "voice_id 'also-stale-voice-id' was not found")
+          new ElevenLabsApiError(404, "voice_id 'also-stale-voice-id' was not found")
         );
 
       mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
@@ -852,7 +851,7 @@ describe('TTSStep', () => {
 
     it('voice-engine fallback also fails → text-only gracefully', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-double-fail');
-      mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
+      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(429, 'Rate limited'));
       mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
       mockSynthesizeWithChunking.mockRejectedValue(new Error('Voice engine also unavailable'));
 
