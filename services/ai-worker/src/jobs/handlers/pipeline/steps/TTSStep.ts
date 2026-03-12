@@ -26,30 +26,23 @@ const logger = createLogger('TTSStep');
 
 /** TTS timeout — includes voice-engine cold start time on Railway Serverless.
  * Budget: health wait (75s) + voice registration (15s) + synthesis (~45s) + margin (15s).
- * 150s accommodates the full ~56s cold start plus multi-chunk TTS. */
+ * 150s accommodates the full ~56s cold start plus multi-chunk TTS.
+ *
+ * Intentionally not widened further: 150s is already a long Discord user wait
+ * for a non-critical feature. If cold-start fallbacks time out in production,
+ * reduce ELEVENLABS_MAX_ATTEMPTS to 1 (recovering ~65s) rather than extending
+ * this cap. Monitor elapsedMs in fallback log messages. */
 const TTS_TIMEOUT_MS = 150_000;
 
 /** Max ElevenLabs TTS outer retry attempts (1 initial + 1 retry).
  * Each attempt may make 1 extra elevenLabsTTS call if 404 triggers re-clone. */
 const ELEVENLABS_MAX_ATTEMPTS = 2;
 
-/** Soft global timeout for all ElevenLabs retry attempts combined.
- * "Soft" because withRetry checks this between attempts, not mid-operation —
- * a single attempt can exceed this cap (e.g., 60s AbortController timeout).
- * The real budget enforcer is TTS_TIMEOUT_MS (150s) via Promise.race.
- *
- * With maxAttempts=2: attempt 1 starts at ~0s, attempt 2 at ~65s (60s timeout +
- * 5s backoff) — both *start* under 90s, so this cap never prevents an attempt
- * from beginning (effectively inert today). Worst-case wall time is ~125s
- * (2×60s + 5s), which exceeds 90s but is fine — the soft cap only checks
- * elapsed time between attempts, not mid-operation. TTS_TIMEOUT_MS (150s) is
- * the hard enforcer via Promise.race. The ~25s remaining for voice-engine
- * fallback is tight for cold starts (~75s) but sufficient for warm engines.
- * The cap becomes effective if maxAttempts is raised to 3+.
- *
- * If cold-start races cause timeouts in production, monitor elapsedMs in
- * fallback log messages and consider reducing maxAttempts to 1 or widening
- * TTS_TIMEOUT_MS. */
+/** Soft global timeout for ElevenLabs retry attempts. Checked between attempts,
+ * not mid-operation — a single attempt can exceed this (e.g., 60s AbortController
+ * timeout). Effectively inert with maxAttempts=2 (both attempts start under 90s).
+ * Becomes effective if maxAttempts is raised to 3+. The real budget enforcer is
+ * TTS_TIMEOUT_MS (150s) via Promise.race. */
 const ELEVENLABS_RETRY_TIMEOUT_MS = 90_000;
 
 /** Initial backoff delay for ElevenLabs TTS retry. Intentionally short — the
