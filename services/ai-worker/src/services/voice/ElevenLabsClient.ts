@@ -104,8 +104,12 @@ export class ElevenLabsApiError extends Error {
   }
 
   /** True when ElevenLabs rejects voice creation due to account voice slot limit.
-   * Conservative pattern — if the message format changes, we log the raw error
-   * and fall through to existing error handling (no eviction, no regression). */
+   * Conservative pattern — if the message format changes, the error propagates
+   * to the outer ensureVoiceCloned catch (no eviction attempted, no regression).
+   *
+   * Only checks 400/422 — ElevenLabs may return 403 for subscription-level
+   * limits, but we haven't observed that for voice slot exhaustion specifically.
+   * If 403 voice-limit errors appear in production logs, add it here. */
   get isVoiceLimitError(): boolean {
     if (this.status !== 400 && this.status !== 422) {
       return false;
