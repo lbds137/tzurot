@@ -39,10 +39,13 @@ const ELEVENLABS_MAX_ATTEMPTS = 2;
  * The real budget enforcer is TTS_TIMEOUT_MS (150s) via Promise.race.
  *
  * With maxAttempts=2: attempt 1 starts at ~0s, attempt 2 at ~65s (60s timeout +
- * 5s backoff) — both under 90s, so this cap is effectively inert today. Worst-case
- * wall time is ~125s (2×60s + 5s), leaving ~25s for voice-engine fallback. That's
- * tight for cold starts (~75s) but sufficient for warm engines. The cap becomes
- * effective if maxAttempts is raised to 3+.
+ * 5s backoff) — both *start* under 90s, so this cap never prevents an attempt
+ * from beginning (effectively inert today). Worst-case wall time is ~125s
+ * (2×60s + 5s), which exceeds 90s but is fine — the soft cap only checks
+ * elapsed time between attempts, not mid-operation. TTS_TIMEOUT_MS (150s) is
+ * the hard enforcer via Promise.race. The ~25s remaining for voice-engine
+ * fallback is tight for cold starts (~75s) but sufficient for warm engines.
+ * The cap becomes effective if maxAttempts is raised to 3+.
  *
  * If cold-start races cause timeouts in production, monitor elapsedMs in
  * fallback log messages and consider reducing maxAttempts to 1 or widening
@@ -286,6 +289,13 @@ export class TTSStep implements IPipelineStep {
     // Clone or find voice in user's ElevenLabs account.
     // voiceId is intentionally mutable — a 404 re-clone inside the retry callback
     // updates it, and subsequent retry attempts reuse the fresh voice ID.
+    //
+    // Subtle interaction: if ensureVoiceCloned (re-clone) inside the 404 handler
+    // throws transiently (e.g., TypeError("fetch failed")), withRetry may retry
+    // with the old voiceId (already invalidated), hitting 404 again. The 404
+    // handler re-invokes ensureVoiceCloned; if that succeeds, the retry succeeds.
+    // If it fails again, retries exhaust → voice-engine fallback. Not a bug —
+    // just a double-clone-attempt under pathological conditions.
     let voiceId = await voiceService.ensureVoiceCloned(slug, apiKey);
 
     // Synthesize — ElevenLabs handles up to 5000 chars natively, no chunking needed
