@@ -260,13 +260,13 @@ export class TTSStep implements IPipelineStep {
 
       if (originalError instanceof ElevenLabsApiError && originalError.isAuthError) {
         logger.error(
-          { err: originalError, slug, elapsedMs },
-          '[FALLBACK] ElevenLabs auth error, falling back to voice-engine'
+          { err: originalError, slug, elapsedMs, fallback: 'voice-engine' },
+          'ElevenLabs auth error, falling back to voice-engine'
         );
       } else {
         logger.warn(
-          { err: originalError, slug, elapsedMs },
-          '[FALLBACK] ElevenLabs TTS failed, trying voice-engine'
+          { err: originalError, slug, elapsedMs, fallback: 'voice-engine' },
+          'ElevenLabs TTS failed, trying voice-engine'
         );
       }
 

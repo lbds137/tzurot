@@ -812,6 +812,44 @@ describe('TTSStep', () => {
       expect(result.result?.content).toBe('Hello world');
     });
 
+    it('falls back to voice-engine when re-cloned voice also 404s', async () => {
+      // First clone returns stale voice, re-clone returns another voice that also 404s.
+      // 404 is not transient → shouldRetry returns false → propagates to WithFallback.
+      mockEnsureVoiceCloned
+        .mockResolvedValueOnce('stale-voice-id')
+        .mockResolvedValueOnce('also-stale-voice-id');
+
+      // First TTS: 404 → triggers re-clone. Second TTS (with re-cloned voice): also 404.
+      // 404 is not retryable, so withRetry does not retry — error propagates to fallback.
+      mockElevenLabsTTS
+        .mockRejectedValueOnce(
+          new MockElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
+        )
+        .mockRejectedValueOnce(
+          new MockElevenLabsApiError(404, "voice_id 'also-stale-voice-id' was not found")
+        );
+
+      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
+      mockSynthesizeWithChunking.mockResolvedValue({
+        audioBuffer: Buffer.from('fallback-after-double-404'),
+        contentType: 'audio/wav',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:double-404-fallback');
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Both ElevenLabs TTS calls returned 404
+      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
+      expect(mockInvalidateVoice).toHaveBeenCalledWith('testbot', 'sk_el_test');
+      // Voice-engine fallback succeeded
+      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:double-404-fallback');
+    });
+
     it('voice-engine fallback also fails → text-only gracefully', async () => {
       mockEnsureVoiceCloned.mockResolvedValue('el-voice-double-fail');
       mockElevenLabsTTS.mockRejectedValue(new MockElevenLabsApiError(429, 'Rate limited'));
