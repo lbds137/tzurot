@@ -133,7 +133,7 @@ async function transcribeWithElevenLabs(
     } else {
       logger.warn(
         { err: error, fallback: 'voice-engine' },
-        '[FALLBACK] ElevenLabs STT failed — trying voice-engine'
+        'ElevenLabs STT failed — trying voice-engine'
       );
     }
     return null;
