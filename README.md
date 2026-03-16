@@ -11,7 +11,7 @@ A modern, scalable Discord bot with customizable AI personalities, powered by mi
 
 Shapes.inc (v2's AI provider) killed their API to force users to their website only, forcing a complete rewrite. v3 is better in every way:
 
-- **Vendor Independence**: Clean abstraction for AI providers (OpenRouter primary, Gemini for vision)
+- **Vendor Independence**: Clean abstraction for AI providers (OpenRouter primary)
 - **TypeScript + Python**: Full type safety, with a Python FastAPI voice engine
 - **True Microservices**: Each service has a single, clear responsibility
 - **Long-term Memory**: pgvector for personality memory across conversations
@@ -45,12 +45,12 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
                     +---+----------+-----------+
                     |   |          |           |
                     v   v          v           v
-              +------+ +------+ +------+ +----------+
-              |Open  | |Gemini| |Eleven| |  Voice   |
-              |Router| | API  | | Labs | |  Engine  |
-              |(400+ | |(vis- | | (TTS)| | (Python) |
-              |models)| | ion) | |      | |          |
-              +------+ +------+ +------+ +----------+
+              +----------+ +----------+ +----------+
+              | Open     | | Eleven   | |  Voice   |
+              | Router   | |  Labs    | |  Engine  |
+              | (400+    | |  (TTS)   | | (Python) |
+              |  models) | |          | |          |
+              +----------+ +----------+ +----------+
 ```
 
 **Services:**
@@ -68,7 +68,6 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 **External APIs:**
 
 - **OpenRouter**: 400+ AI models via unified API (primary provider, includes free models)
-- **Gemini**: Vision/image analysis
 - **ElevenLabs**: Text-to-speech with voice cloning (primary TTS provider)
 - **Local Embeddings**: Xenova/bge-small-en-v1.5 (384-dim vectors, no API needed)
 - **Voice Engine**: Local STT/TTS fallback (NVIDIA Parakeet + PocketTTS, no external API needed)
@@ -130,7 +129,7 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 
 ## AI Provider System
 
-All AI model access goes through OpenRouter's unified API, with model selection configured per-personality via `ModelFactory`. This provides access to 400+ models (including free tier) through a single API key. Gemini handles vision/image analysis, and ElevenLabs provides text-to-speech with voice cloning. A local Python voice engine (Parakeet + PocketTTS) serves as a fallback for STT/TTS without external API dependencies.
+All AI model access goes through OpenRouter's unified API, with model selection configured per-personality via `ModelFactory`. This provides access to 400+ models (including free tier) through a single API key. ElevenLabs provides text-to-speech with voice cloning. A local Python voice engine (Parakeet + PocketTTS) serves as a fallback for STT/TTS without external API dependencies.
 
 ## Features
 
