@@ -22,6 +22,7 @@ _Empty (2026-03-04)._
 _New items go here. Triage to appropriate section weekly._
 
 - 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure). ⚠️ IP-based rate limiting would penalize legitimate users at scale (shared IPs, NAT). Needs a smarter approach (token-bucket per route, cache headers, or auth-gated access) if pursued.
+- 🧹 `[CHORE]` **Add `/settings voices model` to settings index.test.ts** — The test only asserts `browse`, `delete`, `clear` for the voices subcommand group but `model` is a real registered subcommand. Pre-existing gap found during doc audit.
 
 ## 🎯 Current Focus
 
