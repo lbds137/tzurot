@@ -42,9 +42,9 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
               |  Service   |                                      | (pgvector) |
               +-----+------+                                      +------------+
                     |
-                    +------+----------+------+
-                    |      |          |
-                    v      v          v
+                    +------+-----------+----------+
+                    |      |           |
+                    v      v           v
               +----------+ +----------+ +----------+
               | Open     | | Eleven   | |  Voice   |
               | Router   | |  Labs    | |  Engine  |
@@ -126,7 +126,7 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
   - `test-utils/` - Shared test helpers and PGLite integration
   - `tooling/` - Ops CLI (`pnpm ops`) and codebase analysis
 - **`prisma/`** - Database schema and migrations
-- **`scripts/`** - Analysis, debug, and data migration utilities
+- **`scripts/`** - One-off utilities: analysis, debug, data migrations, deployment helpers
 - **`tzurot-legacy/`** - Archived v2 codebase (for reference)
 
 ## AI Provider System
@@ -173,7 +173,7 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 | --- | --- | --- |
 | `/preset` | `create` `edit` `browse` | Custom LLM presets (model + parameters) |
 | | `export` `import` `template` | Preset portability (JSON) |
-| | `global default` `global free-default` | System-wide defaults (owner only) |
+| | `global` (`default` `free-default`) | System-wide defaults (owner only) |
 | `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management |
 
 **Memory & History**
@@ -182,19 +182,19 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 | --- | --- | --- |
 | `/memory` | `browse` `search` `stats` | Browse and search long-term memories |
 | | `delete` `purge` | Memory management operations |
-| | `focus enable/disable/status` | Temporarily disable LTM retrieval |
-| | `incognito enable/disable/status/forget` | Privacy mode (no LTM writes) |
+| | `focus` (`enable` `disable` `status`) | Temporarily disable LTM retrieval |
+| | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes) |
 | `/history` | `clear` `stats` `undo` `hard-delete` | Conversation history management |
 
 **Settings & Tools**
 
 | Command | Subcommands | Purpose |
 | --- | --- | --- |
-| `/settings` | `timezone set/get` | Timezone for timestamps |
-| | `apikey set/browse/remove/test` | BYOK API key management |
-| | `preset browse/set/reset/default/clear-default` | Per-character preset overrides |
-| | `defaults edit` | User default settings dashboard |
-| | `voices browse/delete/clear/model` | ElevenLabs voice management |
+| `/settings` | `timezone` (`set` `get`) | Timezone for timestamps |
+| | `apikey` (`set` `browse` `remove` `test`) | BYOK API key management |
+| | `preset` (`browse` `set` `reset` `default` `clear-default`) | Per-character preset overrides |
+| | `defaults` (`edit`) | User default settings dashboard |
+| | `voices` (`browse` `delete` `clear` `model`) | ElevenLabs voice management |
 | `/shapes` | `auth` `logout` `browse` `import` `export` `status` | Shapes.inc character migration |
 | `/inspect` | `browse` or `[identifier]` | Diagnostic log browser and message inspector |
 | `/help` | _(optional command)_ | Show available commands |
