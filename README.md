@@ -163,6 +163,7 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 | | `chat` `avatar` `voice` `voice-clear` | Interaction and media |
 | | `settings` `overrides` | Per-character config and personal overrides |
 | `/persona` | `view` `edit` `create` `browse` `default` | User persona management |
+| | `share-ltm` | Share long-term memory between personas |
 | | `override set` `override clear` | Per-character persona overrides |
 
 **Presets & Channels**
@@ -202,7 +203,7 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 | Command | Subcommands | Purpose |
 | --- | --- | --- |
 | `/admin` | `ping` `health` `servers` `kick` `usage` | Monitoring and management |
-| | `cleanup` `db-sync` `settings` `presence` | Maintenance and configuration |
+| | `cleanup` `db-sync` `settings` `presence` `stop-sequences` | Maintenance and configuration |
 | `/deny` | `add` `remove` `browse` `view` | User and guild denial management |
 
 ### 📋 Planned Features
