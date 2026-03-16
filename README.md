@@ -42,9 +42,9 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
               |  Service   |                                      | (pgvector) |
               +-----+------+                                      +------------+
                     |
-                    +---+----------+-----------+
-                    |   |          |           |
-                    v   v          v           v
+                    +----------+-----------+----------+
+                    |          |           |
+                    v          v           v
               +----------+ +----------+ +----------+
               | Open     | | Eleven   | |  Voice   |
               | Router   | |  Labs    | |  Engine  |
@@ -126,6 +126,8 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
   - `test-utils/` - Shared test helpers and PGLite integration
   - `tooling/` - Ops CLI (`pnpm ops`) and codebase analysis
 - **`prisma/`** - Database schema and migrations
+- **`scripts/`** - Analysis, debug, and data migration utilities
+- **`tzurot-legacy/`** - Archived v2 codebase (for reference)
 
 ## AI Provider System
 
@@ -163,7 +165,6 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 | | `chat` `avatar` `voice` `voice-clear` | Interaction and media |
 | | `settings` `overrides` | Per-character config and personal overrides |
 | `/persona` | `view` `edit` `create` `browse` `default` | User persona management |
-| | `share-ltm` | Share long-term memory between personas |
 | | `override set` `override clear` | Per-character persona overrides |
 
 **Presets & Channels**
