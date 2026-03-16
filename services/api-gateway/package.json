@@ -21,14 +21,14 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/adapter-pg": "^7.5.0",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.70.4",
+    "bullmq": "^5.71.0",
     "express": "^5.2.1",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.10.0",
-    "openai": "^6.27.0",
+    "openai": "^6.29.0",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
