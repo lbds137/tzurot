@@ -65,7 +65,7 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 - **PostgreSQL + pgvector**: User data, personalities, conversation history, vector embeddings for long-term memory
 - **Redis**: BullMQ job queue for async processing, ioredis client
 
-**External APIs:**
+**Integrations:**
 
 - **OpenRouter**: 400+ AI models via unified API (primary provider, includes free models)
 - **ElevenLabs**: Text-to-speech with voice cloning (primary TTS provider)
@@ -196,7 +196,7 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 | | `defaults` (`edit`) | User default settings dashboard |
 | | `voices` (`browse` `delete` `clear` `model`) | ElevenLabs voice management |
 | `/shapes` | `auth` `logout` `browse` `import` `export` `status` | Shapes.inc character migration |
-| `/inspect` | `browse` or `[identifier]` | Diagnostic log browser and message inspector |
+| `/inspect` | `[identifier]` | Diagnostic log browser — omit to browse recent, provide to inspect specific |
 | `/help` | _(optional command)_ | Show available commands |
 
 **Administration (owner only)**
