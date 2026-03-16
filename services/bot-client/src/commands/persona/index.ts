@@ -63,7 +63,7 @@ const logger = createLogger('persona-command');
 /**
  * Main subcommand router (mixed mode)
  * - create, override set show modals
- * - view, browse, share-ltm, override clear are deferred
+ * - view, browse, override clear are deferred
  * Note: edit and default are handled separately due to parameter passing
  */
 const mainRouter = createMixedModeSubcommandRouter(
