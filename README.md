@@ -11,11 +11,11 @@ A modern, scalable Discord bot with customizable AI personalities, powered by mi
 
 Shapes.inc (v2's AI provider) killed their API to force users to their website only, forcing a complete rewrite. v3 is better in every way:
 
-- **Vendor Independence**: Clean abstraction for AI providers (OpenRouter primary)
-- **TypeScript Throughout**: Full type safety and better IDE support
+- **Vendor Independence**: Clean abstraction for AI providers (OpenRouter primary, Gemini for vision)
+- **TypeScript + Python**: Full type safety, with a Python FastAPI voice engine
 - **True Microservices**: Each service has a single, clear responsibility
 - **Long-term Memory**: pgvector for personality memory across conversations
-- **Multiple Providers**: OpenRouter (400+ models including free tier)
+- **Multiple Providers**: OpenRouter (400+ models including free tier), ElevenLabs TTS, local voice engine
 - **Clean Architecture**: No over-engineered DDD - just simple, maintainable code
 
 ## Architecture
@@ -42,15 +42,15 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
               |  Service   |                                      | (pgvector) |
               +-----+------+                                      +------------+
                     |
-                    +------------+
-                    |            |
-                    v            v
-              +----------+ +----------+
-              |OpenRouter| |  OpenAI  |
-              |   API    | |(Whisper, |
-              |(400+     | |Embedding)|
-              | models)  | |          |
-              +----------+ +----------+
+                    +---+----------+-----------+
+                    |   |          |           |
+                    v   v          v           v
+              +------+ +------+ +------+ +----------+
+              |Open  | |Gemini| |Eleven| |  Voice   |
+              |Router| | API  | | Labs | |  Engine  |
+              |(400+ | |(vis- | | (TTS)| | (Python) |
+              |models)| | ion) | |      | |          |
+              +------+ +------+ +------+ +----------+
 ```
 
 **Services:**
@@ -58,6 +58,7 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 - **bot-client**: Discord.js interface, webhook management, slash commands
 - **api-gateway**: HTTP API, request routing, job queue management
 - **ai-worker**: AI processing, memory retrieval, prompt building, response generation
+- **voice-engine**: Python FastAPI service for local STT (Parakeet) and TTS (PocketTTS)
 
 **Data Stores:**
 
@@ -67,8 +68,10 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 **External APIs:**
 
 - **OpenRouter**: 400+ AI models via unified API (primary provider, includes free models)
-- **OpenAI**: Whisper (voice transcription only)
+- **Gemini**: Vision/image analysis
+- **ElevenLabs**: Text-to-speech with voice cloning (primary TTS provider)
 - **Local Embeddings**: Xenova/bge-small-en-v1.5 (384-dim vectors, no API needed)
+- **Voice Engine**: Local STT/TTS fallback (NVIDIA Parakeet + PocketTTS, no external API needed)
 
 ## Quick Start
 
@@ -114,21 +117,20 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 ## Project Structure
 
 - **`services/`** - Microservices
-  - `bot-client/` - Discord bot interface
-  - `api-gateway/` - HTTP API and request routing
-  - `ai-worker/` - Background AI processing
+  - `bot-client/` - Discord bot interface (TypeScript)
+  - `api-gateway/` - HTTP API and request routing (TypeScript)
+  - `ai-worker/` - Background AI processing (TypeScript)
+  - `voice-engine/` - Local STT/TTS service (Python FastAPI)
 - **`packages/`** - Shared code
   - `common-types/` - TypeScript types, schemas, and shared utilities
   - `embeddings/` - Local embedding model (BGE-small-en-v1.5)
   - `test-utils/` - Shared test helpers and PGLite integration
   - `tooling/` - Ops CLI (`pnpm ops`) and codebase analysis
 - **`prisma/`** - Database schema and migrations
-- **`scripts/`** - Development and deployment utilities
-- **`tzurot-legacy/`** - Archived v2 codebase (for reference)
 
 ## AI Provider System
 
-All AI model access goes through OpenRouter's unified API, with model selection configured per-personality via `ModelFactory`. This provides access to 400+ models (including free tier) through a single API key.
+All AI model access goes through OpenRouter's unified API, with model selection configured per-personality via `ModelFactory`. This provides access to 400+ models (including free tier) through a single API key. Gemini handles vision/image analysis, and ElevenLabs provides text-to-speech with voice cloning. A local Python voice engine (Parakeet + PocketTTS) serves as a fallback for STT/TTS without external API dependencies.
 
 ## Features
 
@@ -141,7 +143,7 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 - **Conversation History**: Contextual responses using recent message history
 - **Webhook Avatars**: Each personality has unique name and avatar
 - **Image Support**: Send images to personalities for analysis
-- **Voice Support**: Send voice messages for transcription
+- **Voice Support**: Send voice messages for transcription, text-to-speech with voice cloning
 - **Message Chunking**: Automatically handles Discord's 2000 character limit
 - **Model Indicators**: Shows which AI model generated each response
 - **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter API keys
@@ -149,59 +151,77 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 - **Channel Activation**: Personalities can auto-respond to all messages in a channel
 - **NSFW Verification**: Age verification via Discord's native age-gated channels
 - **DM Chat**: Chat with personalities in DMs by replying to bot messages
-- **Slash Commands**:
-  - `/persona view/edit/create/browse/default` - User persona management
-  - `/persona share-ltm` - Share long-term memory between personas
-  - `/persona override set/clear` - Per-character persona overrides
-  - `/settings timezone set/get` - Timezone settings for timestamps
-  - `/settings apikey set/browse/remove/test` - Manage your API keys (BYOK)
-  - `/settings preset browse/set/reset/default/clear-default` - Per-character preset overrides
-  - `/character create/edit/view/browse` - Manage AI characters
-  - `/character import/export` - Import/export character configurations
-  - `/character settings` - Configure per-character settings (model, persona)
-  - `/character chat` - Direct chat with a character
-  - `/character avatar/template` - Avatar management and utilities
-  - `/preset create/edit/browse` - Custom LLM presets (model + parameters)
-  - `/preset export/import/template` - Preset portability
-  - `/preset global default/free-default` - View/set global default presets
-  - `/channel activate/deactivate/browse/settings` - Channel auto-response management
-  - `/history clear/stats/undo/hard-delete` - Conversation history management
-  - `/memory browse/search/stats` - Browse and search long-term memories
-  - `/memory focus/purge/delete` - Memory management operations
-  - `/memory incognito enable/disable/status/forget` - Temporary privacy mode
-  - `/admin ping/servers/kick/usage/cleanup/db-sync/settings/debug` - Bot administration (owner only)
-  - `/help` - Show available commands
+- **Slash Commands** (see details below)
+
+### Slash Commands
+
+**Characters & Personas**
+
+| Command | Subcommands | Purpose |
+| --- | --- | --- |
+| `/character` | `create` `edit` `view` `browse` | Manage AI characters |
+| | `import` `export` `template` | Character portability (JSON) |
+| | `chat` `avatar` `voice` `voice-clear` | Interaction and media |
+| | `settings` `overrides` | Per-character config and personal overrides |
+| `/persona` | `view` `edit` `create` `browse` `default` | User persona management |
+| | `override set` `override clear` | Per-character persona overrides |
+
+**Presets & Channels**
+
+| Command | Subcommands | Purpose |
+| --- | --- | --- |
+| `/preset` | `create` `edit` `browse` | Custom LLM presets (model + parameters) |
+| | `export` `import` `template` | Preset portability (JSON) |
+| | `global default` `global free-default` | System-wide defaults (owner only) |
+| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management |
+
+**Memory & History**
+
+| Command | Subcommands | Purpose |
+| --- | --- | --- |
+| `/memory` | `browse` `search` `stats` | Browse and search long-term memories |
+| | `delete` `purge` | Memory management operations |
+| | `focus enable/disable/status` | Temporarily disable LTM retrieval |
+| | `incognito enable/disable/status/forget` | Privacy mode (no LTM writes) |
+| `/history` | `clear` `stats` `undo` `hard-delete` | Conversation history management |
+
+**Settings & Tools**
+
+| Command | Subcommands | Purpose |
+| --- | --- | --- |
+| `/settings` | `timezone set/get` | Timezone for timestamps |
+| | `apikey set/browse/remove/test` | BYOK API key management |
+| | `preset browse/set/reset/default/clear-default` | Per-character preset overrides |
+| | `defaults edit` | User default settings dashboard |
+| | `voices browse/delete/clear/model` | ElevenLabs voice management |
+| `/shapes` | `auth` `logout` `browse` `import` `export` `status` | Shapes.inc character migration |
+| `/inspect` | _(browse or identifier)_ | Diagnostic log browser and message inspector |
+| `/help` | _(optional command)_ | Show available commands |
+
+**Administration (owner only)**
+
+| Command | Subcommands | Purpose |
+| --- | --- | --- |
+| `/admin` | `ping` `health` `servers` `kick` `usage` | Monitoring and management |
+| | `cleanup` `db-sync` `settings` `presence` | Maintenance and configuration |
+| `/deny` | `add` `remove` `browse` `view` | User and guild denial management |
 
 ### 📋 Planned Features
 
 - Multi-personality per channel (multiple bots responding naturally)
 - Advanced memory features (LTM summarization, OpenMemory integration)
 - Lorebooks / sticky context (keyword-triggered lore injection)
+- Chatterbox TTS evaluation (next-gen local voice cloning)
 
 ## Development
 
-### Build all services:
-
 ```bash
-pnpm build
-```
-
-### Run tests:
-
-```bash
-pnpm test
-```
-
-### Type checking:
-
-```bash
-pnpm typecheck
-```
-
-### Formatting:
-
-```bash
-pnpm format
+pnpm build            # Build all services
+pnpm test             # Run unit tests
+pnpm test:int         # Run integration tests
+pnpm quality          # Lint + CPD + depcruise + typecheck
+pnpm format           # Format code
+pnpm ops --help       # CLI tooling reference
 ```
 
 ## Deployment
@@ -245,13 +265,13 @@ pnpm dev
 ### Project Status & Planning
 
 - **[CURRENT.md](CURRENT.md)** - Current session status and active work
+- **[BACKLOG.md](BACKLOG.md)** - Project backlog and priorities
 - **[GitHub Releases](https://github.com/lbds137/tzurot/releases)** - Version history and changelogs
-- **[V2 Feature Tracking](docs/proposals/active/V2_FEATURE_TRACKING.md)** - What's been ported from v2
 
 ### Architecture & Design
 
 - **[Architecture Decisions](docs/reference/architecture/ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
-- **[Independent Component Timeouts](packages/common-types/src/constants/timing.ts)** - Component-specific timeout configuration
+- **[Caching Audit](docs/reference/architecture/CACHING_AUDIT.md)** - Cache implementations and patterns
 - **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
 
 ### Development Guides
@@ -259,6 +279,7 @@ pnpm dev
 - **[Development Guide](docs/reference/guides/DEVELOPMENT.md)** - Local development setup
 - **[Testing Guide](docs/reference/guides/TESTING.md)** - Testing philosophy and patterns
 - **[Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md)** - Railway deployment and operations
+- **[OPS CLI Reference](docs/reference/tooling/OPS_CLI_REFERENCE.md)** - CLI tooling reference
 
 ## Project History
 

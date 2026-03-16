@@ -6,6 +6,7 @@
 
 | Date       | Incident                        | Rule Established                                  |
 | ---------- | ------------------------------- | ------------------------------------------------- |
+| 2026-03-09 | Near-delete of develop branch   | Never --delete-branch on long-lived branches      |
 | 2026-02-03 | Context settings not cascading  | Trace full runtime flow before declaring "done"   |
 | 2026-01-30 | Gitignored data/ deleted        | NEVER rm -rf without explicit user approval       |
 | 2026-01-30 | Work reverted without consent   | Never abandon uncommitted work without asking     |
@@ -21,6 +22,25 @@
 | 2025-12-05 | Direct fetch broke /character   | Use gateway clients, not direct fetch             |
 | 2025-12-06 | API contract mismatch           | Use shared Zod schemas for contracts              |
 | 2025-12-14 | Random UUIDs broke db-sync      | Use deterministic v5 UUIDs for all entities       |
+
+---
+
+## 2026-03-09 - Near-Delete of Develop Branch
+
+**What Happened**: During a release PR merge (`develop → main`), the `--delete-branch` flag was used with `gh pr merge`, which would have deleted the `develop` branch — one of the project's two long-lived branches.
+
+**Root Cause**: The merge command pattern `gh pr merge --rebase --delete-branch` was used uniformly for all PRs, without distinguishing between feature branches (which should be deleted after merge) and long-lived branches like `develop` (which must never be deleted).
+
+**Impact**: Caught before execution, but would have deleted the primary development branch. Recovery would have required recreating the branch from `main`, potentially losing any commits on `develop` not yet merged.
+
+**Prevention**:
+
+1. **NEVER use `--delete-branch` on release PRs** (`develop → main`)
+2. `--delete-branch` is ONLY for feature/fix branches
+3. Added explicit rules to `00-critical.md` distinguishing feature PR merges from release PR merges
+4. Added to CLAUDE.md post-mortem table as a permanent reminder
+
+**Universal Lesson**: Long-lived branches (`main`, `develop`) require different merge procedures than feature branches. Automation must distinguish between the two.
 
 ---
 
