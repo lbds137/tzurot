@@ -22,8 +22,13 @@ pnpm ops db:migrate --env dev  # Run migrations
 services/
 ├── bot-client/         # Discord interface (NO Prisma access)
 ├── api-gateway/        # HTTP API + BullMQ
-└── ai-worker/          # AI processing + memory
-packages/common-types/  # Shared types
+├── ai-worker/          # AI processing + memory
+└── voice-engine/       # Python FastAPI STT/TTS service
+packages/
+├── common-types/       # Shared types
+├── embeddings/         # Local embedding model
+├── test-utils/         # Shared test helpers + PGLite
+└── tooling/            # Ops CLI (pnpm ops)
 prisma/                 # Database schema
 ```
 

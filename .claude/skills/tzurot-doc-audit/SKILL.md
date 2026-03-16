@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation freshness audit. Invoke with /tzurot-doc-audit to review docs for staleness, missing tools, and inconsistencies.'
-lastUpdated: '2026-02-08'
+lastUpdated: '2026-03-16'
 ---
 
 # Documentation Audit Procedure
@@ -125,12 +125,14 @@ ls .claude/skills/*/SKILL.md
 
 ### 10. Root README.md
 
-- [ ] Project structure lists all packages in `packages/`
-- [ ] Architecture diagram matches actual services
+- [ ] Project structure lists all services in `services/` and all packages in `packages/`
+- [ ] Architecture diagram matches actual services and external APIs
 - [ ] Slash commands list matches actual commands in `services/bot-client/src/commands/`
+- [ ] External APIs section lists all current providers (OpenRouter, Gemini, ElevenLabs, etc.)
 - [ ] Quick Start prerequisites are current (Node version, tools)
 - [ ] Documentation links point to files that exist
 - [ ] Planned features section is accurate (none secretly implemented)
+- [ ] Feature list reflects current capabilities (voice, TTS, etc.)
 
 ### 11. Root CLAUDE.md
 
