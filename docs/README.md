@@ -1,6 +1,6 @@
 # Tzurot v3 Documentation
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-03-16
 
 This directory contains all project documentation, organized by lifecycle stage for easy navigation.
 
@@ -41,20 +41,15 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 | Subdirectory | Contents                               |
 | ------------ | -------------------------------------- |
-| `active/`    | Currently being worked on (on roadmap) |
 | `backlog/`   | Ideas not yet scheduled                |
-
-**Active proposals:**
-
-- `proposals/active/V2_FEATURE_TRACKING.md` - Feature parity tracking
 
 **Backlog proposals (selected):**
 
 - `proposals/backlog/GIT_HOOK_IMPROVEMENTS.md` - Git hook enhancements (Phase 2 complete)
 - `proposals/backlog/MEMORY_MANAGEMENT_COMMANDS.md` - Memory management (Phase 1-2 complete)
 - `proposals/backlog/multi-personality-support.md` - Multi-personality channels
-- `proposals/backlog/ltm-context-separation.md` - Memory isolation improvements
 - `proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md` - Future architecture
+- `proposals/backlog/chatterbox-tts-evaluation.md` - TTS model evaluation
 
 ### [incidents/](incidents/)
 
@@ -92,8 +87,8 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 **Planning Work:**
 
-1. [Feature Tracking](proposals/active/V2_FEATURE_TRACKING.md)
-2. [OpenMemory Migration](proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
+1. [OpenMemory Migration](proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
+2. [Multi-Personality Support](proposals/backlog/multi-personality-support.md)
 
 ---
 
