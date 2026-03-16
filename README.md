@@ -42,9 +42,9 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
               |  Service   |                                      | (pgvector) |
               +-----+------+                                      +------------+
                     |
-                    +----------+-----------+----------+
-                    |          |           |
-                    v          v           v
+                    +------+----------+------+
+                    |      |          |
+                    v      v          v
               +----------+ +----------+ +----------+
               | Open     | | Eleven   | |  Voice   |
               | Router   | |  Labs    | |  Engine  |
@@ -196,7 +196,7 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 | | `defaults edit` | User default settings dashboard |
 | | `voices browse/delete/clear/model` | ElevenLabs voice management |
 | `/shapes` | `auth` `logout` `browse` `import` `export` `status` | Shapes.inc character migration |
-| `/inspect` | _(browse or identifier)_ | Diagnostic log browser and message inspector |
+| `/inspect` | `browse` or `[identifier]` | Diagnostic log browser and message inspector |
 | `/help` | _(optional command)_ | Show available commands |
 
 **Administration (owner only)**
