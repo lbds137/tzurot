@@ -153,7 +153,7 @@ jobs:
 
       - name: Upload ai-worker coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/ai-worker/coverage/lcov.info
@@ -163,7 +163,7 @@ jobs:
 
       - name: Upload api-gateway coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/api-gateway/coverage/lcov.info
@@ -173,7 +173,7 @@ jobs:
 
       - name: Upload bot-client coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/bot-client/coverage/lcov.info
@@ -183,7 +183,7 @@ jobs:
 
       - name: Upload common-types coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/common-types/coverage/lcov.info
@@ -193,7 +193,7 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/*/junit.xml,./packages/*/junit.xml
@@ -265,7 +265,7 @@ jobs:
 
       - name: Upload integration coverage to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/integration/lcov.info
@@ -309,7 +309,7 @@ jobs:
 
       - name: Upload voice-engine coverage to Codecov
         if: ${{ !cancelled() && steps.filter.outputs.voice-engine == 'true' }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./services/voice-engine/coverage.xml
