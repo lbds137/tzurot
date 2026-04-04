@@ -236,7 +236,9 @@ The answer is 42.`;
     });
 
     it('should extract namespace-prefixed <character_analysis> tags', () => {
-      const content = '<character_analysis>Internal planning.</character_analysis>The response.';
+      // Build dynamically to avoid XML parser confusion with namespace prefix
+      const ns = 'antml';
+      const content = `<${ns}:character_analysis>Internal planning.</${ns}:character_analysis>The response.`;
       const result = extractThinkingBlocks(content);
 
       expect(result.thinkingContent).toBe('Internal planning.');
