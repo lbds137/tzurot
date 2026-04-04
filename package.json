@@ -58,15 +58,15 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@electric-sql/pglite": "^0.4.3",
     "@eslint/js": "^10.0.1",
-    "@prisma/adapter-pg": "^7.4.2",
-    "@prisma/client": "^7.4.2",
+    "@prisma/adapter-pg": "^7.6.0",
+    "@prisma/client": "^7.6.0",
     "@secretlint/secretlint-rule-preset-recommend": "^11.4.1",
     "@types/node": "^25.5.2",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
     "@vitest/coverage-v8": "^4.1.2",
     "dependency-cruiser": "^17.3.10",
-    "dotenv": "^17.3.1",
+    "dotenv": "^17.4.0",
     "eslint": "^10.2.0",
     "eslint-formatter-pretty": "^7.0.0",
     "eslint-plugin-sonarjs": "^4.0.2",
@@ -92,7 +92,7 @@
   },
   "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017",
   "dependencies": {
-    "openai": "^6.27.0",
+    "openai": "^6.33.0",
     "uuid": "^13.0.0"
   },
   "pnpm": {
