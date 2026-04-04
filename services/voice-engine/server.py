@@ -117,6 +117,9 @@ _AUDIO_EXTENSIONS: dict[str, str] = {
     "audio/flac": ".flac",
     "audio/x-wav": ".wav",
     "audio/wave": ".wav",
+    "audio/mp4": ".m4a",
+    "audio/x-m4a": ".m4a",
+    "audio/m4a": ".m4a",
 }
 _DEFAULT_AUDIO_EXT: str = ".wav"
 

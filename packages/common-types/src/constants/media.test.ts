@@ -43,6 +43,7 @@ describe('Media Constants', () => {
         'audio/wave',
         'audio/mp4',
         'audio/x-m4a',
+        'audio/m4a',
       ]);
     });
 
