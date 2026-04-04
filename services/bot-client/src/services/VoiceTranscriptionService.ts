@@ -16,9 +16,9 @@ const logger = createLogger('VoiceTranscriptionService');
 /** Interval for refreshing the typing indicator (Discord expires at ~10s, matches JobTracker.ts) */
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
 
-/** Check if an error is a timeout (AbortSignal.timeout throws DOMException with name 'TimeoutError') */
+/** Check if an error is a timeout. AbortSignal.timeout() throws DOMException with name 'TimeoutError'. */
 function isTimeoutError(error: unknown): boolean {
-  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+  return error instanceof Error && error.name === 'TimeoutError';
 }
 
 /** Attachment info for transcription */

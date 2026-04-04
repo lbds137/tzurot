@@ -302,7 +302,7 @@ describe('GatewayClient', () => {
       await client.transcribe([{ url: 'http://test/audio.ogg', contentType: 'audio/ogg' }]);
 
       const fetchOptions = mockFetch.mock.calls[0][1];
-      expect(fetchOptions.signal).toBeDefined();
+      expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
     });
   });
 

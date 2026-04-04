@@ -929,7 +929,7 @@ describe('TTSStep', () => {
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
     });
 
-    it('returns context unchanged when TTS times out (voice-engine path)', async () => {
+    it('returns context unchanged when TTS times out (voice-engine path, 240s)', async () => {
       // Synthesis never resolves — will be beaten by the timeout
       mockSynthesizeWithChunking.mockImplementation(
         () => new Promise(() => {}) // never resolves
@@ -944,7 +944,25 @@ describe('TTSStep', () => {
 
       expect(result).toBe(ctx);
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      // Text content is preserved
+      expect(result.result?.content).toBe('Hello world');
+    });
+
+    it('returns context unchanged when TTS times out (ElevenLabs path, 150s)', async () => {
+      // ElevenLabs TTS never resolves — will be beaten by the 150s timeout
+      mockEnsureVoiceCloned.mockResolvedValue('el-voice-timeout');
+      mockElevenLabsTTS.mockImplementation(
+        () => new Promise(() => {}) // never resolves
+      );
+
+      const ctx = createElevenLabsContext();
+
+      const promise = step.process(ctx);
+      // Advance past the 150s ElevenLabs synthesis budget
+      await vi.advanceTimersByTimeAsync(150_000);
+      const result = await promise;
+
+      expect(result).toBe(ctx);
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
       expect(result.result?.content).toBe('Hello world');
     });
   });
