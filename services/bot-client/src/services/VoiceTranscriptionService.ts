@@ -16,6 +16,11 @@ const logger = createLogger('VoiceTranscriptionService');
 /** Interval for refreshing the typing indicator (Discord expires at ~10s, matches JobTracker.ts) */
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
 
+/** Check if an error is a timeout (AbortSignal.timeout throws DOMException with name 'TimeoutError') */
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+}
+
 /** Attachment info for transcription */
 interface TranscriptionAttachment {
   url: string;
@@ -254,9 +259,14 @@ export class VoiceTranscriptionService {
       };
     } catch (error) {
       logger.error({ err: error }, '[VoiceTranscriptionService] Error transcribing voice message');
+
+      const userMessage = isTimeoutError(error)
+        ? 'Sorry, transcription is taking too long \u2014 the voice service may be starting up. Please try again in a moment.'
+        : "Sorry, I couldn't transcribe that voice message.";
+
       await message
         .reply({
-          content: "Sorry, I couldn't transcribe that voice message.",
+          content: userMessage,
           allowedMentions: { parse: [], repliedUser: false },
         })
         .catch(replyError => {

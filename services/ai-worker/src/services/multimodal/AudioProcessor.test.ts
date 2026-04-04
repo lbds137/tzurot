@@ -17,7 +17,7 @@ let mockVoiceEngineClient: {
   getHealth: typeof mockGetHealth;
 } | null = null;
 
-const mockWaitForVoiceEngine = vi.fn().mockResolvedValue(true);
+const mockWaitForVoiceEngine = vi.fn().mockResolvedValue({ ready: true, elapsedMs: 0 });
 vi.mock('../voice/voiceEngineWarmup.js', () => ({
   waitForVoiceEngine: (...args: unknown[]) => mockWaitForVoiceEngine(...args),
 }));
@@ -57,7 +57,7 @@ describe('AudioProcessor', () => {
     mockVoiceEngineClient = null;
     mockVoiceEngineTranscribe.mockReset();
     mockGetHealth.mockReset().mockResolvedValue({ asr: true, tts: true });
-    mockWaitForVoiceEngine.mockReset().mockResolvedValue(true);
+    mockWaitForVoiceEngine.mockReset().mockResolvedValue({ ready: true, elapsedMs: 0 });
     mockElevenLabsSTT.mockReset();
   });
 

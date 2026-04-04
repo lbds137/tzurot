@@ -58,7 +58,11 @@ async function transcribeWithVoiceEngine(
   // Wake voice-engine from Railway Serverless sleep before attempting STT.
   // Without this, ECONNREFUSED wastes the first retry attempt (~7s backoff)
   // while the engine cold-starts for ~56s.
-  await waitForVoiceEngine(voiceEngineClient, 'asr');
+  const warmup = await waitForVoiceEngine(voiceEngineClient, 'asr');
+  logger.debug(
+    { warmupElapsedMs: warmup.elapsedMs, ready: warmup.ready },
+    'Voice engine warmup complete for STT'
+  );
 
   try {
     const filename =
