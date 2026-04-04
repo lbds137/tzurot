@@ -24,15 +24,16 @@ import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');
 
-/** TTS timeout — includes voice-engine cold start time on Railway Serverless.
- * Budget: health wait (75s) + voice registration (15s) + synthesis (~45s) + margin (15s).
- * 150s accommodates the full ~56s cold start plus multi-chunk TTS.
- *
- * Intentionally not widened further: 150s is already a long Discord user wait
- * for a non-critical feature. If cold-start fallbacks time out in production,
- * reduce ELEVENLABS_MAX_ATTEMPTS to 1 (recovering ~65s) rather than extending
- * this cap. Monitor elapsedMs in fallback log messages. */
-const TTS_TIMEOUT_MS = 150_000;
+/** TTS synthesis budget (no cold start) — used for ElevenLabs path.
+ * Budget: voice cloning (cached ~1s) + synthesis (60s per attempt × 2) + margin (30s).
+ * ElevenLabs is a cloud service with no cold start, so this is generous. */
+const TTS_SYNTHESIS_BUDGET_MS = 150_000;
+
+/** TTS total budget including cold start — used for voice-engine path.
+ * Budget: cold start warmup (75s) + registration (15s) + multi-chunk synthesis (~120s) + margin (30s).
+ * Text is always delivered regardless — this only affects whether audio is attached.
+ * Wider than the ElevenLabs budget because Railway Serverless cold starts are unavoidable. */
+const TTS_MAX_TOTAL_MS = 240_000;
 
 /** Max ElevenLabs TTS outer retry attempts (1 initial + 1 retry).
  * Each attempt may make 1 extra elevenLabsTTS call if 404 triggers re-clone.
@@ -145,10 +146,13 @@ export class TTSStep implements IPipelineStep {
       // is discarded (ttsAudioKey never written), and the audio expires via Redis TTL.
       let timedOut = false;
       let timeoutId: NodeJS.Timeout | undefined;
-      const ttsPromise =
-        elevenlabsApiKey !== undefined
-          ? this.performElevenLabsTTSWithFallback(text, slug, elevenlabsApiKey, context)
-          : this.performVoiceEngineTTS(text, slug, context);
+      // Select timeout based on path: ElevenLabs has no cold start, voice-engine does
+      const isElevenLabs = elevenlabsApiKey !== undefined;
+      const effectiveTimeout = isElevenLabs ? TTS_SYNTHESIS_BUDGET_MS : TTS_MAX_TOTAL_MS;
+
+      const ttsPromise = isElevenLabs
+        ? this.performElevenLabsTTSWithFallback(text, slug, elevenlabsApiKey, context)
+        : this.performVoiceEngineTTS(text, slug, context);
 
       // Observe dangling completion/rejection after timeout (makes background work visible in logs).
       void ttsPromise.then(
@@ -176,8 +180,8 @@ export class TTSStep implements IPipelineStep {
         new Promise<null>((_, reject) => {
           timeoutId = setTimeout(() => {
             timedOut = true;
-            reject(new TimeoutError(TTS_TIMEOUT_MS, 'TTS processing'));
-          }, TTS_TIMEOUT_MS);
+            reject(new TimeoutError(effectiveTimeout, 'TTS processing'));
+          }, effectiveTimeout);
         }),
       ]);
 
@@ -343,7 +347,11 @@ export class TTSStep implements IPipelineStep {
     // TCP connection triggers Railway to start the container; subsequent polls wait
     // for model readiness. Proceeds even if budget exhausted — synthesis will fail
     // with a clear error if the engine truly isn't available.
-    await waitForVoiceEngine(registrationService.client, 'tts');
+    const warmup = await waitForVoiceEngine(registrationService.client, 'tts');
+    logger.info(
+      { slug, warmupElapsedMs: warmup.elapsedMs, ready: warmup.ready },
+      'Voice engine warmup complete for TTS'
+    );
 
     // Ensure voice is registered
     await registrationService.ensureVoiceRegistered(slug);
