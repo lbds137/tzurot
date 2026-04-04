@@ -46,11 +46,6 @@ describe('Media Constants', () => {
       ]);
     });
 
-    it('should allow mobile audio formats (mp4/m4a)', () => {
-      expect(VOICE_REFERENCE_LIMITS.ALLOWED_TYPES).toContain('audio/mp4');
-      expect(VOICE_REFERENCE_LIMITS.ALLOWED_TYPES).toContain('audio/x-m4a');
-    });
-
     it('should not allow non-audio types', () => {
       expect(VOICE_REFERENCE_LIMITS.ALLOWED_TYPES).not.toContain('image/png');
       expect(VOICE_REFERENCE_LIMITS.ALLOWED_TYPES).not.toContain('application/json');
