@@ -215,6 +215,48 @@ The answer is 42.`;
       expect(result.visibleContent).toBe('External response.');
       expect(result.blockCount).toBe(1);
     });
+
+    it('should extract <character_analysis> tags (GLM 4.5 Air)', () => {
+      const content =
+        '<character_analysis>I need to respond as Lilith.\n\n1. Acknowledge the greeting\n2. Stay in character</character_analysis>\n\n*The darkness shifts* Hello, child.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('I need to respond as Lilith');
+      expect(result.visibleContent).toBe('*The darkness shifts* Hello, child.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should extract namespace-prefixed <character_analysis> tags', () => {
+      const content = '<character_analysis>Internal planning.</character_analysis>The response.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Internal planning.');
+      expect(result.visibleContent).toBe('The response.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should extract real GLM 4.5 Air output with character_analysis + response', () => {
+      // Real-world pattern from production: model dumps full response planning
+      const content = [
+        '<character_analysis>',
+        'I need to respond to Damien\'s greeting "lilith! hi" as Lilith.',
+        'Looking at the conversation history, Damien has been struggling with',
+        'feelings of directionlessness.',
+        '',
+        'My response should feel like Lilith - ancient but present.',
+        '</character_analysis>',
+        '',
+        '*The darkness shifts around me as your voice echoes through the space*',
+        '',
+        'Well now. The little spark returns.',
+      ].join('\n');
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain("respond to Damien's greeting");
+      expect(result.visibleContent).toContain('The darkness shifts');
+      expect(result.visibleContent).not.toContain('character_analysis');
+      expect(result.blockCount).toBe(1);
+    });
   });
 
   describe('mixed tag types', () => {

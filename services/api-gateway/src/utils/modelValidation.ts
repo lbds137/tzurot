@@ -8,13 +8,24 @@
 import type { OpenRouterModelCache } from '../services/OpenRouterModelCache.js';
 
 /**
+ * Models with context windows at or below this threshold use their full context
+ * (no halving). Larger models are capped at 50% to leave room for generation.
+ */
+const SMALL_CONTEXT_THRESHOLD = 65536;
+
+/** Compute the context window cap: full context for small models, 50% for large */
+function computeContextCap(contextLength: number): number {
+  return contextLength <= SMALL_CONTEXT_THRESHOLD ? contextLength : Math.floor(contextLength / 2);
+}
+
+/**
  * Result of model validation.
  * If `error` is set, the request should be rejected with a 400.
  */
 export interface ModelValidationResult {
   /** Error message if validation failed, undefined if OK */
   error?: string;
-  /** Validated context window cap (50% of model's context_length), undefined if model unknown */
+  /** Validated context window cap, undefined if model unknown */
   contextWindowCap?: number;
 }
 
@@ -52,14 +63,14 @@ export async function validateModelAndContextWindow(
     };
   }
 
-  // Enforce contextWindowTokens <= 50% of model's context_length
-  const cap = Math.floor(model.contextLength / 2);
+  const cap = computeContextCap(model.contextLength);
   if (contextWindowTokens !== undefined && contextWindowTokens > cap) {
     const contextK = Math.round(model.contextLength / 1000);
     const capK = Math.round(cap / 1000);
+    const pct = cap === model.contextLength ? '100%' : '50%';
     return {
       error:
-        `contextWindowTokens (${contextWindowTokens}) exceeds 50% of the model's context window. ` +
+        `contextWindowTokens (${contextWindowTokens}) exceeds ${pct} of the model's context window. ` +
         `Model '${modelId}' supports ${contextK}K tokens; maximum allowed is ${capK}K (${cap} tokens).`,
       contextWindowCap: cap,
     };
@@ -95,5 +106,5 @@ export async function enrichWithModelContext(
     return;
   }
   response.modelContextLength = modelInfo.contextLength;
-  response.contextWindowCap = Math.floor(modelInfo.contextLength / 2);
+  response.contextWindowCap = computeContextCap(modelInfo.contextLength);
 }

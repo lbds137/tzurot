@@ -172,6 +172,12 @@ export class VoiceTranscriptionService {
     hasMention: boolean,
     isReply: boolean
   ): Promise<VoiceTranscriptionResult | null> {
+    // Skip transcription of bot's own voice messages (e.g., forwarded TTS)
+    if (message.author.id === message.client.user?.id) {
+      logger.debug('[VoiceTranscriptionService] Skipping transcription of bot own message');
+      return null;
+    }
+
     let typingInterval: NodeJS.Timeout | undefined;
     try {
       // Show typing indicator (if channel supports it)
