@@ -929,7 +929,7 @@ describe('TTSStep', () => {
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
     });
 
-    it('returns context unchanged when TTS times out', async () => {
+    it('returns context unchanged when TTS times out (voice-engine path)', async () => {
       // Synthesis never resolves — will be beaten by the timeout
       mockSynthesizeWithChunking.mockImplementation(
         () => new Promise(() => {}) // never resolves
@@ -938,8 +938,8 @@ describe('TTSStep', () => {
       const ctx = createContext();
 
       const promise = step.process(ctx);
-      // Advance past the 150s timeout
-      await vi.advanceTimersByTimeAsync(150_000);
+      // Advance past the 240s voice-engine timeout (includes cold start budget)
+      await vi.advanceTimersByTimeAsync(240_000);
       const result = await promise;
 
       expect(result).toBe(ctx);

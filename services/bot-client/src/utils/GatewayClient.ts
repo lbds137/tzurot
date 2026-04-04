@@ -167,6 +167,7 @@ export class GatewayClient {
           attachments,
           ...(userId !== undefined && { userId }),
         }),
+        signal: AbortSignal.timeout(TIMEOUTS.STT_GATEWAY),
       });
 
       if (!response.ok) {

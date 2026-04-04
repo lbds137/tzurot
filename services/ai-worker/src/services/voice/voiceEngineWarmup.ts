@@ -27,10 +27,17 @@ export interface WarmupOptions {
   pollIntervalMs?: number;
 }
 
+export interface WarmupResult {
+  /** Whether the requested capability is ready */
+  ready: boolean;
+  /** Time spent waiting for warmup (milliseconds) */
+  elapsedMs: number;
+}
+
 /**
  * Wait for voice-engine to become ready by polling /health.
  * First ping wakes Railway Serverless; subsequent polls wait for model loading (~56s).
- * Returns true if the requested capability is ready, false if budget exhausted.
+ * Returns ready status and elapsed time so callers can adapt timeout budgets.
  *
  * Callers should proceed even on `false` — registration/synthesis will fail with
  * a clear error if the engine truly isn't available.
@@ -39,10 +46,11 @@ export async function waitForVoiceEngine(
   client: VoiceEngineClient,
   capability: 'asr' | 'tts',
   options?: WarmupOptions
-): Promise<boolean> {
+): Promise<WarmupResult> {
   const budgetMs = options?.budgetMs ?? DEFAULT_BUDGET_MS;
   const pollIntervalMs = options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  const deadline = Date.now() + budgetMs;
+  const startTime = Date.now();
+  const deadline = startTime + budgetMs;
   let attempt = 0;
 
   while (Date.now() < deadline) {
@@ -52,7 +60,7 @@ export async function waitForVoiceEngine(
     // is resilient to transient network failures during the full boot window.
     const health = await client.getHealth();
     if (health[capability]) {
-      return true;
+      return { ready: true, elapsedMs: Date.now() - startTime };
     }
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
@@ -69,5 +77,5 @@ export async function waitForVoiceEngine(
     { capability, attempts: attempt, budgetMs },
     `Voice engine ${capability.toUpperCase()} still not ready after health budget`
   );
-  return false;
+  return { ready: false, elapsedMs: Date.now() - startTime };
 }

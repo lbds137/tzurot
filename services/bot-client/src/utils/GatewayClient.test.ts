@@ -286,6 +286,24 @@ describe('GatewayClient', () => {
       const body = JSON.parse(fetchCall[1].body as string);
       expect(body.userId).toBeUndefined();
     });
+
+    it('should include AbortSignal timeout on transcribe requests', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            jobId: 'job-1',
+            status: JobStatus.Completed,
+            result: { content: 'text' },
+          }),
+      });
+
+      await client.transcribe([{ url: 'http://test/audio.ogg', contentType: 'audio/ogg' }]);
+
+      const fetchOptions = mockFetch.mock.calls[0][1];
+      expect(fetchOptions.signal).toBeDefined();
+    });
   });
 
   describe('confirmDelivery()', () => {

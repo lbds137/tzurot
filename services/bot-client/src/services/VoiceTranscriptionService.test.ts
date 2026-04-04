@@ -393,6 +393,35 @@ describe('VoiceTranscriptionService', () => {
       });
     });
 
+    it('should send timeout-specific error when transcription times out', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+
+      // AbortSignal.timeout() throws DOMException with name 'TimeoutError'
+      const timeoutError = new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError'
+      );
+      mockGatewayClient.transcribe.mockRejectedValue(timeoutError);
+
+      const result = await service.transcribe(message, false, false);
+
+      expect(result).toBeNull();
+      expect(message.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('taking too long'),
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
     it('should return null when gateway returns empty response', async () => {
       const message = createMockMessage({
         attachments: [

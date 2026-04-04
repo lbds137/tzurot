@@ -42,7 +42,7 @@ describe('waitForVoiceEngine', () => {
     await vi.runAllTimersAsync();
     const result = await promise;
 
-    expect(result).toBe(true);
+    expect(result).toEqual({ ready: true, elapsedMs: expect.any(Number) });
     expect(client.getHealth).toHaveBeenCalledTimes(1);
   });
 
@@ -59,7 +59,7 @@ describe('waitForVoiceEngine', () => {
     await vi.runAllTimersAsync();
     const result = await promise;
 
-    expect(result).toBe(true);
+    expect(result).toEqual({ ready: true, elapsedMs: expect.any(Number) });
     expect(client.getHealth).toHaveBeenCalledTimes(3);
   });
 
@@ -73,7 +73,7 @@ describe('waitForVoiceEngine', () => {
     await vi.runAllTimersAsync();
     const result = await promise;
 
-    expect(result).toBe(false);
+    expect(result).toEqual({ ready: false, elapsedMs: expect.any(Number) });
     // 9_000 / 3_000 = 3 polls (each followed by 3s sleep)
     expect(client.getHealth).toHaveBeenCalledTimes(3);
   });
@@ -88,7 +88,7 @@ describe('waitForVoiceEngine', () => {
     await vi.runAllTimersAsync();
     const result = await promise;
 
-    expect(result).toBe(false);
+    expect(result).toEqual({ ready: false, elapsedMs: expect.any(Number) });
     // 5_000 / 1_000 = 5 polls
     expect(client.getHealth).toHaveBeenCalledTimes(5);
   });
@@ -106,7 +106,7 @@ describe('waitForVoiceEngine', () => {
     await vi.runAllTimersAsync();
     const result = await promise;
 
-    expect(result).toBe(true);
+    expect(result).toEqual({ ready: true, elapsedMs: expect.any(Number) });
     expect(client.getHealth).toHaveBeenCalledTimes(2);
   });
 
@@ -123,7 +123,7 @@ describe('waitForVoiceEngine', () => {
     await vi.runAllTimersAsync();
     const result = await promise;
 
-    expect(result).toBe(true);
+    expect(result).toEqual({ ready: true, elapsedMs: expect.any(Number) });
     expect(client.getHealth).toHaveBeenCalledTimes(2);
   });
 
@@ -134,7 +134,7 @@ describe('waitForVoiceEngine', () => {
     await vi.runAllTimersAsync();
     const result = await promise;
 
-    expect(result).toBe(false);
+    expect(result).toEqual({ ready: false, elapsedMs: expect.any(Number) });
     // Default: 75_000 / 3_000 = 25 polls
     expect(client.getHealth).toHaveBeenCalledTimes(25);
   });
