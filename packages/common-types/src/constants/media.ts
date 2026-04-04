@@ -68,6 +68,8 @@ export const VOICE_REFERENCE_LIMITS = {
     'audio/flac',
     'audio/x-wav',
     'audio/wave',
+    'audio/mp4',
+    'audio/x-m4a',
   ] as readonly string[],
 } as const;
 

@@ -197,6 +197,25 @@ describe('VoiceTranscriptionService', () => {
   });
 
   describe('transcribe', () => {
+    it('should skip transcription of bot own voice messages', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            duration: 5.2,
+          },
+        ],
+      });
+      // Make the message author the bot itself
+      (message as any).author = { id: 'bot-user-999' };
+
+      const result = await service.transcribe(message, false, false);
+
+      expect(result).toBeNull();
+      expect(mockGatewayClient.transcribe).not.toHaveBeenCalled();
+    });
+
     it('should transcribe voice message and send to Discord', async () => {
       const message = createMockMessage({
         attachments: [
@@ -817,6 +836,7 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     reference,
     channel,
     author: { id: 'test-user-123' },
+    client: { user: { id: 'bot-user-999' } },
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;
 }
