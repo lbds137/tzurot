@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-03-11
-> **Version**: v3.0.0-beta.90
+> **Last Updated**: 2026-04-04
+> **Version**: v3.0.0-beta.91
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -13,7 +13,33 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-_Empty (2026-03-04)._
+### 🐛 GLM 4.5 Air Reasoning/Prompt Tag Leaks
+
+GLM 4.5 Air (`z-ai/glm-4.5-air:free`) leaks internal reasoning and prompt template tags into user-visible messages. Two distinct leak types observed across multiple conversations (2026-03-16 through 2026-03-22):
+
+1. **`<character_analysis>` blocks** — Model's internal chain-of-thought (response planning, conversation history analysis, numbered response strategy) appears verbatim before the actual reply
+2. **`</chat_log>` closing tags** — Model echoes back the prompt template's XML structure
+
+**Root cause**: `<character_analysis>` is not in the `THINKING_PATTERNS` array in `thinkingExtraction.ts` (lines 49-64). The `</chat_log>` orphan closing tag should be caught by `responseArtifacts.ts` line 49 trailing tag pattern but apparently isn't in all cases (may not always be at end of content).
+
+**Investigation starting points**:
+
+- `services/ai-worker/src/utils/thinkingExtraction.ts` — Add `character_analysis` to `THINKING_PATTERNS` and to the namespace normalization allowlist (line 71-76)
+- `services/ai-worker/src/utils/responseArtifacts.ts` — Check why `</chat_log>` escapes the trailing tag cleanup; may need a non-trailing orphan closing tag pattern for prompt template tags
+- `services/ai-worker/src/services/ResponsePostProcessor.ts` — Pipeline orchestration (thinking extraction at step 3, artifacts at step 4)
+- `services/ai-worker/src/services/PromptBuilder.ts` lines 263-265 — Where `<chat_log>` wrapper is defined
+- `docs/reference/REASONING_MODEL_FORMATS.md` — Update after fix
+
+### 🐛 Free Vision Model Sunset (Mistral Small 3.1 24B)
+
+`mistralai/mistral-small-3.1-24b-instruct:free` was sunset on 2026-03-29. This is hardcoded as `VISION_FALLBACK_FREE` in `packages/common-types/src/constants/ai.ts` line 165. Free-tier users and guest mode vision requests are likely failing silently or returning errors.
+
+**Investigation starting points**:
+
+- `packages/common-types/src/constants/ai.ts` line 165 — Update `VISION_FALLBACK_FREE` to a new model (Gemma 3 27B suggested as replacement)
+- `services/ai-worker/src/services/multimodal/VisionProcessor.ts` lines 246-281 — `selectVisionModel()` fallback logic
+- `services/ai-worker/src/jobs/handlers/pipeline/steps/AuthStep.ts` lines 177-183 — Guest mode vision model override
+- Check OpenRouter for current free vision-capable models before choosing replacement
 
 ---
 
@@ -23,6 +49,18 @@ _New items go here. Triage to appropriate section weekly._
 
 - 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. No per-IP rate limiting. Low urgency (Railway private networking limits exposure). ⚠️ IP-based rate limiting would penalize legitimate users at scale (shared IPs, NAT). Needs a smarter approach (token-bucket per route, cache headers, or auth-gated access) if pursued.
 - 🧹 `[CHORE]` **Add `/settings voices model` to settings index.test.ts** — The test only asserts `browse`, `delete`, `clear` for the voices subcommand group but `model` is a real registered subcommand. Pre-existing gap found during doc audit.
+- 🐛 `[FIX]` **Apostrophes and periods break @ mention matching** — Personality names containing `'` or `.` (e.g., "O'Reilly", "Dr. Smith") fail to match because `personalityMentionParser.ts` line 82 strips them as trailing punctuation. The `trailingPunctuationRegex` (`/[.,!?;:)"'*_~|]+$/`) doesn't distinguish between punctuation _within_ a name vs. sentence-ending punctuation. No test coverage for this case. **Start**: `services/bot-client/src/utils/personalityMentionParser.ts` (line 82, extraction logic lines 238-259), `personalityMentionParser.test.ts` (add tests for punctuated names).
+- 🐛 `[FIX]` **Transcription retries don't surface to user** — When STT fails, the user just sees "Sorry, I couldn't transcribe that voice message" with no retry indication. The retry logic exists in `AudioTranscriptionJob.ts` (3 attempts, exponential backoff at lines 72-78) but the issue may be: (a) the error type isn't retryable, (b) the gateway timeout (`wait=true`) expires before retries complete, or (c) the bot-client catch-all in `VoiceTranscriptionService.ts` line 253 masks the retry outcome. **Start**: Check Railway logs for transcription job attempts; verify timeout alignment between gateway wait and worker retry window; check if the "Sorry" message fires on timeout vs. actual failure.
+- 🐛 `[FIX]` **Voice engine slow startup — messages sent without voice** — Voice-enabled messages sometimes arrive without TTS audio because the voice engine (Railway Serverless) doesn't cold-start fast enough. Race condition between message send and TTS completion. **Start**: Check `TTSStep` timeout configuration, Railway Serverless cold start metrics, and whether the pipeline waits for TTS or fires and forgets. `services/ai-worker/src/jobs/handlers/pipeline/steps/TTSStep.ts`.
+- 🐛 `[FIX]` **ElevenLabs API errors surface as "aborted"** — ElevenLabs failures show unhelpful "aborted" error to users instead of a descriptive message. Likely a `DOMException` from `AbortController` timeout or a fetch abort that isn't being caught and wrapped. **Start**: Search for `aborted` in error handling paths; check `services/ai-worker/src/services/voice/ElevenLabsTTSProvider.ts` and `voiceReferenceHelper.ts` timeout/abort handling. Related: PR #731 added retry for transient TTS errors — check if this path was covered.
+- 🐛 `[FIX]` **Forwarded messages with personality tags trigger AI responses** — When a user forwards a message containing an @ mention of a personality, the bot treats it as a new invocation. Should forwarded messages be ignored? Needs a design decision. **Start**: Check `services/bot-client/src/processors/PersonalityMentionProcessor.ts` — does it check `message.reference` or `message.flags` for forwarded status? Discord.js `MessageFlags.IsForwarded` or similar.
+- 🐛 `[FIX]` **Bot transcribes its own forwarded voice messages** — When a Tzurot character's voice message is forwarded, the bot attempts to transcribe it (wasteful, possibly confusing). Should skip transcription for messages authored by the bot itself. **Start**: `services/bot-client/src/services/VoiceTranscriptionService.ts` — check if `message.author.id === client.user.id` guard exists for forwarded messages.
+- 🐛 `[FIX]` **`audio/mp4` not in allowed audio types for voice reference upload** — Character import with mp4 audio fails: `400 - Unsupported audio type: audio/mp4. Allowed: audio/wav, audio/mpeg, audio/ogg, audio/flac, audio/x-wav, audio/wave`. Mp4 is a common container for mobile-recorded audio. **Start**: Find the MIME type allowlist in the voice reference upload endpoint (likely `services/api-gateway/src/routes/` or voice-engine validation). Add `audio/mp4` and possibly `video/mp4` (some devices report mp4 audio as video).
+- ✨ `[FEAT]` **Config cascade extension — server and user-server tiers** — Current cascade is admin → personality → user-personality. Needs server-level and user-server-level tiers so server admins can set defaults. User tiers should mirror main tiers. Character should probably take precedence over server/channel. Significant refactor of the config resolution system. **Start**: `packages/common-types/src/services/LlmConfigResolver.ts` — current cascade logic. Related to Model Configuration Overhaul theme.
+- ✨ `[FEAT]` **Cross-channel history — smarter retrieval with limits** — When including cross-channel context, need to limit messages retrieved per channel and prioritize channels where the character has had conversations. Currently may pull too much from one channel. **Start**: Search for cross-channel history inclusion logic in `services/ai-worker/src/services/` — likely in prompt assembly or context building.
+- 🏗️ `[LIFT]` **Support smaller context windows — don't halve if <64k** — `services/api-gateway/src/utils/modelValidation.ts` line 56 unconditionally halves context window (`Math.floor(model.contextLength / 2)`). For models with small context (e.g., Venice uncensored, <64k tokens), this wastes half the available context. Should use full context for small models. **Start**: `modelValidation.ts` line 56 and line 98 — add a threshold check (e.g., if `contextLength < 65536`, use full context instead of halving).
+- ✨ `[FEAT]` **Inspect command privacy toggle** — `/inspect` leaks character definitions, which may be fine for public bots but character creators need a way to hide their character card details. Add a per-personality toggle to control inspection visibility. **Start**: Find the `/inspect` command implementation in `services/bot-client/src/commands/`, check what data it exposes, add a `inspectable` or `publicProfile` boolean to personality settings.
+- ✨ `[FEAT]` **Character import — optional voice file support** — Character import should accept an optional voice reference audio file alongside the character data. Currently only imports text configuration. Related to Voice Engine Phase 5 (Shapes.inc voice field import). **Start**: Check current import flow in `services/bot-client/src/commands/` for character/shapes import; extend to accept audio attachment; wire through to voice reference creation.
 
 ## 🎯 Current Focus
 
