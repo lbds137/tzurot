@@ -59,7 +59,7 @@ async function transcribeWithVoiceEngine(
   // Without this, ECONNREFUSED wastes the first retry attempt (~7s backoff)
   // while the engine cold-starts for ~56s.
   const warmup = await waitForVoiceEngine(voiceEngineClient, 'asr');
-  logger.debug(
+  logger.info(
     { warmupElapsedMs: warmup.elapsedMs, ready: warmup.ready },
     'Voice engine warmup complete for STT'
   );
