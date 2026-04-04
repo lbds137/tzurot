@@ -414,4 +414,45 @@ describe('stripResponseArtifacts', () => {
       expect(cleaned).not.toContain('</current_turn>');
     });
   });
+
+  describe('<received message> block stripping (GLM 4.5 Air hallucination)', () => {
+    it('should strip leading <received message> block', () => {
+      const content =
+        '<received message>\nFrom: UserName\nHello there!\n</received>\n\n*smiles* Hello!';
+      expect(stripResponseArtifacts(content, 'Lilith')).toBe('*smiles* Hello!');
+    });
+
+    it('should strip plain <received> block', () => {
+      const content = '<received>User said hello</received>\n\nMy response.';
+      expect(stripResponseArtifacts(content, 'Lilith')).toBe('My response.');
+    });
+
+    it('should be case-insensitive', () => {
+      const content = '<RECEIVED MESSAGE>Some content</RECEIVED>\n\nResponse.';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Response.');
+    });
+  });
+
+  describe('prompt template closing tag stripping', () => {
+    it('should strip </chat_log> at end of content', () => {
+      expect(stripResponseArtifacts('Hello there!</chat_log>', 'Emily')).toBe('Hello there!');
+    });
+
+    it('should strip </chat_log> in middle of content', () => {
+      const content = 'Hello</chat_log> there, friend!';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Hello there, friend!');
+    });
+
+    it('should strip other prompt template closing tags', () => {
+      expect(stripResponseArtifacts('Hello!</participants>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</protocol>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</memory_archive>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</contextual_references>', 'Emily')).toBe('Hello!');
+    });
+
+    it('should strip multiple prompt template tags', () => {
+      const content = 'Response</chat_log></participants>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Response');
+    });
+  });
 });

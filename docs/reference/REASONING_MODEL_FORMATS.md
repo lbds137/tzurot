@@ -1,7 +1,7 @@
 # Reasoning Model Formats Reference
 
-> **Last Updated**: 2026-02-06
-> **Version**: v3.0.0-beta.67
+> **Last Updated**: 2026-04-04
+> **Version**: v3.0.0-beta.91
 
 This document explains how different AI models expose their reasoning/thinking process and how Tzurot extracts and displays this content.
 
@@ -101,6 +101,7 @@ The answer is 42.
 | `<thought>` | Legacy fine-tunes (Llama, Mistral) |
 | `<reflection>` | Reflection AI |
 | `<scratchpad>` | Research models |
+| `<character_analysis>` | GLM 4.5 Air (internal chain-of-thought / response planning) |
 
 **Relevant code:**
 

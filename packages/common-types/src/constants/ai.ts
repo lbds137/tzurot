@@ -148,6 +148,9 @@ export const AI_ENDPOINTS = {
   ELEVENLABS_BASE_URL: 'https://api.elevenlabs.io/v1',
 } as const;
 
+/** Primary free multimodal model — shared between vision fallback and guest mode */
+const FREE_MULTIMODAL_MODEL = 'google/gemma-3-27b-it:free';
+
 /**
  * Centralized Model Configuration
  *
@@ -161,8 +164,8 @@ export const MODEL_DEFAULTS = {
   // Specialized models
   /** Vision fallback for BYOK users (paid) — natively multimodal */
   VISION_FALLBACK: 'qwen/qwen3.5-397b-a17b',
-  /** Vision fallback for free tier users (no BYOK) — 128k context, multimodal, less censored */
-  VISION_FALLBACK_FREE: 'mistralai/mistral-small-3.1-24b-instruct:free',
+  /** Vision fallback for free tier users (no BYOK) — 131k context, multimodal */
+  VISION_FALLBACK_FREE: FREE_MULTIMODAL_MODEL,
   /**
    * Local embedding model (not configurable via env)
    * Uses @tzurot/embeddings package with 384-dimensional vectors.
@@ -202,16 +205,15 @@ export const GUEST_MODE = {
    * Default free model for guest users
    * Gemma 3 27B: 131k context window, multimodal, excellent for conversational AI
    */
-  DEFAULT_MODEL: 'google/gemma-3-27b-it:free',
+  DEFAULT_MODEL: FREE_MULTIMODAL_MODEL,
 
   /**
    * Alternative free models (for failover or user choice)
    * Ordered by preference for chat/roleplay use cases.
-   * Verified against OpenRouter /api/v1/models (2026-03-03).
+   * Verified against OpenRouter /api/v1/models (2026-04-04).
    */
   FREE_MODELS: [
-    'google/gemma-3-27b-it:free', // 131k context, multimodal, balanced quality/speed
-    'mistralai/mistral-small-3.1-24b-instruct:free', // 128k context, multimodal
+    FREE_MULTIMODAL_MODEL, // 131k context, multimodal, balanced quality/speed
     'nvidia/nemotron-nano-12b-v2-vl:free', // 128k context, vision+video
   ] as const,
 

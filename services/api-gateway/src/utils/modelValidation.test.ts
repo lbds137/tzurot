@@ -99,6 +99,36 @@ describe('validateModelAndContextWindow', () => {
     expect(result.error).toBeUndefined();
     expect(result.contextWindowCap).toBe(64000);
   });
+
+  it('should use full context for small models (<=65536 tokens)', async () => {
+    const model = createMockModel({ contextLength: 32768 });
+    const cache = createMockModelCache(model);
+    const result = await validateModelAndContextWindow(cache, 'test/small-model', 32768);
+    expect(result.error).toBeUndefined();
+    expect(result.contextWindowCap).toBe(32768);
+  });
+
+  it('should reject contextWindowTokens exceeding full context for small models', async () => {
+    const model = createMockModel({ contextLength: 32768 });
+    const cache = createMockModelCache(model);
+    const result = await validateModelAndContextWindow(cache, 'test/small-model', 40000);
+    expect(result.error).toContain('exceeds 100%');
+    expect(result.contextWindowCap).toBe(32768);
+  });
+
+  it('should use full context at exactly 65536 boundary', async () => {
+    const model = createMockModel({ contextLength: 65536 });
+    const cache = createMockModelCache(model);
+    const result = await validateModelAndContextWindow(cache, 'test/boundary', undefined);
+    expect(result.contextWindowCap).toBe(65536);
+  });
+
+  it('should halve context at 65537 (just above threshold)', async () => {
+    const model = createMockModel({ contextLength: 65537 });
+    const cache = createMockModelCache(model);
+    const result = await validateModelAndContextWindow(cache, 'test/boundary', undefined);
+    expect(result.contextWindowCap).toBe(32768); // Math.floor(65537 / 2)
+  });
 });
 
 describe('enrichWithModelContext', () => {
@@ -151,5 +181,16 @@ describe('enrichWithModelContext', () => {
 
     expect(response.modelContextLength).toBe(131073);
     expect(response.contextWindowCap).toBe(65536); // Math.floor(131073 / 2)
+  });
+
+  it('should use full context for small models', async () => {
+    const model = createMockModel({ contextLength: 32768 });
+    const cache = createMockModelCache(model);
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
+
+    await enrichWithModelContext(response, 'test/small-model', cache);
+
+    expect(response.modelContextLength).toBe(32768);
+    expect(response.contextWindowCap).toBe(32768);
   });
 });

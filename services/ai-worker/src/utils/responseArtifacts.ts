@@ -41,6 +41,13 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
     // Leading hallucinated closing tags: after inner content is stripped, orphaned closing tags
     // like </result> or </function_results> remain at the start. Strip them too.
     /^<\/(?:function_calls|function_results|invoke|results|result|result_text|parameter|content|character|name|tool_calls|tool_results|tool_call|tool_result)>[ \t]*\n?/i,
+    // Leading <received message>...</received> block: GLM 4.5 Air echoes the user's message
+    // in a hallucinated receipt structure before responding
+    /^<received(?:\s+message)?(?:\s[^>]*)?>[\s\S]*?<\/received>\s*/i,
+    // Prompt template orphan closing tags: model echoes closing tags from the system prompt's
+    // XML structure (e.g., </chat_log> from PromptBuilder.ts). Stripped from anywhere in content
+    // since they can appear mid-response, not just trailing.
+    /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references)>/gi,
     // Trailing <reactions>...</reactions> block: LLM mimics conversation history metadata
     // Must be checked before simpler trailing tags since it's multiline
     /\s*<reactions>[\s\S]*?<\/reactions>\s*$/i,

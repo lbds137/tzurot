@@ -11,6 +11,7 @@
  *    - Reflection AI: <reflection>...</reflection>
  *    - Legacy fine-tunes: <thought>...</thought>, <reasoning>...</reasoning>
  *    - Research models: <scratchpad>...</scratchpad>
+ *    - GLM 4.5 Air: <character_analysis>...</character_analysis> (internal CoT)
  *
  * 2. **API-level Reasoning** (response metadata):
  *    - OpenRouter's `reasoning_details` array in response metadata
@@ -61,6 +62,8 @@ const THINKING_PATTERNS = [
   /<reflection>([\s\S]*?)<\/reflection>/gi,
   // Legacy research models
   /<scratchpad>([\s\S]*?)<\/scratchpad>/gi,
+  // GLM 4.5 Air internal chain-of-thought
+  /<character_analysis>([\s\S]*?)<\/character_analysis>/gi,
 ] as const;
 
 /**
@@ -70,7 +73,7 @@ const THINKING_PATTERNS = [
  */
 function normalizeThinkingTagNamespaces(content: string): string {
   return content.replace(
-    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking)\b/gi,
+    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking|character_analysis)\b/gi,
     '<$1$2'
   );
 }
@@ -81,7 +84,7 @@ function normalizeThinkingTagNamespaces(content: string): string {
  * Only used as a fallback when no complete tags are found.
  */
 const UNCLOSED_TAG_PATTERN =
-  /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>([\s\S]*)$/gi;
+  /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>([\s\S]*)$/gi;
 
 /**
  * Pattern to match orphan closing tags with preceding content (no opening tag).
@@ -90,7 +93,7 @@ const UNCLOSED_TAG_PATTERN =
  * Matches: "thinking content here</think>visible response"
  */
 const ORPHAN_CLOSING_TAG_PATTERN =
-  /^([\s\S]*?)<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/i;
+  /^([\s\S]*?)<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/i;
 
 /**
  * Pattern to clean up "chimera artifacts" - short garbage fragments before orphan closing tags.
@@ -98,13 +101,13 @@ const ORPHAN_CLOSING_TAG_PATTERN =
  * Note: Whitespace limited to {0,50} to prevent ReDoS on pathological input.
  */
 const CHIMERA_ARTIFACT_PATTERN =
-  /(?:^|[\r\n])[\s]{0,50}[^\s<.]{0,9}\.[\s]{0,50}<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
+  /(?:^|[\r\n])[\s]{0,50}[^\s<.]{0,9}\.[\s]{0,50}<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/gi;
 
 /**
  * Pattern to remove any remaining orphan closing tags.
  */
 const ORPHAN_CLOSING_TAG_CLEANUP =
-  /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
+  /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/gi;
 
 /**
  * Pattern to clean up OpenAI "Harmony" format tokens that leak from GPT-OSS-120B.
@@ -120,7 +123,7 @@ const MIN_ORPHAN_CONTENT_LENGTH = 20;
 
 /** Opening tag pattern for stripping bare tags without capturing content */
 const OPENING_TAG_PATTERN =
-  /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
+  /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/gi;
 
 /**
  * Extract content from unclosed thinking tags (model truncation fallback).
