@@ -62,6 +62,8 @@ _New items go here. Triage to appropriate section weekly._
 - ✨ `[FEAT]` **Inspect command privacy toggle** — `/inspect` leaks character definitions, which may be fine for public bots but character creators need a way to hide their character card details. Add a per-personality toggle to control inspection visibility. **Start**: Find the `/inspect` command implementation in `services/bot-client/src/commands/`, check what data it exposes, add a `inspectable` or `publicProfile` boolean to personality settings.
 - ✨ `[FEAT]` **Character import — optional voice file support** — Character import should accept an optional voice reference audio file alongside the character data. Currently only imports text configuration. Related to Voice Engine Phase 5 (Shapes.inc voice field import). **Start**: Check current import flow in `services/bot-client/src/commands/` for character/shapes import; extend to accept audio attachment; wire through to voice reference creation.
 - 🏗️ `[LIFT]` **Refactor tag stripping to data-driven architecture** — Adding a new thinking tag (e.g., `character_analysis`) requires updating 7 separate regex patterns across `thinkingExtraction.ts` (THINKING_PATTERNS, namespace normalization, UNCLOSED_TAG_PATTERN, ORPHAN_CLOSING_TAG_PATTERN, CHIMERA_ARTIFACT_PATTERN, ORPHAN_CLOSING_TAG_CLEANUP, OPENING_TAG_PATTERN). Fragile and error-prone. Refactor to a single `KNOWN_THINKING_TAGS` array that all patterns are generated from — adding a new tag should be a one-line change. Good candidate for CPD clone reduction epic. **Start**: `services/ai-worker/src/utils/thinkingExtraction.ts` — all 7 patterns share the same tag name alternation.
+- 🧹 `[CHORE]` **Add `authorId` option to VoiceTranscriptionService test mock factory** — `createMockMessage()` hardcodes `author: { id: 'test-user-123' }`, forcing tests that need a different author (e.g., bot self-transcription skip) to use `(message as any).author` override. Add `authorId` to `MockMessageOptions` for cleaner test setup. **Start**: `services/bot-client/src/services/VoiceTranscriptionService.test.ts` line 767 — `createMockMessage()` function.
+- 🏗️ `[LIFT]` **Dynamic free model selection from OpenRouter** — `FREE_MODELS` array and `VISION_FALLBACK_FREE` are hardcoded constants that go stale when models are sunset (e.g., Mistral Small 3.1 24B died 2026-03-29). Replace with a lookup service that queries `OpenRouterModelCache` for available free models filtered by capabilities (multimodal, vision, context size). The cache already fetches the full model list — we just need a query layer on top. Guest mode fallback, free vision selection, and model autocomplete should all draw from the same live data. **Inspiration**: MCP council project (Python, one directory up in PyCharm Projects) has OpenRouter model fetching with capability filtering. **Start**: `services/api-gateway/src/services/OpenRouterModelCache.ts` — already has `getModelById()`, needs a `getFreeModels(capabilities?)` method. `packages/common-types/src/constants/ai.ts` — `GUEST_MODE.FREE_MODELS` and `MODEL_DEFAULTS.VISION_FALLBACK_FREE` would become fallback-of-last-resort values, not primary sources.
 
 ## 🎯 Current Focus
 
@@ -404,6 +406,28 @@ Import voice configuration from shapes.inc character data.
 - [ ] Create voice states from imported reference audio if available
 
 **Research**: `docs/research/voice-cloning-2026.md`
+
+#### 🐛 Voice Pipeline Resilience (Cold Start + Timeout Architecture)
+
+Users report intermittent failures: TTS silently drops (messages arrive without voice) and STT times out ("Sorry, I couldn't transcribe"). Root cause is Railway Serverless cold starts (~56s) eating into tight timeout budgets. Keeping the engine warm is not an option (cost).
+
+**Findings from 2026-04-04 investigation:**
+
+| Issue                                   | Detail                                                                 |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| STT bot-client fetch has NO timeout     | `VoiceTranscriptionService.ts` line 203 — can hang indefinitely        |
+| TTS 150s budget loses 75s to cold start | Only ~75s left for registration + synthesis                            |
+| Sequential TTS chunking                 | Long messages: N chunks × 180s per chunk, capped by 150s outer timeout |
+| No user feedback during STT wait        | Typing indicator shows but no progress/timeout message                 |
+
+**Approaches (keeping serverless):**
+
+- [ ] Add `AbortSignal.timeout()` to STT bot-client fetch with user-facing timeout message
+- [ ] Adaptive TTS timeout — if warmup completed fast (engine was warm), extend synthesis budget
+- [ ] Parallel TTS chunking — synthesize chunks concurrently instead of sequentially
+- [ ] Better user feedback — "Transcription in progress..." → "Taking longer than expected..." → error
+
+**Start**: `services/bot-client/src/services/VoiceTranscriptionService.ts` (line 203, missing timeout), `services/ai-worker/src/jobs/handlers/pipeline/steps/TTSStep.ts` (line 35, TTS_TIMEOUT_MS), `services/ai-worker/src/services/voice/ttsSynthesizer.ts` (line 221, sequential chunking), `packages/common-types/src/constants/timing.ts` (all timeout constants).
 
 ---
 
