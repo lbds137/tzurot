@@ -226,6 +226,15 @@ The answer is 42.`;
       expect(result.blockCount).toBe(1);
     });
 
+    it('should extract bare <character_analysis> immediately followed by content', () => {
+      const content = '<character_analysis>Internal planning.</character_analysis>The response.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Internal planning.');
+      expect(result.visibleContent).toBe('The response.');
+      expect(result.blockCount).toBe(1);
+    });
+
     it('should extract namespace-prefixed <character_analysis> tags', () => {
       const content = '<character_analysis>Internal planning.</character_analysis>The response.';
       const result = extractThinkingBlocks(content);
