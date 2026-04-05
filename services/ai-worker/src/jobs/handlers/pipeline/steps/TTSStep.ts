@@ -13,7 +13,11 @@
 
 import { createLogger, isVoiceEnabled } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
-import { getVoiceEngineClient } from '../../../../services/voice/VoiceEngineClient.js';
+import {
+  getVoiceEngineClient,
+  isTransientVoiceEngineError,
+  VOICE_ENGINE_RETRY,
+} from '../../../../services/voice/VoiceEngineClient.js';
 import { VoiceRegistrationService } from '../../../../services/voice/VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesizer.js';
 import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
@@ -353,17 +357,30 @@ export class TTSStep implements IPipelineStep {
       'Voice engine warmup complete for TTS'
     );
 
-    // Ensure voice is registered
-    await registrationService.ensureVoiceRegistered(slug);
-
-    // Synthesize (with chunking for long text)
-    const { audioBuffer, contentType } = await synthesizeWithChunking(
-      registrationService.client,
-      text,
-      slug
+    // Register + synthesize with retry for transient errors (ECONNREFUSED, 502/503/504).
+    // Warmup stays outside retry (it has its own polling loop). Registration positive cache
+    // prevents duplicate work on retry; transient errors aren't negatively cached so re-attempt
+    // succeeds once the engine stabilizes. Outer Promise.race (240s) still enforces total budget.
+    const { value: synthesisResult } = await withRetry(
+      async () => {
+        await registrationService.ensureVoiceRegistered(slug);
+        return synthesizeWithChunking(registrationService.client, text, slug);
+      },
+      {
+        maxAttempts: VOICE_ENGINE_RETRY.MAX_ATTEMPTS,
+        initialDelayMs: VOICE_ENGINE_RETRY.INITIAL_DELAY_MS,
+        shouldRetry: isTransientVoiceEngineError,
+        operationName: 'Voice Engine TTS',
+        logger,
+      }
     );
 
-    return this.storeTTSResult(context, audioBuffer, contentType, slug);
+    return this.storeTTSResult(
+      context,
+      synthesisResult.audioBuffer,
+      synthesisResult.contentType,
+      slug
+    );
   }
 
   private async storeTTSResult(
