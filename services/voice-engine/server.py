@@ -613,8 +613,8 @@ async def register_voice(
             # realpath + startswith pattern when inlined in the same scope.
             real_dir = os.path.realpath(voices_dir)
             real_path = os.path.realpath(voice_path)
-            if real_path.startswith(real_dir + os.sep) and os.path.exists(voice_path):
-                os.unlink(voice_path)
+            if real_path.startswith(real_dir + os.sep) and os.path.exists(real_path):
+                os.unlink(real_path)
             raise
 
         del audio_bytes
