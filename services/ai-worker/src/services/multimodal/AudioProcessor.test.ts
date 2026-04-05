@@ -469,7 +469,7 @@ describe('AudioProcessor', () => {
         expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(2);
       });
 
-      it('should return null after all retry attempts fail with transient errors', async () => {
+      it('should throw "No STT provider" after all retry attempts fail with transient errors', async () => {
         const fetchError = new TypeError('fetch failed');
 
         mockVoiceEngineTranscribe.mockRejectedValue(fetchError);
