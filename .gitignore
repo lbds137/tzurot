@@ -86,3 +86,4 @@ services/voice-engine/voices/*
 
 # Dev logs
 railway_dev_logs.md
+voices/
