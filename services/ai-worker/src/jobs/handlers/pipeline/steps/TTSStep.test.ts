@@ -940,8 +940,9 @@ describe('TTSStep', () => {
       expect(result).toBe(ctx);
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
       expect(result.result?.content).toBe('Hello world');
-      // 2 attempts (MAX_ATTEMPTS = 2)
+      // 2 attempts (MAX_ATTEMPTS = 2) — both registration and synthesis retry together
       expect(mockSynthesizeWithChunking).toHaveBeenCalledTimes(2);
+      expect(mockEnsureVoiceRegistered).toHaveBeenCalledTimes(2);
     });
 
     it('does not retry non-transient errors (fast-fail)', async () => {
