@@ -400,7 +400,11 @@ describe('ConfigStep', () => {
         const result = await step.process(context);
 
         expect(result.configOverrides).toEqual(mockOverrides);
-        expect(mockCascade.resolveOverrides).toHaveBeenCalledWith('user-456', 'personality-123');
+        expect(mockCascade.resolveOverrides).toHaveBeenCalledWith(
+          'user-456',
+          'personality-123',
+          'channel-789'
+        );
       });
 
       it('should fall back to hardcoded defaults when cascadeResolver is absent', async () => {
