@@ -19,6 +19,7 @@ import {
   type PrismaClient,
   type LlmConfigSummary,
   type LlmConfigCacheInvalidationService,
+  type ConfigCascadeResolver,
   computeLlmConfigPermissions,
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
@@ -350,7 +351,7 @@ export function createLlmConfigRoutes(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
   modelCache?: OpenRouterModelCache,
-  cascadeResolver?: import('@tzurot/common-types').ConfigCascadeResolver
+  cascadeResolver?: ConfigCascadeResolver
 ): Router {
   const router = Router();
 
