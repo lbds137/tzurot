@@ -296,7 +296,13 @@ function createShutdownHandler(
   server: ReturnType<Express['listen']>,
   services: ServicesContext
 ): () => Promise<void> {
-  const { cacheRedis, cacheInvalidationService, dbNotificationListener } = services;
+  const {
+    cacheRedis,
+    cacheInvalidationService,
+    cascadeInvalidation,
+    cascadeResolver,
+    dbNotificationListener,
+  } = services;
 
   return async (): Promise<void> => {
     logger.info('[Gateway] Shutting down gracefully...');
@@ -312,8 +318,10 @@ function createShutdownHandler(
     logger.info('[Gateway] Database notification listener stopped');
 
     await cacheInvalidationService.unsubscribe();
+    await cascadeInvalidation.unsubscribe();
+    cascadeResolver.stopCleanup();
     cacheRedis.disconnect();
-    logger.info('[Gateway] Cache invalidation service closed');
+    logger.info('[Gateway] Cache invalidation services closed');
 
     await shutdownEmbeddingService();
     logger.info('[Gateway] Embedding service shut down');
