@@ -607,6 +607,10 @@ async def register_voice(
                 )
             _cache_voice(voice_id, voice_state)
         except Exception:
+            # Re-validate path before cleanup (defense-in-depth; voice_path was
+            # already validated by _safe_voice_path at line 580, but CodeQL can't
+            # trace the variable across the try/except boundary — CWE-22 alert #63/#64).
+            _safe_voice_path(voices_dir, os.path.basename(voice_path))
             if os.path.exists(voice_path):
                 os.unlink(voice_path)
             raise
