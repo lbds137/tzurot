@@ -349,7 +349,8 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
 export function createLlmConfigRoutes(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  modelCache?: OpenRouterModelCache
+  modelCache?: OpenRouterModelCache,
+  cascadeResolver?: import('@tzurot/common-types').ConfigCascadeResolver
 ): Router {
   const router = Router();
 
@@ -368,7 +369,11 @@ export function createLlmConfigRoutes(
     requireUserAuth(),
     asyncHandler(createCreateHandler(service, userService, modelCache))
   );
-  router.post('/resolve', requireUserAuth(), asyncHandler(createResolveHandler(prisma)));
+  router.post(
+    '/resolve',
+    requireUserAuth(),
+    asyncHandler(createResolveHandler(prisma, cascadeResolver))
+  );
   router.put(
     '/:id',
     requireUserAuth(),

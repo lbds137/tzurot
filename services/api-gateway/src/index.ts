@@ -25,6 +25,7 @@ import {
   LlmConfigCacheInvalidationService,
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
+  ConfigCascadeResolver,
   ConversationRetentionService,
   type PrismaClient,
 } from '@tzurot/common-types';
@@ -98,6 +99,7 @@ interface ServicesContext {
   llmConfigCacheInvalidation: LlmConfigCacheInvalidationService;
   denylistInvalidation: DenylistCacheInvalidationService;
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
+  cascadeResolver: ConfigCascadeResolver;
   attachmentStorage: AttachmentStorageService;
   modelCache: OpenRouterModelCache;
   dbNotificationListener: DatabaseNotificationListener;
@@ -143,6 +145,23 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   const cascadeInvalidation = new ConfigCascadeCacheInvalidationService(cacheRedis);
   logger.info('[Gateway] Config cascade cache invalidation service initialized');
 
+  // Long-lived cascade resolver with pub/sub invalidation — shared by the
+  // /user/llm-config/resolve endpoint so bot-client gets fresh overrides
+  // immediately after channel/user/personality config changes.
+  const cascadeResolver = new ConfigCascadeResolver(prisma);
+  await cascadeInvalidation.subscribe(event => {
+    if (event.type === 'all' || event.type === 'admin') {
+      cascadeResolver.clearCache();
+    } else if (event.type === 'user') {
+      cascadeResolver.invalidateUserCache(event.discordId);
+    } else if (event.type === 'channel') {
+      cascadeResolver.invalidateChannelCache(event.channelId);
+    } else if (event.type === 'personality') {
+      cascadeResolver.invalidatePersonalityCache(event.personalityId);
+    }
+  });
+  logger.info('[Gateway] ConfigCascadeResolver initialized with cache invalidation');
+
   const attachmentStorage = new AttachmentStorageService({
     gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
   });
@@ -180,6 +199,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     llmConfigCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
+    cascadeResolver,
     attachmentStorage,
     modelCache,
     dbNotificationListener,
@@ -198,6 +218,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     llmConfigCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
+    cascadeResolver,
     attachmentStorage,
     modelCache,
   } = services;
@@ -240,6 +261,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
       redis: cacheRedis,
       modelCache,
       cascadeInvalidation,
+      cascadeResolver,
       aiQueue,
     })
   );
