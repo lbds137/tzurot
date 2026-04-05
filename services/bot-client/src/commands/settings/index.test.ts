@@ -203,7 +203,7 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('edit');
     });
 
-    it('should have voices subcommand group with browse, delete, clear', () => {
+    it('should have voices subcommand group with browse, delete, clear, model', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -218,6 +218,7 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('browse');
       expect(subcommands).toContain('delete');
       expect(subcommands).toContain('clear');
+      expect(subcommands).toContain('model');
     });
 
     it('should have componentPrefixes for user-defaults and voice browse', () => {

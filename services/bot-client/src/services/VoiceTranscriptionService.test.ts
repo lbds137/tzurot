@@ -206,9 +206,8 @@ describe('VoiceTranscriptionService', () => {
             duration: 5.2,
           },
         ],
+        authorId: 'bot-user-999',
       });
-      // Make the message author the bot itself
-      (message as any).author = { id: 'bot-user-999' };
 
       const result = await service.transcribe(message, false, false);
 
@@ -781,6 +780,7 @@ interface MockMessageOptions {
   attachments?: MockAttachment[];
   messageSnapshots?: MockMessageSnapshot[];
   noTypingSupport?: boolean;
+  authorId?: string;
 }
 
 function createMockAttachmentsMap(attachmentsList: MockSnapshotAttachment[] | null): Map<
@@ -864,7 +864,7 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     messageSnapshots,
     reference,
     channel,
-    author: { id: 'test-user-123' },
+    author: { id: options.authorId ?? 'test-user-123' },
     client: { user: { id: 'bot-user-999' } },
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;
