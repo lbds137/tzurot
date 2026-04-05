@@ -20,6 +20,33 @@ import { elevenLabsSTT, ElevenLabsApiError } from '../voice/ElevenLabsClient.js'
 
 const logger = createLogger('AudioProcessor');
 
+/** Retry config for ElevenLabs STT — matches TTS retry budget in TTSStep.ts. */
+const ELEVENLABS_STT_RETRY = {
+  MAX_ATTEMPTS: 2,
+  INITIAL_DELAY_MS: 3_000,
+} as const;
+
+/** Classify transient ElevenLabs errors (429 rate limit, 5xx, network failures).
+ * Auth errors (401/403) fast-fail — no point retrying bad credentials. */
+function isTransientElevenLabsError(error: unknown): boolean {
+  if (error instanceof ElevenLabsApiError) {
+    return error.isTransient;
+  }
+  if (error instanceof TimeoutError) {
+    return true;
+  }
+  if (error instanceof TypeError) {
+    if (error.message === 'fetch failed') {
+      return true;
+    }
+    const causeCode = (error.cause as NodeJS.ErrnoException | undefined)?.code;
+    if (causeCode === 'ECONNREFUSED' || causeCode === 'ECONNRESET' || causeCode === 'ETIMEDOUT') {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Fetch audio from a URL with timeout, returning a Buffer.
  * Shared by both ElevenLabs and voice-engine paths.
@@ -138,12 +165,25 @@ async function transcribeWithElevenLabs(
     const filename =
       attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'audio.ogg';
 
-    const result = await elevenLabsSTT({
-      audioBuffer: Buffer.from(audioBuffer),
-      filename,
-      contentType: attachment.contentType,
-      apiKey,
-    });
+    // Retry transient errors (429 rate limit, 5xx, network failures) before
+    // falling back to voice-engine. BYOK users pay for premium STT quality —
+    // a brief 429 shouldn't silently downgrade to the free tier.
+    const { value: result } = await withRetry(
+      () =>
+        elevenLabsSTT({
+          audioBuffer: Buffer.from(audioBuffer),
+          filename,
+          contentType: attachment.contentType,
+          apiKey,
+        }),
+      {
+        maxAttempts: ELEVENLABS_STT_RETRY.MAX_ATTEMPTS,
+        initialDelayMs: ELEVENLABS_STT_RETRY.INITIAL_DELAY_MS,
+        shouldRetry: isTransientElevenLabsError,
+        operationName: 'ElevenLabs STT',
+        logger,
+      }
+    );
 
     logger.info(
       { transcriptionLength: result.text.length, duration: attachment.duration },
@@ -152,16 +192,17 @@ async function transcribeWithElevenLabs(
 
     return result.text;
   } catch (error) {
-    // Auth errors (401/403) are persistent config issues — log at error level
-    if (error instanceof ElevenLabsApiError && error.isAuthError) {
+    // Unwrap RetryError to classify the root cause (auth vs transient).
+    const originalError = error instanceof RetryError ? error.lastError : error;
+    if (originalError instanceof ElevenLabsApiError && originalError.isAuthError) {
       logger.error(
-        { err: error, fallback: 'voice-engine' },
+        { err: originalError, fallback: 'voice-engine' },
         'ElevenLabs STT auth error — falling back'
       );
     } else {
       logger.warn(
         { err: error, fallback: 'voice-engine' },
-        'ElevenLabs STT failed — trying voice-engine'
+        'ElevenLabs STT failed after retries — trying voice-engine'
       );
     }
     return null;

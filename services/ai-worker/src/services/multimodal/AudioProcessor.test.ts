@@ -542,6 +542,46 @@ describe('AudioProcessor', () => {
         );
       });
 
+      it('should retry ElevenLabs STT on transient error and succeed', async () => {
+        const { ElevenLabsApiError } = await import('../voice/ElevenLabsClient.js');
+        mockElevenLabsSTT
+          .mockRejectedValueOnce(new ElevenLabsApiError(429, 'Rate limited'))
+          .mockResolvedValueOnce({ text: 'Retry succeeded' });
+
+        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+
+        expect(result).toBe('Retry succeeded');
+        expect(mockElevenLabsSTT).toHaveBeenCalledTimes(2);
+        expect(mockVoiceEngineTranscribe).not.toHaveBeenCalled();
+      });
+
+      it('should fall back to voice-engine after ElevenLabs retries exhausted', async () => {
+        const fetchError = new TypeError('fetch failed');
+        mockElevenLabsSTT.mockRejectedValue(fetchError);
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Fallback result' });
+
+        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+
+        expect(result).toBe('Fallback result');
+        // 2 attempts before fallback
+        expect(mockElevenLabsSTT).toHaveBeenCalledTimes(2);
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
+      });
+
+      it('should not retry ElevenLabs STT on auth errors (fast-fail to fallback)', async () => {
+        const { ElevenLabsApiError } = await import('../voice/ElevenLabsClient.js');
+        mockElevenLabsSTT.mockRejectedValue(new ElevenLabsApiError(401, 'Unauthorized'));
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Fallback after auth' });
+
+        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+
+        expect(result).toBe('Fallback after auth');
+        // Only 1 attempt — auth errors fast-fail
+        expect(mockElevenLabsSTT).toHaveBeenCalledTimes(1);
+      });
+
       it('should skip ElevenLabs when no apiKey provided', async () => {
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'voice engine result' });
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
