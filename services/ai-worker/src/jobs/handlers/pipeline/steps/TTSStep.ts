@@ -360,7 +360,10 @@ export class TTSStep implements IPipelineStep {
     // Register + synthesize with retry for transient errors (ECONNREFUSED, 502/503/504).
     // Warmup stays outside retry (it has its own polling loop). Registration positive cache
     // prevents duplicate work on retry; transient errors aren't negatively cached so re-attempt
-    // succeeds once the engine stabilizes. Outer Promise.race (240s) still enforces total budget.
+    // succeeds once the engine stabilizes.
+    // No globalTimeoutMs — intentionally omitted (unlike ElevenLabs retry which uses 90s).
+    // The outer Promise.race (TTS_MAX_TOTAL_MS = 240s) already enforces the total budget,
+    // and with maxAttempts=2 + 3s delay the worst-case retry overhead is ~6s.
     const { value: synthesisResult } = await withRetry(
       async () => {
         await registrationService.ensureVoiceRegistered(slug);
