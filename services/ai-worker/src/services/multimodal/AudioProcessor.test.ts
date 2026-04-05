@@ -438,6 +438,57 @@ describe('AudioProcessor', () => {
       });
     });
 
+    describe('voice-engine retry on transient errors', () => {
+      const retryAttachment: AttachmentMetadata = {
+        url: 'https://example.com/audio.ogg',
+        name: 'audio.ogg',
+        contentType: CONTENT_TYPES.AUDIO_OGG,
+        size: 1024,
+      };
+
+      beforeEach(() => {
+        (global.fetch as any).mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
+        });
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+      });
+
+      it('should retry on ECONNREFUSED and succeed on second attempt', async () => {
+        const econnrefusedCause = new Error('connect ECONNREFUSED') as NodeJS.ErrnoException;
+        econnrefusedCause.code = 'ECONNREFUSED';
+        const fetchError = new TypeError('fetch failed', { cause: econnrefusedCause });
+
+        mockVoiceEngineTranscribe
+          .mockRejectedValueOnce(fetchError)
+          .mockResolvedValueOnce({ text: 'Transcribed after retry' });
+
+        const result = await transcribeAudio(retryAttachment);
+
+        expect(result).toBe('Transcribed after retry');
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(2);
+      });
+
+      it('should return null after all retry attempts fail with transient errors', async () => {
+        const fetchError = new TypeError('fetch failed');
+
+        mockVoiceEngineTranscribe.mockRejectedValue(fetchError);
+
+        await expect(transcribeAudio(retryAttachment)).rejects.toThrow('No STT provider available');
+        // 2 attempts (MAX_ATTEMPTS = 2)
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(2);
+      });
+
+      it('should not retry on non-transient errors (fast-fail)', async () => {
+        const { VoiceEngineError } = await import('../voice/VoiceEngineClient.js');
+        mockVoiceEngineTranscribe.mockRejectedValue(new VoiceEngineError(401, 'Unauthorized'));
+
+        await expect(transcribeAudio(retryAttachment)).rejects.toThrow('No STT provider available');
+        // Only 1 attempt — shouldRetry returned false for 401
+        expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(1);
+      });
+    });
+
     describe('ElevenLabs STT integration', () => {
       const audioAttachment: AttachmentMetadata = {
         url: 'https://example.com/audio.ogg',

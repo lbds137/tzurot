@@ -5,8 +5,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   VoiceEngineClient,
+  VoiceEngineError,
   getVoiceEngineClient,
   resetVoiceEngineClient,
+  isTransientVoiceEngineError,
 } from './VoiceEngineClient.js';
 import * as commonTypes from '@tzurot/common-types';
 import type { EnvConfig } from '@tzurot/common-types';
@@ -450,5 +452,72 @@ describe('getVoiceEngineClient', () => {
     const first = getVoiceEngineClient();
     const second = getVoiceEngineClient();
     expect(first).toBe(second);
+  });
+});
+
+describe('isTransientVoiceEngineError', () => {
+  it('should return true for TimeoutError', () => {
+    expect(isTransientVoiceEngineError(new TimeoutError(5000, 'test'))).toBe(true);
+  });
+
+  it('should return true for VoiceEngineError 502', () => {
+    expect(isTransientVoiceEngineError(new VoiceEngineError(502, 'Bad Gateway'))).toBe(true);
+  });
+
+  it('should return true for VoiceEngineError 503', () => {
+    expect(isTransientVoiceEngineError(new VoiceEngineError(503, 'Service Unavailable'))).toBe(
+      true
+    );
+  });
+
+  it('should return true for VoiceEngineError 504', () => {
+    expect(isTransientVoiceEngineError(new VoiceEngineError(504, 'Gateway Timeout'))).toBe(true);
+  });
+
+  it('should return false for VoiceEngineError 400', () => {
+    expect(isTransientVoiceEngineError(new VoiceEngineError(400, 'Bad Request'))).toBe(false);
+  });
+
+  it('should return false for VoiceEngineError 401', () => {
+    expect(isTransientVoiceEngineError(new VoiceEngineError(401, 'Unauthorized'))).toBe(false);
+  });
+
+  it('should return false for VoiceEngineError 404', () => {
+    expect(isTransientVoiceEngineError(new VoiceEngineError(404, 'Not Found'))).toBe(false);
+  });
+
+  it('should return true for TypeError("fetch failed")', () => {
+    expect(isTransientVoiceEngineError(new TypeError('fetch failed'))).toBe(true);
+  });
+
+  it('should return true for TypeError with ECONNREFUSED cause', () => {
+    const cause = new Error('connect ECONNREFUSED') as NodeJS.ErrnoException;
+    cause.code = 'ECONNREFUSED';
+    const error = new TypeError('other message', { cause });
+    expect(isTransientVoiceEngineError(error)).toBe(true);
+  });
+
+  it('should return true for TypeError with ECONNRESET cause', () => {
+    const cause = new Error('connection reset') as NodeJS.ErrnoException;
+    cause.code = 'ECONNRESET';
+    const error = new TypeError('other message', { cause });
+    expect(isTransientVoiceEngineError(error)).toBe(true);
+  });
+
+  it('should return true for TypeError with ETIMEDOUT cause', () => {
+    const cause = new Error('connection timed out') as NodeJS.ErrnoException;
+    cause.code = 'ETIMEDOUT';
+    const error = new TypeError('other message', { cause });
+    expect(isTransientVoiceEngineError(error)).toBe(true);
+  });
+
+  it('should return false for generic Error', () => {
+    expect(isTransientVoiceEngineError(new Error('something went wrong'))).toBe(false);
+  });
+
+  it('should return false for non-error values', () => {
+    expect(isTransientVoiceEngineError(null)).toBe(false);
+    expect(isTransientVoiceEngineError(undefined)).toBe(false);
+    expect(isTransientVoiceEngineError('string error')).toBe(false);
   });
 });
