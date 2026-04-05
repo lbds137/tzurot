@@ -211,6 +211,52 @@ export class VoiceEngineClient {
 }
 
 // ---------------------------------------------------------------------------
+// Transient error classification — used by callers to decide retry eligibility
+// ---------------------------------------------------------------------------
+
+/** Retry configuration for voice-engine operations (shared by TTS + STT callers). */
+export const VOICE_ENGINE_RETRY = {
+  /** 1 initial + 1 retry — matches ElevenLabs retry budget */
+  MAX_ATTEMPTS: 2,
+  /** Delay before retry — matches warmup poll interval so engine has time to stabilize */
+  INITIAL_DELAY_MS: 3_000,
+} as const;
+
+/** Classify errors as transient (worth retrying) for voice-engine operations.
+ * Covers: ECONNREFUSED/ECONNRESET/ETIMEDOUT (cold start), 502/503/504 (Railway LB),
+ * and TimeoutError (slow response during model loading).
+ *
+ * Mirrors `isTransientElevenLabsError` in TTSStep.ts — same structure, different
+ * error types because VoiceEngineClient uses VoiceEngineError instead of ElevenLabsApiError. */
+export function isTransientVoiceEngineError(error: unknown): boolean {
+  // Typed sentinel — AbortController timeout or withTimeout wrapper
+  if (error instanceof TimeoutError) {
+    return true;
+  }
+  // HTTP-level transient errors from voice-engine responses:
+  // - 502: Railway load balancer is up but the app hasn't bound its port yet
+  // - 503: Voice engine HTTP server is up but models haven't finished loading
+  // - 504: Railway load balancer timeout during slow boot
+  if (error instanceof VoiceEngineError) {
+    return error.status === 502 || error.status === 503 || error.status === 504;
+  }
+  // Network-level connection failures: Node undici throws TypeError("fetch failed")
+  // with a cause carrying a POSIX error code (ECONNREFUSED, ECONNRESET, ETIMEDOUT).
+  // Check both the known message string and the cause code for robustness across
+  // Node versions — the message is an undici implementation detail that may change.
+  if (error instanceof TypeError) {
+    if (error.message === 'fetch failed') {
+      return true;
+    }
+    const causeCode = (error.cause as NodeJS.ErrnoException | undefined)?.code;
+    if (causeCode === 'ECONNREFUSED' || causeCode === 'ECONNRESET' || causeCode === 'ETIMEDOUT') {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Lazy singleton — created from config on first access
 // ---------------------------------------------------------------------------
 let _instance: VoiceEngineClient | null = null;

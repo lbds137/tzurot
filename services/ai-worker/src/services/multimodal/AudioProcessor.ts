@@ -8,8 +8,13 @@
  */
 
 import { createLogger, TIMEOUTS, type AttachmentMetadata } from '@tzurot/common-types';
-import { TimeoutError } from '../../utils/retry.js';
-import { VoiceEngineError, getVoiceEngineClient } from '../voice/VoiceEngineClient.js';
+import { withRetry, RetryError, TimeoutError } from '../../utils/retry.js';
+import {
+  VoiceEngineError,
+  getVoiceEngineClient,
+  isTransientVoiceEngineError,
+  VOICE_ENGINE_RETRY,
+} from '../voice/VoiceEngineClient.js';
 import { waitForVoiceEngine } from '../voice/voiceEngineWarmup.js';
 import { elevenLabsSTT, ElevenLabsApiError } from '../voice/ElevenLabsClient.js';
 
@@ -68,10 +73,19 @@ async function transcribeWithVoiceEngine(
     const filename =
       attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'audio.ogg';
 
-    const result = await voiceEngineClient.transcribe(
-      Buffer.from(audioBuffer),
-      filename,
-      attachment.contentType
+    // Retry transient errors (ECONNREFUSED, 502/503/504) — the engine may still be
+    // stabilizing after warmup polling returned. Auth errors and other permanent
+    // failures fast-fail via shouldRetry returning false.
+    const { value: result } = await withRetry(
+      () =>
+        voiceEngineClient.transcribe(Buffer.from(audioBuffer), filename, attachment.contentType),
+      {
+        maxAttempts: VOICE_ENGINE_RETRY.MAX_ATTEMPTS,
+        initialDelayMs: VOICE_ENGINE_RETRY.INITIAL_DELAY_MS,
+        shouldRetry: isTransientVoiceEngineError,
+        operationName: 'Voice Engine STT',
+        logger,
+      }
     );
 
     if (result.text.length === 0) {
@@ -92,10 +106,16 @@ async function transcribeWithVoiceEngine(
     // Empty string is a valid result (silent/inaudible audio)
     return result.text;
   } catch (error) {
-    if (error instanceof VoiceEngineError && error.isAuthError) {
-      logger.error({ err: error }, 'Voice engine auth error — check VOICE_ENGINE_API_KEY config');
+    // Unwrap RetryError to get the original error for classification.
+    // Pino won't auto-unwrap RetryError.lastError, so log the original directly.
+    const originalError = error instanceof RetryError ? error.lastError : error;
+    if (originalError instanceof VoiceEngineError && originalError.isAuthError) {
+      logger.error(
+        { err: originalError },
+        'Voice engine auth error — check VOICE_ENGINE_API_KEY config'
+      );
     } else {
-      logger.warn({ err: error }, 'Voice engine transcription failed');
+      logger.warn({ err: error }, 'Voice engine transcription failed after retries');
     }
     return null;
   }

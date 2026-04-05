@@ -46,9 +46,16 @@ vi.mock('../../../../services/voice/VoiceRegistrationService.js', () => ({
 }));
 
 const mockGetVoiceEngineClient = vi.fn();
-vi.mock('../../../../services/voice/VoiceEngineClient.js', () => ({
-  getVoiceEngineClient: (...args: unknown[]) => mockGetVoiceEngineClient(...args),
-}));
+// Use importOriginal to preserve real exports (isTransientVoiceEngineError, VOICE_ENGINE_RETRY,
+// VoiceEngineError) — only getVoiceEngineClient needs to be mocked for singleton control.
+vi.mock('../../../../services/voice/VoiceEngineClient.js', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('../../../../services/voice/VoiceEngineClient.js')>();
+  return {
+    ...actual,
+    getVoiceEngineClient: (...args: unknown[]) => mockGetVoiceEngineClient(...args),
+  };
+});
 
 const mockSynthesizeWithChunking = vi.fn();
 vi.mock('../../../../services/voice/ttsSynthesizer.js', () => ({
@@ -890,6 +897,69 @@ describe('TTSStep', () => {
       expect(mockSynthesizeWithChunking).toHaveBeenCalled();
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
       expect(result.result?.content).toBe('Hello world');
+    });
+  });
+
+  describe('voice-engine retry on transient errors', () => {
+    it('retries on ECONNREFUSED and succeeds on second attempt', async () => {
+      const econnrefusedCause = new Error('connect ECONNREFUSED') as NodeJS.ErrnoException;
+      econnrefusedCause.code = 'ECONNREFUSED';
+      const fetchError = new TypeError('fetch failed', { cause: econnrefusedCause });
+
+      mockSynthesizeWithChunking.mockRejectedValueOnce(fetchError).mockResolvedValueOnce({
+        audioBuffer: Buffer.from('retry-audio'),
+        contentType: 'audio/wav',
+      });
+      mockStoreTTSAudio.mockResolvedValue('tts:retry-job');
+
+      const ctx = createContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
+      // First call fails, second succeeds
+      expect(mockSynthesizeWithChunking).toHaveBeenCalledTimes(2);
+      // Registration called twice (once per retry attempt — cache prevents duplicate work)
+      expect(mockEnsureVoiceRegistered).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up after max retry attempts and degrades gracefully', async () => {
+      const fetchError = new TypeError('fetch failed');
+
+      mockSynthesizeWithChunking.mockRejectedValue(fetchError);
+
+      const ctx = createContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Graceful degradation — text still delivered
+      expect(result).toBe(ctx);
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+      expect(result.result?.content).toBe('Hello world');
+      // 2 attempts (MAX_ATTEMPTS = 2)
+      expect(mockSynthesizeWithChunking).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry non-transient errors (fast-fail)', async () => {
+      // VoiceEngineError 401 is not transient — should fast-fail
+      const { VoiceEngineError } = await import('../../../../services/voice/VoiceEngineClient.js');
+      mockEnsureVoiceRegistered.mockRejectedValue(new VoiceEngineError(401, 'Unauthorized'));
+
+      const ctx = createContext();
+
+      const promise = step.process(ctx);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // Graceful degradation
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+      // Only 1 attempt — shouldRetry returned false
+      expect(mockEnsureVoiceRegistered).toHaveBeenCalledTimes(1);
+      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
     });
   });
 
