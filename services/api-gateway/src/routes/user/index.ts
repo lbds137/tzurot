@@ -59,6 +59,7 @@ import type {
   LlmConfigCacheInvalidationService,
   CacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
+  ConfigCascadeResolver,
 } from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createTimezoneRoutes } from './timezone.js';
@@ -85,6 +86,7 @@ interface UserRouterOptions {
   redis?: Redis;
   modelCache?: OpenRouterModelCache;
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService;
+  cascadeResolver?: ConfigCascadeResolver;
   aiQueue?: Queue;
 }
 
@@ -99,6 +101,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
     redis,
     modelCache,
     cascadeInvalidation,
+    cascadeResolver,
     aiQueue,
   } = opts;
   const router = Router();
@@ -113,7 +116,10 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/personality', createPersonalityRoutes(prisma, cacheInvalidationService));
 
   // LLM config routes (with cache invalidation for user config changes)
-  router.use('/llm-config', createLlmConfigRoutes(prisma, llmConfigCacheInvalidation, modelCache));
+  router.use(
+    '/llm-config',
+    createLlmConfigRoutes(prisma, llmConfigCacheInvalidation, modelCache, cascadeResolver)
+  );
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));

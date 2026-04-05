@@ -47,10 +47,17 @@ export const resolveConfigBodySchema = z.object({
   channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, 'Invalid channelId format').optional(),
 });
 
-export function createResolveHandler(prisma: PrismaClient) {
-  // Create resolvers with cleanup disabled (short-lived request handler)
+export function createResolveHandler(
+  prisma: PrismaClient,
+  injectedCascadeResolver?: ConfigCascadeResolver
+) {
+  // LlmConfigResolver is request-scoped (no cross-request caching needed for model resolution).
+  // ConfigCascadeResolver should be the long-lived, pub/sub-subscribed instance from index.ts
+  // so channel/user/personality config changes are reflected immediately (not after 30s TTL).
+  // Falls back to a local instance if not injected (e.g., in tests).
   const resolver = new LlmConfigResolver(prisma, { enableCleanup: false });
-  const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
+  const cascadeResolver =
+    injectedCascadeResolver ?? new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
