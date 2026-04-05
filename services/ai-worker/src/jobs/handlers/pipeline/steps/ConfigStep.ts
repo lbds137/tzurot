@@ -113,7 +113,8 @@ export class ConfigStep implements IPipelineStep {
       try {
         configOverrides = await this.cascadeResolver.resolveOverrides(
           jobContext.userId,
-          personality.id
+          personality.id,
+          jobContext.channelId
         );
       } catch (error) {
         logger.warn(
