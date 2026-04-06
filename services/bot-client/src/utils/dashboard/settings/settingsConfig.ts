@@ -140,7 +140,7 @@ export const DISPLAY_SETTINGS: SettingDefinition[] = [
  * Voice transcription setting — admin tier only.
  * voiceTranscriptionEnabled is only read in VoiceMessageProcessor.ts at the admin level.
  */
-export const VOICE_TRANSCRIPTION_SETTING: SettingDefinition = {
+const VOICE_TRANSCRIPTION_SETTING: SettingDefinition = {
   id: 'voiceTranscriptionEnabled',
   label: 'Voice Transcription',
   emoji: '🎙️',
@@ -155,7 +155,7 @@ export const VOICE_TRANSCRIPTION_SETTING: SettingDefinition = {
  * Voice response mode setting — available at all cascade tiers.
  * voiceResponseMode is read through the full cascade in TTSStep.
  */
-export const VOICE_RESPONSE_MODE_SETTING: SettingDefinition = {
+const VOICE_RESPONSE_MODE_SETTING: SettingDefinition = {
   id: 'voiceResponseMode',
   label: 'Voice Response Mode',
   emoji: '🔊',

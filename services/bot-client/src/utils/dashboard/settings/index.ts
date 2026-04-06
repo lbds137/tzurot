@@ -25,7 +25,6 @@ export {
   DISPLAY_SETTINGS,
   VOICE_SETTINGS,
   VOICE_CASCADE_SETTINGS,
-  ALL_SETTINGS,
 } from './settingsConfig.js';
 
 // Shared update logic

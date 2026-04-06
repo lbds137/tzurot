@@ -81,7 +81,7 @@ export async function canUserEditPersonality(
  *
  * Extracted from personality route handlers to reduce duplication.
  */
-export async function findInternalUser(
+async function findInternalUser(
   prisma: PrismaClient,
   discordUserId: string
 ): Promise<{ id: string } | null> {

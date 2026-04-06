@@ -95,7 +95,7 @@ export function buildAttachmentDescriptions(
  * @param attachments Preprocessed extended context attachments
  * @returns Map of Discord message ID to array of image descriptions
  */
-export function buildImageDescriptionMap(
+function buildImageDescriptionMap(
   attachments: ProcessedAttachment[] | undefined
 ): Map<string, InlineImageDescription[]> {
   const map = new Map<string, InlineImageDescription[]>();
