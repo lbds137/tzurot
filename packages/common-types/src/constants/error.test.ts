@@ -12,6 +12,7 @@ import {
   classifyHttpStatus,
   isPermanentError,
   isTransientError,
+  isTransientNetworkError,
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
   stripErrorSpoiler,
@@ -349,5 +350,76 @@ describe('stripErrorSpoiler', () => {
   it('should strip spoiler with technicalMessage', () => {
     const input = 'Oops! ||*(error: quota exceeded — "402 Payment Required"; ref: abc123)*||';
     expect(stripErrorSpoiler(input)).toBe('Oops!');
+  });
+});
+
+describe('isTransientNetworkError', () => {
+  it('should return true for TypeError("fetch failed")', () => {
+    expect(isTransientNetworkError(new TypeError('fetch failed'))).toBe(true);
+  });
+
+  it('should return true for error with ECONNREFUSED code', () => {
+    const error = new Error('connect ECONNREFUSED') as NodeJS.ErrnoException;
+    error.code = 'ECONNREFUSED';
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it('should return true for error with ECONNRESET code', () => {
+    const error = new Error('Connection reset') as NodeJS.ErrnoException;
+    error.code = 'ECONNRESET';
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it('should return true for error with ETIMEDOUT code', () => {
+    const error = new Error('Connection timed out') as NodeJS.ErrnoException;
+    error.code = 'ETIMEDOUT';
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it('should return true for error with ENOTFOUND code', () => {
+    const error = new Error('DNS lookup failed') as NodeJS.ErrnoException;
+    error.code = 'ENOTFOUND';
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it('should return true for TypeError with ECONNREFUSED in cause chain', () => {
+    const cause = new Error('connect ECONNREFUSED') as NodeJS.ErrnoException;
+    cause.code = 'ECONNREFUSED';
+    const error = new TypeError('fetch failed', { cause });
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it('should recurse through cause chain', () => {
+    const innerCause = new Error('connect ECONNRESET') as NodeJS.ErrnoException;
+    innerCause.code = 'ECONNRESET';
+    const outerCause = new Error('wrapped', { cause: innerCause });
+    const error = new Error('outer', { cause: outerCause });
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it('should return false for non-Error values', () => {
+    expect(isTransientNetworkError(null)).toBe(false);
+    expect(isTransientNetworkError(undefined)).toBe(false);
+    expect(isTransientNetworkError('string error')).toBe(false);
+    expect(isTransientNetworkError(42)).toBe(false);
+  });
+
+  it('should return false for generic errors', () => {
+    expect(isTransientNetworkError(new Error('something went wrong'))).toBe(false);
+  });
+
+  it('should return false for TypeError with non-network message', () => {
+    expect(isTransientNetworkError(new TypeError('Cannot read properties of null'))).toBe(false);
+  });
+
+  it('should handle TypeError with plain object cause containing POSIX code', () => {
+    // Node undici sometimes wraps POSIX errors as plain objects in the cause chain
+    const error = new TypeError('some error', { cause: { code: 'ECONNREFUSED' } });
+    expect(isTransientNetworkError(error)).toBe(true);
+  });
+
+  it('should return false for plain object with non-network code', () => {
+    const error = new TypeError('error', { cause: { code: 'ENOENT' } });
+    expect(isTransientNetworkError(error)).toBe(false);
   });
 });

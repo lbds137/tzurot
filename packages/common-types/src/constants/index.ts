@@ -58,6 +58,8 @@ export {
 // Error constants
 export {
   TransientErrorCode,
+  TRANSIENT_NETWORK_CODES,
+  isTransientNetworkError,
   ERROR_MESSAGES,
   MAX_ERROR_MESSAGE_LENGTH,
   ApiErrorType,

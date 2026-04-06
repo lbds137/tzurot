@@ -7,7 +7,7 @@
  * status in-memory (TTLCache, 30 min) to avoid redundant registration calls.
  */
 
-import { createLogger, TTLCache } from '@tzurot/common-types';
+import { createLogger, TTLCache, isTransientNetworkError } from '@tzurot/common-types';
 import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
 import { fetchVoiceReference } from './voiceReferenceHelper.js';
@@ -20,17 +20,6 @@ const REGISTRATION_CACHE_TTL_MS = 30 * 60 * 1000;
  * when a personality has a misconfigured voice reference (404, bad audio, etc.) */
 const NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 
-/**
- * Connection error codes that indicate the voice engine is unreachable (cold start,
- * sleeping, network issue). These are transient — NOT negatively cached, so the next
- * TTS request retries immediately instead of waiting 5 minutes.
- */
-const CONNECTION_ERROR_CODES = new Set([
-  'ECONNREFUSED',
-  'ECONNRESET',
-  'ENOTFOUND',
-  'UND_ERR_CONNECT_TIMEOUT',
-]);
 /** Max number of cached registration statuses */
 const REGISTRATION_CACHE_MAX_SIZE = 200;
 
@@ -87,7 +76,7 @@ export class VoiceRegistrationService {
 
         // Transient errors (connection failures, 502/503) indicate cold start or
         // sleeping service — don't negatively cache so the next request retries immediately.
-        if (isConnectionError(error) || isTransientServiceError(error)) {
+        if (isTransientNetworkError(error) || isTransientServiceError(error)) {
           logger.warn({ slug, reason }, 'Voice registration failed (transient error — not cached)');
         } else {
           this.negativeCache.set(slug, reason);
@@ -143,27 +132,4 @@ function isTransientServiceError(error: unknown): boolean {
     return false;
   }
   return error.status === 502 || error.status === 503 || error.status === 504;
-}
-
-/**
- * Check if an error is a transient connection failure (ECONNREFUSED, etc.).
- * These errors indicate the service is unreachable (e.g., Railway Serverless cold start)
- * and should NOT be negatively cached — the next request should retry immediately.
- */
-function isConnectionError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  // Node.js network errors have a `code` property (e.g., ECONNREFUSED)
-  const code = (error as NodeJS.ErrnoException).code;
-  if (code !== undefined && CONNECTION_ERROR_CODES.has(code)) {
-    return true;
-  }
-  // fetch() wraps connection errors — check the cause chain
-  if (error.cause !== undefined) {
-    return isConnectionError(error.cause);
-  }
-  // undici/node-fetch sometimes puts the code in the message.
-  // Exact match on 'fetch failed' avoids false positives from unrelated error messages.
-  return error.message.includes('ECONNREFUSED') || error.message === 'fetch failed';
 }

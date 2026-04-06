@@ -5,27 +5,23 @@
  * a consistent API response shape.
  */
 
-import { Prisma, PERSONALITY_DETAIL_SELECT } from '@tzurot/common-types';
+import {
+  Prisma,
+  PERSONALITY_DETAIL_SELECT,
+  type PersonalityCharacterFields,
+} from '@tzurot/common-types';
 
 type PersonalityFromDb = Prisma.PersonalityGetPayload<{
   select: typeof PERSONALITY_DETAIL_SELECT;
 }>;
 
-export interface PersonalityResponse {
+export interface PersonalityResponse extends PersonalityCharacterFields {
   id: string;
   name: string;
   displayName: string | null;
   slug: string;
   characterInfo: string;
   personalityTraits: string;
-  personalityTone: string | null;
-  personalityAge: string | null;
-  personalityAppearance: string | null;
-  personalityLikes: string | null;
-  personalityDislikes: string | null;
-  conversationalGoals: string | null;
-  conversationalExamples: string | null;
-  errorMessage: string | null;
   birthMonth: number | null;
   birthDay: number | null;
   birthYear: number | null;

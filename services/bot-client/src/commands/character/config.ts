@@ -5,7 +5,11 @@
  * Organizes fields into logical sections that fit Discord's 5-field modal limit.
  */
 
-import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
+import {
+  DISCORD_COLORS,
+  formatDateShort,
+  type PersonalityCharacterFields,
+} from '@tzurot/common-types';
 import {
   type DashboardConfig,
   type BrowseContext,
@@ -42,7 +46,7 @@ export interface CharacterSessionData extends CharacterData {
  * Index signature uses `unknown` for Record<string, unknown> compatibility
  * while preserving strict types for known properties.
  */
-export interface CharacterData {
+export interface CharacterData extends PersonalityCharacterFields {
   [key: string]: unknown;
   id: string;
   name: string;
@@ -50,14 +54,6 @@ export interface CharacterData {
   slug: string;
   characterInfo: string;
   personalityTraits: string;
-  personalityTone: string | null;
-  personalityAge: string | null;
-  personalityAppearance: string | null;
-  personalityLikes: string | null;
-  personalityDislikes: string | null;
-  conversationalGoals: string | null;
-  conversationalExamples: string | null;
-  errorMessage: string | null;
   birthMonth: number | null;
   birthDay: number | null;
   birthYear: number | null;

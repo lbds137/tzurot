@@ -18,11 +18,8 @@ import {
 } from '@tzurot/common-types';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
 import { formatExportAsMarkdown, formatExportAsJson } from './ShapesExportFormatters.js';
-import {
-  getDecryptedCookie,
-  persistUpdatedCookie,
-  classifyShapesError,
-} from './shapesCredentials.js';
+import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
+import { handleShapesJobError } from './shapesJobHelpers.js';
 
 const logger = createLogger('ShapesExportJob');
 
@@ -119,64 +116,25 @@ export async function processShapesExportJob(
     if (fetcher !== null) {
       await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
     }
-    return handleExportError({ error, prisma, exportJobId, jobId: job.id, sourceSlug, job });
+    return handleShapesJobError({
+      jobType: 'export',
+      error,
+      job,
+      jobId: job.id,
+      sourceSlug,
+      markFailed: async errorMessage => {
+        await prisma.exportJob.update({
+          where: { id: exportJobId },
+          data: { status: 'failed', completedAt: new Date(), errorMessage },
+        });
+      },
+      buildFailureResult: errorMessage => ({
+        success: false,
+        fileSizeBytes: 0,
+        memoriesCount: 0,
+        storiesCount: 0,
+        error: errorMessage,
+      }),
+    });
   }
-}
-
-// ============================================================================
-// Error Handling
-// ============================================================================
-
-interface HandleErrorOpts {
-  error: unknown;
-  prisma: PrismaClient;
-  exportJobId: string;
-  jobId: string | undefined;
-  sourceSlug: string;
-  job: Job<ShapesExportJobData>;
-}
-
-async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJobResult> {
-  const { isRetryable, errorMessage } = classifyShapesError(opts.error);
-  const maxAttempts = opts.job.opts.attempts ?? 1;
-  const willRetry = isRetryable && opts.job.attemptsMade < maxAttempts - 1;
-
-  const logMessage = willRetry
-    ? '[ShapesExportJob] Retryable error — BullMQ will retry'
-    : isRetryable
-      ? '[ShapesExportJob] Retries exhausted — marking as failed'
-      : '[ShapesExportJob] Export failed (non-retryable)';
-
-  logger.error(
-    {
-      err: opts.error,
-      jobId: opts.jobId,
-      sourceSlug: opts.sourceSlug,
-      errorType: opts.error instanceof Error ? opts.error.constructor.name : typeof opts.error,
-      attemptsMade: opts.job.attemptsMade,
-      maxAttempts,
-      willRetry,
-    },
-    logMessage
-  );
-
-  // Re-throw retryable errors for BullMQ retry if attempts remain.
-  // On the final attempt, fall through to mark the DB record as 'failed'
-  // so users don't see a permanently stuck 'in_progress' status.
-  if (willRetry) {
-    throw opts.error;
-  }
-
-  await opts.prisma.exportJob.update({
-    where: { id: opts.exportJobId },
-    data: { status: 'failed', completedAt: new Date(), errorMessage },
-  });
-
-  return {
-    success: false,
-    fileSizeBytes: 0,
-    memoriesCount: 0,
-    storiesCount: 0,
-    error: errorMessage,
-  };
 }

@@ -27,11 +27,8 @@ import {
   type ShapesDataFetchResult,
 } from '@tzurot/common-types';
 import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
-import {
-  getDecryptedCookie,
-  persistUpdatedCookie,
-  classifyShapesError,
-} from './shapesCredentials.js';
+import { getDecryptedCookie, persistUpdatedCookie } from './shapesCredentials.js';
+import { handleShapesJobError } from './shapesJobHelpers.js';
 import { downloadAndStoreAvatar } from './ShapesImportHelpers.js';
 import { importMemories } from './ShapesImportMemories.js';
 import { resolvePersonality } from './ShapesImportResolver.js';
@@ -159,15 +156,7 @@ export async function processShapesImportJob(
     if (fetcher !== null) {
       await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
     }
-    return handleImportError({
-      error,
-      prisma,
-      importJobId,
-      importType,
-      jobId: job.id,
-      sourceSlug,
-      job,
-    });
+    return handleImportJobError({ error, prisma, importJobId, importType, job, sourceSlug });
   }
 }
 
@@ -252,56 +241,34 @@ async function markImportCompleted(opts: MarkCompletedOpts): Promise<void> {
   });
 }
 
-interface HandleErrorOpts {
+interface HandleImportJobErrorOpts {
   error: unknown;
   prisma: PrismaClient;
   importJobId: string;
   importType: 'full' | 'memory_only';
-  jobId: string | undefined;
-  sourceSlug: string;
   job: Job<ShapesImportJobData>;
+  sourceSlug: string;
 }
 
-async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJobResult> {
-  const { isRetryable, errorMessage } = classifyShapesError(opts.error);
-  const maxAttempts = opts.job.opts.attempts ?? 1;
-  const willRetry = isRetryable && opts.job.attemptsMade < maxAttempts - 1;
-
-  const logMessage = willRetry
-    ? '[ShapesImportJob] Retryable error — BullMQ will retry'
-    : isRetryable
-      ? '[ShapesImportJob] Retries exhausted — marking as failed'
-      : '[ShapesImportJob] Import failed (non-retryable)';
-
-  logger.error(
-    {
-      err: opts.error,
-      jobId: opts.jobId,
-      sourceSlug: opts.sourceSlug,
-      errorType: opts.error instanceof Error ? opts.error.constructor.name : typeof opts.error,
-      attemptsMade: opts.job.attemptsMade,
-      maxAttempts,
-      willRetry,
+function handleImportJobError(opts: HandleImportJobErrorOpts): Promise<ShapesImportJobResult> {
+  return handleShapesJobError({
+    jobType: 'import',
+    error: opts.error,
+    job: opts.job,
+    jobId: opts.job.id,
+    sourceSlug: opts.sourceSlug,
+    markFailed: async errorMessage => {
+      await opts.prisma.importJob.update({
+        where: { id: opts.importJobId },
+        data: { status: 'failed', completedAt: new Date(), errorMessage },
+      });
     },
-    logMessage
-  );
-
-  // Re-throw retryable errors for BullMQ retry if attempts remain.
-  // On the final attempt, fall through to mark the DB record as 'failed'.
-  if (willRetry) {
-    throw opts.error;
-  }
-
-  await opts.prisma.importJob.update({
-    where: { id: opts.importJobId },
-    data: { status: 'failed', completedAt: new Date(), errorMessage },
+    buildFailureResult: errorMessage => ({
+      success: false,
+      memoriesImported: 0,
+      memoriesFailed: 0,
+      importType: opts.importType,
+      error: errorMessage,
+    }),
   });
-
-  return {
-    success: false,
-    memoriesImported: 0,
-    memoriesFailed: 0,
-    importType: opts.importType,
-    error: errorMessage,
-  };
 }
