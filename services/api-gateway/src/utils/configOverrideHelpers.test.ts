@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Prisma } from '@tzurot/common-types';
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: {
@@ -99,8 +100,7 @@ describe('mergeAndValidateOverrides', () => {
 
     const result = mergeAndValidateOverrides({ maxMessages: 25 }, { maxMessages: null }, mockRes);
     expect(result.merged).toBeNull();
-    // prismaValue should be Prisma.JsonNull (a symbol)
-    expect(result.prismaValue).toBeDefined();
+    expect(result.prismaValue).toBe(Prisma.JsonNull);
   });
 
   it('should send error on invalid merge result', () => {
