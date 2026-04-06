@@ -111,7 +111,8 @@ export function createPersonalityConfigOverrideRoutes(
       });
 
       await tryInvalidateCache(
-        cascadeInvalidation?.invalidatePersonality.bind(cascadeInvalidation, personalityId)
+        cascadeInvalidation?.invalidatePersonality.bind(cascadeInvalidation, personalityId),
+        { personalityId }
       );
 
       sendCustomSuccess(res, { configDefaults: merged }, StatusCodes.OK);

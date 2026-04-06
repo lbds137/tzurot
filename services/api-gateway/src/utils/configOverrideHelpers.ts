@@ -22,20 +22,24 @@ const logger = createLogger('configOverrideHelpers');
  * Publish a cache invalidation event, swallowing errors.
  * If pub/sub fails, caches expire via TTL for eventual consistency.
  *
- * Replaces the duplicated tryInvalidateUser/tryInvalidateChannel/
- * tryInvalidatePersonality/tryInvalidateUserLlmConfig patterns.
+ * Uses warn level (not error) because TTL provides the safety net — a failed
+ * pub/sub notification is a degraded-latency event, not a data correctness issue.
  *
  * @param fn - The invalidation function to call (e.g., service.invalidateUser)
  *             Pass undefined to skip invalidation (service not available).
+ * @param context - Optional structured context for the log entry (e.g., { discordUserId })
  */
-export async function tryInvalidateCache(fn: (() => Promise<void>) | undefined): Promise<void> {
+export async function tryInvalidateCache(
+  fn: (() => Promise<void>) | undefined,
+  context?: Record<string, unknown>
+): Promise<void> {
   if (fn === undefined) {
     return;
   }
   try {
     await fn();
   } catch (error) {
-    logger.warn({ err: error }, 'Failed to publish cache invalidation');
+    logger.warn({ err: error, ...context }, 'Failed to publish cache invalidation');
   }
 }
 
