@@ -156,7 +156,7 @@ export interface PersonalityCharacterFields {
  * Zod schema fragment for character definition fields.
  * Shared between PersonalityCreateSchema and PersonalityUpdateSchema.
  */
-const PersonalityCharacterFieldsSchema = z.object({
+export const PersonalityCharacterFieldsSchema = z.object({
   personalityTone: nullableString(1000),
   personalityAge: nullableString(100),
   personalityAppearance: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),

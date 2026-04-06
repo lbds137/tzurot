@@ -15,11 +15,6 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-vi.mock('./shapesCredentials.js', async () => {
-  const actual = await vi.importActual('./shapesCredentials.js');
-  return actual;
-});
-
 interface TestResult {
   success: boolean;
   error?: string;

@@ -139,7 +139,7 @@ export interface DatabasePersonality extends PersonalityCharacterFields {
   defaultConfigLink: {
     llmConfig: DatabaseLlmConfig;
   } | null;
-  // Character definition fields (required, not nullable)
+  // Required character fields (non-nullable); nullable fields from PersonalityCharacterFields
   characterInfo: string;
   personalityTraits: string;
   // Voice configuration
