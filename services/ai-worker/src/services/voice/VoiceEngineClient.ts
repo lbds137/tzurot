@@ -5,7 +5,7 @@
  * Uses the native /v1/transcribe endpoint (richer metadata than OpenAI-compatible).
  */
 
-import { createLogger, getConfig, TIMEOUTS } from '@tzurot/common-types';
+import { createLogger, getConfig, TIMEOUTS, isTransientNetworkError } from '@tzurot/common-types';
 import { TimeoutError } from '../../utils/retry.js';
 
 const logger = createLogger('VoiceEngineClient');
@@ -224,10 +224,7 @@ export const VOICE_ENGINE_RETRY = {
 
 /** Classify errors as transient (worth retrying) for voice-engine operations.
  * Covers: ECONNREFUSED/ECONNRESET/ETIMEDOUT (cold start), 502/503/504 (Railway LB),
- * and TimeoutError (slow response during model loading).
- *
- * Mirrors `isTransientElevenLabsError` in TTSStep.ts — same structure, different
- * error types because VoiceEngineClient uses VoiceEngineError instead of ElevenLabsApiError. */
+ * and TimeoutError (slow response during model loading). */
 export function isTransientVoiceEngineError(error: unknown): boolean {
   // Typed sentinel — AbortController timeout or withTimeout wrapper
   if (error instanceof TimeoutError) {
@@ -240,20 +237,8 @@ export function isTransientVoiceEngineError(error: unknown): boolean {
   if (error instanceof VoiceEngineError) {
     return error.status === 502 || error.status === 503 || error.status === 504;
   }
-  // Network-level connection failures: Node undici throws TypeError("fetch failed")
-  // with a cause carrying a POSIX error code (ECONNREFUSED, ECONNRESET, ETIMEDOUT).
-  // Check both the known message string and the cause code for robustness across
-  // Node versions — the message is an undici implementation detail that may change.
-  if (error instanceof TypeError) {
-    if (error.message === 'fetch failed') {
-      return true;
-    }
-    const causeCode = (error.cause as NodeJS.ErrnoException | undefined)?.code;
-    if (causeCode === 'ECONNREFUSED' || causeCode === 'ECONNRESET' || causeCode === 'ETIMEDOUT') {
-      return true;
-    }
-  }
-  return false;
+  // Network-level connection failures (ECONNREFUSED, ECONNRESET, ETIMEDOUT, fetch failed)
+  return isTransientNetworkError(error);
 }
 
 // ---------------------------------------------------------------------------

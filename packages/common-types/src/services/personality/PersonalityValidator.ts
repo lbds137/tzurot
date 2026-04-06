@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { Prisma } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
+import type { PersonalityCharacterFields } from '../../schemas/api/personality.js';
 
 // Re-export Decimal type for convenience
 type Decimal = Prisma.Decimal;
@@ -121,7 +122,7 @@ export interface DatabaseLlmConfig {
 /**
  * Database personality type with all raw fields from Prisma query
  */
-export interface DatabasePersonality {
+export interface DatabasePersonality extends PersonalityCharacterFields {
   id: string;
   name: string;
   displayName: string | null;
@@ -138,18 +139,9 @@ export interface DatabasePersonality {
   defaultConfigLink: {
     llmConfig: DatabaseLlmConfig;
   } | null;
-  // Character definition fields
+  // Character definition fields (required, not nullable)
   characterInfo: string;
   personalityTraits: string;
-  personalityTone: string | null;
-  personalityAge: string | null;
-  personalityAppearance: string | null;
-  personalityLikes: string | null;
-  personalityDislikes: string | null;
-  conversationalGoals: string | null;
-  conversationalExamples: string | null;
-  // Custom error message for this personality
-  errorMessage: string | null;
   // Voice configuration
   voiceEnabled: boolean;
 }

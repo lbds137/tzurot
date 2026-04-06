@@ -11,7 +11,7 @@
  * - If voiceResponseMode === 'voice-only', the trigger was a voice message
  */
 
-import { createLogger, isVoiceEnabled } from '@tzurot/common-types';
+import { createLogger, isVoiceEnabled, isTransientNetworkError } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import {
   getVoiceEngineClient,
@@ -69,20 +69,8 @@ function isTransientElevenLabsError(error: unknown): boolean {
   if (error instanceof TimeoutError) {
     return true;
   }
-  // Network-level connection failures: Node undici throws TypeError("fetch failed")
-  // with a cause carrying a POSIX error code (ECONNREFUSED, ECONNRESET, ETIMEDOUT).
-  // Check both the known message string and the cause code for robustness across
-  // Node versions — the message is an undici implementation detail that may change.
-  if (error instanceof TypeError) {
-    if (error.message === 'fetch failed') {
-      return true;
-    }
-    const causeCode = (error.cause as NodeJS.ErrnoException | undefined)?.code;
-    if (causeCode === 'ECONNREFUSED' || causeCode === 'ECONNRESET' || causeCode === 'ETIMEDOUT') {
-      return true;
-    }
-  }
-  return false;
+  // Network-level connection failures (ECONNREFUSED, ECONNRESET, ETIMEDOUT, fetch failed)
+  return isTransientNetworkError(error);
 }
 
 /**

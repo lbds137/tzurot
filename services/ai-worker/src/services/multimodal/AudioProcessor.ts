@@ -7,7 +7,12 @@
  * Includes Redis caching for faster repeated access.
  */
 
-import { createLogger, TIMEOUTS, type AttachmentMetadata } from '@tzurot/common-types';
+import {
+  createLogger,
+  TIMEOUTS,
+  isTransientNetworkError,
+  type AttachmentMetadata,
+} from '@tzurot/common-types';
 import { withRetry, RetryError, TimeoutError } from '../../utils/retry.js';
 import {
   VoiceEngineError,
@@ -35,16 +40,8 @@ function isTransientElevenLabsError(error: unknown): boolean {
   if (error instanceof TimeoutError) {
     return true;
   }
-  if (error instanceof TypeError) {
-    if (error.message === 'fetch failed') {
-      return true;
-    }
-    const causeCode = (error.cause as NodeJS.ErrnoException | undefined)?.code;
-    if (causeCode === 'ECONNREFUSED' || causeCode === 'ECONNRESET' || causeCode === 'ETIMEDOUT') {
-      return true;
-    }
-  }
-  return false;
+  // Network-level connection failures (ECONNREFUSED, ECONNRESET, ETIMEDOUT, fetch failed)
+  return isTransientNetworkError(error);
 }
 
 /**

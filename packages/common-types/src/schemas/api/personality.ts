@@ -130,6 +130,44 @@ export const DeletePersonalityResponseSchema = z.object({
 });
 
 // ============================================================================
+// Shared Character Definition Fields
+// ============================================================================
+
+/**
+ * The 8 character definition fields that appear across create/update schemas,
+ * API response interfaces, and DB types. Defined once, used everywhere.
+ *
+ * NOTE: The TypeScript interface uses `string | null` (DB/API representation),
+ * while the Zod schema uses `nullableString()` which also accepts `undefined`
+ * (for optional update semantics). They serve different purposes.
+ */
+export interface PersonalityCharacterFields {
+  personalityTone: string | null;
+  personalityAge: string | null;
+  personalityAppearance: string | null;
+  personalityLikes: string | null;
+  personalityDislikes: string | null;
+  conversationalGoals: string | null;
+  conversationalExamples: string | null;
+  errorMessage: string | null;
+}
+
+/**
+ * Zod schema fragment for character definition fields.
+ * Shared between PersonalityCreateSchema and PersonalityUpdateSchema.
+ */
+const PersonalityCharacterFieldsSchema = z.object({
+  personalityTone: nullableString(1000),
+  personalityAge: nullableString(100),
+  personalityAppearance: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  personalityLikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  personalityDislikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  conversationalGoals: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  conversationalExamples: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  errorMessage: nullableString(1000),
+});
+
+// ============================================================================
 // Input Schemas (shared between admin and user endpoints)
 // ============================================================================
 
@@ -166,14 +204,7 @@ export const PersonalityCreateSchema = z.object({
   displayName: nullableString(255),
 
   // Character definition (all optional) — limits match Discord dashboard modal config
-  personalityTone: nullableString(1000),
-  personalityAge: nullableString(100),
-  personalityAppearance: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  personalityLikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  personalityDislikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  conversationalGoals: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  conversationalExamples: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  errorMessage: nullableString(1000),
+  ...PersonalityCharacterFieldsSchema.shape,
 
   // Visibility - defaults to false, can be set to true to make public
   isPublic: z.boolean().optional(),
@@ -207,14 +238,7 @@ export const PersonalityUpdateSchema = z.object({
   personalityTraits: z.string().min(1).max(1000).optional(),
 
   // Character definition — limits match Discord dashboard modal config
-  personalityTone: nullableString(1000),
-  personalityAge: nullableString(100),
-  personalityAppearance: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  personalityLikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  personalityDislikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  conversationalGoals: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  conversationalExamples: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  errorMessage: nullableString(1000),
+  ...PersonalityCharacterFieldsSchema.shape,
 
   // Visibility
   isPublic: z.boolean().optional(),

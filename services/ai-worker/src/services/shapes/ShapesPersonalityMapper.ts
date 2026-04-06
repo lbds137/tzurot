@@ -11,6 +11,7 @@ import {
   generatePersonalityUuid,
   generateSystemPromptUuid,
   generateLlmConfigUuid,
+  type PersonalityCharacterFields,
   type ShapesIncPersonalityConfig,
 } from '@tzurot/common-types';
 
@@ -28,21 +29,13 @@ export interface MappedSystemPrompt {
 }
 
 /** Data needed to create a Personality record */
-export interface MappedPersonality {
+export interface MappedPersonality extends PersonalityCharacterFields {
   id: string;
   name: string;
   slug: string;
   displayName: string;
   characterInfo: string;
   personalityTraits: string;
-  personalityTone: string | null;
-  personalityAge: string | null;
-  personalityAppearance: string | null;
-  personalityLikes: string | null;
-  personalityDislikes: string | null;
-  conversationalGoals: string | null;
-  conversationalExamples: string | null;
-  errorMessage: string | null;
   isPublic: boolean;
   voiceEnabled: boolean;
   imageEnabled: boolean;

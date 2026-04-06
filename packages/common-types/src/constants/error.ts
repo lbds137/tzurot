@@ -25,6 +25,60 @@ export enum TransientErrorCode {
 }
 
 /**
+ * POSIX and undici error codes that indicate transient network failures.
+ * Superset of TransientErrorCode — also includes undici-specific codes.
+ */
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used by isTransientNetworkError
+export const TRANSIENT_NETWORK_CODES: ReadonlySet<string> = new Set([
+  TransientErrorCode.ECONNREFUSED,
+  TransientErrorCode.ECONNRESET,
+  TransientErrorCode.ETIMEDOUT,
+  TransientErrorCode.ENOTFOUND,
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/**
+ * Check if an error is a transient network failure from Node's fetch/undici.
+ *
+ * Node undici throws TypeError("fetch failed") with a cause carrying a POSIX
+ * error code (ECONNREFUSED, ECONNRESET, ETIMEDOUT). This helper checks both
+ * the known message string and the cause chain for robustness across Node
+ * versions — the "fetch failed" message is an undici implementation detail.
+ *
+ * Use this in retry classifiers instead of duplicating the TypeError check.
+ */
+export function isTransientNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    // Handle plain objects with a `code` property in the cause chain
+    // (Node undici sometimes wraps POSIX errors as plain objects)
+    if (error !== null && typeof error === 'object' && 'code' in error) {
+      const code = (error as { code: string }).code;
+      return typeof code === 'string' && TRANSIENT_NETWORK_CODES.has(code);
+    }
+    return false;
+  }
+
+  // Direct POSIX code on the error (e.g., Node.js net/socket errors)
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code !== undefined && TRANSIENT_NETWORK_CODES.has(code)) {
+    return true;
+  }
+
+  // undici throws TypeError("fetch failed") for network failures. Accept any
+  // Error subclass with this exact message for robustness (not just TypeError).
+  if (error.message === 'fetch failed') {
+    return true;
+  }
+
+  // Recurse into cause chain for wrapped POSIX errors (e.g., fetch wrapping ECONNREFUSED)
+  if (error.cause !== undefined) {
+    return isTransientNetworkError(error.cause);
+  }
+
+  return false;
+}
+
+/**
  * Error messages for LLM invocation failures
  */
 export const ERROR_MESSAGES = {
