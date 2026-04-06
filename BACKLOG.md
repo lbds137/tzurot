@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-04-05
+> **Last Updated**: 2026-04-06
 > **Version**: v3.0.0-beta.92
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -25,7 +25,6 @@ _New items go here. Triage to appropriate section weekly._
 - 🐛 `[FIX]` **LLM duplicate/looping response detection** — GLM-5 observed producing responses with repeated content blocks (same paragraphs appearing twice within one message). Post-processing should detect and deduplicate repeated paragraph-level blocks. Observed 2026-04-05 with `z-ai/glm-5`. **Start**: `services/ai-worker/src/services/ResponsePostProcessor.ts` — add a deduplication step; `services/ai-worker/src/utils/responseArtifacts.ts` — may fit alongside existing cleanup patterns.
 - 🐛 `[FIX]` **ElevenLabs API errors surface as "aborted"** — ElevenLabs failures show unhelpful "aborted" error to users instead of a descriptive message. Likely a `DOMException` from `AbortController` timeout or a fetch abort that isn't being caught and wrapped. **Start**: Search for `aborted` in error handling paths; check ElevenLabs client timeout/abort handling.
 - 🐛 `[FIX]` **Forwarded messages with personality tags trigger AI responses** — When a user forwards a message containing an @ mention of a personality, the bot treats it as a new invocation. Needs design decision on whether forwarded mentions should be ignored. **Start**: `services/bot-client/src/processors/PersonalityMentionProcessor.ts` — check forwarded message flags.
-- 🏗️ `[LIFT]` **Extract shared `isTransientNetworkError` helper** — `TypeError('fetch failed')` + POSIX cause code check is duplicated across `isTransientElevenLabsError` (TTSStep.ts + AudioProcessor.ts) and `isTransientVoiceEngineError` (VoiceEngineClient.ts). Extract to `utils/retry.ts` or similar. Good CPD clone reduction candidate.
 - 🏗️ `[LIFT]` **Refactor tag stripping to data-driven architecture** — Adding a new thinking tag requires updating 7 separate regex patterns across `thinkingExtraction.ts`. Refactor to a single `KNOWN_THINKING_TAGS` array that all patterns are generated from. Good CPD clone reduction candidate. **Start**: `services/ai-worker/src/utils/thinkingExtraction.ts`.
 - 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. Low urgency (Railway private networking limits exposure).
 - 🏗️ `[LIFT]` **Dynamic free model selection from OpenRouter** — Replace hardcoded `FREE_MODELS` / `VISION_FALLBACK_FREE` with a query layer on `OpenRouterModelCache`. Models go stale when sunset. **Start**: `services/api-gateway/src/services/OpenRouterModelCache.ts`.
@@ -56,7 +55,7 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140; voice feature grew to 152; PR #729 CPD pass → 146; PR #733 → 145. Current: 145.
+**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140; voice feature grew to 152; PR #729 CPD pass → 146; PR #733 → 145; grew to 146 from recent features; 2026-04-06 session (A5+A4+A6) → 139. Current: 139.
 
 ### Completed (Phases 1-4)
 
@@ -84,7 +83,7 @@ Subcommand routing, browse/pagination, custom IDs, and command-specific duplicat
 
 Shared types, config resolver patterns, and remaining cross-service duplication.
 
-- [ ] Define `PersonalityFields` type in common-types — spans all 3 services + common-types (4 clones)
+- [x] Define `PersonalityFields` type in common-types — `PersonalityCharacterFields` interface + Zod schema fragment (4 files updated)
 - [ ] Extract `CacheWithTTL` base — cleanup interval + user-prefix invalidation (6 clones across config resolvers)
 - [ ] DRY personality create/update Zod schemas — use `.extend()` (2 clones)
 - [ ] Extract `sessionContextFields` Zod fragment — shared between jobs.ts and personality schemas (1 clone)
@@ -95,7 +94,7 @@ Shared types, config resolver patterns, and remaining cross-service duplication.
 Smaller wins in ai-worker internal patterns and tooling utilities.
 
 - [ ] Extract `createStuckJobCleanup(model, config)` factory (2 clones)
-- [ ] Extract `handleShapesJobError` shared error handler (2 clones)
+- [x] Extract `handleShapesJobError` shared error handler — `shapesJobHelpers.ts` factory with callbacks
 - [ ] Extract tooling `spawnWithPiping` and shared `execFileSafe` helpers (3 clones)
 - [ ] Extract migration preamble helper (`validateEnvironment` + banner + client) (2 clones)
 
