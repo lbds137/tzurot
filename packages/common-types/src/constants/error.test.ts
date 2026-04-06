@@ -382,6 +382,11 @@ describe('isTransientNetworkError', () => {
     expect(isTransientNetworkError(error)).toBe(true);
   });
 
+  it('should return true for any Error subclass with "fetch failed" message', () => {
+    // Not just TypeError — accepts any Error for robustness across Node versions
+    expect(isTransientNetworkError(new Error('fetch failed'))).toBe(true);
+  });
+
   it('should return true for TypeError with ECONNREFUSED in cause chain', () => {
     const cause = new Error('connect ECONNREFUSED') as NodeJS.ErrnoException;
     cause.code = 'ECONNREFUSED';
