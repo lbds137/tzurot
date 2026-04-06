@@ -11,22 +11,21 @@
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  createLogger,
   UserService,
   ConfigCascadeResolver,
-  Prisma,
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
+import {
+  tryInvalidateCache,
+  mergeAndValidateOverrides,
+} from '../../utils/configOverrideHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
-
-const logger = createLogger('personality-config-overrides');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -97,32 +96,23 @@ export function createPersonalityConfigOverrideRoutes(
         );
       }
 
-      if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
-        return sendError(res, ErrorResponses.validationError('Request body must be a JSON object'));
-      }
-
-      const merged = mergeConfigOverrides(
+      const { merged, prismaValue } = mergeAndValidateOverrides(
         personality.configDefaults,
-        req.body as Record<string, unknown>
+        req.body,
+        res
       );
-      if (merged === 'invalid') {
-        return sendError(res, ErrorResponses.validationError('Invalid config format'));
+      if (merged === undefined) {
+        return;
       }
 
       await prisma.personality.update({
         where: { id: personalityId },
-        data: {
-          configDefaults: merged === null ? Prisma.JsonNull : (merged as Prisma.InputJsonValue),
-        },
+        data: { configDefaults: prismaValue },
       });
 
-      if (cascadeInvalidation !== undefined) {
-        try {
-          await cascadeInvalidation.invalidatePersonality(personalityId);
-        } catch (error) {
-          logger.warn({ err: error }, 'Failed to publish cascade invalidation');
-        }
-      }
+      await tryInvalidateCache(
+        cascadeInvalidation?.invalidatePersonality.bind(cascadeInvalidation, personalityId)
+      );
 
       sendCustomSuccess(res, { configDefaults: merged }, StatusCodes.OK);
     })

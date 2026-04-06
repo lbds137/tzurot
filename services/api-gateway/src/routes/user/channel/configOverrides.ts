@@ -19,15 +19,18 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  Prisma,
   generateChannelSettingsUuid,
   isValidDiscordId,
+  Prisma,
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
-import { mergeConfigOverrides } from '../../../utils/configOverrideMerge.js';
+import {
+  tryInvalidateCache,
+  mergeAndValidateOverrides,
+} from '../../../utils/configOverrideHelpers.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { getRequiredParam } from '../../../utils/requestParams.js';
@@ -43,9 +46,6 @@ function validateChannelId(channelId: string, res: Response): boolean {
   }
   return true;
 }
-
-const CASCADE_INVALIDATION_WARN =
-  '[ChannelConfigOverrides] Failed to publish cascade cache invalidation';
 
 /**
  * Create GET handler for channel config overrides
@@ -101,14 +101,14 @@ export function createPatchConfigOverridesHandler(
         select: { configOverrides: true },
       });
 
-      const merged = mergeConfigOverrides(existing?.configOverrides, input);
-      if (merged === 'invalid') {
-        sendError(res, ErrorResponses.validationError('Invalid config format'));
+      const { merged, prismaValue } = mergeAndValidateOverrides(
+        existing?.configOverrides,
+        input,
+        res
+      );
+      if (merged === undefined) {
         return;
       }
-
-      const configOverridesValue =
-        merged === null ? Prisma.JsonNull : (merged as Prisma.InputJsonValue);
 
       // Upsert: create channel settings if they don't exist yet
       await prisma.channelSettings.upsert({
@@ -116,14 +116,16 @@ export function createPatchConfigOverridesHandler(
         create: {
           id: settingsId,
           channelId,
-          configOverrides: configOverridesValue,
+          configOverrides: prismaValue,
         },
         update: {
-          configOverrides: configOverridesValue,
+          configOverrides: prismaValue,
         },
       });
 
-      await tryInvalidateChannel(cascadeInvalidation, channelId);
+      await tryInvalidateCache(
+        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId)
+      );
 
       logger.info({ channelId, userId: req.userId }, 'Updated channel config overrides');
       sendCustomSuccess(res, { configOverrides: merged }, StatusCodes.OK);
@@ -152,25 +154,12 @@ export function createDeleteConfigOverridesHandler(
         data: { configOverrides: Prisma.JsonNull },
       });
 
-      await tryInvalidateChannel(cascadeInvalidation, channelId);
+      await tryInvalidateCache(
+        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId)
+      );
 
       logger.info({ channelId, userId: req.userId }, 'Cleared channel config overrides');
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);
     }),
   ];
-}
-
-/** Publish cascade invalidation for a channel, swallowing errors. */
-async function tryInvalidateChannel(
-  cascadeInvalidation: ConfigCascadeCacheInvalidationService | undefined,
-  channelId: string
-): Promise<void> {
-  if (cascadeInvalidation === undefined) {
-    return;
-  }
-  try {
-    await cascadeInvalidation.invalidateChannel(channelId);
-  } catch (error) {
-    logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-  }
 }

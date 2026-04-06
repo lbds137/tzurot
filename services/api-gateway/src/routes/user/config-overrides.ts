@@ -31,7 +31,10 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
+import {
+  tryInvalidateCache,
+  mergeAndValidateOverrides,
+} from '../../utils/configOverrideHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
@@ -40,7 +43,6 @@ import type { AuthenticatedRequest } from '../../types.js';
 const logger = createLogger('user-config-overrides');
 
 const BOT_USER_ERROR = 'Cannot create user for bot';
-const CASCADE_INVALIDATION_WARN = 'Failed to publish cascade invalidation';
 
 /** Parse and validate a config tier's JSONB value. Returns null if absent or invalid. */
 function parseConfigTier(raw: unknown): Record<string, unknown> | null {
@@ -68,19 +70,6 @@ export function createConfigOverrideRoutes(
   const router = Router();
   const userService = new UserService(prisma);
   const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
-
-  /** Publish cascade invalidation for a user, swallowing errors.
-   *  If pub/sub fails, caches expire via TTL (30s) for eventual consistency. */
-  async function tryInvalidateUser(discordUserId: string): Promise<void> {
-    if (cascadeInvalidation === undefined) {
-      return;
-    }
-    try {
-      await cascadeInvalidation.invalidateUser(discordUserId);
-    } catch (error) {
-      logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-    }
-  }
 
   // All routes require authentication
   router.use(requireUserAuth());
@@ -184,30 +173,28 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
       }
 
-      if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
-        return sendError(res, ErrorResponses.validationError('Request body must be a JSON object'));
-      }
-      const input = req.body as Record<string, unknown>;
-
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { configDefaults: true },
       });
 
-      const merged = mergeConfigOverrides(user?.configDefaults, input);
-      if (merged === 'invalid') {
-        sendError(res, ErrorResponses.validationError('Invalid config format'));
+      const { merged, prismaValue } = mergeAndValidateOverrides(
+        user?.configDefaults,
+        req.body,
+        res
+      );
+      if (merged === undefined) {
         return;
       }
 
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          configDefaults: merged === null ? Prisma.JsonNull : (merged as Prisma.InputJsonValue),
-        },
+        data: { configDefaults: prismaValue },
       });
 
-      await tryInvalidateUser(req.userId);
+      await tryInvalidateCache(
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+      );
 
       sendCustomSuccess(res, { configDefaults: merged }, StatusCodes.OK);
     })
@@ -230,7 +217,9 @@ export function createConfigOverrideRoutes(
         data: { configDefaults: Prisma.JsonNull },
       });
 
-      await tryInvalidateUser(req.userId);
+      await tryInvalidateCache(
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+      );
 
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);
     })
@@ -278,11 +267,6 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
       }
 
-      if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
-        return sendError(res, ErrorResponses.validationError('Request body must be a JSON object'));
-      }
-      const input = req.body as Record<string, unknown>;
-
       // Upsert UserPersonalityConfig with deterministic UUID
       const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
 
@@ -291,9 +275,12 @@ export function createConfigOverrideRoutes(
         select: { configOverrides: true },
       });
 
-      const merged = mergeConfigOverrides(existing?.configOverrides, input);
-      if (merged === 'invalid') {
-        sendError(res, ErrorResponses.validationError('Invalid config format'));
+      const { merged, prismaValue } = mergeAndValidateOverrides(
+        existing?.configOverrides,
+        req.body,
+        res
+      );
+      if (merged === undefined) {
         return;
       }
 
@@ -303,14 +290,16 @@ export function createConfigOverrideRoutes(
           id: upcId,
           userId,
           personalityId,
-          configOverrides: merged === null ? Prisma.JsonNull : (merged as Prisma.InputJsonValue),
+          configOverrides: prismaValue,
         },
         update: {
-          configOverrides: merged === null ? Prisma.JsonNull : (merged as Prisma.InputJsonValue),
+          configOverrides: prismaValue,
         },
       });
 
-      await tryInvalidateUser(req.userId);
+      await tryInvalidateCache(
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+      );
 
       sendCustomSuccess(res, { configOverrides: merged }, StatusCodes.OK);
     })
@@ -347,7 +336,9 @@ export function createConfigOverrideRoutes(
         });
       }
 
-      await tryInvalidateUser(req.userId);
+      await tryInvalidateCache(
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+      );
 
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);
     })

@@ -26,6 +26,7 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -50,26 +51,6 @@ async function verifyConfigAccess(
     },
     select: { id: true, name: true },
   });
-}
-
-/**
- * Attempt to invalidate user LLM config cache. Logs errors but does not throw.
- */
-async function tryInvalidateUserLlmConfigCache(
-  service: LlmConfigCacheInvalidationService | undefined,
-  discordUserId: string
-): Promise<void> {
-  if (!service) {
-    return;
-  }
-
-  try {
-    await service.invalidateUserLlmConfig(discordUserId);
-    logger.debug({ discordUserId }, '[ModelDefault] Invalidated user LLM config cache');
-  } catch (err) {
-    // Log but don't fail the request - cache will expire naturally
-    logger.error({ err, discordUserId }, '[ModelDefault] Failed to invalidate cache');
-  }
 }
 
 // eslint-disable-next-line max-lines-per-function -- Route factory with multiple endpoints
@@ -302,7 +283,12 @@ export function createModelOverrideRoutes(
       );
 
       // Invalidate user's LLM config cache so ai-worker picks up the change
-      await tryInvalidateUserLlmConfigCache(llmConfigCacheInvalidation, discordUserId);
+      await tryInvalidateCache(
+        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+          llmConfigCacheInvalidation,
+          discordUserId
+        )
+      );
 
       sendCustomSuccess(res, { default: result }, StatusCodes.OK);
     })
@@ -344,7 +330,12 @@ export function createModelOverrideRoutes(
       logger.info({ discordUserId }, '[ModelDefault] Cleared default config');
 
       // Invalidate user's LLM config cache so ai-worker picks up the change
-      await tryInvalidateUserLlmConfigCache(llmConfigCacheInvalidation, discordUserId);
+      await tryInvalidateCache(
+        llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
+          llmConfigCacheInvalidation,
+          discordUserId
+        )
+      );
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
     })
