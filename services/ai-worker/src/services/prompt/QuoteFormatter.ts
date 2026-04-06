@@ -167,7 +167,7 @@ export function formatForwardedQuote(content: ForwardedMessageContent): string {
 }
 
 /** Prefix for deduplicated reference stubs */
-export const DEDUP_REPLY_TARGET_PREFIX = '[Reply target — full message is in conversation above]';
+const DEDUP_REPLY_TARGET_PREFIX = '[Reply target — full message is in conversation above]';
 
 /**
  * Options for formatting a deduplicated reference stub.

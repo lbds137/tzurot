@@ -18,7 +18,7 @@ const VALID_ENVIRONMENTS = new Set<string>(['local', 'dev', 'prod']);
  * Check if a string is a valid Environment value.
  * Used for early runtime validation since CAC passes raw user input.
  */
-export function isValidEnvironment(env: string): env is Environment {
+function isValidEnvironment(env: string): env is Environment {
   return VALID_ENVIRONMENTS.has(env);
 }
 
@@ -105,7 +105,8 @@ export function getRailwayDatabaseUrl(env: 'dev' | 'prod'): string {
       throw error;
     }
     throw new Error(
-      `Failed to fetch database URL from Railway: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to fetch database URL from Railway: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
     );
   }
 }
