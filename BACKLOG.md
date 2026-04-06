@@ -55,7 +55,7 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 127 clones (PRs #599, #665–#668); grew back to 141 from new features; PR #704 → 140; voice feature grew to 152; PR #729 CPD pass → 146; PR #733 → 145; grew to 146 from recent features; 2026-04-06 session (A5+A4+A6) → 139. Current: 139.
+**Progress**: 175 → 127 (PRs #599, #665–#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137. Current: 137.
 
 ### Completed (Phases 1-4)
 
