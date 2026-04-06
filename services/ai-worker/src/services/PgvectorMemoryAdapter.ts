@@ -27,7 +27,7 @@ import {
 import { expandWithSiblings } from './PgvectorSiblingExpander.js';
 import { waterfallMemoryQuery } from './PgvectorChannelScoping.js';
 
-// Re-export types used by consumers that import from this module
+// Re-export types for consumers that import from this module (~10 files)
 export { MemoryQueryOptions, MemoryMetadata, MemoryMetadataSchema } from './PgvectorTypes.js';
 
 import type {
