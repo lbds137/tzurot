@@ -49,6 +49,34 @@ export async function getDefaultPersonaId(
   return user?.defaultPersonaId ?? null;
 }
 
+/** Result of resolving user + persona for memory operations */
+export interface MemoryContext {
+  user: { id: string };
+  personaId: string;
+}
+
+/**
+ * Resolve user and default persona for memory operations.
+ * Combines getUserByDiscordId + getDefaultPersonaId into a single call.
+ * Sends appropriate error responses and returns null if resolution fails.
+ */
+export async function resolveMemoryContext(
+  prisma: PrismaClient,
+  discordUserId: string,
+  res: Response
+): Promise<MemoryContext | null> {
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  if (!user) {return null;}
+
+  const personaId = await getDefaultPersonaId(prisma, user.id);
+  if (personaId === null) {
+    sendError(res, ErrorResponses.notFound('Memory'));
+    return null;
+  }
+
+  return { user, personaId };
+}
+
 /**
  * Validate and get personality by ID.
  * Sends 404 error response and returns null if personality not found.
