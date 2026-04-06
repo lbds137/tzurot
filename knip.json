@@ -4,7 +4,11 @@
   "workspaces": {
     ".": {
       "vitest": false,
-      "ignoreDependencies": ["@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
+      "ignoreDependencies": [
+        "@typescript-eslint/eslint-plugin",
+        "@typescript-eslint/parser",
+        "@vitest/coverage-v8"
+      ]
     },
     "services/bot-client": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/commands/*/index.ts"],
@@ -31,24 +35,14 @@
     "packages/embeddings": {
       "entry": ["src/**/*.test.ts", "src/embeddingWorker.ts"],
       "includeEntryExports": true,
-      "ignoreDependencies": ["@huggingface/transformers", "onnxruntime-node"]
+      "ignoreDependencies": ["onnxruntime-node"]
     },
     "packages/test-utils": {
       "includeEntryExports": true
     }
   },
-  "ignore": [
-    "**/dist/**",
-    "**/generated/**",
-    "prisma/**",
-    "tzurot-legacy/**",
-    "scripts/data/**",
-    "**/vitest.config.ts",
-    "**/vitest.int.config.ts",
-    "**/test/setup.ts",
-    "vitest.workspace.ts"
-  ],
-  "ignoreBinaries": ["dot", "diff", "railway"],
+  "ignore": ["tzurot-legacy/**", "**/vitest.config.ts", "**/test/setup.ts", "vitest.workspace.ts"],
+  "ignoreBinaries": ["dot", "railway"],
   "ignoreDependencies": [
     "@secretlint/secretlint-rule-preset-recommend",
     "eslint-formatter-pretty",
