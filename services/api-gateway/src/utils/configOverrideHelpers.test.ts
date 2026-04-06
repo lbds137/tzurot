@@ -46,9 +46,9 @@ describe('tryInvalidateCache', () => {
     expect(fn).toHaveBeenCalledOnce();
   });
 
-  it('should skip when fn is undefined', async () => {
+  it('should skip silently when fn is undefined', async () => {
     await tryInvalidateCache(undefined);
-    // No error thrown — just returns
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 
   it('should swallow errors and log warning with context', async () => {
