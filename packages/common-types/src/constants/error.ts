@@ -26,7 +26,9 @@ export enum TransientErrorCode {
 
 /**
  * POSIX and undici error codes that indicate transient network failures.
- * Superset of TransientErrorCode — also includes undici-specific codes.
+ * Superset of {@link TransientErrorCode} — includes all its members plus
+ * undici-specific codes like `UND_ERR_CONNECT_TIMEOUT`.
+ * Used by {@link isTransientNetworkError} for runtime error classification.
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used by isTransientNetworkError
 export const TRANSIENT_NETWORK_CODES: ReadonlySet<string> = new Set([
