@@ -193,7 +193,8 @@ export function createConfigOverrideRoutes(
       });
 
       await tryInvalidateCache(
-        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId),
+        { discordUserId: req.userId }
       );
 
       sendCustomSuccess(res, { configDefaults: merged }, StatusCodes.OK);
@@ -218,7 +219,8 @@ export function createConfigOverrideRoutes(
       });
 
       await tryInvalidateCache(
-        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId),
+        { discordUserId: req.userId }
       );
 
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);
@@ -298,7 +300,8 @@ export function createConfigOverrideRoutes(
       });
 
       await tryInvalidateCache(
-        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId),
+        { discordUserId: req.userId }
       );
 
       sendCustomSuccess(res, { configOverrides: merged }, StatusCodes.OK);
@@ -337,7 +340,8 @@ export function createConfigOverrideRoutes(
       }
 
       await tryInvalidateCache(
-        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId)
+        cascadeInvalidation?.invalidateUser.bind(cascadeInvalidation, req.userId),
+        { discordUserId: req.userId }
       );
 
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);

@@ -124,7 +124,8 @@ export function createPatchConfigOverridesHandler(
       });
 
       await tryInvalidateCache(
-        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId)
+        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId),
+        { channelId }
       );
 
       logger.info({ channelId, userId: req.userId }, 'Updated channel config overrides');
@@ -155,7 +156,8 @@ export function createDeleteConfigOverridesHandler(
       });
 
       await tryInvalidateCache(
-        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId)
+        cascadeInvalidation?.invalidateChannel.bind(cascadeInvalidation, channelId),
+        { channelId }
       );
 
       logger.info({ channelId, userId: req.userId }, 'Cleared channel config overrides');
