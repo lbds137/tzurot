@@ -1,18 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { tryInvalidateCache, mergeAndValidateOverrides } from './configOverrideHelpers.js';
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    info: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      debug: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
+
+import { tryInvalidateCache, mergeAndValidateOverrides } from './configOverrideHelpers.js';
 
 // Mock the merge function to control its return values
 const mockMerge = vi.fn();
@@ -45,11 +50,14 @@ describe('tryInvalidateCache', () => {
     // No error thrown — just returns
   });
 
-  it('should swallow errors from the invalidation function', async () => {
+  it('should swallow errors and log warning with context', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('Redis down'));
-    await tryInvalidateCache(fn);
-    // Should not throw
+    await tryInvalidateCache(fn, { discordUserId: 'user-123' });
     expect(fn).toHaveBeenCalledOnce();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error), discordUserId: 'user-123' }),
+      'Failed to publish cache invalidation'
+    );
   });
 });
 

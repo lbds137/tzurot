@@ -287,7 +287,8 @@ export function createModelOverrideRoutes(
         llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
           llmConfigCacheInvalidation,
           discordUserId
-        )
+        ),
+        { discordUserId }
       );
 
       sendCustomSuccess(res, { default: result }, StatusCodes.OK);
@@ -334,7 +335,8 @@ export function createModelOverrideRoutes(
         llmConfigCacheInvalidation?.invalidateUserLlmConfig.bind(
           llmConfigCacheInvalidation,
           discordUserId
-        )
+        ),
+        { discordUserId }
       );
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
