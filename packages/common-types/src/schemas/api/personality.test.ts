@@ -10,6 +10,7 @@ import { EntityPermissionsSchema } from './shared.js';
 import {
   PersonalitySummarySchema,
   PersonalityFullSchema,
+  PersonalityCharacterFieldsSchema,
   ListPersonalitiesResponseSchema,
   CreatePersonalityResponseSchema,
   GetPersonalityResponseSchema,
@@ -227,6 +228,47 @@ describe('Personality API Contract Tests', () => {
       // - No scattered `isOwned || isBotOwner()` checks in bot-client
 
       expect(true).toBe(true);
+    });
+  });
+
+  describe('PersonalityCharacterFieldsSchema', () => {
+    it('should accept all null values (all fields are nullable)', () => {
+      const result = PersonalityCharacterFieldsSchema.safeParse({
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept string values and transform empty strings to null', () => {
+      const result = PersonalityCharacterFieldsSchema.safeParse({
+        personalityTone: 'Warm and friendly',
+        personalityAge: '',
+        personalityAppearance: null,
+        personalityLikes: 'Coding',
+        personalityDislikes: undefined,
+        conversationalGoals: null,
+        conversationalExamples: 'Example dialogue',
+        errorMessage: null,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.personalityTone).toBe('Warm and friendly');
+        expect(result.data.personalityAge).toBeNull(); // empty → null
+      }
+    });
+
+    it('should have exactly 8 fields', () => {
+      const keys = Object.keys(PersonalityCharacterFieldsSchema.shape);
+      expect(keys).toHaveLength(8);
+      expect(keys).toContain('personalityTone');
+      expect(keys).toContain('errorMessage');
     });
   });
 
