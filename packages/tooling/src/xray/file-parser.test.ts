@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// ts-morph has a cold-start cost (~500ms) that can exceed the default 5s timeout on slower CI runners
-vi.setConfig({ testTimeout: 15_000 });
+// ts-morph has a cold-start cost (~500ms locally, 10-15s on slow CI runners under load)
+// that can exceed the default 5s timeout. 30s gives sufficient headroom.
+vi.setConfig({ testTimeout: 30_000 });
 
 import { parseFile, extractSuppressions } from './file-parser.js';
 
