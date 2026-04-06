@@ -35,6 +35,6 @@
   "devDependencies": {
     "@types/node": "^25.5.2",
     "@tzurot/test-utils": "workspace:*",
-    "dotenv": "^17.4.0"
+    "dotenv": "^17.4.1"
   }
 }

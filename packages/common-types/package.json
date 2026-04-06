@@ -25,7 +25,7 @@
     "discord-api-types": "^0.38.44",
     "discord.js": "^14.26.2",
     "ioredis": "^5.10.1",
-    "lru-cache": "^11.2.7",
+    "lru-cache": "^11.3.0",
     "openai": "^6.33.0",
     "parse-duration": "^2.1.5",
     "pg": "^8.20.0",
