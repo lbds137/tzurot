@@ -269,18 +269,23 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     return;
   }
 
+  // Acknowledge immediately so all downstream async work (session lookup,
+  // API fetch) happens inside the 15-minute followup window rather than
+  // the 3-second interaction window. Matches the pattern in
+  // character/browse.ts. After deferUpdate, error paths must use followUp
+  // instead of reply (the interaction is already acknowledged).
+  await interaction.deferUpdate();
+
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);
   if (session?.data.kind !== 'browse') {
-    // Session expired or never existed — surface an expired message
-    await interaction.reply({
+    // Session expired or never existed — surface an expired message via followUp
+    await interaction.followUp({
       content: '⏰ This interaction has expired. Please run `/memory browse` again.',
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
-
-  await interaction.deferUpdate();
 
   const userId = interaction.user.id;
   const { personalityId } = session.data;
