@@ -269,6 +269,14 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     return;
   }
 
+  // No explicit `interaction.user.id === session.userId` check here — the
+  // memory command uses `deferralMode: 'ephemeral'` (see memory/index.ts),
+  // so only the command invoker can see the message, and therefore only
+  // they can click the pagination buttons. A non-invoker physically
+  // cannot produce this interaction. If this command ever switches to a
+  // public deferral mode, a user check MUST be added here to prevent
+  // overwriting someone else's memory search results via editReply.
+  //
   // Acknowledge immediately so all downstream async work (session lookup,
   // API fetch) happens inside the 15-minute followup window rather than
   // the 3-second interaction window. Matches the pattern in
