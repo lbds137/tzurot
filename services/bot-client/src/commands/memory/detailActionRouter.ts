@@ -99,7 +99,13 @@ export async function handleMemoryDetailAction(
       await handleViewFullButton(buttonInteraction, memoryId);
       return true;
     case 'back':
-      await buttonInteraction.deferUpdate();
+      // The caller (interactionHandlers.handleButton) already defers
+      // interactions on the session-dependent path so the session lookup
+      // stays inside the 3-second window. Guard against double-ack by
+      // only deferring when the interaction is still untouched.
+      if (!buttonInteraction.deferred && !buttonInteraction.replied) {
+        await buttonInteraction.deferUpdate();
+      }
       await onRefresh();
       return true;
     default:

@@ -151,6 +151,26 @@ describe('handleMemoryDetailAction', () => {
     expect(mockOnRefresh).toHaveBeenCalled();
   });
 
+  it('back action skips deferUpdate when interaction is already deferred', async () => {
+    // This guard lets handleButton in interactionHandlers.ts defer early on
+    // the session-dependent path (ack-first rule) without double-acking
+    // when the 'back' case is subsequently dispatched. Without the guard,
+    // Discord rejects the second deferUpdate.
+    mockParseMemoryActionId.mockReturnValue({ action: 'back', memoryId: undefined });
+    const interaction = {
+      customId: 'memory-detail::back',
+      deferUpdate: vi.fn(),
+      deferred: true,
+      replied: false,
+    } as unknown as ButtonInteraction;
+
+    const result = await handleMemoryDetailAction(interaction, mockOnRefresh);
+
+    expect(result).toBe(true);
+    expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    expect(mockOnRefresh).toHaveBeenCalled();
+  });
+
   it('should return false for unknown action type', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'unknown', memoryId: undefined });
     const interaction = createMockButtonInteraction('memory-detail::unknown');

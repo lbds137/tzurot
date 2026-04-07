@@ -476,6 +476,33 @@ describe('Memory Detail', () => {
         })
       );
     });
+
+    it('skips deferUpdate when the interaction is already deferred', async () => {
+      // This guard lets handleButton ack early on the session-dependent
+      // path (ack-first rule) without handleDeleteConfirm double-acking.
+      // Without the guard, Discord rejects the second deferUpdate and the
+      // user sees "This interaction failed."
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { success: true },
+      });
+
+      const mockDeferUpdate = vi.fn();
+      const mockFollowUp = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123' },
+        deferUpdate: mockDeferUpdate,
+        followUp: mockFollowUp,
+        deferred: true, // ← pre-deferred by caller
+        replied: false,
+      } as unknown as ButtonInteraction;
+
+      const result = await handleDeleteConfirm(interaction, 'memory-123');
+
+      expect(result).toBe(true);
+      expect(mockDeferUpdate).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleViewFullButton', () => {
