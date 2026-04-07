@@ -11,6 +11,7 @@ export {
   type SettingsDashboardSession,
   type SettingsDashboardConfig,
   type SettingSource,
+  type SettingUpdateHandler,
   type SettingUpdateResult,
   type SettingValue,
   type PersonalityResponse,
