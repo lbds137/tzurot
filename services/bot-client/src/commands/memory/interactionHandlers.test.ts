@@ -193,6 +193,43 @@ describe('handleButton', () => {
     expect(interaction.reply).not.toHaveBeenCalled();
   });
 
+  it('SESSION_INDEPENDENT_ACTIONS invariant: lock on a search-opened memory never touches the search handler', async () => {
+    // Regression scenario: a memory is opened from a search result, so
+    // the dashboard session for this message is kind='search'. When the
+    // user clicks lock (or any SESSION_INDEPENDENT_ACTIONS entry), the
+    // router MUST bypass the session lookup entirely and route through
+    // handleBrowseDetailAction without calling handleSearchDetailAction.
+    //
+    // This test protects the invariant by name so a future contributor
+    // who adds an onRefresh call to the lock case in detailActionRouter
+    // will see this test fail and understand WHY — the JSDoc comments
+    // in interactionHandlers.ts and detailActionRouter.ts warn about it,
+    // but tests are the enforcement mechanism.
+    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+    mockHandleBrowseDetailAction.mockResolvedValue(true);
+    // Arrange a search session on this message; the test asserts the
+    // router does NOT consult it.
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: { kind: 'search', searchQuery: 'love', currentPage: 0, pageSize: 5 },
+    });
+
+    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+
+    await handleButton(interaction as never);
+
+    // The session is NEVER looked up for SESSION_INDEPENDENT_ACTIONS, so
+    // its kind is irrelevant to routing.
+    expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
+    // Route goes through the browse detail action unconditionally.
+    expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
+    // Critical: the search handler is NEVER called for these actions.
+    // If this assertion ever fails, something added onRefresh to a
+    // session-independent action — move it to the session-dependent
+    // path instead, or memories opened from search will silently stop
+    // refreshing.
+    expect(mockHandleSearchDetailAction).not.toHaveBeenCalled();
+  });
+
   it('routes session-dependent "back" to browse refresh when session kind is browse', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'back' });
     mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });

@@ -74,10 +74,13 @@ remove the downstream defer — that couples the handler to a specific caller
 contract and breaks anyone who invokes it without first acking.
 
 Reference implementation: `services/bot-client/src/commands/character/browse.ts`
-in `handleBrowsePagination`. For the nested-router pattern specifically, see
-`memory/interactionHandlers.ts` `handleButton` session-dependent path
-together with `detail.ts` `handleDeleteConfirm` and `detailActionRouter.ts`
-`case 'back'`.
+in `handleBrowsePagination`. For the nested-router pattern specifically,
+see `memory/interactionHandlers.ts` `handleButton` session-dependent path
+(the top-level router that acks first) together with
+`memory/detailActionRouter.ts` `case 'back'` — that case shows the
+canonical downstream guard in its simplest form. `memory/detail.ts`
+`handleDeleteConfirm` applies the same pattern in a leaf handler that
+can also be called standalone from tests.
 
 ## Deterministic UUIDs
 
