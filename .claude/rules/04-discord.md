@@ -2,15 +2,61 @@
 
 ## 3-Second Rule (CRITICAL)
 
-Discord requires response within 3 seconds. AI calls take longer.
+Discord requires acknowledgment within 3 seconds. Any async work — AI calls,
+gateway fetches, Redis lookups, Prisma queries — must happen **after** the ack,
+never before. The 3-second budget is indivisible: a sub-millisecond Redis
+lookup today is a multi-second lookup under load, and the window doesn't
+distinguish between types of async work.
+
+### Slash commands: defer first, then process
 
 ```typescript
-// MUST defer IMMEDIATELY, then process
+// ✅ CORRECT — defer IMMEDIATELY, then do any async work
 await interaction.deferReply();
-
 const response = await fetch(`${GATEWAY_URL}/ai/generate`, { ... });
 await interaction.editReply({ content: result.content });
 ```
+
+### Component interactions (buttons, select menus): defer first, then look up session
+
+The same rule applies to `handleButton` / `handleSelectMenu`. A common
+antipattern is awaiting the session lookup **before** `deferUpdate`:
+
+```typescript
+// ❌ WRONG — Redis lookup consumes the 3-second budget
+export async function handleBrowsePagination(interaction: ButtonInteraction) {
+  const session = await findMemoryListSessionByMessage(interaction.message.id);
+  if (session === null) {
+    await interaction.reply({ content: '⏰ Expired', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferUpdate(); // TOO LATE — session lookup already happened
+  // ... more async work
+}
+
+// ✅ CORRECT — ack first, then do async work, use followUp for errors
+export async function handleBrowsePagination(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const session = await findMemoryListSessionByMessage(interaction.message.id);
+  if (session === null) {
+    // interaction is already acked, so reply() would throw — use followUp
+    await interaction.followUp({ content: '⏰ Expired', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  // ... more async work
+}
+```
+
+**Rule of thumb**: the **first** `await` in a component handler must be on
+`interaction.deferUpdate()` (or `deferReply` for new ephemeral replies). If
+you need to branch on session state for the error message wording, do the
+branching **after** the ack and use `followUp` for the error path.
+
+**Exception**: synchronous guards that don't `await` (e.g., customId prefix
+validation, parsing) can run before the ack — they don't consume the budget.
+
+Reference implementation: `services/bot-client/src/commands/character/browse.ts`
+in `handleBrowsePagination`.
 
 ## Deterministic UUIDs
 
