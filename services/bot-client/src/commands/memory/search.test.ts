@@ -199,7 +199,7 @@ describe('handleSearch', () => {
     );
   });
 
-  it('handles text fallback searches', async () => {
+  it('handles text fallback searches and persists searchType in session', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: { ...sampleSemanticResponse, searchType: 'text' as const },
@@ -209,7 +209,14 @@ describe('handleSearch', () => {
     await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalled();
-    expect(mockSaveMemoryListSession).toHaveBeenCalled();
+    // searchType must round-trip into the session so subsequent pagination
+    // can skip the semantic attempt — fixes the regression where text
+    // fallback was lost across page navigation.
+    expect(mockSaveMemoryListSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ kind: 'search', searchType: 'text' }),
+      })
+    );
   });
 
   it('aborts early when personality resolution returns null (helper handles the error reply)', async () => {
@@ -282,6 +289,64 @@ describe('handleSearchPagination', () => {
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
       expect.objectContaining({ newPage: 1, kind: 'search' })
     );
+  });
+
+  it('threads preferTextSearch=true when session searchType is text', async () => {
+    // Regression: when the first page fell back to text search, every
+    // paginated page should skip the semantic attempt to avoid an extra
+    // embedding round-trip.
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: {
+        kind: 'search',
+        personalityId: TEST_PERSONALITY_ID,
+        currentPage: 0,
+        searchQuery: TEST_QUERY,
+        searchType: 'text',
+      },
+    });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { ...sampleSemanticResponse, hasMore: false },
+    });
+
+    const interaction = createButtonInteraction(searchHelpers.build(1, 'all', 'date', null));
+
+    await handleSearchPagination(interaction as unknown as ButtonInteraction);
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/memory/search',
+      expect.objectContaining({
+        body: expect.objectContaining({ preferTextSearch: true }),
+      })
+    );
+  });
+
+  it('omits preferTextSearch when session searchType is semantic', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: {
+        kind: 'search',
+        personalityId: TEST_PERSONALITY_ID,
+        currentPage: 0,
+        searchQuery: TEST_QUERY,
+        searchType: 'semantic',
+      },
+    });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { ...sampleSemanticResponse, hasMore: false },
+    });
+
+    const interaction = createButtonInteraction(searchHelpers.build(1, 'all', 'date', null));
+
+    await handleSearchPagination(interaction as unknown as ButtonInteraction);
+
+    // fetchSearchResults only sets preferTextSearch in the body when true,
+    // so a semantic session must NOT include the field at all.
+    const [, callOptions] = mockCallGatewayApi.mock.calls[0] as [
+      string,
+      { body: Record<string, unknown> },
+    ];
+    expect(callOptions.body).not.toHaveProperty('preferTextSearch');
   });
 
   it('shows expired message when session is missing', async () => {
@@ -432,16 +497,10 @@ describe('refreshSearchList', () => {
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
-  it('no-ops when session has no searchQuery', async () => {
-    mockFindMemoryListSessionByMessage.mockResolvedValue({
-      data: { kind: 'search', currentPage: 0 }, // Missing searchQuery
-    });
-    const interaction = createButtonInteraction('memory-detail::back');
-
-    await refreshSearchList(interaction as unknown as ButtonInteraction);
-
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
-  });
+  // Note: a "search session without searchQuery" test was deleted along with
+  // the corresponding runtime guard, because the discriminated union now makes
+  // searchQuery a required field on the 'search' variant — that state can't
+  // be constructed without `as never` casting.
 });
 
 describe('handleSearchDetailAction', () => {

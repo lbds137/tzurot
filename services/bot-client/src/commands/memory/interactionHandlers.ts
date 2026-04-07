@@ -39,6 +39,23 @@ import {
 const logger = createLogger('memory-command');
 
 /**
+ * Detail actions that operate on a single memory without needing to know
+ * which list (browse vs search) the detail view was opened from. These can
+ * work even if the list session has expired, because the memory ID is encoded
+ * in the button's custom ID and the action doesn't refresh the list view.
+ */
+const SESSION_INDEPENDENT_ACTIONS = new Set([
+  'edit',
+  'edit-truncated',
+  'cancel-edit',
+  'lock',
+  'view-full',
+  // 'delete' only shows the confirmation dialog; no list refresh needed.
+  // 'confirm-delete' and 'back' DO call onRefresh — those are session-dependent.
+  'delete',
+]);
+
+/**
  * Handle button interactions for memory commands.
  * Routes pagination to browse/search handlers, detail actions to the
  * detail action router (which calls back to refresh the list view).
@@ -106,23 +123,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     }
   }
 }
-
-/**
- * Detail actions that operate on a single memory without needing to know
- * which list (browse vs search) the detail view was opened from. These can
- * work even if the list session has expired, because the memory ID is encoded
- * in the button's custom ID and the action doesn't refresh the list view.
- */
-const SESSION_INDEPENDENT_ACTIONS = new Set([
-  'edit',
-  'edit-truncated',
-  'cancel-edit',
-  'lock',
-  'view-full',
-  // 'delete' only shows the confirmation dialog; no list refresh needed.
-  // 'confirm-delete' and 'back' DO call onRefresh — those are session-dependent.
-  'delete',
-]);
 
 /**
  * Handle modal submit interactions for memory editing.
