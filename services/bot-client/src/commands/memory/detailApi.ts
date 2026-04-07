@@ -19,22 +19,6 @@ export interface MemoryItem {
   isLocked: boolean;
 }
 
-/**
- * Context needed to return to list view
- */
-export interface ListContext {
-  /** 'list' or 'search' */
-  source: 'list' | 'search';
-  /** Current page (0-indexed) */
-  page: number;
-  /** Personality filter if any */
-  personalityId?: string;
-  /** Search query (for search source) */
-  query?: string;
-  /** Search type hint (for search source) */
-  preferTextSearch?: boolean;
-}
-
 const logger = createLogger('memory-detail-api');
 
 interface SingleMemoryResponse {

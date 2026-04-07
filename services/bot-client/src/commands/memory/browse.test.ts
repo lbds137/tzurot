@@ -61,13 +61,20 @@ vi.mock('./detailActionRouter.js', () => ({
   handleMemoryDetailAction: (...args: unknown[]) => mockHandleMemoryDetailAction(...args),
 }));
 
-vi.mock('./browseSession.js', () => ({
-  saveMemoryListSession: (...args: unknown[]) => mockSaveMemoryListSession(...args),
-  findMemoryListSessionByMessage: (...args: unknown[]) =>
-    mockFindMemoryListSessionByMessage(...args),
-  updateMemoryListSessionPage: (...args: unknown[]) => mockUpdateMemoryListSessionPage(...args),
-  MEMORY_BROWSE_ENTITY_TYPE: 'memory-browse',
-}));
+// Mock the session-manager-backed functions but keep the real
+// fetchPageWithEmptyFallback helper — it's pure and we want the refresh
+// tests to exercise the actual empty-page stepback logic, not a stub.
+vi.mock('./browseSession.js', async () => {
+  const actual = await vi.importActual<typeof import('./browseSession.js')>('./browseSession.js');
+  return {
+    ...actual,
+    saveMemoryListSession: (...args: unknown[]) => mockSaveMemoryListSession(...args),
+    findMemoryListSessionByMessage: (...args: unknown[]) =>
+      mockFindMemoryListSessionByMessage(...args),
+    updateMemoryListSessionPage: (...args: unknown[]) => mockUpdateMemoryListSessionPage(...args),
+    MEMORY_BROWSE_ENTITY_TYPE: 'memory-browse',
+  };
+});
 
 import {
   handleBrowse,
@@ -310,34 +317,22 @@ describe('handleBrowseSelect', () => {
     vi.resetAllMocks();
   });
 
-  it('delegates to handleMemorySelect with list context from session', async () => {
-    mockFindMemoryListSessionByMessage.mockResolvedValue({
-      data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 3 },
-    });
+  it('forwards to handleMemorySelect without any session lookup', async () => {
+    // Post-migration, handleBrowseSelect is a thin pass-through. No session
+    // lookup happens — back navigation from the detail view reads the session
+    // via messageId inside refreshBrowseList. Thinning this wrapper removed
+    // a dead Redis call that previously ran before deferUpdate (violating
+    // the 3-second rule added in 04-discord.md).
     const interaction = createSelectInteraction('memory-detail::select');
 
     await handleBrowseSelect(interaction as unknown as StringSelectMenuInteraction);
 
-    expect(mockHandleMemorySelect).toHaveBeenCalledWith(
-      interaction,
-      expect.objectContaining({
-        source: 'list',
-        page: 3,
-        personalityId: TEST_PERSONALITY_ID,
-      })
-    );
-  });
-
-  it('falls back to defaults when session is missing', async () => {
-    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
-    const interaction = createSelectInteraction('memory-detail::select');
-
-    await handleBrowseSelect(interaction as unknown as StringSelectMenuInteraction);
-
-    expect(mockHandleMemorySelect).toHaveBeenCalledWith(
-      interaction,
-      expect.objectContaining({ source: 'list', page: 0 })
-    );
+    expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
+    expect(mockHandleMemorySelect).toHaveBeenCalledWith(interaction);
+    // handleMemorySelect is called with exactly one argument now — no context.
+    expect(mockHandleMemorySelect).toHaveBeenCalledTimes(1);
+    const [, ...extras] = mockHandleMemorySelect.mock.calls[0] as [unknown, ...unknown[]];
+    expect(extras).toEqual([]);
   });
 });
 

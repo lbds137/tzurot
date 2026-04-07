@@ -33,13 +33,13 @@ import {
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemorySelectMenu, handleMemorySelect, type MemoryItem } from './detail.js';
-import type { ListContext } from './detailApi.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import { formatSimilarity, truncateContent } from './formatters.js';
 import {
   saveMemoryListSession,
   findMemoryListSessionByMessage,
   updateMemoryListSessionPage,
+  fetchPageWithEmptyFallback,
   MEMORY_SEARCH_ENTITY_TYPE,
 } from './browseSession.js';
 
@@ -422,26 +422,16 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
 
 /**
  * Handle select menu interaction — user picked a memory from search results.
+ *
+ * Thin wrapper around handleMemorySelect. Back navigation from the detail
+ * view uses refreshSearchList, which re-reads the session via messageId —
+ * no context needs to be threaded through this handler. Calling
+ * handleMemorySelect directly (without awaiting any other async work
+ * first) preserves 3-second rule compliance: the deferUpdate inside
+ * handleMemorySelect is the first await in the call chain.
  */
 export async function handleSearchSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  const messageId = interaction.message.id;
-  const session = await findMemoryListSessionByMessage(messageId);
-
-  // Type-narrow to the search variant — searchQuery only exists when kind === 'search'.
-  // If the session is missing or somehow a browse session, fall back to defaults.
-  // Degraded (not broken): the select still works since the memory ID is in
-  // the interaction values, but the detail "back" button returns to page 0
-  // without the original search query or personality filter. This is a
-  // deliberate UX tradeoff — a working fallback beats an error screen.
-  const searchSession = session?.data.kind === 'search' ? session.data : null;
-  const listContext: ListContext = {
-    source: 'search',
-    page: searchSession?.currentPage ?? 0,
-    personalityId: searchSession?.personalityId,
-    query: searchSession?.searchQuery,
-  };
-
-  await handleMemorySelect(interaction, listContext);
+  await handleMemorySelect(interaction);
 }
 
 /**
@@ -461,42 +451,35 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
   const { personalityId, searchQuery, pageSize, searchType } = session.data;
 
   const userId = interaction.user.id;
-  let pageToFetch = session.data.currentPage;
 
-  let data = await fetchSearchResults({
-    userId,
-    query: searchQuery,
-    personalityId,
-    offset: pageToFetch * pageSize,
-    limit: pageSize,
-    preferTextSearch: searchType === 'text',
+  const result = await fetchPageWithEmptyFallback({
+    currentPage: session.data.currentPage,
+    fetchPage: page =>
+      fetchSearchResults({
+        userId,
+        query: searchQuery,
+        personalityId,
+        offset: page * pageSize,
+        limit: pageSize,
+        preferTextSearch: searchType === 'text',
+      }),
+    isEmpty: d => d.results.length === 0,
   });
-  if (data === null) {
+  if (result === null) {
     return;
   }
 
-  // Handle empty page after delete: go back one page if current page is now empty
-  if (data.results.length === 0 && pageToFetch > 0) {
-    pageToFetch--;
-    const retryData = await fetchSearchResults({
-      userId,
-      query: searchQuery,
-      personalityId,
-      offset: pageToFetch * pageSize,
-      limit: pageSize,
-      preferTextSearch: searchType === 'text',
-    });
-    if (retryData === null) {
-      return;
-    }
-    data = retryData;
+  if (result.steppedBack) {
     await updateMemoryListSessionPage({
       userId,
       messageId,
       kind: 'search',
-      newPage: pageToFetch,
+      newPage: result.page,
     });
   }
+
+  const data = result.data;
+  const pageToFetch = result.page;
 
   const { embed, components } = buildSearchView({
     data,
