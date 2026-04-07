@@ -27,8 +27,8 @@ import type {
 } from '../../utils/commandContext/types.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleStats } from './stats.js';
-import { handleBrowse, BROWSE_PAGINATION_CONFIG } from './browse.js';
-import { handleSearch, SEARCH_PAGINATION_CONFIG } from './search.js';
+import { handleBrowse, MEMORY_BROWSE_PREFIX } from './browse.js';
+import { handleSearch, MEMORY_SEARCH_PREFIX } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
 import {
   handleIncognitoEnable,
@@ -324,9 +324,5 @@ export default defineCommand({
   handleButton,
   handleModal,
   handleSelectMenu,
-  componentPrefixes: [
-    BROWSE_PAGINATION_CONFIG.prefix,
-    SEARCH_PAGINATION_CONFIG.prefix,
-    MEMORY_DETAIL_PREFIX,
-  ],
+  componentPrefixes: [MEMORY_BROWSE_PREFIX, MEMORY_SEARCH_PREFIX, MEMORY_DETAIL_PREFIX],
 });

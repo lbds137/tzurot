@@ -1,1006 +1,437 @@
 /**
- * Tests for Memory Browse Subcommand
+ * Tests for memory browse handler.
+ *
+ * Covers:
+ * - handleBrowse: fetches first page, saves session, builds embed + components
+ * - handleBrowsePagination: reads session, fetches page, updates message
+ * - handleBrowseSelect: delegates to detail view with list context
+ * - refreshBrowseList: handles empty-page-after-delete edge case
+ * - handleBrowseDetailAction: delegates to detail router with refresh callback
+ * - isMemoryBrowsePagination: custom ID guard
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleBrowse } from './browse.js';
 
-// Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+const {
+  mockCallGatewayApi,
+  mockResolveOptionalPersonality,
+  mockHandleMemorySelect,
+  mockHandleMemoryDetailAction,
+  mockBuildMemorySelectMenu,
+  mockSaveMemoryListSession,
+  mockFindMemoryListSessionByMessage,
+  mockUpdateMemoryListSessionPage,
+} = vi.hoisted(() => ({
+  mockCallGatewayApi: vi.fn(),
+  mockResolveOptionalPersonality: vi.fn(),
+  mockHandleMemorySelect: vi.fn(),
+  mockHandleMemoryDetailAction: vi.fn(),
+  mockBuildMemorySelectMenu: vi.fn((..._args: unknown[]) => ({ components: [] })),
+  mockSaveMemoryListSession: vi.fn(),
+  mockFindMemoryListSessionByMessage: vi.fn(),
+  mockUpdateMemoryListSessionPage: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
+    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    memoryBrowseOptions: (interaction: { options?: { getString: (name: string) => string } }) => ({
+      personality: () => interaction.options?.getString('personality') ?? null,
     }),
+    formatDateShort: (d: string | Date) => String(d),
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
+vi.mock('./resolveHelpers.js', () => ({
+  resolveOptionalPersonality: (...args: unknown[]) => mockResolveOptionalPersonality(...args),
 }));
 
-// Mock autocomplete
-const mockResolvePersonalityId = vi.fn();
-vi.mock('./autocomplete.js', () => ({
-  resolvePersonalityId: (...args: unknown[]) => mockResolvePersonalityId(...args),
+vi.mock('./detail.js', () => ({
+  buildMemorySelectMenu: (...args: unknown[]) => mockBuildMemorySelectMenu(...args),
+  handleMemorySelect: (...args: unknown[]) => mockHandleMemorySelect(...args),
 }));
 
-// Mock detail.js handlers for collector tests
-const mockHandleMemorySelect = vi.fn().mockResolvedValue(undefined);
-const mockHandleEditButton = vi.fn().mockResolvedValue(undefined);
-const mockHandleLockButton = vi.fn().mockResolvedValue(undefined);
-const mockHandleDeleteButton = vi.fn().mockResolvedValue(undefined);
-const mockHandleDeleteConfirm = vi.fn().mockResolvedValue(true);
-const mockHandleViewFullButton = vi.fn().mockResolvedValue(undefined);
+vi.mock('./detailActionRouter.js', () => ({
+  handleMemoryDetailAction: (...args: unknown[]) => mockHandleMemoryDetailAction(...args),
+}));
 
-vi.mock('./detail.js', async importOriginal => {
-  const actual = await importOriginal<typeof import('./detail.js')>();
+vi.mock('./browseSession.js', () => ({
+  saveMemoryListSession: (...args: unknown[]) => mockSaveMemoryListSession(...args),
+  findMemoryListSessionByMessage: (...args: unknown[]) =>
+    mockFindMemoryListSessionByMessage(...args),
+  updateMemoryListSessionPage: (...args: unknown[]) => mockUpdateMemoryListSessionPage(...args),
+  MEMORY_BROWSE_ENTITY_TYPE: 'memory-browse',
+}));
+
+import {
+  handleBrowse,
+  handleBrowsePagination,
+  handleBrowseSelect,
+  handleBrowseDetailAction,
+  refreshBrowseList,
+  isMemoryBrowsePagination,
+  browseHelpers,
+} from './browse.js';
+
+// Test fixtures
+const TEST_USER_ID = 'user-123';
+const TEST_MESSAGE_ID = 'msg-456';
+const TEST_CHANNEL_ID = 'ch-789';
+const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000001';
+
+const sampleMemory = {
+  id: 'mem-1',
+  content: 'Test memory content',
+  personalityName: 'Test Personality',
+  isLocked: false,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
+const sampleResponse = {
+  memories: [sampleMemory],
+  total: 1,
+  limit: 10,
+  offset: 0,
+  hasMore: false,
+};
+
+interface MockDeferredContext {
+  interaction: { options: { getString: ReturnType<typeof vi.fn> } };
+  user: { id: string };
+  editReply: ReturnType<typeof vi.fn>;
+}
+
+interface MockButtonInteraction {
+  customId: string;
+  message: { id: string };
+  user: { id: string };
+  deferUpdate: ReturnType<typeof vi.fn>;
+  editReply: ReturnType<typeof vi.fn>;
+  followUp: ReturnType<typeof vi.fn>;
+  reply: ReturnType<typeof vi.fn>;
+  replied: boolean;
+  deferred: boolean;
+}
+
+interface MockSelectInteraction {
+  customId: string;
+  values: string[];
+  message: { id: string };
+  user: { id: string };
+}
+
+function createDeferredContext(): MockDeferredContext {
   return {
-    ...actual,
-    handleMemorySelect: (...args: unknown[]) => mockHandleMemorySelect(...args),
-    handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
-    handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
-    handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
-    handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
+    interaction: {
+      options: {
+        getString: vi.fn((name: string) => (name === 'personality' ? null : null)),
+      },
+    },
+    user: { id: TEST_USER_ID },
+    editReply: vi.fn().mockResolvedValue({ id: TEST_MESSAGE_ID, channelId: TEST_CHANNEL_ID }),
   };
-});
+}
 
-// Mock detailModals.js - edit handlers moved here from detail.js
-vi.mock('./detailModals.js', () => ({
-  handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
-  handleEditTruncatedButton: vi.fn().mockResolvedValue(undefined),
-  handleCancelEditButton: vi.fn().mockResolvedValue(undefined),
-}));
+function createButtonInteraction(customId: string): MockButtonInteraction {
+  return {
+    customId,
+    message: { id: TEST_MESSAGE_ID },
+    user: { id: TEST_USER_ID },
+    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue({ id: TEST_MESSAGE_ID }),
+    followUp: vi.fn().mockResolvedValue(undefined),
+    reply: vi.fn().mockResolvedValue(undefined),
+    replied: false,
+    deferred: false,
+  };
+}
+
+function createSelectInteraction(customId: string): MockSelectInteraction {
+  return {
+    customId,
+    values: ['mem-1'],
+    message: { id: TEST_MESSAGE_ID },
+    user: { id: TEST_USER_ID },
+  };
+}
 
 describe('handleBrowse', () => {
-  const mockEditReply = vi.fn();
-  const mockCreateMessageComponentCollector = vi.fn();
-
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockCreateMessageComponentCollector.mockReturnValue({
-      on: vi.fn().mockReturnThis(),
-    });
-    mockEditReply.mockResolvedValue({
-      createMessageComponentCollector: mockCreateMessageComponentCollector,
-    });
+    vi.resetAllMocks();
+    mockResolveOptionalPersonality.mockResolvedValue(TEST_PERSONALITY_ID);
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: sampleResponse });
   });
 
-  function createMockContext(personality: string | null = null) {
-    return {
-      user: { id: '123456789' },
-      interaction: {
-        options: {
-          getString: (name: string) => {
-            if (name === 'personality') return personality;
-            return null;
-          },
-        },
-        // Also needed for setupBrowseCollector which uses interaction.editReply directly
-        editReply: mockEditReply,
-      },
-      editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleBrowse>[0];
-  }
+  it('fetches memories and saves a browse session', async () => {
+    const context = createDeferredContext();
 
-  it('should list memories successfully without filter', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test memory about cats',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Lilith',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
+    await handleBrowse(context as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       expect.stringContaining('/user/memory/list'),
-      expect.objectContaining({
-        userId: '123456789',
-        method: 'GET',
-      })
+      expect.objectContaining({ method: 'GET', userId: TEST_USER_ID })
     );
-    expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: expect.any(Array),
-      components: expect.any(Array),
-    });
-  });
-
-  it('should list memories with personality filter', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [],
-        total: 0,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext('lilith');
-    await handleBrowse(context);
-
-    expect(mockResolvePersonalityId).toHaveBeenCalledWith('123456789', 'lilith');
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.stringContaining('personalityId=personality-uuid-123'),
-      expect.any(Object)
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
     );
-  });
-
-  it('should show error when personality not found', async () => {
-    mockResolvePersonalityId.mockResolvedValue(null);
-
-    const context = createMockContext('unknown-personality');
-    await handleBrowse(context);
-
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('not found'),
-    });
-  });
-
-  it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'Internal error',
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to load'),
-    });
-  });
-
-  it('should display empty state when no memories', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [],
-        total: 0,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: expect.any(Array),
-      components: [], // No pagination buttons when empty
-    });
-  });
-
-  it('should set up pagination collector when memories exist', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test memory',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 25, // More than one page
-        limit: 10,
-        offset: 0,
-        hasMore: true,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    expect(mockCreateMessageComponentCollector).toHaveBeenCalledWith(
+    expect(mockSaveMemoryListSession).toHaveBeenCalledWith(
       expect.objectContaining({
-        time: expect.any(Number),
+        userId: TEST_USER_ID,
+        messageId: TEST_MESSAGE_ID,
+        entityType: 'memory-browse',
+        data: expect.objectContaining({
+          kind: 'browse',
+          personalityId: TEST_PERSONALITY_ID,
+          currentPage: 0,
+        }),
       })
     );
   });
 
-  it('should not set up collector when no memories', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [],
-        total: 0,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
+  it('shows error when personality resolution fails', async () => {
+    mockResolveOptionalPersonality.mockResolvedValue(null);
+    const context = createDeferredContext();
 
-    const context = createMockContext();
-    await handleBrowse(context);
+    await handleBrowse(context as never);
 
-    expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockSaveMemoryListSession).not.toHaveBeenCalled();
   });
 
-  it('should handle unexpected errors', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+  it('shows error when API call fails', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Server error' });
+    const context = createDeferredContext();
 
-    const context = createMockContext();
-    await handleBrowse(context);
+    await handleBrowse(context as never);
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('unexpected error'),
-    });
-  });
-
-  it('should include pagination buttons with memories', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test memory',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: expect.any(Array),
-      components: expect.arrayContaining([expect.any(Object)]),
-    });
-  });
-
-  it('should display locked indicator for locked memories', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Locked memory',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Test',
-            isLocked: true,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    // The embed should contain the lock emoji for locked memories
-    expect(mockEditReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeds: expect.any(Array),
-      })
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Failed to load') })
     );
+    expect(mockSaveMemoryListSession).not.toHaveBeenCalled();
   });
 
-  it('should skip personality resolution when personality option is empty string', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [],
-        total: 0,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
+  it('handles unexpected errors gracefully', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('network'));
+    const context = createDeferredContext();
 
-    // Create context with empty string personality
-    const context = {
-      user: { id: '123456789' },
-      interaction: {
-        options: {
-          getString: (name: string) => {
-            if (name === 'personality') return '';
-            return null;
-          },
-        },
-      },
-      editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleBrowse>[0];
+    await handleBrowse(context as never);
 
-    await handleBrowse(context);
-
-    // Should NOT call resolvePersonalityId when personality is empty
-    expect(mockResolvePersonalityId).not.toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      expect.not.stringContaining('personalityId='),
-      expect.any(Object)
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('unexpected error') })
     );
-  });
-
-  it('should handle multiple memories with different personalities', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'First memory',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Lilith',
-            isLocked: false,
-          },
-          {
-            id: 'memory-2',
-            content: 'Second memory',
-            createdAt: '2025-06-14T12:00:00.000Z',
-            updatedAt: '2025-06-14T12:00:00.000Z',
-            personalityId: 'personality-456',
-            personalityName: 'Other',
-            isLocked: true,
-          },
-          {
-            id: 'memory-3',
-            content: 'Third memory',
-            createdAt: '2025-06-13T12:00:00.000Z',
-            updatedAt: '2025-06-13T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Lilith',
-            isLocked: false,
-          },
-        ],
-        total: 3,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    expect(mockEditReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeds: expect.any(Array),
-        components: expect.any(Array),
-      })
-    );
-    expect(mockCreateMessageComponentCollector).toHaveBeenCalled();
-  });
-
-  it('should handle very long content with newlines', async () => {
-    const longContentWithNewlines = 'Line 1\nLine 2\nLine 3\n' + 'A'.repeat(200);
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: longContentWithNewlines,
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    // Should succeed - content is truncated and newlines removed
-    expect(mockEditReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeds: expect.any(Array),
-      })
-    );
-  });
-
-  it('should handle hasMore indicating more pages available', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'First page memory',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 50, // Many pages worth
-        limit: 10,
-        offset: 0,
-        hasMore: true,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    expect(mockEditReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeds: expect.any(Array),
-        components: expect.any(Array),
-      })
-    );
-    expect(mockCreateMessageComponentCollector).toHaveBeenCalled();
-  });
-
-  it('should show filtered empty state for personality with no memories', async () => {
-    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        memories: [],
-        total: 0,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext('lilith');
-    await handleBrowse(context);
-
-    expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: expect.any(Array),
-      components: [], // No components when filtered empty
-    });
-    expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
   });
 });
 
-describe('handleBrowse collector behavior', () => {
-  const mockEditReply = vi.fn();
-  const mockDeferUpdate = vi.fn();
-  const mockFollowUp = vi.fn();
-  let collectCallback: (i: unknown) => void;
-  let endCallback: () => void;
-
+describe('handleBrowsePagination', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    collectCallback = () => {};
-    endCallback = () => {};
-
-    const mockCollector = {
-      on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
-        if (event === 'collect') collectCallback = callback;
-        if (event === 'end') endCallback = callback as () => void;
-        return mockCollector;
-      }),
-    };
-
-    mockEditReply.mockResolvedValue({
-      createMessageComponentCollector: () => mockCollector,
-    });
-    mockDeferUpdate.mockResolvedValue(undefined);
-    mockFollowUp.mockResolvedValue(undefined);
+    vi.resetAllMocks();
   });
 
-  function createMockContext() {
-    return {
-      user: { id: '123456789' },
-      interaction: {
-        options: {
-          getString: () => null,
-        },
-        // Also needed for setupBrowseCollector which uses interaction.editReply directly
-        editReply: mockEditReply,
-      },
-      editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleBrowse>[0];
-  }
-
-  function createMockButtonInteraction(customId: string) {
-    return {
-      isButton: () => true,
-      isStringSelectMenu: () => false,
-      customId,
-      user: { id: '123456789' },
-      deferUpdate: mockDeferUpdate,
-      editReply: mockEditReply,
-      followUp: mockFollowUp,
-    };
-  }
-
-  it('should handle pagination button click', async () => {
-    // Initial list results
-    mockCallGatewayApi.mockResolvedValueOnce({
+  it('fetches new page and updates message when session exists', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 0 },
+    });
+    // Need a large enough total for page 1 to be valid (itemsPerPage=10)
+    mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 20,
-        limit: 10,
-        offset: 0,
-        hasMore: true,
-      },
+      data: { memories: [sampleMemory], total: 25, limit: 10, offset: 10, hasMore: true },
     });
 
-    const context = createMockContext();
-    await handleBrowse(context);
+    const customId = browseHelpers.build(1, 'all', 'date', null);
+    const interaction = createButtonInteraction(customId);
 
-    // Simulate pagination button click for page 1
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-2',
-            content: 'Page 2',
-            createdAt: '2025-06-14T12:00:00.000Z',
-            updatedAt: '2025-06-14T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 20,
-        limit: 10,
-        offset: 10,
-        hasMore: false,
-      },
-    });
+    await handleBrowsePagination(interaction as never);
 
-    const buttonInteraction = createMockButtonInteraction('memory-browse::list::1::date');
-    collectCallback(buttonInteraction);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      expect.stringContaining('offset=10'),
+      expect.any(Object)
+    );
+    expect(interaction.editReply).toHaveBeenCalled();
+    expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
+      expect.objectContaining({ newPage: 1, entityType: 'memory-browse' })
+    );
   });
 
-  it('should handle pagination button click with API failure', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 20,
-        limit: 10,
-        offset: 0,
-        hasMore: true,
-      },
+  it('shows expired message when session is missing', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+    const interaction = createButtonInteraction(browseHelpers.build(2, 'all', 'date', null));
+
+    await handleBrowsePagination(interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('expired') })
+    );
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+  });
+
+  it('ignores interactions with non-browse custom IDs', async () => {
+    const interaction = createButtonInteraction('other::foo');
+
+    await handleBrowsePagination(interaction as never);
+
+    expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+  });
+
+  it('does not update session when session kind is search', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: { kind: 'search', personalityId: TEST_PERSONALITY_ID, currentPage: 0 },
     });
+    const interaction = createButtonInteraction(browseHelpers.build(1, 'all', 'date', null));
 
-    const context = createMockContext();
-    await handleBrowse(context);
+    await handleBrowsePagination(interaction as never);
 
-    // API fails on page 2
-    mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Server error' });
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('expired') })
+    );
+  });
+});
 
-    const buttonInteraction = createMockButtonInteraction('memory-browse::list::1::date');
-    collectCallback(buttonInteraction);
+describe('handleBrowseSelect', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+  it('delegates to handleMemorySelect with list context from session', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 3 },
+    });
+    const interaction = createSelectInteraction('memory-detail::select');
 
-    expect(mockFollowUp).toHaveBeenCalledWith(
+    await handleBrowseSelect(interaction as never);
+
+    expect(mockHandleMemorySelect).toHaveBeenCalledWith(
+      interaction,
       expect.objectContaining({
-        content: expect.stringContaining('Failed to load'),
-        ephemeral: true,
+        source: 'list',
+        page: 3,
+        personalityId: TEST_PERSONALITY_ID,
       })
     );
   });
 
-  it('should handle select menu interaction', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
+  it('falls back to defaults when session is missing', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+    const interaction = createSelectInteraction('memory-detail::select');
 
-    const context = createMockContext();
-    await handleBrowse(context);
+    await handleBrowseSelect(interaction as never);
 
-    const selectInteraction = {
-      isButton: () => false,
-      isStringSelectMenu: () => true,
-      customId: 'memory-select',
-      values: ['memory-1'],
-      user: { id: '123456789' },
-      deferUpdate: mockDeferUpdate,
-      editReply: mockEditReply,
-    };
-
-    collectCallback(selectInteraction);
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    // handleMemorySelect is mocked so we just verify it doesn't throw
-    expect(true).toBe(true);
-  });
-
-  it('should handle collector end by removing components', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    // Reset mock to track the end behavior
-    mockEditReply.mockClear();
-    mockEditReply.mockResolvedValue(undefined);
-
-    endCallback();
-
-    expect(mockEditReply).toHaveBeenCalledWith({ components: [] });
-  });
-
-  it('should handle collector end error gracefully', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    // Simulate editReply failing (message deleted)
-    mockEditReply.mockClear();
-    mockEditReply.mockRejectedValue(new Error('Unknown message'));
-
-    // Should not throw
-    endCallback();
-    expect(true).toBe(true);
-  });
-
-  it('should handle unrecognized button custom ID', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    const buttonInteraction = createMockButtonInteraction('unknown-prefix::action');
-    collectCallback(buttonInteraction);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    // Should not call deferUpdate for unrecognized buttons
-    expect(mockDeferUpdate).not.toHaveBeenCalled();
-  });
-
-  it('should handle edit button action', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    const buttonInteraction = createMockButtonInteraction('memory-detail::edit::memory-1');
-    collectCallback(buttonInteraction);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(mockHandleEditButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
-  });
-
-  it('should handle lock button action', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    const buttonInteraction = createMockButtonInteraction('memory-detail::lock::memory-1');
-    collectCallback(buttonInteraction);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(mockHandleLockButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
-  });
-
-  it('should handle delete button action', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    const buttonInteraction = createMockButtonInteraction('memory-detail::delete::memory-1');
-    collectCallback(buttonInteraction);
-
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(mockHandleDeleteButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
-  });
-
-  it('should handle confirm-delete button action', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
-    });
-
-    const context = createMockContext();
-    await handleBrowse(context);
-
-    const buttonInteraction = createMockButtonInteraction(
-      'memory-detail::confirm-delete::memory-1'
+    expect(mockHandleMemorySelect).toHaveBeenCalledWith(
+      interaction,
+      expect.objectContaining({ source: 'list', page: 0 })
     );
-    collectCallback(buttonInteraction);
+  });
+});
 
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(mockHandleDeleteConfirm).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
+describe('refreshBrowseList', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
   });
 
-  it('should handle back button action', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
+  it('re-fetches and updates message on refresh', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 1 },
     });
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: sampleResponse });
 
-    const context = createMockContext();
-    await handleBrowse(context);
+    const interaction = createButtonInteraction('memory-detail::back');
 
-    const buttonInteraction = createMockButtonInteraction('memory-detail::back::memory-1');
-    collectCallback(buttonInteraction);
+    await refreshBrowseList(interaction as never);
 
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    // Back button defers update before refreshing
-    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      expect.stringContaining('offset=10'),
+      expect.any(Object)
+    );
+    expect(interaction.editReply).toHaveBeenCalled();
   });
 
-  it('should handle view-full button action', async () => {
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        memories: [
-          {
-            id: 'memory-1',
-            content: 'Test memory with full content',
-            createdAt: '2025-06-15T12:00:00.000Z',
-            updatedAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'p1',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        total: 1,
-        limit: 10,
-        offset: 0,
-        hasMore: false,
-      },
+  it('steps back one page when current page is empty after delete', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: { kind: 'browse', personalityId: TEST_PERSONALITY_ID, currentPage: 2 },
     });
+    mockCallGatewayApi
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { memories: [], total: 0, limit: 10, offset: 20, hasMore: false },
+      })
+      .mockResolvedValueOnce({ ok: true, data: sampleResponse });
 
-    const context = createMockContext();
-    await handleBrowse(context);
+    const interaction = createButtonInteraction('memory-detail::back');
 
-    const buttonInteraction = createMockButtonInteraction('memory-detail::view-full::memory-1');
-    collectCallback(buttonInteraction);
+    await refreshBrowseList(interaction as never);
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
+    expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
+      expect.objectContaining({ newPage: 1 })
+    );
+  });
 
-    expect(mockHandleViewFullButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
+  it('no-ops when session is missing', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+    const interaction = createButtonInteraction('memory-detail::back');
+
+    await refreshBrowseList(interaction as never);
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('no-ops when session kind is search', async () => {
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: { kind: 'search', currentPage: 0, searchQuery: 'x' },
+    });
+    const interaction = createButtonInteraction('memory-detail::back');
+
+    await refreshBrowseList(interaction as never);
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleBrowseDetailAction', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('delegates to handleMemoryDetailAction with a refresh callback', async () => {
+    mockHandleMemoryDetailAction.mockResolvedValue(true);
+    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+
+    const handled = await handleBrowseDetailAction(interaction as never);
+
+    expect(handled).toBe(true);
+    expect(mockHandleMemoryDetailAction).toHaveBeenCalledWith(interaction, expect.any(Function));
+  });
+
+  it('returns false when detail router does not handle the action', async () => {
+    mockHandleMemoryDetailAction.mockResolvedValue(false);
+    const interaction = createButtonInteraction('unrelated::action');
+
+    const handled = await handleBrowseDetailAction(interaction as never);
+
+    expect(handled).toBe(false);
+  });
+});
+
+describe('isMemoryBrowsePagination', () => {
+  it('recognizes browse pagination buttons', () => {
+    expect(isMemoryBrowsePagination(browseHelpers.build(0, 'all', 'date', null))).toBe(true);
+  });
+
+  it('recognizes browse select menus', () => {
+    expect(isMemoryBrowsePagination(browseHelpers.buildSelect(0, 'all', 'date', null))).toBe(true);
+  });
+
+  it('rejects unrelated custom IDs', () => {
+    expect(isMemoryBrowsePagination('memory-detail::edit::mem-1')).toBe(false);
+    expect(isMemoryBrowsePagination('memory-search::browse::0::all::')).toBe(false);
   });
 });
