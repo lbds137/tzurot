@@ -94,6 +94,8 @@ interface MockButtonInteraction {
   customId: string;
   message: { id: string };
   reply: ReturnType<typeof vi.fn>;
+  deferUpdate: ReturnType<typeof vi.fn>;
+  followUp: ReturnType<typeof vi.fn>;
   replied: boolean;
   deferred: boolean;
 }
@@ -109,6 +111,8 @@ function createButtonInteraction(customId: string): MockButtonInteraction {
     customId,
     message: { id: TEST_MESSAGE_ID },
     reply: vi.fn().mockResolvedValue(undefined),
+    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    followUp: vi.fn().mockResolvedValue(undefined),
     replied: false,
     deferred: false,
   };
@@ -215,7 +219,7 @@ describe('handleButton', () => {
     expect(mockHandleBrowseDetailAction).not.toHaveBeenCalled();
   });
 
-  it('shows expired message when session-dependent action has no session', async () => {
+  it('defers immediately and shows expired message via followUp when session-dependent action has no session', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'back' });
     mockFindMemoryListSessionByMessage.mockResolvedValue(null);
 
@@ -223,7 +227,12 @@ describe('handleButton', () => {
 
     await handleButton(interaction as never);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
+    // Ack must happen BEFORE the session lookup to stay inside Discord's
+    // 3-second interaction window (04-discord.md). After deferUpdate, the
+    // expired-session path uses followUp, not reply.
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('expired') })
     );
     expect(mockHandleBrowseDetailAction).not.toHaveBeenCalled();
@@ -241,7 +250,7 @@ describe('handleButton', () => {
     );
   });
 
-  it('shows error when session-dependent detail handler returns false', async () => {
+  it('shows error via followUp when session-dependent detail handler returns false', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'back' });
     mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
     mockHandleBrowseDetailAction.mockResolvedValue(false);
@@ -250,9 +259,13 @@ describe('handleButton', () => {
 
     await handleButton(interaction as never);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
+    // Interaction is already deferred at this point (ack-first), so the
+    // unknown-action error must use followUp rather than reply.
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Unknown action') })
     );
+    expect(interaction.reply).not.toHaveBeenCalled();
   });
 });
 

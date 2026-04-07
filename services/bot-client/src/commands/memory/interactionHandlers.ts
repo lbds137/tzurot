@@ -106,9 +106,19 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
   // Session-dependent actions (back, confirm-delete) need to know which list
   // to refresh after the action completes. Look up the session to find out.
+  //
+  // Ack-first rule compliance (.claude/rules/04-discord.md): the session
+  // lookup is async, so we must deferUpdate BEFORE it to stay inside the
+  // 3-second interaction window. The downstream 'back' and confirm-delete
+  // handlers in detailActionRouter / detail.ts tolerate an already-deferred
+  // interaction (they guard with !interaction.deferred), so this early
+  // defer doesn't double-ack. After the defer, the expired-session path
+  // must use followUp instead of reply.
+  await interaction.deferUpdate();
+
   const session = await findMemoryListSessionByMessage(interaction.message.id);
   if (session === null) {
-    await interaction.reply({
+    await interaction.followUp({
       content: '⏰ This interaction has expired. Please run the command again.',
       flags: MessageFlags.Ephemeral,
     });
@@ -122,12 +132,11 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
   if (!handled) {
     logger.warn({ customId }, '[Memory] Unhandled detail action');
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: '❌ Unknown action.',
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    // Interaction is already deferred at this point, so use followUp.
+    await interaction.followUp({
+      content: '❌ Unknown action.',
+      flags: MessageFlags.Ephemeral,
+    });
   }
 }
 

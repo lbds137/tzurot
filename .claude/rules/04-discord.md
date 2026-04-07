@@ -55,8 +55,29 @@ branching **after** the ack and use `followUp` for the error path.
 **Exception**: synchronous guards that don't `await` (e.g., customId prefix
 validation, parsing) can run before the ack — they don't consume the budget.
 
+**Nested routers (handleButton → detail handlers)**: when a top-level
+router (e.g., `interactionHandlers.handleButton`) has to do async work
+before dispatching (a session lookup to pick the right downstream handler),
+the router itself must ack first. Downstream handlers that previously
+self-deferred must then guard against double-ack:
+
+```typescript
+// Downstream handler — now safe to call with or without pre-deferral
+if (!interaction.deferred && !interaction.replied) {
+  await interaction.deferUpdate();
+}
+```
+
+This keeps downstream handlers callable standalone (tests, direct dispatch)
+while staying safe when the caller has already acked. Don't unconditionally
+remove the downstream defer — that couples the handler to a specific caller
+contract and breaks anyone who invokes it without first acking.
+
 Reference implementation: `services/bot-client/src/commands/character/browse.ts`
-in `handleBrowsePagination`.
+in `handleBrowsePagination`. For the nested-router pattern specifically, see
+`memory/interactionHandlers.ts` `handleButton` session-dependent path
+together with `detail.ts` `handleDeleteConfirm` and `detailActionRouter.ts`
+`case 'back'`.
 
 ## Deterministic UUIDs
 
