@@ -197,7 +197,9 @@ describe('handleBrowse', () => {
     );
   });
 
-  it('shows error when personality resolution fails', async () => {
+  it('aborts early when personality resolution returns null (helper handles the error reply)', async () => {
+    // resolveOptionalPersonality is contracted to reply with the error itself
+    // when it returns null, so handleBrowse just returns without calling editReply
     mockResolveOptionalPersonality.mockResolvedValue(null);
     const context = createDeferredContext();
 
@@ -205,6 +207,8 @@ describe('handleBrowse', () => {
 
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
     expect(mockSaveMemoryListSession).not.toHaveBeenCalled();
+    // handleBrowse should NOT double-reply — the helper already did
+    expect(context.editReply).not.toHaveBeenCalled();
   });
 
   it('shows error when API call fails', async () => {
