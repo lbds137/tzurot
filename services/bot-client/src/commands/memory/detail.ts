@@ -349,6 +349,12 @@ export async function handleDeleteButton(
 
 /**
  * Handle delete confirmation
+ *
+ * Called from the session-dependent branch of interactionHandlers.handleButton,
+ * which defers the interaction BEFORE this function runs so the upstream
+ * session lookup stays inside the 3-second interaction window. Guard the
+ * defer here so the function remains safe to call standalone (e.g., tests)
+ * while not double-acking when the caller has already deferred.
  */
 export async function handleDeleteConfirm(
   interaction: ButtonInteraction,
@@ -356,7 +362,9 @@ export async function handleDeleteConfirm(
 ): Promise<boolean> {
   const userId = interaction.user.id;
 
-  await interaction.deferUpdate();
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferUpdate();
+  }
 
   const success = await deleteMemory(userId, memoryId);
   if (!success) {
