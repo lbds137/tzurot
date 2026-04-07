@@ -1,8 +1,14 @@
 /**
  * Memory Command - Interaction Handlers
  *
- * Handles button, modal, and select menu interactions for memory detail actions.
- * Extracted from index.ts to stay within max-lines limit.
+ * Router-pattern handlers for button, modal, and select menu interactions.
+ * Routes to:
+ * - Memory browse pagination (browse.ts)
+ * - Memory search pagination (search.ts)
+ * - Memory detail actions (detail.ts via detailActionRouter.ts)
+ *
+ * All state lives in dashboard sessions (keyed by messageId) or in the
+ * custom IDs themselves — no inline collectors, fully restart-safe.
  */
 
 import { MessageFlags } from 'discord.js';
@@ -12,51 +18,62 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import { parseMemoryActionId } from './detail.js';
+import { handleEditModalSubmit } from './detailModals.js';
+import { findMemoryListSessionByMessage } from './browseSession.js';
 import {
-  parseMemoryActionId,
-  handleLockButton,
-  handleDeleteButton,
-  handleDeleteConfirm,
-  handleViewFullButton,
-} from './detail.js';
+  browseHelpers,
+  handleBrowsePagination,
+  handleBrowseSelect,
+  handleBrowseDetailAction,
+  isMemoryBrowsePagination,
+} from './browse.js';
 import {
-  handleEditButton,
-  handleEditTruncatedButton,
-  handleCancelEditButton,
-  handleEditModalSubmit,
-} from './detailModals.js';
-import { hasActiveCollector } from '../../utils/activeCollectorRegistry.js';
+  searchHelpers,
+  handleSearchPagination,
+  handleSearchSelect,
+  handleSearchDetailAction,
+  isMemorySearchPagination,
+} from './search.js';
 
 const logger = createLogger('memory-command');
 
 /**
- * Handle button interactions for memory detail actions
- * Routes edit, lock, delete, and back actions to appropriate handlers
- *
- * Uses the active collector registry to avoid race conditions:
- * - If a collector is active for this message, ignore the interaction (collector handles it)
- * - If no collector active, this is an expired interaction - show message
+ * Handle button interactions for memory commands.
+ * Routes pagination to browse/search handlers, detail actions to the
+ * detail action router (which calls back to refresh the list view).
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Routes button interactions through collector registry, handles expired interactions, and delegates to memory action handlers
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  const messageId = interaction.message?.id;
+  const { customId } = interaction;
 
-  // Check if an active collector is handling this message
-  // If so, ignore - the collector will handle this interaction
-  if (messageId !== undefined && hasActiveCollector(messageId)) {
-    logger.debug(
-      { customId: interaction.customId, messageId },
-      '[Memory] Ignoring button - active collector will handle'
-    );
+  // Browse pagination button (memory-browse::browse::...)
+  if (isMemoryBrowsePagination(customId)) {
+    await handleBrowsePagination(interaction);
     return;
   }
 
-  // No active collector - this interaction is from an expired/orphaned message
-  const parsed = parseMemoryActionId(interaction.customId);
+  // Search pagination button (memory-search::browse::...)
+  if (isMemorySearchPagination(customId)) {
+    await handleSearchPagination(interaction);
+    return;
+  }
 
-  // Pagination button without active collector = expired
+  // Detail action buttons (memory-detail::...)
+  // Look up the session to know whether the detail view was opened from
+  // browse or search, then route to the matching refresh handler.
+  const parsed = parseMemoryActionId(customId);
   if (parsed === null) {
-    logger.debug({ customId: interaction.customId }, '[Memory] Handling expired pagination button');
+    logger.debug({ customId }, '[Memory] Unknown button customId');
+    await interaction.reply({
+      content: '❌ Unknown interaction.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const session = await findMemoryListSessionByMessage(interaction.message.id);
+  if (session === null) {
+    // Session expired — show a clean error since we can't refresh the list
     await interaction.reply({
       content: '⏰ This interaction has expired. Please run the command again.',
       flags: MessageFlags.Ephemeral,
@@ -64,73 +81,24 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     return;
   }
 
-  const { action, memoryId } = parsed;
+  const handled =
+    session.data.kind === 'browse'
+      ? await handleBrowseDetailAction(interaction)
+      : await handleSearchDetailAction(interaction);
 
-  switch (action) {
-    case 'edit':
-      if (memoryId !== undefined) {
-        await handleEditButton(interaction, memoryId);
-      }
-      break;
-    case 'edit-truncated':
-      if (memoryId !== undefined) {
-        await handleEditTruncatedButton(interaction, memoryId);
-      }
-      break;
-    case 'cancel-edit':
-      await handleCancelEditButton(interaction);
-      break;
-    case 'lock':
-      if (memoryId !== undefined) {
-        await handleLockButton(interaction, memoryId);
-      }
-      break;
-    case 'delete':
-      if (memoryId !== undefined) {
-        await handleDeleteButton(interaction, memoryId);
-      }
-      break;
-    case 'confirm-delete':
-      if (memoryId !== undefined) {
-        const success = await handleDeleteConfirm(interaction, memoryId);
-        if (success) {
-          await interaction.editReply({
-            embeds: [],
-            components: [],
-            content: '✅ Memory deleted successfully.',
-          });
-        }
-      }
-      break;
-    case 'view-full':
-      if (memoryId !== undefined) {
-        await handleViewFullButton(interaction, memoryId);
-      }
-      break;
-    case 'back':
-      // Back button needs to return to list/search - but without collector context,
-      // we can only show an expired message
-      await interaction.reply({
-        content:
-          '⏰ This interaction has expired. Please run the command again to return to the list.',
-        flags: MessageFlags.Ephemeral,
-      });
-      break;
-    default:
-      logger.warn({ action, customId: interaction.customId }, '[Memory] Unknown detail action');
+  if (!handled) {
+    logger.warn({ customId }, '[Memory] Unhandled detail action');
+    if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
         content: '❌ Unknown action.',
         flags: MessageFlags.Ephemeral,
       });
+    }
   }
 }
 
 /**
  * Handle modal submit interactions for memory editing
- *
- * NOTE: This is correctly named `handleModal`, NOT `handleModalSubmit`!
- * The typo `handleModalSubmit` was the original bug that prompted this refactoring.
- * With defineCommand, TypeScript would catch such a typo at compile time.
  */
 export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   const parsed = parseMemoryActionId(interaction.customId);
@@ -146,31 +114,40 @@ export async function handleModal(interaction: ModalSubmitInteraction): Promise<
 }
 
 /**
- * Handle select menu interactions for memory detail
- *
- * Select menus are primarily handled by collectors in list.ts and search.ts.
- * This handler catches orphaned interactions when:
- * - The collector has timed out
- * - The original message no longer has an active collector
- *
- * In those cases, we show an "expired" message since we don't have the
- * necessary context (page, personality filter, search query) to proceed.
+ * Handle select menu interactions for memory commands.
+ * Routes to browse or search select handlers based on the custom ID prefix.
  */
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  const messageId = interaction.message?.id;
+  const { customId } = interaction;
 
-  // Check if an active collector is handling this message
-  // If so, ignore - the collector will handle this interaction
-  if (messageId !== undefined && hasActiveCollector(messageId)) {
-    logger.debug(
-      { customId: interaction.customId, messageId },
-      '[Memory] Ignoring select menu - active collector will handle'
-    );
+  // Browse select (memory-browse::browse-select::...)
+  if (browseHelpers.isBrowseSelect(customId)) {
+    await handleBrowseSelect(interaction);
     return;
   }
 
-  // No active collector - this interaction is from an expired/orphaned message
-  logger.debug({ customId: interaction.customId }, '[Memory] Handling expired select menu');
+  // Search select (memory-search::browse-select::...)
+  if (searchHelpers.isBrowseSelect(customId)) {
+    await handleSearchSelect(interaction);
+    return;
+  }
+
+  // memory-detail::select — used by buildMemorySelectMenu for both browse
+  // and search result lists. Route based on the session kind so the detail
+  // view's "back" button returns to the correct list.
+  const parsed = parseMemoryActionId(customId);
+  if (parsed?.action === 'select') {
+    const session = await findMemoryListSessionByMessage(interaction.message.id);
+    if (session?.data.kind === 'search') {
+      await handleSearchSelect(interaction);
+    } else {
+      // Default to browse (also handles the "no session" case gracefully)
+      await handleBrowseSelect(interaction);
+    }
+    return;
+  }
+
+  logger.debug({ customId }, '[Memory] Unknown select menu customId');
   await interaction.reply({
     content: '⏰ This interaction has expired. Please run the command again.',
     flags: MessageFlags.Ephemeral,

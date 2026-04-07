@@ -1,10 +1,31 @@
 /**
  * Memory Browse Handler
- * Handles /memory browse command - paginated browsing of memories
+ *
+ * Router-pattern implementation (no inline collectors) for /memory browse.
+ * State lives in a dashboard session keyed by messageId so concurrent browses
+ * from the same user don't collide, and the "back" button from detail view
+ * can return to the right page.
+ *
+ * Custom ID flow:
+ * - Pagination buttons: `memory-browse::browse::{page}::all::` (via browseHelpers.build)
+ * - Info button (disabled): `memory-browse::browse::info`
+ * - Detail action buttons: `memory-detail::{action}::{memoryId}` (unchanged, handled by detail.ts)
+ *
+ * Personality filter is stored in the dashboard session, NOT the custom ID,
+ * because UUIDs can't fit in the filter enum slot.
  */
 
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import type {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonInteraction,
+  StringSelectMenuBuilder,
+  StringSelectMenuInteraction,
+} from 'discord.js';
 import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
+
+/** Union type for action rows containing buttons or select menus */
+type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 import {
   createLogger,
   DISCORD_COLORS,
@@ -13,32 +34,45 @@ import {
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { resolveOptionalPersonality } from './resolveHelpers.js';
 import {
-  buildPaginationButtons,
-  parsePaginationId,
-  calculatePagination,
-  type PaginationConfig,
-} from '../../utils/paginationBuilder.js';
+  createBrowseCustomIdHelpers,
+  buildBrowseButtons as buildSharedBrowseButtons,
+  calculatePaginationState,
+} from '../../utils/browse/index.js';
+import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemorySelectMenu, handleMemorySelect } from './detail.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import type { MemoryItem, ListContext } from './detailApi.js';
-import { truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
+import { truncateContent } from './formatters.js';
 import {
-  registerActiveCollector,
-  deregisterActiveCollector,
-} from '../../utils/activeCollectorRegistry.js';
+  saveMemoryListSession,
+  findMemoryListSessionByMessage,
+  updateMemoryListSessionPage,
+  MEMORY_BROWSE_ENTITY_TYPE,
+} from './browseSession.js';
 
 const logger = createLogger('memory-browse');
 
-/** Pagination configuration for memory browse - exported for componentPrefixes aggregation */
-export const BROWSE_PAGINATION_CONFIG: PaginationConfig = {
-  prefix: 'memory-browse',
-  hideSortToggle: true, // Memories don't have a "name" to sort by
-};
-
 /** Items per page */
 const MEMORIES_PER_PAGE = 10;
+
+/** Browse customId helpers — filter is always 'all' since personality lives in session */
+export const browseHelpers = createBrowseCustomIdHelpers<'all'>({
+  prefix: MEMORY_BROWSE_ENTITY_TYPE,
+  validFilters: ['all'],
+  includeSort: false,
+});
+
+/** Prefix exported for componentPrefixes registration in index.ts */
+export const MEMORY_BROWSE_PREFIX = MEMORY_BROWSE_ENTITY_TYPE;
+
+/**
+ * Check if a customId belongs to a memory browse pagination interaction.
+ * Used by the command's button/select router to claim the interaction.
+ */
+export function isMemoryBrowsePagination(customId: string): boolean {
+  return browseHelpers.isBrowse(customId) || browseHelpers.isBrowseSelect(customId);
+}
 
 interface BrowseResponse {
   memories: MemoryItem[];
@@ -48,18 +82,18 @@ interface BrowseResponse {
   hasMore: boolean;
 }
 
-interface BuildBrowseEmbedOptions {
+interface BuildBrowseViewOptions {
   memories: MemoryItem[];
   total: number;
   page: number;
   totalPages: number;
-  personalityFilter?: string;
+  personalityFilter: string | undefined;
 }
 
 /**
  * Build the memory list embed
  */
-function buildBrowseEmbed(options: BuildBrowseEmbedOptions): EmbedBuilder {
+function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
   const { memories, total, page, totalPages, personalityFilter } = options;
   const embed = new EmbedBuilder().setTitle('🧠 Memory Browser').setColor(DISCORD_COLORS.BLURPLE);
 
@@ -98,6 +132,33 @@ function buildBrowseEmbed(options: BuildBrowseEmbedOptions): EmbedBuilder {
 }
 
 /**
+ * Build pagination buttons + select menu components for a page of memories.
+ * Returns an empty array if there are no memories (empty state).
+ */
+function buildBrowseComponents(
+  memories: MemoryItem[],
+  page: number,
+  totalPages: number
+): BrowseActionRow[] {
+  if (memories.length === 0) {
+    return [];
+  }
+
+  return [
+    buildMemorySelectMenu(memories, page, MEMORIES_PER_PAGE),
+    buildSharedBrowseButtons({
+      currentPage: page,
+      totalPages,
+      filter: 'all',
+      currentSort: 'date',
+      query: null,
+      buildCustomId: browseHelpers.build,
+      buildInfoId: browseHelpers.buildInfo,
+    }),
+  ];
+}
+
+/**
  * Fetch memories from API
  */
 async function fetchMemories(
@@ -131,195 +192,6 @@ async function fetchMemories(
   return result.data;
 }
 
-interface BrowseCollectorContext {
-  userId: string;
-  personalityId: string | undefined;
-  listContext: ListContext;
-}
-
-/**
- * Handle button interactions for pagination
- */
-async function handleBrowseButton(
-  buttonInteraction: ButtonInteraction,
-  context: BrowseCollectorContext
-): Promise<{ newPage: number; memories: MemoryItem[] } | null> {
-  const { userId, personalityId } = context;
-
-  const parsed = parsePaginationId(buttonInteraction.customId, BROWSE_PAGINATION_CONFIG.prefix);
-  if (parsed === null) {
-    return null;
-  }
-
-  await buttonInteraction.deferUpdate();
-
-  const newPage = parsed.page ?? 0;
-  const newData = await fetchMemories(
-    userId,
-    personalityId,
-    newPage * MEMORIES_PER_PAGE,
-    MEMORIES_PER_PAGE
-  );
-
-  if (newData === null) {
-    await buttonInteraction.followUp({
-      content: '❌ Failed to load page. Please try again.',
-      ephemeral: true,
-    });
-    return null;
-  }
-
-  const { totalPages: newTotalPages } = calculatePagination(
-    newData.total,
-    MEMORIES_PER_PAGE,
-    newPage
-  );
-
-  const newEmbed = buildBrowseEmbed({
-    memories: newData.memories,
-    total: newData.total,
-    page: newPage,
-    totalPages: newTotalPages,
-    personalityFilter: personalityId,
-  });
-
-  const newComponents = [
-    buildMemorySelectMenu(newData.memories, newPage, MEMORIES_PER_PAGE),
-    buildPaginationButtons(BROWSE_PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
-  ];
-
-  await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
-
-  return { newPage, memories: newData.memories };
-}
-
-/**
- * Handle detail action buttons within the collector.
- * Delegates to the shared router with refreshList as the callback.
- */
-async function handleDetailAction(
-  buttonInteraction: ButtonInteraction,
-  _context: BrowseCollectorContext,
-  refreshList: () => Promise<void>
-): Promise<boolean> {
-  return handleMemoryDetailAction(buttonInteraction, refreshList);
-}
-
-/**
- * Set up collector for pagination and select menu interactions
- */
-function setupBrowseCollector(
-  interaction: ChatInputCommandInteraction,
-  response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
-  context: BrowseCollectorContext
-): void {
-  const { userId, personalityId, listContext } = context;
-  let currentContext = { ...listContext };
-
-  // Register this message as having an active collector
-  // This prevents the global handler from racing with us
-  registerActiveCollector(response.id);
-
-  // Function to refresh the list view at the current page
-  const refreshList = async (): Promise<void> => {
-    let pageToFetch = currentContext.page;
-
-    let data = await fetchMemories(
-      userId,
-      personalityId,
-      pageToFetch * MEMORIES_PER_PAGE,
-      MEMORIES_PER_PAGE
-    );
-
-    if (data === null) {
-      return;
-    }
-
-    // Handle empty page after delete: go back one page if current page is now empty
-    if (data.memories.length === 0 && pageToFetch > 0) {
-      pageToFetch--;
-      currentContext = { ...currentContext, page: pageToFetch };
-      const retryData = await fetchMemories(
-        userId,
-        personalityId,
-        pageToFetch * MEMORIES_PER_PAGE,
-        MEMORIES_PER_PAGE
-      );
-      if (retryData === null) {
-        return; // Both fetches failed, don't update the UI
-      }
-      data = retryData;
-    }
-
-    const { totalPages } = calculatePagination(data.total, MEMORIES_PER_PAGE, pageToFetch);
-    const embed = buildBrowseEmbed({
-      memories: data.memories,
-      total: data.total,
-      page: pageToFetch,
-      totalPages,
-      personalityFilter: personalityId,
-    });
-
-    const components =
-      data.memories.length > 0
-        ? [
-            buildMemorySelectMenu(data.memories, pageToFetch, MEMORIES_PER_PAGE),
-            buildPaginationButtons(BROWSE_PAGINATION_CONFIG, pageToFetch, totalPages, 'date'),
-          ]
-        : [];
-
-    await interaction.editReply({ embeds: [embed], components });
-  };
-
-  // Collect both Button and StringSelectMenu interactions
-  const collector = response.createMessageComponentCollector({
-    time: COLLECTOR_TIMEOUT_MS,
-    filter: i => i.user.id === userId,
-  });
-
-  collector.on('collect', i => {
-    void (async () => {
-      try {
-        if (i.isButton()) {
-          // First check if it's a detail action
-          const handled = await handleDetailAction(i, context, refreshList);
-          if (!handled) {
-            // Otherwise handle as pagination
-            const result = await handleBrowseButton(i, context);
-            if (result !== null) {
-              currentContext = { ...currentContext, page: result.newPage };
-            }
-          }
-        } else if (i.isStringSelectMenu()) {
-          await handleMemorySelect(i, currentContext);
-        }
-      } catch (error) {
-        logger.error({ err: error, customId: i.customId }, '[Memory] Collector interaction failed');
-        // Try to notify user if possible
-        try {
-          if (!i.replied && !i.deferred) {
-            await i.reply({
-              content: '❌ Something went wrong. Please try again.',
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-        } catch {
-          // Interaction may be invalid, nothing we can do
-        }
-      }
-    })();
-  });
-
-  collector.on('end', () => {
-    // Deregister so global handler knows this collector is no longer active
-    deregisterActiveCollector(response.id);
-
-    interaction.editReply({ components: [] }).catch(() => {
-      // Ignore errors if message was deleted
-    });
-  });
-}
-
 /**
  * Handle /memory browse command
  */
@@ -345,9 +217,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     }
 
     const { memories, total } = data;
-    const { totalPages } = calculatePagination(total, MEMORIES_PER_PAGE, 0);
+    const { totalPages } = calculatePaginationState(total, MEMORIES_PER_PAGE, 0);
 
-    // Build initial embed
+    // Build initial embed + components
     const embed = buildBrowseEmbed({
       memories,
       total,
@@ -355,43 +227,182 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       totalPages,
       personalityFilter: personalityId,
     });
+    const components = buildBrowseComponents(memories, 0, totalPages);
 
-    // Build components (only if there are memories)
-    const components =
-      memories.length > 0
-        ? [
-            buildMemorySelectMenu(memories, 0, MEMORIES_PER_PAGE),
-            buildPaginationButtons(BROWSE_PAGINATION_CONFIG, 0, totalPages, 'date'),
-          ]
-        : [];
-
-    // Context for returning to list from detail view
-    const listContext: ListContext = {
-      source: 'list',
-      page: 0,
-      personalityId,
-    };
-
+    // Send the message first so we have a messageId to key the session on
     const response = await context.editReply({ embeds: [embed], components });
+
+    // Persist session so pagination and detail "back" buttons can recover state
+    await saveMemoryListSession({
+      userId,
+      messageId: response.id,
+      channelId: response.channelId,
+      entityType: MEMORY_BROWSE_ENTITY_TYPE,
+      data: {
+        kind: 'browse',
+        personalityId,
+        currentPage: 0,
+      },
+    });
 
     logger.info(
       { userId, total, personalityId, hasMore: data.hasMore },
       '[Memory] Browse displayed'
     );
-
-    // Set up collector for pagination and select menu
-    // Pass the raw interaction since collectors need it for ongoing edits
-    if (components.length > 0) {
-      setupBrowseCollector(context.interaction, response, {
-        userId,
-        personalityId,
-        listContext,
-      });
-    }
   } catch (error) {
     logger.error({ err: error, userId }, '[Memory] Browse error');
     await context.editReply({
       content: '❌ An unexpected error occurred. Please try again later.',
     });
   }
+}
+
+/**
+ * Handle pagination button clicks for /memory browse.
+ * Parses the custom ID for the new page, looks up the session for personality
+ * filter, re-fetches the page, and updates the message.
+ */
+export async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
+  const parsed = browseHelpers.parse(interaction.customId);
+  if (parsed === null) {
+    return;
+  }
+
+  const messageId = interaction.message.id;
+  const session = await findMemoryListSessionByMessage(messageId);
+  if (session?.data.kind !== 'browse') {
+    // Session expired or never existed — surface an expired message
+    await interaction.reply({
+      content: '⏰ This browse session has expired. Please run `/memory browse` again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferUpdate();
+
+  const userId = interaction.user.id;
+  const { personalityId } = session.data;
+  const newPage = parsed.page;
+
+  const data = await fetchMemories(
+    userId,
+    personalityId,
+    newPage * MEMORIES_PER_PAGE,
+    MEMORIES_PER_PAGE
+  );
+  if (data === null) {
+    await interaction.followUp({
+      content: '❌ Failed to load page. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const { totalPages, safePage } = calculatePaginationState(data.total, MEMORIES_PER_PAGE, newPage);
+  const embed = buildBrowseEmbed({
+    memories: data.memories,
+    total: data.total,
+    page: safePage,
+    totalPages,
+    personalityFilter: personalityId,
+  });
+  const components = buildBrowseComponents(data.memories, safePage, totalPages);
+
+  await interaction.editReply({ embeds: [embed], components });
+
+  // Update session so detail view's "back" button knows the current page
+  await updateMemoryListSessionPage({
+    userId,
+    messageId,
+    entityType: MEMORY_BROWSE_ENTITY_TYPE,
+    newPage: safePage,
+  });
+}
+
+/**
+ * Handle select menu interaction — user picked a memory to view details.
+ * Delegates to detail.ts handleMemorySelect with list context from the session.
+ */
+export async function handleBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const messageId = interaction.message.id;
+  const session = await findMemoryListSessionByMessage(messageId);
+
+  // Build list context from session (or fall back to defaults if session expired)
+  const listContext: ListContext = {
+    source: 'list',
+    page: session?.data.currentPage ?? 0,
+    personalityId: session?.data.personalityId,
+  };
+
+  await handleMemorySelect(interaction, listContext);
+}
+
+/**
+ * Refresh the browse list view — called from the detail action router when
+ * the user clicks "back" or after a successful delete. Re-fetches memories
+ * using the session's stored state and updates the message.
+ */
+export async function refreshBrowseList(interaction: ButtonInteraction): Promise<void> {
+  const messageId = interaction.message.id;
+  const session = await findMemoryListSessionByMessage(messageId);
+  if (session?.data.kind !== 'browse') {
+    return;
+  }
+
+  const userId = interaction.user.id;
+  const { personalityId } = session.data;
+  let pageToFetch = session.data.currentPage;
+
+  let data = await fetchMemories(
+    userId,
+    personalityId,
+    pageToFetch * MEMORIES_PER_PAGE,
+    MEMORIES_PER_PAGE
+  );
+  if (data === null) {
+    return;
+  }
+
+  // Handle empty page after delete: go back one page if current page is now empty
+  if (data.memories.length === 0 && pageToFetch > 0) {
+    pageToFetch--;
+    const retryData = await fetchMemories(
+      userId,
+      personalityId,
+      pageToFetch * MEMORIES_PER_PAGE,
+      MEMORIES_PER_PAGE
+    );
+    if (retryData === null) {
+      return;
+    }
+    data = retryData;
+    await updateMemoryListSessionPage({
+      userId,
+      messageId,
+      entityType: MEMORY_BROWSE_ENTITY_TYPE,
+      newPage: pageToFetch,
+    });
+  }
+
+  const { totalPages } = calculatePaginationState(data.total, MEMORIES_PER_PAGE, pageToFetch);
+  const embed = buildBrowseEmbed({
+    memories: data.memories,
+    total: data.total,
+    page: pageToFetch,
+    totalPages,
+    personalityFilter: personalityId,
+  });
+  const components = buildBrowseComponents(data.memories, pageToFetch, totalPages);
+
+  await interaction.editReply({ embeds: [embed], components });
+}
+
+/**
+ * Handle detail action buttons with browse-list refresh callback.
+ * Called by the unified detail router in interactionHandlers.ts once it has
+ * verified the session kind is 'browse'.
+ */
+export async function handleBrowseDetailAction(interaction: ButtonInteraction): Promise<boolean> {
+  return handleMemoryDetailAction(interaction, () => refreshBrowseList(interaction));
 }

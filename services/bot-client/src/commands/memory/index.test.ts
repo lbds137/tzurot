@@ -108,12 +108,12 @@ vi.mock('./interactionHandlers.js', () => ({
 // Mock browse and search pagination configs
 vi.mock('./browse.js', () => ({
   handleBrowse: vi.fn(),
-  BROWSE_PAGINATION_CONFIG: { prefix: 'memory-browse' },
+  MEMORY_BROWSE_PREFIX: 'memory-browse',
 }));
 
 vi.mock('./search.js', () => ({
   handleSearch: vi.fn(),
-  SEARCH_PAGINATION_CONFIG: { prefix: 'memory-search' },
+  MEMORY_SEARCH_PREFIX: 'memory-search',
 }));
 
 describe('Memory Command', () => {
