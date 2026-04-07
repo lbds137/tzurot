@@ -119,8 +119,16 @@ function createSelectInteraction(customId: string): MockSelectInteraction {
   };
 }
 
-function createModalInteraction(customId: string): { customId: string } {
-  return { customId };
+interface MockModalInteraction {
+  customId: string;
+  reply: ReturnType<typeof vi.fn>;
+}
+
+function createModalInteraction(customId: string): MockModalInteraction {
+  return {
+    customId,
+    reply: vi.fn().mockResolvedValue(undefined),
+  };
 }
 
 describe('handleButton', () => {
@@ -259,22 +267,40 @@ describe('handleModal', () => {
     expect(mockHandleEditModalSubmit).toHaveBeenCalledWith(interaction, 'mem-1');
   });
 
-  it('ignores non-edit modal submissions', async () => {
+  it('acknowledges non-edit modal submissions with an error reply', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'other' });
     const interaction = createModalInteraction('something::else');
 
     await handleModal(interaction as never);
 
     expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Unknown modal') })
+    );
   });
 
-  it('ignores modal submissions with no parseable custom ID', async () => {
+  it('acknowledges modal submissions with no parseable custom ID', async () => {
     mockParseMemoryActionId.mockReturnValue(null);
     const interaction = createModalInteraction('unparseable');
 
     await handleModal(interaction as never);
 
     expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Unknown modal') })
+    );
+  });
+
+  it('acknowledges edit modal with missing memoryId', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'edit', memoryId: undefined });
+    const interaction = createModalInteraction('memory-detail::edit::');
+
+    await handleModal(interaction as never);
+
+    expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Malformed') })
+    );
   });
 });
 
