@@ -187,7 +187,6 @@ describe('handleBrowse', () => {
       expect.objectContaining({
         userId: TEST_USER_ID,
         messageId: TEST_MESSAGE_ID,
-        entityType: 'memory-browse',
         data: expect.objectContaining({
           kind: 'browse',
           personalityId: TEST_PERSONALITY_ID,
@@ -262,7 +261,7 @@ describe('handleBrowsePagination', () => {
     );
     expect(interaction.editReply).toHaveBeenCalled();
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
-      expect.objectContaining({ newPage: 1, entityType: 'memory-browse' })
+      expect.objectContaining({ newPage: 1, kind: 'browse' })
     );
   });
 

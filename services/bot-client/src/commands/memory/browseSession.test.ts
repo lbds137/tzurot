@@ -43,7 +43,6 @@ describe('browseSession', () => {
         userId: 'user-1',
         messageId: 'msg-1',
         channelId: 'ch-1',
-        entityType: MEMORY_BROWSE_ENTITY_TYPE,
         data,
       });
 
@@ -70,7 +69,6 @@ describe('browseSession', () => {
         userId: 'user-2',
         messageId: 'msg-2',
         channelId: 'ch-2',
-        entityType: MEMORY_SEARCH_ENTITY_TYPE,
         data,
       });
 
@@ -113,7 +111,7 @@ describe('browseSession', () => {
       const updated = await updateMemoryListSessionPage({
         userId: 'user-1',
         messageId: 'msg-1',
-        entityType: MEMORY_BROWSE_ENTITY_TYPE,
+        kind: 'browse',
         newPage: 3,
       });
 
@@ -132,7 +130,7 @@ describe('browseSession', () => {
       const result = await updateMemoryListSessionPage({
         userId: 'user-1',
         messageId: 'msg-missing',
-        entityType: MEMORY_BROWSE_ENTITY_TYPE,
+        kind: 'browse',
         newPage: 1,
       });
 
@@ -153,7 +151,7 @@ describe('browseSession', () => {
       await updateMemoryListSessionPage({
         userId: 'user-2',
         messageId: 'msg-2',
-        entityType: MEMORY_SEARCH_ENTITY_TYPE,
+        kind: 'search',
         newPage: 1,
       });
 
