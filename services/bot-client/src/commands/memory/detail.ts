@@ -26,11 +26,11 @@ import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { truncateForSelect, MAX_SELECT_LABEL_LENGTH } from '../../utils/browse/index.js';
 
 import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
-import type { MemoryItem, ListContext } from './detailApi.js';
+import type { MemoryItem } from './detailApi.js';
 import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
 
-// Re-export types from detailApi for backward compatibility
-export type { MemoryItem, ListContext } from './detailApi.js';
+// Re-export MemoryItem so callers can import it alongside handleMemorySelect.
+export type { MemoryItem } from './detailApi.js';
 
 const logger = createLogger('memory-detail');
 
@@ -243,16 +243,18 @@ export function buildDeleteConfirmButtons(memoryId: string): ActionRowBuilder<Bu
 }
 
 /**
- * Handle memory select menu interaction
+ * Handle memory select menu interaction — load the detail view for the
+ * memory the user picked.
  *
- * Note: _context is passed by the collector but not used here because the "back" navigation
- * is handled by the collector's closure which maintains its own context state. This parameter
- * is kept for API consistency and potential future use (e.g., embedding context in button IDs).
+ * Back navigation from detail view is handled post-migration by
+ * detailActionRouter's `'back'` case, which calls refreshBrowseList /
+ * refreshSearchList. Those look up the original list state via the
+ * messageId-keyed dashboard session, so no context needs to be threaded
+ * through this handler. (Pre-migration, the old collector closures kept
+ * context in scope, which is why this function used to take a ListContext
+ * parameter.)
  */
-export async function handleMemorySelect(
-  interaction: StringSelectMenuInteraction,
-  _context: ListContext
-): Promise<void> {
+export async function handleMemorySelect(interaction: StringSelectMenuInteraction): Promise<void> {
   const userId = interaction.user.id;
   const memoryId = interaction.values[0];
 

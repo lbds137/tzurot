@@ -39,12 +39,13 @@ import {
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemorySelectMenu, handleMemorySelect } from './detail.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
-import type { MemoryItem, ListContext } from './detailApi.js';
+import type { MemoryItem } from './detailApi.js';
 import { truncateContent } from './formatters.js';
 import {
   saveMemoryListSession,
   findMemoryListSessionByMessage,
   updateMemoryListSessionPage,
+  fetchPageWithEmptyFallback,
   MEMORY_BROWSE_ENTITY_TYPE,
 } from './browseSession.js';
 
@@ -336,24 +337,19 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
 /**
  * Handle select menu interaction — user picked a memory to view details.
- * Delegates to detail.ts handleMemorySelect with list context from the session.
+ *
+ * Thin wrapper around handleMemorySelect. Kept as a distinct export so
+ * interactionHandlers can log the browse-vs-search origin and so the
+ * routing stays explicit. No session lookup needed — back navigation
+ * from the detail view uses refreshBrowseList which re-reads the
+ * session via messageId anyway.
+ *
+ * Calling handleMemorySelect directly (without awaiting any other async
+ * work first) preserves 3-second rule compliance: deferUpdate inside
+ * handleMemorySelect is the first await in the call chain.
  */
 export async function handleBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  const messageId = interaction.message.id;
-  const session = await findMemoryListSessionByMessage(messageId);
-
-  // Build list context from session, or fall back to defaults if expired.
-  // Degraded (not broken): the select itself still works since the memory
-  // ID is in the interaction values, but the detail view's "back" button
-  // will return to page 0 instead of the original page. This is an
-  // acceptable tradeoff — a working fallback beats an error screen.
-  const listContext: ListContext = {
-    source: 'list',
-    page: session?.data.currentPage ?? 0,
-    personalityId: session?.data.personalityId,
-  };
-
-  await handleMemorySelect(interaction, listContext);
+  await handleMemorySelect(interaction);
 }
 
 /**
@@ -370,48 +366,39 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
 
   const userId = interaction.user.id;
   const { personalityId } = session.data;
-  let pageToFetch = session.data.currentPage;
 
-  let data = await fetchMemories(
-    userId,
-    personalityId,
-    pageToFetch * MEMORIES_PER_PAGE,
-    MEMORIES_PER_PAGE
-  );
-  if (data === null) {
+  const result = await fetchPageWithEmptyFallback({
+    currentPage: session.data.currentPage,
+    fetchPage: page =>
+      fetchMemories(userId, personalityId, page * MEMORIES_PER_PAGE, MEMORIES_PER_PAGE),
+    isEmpty: d => d.memories.length === 0,
+  });
+  if (result === null) {
     return;
   }
 
-  // Handle empty page after delete: go back one page if current page is now empty
-  if (data.memories.length === 0 && pageToFetch > 0) {
-    pageToFetch--;
-    const retryData = await fetchMemories(
-      userId,
-      personalityId,
-      pageToFetch * MEMORIES_PER_PAGE,
-      MEMORIES_PER_PAGE
-    );
-    if (retryData === null) {
-      return;
-    }
-    data = retryData;
+  if (result.steppedBack) {
     await updateMemoryListSessionPage({
       userId,
       messageId,
       kind: 'browse',
-      newPage: pageToFetch,
+      newPage: result.page,
     });
   }
 
-  const { totalPages } = calculatePaginationState(data.total, MEMORIES_PER_PAGE, pageToFetch);
+  const { totalPages } = calculatePaginationState(
+    result.data.total,
+    MEMORIES_PER_PAGE,
+    result.page
+  );
   const embed = buildBrowseEmbed({
-    memories: data.memories,
-    total: data.total,
-    page: pageToFetch,
+    memories: result.data.memories,
+    total: result.data.total,
+    page: result.page,
     totalPages,
     personalityFilter: personalityId,
   });
-  const components = buildBrowseComponents(data.memories, pageToFetch, totalPages);
+  const components = buildBrowseComponents(result.data.memories, result.page, totalPages);
 
   await interaction.editReply({ embeds: [embed], components });
 }

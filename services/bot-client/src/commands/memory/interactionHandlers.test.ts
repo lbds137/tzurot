@@ -24,6 +24,7 @@ const {
   mockIsMemorySearchPagination,
   mockSearchHelpers,
   mockParseMemoryActionId,
+  mockHandleMemorySelect,
   mockHandleEditModalSubmit,
   mockFindMemoryListSessionByMessage,
 } = vi.hoisted(() => ({
@@ -42,6 +43,7 @@ const {
     isBrowseSelect: vi.fn(),
   },
   mockParseMemoryActionId: vi.fn(),
+  mockHandleMemorySelect: vi.fn(),
   mockHandleEditModalSubmit: vi.fn(),
   mockFindMemoryListSessionByMessage: vi.fn(),
 }));
@@ -56,6 +58,7 @@ vi.mock('@tzurot/common-types', async () => {
 
 vi.mock('./detail.js', () => ({
   parseMemoryActionId: (...args: unknown[]) => mockParseMemoryActionId(...args),
+  handleMemorySelect: (...args: unknown[]) => mockHandleMemorySelect(...args),
 }));
 
 vi.mock('./detailModals.js', () => ({
@@ -332,38 +335,24 @@ describe('handleSelectMenu', () => {
     expect(mockHandleBrowseSelect).not.toHaveBeenCalled();
   });
 
-  it('routes memory-detail::select to search handler when session is search', async () => {
+  it('routes memory-detail::select directly to handleMemorySelect without a session lookup', async () => {
+    // Post-migration, both browse and search select menus open the same
+    // detail view and rely on messageId-keyed session lookup inside
+    // refreshBrowseList / refreshSearchList for back navigation. The old
+    // kind-based branching here was dispatching two identical code paths,
+    // so the session lookup itself was dead work — and it was running
+    // BEFORE deferUpdate, violating the 3-second rule added in
+    // 04-discord.md. The routing now forwards directly and the session
+    // lookup is gone.
     mockParseMemoryActionId.mockReturnValue({ action: 'select' });
-    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'search' } });
-
     const interaction = createSelectInteraction('memory-detail::select');
 
     await handleSelectMenu(interaction as never);
 
-    expect(mockHandleSearchSelect).toHaveBeenCalledWith(interaction);
+    expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
+    expect(mockHandleMemorySelect).toHaveBeenCalledWith(interaction);
     expect(mockHandleBrowseSelect).not.toHaveBeenCalled();
-  });
-
-  it('routes memory-detail::select to browse handler when session is browse', async () => {
-    mockParseMemoryActionId.mockReturnValue({ action: 'select' });
-    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
-
-    const interaction = createSelectInteraction('memory-detail::select');
-
-    await handleSelectMenu(interaction as never);
-
-    expect(mockHandleBrowseSelect).toHaveBeenCalledWith(interaction);
-  });
-
-  it('defaults to browse handler for memory-detail::select when session is missing', async () => {
-    mockParseMemoryActionId.mockReturnValue({ action: 'select' });
-    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
-
-    const interaction = createSelectInteraction('memory-detail::select');
-
-    await handleSelectMenu(interaction as never);
-
-    expect(mockHandleBrowseSelect).toHaveBeenCalledWith(interaction);
+    expect(mockHandleSearchSelect).not.toHaveBeenCalled();
   });
 
   it('shows "unknown" message for unknown select custom IDs', async () => {
