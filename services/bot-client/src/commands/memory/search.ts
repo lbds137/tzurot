@@ -288,7 +288,6 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
       userId,
       messageId: response.id,
       channelId: response.channelId,
-      entityType: MEMORY_SEARCH_ENTITY_TYPE,
       data: {
         kind: 'search',
         personalityId,
@@ -375,7 +374,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
   await updateMemoryListSessionPage({
     userId,
     messageId,
-    entityType: MEMORY_SEARCH_ENTITY_TYPE,
+    kind: 'search',
     newPage,
   });
 }
@@ -387,11 +386,14 @@ export async function handleSearchSelect(interaction: StringSelectMenuInteractio
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);
 
+  // Type-narrow to the search variant — searchQuery only exists when kind === 'search'.
+  // If the session is missing or somehow a browse session, fall back to defaults.
+  const searchSession = session?.data.kind === 'search' ? session.data : null;
   const listContext: ListContext = {
     source: 'search',
-    page: session?.data.currentPage ?? 0,
-    personalityId: session?.data.personalityId,
-    query: session?.data.searchQuery,
+    page: searchSession?.currentPage ?? 0,
+    personalityId: searchSession?.personalityId,
+    query: searchSession?.searchQuery,
   };
 
   await handleMemorySelect(interaction, listContext);
@@ -444,7 +446,7 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
     await updateMemoryListSessionPage({
       userId,
       messageId,
-      entityType: MEMORY_SEARCH_ENTITY_TYPE,
+      kind: 'search',
       newPage: pageToFetch,
     });
   }

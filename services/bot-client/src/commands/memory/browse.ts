@@ -237,7 +237,6 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       userId,
       messageId: response.id,
       channelId: response.channelId,
-      entityType: MEMORY_BROWSE_ENTITY_TYPE,
       data: {
         kind: 'browse',
         personalityId,
@@ -315,7 +314,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   await updateMemoryListSessionPage({
     userId,
     messageId,
-    entityType: MEMORY_BROWSE_ENTITY_TYPE,
+    kind: 'browse',
     newPage: safePage,
   });
 }
@@ -380,7 +379,7 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
     await updateMemoryListSessionPage({
       userId,
       messageId,
-      entityType: MEMORY_BROWSE_ENTITY_TYPE,
+      kind: 'browse',
       newPage: pageToFetch,
     });
   }
