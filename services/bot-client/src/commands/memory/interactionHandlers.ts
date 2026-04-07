@@ -125,19 +125,34 @@ const SESSION_INDEPENDENT_ACTIONS = new Set([
 ]);
 
 /**
- * Handle modal submit interactions for memory editing
+ * Handle modal submit interactions for memory editing.
+ *
+ * Every path must acknowledge the interaction (reply or defer) — unacknowledged
+ * modal submits surface as "This interaction failed" in Discord, which is worse
+ * than a clean error message.
  */
 export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   const parsed = parseMemoryActionId(interaction.customId);
 
   if (parsed?.action !== 'edit') {
     logger.warn({ customId: interaction.customId }, '[Memory] Unknown modal');
+    await interaction.reply({
+      content: '❌ Unknown modal submission.',
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
-  if (parsed.memoryId !== undefined) {
-    await handleEditModalSubmit(interaction, parsed.memoryId);
+  if (parsed.memoryId === undefined) {
+    logger.warn({ customId: interaction.customId }, '[Memory] Edit modal missing memoryId');
+    await interaction.reply({
+      content: '❌ Malformed edit modal (missing memory ID).',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
   }
+
+  await handleEditModalSubmit(interaction, parsed.memoryId);
 }
 
 /**
