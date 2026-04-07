@@ -16,20 +16,48 @@ import type { DashboardSession } from '../../utils/dashboard/types.js';
 /** Discriminator for browse vs search sessions */
 export type MemoryListKind = 'browse' | 'search';
 
-/** Data stored in a memory browse/search session */
-export interface MemoryListSession {
-  kind: MemoryListKind;
-  /** Optional personality filter (undefined = all personalities) */
-  personalityId?: string;
-  /** Current page number (0-indexed) */
-  currentPage: number;
-  /** For search sessions only: the user's query */
-  searchQuery?: string;
-}
-
-/** Session entity types — separate to allow different cleanup/lookup patterns if needed */
+/** Session entity types — kept aligned with MemoryListKind via entityTypeForKind() */
 export const MEMORY_BROWSE_ENTITY_TYPE = 'memory-browse';
 export const MEMORY_SEARCH_ENTITY_TYPE = 'memory-search';
+
+export type MemoryListEntityType =
+  | typeof MEMORY_BROWSE_ENTITY_TYPE
+  | typeof MEMORY_SEARCH_ENTITY_TYPE;
+
+/**
+ * Discriminated union for memory list sessions.
+ *
+ * Browse sessions don't carry a search query; search sessions require one.
+ * Using a discriminated union (rather than a flat optional field) catches
+ * missing-query bugs at compile time and prevents browse handlers from
+ * accidentally reading `searchQuery`.
+ */
+export type MemoryListSession =
+  | {
+      kind: 'browse';
+      /** Optional personality filter (undefined = all personalities) */
+      personalityId?: string;
+      /** Current page number (0-indexed) */
+      currentPage: number;
+    }
+  | {
+      kind: 'search';
+      /** Optional personality filter (undefined = all personalities) */
+      personalityId?: string;
+      /** Current page number (0-indexed) */
+      currentPage: number;
+      /** The user's search query — required for search sessions */
+      searchQuery: string;
+    };
+
+/**
+ * Map a session kind to its entity type constant. Single source of truth for
+ * the kind ↔ entity-type relationship — callers should use this rather than
+ * passing entity types manually to avoid divergence.
+ */
+export function entityTypeForKind(kind: MemoryListKind): MemoryListEntityType {
+  return kind === 'browse' ? MEMORY_BROWSE_ENTITY_TYPE : MEMORY_SEARCH_ENTITY_TYPE;
+}
 
 /**
  * Persist a memory browse session for a specific message.
@@ -40,13 +68,12 @@ export async function saveMemoryListSession(opts: {
   userId: string;
   messageId: string;
   channelId: string;
-  entityType: typeof MEMORY_BROWSE_ENTITY_TYPE | typeof MEMORY_SEARCH_ENTITY_TYPE;
   data: MemoryListSession;
 }): Promise<void> {
   const sessionManager = getSessionManager();
   await sessionManager.set<MemoryListSession>({
     userId: opts.userId,
-    entityType: opts.entityType,
+    entityType: entityTypeForKind(opts.data.kind),
     entityId: opts.messageId,
     data: opts.data,
     messageId: opts.messageId,
@@ -68,23 +95,29 @@ export async function findMemoryListSessionByMessage(
 /**
  * Update an existing memory list session (e.g., to advance the page).
  * Returns false if the session doesn't exist (expired or never existed).
+ *
+ * Note: this is a non-atomic read-modify-write. Discord serializes UI clicks
+ * per message, so concurrent pagination updates from the same message are
+ * effectively impossible. Two simultaneous pagination clicks from different
+ * users on the same message would be a different concern entirely.
  */
 export async function updateMemoryListSessionPage(opts: {
   userId: string;
   messageId: string;
-  entityType: typeof MEMORY_BROWSE_ENTITY_TYPE | typeof MEMORY_SEARCH_ENTITY_TYPE;
+  kind: MemoryListKind;
   newPage: number;
 }): Promise<boolean> {
   const sessionManager = getSessionManager();
+  const entityType = entityTypeForKind(opts.kind);
   const existing = await sessionManager.get<MemoryListSession>(
     opts.userId,
-    opts.entityType,
+    entityType,
     opts.messageId
   );
   if (existing === null) {
     return false;
   }
-  await sessionManager.update<MemoryListSession>(opts.userId, opts.entityType, opts.messageId, {
+  await sessionManager.update<MemoryListSession>(opts.userId, entityType, opts.messageId, {
     ...existing.data,
     currentPage: opts.newPage,
   });

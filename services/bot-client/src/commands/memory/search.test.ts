@@ -189,7 +189,6 @@ describe('handleSearch', () => {
     );
     expect(mockSaveMemoryListSession).toHaveBeenCalledWith(
       expect.objectContaining({
-        entityType: 'memory-search',
         data: expect.objectContaining({
           kind: 'search',
           personalityId: TEST_PERSONALITY_ID,
@@ -281,7 +280,7 @@ describe('handleSearchPagination', () => {
       })
     );
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
-      expect.objectContaining({ newPage: 1, entityType: 'memory-search' })
+      expect.objectContaining({ newPage: 1, kind: 'search' })
     );
   });
 
