@@ -19,9 +19,6 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
-
-/** Union type for action rows containing buttons or select menus */
-type SearchActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 import {
   createLogger,
   DISCORD_COLORS,
@@ -45,6 +42,9 @@ import {
   updateMemoryListSessionPage,
   MEMORY_SEARCH_ENTITY_TYPE,
 } from './browseSession.js';
+
+/** Union type for action rows containing buttons or select menus */
+type SearchActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
 const logger = createLogger('memory-search');
 
@@ -283,7 +283,10 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
 
     const response = await context.editReply({ embeds: [embed], components });
 
-    // Persist session for pagination + detail view "back" button
+    // Persist session for pagination + detail view "back" button.
+    // searchType is captured from the first response so subsequent pages
+    // can skip the semantic attempt if the first page already fell back
+    // to text — avoids an extra embedding round-trip per pagination click.
     await saveMemoryListSession({
       userId,
       messageId: response.id,
@@ -293,6 +296,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
         personalityId,
         currentPage: 0,
         searchQuery: query,
+        searchType,
       },
     });
 
@@ -334,12 +338,10 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
     return;
   }
 
-  const { personalityId, searchQuery } = session.data;
-  if (searchQuery === undefined) {
-    // Malformed session — shouldn't happen but handle gracefully
-    logger.warn({ messageId }, '[Memory Search] Session missing searchQuery');
-    return;
-  }
+  // Discriminated union narrowing: searchQuery is required on the search
+  // variant, so it's guaranteed to be a string here. searchType is optional
+  // and only set when the first page returned 'text' (or backwards-compat undefined).
+  const { personalityId, searchQuery, searchType } = session.data;
 
   await interaction.deferUpdate();
 
@@ -352,6 +354,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
     personalityId,
     offset: newPage * RESULTS_PER_PAGE,
     limit: RESULTS_PER_PAGE,
+    preferTextSearch: searchType === 'text',
   });
   if (data === null) {
     await interaction.followUp({
@@ -410,10 +413,10 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
     return;
   }
 
-  const { personalityId, searchQuery } = session.data;
-  if (searchQuery === undefined) {
-    return;
-  }
+  // Discriminated union narrowing: searchQuery is required on the search variant.
+  // searchType is captured from the first page's response and threaded through
+  // so we don't waste an embedding round-trip if the first page fell back to text.
+  const { personalityId, searchQuery, searchType } = session.data;
 
   const userId = interaction.user.id;
   let pageToFetch = session.data.currentPage;
@@ -424,6 +427,7 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
     personalityId,
     offset: pageToFetch * RESULTS_PER_PAGE,
     limit: RESULTS_PER_PAGE,
+    preferTextSearch: searchType === 'text',
   });
   if (data === null) {
     return;
@@ -438,6 +442,7 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
       personalityId,
       offset: pageToFetch * RESULTS_PER_PAGE,
       limit: RESULTS_PER_PAGE,
+      preferTextSearch: searchType === 'text',
     });
     if (retryData === null) {
       return;
