@@ -1,10 +1,27 @@
 /**
  * Memory Search Handler
- * Handles /memory search command - semantic search of memories
+ *
+ * Router-pattern implementation (no inline collectors) for /memory search.
+ * State (query, personality filter, searchType, current page) lives in a
+ * dashboard session keyed by messageId so pagination and detail "back"
+ * buttons survive bot restarts.
+ *
+ * Uses rolling-window pagination (no total count from API):
+ * - If hasMore is true: show "Page X of X+1+"
+ * - If hasMore is false: current page is the last page
  */
 
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import type {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonInteraction,
+  StringSelectMenuBuilder,
+  StringSelectMenuInteraction,
+} from 'discord.js';
 import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
+
+/** Union type for action rows containing buttons or select menus */
+type SearchActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 import {
   createLogger,
   DISCORD_COLORS,
@@ -13,35 +30,43 @@ import {
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import {
+  createBrowseCustomIdHelpers,
+  buildBrowseButtons as buildSharedBrowseButtons,
+} from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
+import { buildMemorySelectMenu, handleMemorySelect, type MemoryItem } from './detail.js';
+import type { ListContext } from './detailApi.js';
+import { handleMemoryDetailAction } from './detailActionRouter.js';
+import { formatSimilarity, truncateContent } from './formatters.js';
 import {
-  buildPaginationButtons,
-  parsePaginationId,
-  type PaginationConfig,
-} from '../../utils/paginationBuilder.js';
-import {
-  buildMemorySelectMenu,
-  handleMemorySelect,
-  type MemoryItem,
-  type ListContext,
-} from './detail.js';
-import { handleSearchDetailAction } from './searchDetailActions.js';
-import { formatSimilarity, truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
-import {
-  registerActiveCollector,
-  deregisterActiveCollector,
-} from '../../utils/activeCollectorRegistry.js';
+  saveMemoryListSession,
+  findMemoryListSessionByMessage,
+  updateMemoryListSessionPage,
+  MEMORY_SEARCH_ENTITY_TYPE,
+} from './browseSession.js';
 
 const logger = createLogger('memory-search');
 
-/** Pagination configuration for search - exported for componentPrefixes aggregation */
-export const SEARCH_PAGINATION_CONFIG: PaginationConfig = {
-  prefix: 'memory-search',
-  hideSortToggle: true, // Search results are sorted by relevance, not name/date
-};
-
 /** Items per page */
 const RESULTS_PER_PAGE = 5;
+
+/** Search customId helpers — filter is always 'all', query stored in session */
+export const searchHelpers = createBrowseCustomIdHelpers<'all'>({
+  prefix: MEMORY_SEARCH_ENTITY_TYPE,
+  validFilters: ['all'],
+  includeSort: false,
+});
+
+/** Prefix exported for componentPrefixes registration */
+export const MEMORY_SEARCH_PREFIX = MEMORY_SEARCH_ENTITY_TYPE;
+
+/**
+ * Check if a customId belongs to a memory search pagination interaction.
+ */
+export function isMemorySearchPagination(customId: string): boolean {
+  return searchHelpers.isBrowse(customId) || searchHelpers.isBrowseSelect(customId);
+}
 
 interface SearchResult extends MemoryItem {
   similarity: number | null; // null for text search results
@@ -100,11 +125,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
 
   // Build footer
   const footerParts: string[] = [];
-  if (isTextFallback) {
-    footerParts.push('Text search');
-  } else {
-    footerParts.push('Semantic search');
-  }
+  footerParts.push(isTextFallback ? 'Text search' : 'Semantic search');
   if (personalityFilter !== undefined) {
     footerParts.push('Filtered');
   }
@@ -115,34 +136,28 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
   return embed;
 }
 
-interface SearchCollectorContext {
-  userId: string;
-  query: string;
-  personalityId: string | undefined;
-  initialSearchType?: 'semantic' | 'text';
-}
-
-interface BuildSearchViewOptions {
-  data: SearchResponse;
-  query: string;
-  page: number;
-  personalityId: string | undefined;
-  currentSearchType: 'semantic' | 'text' | undefined;
+/**
+ * Compute total pages using rolling-window approach (API doesn't return total count)
+ */
+function computeTotalPages(page: number, hasMore: boolean, resultCount: number): number {
+  return hasMore ? page + 2 : Math.max(1, page + (resultCount > 0 ? 1 : 0));
 }
 
 /**
  * Build the embed and components for a search results view
- * Extracted to reduce setupSearchCollector line count
  */
-function buildSearchView(options: BuildSearchViewOptions): {
+function buildSearchView(opts: {
+  data: SearchResponse;
+  query: string;
+  page: number;
+  personalityId: string | undefined;
+  searchType: 'semantic' | 'text' | undefined;
+}): {
   embed: EmbedBuilder;
-  components: ReturnType<typeof buildMemorySelectMenu | typeof buildPaginationButtons>[];
+  components: SearchActionRow[];
 } {
-  const { data, query, page, personalityId, currentSearchType } = options;
-
-  const totalPages = data.hasMore
-    ? page + 2
-    : Math.max(1, page + (data.results.length > 0 ? 1 : 0));
+  const { data, query, page, personalityId, searchType } = opts;
+  const totalPages = computeTotalPages(page, data.hasMore, data.results.length);
 
   const embed = buildSearchEmbed({
     results: data.results,
@@ -150,193 +165,27 @@ function buildSearchView(options: BuildSearchViewOptions): {
     page,
     totalPages,
     hasMore: data.hasMore,
-    searchType: data.searchType ?? currentSearchType,
+    searchType: data.searchType ?? searchType,
     personalityFilter: personalityId,
   });
 
-  const components =
+  const components: SearchActionRow[] =
     data.results.length > 0
       ? [
           buildMemorySelectMenu(data.results, page, RESULTS_PER_PAGE),
-          buildPaginationButtons(SEARCH_PAGINATION_CONFIG, page, totalPages, 'date', data.hasMore),
+          buildSharedBrowseButtons({
+            currentPage: page,
+            totalPages,
+            filter: 'all',
+            currentSort: 'date',
+            query: null,
+            buildCustomId: searchHelpers.build,
+            buildInfoId: searchHelpers.buildInfo,
+          }),
         ]
       : [];
 
   return { embed, components };
-}
-
-/**
- * Handle button interactions for search pagination
- */
-async function handleSearchButton(
-  buttonInteraction: ButtonInteraction,
-  context: SearchCollectorContext & { currentSearchType?: 'semantic' | 'text' }
-): Promise<{ newPage: number; results: SearchResult[]; searchType?: 'semantic' | 'text' } | null> {
-  const { userId, query, personalityId, currentSearchType } = context;
-
-  const parsed = parsePaginationId(buttonInteraction.customId, SEARCH_PAGINATION_CONFIG.prefix);
-  if (parsed === null) {
-    return null;
-  }
-
-  await buttonInteraction.deferUpdate();
-
-  const newPage = parsed.page ?? 0;
-  const newData = await fetchSearchResults({
-    userId,
-    query,
-    personalityId,
-    offset: newPage * RESULTS_PER_PAGE,
-    limit: RESULTS_PER_PAGE,
-    preferTextSearch: currentSearchType === 'text',
-  });
-
-  if (newData === null) {
-    await buttonInteraction.followUp({
-      content: '❌ Failed to load results. Please try again.',
-      ephemeral: true,
-    });
-    return null;
-  }
-
-  const updatedSearchType = newData.searchType ?? currentSearchType;
-  const { embed, components } = buildSearchView({
-    data: newData,
-    query,
-    page: newPage,
-    personalityId,
-    currentSearchType: updatedSearchType,
-  });
-
-  await buttonInteraction.editReply({ embeds: [embed], components });
-
-  return { newPage, results: newData.results, searchType: updatedSearchType };
-}
-
-/**
- * Set up collector for search pagination and select menu
- */
-function setupSearchCollector(
-  interaction: ChatInputCommandInteraction,
-  response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
-  context: SearchCollectorContext
-): void {
-  const { userId, query, personalityId, initialSearchType } = context;
-
-  // Register this message as having an active collector
-  // This prevents the global handler from racing with us
-  registerActiveCollector(response.id);
-
-  const collector = response.createMessageComponentCollector({
-    time: COLLECTOR_TIMEOUT_MS,
-    filter: i => i.user.id === userId,
-  });
-
-  let currentSearchType = initialSearchType;
-  let currentPage = 0;
-  let listContext: ListContext = {
-    source: 'search',
-    page: 0,
-    personalityId,
-    query,
-    preferTextSearch: initialSearchType === 'text',
-  };
-
-  // Fetch helper for refresh operations
-  const fetchPage = (page: number): Promise<SearchResponse | null> =>
-    fetchSearchResults({
-      userId,
-      query,
-      personalityId,
-      offset: page * RESULTS_PER_PAGE,
-      limit: RESULTS_PER_PAGE,
-      preferTextSearch: currentSearchType === 'text',
-    });
-
-  // Function to refresh the search results at the current page
-  const refreshSearch = async (): Promise<void> => {
-    let pageToFetch = currentPage;
-    let data = await fetchPage(pageToFetch);
-    if (data === null) {
-      return;
-    }
-
-    // Handle empty page after delete: go back one page if current page is now empty
-    if (data.results.length === 0 && pageToFetch > 0) {
-      pageToFetch--;
-      currentPage = pageToFetch;
-      listContext = { ...listContext, page: pageToFetch };
-      const retryData = await fetchPage(pageToFetch);
-      if (retryData === null) {
-        return; // Both fetches failed, don't update the UI
-      }
-      data = retryData;
-    }
-
-    const { embed, components } = buildSearchView({
-      data,
-      query,
-      page: pageToFetch,
-      personalityId,
-      currentSearchType,
-    });
-
-    await interaction.editReply({ embeds: [embed], components });
-  };
-
-  collector.on('collect', i => {
-    void (async () => {
-      try {
-        if (i.isButton()) {
-          // First check if it's a detail action
-          const handled = await handleSearchDetailAction(i, refreshSearch);
-          if (!handled) {
-            // Otherwise handle as pagination
-            const result = await handleSearchButton(i, {
-              ...context,
-              currentSearchType,
-            });
-            if (result !== null) {
-              currentPage = result.newPage;
-              currentSearchType = result.searchType;
-              listContext = {
-                ...listContext,
-                page: currentPage,
-                preferTextSearch: currentSearchType === 'text',
-              };
-            }
-          }
-        } else if (i.isStringSelectMenu()) {
-          await handleMemorySelect(i, listContext);
-        }
-      } catch (error) {
-        logger.error(
-          { err: error, customId: i.customId },
-          '[Memory] Search collector interaction failed'
-        );
-        // Try to notify user if possible
-        try {
-          if (!i.replied && !i.deferred) {
-            await i.reply({
-              content: '❌ Something went wrong. Please try again.',
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-        } catch {
-          // Interaction may be invalid, nothing we can do
-        }
-      }
-    })();
-  });
-
-  collector.on('end', () => {
-    // Deregister so global handler knows this collector is no longer active
-    deregisterActiveCollector(response.id);
-
-    interaction.editReply({ components: [] }).catch(() => {
-      // Ignore errors if message was deleted
-    });
-  });
 }
 
 interface FetchSearchOptions {
@@ -384,7 +233,7 @@ async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchRe
 }
 
 /**
- * Handle /memory search
+ * Handle /memory search command
  */
 export async function handleSearch(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
@@ -414,62 +263,199 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    const { results, hasMore, searchType } = data;
+    const { searchType } = data;
 
-    // Calculate pages using rolling window approach (API doesn't return total count)
-    // When hasMore is true: show "Page X of X+1+" indicating more pages exist
-    // When hasMore is false: current page is the last page
-    const currentPage = 0;
-    const totalPages = hasMore
-      ? currentPage + 2
-      : Math.max(1, currentPage + (results.length > 0 ? 1 : 0));
-
-    // Build initial embed
-    const embed = buildSearchEmbed({
-      results,
+    // Build initial view
+    const { embed, components } = buildSearchView({
+      data,
       query,
       page: 0,
-      totalPages,
-      hasMore,
+      personalityId,
       searchType,
-      personalityFilter: personalityId,
     });
 
-    // Build components (only if there are results)
-    const components =
-      results.length > 0
-        ? [
-            buildMemorySelectMenu(results, 0, RESULTS_PER_PAGE),
-            buildPaginationButtons(SEARCH_PAGINATION_CONFIG, 0, totalPages, 'date', hasMore),
-          ]
-        : [];
-
     const response = await context.editReply({ embeds: [embed], components });
+
+    // Persist session for pagination + detail view "back" button
+    await saveMemoryListSession({
+      userId,
+      messageId: response.id,
+      channelId: response.channelId,
+      entityType: MEMORY_SEARCH_ENTITY_TYPE,
+      data: {
+        kind: 'search',
+        personalityId,
+        currentPage: 0,
+        searchQuery: query,
+      },
+    });
 
     logger.info(
       {
         userId,
         queryLength: query.length,
         personalityId,
-        resultCount: results.length,
-        hasMore,
+        resultCount: data.results.length,
+        hasMore: data.hasMore,
         searchType: searchType ?? 'semantic',
       },
       '[Memory] Search displayed'
     );
-
-    // Set up collector for pagination
-    // Pass the raw interaction since collectors need it for ongoing edits
-    if (components.length > 0) {
-      setupSearchCollector(context.interaction, response, {
-        userId,
-        query,
-        personalityId,
-        initialSearchType: searchType,
-      });
-    }
   } catch (error) {
     logger.error({ error, userId }, '[Memory Search] Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
+}
+
+/**
+ * Handle pagination button clicks for /memory search.
+ * Parses the new page from the custom ID, looks up query/personality from
+ * the session, re-fetches, and updates the message.
+ */
+export async function handleSearchPagination(interaction: ButtonInteraction): Promise<void> {
+  const parsed = searchHelpers.parse(interaction.customId);
+  if (parsed === null) {
+    return;
+  }
+
+  const messageId = interaction.message.id;
+  const session = await findMemoryListSessionByMessage(messageId);
+  if (session?.data.kind !== 'search') {
+    await interaction.reply({
+      content: '⏰ This search session has expired. Please run `/memory search` again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const { personalityId, searchQuery } = session.data;
+  if (searchQuery === undefined) {
+    // Malformed session — shouldn't happen but handle gracefully
+    logger.warn({ messageId }, '[Memory Search] Session missing searchQuery');
+    return;
+  }
+
+  await interaction.deferUpdate();
+
+  const userId = interaction.user.id;
+  const newPage = parsed.page;
+
+  const data = await fetchSearchResults({
+    userId,
+    query: searchQuery,
+    personalityId,
+    offset: newPage * RESULTS_PER_PAGE,
+    limit: RESULTS_PER_PAGE,
+  });
+  if (data === null) {
+    await interaction.followUp({
+      content: '❌ Failed to load page. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const { embed, components } = buildSearchView({
+    data,
+    query: searchQuery,
+    page: newPage,
+    personalityId,
+    searchType: data.searchType,
+  });
+
+  await interaction.editReply({ embeds: [embed], components });
+
+  await updateMemoryListSessionPage({
+    userId,
+    messageId,
+    entityType: MEMORY_SEARCH_ENTITY_TYPE,
+    newPage,
+  });
+}
+
+/**
+ * Handle select menu interaction — user picked a memory from search results.
+ */
+export async function handleSearchSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const messageId = interaction.message.id;
+  const session = await findMemoryListSessionByMessage(messageId);
+
+  const listContext: ListContext = {
+    source: 'search',
+    page: session?.data.currentPage ?? 0,
+    personalityId: session?.data.personalityId,
+    query: session?.data.searchQuery,
+  };
+
+  await handleMemorySelect(interaction, listContext);
+}
+
+/**
+ * Refresh the search view — called from the detail action router when the
+ * user clicks "back" or after a successful delete.
+ */
+export async function refreshSearchList(interaction: ButtonInteraction): Promise<void> {
+  const messageId = interaction.message.id;
+  const session = await findMemoryListSessionByMessage(messageId);
+  if (session?.data.kind !== 'search') {
+    return;
+  }
+
+  const { personalityId, searchQuery } = session.data;
+  if (searchQuery === undefined) {
+    return;
+  }
+
+  const userId = interaction.user.id;
+  let pageToFetch = session.data.currentPage;
+
+  let data = await fetchSearchResults({
+    userId,
+    query: searchQuery,
+    personalityId,
+    offset: pageToFetch * RESULTS_PER_PAGE,
+    limit: RESULTS_PER_PAGE,
+  });
+  if (data === null) {
+    return;
+  }
+
+  // Handle empty page after delete: go back one page if current page is now empty
+  if (data.results.length === 0 && pageToFetch > 0) {
+    pageToFetch--;
+    const retryData = await fetchSearchResults({
+      userId,
+      query: searchQuery,
+      personalityId,
+      offset: pageToFetch * RESULTS_PER_PAGE,
+      limit: RESULTS_PER_PAGE,
+    });
+    if (retryData === null) {
+      return;
+    }
+    data = retryData;
+    await updateMemoryListSessionPage({
+      userId,
+      messageId,
+      entityType: MEMORY_SEARCH_ENTITY_TYPE,
+      newPage: pageToFetch,
+    });
+  }
+
+  const { embed, components } = buildSearchView({
+    data,
+    query: searchQuery,
+    page: pageToFetch,
+    personalityId,
+    searchType: data.searchType,
+  });
+
+  await interaction.editReply({ embeds: [embed], components });
+}
+
+/**
+ * Handle detail action buttons with search-list refresh callback.
+ */
+export async function handleSearchDetailAction(interaction: ButtonInteraction): Promise<boolean> {
+  return handleMemoryDetailAction(interaction, () => refreshSearchList(interaction));
 }

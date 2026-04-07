@@ -1,313 +1,327 @@
 /**
- * Tests for Memory Command Interaction Handlers
+ * Tests for memory interaction handlers (the top-level router).
  *
- * Tests button, modal, and select menu interaction routing.
- * Extracted from index.test.ts alongside interactionHandlers.ts.
+ * Covers:
+ * - Button routing: pagination → browse/search pagination handlers
+ * - Button routing: detail actions → session-kind-based dispatch
+ * - Select menu routing: browse-select, search-select, legacy memory-detail::select
+ * - Modal routing: memory edit modals
+ * - Session lookup for detail actions determines which refresh handler is called
+ * - Expired interactions get a clean error
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags } from 'discord.js';
-import type {
-  ButtonInteraction,
-  ModalSubmitInteraction,
-  StringSelectMenuInteraction,
-} from 'discord.js';
-import { handleButton, handleModal, handleSelectMenu } from './interactionHandlers.js';
 
-// Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+const {
+  mockHandleBrowsePagination,
+  mockHandleBrowseSelect,
+  mockHandleBrowseDetailAction,
+  mockIsMemoryBrowsePagination,
+  mockBrowseHelpers,
+  mockHandleSearchPagination,
+  mockHandleSearchSelect,
+  mockHandleSearchDetailAction,
+  mockIsMemorySearchPagination,
+  mockSearchHelpers,
+  mockParseMemoryActionId,
+  mockHandleEditModalSubmit,
+  mockFindMemoryListSessionByMessage,
+} = vi.hoisted(() => ({
+  mockHandleBrowsePagination: vi.fn(),
+  mockHandleBrowseSelect: vi.fn(),
+  mockHandleBrowseDetailAction: vi.fn(),
+  mockIsMemoryBrowsePagination: vi.fn(),
+  mockBrowseHelpers: {
+    isBrowseSelect: vi.fn(),
+  },
+  mockHandleSearchPagination: vi.fn(),
+  mockHandleSearchSelect: vi.fn(),
+  mockHandleSearchDetailAction: vi.fn(),
+  mockIsMemorySearchPagination: vi.fn(),
+  mockSearchHelpers: {
+    isBrowseSelect: vi.fn(),
+  },
+  mockParseMemoryActionId: vi.fn(),
+  mockHandleEditModalSubmit: vi.fn(),
+  mockFindMemoryListSessionByMessage: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   };
 });
 
-// Mock detail.js handlers
-const mockHandleLockButton = vi.fn();
-const mockHandleDeleteButton = vi.fn();
-const mockHandleDeleteConfirm = vi.fn();
-const mockHandleViewFullButton = vi.fn();
 vi.mock('./detail.js', () => ({
-  MEMORY_DETAIL_PREFIX: 'mem-detail',
-  parseMemoryActionId: (customId: string) => {
-    if (!customId.startsWith('mem-detail:')) return null;
-    const parts = customId.split(':');
-    const memoryId = parts[2];
-    return { action: parts[1], memoryId: memoryId.length > 0 ? memoryId : undefined };
-  },
-  handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
-  handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
-  handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
-  handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
+  parseMemoryActionId: (...args: unknown[]) => mockParseMemoryActionId(...args),
 }));
 
-// Mock detailModals.js - edit handlers
-const mockHandleEditButton = vi.fn();
-const mockHandleEditModalSubmit = vi.fn();
 vi.mock('./detailModals.js', () => ({
-  handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
-  handleEditTruncatedButton: vi.fn(),
-  handleCancelEditButton: vi.fn(),
   handleEditModalSubmit: (...args: unknown[]) => mockHandleEditModalSubmit(...args),
 }));
 
-describe('Memory Interaction Handlers', () => {
+vi.mock('./browseSession.js', () => ({
+  findMemoryListSessionByMessage: (...args: unknown[]) =>
+    mockFindMemoryListSessionByMessage(...args),
+}));
+
+vi.mock('./browse.js', () => ({
+  browseHelpers: mockBrowseHelpers,
+  handleBrowsePagination: (...args: unknown[]) => mockHandleBrowsePagination(...args),
+  handleBrowseSelect: (...args: unknown[]) => mockHandleBrowseSelect(...args),
+  handleBrowseDetailAction: (...args: unknown[]) => mockHandleBrowseDetailAction(...args),
+  isMemoryBrowsePagination: (...args: unknown[]) => mockIsMemoryBrowsePagination(...args),
+}));
+
+vi.mock('./search.js', () => ({
+  searchHelpers: mockSearchHelpers,
+  handleSearchPagination: (...args: unknown[]) => mockHandleSearchPagination(...args),
+  handleSearchSelect: (...args: unknown[]) => mockHandleSearchSelect(...args),
+  handleSearchDetailAction: (...args: unknown[]) => mockHandleSearchDetailAction(...args),
+  isMemorySearchPagination: (...args: unknown[]) => mockIsMemorySearchPagination(...args),
+}));
+
+import { handleButton, handleModal, handleSelectMenu } from './interactionHandlers.js';
+
+const TEST_MESSAGE_ID = 'msg-123';
+
+interface MockButtonInteraction {
+  customId: string;
+  message: { id: string };
+  reply: ReturnType<typeof vi.fn>;
+  replied: boolean;
+  deferred: boolean;
+}
+
+interface MockSelectInteraction {
+  customId: string;
+  message: { id: string };
+  reply: ReturnType<typeof vi.fn>;
+}
+
+function createButtonInteraction(customId: string): MockButtonInteraction {
+  return {
+    customId,
+    message: { id: TEST_MESSAGE_ID },
+    reply: vi.fn().mockResolvedValue(undefined),
+    replied: false,
+    deferred: false,
+  };
+}
+
+function createSelectInteraction(customId: string): MockSelectInteraction {
+  return {
+    customId,
+    message: { id: TEST_MESSAGE_ID },
+    reply: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+function createModalInteraction(customId: string): { customId: string } {
+  return { customId };
+}
+
+describe('handleButton', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    // Default: all custom ID guards return false
+    mockIsMemoryBrowsePagination.mockReturnValue(false);
+    mockIsMemorySearchPagination.mockReturnValue(false);
+    mockParseMemoryActionId.mockReturnValue(null);
   });
 
-  describe('handleButton', () => {
-    function createMockButtonInteraction(
-      customId: string,
-      messageId = 'test-message-id'
-    ): ButtonInteraction {
-      const mockReply = vi.fn();
-      const mockEditReply = vi.fn();
-      return {
-        customId,
-        reply: mockReply,
-        editReply: mockEditReply,
-        message: { id: messageId },
-      } as unknown as ButtonInteraction;
-    }
+  it('routes to browse pagination when custom ID matches', async () => {
+    mockIsMemoryBrowsePagination.mockReturnValue(true);
+    const interaction = createButtonInteraction('memory-browse::browse::0::all::');
 
-    it('should handle expired pagination (non-memory-detail prefix) when no collector active', async () => {
-      const interaction = createMockButtonInteraction(
-        'memory-browse:page:0:date',
-        'no-collector-msg'
-      );
+    await handleButton(interaction as never);
 
-      await handleButton(interaction);
-
-      expect(interaction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining('expired'),
-        flags: MessageFlags.Ephemeral,
-      });
-    });
-
-    it('should ignore interaction when active collector exists for message', async () => {
-      // Import and use the registry to simulate an active collector
-      const { registerActiveCollector, deregisterActiveCollector } =
-        await import('../../utils/activeCollectorRegistry.js');
-
-      const messageId = 'active-collector-msg';
-      registerActiveCollector(messageId);
-
-      try {
-        const interaction = createMockButtonInteraction('memory-browse:page:0:date', messageId);
-        await handleButton(interaction);
-
-        // Should NOT call reply - collector handles it
-        expect(interaction.reply).not.toHaveBeenCalled();
-      } finally {
-        // Clean up
-        deregisterActiveCollector(messageId);
-      }
-    });
-
-    it('should route edit action to handleEditButton when no collector active', async () => {
-      const interaction = createMockButtonInteraction('mem-detail:edit:memory-123', 'no-collector');
-
-      await handleButton(interaction);
-
-      expect(mockHandleEditButton).toHaveBeenCalledWith(interaction, 'memory-123');
-    });
-
-    it('should route edit-truncated action to handleEditTruncatedButton', async () => {
-      const { handleEditTruncatedButton } = await import('./detailModals.js');
-      const interaction = createMockButtonInteraction(
-        'mem-detail:edit-truncated:memory-trunc',
-        'no-collector'
-      );
-
-      await handleButton(interaction);
-
-      expect(handleEditTruncatedButton).toHaveBeenCalledWith(interaction, 'memory-trunc');
-    });
-
-    it('should route cancel-edit action to handleCancelEditButton', async () => {
-      const { handleCancelEditButton } = await import('./detailModals.js');
-      const interaction = createMockButtonInteraction(
-        'mem-detail:cancel-edit:memory-cancel',
-        'no-collector'
-      );
-
-      await handleButton(interaction);
-
-      expect(handleCancelEditButton).toHaveBeenCalledWith(interaction);
-    });
-
-    it('should route lock action to handleLockButton', async () => {
-      const interaction = createMockButtonInteraction('mem-detail:lock:memory-456');
-
-      await handleButton(interaction);
-
-      expect(mockHandleLockButton).toHaveBeenCalledWith(interaction, 'memory-456');
-    });
-
-    it('should route delete action to handleDeleteButton', async () => {
-      const interaction = createMockButtonInteraction('mem-detail:delete:memory-789');
-
-      await handleButton(interaction);
-
-      expect(mockHandleDeleteButton).toHaveBeenCalledWith(interaction, 'memory-789');
-    });
-
-    it('should route confirm-delete action and show success on true', async () => {
-      mockHandleDeleteConfirm.mockResolvedValue(true);
-      const interaction = createMockButtonInteraction('mem-detail:confirm-delete:memory-abc');
-
-      await handleButton(interaction);
-
-      expect(mockHandleDeleteConfirm).toHaveBeenCalledWith(interaction, 'memory-abc');
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        embeds: [],
-        components: [],
-        content: expect.stringContaining('deleted successfully'),
-      });
-    });
-
-    it('should route confirm-delete action and not show success on false', async () => {
-      mockHandleDeleteConfirm.mockResolvedValue(false);
-      const interaction = createMockButtonInteraction('mem-detail:confirm-delete:memory-abc');
-
-      await handleButton(interaction);
-
-      expect(mockHandleDeleteConfirm).toHaveBeenCalledWith(interaction, 'memory-abc');
-      expect(interaction.editReply).not.toHaveBeenCalled();
-    });
-
-    it('should route view-full action to handleViewFullButton', async () => {
-      const interaction = createMockButtonInteraction('mem-detail:view-full:memory-full');
-
-      await handleButton(interaction);
-
-      expect(mockHandleViewFullButton).toHaveBeenCalledWith(interaction, 'memory-full');
-    });
-
-    it('should show expired message for back action', async () => {
-      const interaction = createMockButtonInteraction('mem-detail:back:memory-xyz');
-
-      await handleButton(interaction);
-
-      expect(interaction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining('expired'),
-        flags: MessageFlags.Ephemeral,
-      });
-    });
-
-    it('should show error for unknown action', async () => {
-      const interaction = createMockButtonInteraction('mem-detail:unknown:memory-xyz');
-
-      await handleButton(interaction);
-
-      expect(interaction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Unknown action'),
-        flags: MessageFlags.Ephemeral,
-      });
-    });
-
-    it('should not call handler when memoryId is undefined for edit', async () => {
-      // Create interaction with action but no memoryId
-      const interaction = {
-        customId: 'mem-detail:edit:',
-        reply: vi.fn(),
-        message: { id: 'no-collector-test' },
-      } as unknown as ButtonInteraction;
-
-      await handleButton(interaction);
-
-      expect(mockHandleEditButton).not.toHaveBeenCalled();
-    });
+    expect(mockHandleBrowsePagination).toHaveBeenCalledWith(interaction);
+    expect(mockHandleSearchPagination).not.toHaveBeenCalled();
   });
 
-  describe('handleModal', () => {
-    function createMockModalSubmitInteraction(customId: string): ModalSubmitInteraction {
-      return {
-        customId,
-      } as unknown as ModalSubmitInteraction;
-    }
+  it('routes to search pagination when custom ID matches', async () => {
+    mockIsMemorySearchPagination.mockReturnValue(true);
+    const interaction = createButtonInteraction('memory-search::browse::0::all::');
 
-    it('should route edit modal to handleEditModalSubmit', async () => {
-      const interaction = createMockModalSubmitInteraction('mem-detail:edit:memory-123');
+    await handleButton(interaction as never);
 
-      await handleModal(interaction);
-
-      expect(mockHandleEditModalSubmit).toHaveBeenCalledWith(interaction, 'memory-123');
-    });
-
-    it('should ignore non-edit modal actions', async () => {
-      const interaction = createMockModalSubmitInteraction('mem-detail:other:memory-123');
-
-      await handleModal(interaction);
-
-      expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
-    });
-
-    it('should ignore modals with unrecognized prefix', async () => {
-      const interaction = createMockModalSubmitInteraction('unknown:edit:memory-123');
-
-      await handleModal(interaction);
-
-      expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
-    });
-
-    it('should not call handler when memoryId is undefined', async () => {
-      const interaction = createMockModalSubmitInteraction('mem-detail:edit:');
-
-      await handleModal(interaction);
-
-      expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
-    });
+    expect(mockHandleSearchPagination).toHaveBeenCalledWith(interaction);
+    expect(mockHandleBrowsePagination).not.toHaveBeenCalled();
   });
 
-  describe('handleSelectMenu', () => {
-    function createMockSelectMenuInteraction(
-      customId: string,
-      messageId = 'test-message-id'
-    ): StringSelectMenuInteraction {
-      const mockReply = vi.fn();
-      return {
-        customId,
-        reply: mockReply,
-        values: ['test-memory-id'],
-        message: { id: messageId },
-      } as unknown as StringSelectMenuInteraction;
-    }
+  it('routes detail actions to browse refresh when session kind is browse', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
+    mockHandleBrowseDetailAction.mockResolvedValue(true);
 
-    it('should show expired message when no active collector', async () => {
-      const interaction = createMockSelectMenuInteraction('mem-detail:select', 'no-collector-msg');
+    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
 
-      await handleSelectMenu(interaction);
+    await handleButton(interaction as never);
 
-      expect(interaction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining('expired'),
-        flags: MessageFlags.Ephemeral,
-      });
-    });
+    expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
+    expect(mockHandleSearchDetailAction).not.toHaveBeenCalled();
+  });
 
-    it('should ignore interaction when active collector exists for message', async () => {
-      const { registerActiveCollector, deregisterActiveCollector } =
-        await import('../../utils/activeCollectorRegistry.js');
+  it('routes detail actions to search refresh when session kind is search', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'search' } });
+    mockHandleSearchDetailAction.mockResolvedValue(true);
 
-      const messageId = 'active-collector-select-msg';
-      registerActiveCollector(messageId);
+    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
 
-      try {
-        const interaction = createMockSelectMenuInteraction('mem-detail:select', messageId);
-        await handleSelectMenu(interaction);
+    await handleButton(interaction as never);
 
-        // Should NOT call reply - collector handles it
-        expect(interaction.reply).not.toHaveBeenCalled();
-      } finally {
-        deregisterActiveCollector(messageId);
-      }
-    });
+    expect(mockHandleSearchDetailAction).toHaveBeenCalledWith(interaction);
+    expect(mockHandleBrowseDetailAction).not.toHaveBeenCalled();
+  });
+
+  it('shows expired message when detail action has no session', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+
+    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('expired') })
+    );
+    expect(mockHandleBrowseDetailAction).not.toHaveBeenCalled();
+    expect(mockHandleSearchDetailAction).not.toHaveBeenCalled();
+  });
+
+  it('shows error for unknown button interactions', async () => {
+    mockParseMemoryActionId.mockReturnValue(null);
+    const interaction = createButtonInteraction('unrelated::button');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Unknown') })
+    );
+  });
+
+  it('shows error when detail handler returns false', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
+    mockHandleBrowseDetailAction.mockResolvedValue(false);
+
+    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+
+    await handleButton(interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Unknown action') })
+    );
+  });
+});
+
+describe('handleModal', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('routes edit modal to handleEditModalSubmit', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'edit', memoryId: 'mem-1' });
+    const interaction = createModalInteraction('memory-detail::edit::mem-1');
+
+    await handleModal(interaction as never);
+
+    expect(mockHandleEditModalSubmit).toHaveBeenCalledWith(interaction, 'mem-1');
+  });
+
+  it('ignores non-edit modal submissions', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'other' });
+    const interaction = createModalInteraction('something::else');
+
+    await handleModal(interaction as never);
+
+    expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+  });
+
+  it('ignores modal submissions with no parseable custom ID', async () => {
+    mockParseMemoryActionId.mockReturnValue(null);
+    const interaction = createModalInteraction('unparseable');
+
+    await handleModal(interaction as never);
+
+    expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleSelectMenu', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockBrowseHelpers.isBrowseSelect.mockReturnValue(false);
+    mockSearchHelpers.isBrowseSelect.mockReturnValue(false);
+    mockParseMemoryActionId.mockReturnValue(null);
+  });
+
+  it('routes browse select custom IDs to browse handler', async () => {
+    mockBrowseHelpers.isBrowseSelect.mockReturnValue(true);
+    const interaction = createSelectInteraction('memory-browse::browse-select::0::all::');
+
+    await handleSelectMenu(interaction as never);
+
+    expect(mockHandleBrowseSelect).toHaveBeenCalledWith(interaction);
+    expect(mockHandleSearchSelect).not.toHaveBeenCalled();
+  });
+
+  it('routes search select custom IDs to search handler', async () => {
+    mockSearchHelpers.isBrowseSelect.mockReturnValue(true);
+    const interaction = createSelectInteraction('memory-search::browse-select::0::all::');
+
+    await handleSelectMenu(interaction as never);
+
+    expect(mockHandleSearchSelect).toHaveBeenCalledWith(interaction);
+    expect(mockHandleBrowseSelect).not.toHaveBeenCalled();
+  });
+
+  it('routes memory-detail::select to search handler when session is search', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'select' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'search' } });
+
+    const interaction = createSelectInteraction('memory-detail::select');
+
+    await handleSelectMenu(interaction as never);
+
+    expect(mockHandleSearchSelect).toHaveBeenCalledWith(interaction);
+    expect(mockHandleBrowseSelect).not.toHaveBeenCalled();
+  });
+
+  it('routes memory-detail::select to browse handler when session is browse', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'select' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
+
+    const interaction = createSelectInteraction('memory-detail::select');
+
+    await handleSelectMenu(interaction as never);
+
+    expect(mockHandleBrowseSelect).toHaveBeenCalledWith(interaction);
+  });
+
+  it('defaults to browse handler for memory-detail::select when session is missing', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'select' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+
+    const interaction = createSelectInteraction('memory-detail::select');
+
+    await handleSelectMenu(interaction as never);
+
+    expect(mockHandleBrowseSelect).toHaveBeenCalledWith(interaction);
+  });
+
+  it('shows expired message for unknown select custom IDs', async () => {
+    mockParseMemoryActionId.mockReturnValue(null);
+    const interaction = createSelectInteraction('unknown::select');
+
+    await handleSelectMenu(interaction as never);
+
+    expect(interaction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('expired') })
+    );
   });
 });
