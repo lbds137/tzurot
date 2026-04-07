@@ -48,6 +48,14 @@ export type MemoryListSession =
       currentPage: number;
       /** The user's search query — required for search sessions */
       searchQuery: string;
+      /**
+       * Search type returned by the first page. When 'text', subsequent
+       * pagination requests skip the semantic attempt and go straight to
+       * text search — saving an embedding round-trip per page click.
+       * Undefined means the first response had no searchType field
+       * (backwards compatibility) — pagination should attempt semantic.
+       */
+      searchType?: 'semantic' | 'text';
     };
 
 /**

@@ -23,9 +23,6 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
-
-/** Union type for action rows containing buttons or select menus */
-type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 import {
   createLogger,
   DISCORD_COLORS,
@@ -50,6 +47,9 @@ import {
   updateMemoryListSessionPage,
   MEMORY_BROWSE_ENTITY_TYPE,
 } from './browseSession.js';
+
+/** Union type for action rows containing buttons or select menus */
+type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
 const logger = createLogger('memory-browse');
 
