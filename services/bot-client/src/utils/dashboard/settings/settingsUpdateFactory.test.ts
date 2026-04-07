@@ -165,9 +165,7 @@ describe('createSettingsUpdateHandler', () => {
     const result = await handler(mockInteraction, mockSession, 'maxMessages', 50);
 
     expect(result.success).toBe(true);
-    if (result.success) {
-      // sourceTier was 'personality', so maxMessages (source: 'personality') should be local
-      expect(result.newData.maxMessages.localValue).toBe(25);
-    }
+    // sourceTier was 'personality', so maxMessages (source: 'personality') should be local
+    expect(result.newData?.maxMessages.localValue).toBe(25);
   });
 });
