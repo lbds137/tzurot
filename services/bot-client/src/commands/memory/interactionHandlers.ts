@@ -59,8 +59,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   }
 
   // Detail action buttons (memory-detail::...)
-  // Look up the session to know whether the detail view was opened from
-  // browse or search, then route to the matching refresh handler.
   const parsed = parseMemoryActionId(customId);
   if (parsed === null) {
     logger.debug({ customId }, '[Memory] Unknown button customId');
@@ -71,9 +69,21 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     return;
   }
 
+  // Session-independent actions (edit, lock, view-full, etc.) only need the
+  // memoryId from the custom ID — they don't care which list the detail view
+  // was opened from. Route them directly via handleBrowseDetailAction which
+  // delegates to handleMemoryDetailAction for the action dispatch.
+  // Note: the onRefresh callback is only invoked for 'back' and 'confirm-delete',
+  // which ARE session-dependent — those fall through to the kind-based routing below.
+  if (SESSION_INDEPENDENT_ACTIONS.has(parsed.action)) {
+    await handleBrowseDetailAction(interaction);
+    return;
+  }
+
+  // Session-dependent actions (back, confirm-delete) need to know which list
+  // to refresh after the action completes. Look up the session to find out.
   const session = await findMemoryListSessionByMessage(interaction.message.id);
   if (session === null) {
-    // Session expired — show a clean error since we can't refresh the list
     await interaction.reply({
       content: '⏰ This interaction has expired. Please run the command again.',
       flags: MessageFlags.Ephemeral,
@@ -96,6 +106,23 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     }
   }
 }
+
+/**
+ * Detail actions that operate on a single memory without needing to know
+ * which list (browse vs search) the detail view was opened from. These can
+ * work even if the list session has expired, because the memory ID is encoded
+ * in the button's custom ID and the action doesn't refresh the list view.
+ */
+const SESSION_INDEPENDENT_ACTIONS = new Set([
+  'edit',
+  'edit-truncated',
+  'cancel-edit',
+  'lock',
+  'view-full',
+  // 'delete' only shows the confirmation dialog; no list refresh needed.
+  // 'confirm-delete' and 'back' DO call onRefresh — those are session-dependent.
+  'delete',
+]);
 
 /**
  * Handle modal submit interactions for memory editing
@@ -141,7 +168,11 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     if (session?.data.kind === 'search') {
       await handleSearchSelect(interaction);
     } else {
-      // Default to browse (also handles the "no session" case gracefully)
+      // Default to browse for any non-search session. This also handles the
+      // "no session" case (expired): the select itself still works since it
+      // fetches the memory by ID, but the detail view's "back" button will
+      // return to browse page 1 instead of the original list — degraded but
+      // not broken.
       await handleBrowseSelect(interaction);
     }
     return;
