@@ -58,14 +58,22 @@ const TEST_CONFIG: DashboardConfig<TestData> = {
   // Other required fields filled with minimal stubs
 } as never;
 
-function createInteraction(customId: string, value: string): never {
+interface MockInteraction {
+  customId: string;
+  values: string[];
+  user: { id: string };
+  reply: ReturnType<typeof vi.fn>;
+  showModal: ReturnType<typeof vi.fn>;
+}
+
+function createInteraction(customId: string, value: string): MockInteraction {
   return {
     customId,
     values: [value],
     user: { id: 'user-123' },
     reply: vi.fn().mockResolvedValue(undefined),
     showModal: vi.fn().mockResolvedValue(undefined),
-  } as never;
+  };
 }
 
 function createConfig(canEdit?: (data: TestData) => boolean): never {
@@ -91,7 +99,7 @@ describe('handleDashboardSectionSelect', () => {
     });
     const interaction = createInteraction('other::select::e1', 'edit-section-a');
 
-    await handleDashboardSectionSelect(interaction, createConfig());
+    await handleDashboardSectionSelect(interaction as never, createConfig());
 
     expect(mockFetchOrCreateSession).not.toHaveBeenCalled();
     expect(interaction.showModal).not.toHaveBeenCalled();
@@ -104,7 +112,7 @@ describe('handleDashboardSectionSelect', () => {
     });
     const interaction = createInteraction('test::select::', 'edit-section-a');
 
-    await handleDashboardSectionSelect(interaction, createConfig());
+    await handleDashboardSectionSelect(interaction as never, createConfig());
 
     expect(mockFetchOrCreateSession).not.toHaveBeenCalled();
   });
@@ -116,7 +124,7 @@ describe('handleDashboardSectionSelect', () => {
     });
     const interaction = createInteraction('test::select::e1', 'other-action');
 
-    await handleDashboardSectionSelect(interaction, createConfig());
+    await handleDashboardSectionSelect(interaction as never, createConfig());
 
     expect(mockFetchOrCreateSession).not.toHaveBeenCalled();
   });
@@ -128,7 +136,7 @@ describe('handleDashboardSectionSelect', () => {
     });
     const interaction = createInteraction('test::select::e1', 'edit-bogus-section');
 
-    await handleDashboardSectionSelect(interaction, createConfig());
+    await handleDashboardSectionSelect(interaction as never, createConfig());
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: '❌ Unknown section.' })
@@ -144,7 +152,7 @@ describe('handleDashboardSectionSelect', () => {
     mockFetchOrCreateSession.mockResolvedValue({ success: false, error: 'not_found' });
     const interaction = createInteraction('test::select::e1', 'edit-section-a');
 
-    await handleDashboardSectionSelect(interaction, createConfig());
+    await handleDashboardSectionSelect(interaction as never, createConfig());
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: '❌ Test not found.' })
@@ -165,7 +173,7 @@ describe('handleDashboardSectionSelect', () => {
     const interaction = createInteraction('test::select::e1', 'edit-section-a');
 
     await handleDashboardSectionSelect(
-      interaction,
+      interaction as never,
       createConfig(data => data.canEdit === true)
     );
 
@@ -188,7 +196,7 @@ describe('handleDashboardSectionSelect', () => {
     mockBuildSectionModal.mockReturnValue({ customId: 'modal-1' });
     const interaction = createInteraction('test::select::e1', 'edit-section-a');
 
-    await handleDashboardSectionSelect(interaction, createConfig());
+    await handleDashboardSectionSelect(interaction as never, createConfig());
 
     expect(mockBuildSectionModal).toHaveBeenCalled();
     expect(interaction.showModal).toHaveBeenCalledWith({ customId: 'modal-1' });
@@ -208,7 +216,7 @@ describe('handleDashboardSectionSelect', () => {
     const interaction = createInteraction('test::select::e1', 'edit-section-a');
 
     // No canEdit in config — should proceed regardless of data.canEdit
-    await handleDashboardSectionSelect(interaction, createConfig());
+    await handleDashboardSectionSelect(interaction as never, createConfig());
 
     expect(interaction.showModal).toHaveBeenCalled();
   });
