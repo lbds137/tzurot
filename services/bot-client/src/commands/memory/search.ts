@@ -261,7 +261,9 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
   const pageSize = options.limit() ?? DEFAULT_RESULTS_PER_PAGE;
 
   try {
-    // Resolve personality if provided
+    // Resolve personality if provided. Contract: null means the helper
+    // already sent an error reply via editReply, so we must return early
+    // without sending another reply (Discord would reject the double-reply).
     const personalityId = await resolveOptionalPersonality(context, userId, personalityInput);
     if (personalityId === null) {
       return;
@@ -407,6 +409,10 @@ export async function handleSearchSelect(interaction: StringSelectMenuInteractio
 
   // Type-narrow to the search variant — searchQuery only exists when kind === 'search'.
   // If the session is missing or somehow a browse session, fall back to defaults.
+  // Degraded (not broken): the select still works since the memory ID is in
+  // the interaction values, but the detail "back" button returns to page 0
+  // without the original search query or personality filter. This is a
+  // deliberate UX tradeoff — a working fallback beats an error screen.
   const searchSession = session?.data.kind === 'search' ? session.data : null;
   const listContext: ListContext = {
     source: 'search',
