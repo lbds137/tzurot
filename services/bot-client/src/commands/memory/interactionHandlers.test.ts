@@ -152,9 +152,8 @@ describe('handleButton', () => {
     expect(mockHandleBrowsePagination).not.toHaveBeenCalled();
   });
 
-  it('routes detail actions to browse refresh when session kind is browse', async () => {
+  it('routes session-independent actions (lock/edit/view-full/delete) without session lookup', async () => {
     mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
-    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
     mockHandleBrowseDetailAction.mockResolvedValue(true);
 
     const interaction = createButtonInteraction('memory-detail::lock::mem-1');
@@ -162,15 +161,42 @@ describe('handleButton', () => {
     await handleButton(interaction as never);
 
     expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
+    expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
     expect(mockHandleSearchDetailAction).not.toHaveBeenCalled();
   });
 
-  it('routes detail actions to search refresh when session kind is search', async () => {
-    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+  it('still routes lock/edit/view-full even when session has expired', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'edit', memoryId: 'mem-1' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
+
+    const interaction = createButtonInteraction('memory-detail::edit::mem-1');
+
+    await handleButton(interaction as never);
+
+    // Expired session should NOT block session-independent actions
+    expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
+    expect(interaction.reply).not.toHaveBeenCalled();
+  });
+
+  it('routes session-dependent "back" to browse refresh when session kind is browse', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'back' });
+    mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
+    mockHandleBrowseDetailAction.mockResolvedValue(true);
+
+    const interaction = createButtonInteraction('memory-detail::back');
+
+    await handleButton(interaction as never);
+
+    expect(mockHandleBrowseDetailAction).toHaveBeenCalledWith(interaction);
+    expect(mockHandleSearchDetailAction).not.toHaveBeenCalled();
+  });
+
+  it('routes session-dependent "back" to search refresh when session kind is search', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'back' });
     mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'search' } });
     mockHandleSearchDetailAction.mockResolvedValue(true);
 
-    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+    const interaction = createButtonInteraction('memory-detail::back');
 
     await handleButton(interaction as never);
 
@@ -178,11 +204,11 @@ describe('handleButton', () => {
     expect(mockHandleBrowseDetailAction).not.toHaveBeenCalled();
   });
 
-  it('shows expired message when detail action has no session', async () => {
-    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+  it('shows expired message when session-dependent action has no session', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'back' });
     mockFindMemoryListSessionByMessage.mockResolvedValue(null);
 
-    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+    const interaction = createButtonInteraction('memory-detail::back');
 
     await handleButton(interaction as never);
 
@@ -204,12 +230,12 @@ describe('handleButton', () => {
     );
   });
 
-  it('shows error when detail handler returns false', async () => {
-    mockParseMemoryActionId.mockReturnValue({ action: 'lock', memoryId: 'mem-1' });
+  it('shows error when session-dependent detail handler returns false', async () => {
+    mockParseMemoryActionId.mockReturnValue({ action: 'back' });
     mockFindMemoryListSessionByMessage.mockResolvedValue({ data: { kind: 'browse' } });
     mockHandleBrowseDetailAction.mockResolvedValue(false);
 
-    const interaction = createButtonInteraction('memory-detail::lock::mem-1');
+    const interaction = createButtonInteraction('memory-detail::back');
 
     await handleButton(interaction as never);
 

@@ -10,7 +10,6 @@
  * the same user don't collide.
  */
 
-import type { Redis } from 'ioredis';
 import { getSessionManager } from '../../utils/dashboard/index.js';
 import type { DashboardSession } from '../../utils/dashboard/types.js';
 
@@ -26,8 +25,6 @@ export interface MemoryListSession {
   currentPage: number;
   /** For search sessions only: the user's query */
   searchQuery?: string;
-  /** For search sessions only: explicit limit from user option */
-  searchLimit?: number;
 }
 
 /** Session entity types — separate to allow different cleanup/lookup patterns if needed */
@@ -93,6 +90,3 @@ export async function updateMemoryListSessionPage(opts: {
   });
   return true;
 }
-
-// Re-export so test files don't need multiple imports
-export type { DashboardSession, Redis };
