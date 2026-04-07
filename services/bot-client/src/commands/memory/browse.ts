@@ -201,7 +201,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const personalityInput = options.personality();
 
   try {
-    // Resolve personality if provided
+    // Resolve personality if provided. Contract: null means the helper
+    // already sent an error reply via editReply, so we must return early
+    // without sending another reply (Discord would reject the double-reply).
     const personalityId = await resolveOptionalPersonality(context, userId, personalityInput);
     if (personalityId === null) {
       return;
@@ -327,7 +329,11 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);
 
-  // Build list context from session (or fall back to defaults if session expired)
+  // Build list context from session, or fall back to defaults if expired.
+  // Degraded (not broken): the select itself still works since the memory
+  // ID is in the interaction values, but the detail view's "back" button
+  // will return to page 0 instead of the original page. This is an
+  // acceptable tradeoff — a working fallback beats an error screen.
   const listContext: ListContext = {
     source: 'list',
     page: session?.data.currentPage ?? 0,
