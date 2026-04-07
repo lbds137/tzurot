@@ -17,7 +17,6 @@ import {
   handleViewFullButton,
   MEMORY_DETAIL_PREFIX,
   type MemoryItem,
-  type ListContext,
 } from './detail.js';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
@@ -286,8 +285,7 @@ describe('Memory Detail', () => {
         editReply: mockEditReply,
       } as unknown as StringSelectMenuInteraction;
 
-      const context: ListContext = { source: 'list', page: 0 };
-      await handleMemorySelect(interaction, context);
+      await handleMemorySelect(interaction);
 
       expect(mockDeferUpdate).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -312,8 +310,7 @@ describe('Memory Detail', () => {
         followUp: mockFollowUp,
       } as unknown as StringSelectMenuInteraction;
 
-      const context: ListContext = { source: 'list', page: 0 };
-      await handleMemorySelect(interaction, context);
+      await handleMemorySelect(interaction);
 
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({

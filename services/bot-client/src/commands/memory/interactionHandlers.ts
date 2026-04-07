@@ -18,7 +18,7 @@ import type {
   StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { parseMemoryActionId } from './detail.js';
+import { parseMemoryActionId, handleMemorySelect } from './detail.js';
 import { handleEditModalSubmit } from './detailModals.js';
 import { findMemoryListSessionByMessage } from './browseSession.js';
 import {
@@ -182,21 +182,15 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   }
 
   // memory-detail::select — used by buildMemorySelectMenu for both browse
-  // and search result lists. Route based on the session kind so the detail
-  // view's "back" button returns to the correct list.
+  // and search result lists. Route directly to handleMemorySelect without
+  // a session lookup: both origins open the same detail view, and the
+  // detail view's "back" button looks up the original list via the
+  // messageId-keyed session when it's clicked (see refreshBrowseList /
+  // refreshSearchList in detailActionRouter). No up-front session kind
+  // disambiguation is needed here.
   const parsed = parseMemoryActionId(customId);
   if (parsed?.action === 'select') {
-    const session = await findMemoryListSessionByMessage(interaction.message.id);
-    if (session?.data.kind === 'search') {
-      await handleSearchSelect(interaction);
-    } else {
-      // Default to browse for any non-search session. This also handles the
-      // "no session" case (expired): the select itself still works since it
-      // fetches the memory by ID, but the detail view's "back" button will
-      // return to browse page 1 instead of the original list — degraded but
-      // not broken.
-      await handleBrowseSelect(interaction);
-    }
+    await handleMemorySelect(interaction);
     return;
   }
 

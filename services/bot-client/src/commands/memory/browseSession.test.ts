@@ -20,6 +20,7 @@ import {
   saveMemoryListSession,
   findMemoryListSessionByMessage,
   updateMemoryListSessionPage,
+  fetchPageWithEmptyFallback,
   MEMORY_BROWSE_ENTITY_TYPE,
   MEMORY_SEARCH_ENTITY_TYPE,
   type MemoryListSession,
@@ -169,6 +170,82 @@ describe('browseSession', () => {
           pageSize: 5,
         })
       );
+    });
+  });
+
+  describe('fetchPageWithEmptyFallback', () => {
+    it('returns the initial page when it has results', async () => {
+      const fetchPage = vi.fn().mockResolvedValue({ items: [1, 2, 3] });
+
+      const result = await fetchPageWithEmptyFallback({
+        currentPage: 2,
+        fetchPage,
+        isEmpty: d => (d as { items: number[] }).items.length === 0,
+      });
+
+      expect(result).toEqual({ data: { items: [1, 2, 3] }, page: 2, steppedBack: false });
+      expect(fetchPage).toHaveBeenCalledTimes(1);
+      expect(fetchPage).toHaveBeenCalledWith(2);
+    });
+
+    it('steps back one page when current page is empty and page > 0', async () => {
+      const fetchPage = vi
+        .fn()
+        .mockResolvedValueOnce({ items: [] }) // page 2 → empty
+        .mockResolvedValueOnce({ items: [9, 10] }); // page 1 → has data
+
+      const result = await fetchPageWithEmptyFallback({
+        currentPage: 2,
+        fetchPage,
+        isEmpty: d => (d as { items: number[] }).items.length === 0,
+      });
+
+      expect(result).toEqual({ data: { items: [9, 10] }, page: 1, steppedBack: true });
+      expect(fetchPage).toHaveBeenCalledTimes(2);
+      expect(fetchPage).toHaveBeenNthCalledWith(1, 2);
+      expect(fetchPage).toHaveBeenNthCalledWith(2, 1);
+    });
+
+    it('does NOT step back from page 0 when empty (nowhere to go)', async () => {
+      const fetchPage = vi.fn().mockResolvedValue({ items: [] });
+
+      const result = await fetchPageWithEmptyFallback({
+        currentPage: 0,
+        fetchPage,
+        isEmpty: d => (d as { items: number[] }).items.length === 0,
+      });
+
+      expect(result).toEqual({ data: { items: [] }, page: 0, steppedBack: false });
+      expect(fetchPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null when the initial fetch fails', async () => {
+      const fetchPage = vi.fn().mockResolvedValue(null);
+
+      const result = await fetchPageWithEmptyFallback({
+        currentPage: 2,
+        fetchPage,
+        isEmpty: () => false,
+      });
+
+      expect(result).toBeNull();
+      expect(fetchPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null when the retry fetch fails', async () => {
+      const fetchPage = vi
+        .fn()
+        .mockResolvedValueOnce({ items: [] }) // initial returns empty
+        .mockResolvedValueOnce(null); // retry fails
+
+      const result = await fetchPageWithEmptyFallback({
+        currentPage: 3,
+        fetchPage,
+        isEmpty: d => (d as { items: number[] }).items.length === 0,
+      });
+
+      expect(result).toBeNull();
+      expect(fetchPage).toHaveBeenCalledTimes(2);
     });
   });
 });

@@ -137,3 +137,55 @@ export async function updateMemoryListSessionPage(opts: {
   });
   return true;
 }
+
+/**
+ * Result of {@link fetchPageWithEmptyFallback}.
+ */
+export interface EmptyPageFallbackResult<T> {
+  /** The fetched page data (from either the initial or stepped-back fetch) */
+  data: T;
+  /** Final page number — one less than `currentPage` if we stepped back */
+  page: number;
+  /** True if we stepped back; caller should update the session accordingly */
+  steppedBack: boolean;
+}
+
+/**
+ * Fetch the current page; if it's empty (e.g., the last item on the page
+ * was just deleted and we're on page > 0), step back one page and refetch.
+ * Returns `null` on fetch failure (either initial or retry).
+ *
+ * This encapsulates the "go back one page after delete" edge case shared
+ * by refreshBrowseList and refreshSearchList. The helper stays generic
+ * over the page data type — callers provide fetch and emptiness callbacks
+ * so browse (which returns `{ memories, total }`) and search (which
+ * returns `{ results, hasMore }`) can both use it without coupling
+ * their response shapes.
+ *
+ * The caller is responsible for updating the session when `steppedBack`
+ * is true — the helper deliberately doesn't touch session state to stay
+ * framework-agnostic and easy to test.
+ */
+export async function fetchPageWithEmptyFallback<T>(opts: {
+  currentPage: number;
+  fetchPage: (page: number) => Promise<T | null>;
+  isEmpty: (data: T) => boolean;
+}): Promise<EmptyPageFallbackResult<T> | null> {
+  const { currentPage, fetchPage, isEmpty } = opts;
+
+  const initial = await fetchPage(currentPage);
+  if (initial === null) {
+    return null;
+  }
+
+  if (!isEmpty(initial) || currentPage === 0) {
+    return { data: initial, page: currentPage, steppedBack: false };
+  }
+
+  const prevPage = currentPage - 1;
+  const retry = await fetchPage(prevPage);
+  if (retry === null) {
+    return null;
+  }
+  return { data: retry, page: prevPage, steppedBack: true };
+}

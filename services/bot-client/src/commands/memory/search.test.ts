@@ -69,13 +69,20 @@ vi.mock('./detailActionRouter.js', () => ({
   handleMemoryDetailAction: (...args: unknown[]) => mockHandleMemoryDetailAction(...args),
 }));
 
-vi.mock('./browseSession.js', () => ({
-  saveMemoryListSession: (...args: unknown[]) => mockSaveMemoryListSession(...args),
-  findMemoryListSessionByMessage: (...args: unknown[]) =>
-    mockFindMemoryListSessionByMessage(...args),
-  updateMemoryListSessionPage: (...args: unknown[]) => mockUpdateMemoryListSessionPage(...args),
-  MEMORY_SEARCH_ENTITY_TYPE: 'memory-search',
-}));
+// Mock the session-manager-backed functions but keep the real
+// fetchPageWithEmptyFallback helper — it's pure and we want the refresh
+// tests to exercise the actual empty-page stepback logic, not a stub.
+vi.mock('./browseSession.js', async () => {
+  const actual = await vi.importActual<typeof import('./browseSession.js')>('./browseSession.js');
+  return {
+    ...actual,
+    saveMemoryListSession: (...args: unknown[]) => mockSaveMemoryListSession(...args),
+    findMemoryListSessionByMessage: (...args: unknown[]) =>
+      mockFindMemoryListSessionByMessage(...args),
+    updateMemoryListSessionPage: (...args: unknown[]) => mockUpdateMemoryListSessionPage(...args),
+    MEMORY_SEARCH_ENTITY_TYPE: 'memory-search',
+  };
+});
 
 import {
   handleSearch,
@@ -462,41 +469,21 @@ describe('handleSearchSelect', () => {
     vi.resetAllMocks();
   });
 
-  it('delegates to handleMemorySelect with search context from session', async () => {
-    mockFindMemoryListSessionByMessage.mockResolvedValue({
-      data: {
-        kind: 'search',
-        personalityId: TEST_PERSONALITY_ID,
-        currentPage: 2,
-        searchQuery: TEST_QUERY,
-        pageSize: 5,
-      },
-    });
+  it('forwards to handleMemorySelect without any session lookup', async () => {
+    // Post-migration, handleSearchSelect is a thin pass-through. No session
+    // lookup happens — back navigation from the detail view reads the session
+    // via messageId inside refreshSearchList. Thinning this wrapper removed
+    // a dead Redis call that previously ran before deferUpdate (violating
+    // the 3-second rule added in 04-discord.md).
     const interaction = createSelectInteraction('memory-detail::select');
 
     await handleSearchSelect(interaction as unknown as StringSelectMenuInteraction);
 
-    expect(mockHandleMemorySelect).toHaveBeenCalledWith(
-      interaction,
-      expect.objectContaining({
-        source: 'search',
-        page: 2,
-        personalityId: TEST_PERSONALITY_ID,
-        query: TEST_QUERY,
-      })
-    );
-  });
-
-  it('uses defaults when session is missing', async () => {
-    mockFindMemoryListSessionByMessage.mockResolvedValue(null);
-    const interaction = createSelectInteraction('memory-detail::select');
-
-    await handleSearchSelect(interaction as unknown as StringSelectMenuInteraction);
-
-    expect(mockHandleMemorySelect).toHaveBeenCalledWith(
-      interaction,
-      expect.objectContaining({ source: 'search', page: 0 })
-    );
+    expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
+    expect(mockHandleMemorySelect).toHaveBeenCalledWith(interaction);
+    expect(mockHandleMemorySelect).toHaveBeenCalledTimes(1);
+    const [, ...extras] = mockHandleMemorySelect.mock.calls[0] as [unknown, ...unknown[]];
+    expect(extras).toEqual([]);
   });
 });
 
