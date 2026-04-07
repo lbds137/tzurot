@@ -194,8 +194,11 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   }
 
   logger.debug({ customId }, '[Memory] Unknown select menu customId');
+  // The session may still be valid; the customId itself isn't recognized.
+  // Show "Unknown interaction" rather than "expired" so the user doesn't
+  // chase the wrong cause (e.g., re-running the command needlessly).
   await interaction.reply({
-    content: '⏰ This interaction has expired. Please run the command again.',
+    content: '❌ Unknown interaction.',
     flags: MessageFlags.Ephemeral,
   });
 }
