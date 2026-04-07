@@ -17,14 +17,12 @@ import type {
 } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import {
-  buildSectionModal,
   extractAndMergeSectionValues,
   getSessionManager,
-  fetchOrCreateSession,
   parseDashboardCustomId,
   isDashboardInteraction,
 } from '../../utils/dashboard/index.js';
-import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
+import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
   PRESET_DASHBOARD_CONFIG,
@@ -206,56 +204,14 @@ async function handleSectionModalSubmit(
  * Handle select menu interactions for dashboard
  */
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  const parsed = parseDashboardCustomId(interaction.customId);
-  if (parsed?.entityType !== 'preset' || parsed.entityId === undefined) {
-    return;
-  }
-
-  const value = interaction.values[0];
-  const entityId = parsed.entityId;
-
-  // Handle section edit selection
-  if (value.startsWith('edit-')) {
-    const sectionId = value.replace('edit-', '');
-    const section = PRESET_DASHBOARD_CONFIG.sections.find(s => s.id === sectionId);
-    if (section === undefined) {
-      await interaction.reply({
-        content: '❌ Unknown section.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // Get current data from session or fetch from API
-    const result = await fetchOrCreateSession<FlattenedPresetData, PresetData>({
-      userId: interaction.user.id,
-      entityType: 'preset',
-      entityId,
-      fetchFn: () => fetchPreset(entityId, interaction.user.id),
-      transformFn: flattenPresetData,
-      interaction,
-    });
-    if (!result.success) {
-      await interaction.reply({
-        content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // Check if user can edit this preset (uses canEdit for admin support)
-    if (!result.data.canEdit) {
-      await interaction.reply({
-        content: DASHBOARD_MESSAGES.NO_PERMISSION('edit this preset'),
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // Build and show section modal
-    const modal = buildSectionModal(PRESET_DASHBOARD_CONFIG, section, entityId, result.data);
-    await interaction.showModal(modal);
-  }
+  await handleDashboardSectionSelect<FlattenedPresetData, PresetData>(interaction, {
+    entityType: 'preset',
+    dashboardConfig: PRESET_DASHBOARD_CONFIG,
+    fetchFn: (entityId, userId) => fetchPreset(entityId, userId),
+    transformFn: flattenPresetData,
+    entityName: 'Preset',
+    canEdit: data => data.canEdit === true,
+  });
 }
 
 /**

@@ -170,6 +170,53 @@ vi.mock('../../utils/dashboard/index.js', async () => {
   };
 });
 
+// The generic select menu handler imports these from source modules directly,
+// so mocks on the barrel file don't apply. Mirror the barrel mocks here.
+vi.mock('../../utils/dashboard/sessionHelpers.js', () => ({
+  fetchOrCreateSession: vi
+    .fn()
+    .mockImplementation(
+      async (opts: {
+        userId: string;
+        entityType: string;
+        entityId: string;
+        fetchFn: () => Promise<unknown>;
+        transformFn: (d: unknown) => unknown;
+      }) => {
+        const session = await mockSessionManagerGet(opts.userId, opts.entityType, opts.entityId);
+        if (session !== null) {
+          return { success: true, data: session.data, fromCache: true };
+        }
+        const raw = await opts.fetchFn();
+        if (raw === null) {
+          return { success: false, error: 'not_found' };
+        }
+        const data = opts.transformFn(raw);
+        await mockSessionManagerSet({
+          userId: opts.userId,
+          entityType: opts.entityType,
+          entityId: opts.entityId,
+          data,
+          messageId: 'message-789',
+          channelId: 'channel-999',
+        });
+        return { success: true, data, fromCache: false };
+      }
+    ),
+}));
+
+vi.mock('../../utils/dashboard/ModalFactory.js', () => ({
+  buildSectionModal: (...args: unknown[]) => mockBuildSectionModal(...args),
+}));
+
+vi.mock('../../utils/dashboard/types.js', async () => {
+  const actual = await vi.importActual('../../utils/dashboard/types.js');
+  return {
+    ...actual,
+    parseDashboardCustomId: (...args: unknown[]) => mockParseDashboardCustomId(...args),
+  };
+});
+
 vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
 }));

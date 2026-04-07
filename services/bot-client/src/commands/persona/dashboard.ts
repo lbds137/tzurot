@@ -18,17 +18,15 @@ import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmatio
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { createRefreshHandler, refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
-  buildSectionModal,
   extractAndMergeSectionValues,
   getSessionManager,
-  fetchOrCreateSession,
   requireDeferredSession,
   getSessionDataOrReply,
   parseDashboardCustomId,
   isDashboardInteraction,
-  DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
 } from '../../utils/dashboard/index.js';
+import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   type FlattenedPersonaData,
@@ -159,52 +157,13 @@ async function handleSectionModalSubmit(
  * Handle select menu interactions for dashboard
  */
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  const parsed = parseDashboardCustomId(interaction.customId);
-  if (parsed?.entityType !== 'persona' || parsed.entityId === undefined) {
-    return;
-  }
-
-  const value = interaction.values[0];
-  const entityId = parsed.entityId;
-
-  // Handle section edit selection
-  if (value.startsWith('edit-')) {
-    const sectionId = value.replace('edit-', '');
-    const section = PERSONA_DASHBOARD_CONFIG.sections.find(s => s.id === sectionId);
-    if (!section) {
-      await interaction.reply({
-        content: '❌ Unknown section.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // Get current data from session or fetch from API
-    const result = await fetchOrCreateSession<FlattenedPersonaData, PersonaDetails>({
-      userId: interaction.user.id,
-      entityType: 'persona',
-      entityId,
-      fetchFn: () => fetchPersona(entityId, interaction.user.id),
-      transformFn: flattenPersonaData,
-      interaction,
-    });
-    if (!result.success) {
-      await interaction.reply({
-        content: DASHBOARD_MESSAGES.NOT_FOUND('Persona'),
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // Build and show section modal
-    const modal = buildSectionModal<FlattenedPersonaData>(
-      PERSONA_DASHBOARD_CONFIG,
-      section,
-      entityId,
-      result.data
-    );
-    await interaction.showModal(modal);
-  }
+  await handleDashboardSectionSelect<FlattenedPersonaData, PersonaDetails>(interaction, {
+    entityType: 'persona',
+    dashboardConfig: PERSONA_DASHBOARD_CONFIG,
+    fetchFn: (entityId, userId) => fetchPersona(entityId, userId),
+    transformFn: flattenPersonaData,
+    entityName: 'Persona',
+  });
 }
 
 /**
