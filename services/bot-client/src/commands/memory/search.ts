@@ -48,8 +48,12 @@ type SearchActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<String
 
 const logger = createLogger('memory-search');
 
-/** Items per page */
-const RESULTS_PER_PAGE = 5;
+/**
+ * Default page size when the user doesn't pass `limit`. The slash
+ * command bounds limit to 1–10, so the actual session pageSize is
+ * always within that range.
+ */
+const DEFAULT_RESULTS_PER_PAGE = 5;
 
 /** Search customId helpers — filter is always 'all', query stored in session */
 export const searchHelpers = createBrowseCustomIdHelpers<'all'>({
@@ -83,6 +87,7 @@ interface BuildSearchEmbedOptions {
   results: SearchResult[];
   query: string;
   page: number;
+  pageSize: number;
   totalPages: number;
   hasMore: boolean;
   searchType?: 'semantic' | 'text';
@@ -93,7 +98,8 @@ interface BuildSearchEmbedOptions {
  * Build the search results embed
  */
 function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
-  const { results, query, page, totalPages, hasMore, searchType, personalityFilter } = options;
+  const { results, query, page, pageSize, totalPages, hasMore, searchType, personalityFilter } =
+    options;
   const isTextFallback = searchType === 'text';
 
   const embed = new EmbedBuilder().setTitle('🔍 Memory Search').setColor(DISCORD_COLORS.BLURPLE);
@@ -109,7 +115,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
   const lines: string[] = [`Results for: **${escapeMarkdown(truncateContent(query, 50))}**`, ''];
 
   results.forEach((memory, index) => {
-    const num = page * RESULTS_PER_PAGE + index + 1;
+    const num = page * pageSize + index + 1;
     const lockIcon = memory.isLocked ? ' 🔒' : '';
     const similarity = formatSimilarity(memory.similarity);
     const content = truncateContent(escapeMarkdown(memory.content));
@@ -157,19 +163,21 @@ function buildSearchView(opts: {
   data: SearchResponse;
   query: string;
   page: number;
+  pageSize: number;
   personalityId: string | undefined;
   searchType: 'semantic' | 'text' | undefined;
 }): {
   embed: EmbedBuilder;
   components: SearchActionRow[];
 } {
-  const { data, query, page, personalityId, searchType } = opts;
+  const { data, query, page, pageSize, personalityId, searchType } = opts;
   const totalPages = computeTotalPages(page, data.hasMore, data.results.length);
 
   const embed = buildSearchEmbed({
     results: data.results,
     query,
     page,
+    pageSize,
     totalPages,
     hasMore: data.hasMore,
     searchType: data.searchType ?? searchType,
@@ -179,7 +187,7 @@ function buildSearchView(opts: {
   const components: SearchActionRow[] =
     data.results.length > 0
       ? [
-          buildMemorySelectMenu(data.results, page, RESULTS_PER_PAGE),
+          buildMemorySelectMenu(data.results, page, pageSize),
           buildSharedBrowseButtons({
             currentPage: page,
             totalPages,
@@ -247,6 +255,10 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
   const options = memorySearchOptions(context.interaction);
   const query = options.query();
   const personalityInput = options.personality();
+  // The slash command bounds limit to 1–10; default to 5 when omitted.
+  // Persisted in the session so pagination uses the same size as the
+  // original search rather than reverting to the default.
+  const pageSize = options.limit() ?? DEFAULT_RESULTS_PER_PAGE;
 
   try {
     // Resolve personality if provided
@@ -261,7 +273,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
       query,
       personalityId,
       offset: 0,
-      limit: RESULTS_PER_PAGE,
+      limit: pageSize,
     });
 
     if (data === null) {
@@ -277,6 +289,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
       data,
       query,
       page: 0,
+      pageSize,
       personalityId,
       searchType,
     });
@@ -296,6 +309,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
         personalityId,
         currentPage: 0,
         searchQuery: query,
+        pageSize,
         searchType,
       },
     });
@@ -305,6 +319,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
         userId,
         queryLength: query.length,
         personalityId,
+        pageSize,
         resultCount: data.results.length,
         hasMore: data.hasMore,
         searchType: searchType ?? 'semantic',
@@ -341,7 +356,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
   // Discriminated union narrowing: searchQuery is required on the search
   // variant, so it's guaranteed to be a string here. searchType is optional
   // and only set when the first page returned 'text' (or backwards-compat undefined).
-  const { personalityId, searchQuery, searchType } = session.data;
+  const { personalityId, searchQuery, pageSize, searchType } = session.data;
 
   await interaction.deferUpdate();
 
@@ -352,8 +367,8 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
     userId,
     query: searchQuery,
     personalityId,
-    offset: newPage * RESULTS_PER_PAGE,
-    limit: RESULTS_PER_PAGE,
+    offset: newPage * pageSize,
+    limit: pageSize,
     preferTextSearch: searchType === 'text',
   });
   if (data === null) {
@@ -368,6 +383,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
     data,
     query: searchQuery,
     page: newPage,
+    pageSize,
     personalityId,
     searchType: data.searchType,
   });
@@ -416,7 +432,7 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
   // Discriminated union narrowing: searchQuery is required on the search variant.
   // searchType is captured from the first page's response and threaded through
   // so we don't waste an embedding round-trip if the first page fell back to text.
-  const { personalityId, searchQuery, searchType } = session.data;
+  const { personalityId, searchQuery, pageSize, searchType } = session.data;
 
   const userId = interaction.user.id;
   let pageToFetch = session.data.currentPage;
@@ -425,8 +441,8 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
     userId,
     query: searchQuery,
     personalityId,
-    offset: pageToFetch * RESULTS_PER_PAGE,
-    limit: RESULTS_PER_PAGE,
+    offset: pageToFetch * pageSize,
+    limit: pageSize,
     preferTextSearch: searchType === 'text',
   });
   if (data === null) {
@@ -440,8 +456,8 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
       userId,
       query: searchQuery,
       personalityId,
-      offset: pageToFetch * RESULTS_PER_PAGE,
-      limit: RESULTS_PER_PAGE,
+      offset: pageToFetch * pageSize,
+      limit: pageSize,
       preferTextSearch: searchType === 'text',
     });
     if (retryData === null) {
@@ -460,6 +476,7 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
     data,
     query: searchQuery,
     page: pageToFetch,
+    pageSize,
     personalityId,
     searchType: data.searchType,
   });

@@ -366,14 +366,16 @@ describe('handleSelectMenu', () => {
     expect(mockHandleBrowseSelect).toHaveBeenCalledWith(interaction);
   });
 
-  it('shows expired message for unknown select custom IDs', async () => {
+  it('shows "unknown" message for unknown select custom IDs', async () => {
     mockParseMemoryActionId.mockReturnValue(null);
     const interaction = createSelectInteraction('unknown::select');
 
     await handleSelectMenu(interaction as never);
 
+    // The session may still be valid for unknown customIds; the issue is the
+    // ID itself, not session expiry. Don't mislead the user toward re-running.
     expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('expired') })
+      expect.objectContaining({ content: expect.stringContaining('Unknown') })
     );
   });
 });

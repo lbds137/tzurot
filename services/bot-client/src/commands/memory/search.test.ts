@@ -38,9 +38,15 @@ vi.mock('@tzurot/common-types', async () => {
   return {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    memorySearchOptions: (interaction: { options?: { getString: (name: string) => string } }) => ({
+    memorySearchOptions: (interaction: {
+      options?: {
+        getString: (name: string) => string;
+        getInteger?: (name: string) => number | null;
+      };
+    }) => ({
       query: () => interaction.options?.getString('query') ?? 'test query',
       personality: () => interaction.options?.getString('personality') ?? null,
+      limit: () => interaction.options?.getInteger?.('limit') ?? null,
     }),
     formatDateShort: (d: string | Date) => String(d),
   };
@@ -107,7 +113,12 @@ const sampleSemanticResponse = {
 };
 
 interface MockDeferredContext {
-  interaction: { options: { getString: ReturnType<typeof vi.fn> } };
+  interaction: {
+    options: {
+      getString: ReturnType<typeof vi.fn>;
+      getInteger: ReturnType<typeof vi.fn>;
+    };
+  };
   user: { id: string };
   editReply: ReturnType<typeof vi.fn>;
 }
@@ -131,13 +142,17 @@ interface MockSelectInteraction {
   user: { id: string };
 }
 
-function createDeferredContext(query = TEST_QUERY): MockDeferredContext {
+function createDeferredContext(
+  query = TEST_QUERY,
+  limit: number | null = null
+): MockDeferredContext {
   return {
     interaction: {
       options: {
         getString: vi.fn((name: string) =>
           name === 'query' ? query : name === 'personality' ? null : null
         ),
+        getInteger: vi.fn((name: string) => (name === 'limit' ? limit : null)),
       },
     },
     user: { id: TEST_USER_ID },
@@ -194,7 +209,28 @@ describe('handleSearch', () => {
           personalityId: TEST_PERSONALITY_ID,
           currentPage: 0,
           searchQuery: TEST_QUERY,
+          pageSize: 5,
         }),
+      })
+    );
+  });
+
+  it('honors the limit slash option when provided', async () => {
+    // Verifies that /memory search limit:8 actually fetches 8 results per page
+    // and persists pageSize=8 in the session so pagination uses the same size.
+    const context = createDeferredContext(TEST_QUERY, 8);
+
+    await handleSearch(context as unknown as DeferredCommandContext);
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/memory/search',
+      expect.objectContaining({
+        body: expect.objectContaining({ limit: 8 }),
+      })
+    );
+    expect(mockSaveMemoryListSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ kind: 'search', pageSize: 8 }),
       })
     );
   });
@@ -268,6 +304,7 @@ describe('handleSearchPagination', () => {
         personalityId: TEST_PERSONALITY_ID,
         currentPage: 0,
         searchQuery: TEST_QUERY,
+        pageSize: 5,
       },
     });
     mockCallGatewayApi.mockResolvedValue({
@@ -291,6 +328,36 @@ describe('handleSearchPagination', () => {
     );
   });
 
+  it('uses session pageSize for pagination offset/limit, not the default', async () => {
+    // Regression: paginating a non-default search must use the saved
+    // pageSize, not revert to DEFAULT_RESULTS_PER_PAGE.
+    mockFindMemoryListSessionByMessage.mockResolvedValue({
+      data: {
+        kind: 'search',
+        personalityId: TEST_PERSONALITY_ID,
+        currentPage: 0,
+        searchQuery: TEST_QUERY,
+        pageSize: 8,
+      },
+    });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { ...sampleSemanticResponse, hasMore: false },
+    });
+
+    const interaction = createButtonInteraction(searchHelpers.build(2, 'all', 'date', null));
+
+    await handleSearchPagination(interaction as unknown as ButtonInteraction);
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/memory/search',
+      expect.objectContaining({
+        // Page 2 of 8-per-page → offset 16, limit 8
+        body: expect.objectContaining({ offset: 16, limit: 8 }),
+      })
+    );
+  });
+
   it('threads preferTextSearch=true when session searchType is text', async () => {
     // Regression: when the first page fell back to text search, every
     // paginated page should skip the semantic attempt to avoid an extra
@@ -301,6 +368,7 @@ describe('handleSearchPagination', () => {
         personalityId: TEST_PERSONALITY_ID,
         currentPage: 0,
         searchQuery: TEST_QUERY,
+        pageSize: 5,
         searchType: 'text',
       },
     });
@@ -328,6 +396,7 @@ describe('handleSearchPagination', () => {
         personalityId: TEST_PERSONALITY_ID,
         currentPage: 0,
         searchQuery: TEST_QUERY,
+        pageSize: 5,
         searchType: 'semantic',
       },
     });
@@ -395,6 +464,7 @@ describe('handleSearchSelect', () => {
         personalityId: TEST_PERSONALITY_ID,
         currentPage: 2,
         searchQuery: TEST_QUERY,
+        pageSize: 5,
       },
     });
     const interaction = createSelectInteraction('memory-detail::select');
@@ -437,6 +507,7 @@ describe('refreshSearchList', () => {
         personalityId: TEST_PERSONALITY_ID,
         currentPage: 1,
         searchQuery: TEST_QUERY,
+        pageSize: 5,
       },
     });
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: sampleSemanticResponse });
@@ -461,6 +532,7 @@ describe('refreshSearchList', () => {
         personalityId: TEST_PERSONALITY_ID,
         currentPage: 2,
         searchQuery: TEST_QUERY,
+        pageSize: 5,
       },
     });
     mockCallGatewayApi

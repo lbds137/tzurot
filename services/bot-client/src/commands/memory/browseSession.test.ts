@@ -63,6 +63,7 @@ describe('browseSession', () => {
         personalityId: 'p-2',
         currentPage: 0,
         searchQuery: 'love',
+        pageSize: 5,
       };
 
       await saveMemoryListSession({
@@ -145,6 +146,7 @@ describe('browseSession', () => {
           personalityId: 'p-2',
           currentPage: 0,
           searchQuery: 'thoughts',
+          pageSize: 5,
         },
       });
 
@@ -164,6 +166,7 @@ describe('browseSession', () => {
           personalityId: 'p-2',
           currentPage: 1,
           searchQuery: 'thoughts',
+          pageSize: 5,
         })
       );
     });

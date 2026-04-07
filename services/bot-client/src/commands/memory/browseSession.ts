@@ -49,6 +49,12 @@ export type MemoryListSession =
       /** The user's search query — required for search sessions */
       searchQuery: string;
       /**
+       * Page size chosen at search time (from the `/memory search limit`
+       * option, defaulting to 5). Persisted so pagination uses the same
+       * size as the original search rather than reverting to the default.
+       */
+      pageSize: number;
+      /**
        * Search type returned by the first page. When 'text', subsequent
        * pagination requests skip the semantic attempt and go straight to
        * text search — saving an embedding round-trip per page click.
