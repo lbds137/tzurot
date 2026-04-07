@@ -137,7 +137,14 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
 }
 
 /**
- * Compute total pages using rolling-window approach (API doesn't return total count)
+ * Compute total pages using rolling-window approach (API doesn't return total count).
+ *
+ * - `hasMore`: at least one more page exists, show "Page X of X+1+"
+ * - otherwise: current page is the last (or only) page
+ *
+ * The `Math.max(1, ...)` floor ensures the zero-results empty state displays
+ * "Page 1 of 1" rather than "Page 1 of 0", which would be confusing. The empty
+ * state embed handles the "no results" messaging separately.
  */
 function computeTotalPages(page: number, hasMore: boolean, resultCount: number): number {
   return hasMore ? page + 2 : Math.max(1, page + (resultCount > 0 ? 1 : 0));
@@ -302,7 +309,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
       '[Memory] Search displayed'
     );
   } catch (error) {
-    logger.error({ error, userId }, '[Memory Search] Unexpected error');
+    logger.error({ err: error, userId }, '[Memory Search] Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
@@ -322,7 +329,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
   const session = await findMemoryListSessionByMessage(messageId);
   if (session?.data.kind !== 'search') {
     await interaction.reply({
-      content: '⏰ This search session has expired. Please run `/memory search` again.',
+      content: '⏰ This interaction has expired. Please run `/memory search` again.',
       flags: MessageFlags.Ephemeral,
     });
     return;

@@ -273,7 +273,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   if (session?.data.kind !== 'browse') {
     // Session expired or never existed — surface an expired message
     await interaction.reply({
-      content: '⏰ This browse session has expired. Please run `/memory browse` again.',
+      content: '⏰ This interaction has expired. Please run `/memory browse` again.',
       flags: MessageFlags.Ephemeral,
     });
     return;

@@ -80,6 +80,8 @@ import {
   isMemorySearchPagination,
   searchHelpers,
 } from './search.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
 const TEST_USER_ID = 'user-123';
 const TEST_MESSAGE_ID = 'msg-456';
@@ -176,7 +178,7 @@ describe('handleSearch', () => {
   it('fetches semantic results and saves a search session', async () => {
     const context = createDeferredContext();
 
-    await handleSearch(context as never);
+    await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/memory/search',
@@ -205,7 +207,7 @@ describe('handleSearch', () => {
     });
     const context = createDeferredContext();
 
-    await handleSearch(context as never);
+    await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalled();
     expect(mockSaveMemoryListSession).toHaveBeenCalled();
@@ -215,7 +217,7 @@ describe('handleSearch', () => {
     mockResolveOptionalPersonality.mockResolvedValue(null);
     const context = createDeferredContext();
 
-    await handleSearch(context as never);
+    await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
@@ -224,7 +226,7 @@ describe('handleSearch', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Server error' });
     const context = createDeferredContext();
 
-    await handleSearch(context as never);
+    await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Failed') })
@@ -236,7 +238,7 @@ describe('handleSearch', () => {
     mockCallGatewayApi.mockRejectedValue(new Error('network'));
     const context = createDeferredContext();
 
-    await handleSearch(context as never);
+    await handleSearch(context as unknown as DeferredCommandContext);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('unexpected error') })
@@ -265,7 +267,7 @@ describe('handleSearchPagination', () => {
 
     const interaction = createButtonInteraction(searchHelpers.build(1, 'all', 'date', null));
 
-    await handleSearchPagination(interaction as never);
+    await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -283,7 +285,7 @@ describe('handleSearchPagination', () => {
     mockFindMemoryListSessionByMessage.mockResolvedValue(null);
     const interaction = createButtonInteraction(searchHelpers.build(2, 'all', 'date', null));
 
-    await handleSearchPagination(interaction as never);
+    await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('expired') })
@@ -297,7 +299,7 @@ describe('handleSearchPagination', () => {
     });
     const interaction = createButtonInteraction(searchHelpers.build(1, 'all', 'date', null));
 
-    await handleSearchPagination(interaction as never);
+    await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('expired') })
@@ -307,7 +309,7 @@ describe('handleSearchPagination', () => {
   it('ignores interactions with non-search custom IDs', async () => {
     const interaction = createButtonInteraction('other::foo');
 
-    await handleSearchPagination(interaction as never);
+    await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
     expect(mockFindMemoryListSessionByMessage).not.toHaveBeenCalled();
   });
@@ -329,7 +331,7 @@ describe('handleSearchSelect', () => {
     });
     const interaction = createSelectInteraction('memory-detail::select');
 
-    await handleSearchSelect(interaction as never);
+    await handleSearchSelect(interaction as unknown as StringSelectMenuInteraction);
 
     expect(mockHandleMemorySelect).toHaveBeenCalledWith(
       interaction,
@@ -346,7 +348,7 @@ describe('handleSearchSelect', () => {
     mockFindMemoryListSessionByMessage.mockResolvedValue(null);
     const interaction = createSelectInteraction('memory-detail::select');
 
-    await handleSearchSelect(interaction as never);
+    await handleSearchSelect(interaction as unknown as StringSelectMenuInteraction);
 
     expect(mockHandleMemorySelect).toHaveBeenCalledWith(
       interaction,
@@ -373,7 +375,7 @@ describe('refreshSearchList', () => {
 
     const interaction = createButtonInteraction('memory-detail::back');
 
-    await refreshSearchList(interaction as never);
+    await refreshSearchList(interaction as unknown as ButtonInteraction);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/memory/search',
@@ -399,7 +401,7 @@ describe('refreshSearchList', () => {
 
     const interaction = createButtonInteraction('memory-detail::back');
 
-    await refreshSearchList(interaction as never);
+    await refreshSearchList(interaction as unknown as ButtonInteraction);
 
     expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
     expect(mockUpdateMemoryListSessionPage).toHaveBeenCalledWith(
@@ -411,7 +413,7 @@ describe('refreshSearchList', () => {
     mockFindMemoryListSessionByMessage.mockResolvedValue(null);
     const interaction = createButtonInteraction('memory-detail::back');
 
-    await refreshSearchList(interaction as never);
+    await refreshSearchList(interaction as unknown as ButtonInteraction);
 
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
@@ -422,7 +424,7 @@ describe('refreshSearchList', () => {
     });
     const interaction = createButtonInteraction('memory-detail::back');
 
-    await refreshSearchList(interaction as never);
+    await refreshSearchList(interaction as unknown as ButtonInteraction);
 
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
@@ -433,7 +435,7 @@ describe('refreshSearchList', () => {
     });
     const interaction = createButtonInteraction('memory-detail::back');
 
-    await refreshSearchList(interaction as never);
+    await refreshSearchList(interaction as unknown as ButtonInteraction);
 
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
@@ -448,7 +450,7 @@ describe('handleSearchDetailAction', () => {
     mockHandleMemoryDetailAction.mockResolvedValue(true);
     const interaction = createButtonInteraction('memory-detail::lock::mem-1');
 
-    const handled = await handleSearchDetailAction(interaction as never);
+    const handled = await handleSearchDetailAction(interaction as unknown as ButtonInteraction);
 
     expect(handled).toBe(true);
     expect(mockHandleMemoryDetailAction).toHaveBeenCalledWith(interaction, expect.any(Function));
@@ -458,7 +460,7 @@ describe('handleSearchDetailAction', () => {
     mockHandleMemoryDetailAction.mockResolvedValue(false);
     const interaction = createButtonInteraction('unrelated');
 
-    const handled = await handleSearchDetailAction(interaction as never);
+    const handled = await handleSearchDetailAction(interaction as unknown as ButtonInteraction);
 
     expect(handled).toBe(false);
   });
