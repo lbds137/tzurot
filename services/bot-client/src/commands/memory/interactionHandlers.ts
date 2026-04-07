@@ -92,6 +92,13 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // delegates to handleMemoryDetailAction for the action dispatch.
   // Note: the onRefresh callback is only invoked for 'back' and 'confirm-delete',
   // which ARE session-dependent — those fall through to the kind-based routing below.
+  //
+  // Failure mode to watch: if any action in SESSION_INDEPENDENT_ACTIONS ever
+  // starts calling onRefresh, memories opened from a search result will
+  // silently skip the list refresh — refreshBrowseList bails when the
+  // session kind is 'search'. The fix in that case is to move the newly
+  // refreshing action out of SESSION_INDEPENDENT_ACTIONS so it falls through
+  // to the kind-based dispatch below.
   if (SESSION_INDEPENDENT_ACTIONS.has(parsed.action)) {
     await handleBrowseDetailAction(interaction);
     return;

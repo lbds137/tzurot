@@ -345,10 +345,17 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
     return;
   }
 
+  // Acknowledge immediately so all downstream async work (session lookup,
+  // API fetch, embedding round-trip) happens inside the 15-minute followup
+  // window rather than the 3-second interaction window. Matches the
+  // pattern in character/browse.ts. After deferUpdate, error paths must
+  // use followUp instead of reply (the interaction is already acknowledged).
+  await interaction.deferUpdate();
+
   const messageId = interaction.message.id;
   const session = await findMemoryListSessionByMessage(messageId);
   if (session?.data.kind !== 'search') {
-    await interaction.reply({
+    await interaction.followUp({
       content: '⏰ This interaction has expired. Please run `/memory search` again.',
       flags: MessageFlags.Ephemeral,
     });
@@ -359,8 +366,6 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
   // variant, so it's guaranteed to be a string here. searchType is optional
   // and only set when the first page returned 'text' (or backwards-compat undefined).
   const { personalityId, searchQuery, pageSize, searchType } = session.data;
-
-  await interaction.deferUpdate();
 
   const userId = interaction.user.id;
   const newPage = parsed.page;

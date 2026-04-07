@@ -418,13 +418,17 @@ describe('handleSearchPagination', () => {
     expect(callOptions.body).not.toHaveProperty('preferTextSearch');
   });
 
-  it('shows expired message when session is missing', async () => {
+  it('defers immediately and shows expired message via followUp when session is missing', async () => {
     mockFindMemoryListSessionByMessage.mockResolvedValue(null);
     const interaction = createButtonInteraction(searchHelpers.build(2, 'all', 'date', null));
 
     await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
+    // Acknowledgment must happen BEFORE session lookup so we stay inside
+    // Discord's 3-second interaction window regardless of Redis latency.
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('expired') })
     );
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
@@ -438,7 +442,8 @@ describe('handleSearchPagination', () => {
 
     await handleSearchPagination(interaction as unknown as ButtonInteraction);
 
-    expect(interaction.reply).toHaveBeenCalledWith(
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('expired') })
     );
   });
