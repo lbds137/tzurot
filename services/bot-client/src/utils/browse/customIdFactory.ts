@@ -93,15 +93,26 @@ function parseCustomIdCore<TFilter extends string, TSort extends string = Browse
     return null;
   }
 
-  // Default sort is the first entry in validSorts (usually 'date' for the
-  // standard BrowseSortType, but commands with a custom TSort may specify
-  // a different first entry, e.g., admin/servers uses ['members', 'name']).
+  // Sort validation is symmetric with filter validation: when sort IS
+  // encoded in the customId (includeSort === true), an invalid value is
+  // a hard rejection, matching the filter behavior. This was historically
+  // a silent fallback to validSorts[0], which masked tampered/stale
+  // customIds and produced inconsistent behavior between the two fields.
+  // When `includeSort: false`, sort isn't in the customId at all and the
+  // returned value is the first entry in validSorts as a safe default
+  // (callers that opt out of sort encoding should not rely on this field).
   let sort: TSort = config.validSorts[0];
-  if (config.includeSort && parts[4] !== undefined) {
-    const sortValue = parts[4] as TSort;
-    if (config.validSorts.includes(sortValue)) {
-      sort = sortValue;
+  if (config.includeSort) {
+    if (parts[4] === undefined) {
+      // Missing sort segment where one was expected — malformed, reject.
+      return null;
     }
+    const sortValue = parts[4] as TSort;
+    if (!config.validSorts.includes(sortValue)) {
+      // Invalid sort value — reject, matching filter validation.
+      return null;
+    }
+    sort = sortValue;
   }
 
   const queryIndex = config.includeSort ? 5 : 4;
