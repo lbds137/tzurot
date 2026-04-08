@@ -416,10 +416,12 @@ describe('includeSort: false contract', () => {
   // is created with `includeSort: false`, the parsed `sort` field is an
   // arbitrary placeholder (`validSorts[0]`) and MUST NOT be read by callers.
   //
-  // PR #773 verified via audit that the 4 current `includeSort: false`
-  // callers all honor this contract. This test re-verifies the invariant
-  // at test time so a future contributor can't silently add a `.sort`
-  // read without tripping CI.
+  // PR #773 round 4 replaced a commit-message-documented grep audit with
+  // this test after round 4's own exhaustiveness check caught a 5th
+  // caller (`settings/voices/browse.ts`) that the round-2 grep missed
+  // because it was added later. As of that round there are 5 callers;
+  // see `INCLUDE_SORT_FALSE_CALLERS` below for the authoritative list
+  // (the exhaustiveness test further down keeps that list honest).
   //
   // Why a file-content scan and not a type-level check: TypeScript can't
   // express "this field is a placeholder" — the field has to have *some*
@@ -439,28 +441,75 @@ describe('includeSort: false contract', () => {
   // __dirname, so we derive it from import.meta.url.
   const thisDir = dirname(fileURLToPath(import.meta.url));
 
+  // Variable names that conventionally hold a `browseHelpers.parse(...)` or
+  // `browseHelpers.parseSelect(...)` result in this codebase. The regex is
+  // deliberately narrower than a blanket `\.sort\b` so that legitimate
+  // `Array.prototype.sort()` calls on arbitrary local variables don't trip
+  // the contract — memory/browse.ts in particular might plausibly need to
+  // sort a local memory list in the future, and that shouldn't fail this
+  // test.
+  //
+  // The trade-off: if a future caller stores a parse result in a variable
+  // whose name isn't in this list (e.g., `const x = helpers.parse(...)`
+  // followed by `x.sort`), the check will miss it. Mitigations:
+  // 1. The exhaustiveness test below keeps the caller set explicit, so
+  //    new `includeSort: false` callers get code review that should
+  //    catch an unusual variable name.
+  // 2. The JSDoc on `ParsedBrowseCustomId.sort` documents the contract,
+  //    so a reviewer seeing `x.sort` has a clear reference to flag.
+  // 3. Adding a new name to this list is a one-line fix and the failure
+  //    is local, so future-maintenance cost is bounded.
+  const PARSE_RESULT_VAR_NAMES =
+    '(?:parsed|parseResult|browseContext|browseResult|customIdParsed|browseData|browseParsed)';
+  const PARSE_RESULT_SORT_ACCESS_RE = new RegExp(`\\b${PARSE_RESULT_VAR_NAMES}\\.sort\\b`);
+
   it.each(INCLUDE_SORT_FALSE_CALLERS)(
     '%s must not read .sort on a parsed browse result',
     caller => {
       const filePath = resolve(thisDir, caller);
       const content = readFileSync(filePath, 'utf-8');
 
-      // Strict check: these files currently have zero legitimate need for
-      // `.sort` access because none of them use sorting on the parsed
-      // customId, and none need Array.prototype.sort either. If a future
-      // change adds Array.sort() for unrelated reasons, the fix is to use
-      // `.toSorted()` (non-mutating) or `.sort((a,b) => ...)` on a variable
-      // whose name makes the intent obvious AND to update this test to
-      // a narrower pattern (e.g., `/(parsed|browseContext)\.sort\b/`).
-      // The intent is to catch `parsed.sort` reads before review, not to
-      // make sorting arrays forbidden forever.
+      const match = PARSE_RESULT_SORT_ACCESS_RE.exec(content);
       expect(
-        content,
-        `${caller} contains \`.sort\` — either a parsed-result read (bug) ` +
-          `or an Array.sort() call (update this test to a narrower pattern)`
-      ).not.toMatch(/\.sort\b/);
+        match,
+        `${caller} contains \`${match?.[0] ?? '<none>'}\` — reading .sort ` +
+          `on a parsed browse result violates the includeSort: false contract. ` +
+          `If this is intentional (e.g., you just added a new caller that ` +
+          `DOES use sort), either switch to \`includeSort: true\` or remove ` +
+          `this file from INCLUDE_SORT_FALSE_CALLERS.`
+      ).toBeNull();
     }
   );
+
+  it('regex sanity check: detects violations, ignores Array.sort on other names', () => {
+    // Meta-test: verify the narrowed regex actually does what we want. If
+    // someone accidentally breaks the alternation list (typo, regex escape
+    // error), this test fails loudly instead of silently passing the
+    // per-caller checks above.
+    const violations = [
+      'const sort = parsed.sort;',
+      'return { sort: parseResult.sort };',
+      'if (browseContext.sort === "name") { ... }',
+      'const { sort } = browseResult;\nreturn sort;\n// later: browseResult.sort',
+      'customIdParsed.sort',
+      'browseData.sort',
+      'browseParsed.sort',
+    ];
+    for (const v of violations) {
+      expect(PARSE_RESULT_SORT_ACCESS_RE.test(v), `should match: ${v}`).toBe(true);
+    }
+
+    const safe = [
+      'memories.sort((a, b) => a.createdAt - b.createdAt)',
+      'const sorted = [...items].sort(compareByName)',
+      'results.sort()',
+      'const sort: Sort = "name"', // bare `sort` identifier, not a property access
+      'parsedMemories.sort((a, b) => ...)', // "parsed" is a prefix, not a whole word
+    ];
+    for (const s of safe) {
+      expect(PARSE_RESULT_SORT_ACCESS_RE.test(s), `should NOT match: ${s}`).toBe(false);
+    }
+  });
 
   it('caller list is exhaustive — update when adding a new includeSort: false caller', () => {
     // Also a static check: fail loudly if someone adds a new
