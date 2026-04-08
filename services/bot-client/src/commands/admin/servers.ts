@@ -18,12 +18,11 @@ import {
   ButtonStyle,
   ActionRowBuilder,
   StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction, Guild } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { truncateForSelect } from '../../utils/browse/index.js';
+import { buildBrowseSelectMenu } from '../../utils/browse/index.js';
 
 const logger = createLogger('admin-servers');
 
@@ -206,40 +205,6 @@ function formatMemberCount(count: number): string {
 }
 
 /**
- * Build select menu for choosing a server from the list
- */
-function buildSelectMenu(
-  pageItems: GuildInfo[],
-  startIdx: number,
-  page: number,
-  sort: ServerBrowseSortType
-): ActionRowBuilder<StringSelectMenuBuilder> {
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(buildSelectCustomId(page, sort))
-    .setPlaceholder('Select a server to view details...')
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  pageItems.forEach((guild, index) => {
-    const num = startIdx + index + 1;
-
-    // Label: "1. Server Name (1.2K members)"
-    const label = truncateForSelect(
-      `${num}. ${guild.name} (${formatMemberCount(guild.memberCount)})`
-    );
-
-    selectMenu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(label)
-        .setValue(guild.id)
-        .setDescription(`ID: ${guild.id}`)
-    );
-  });
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-}
-
-/**
  * Build pagination and sort buttons
  */
 function buildButtons(
@@ -351,9 +316,22 @@ function buildBrowsePage(
   // Build components
   const components: BrowseActionRow[] = [];
 
-  // Add select menu if there are items on this page
-  if (pageItems.length > 0) {
-    components.push(buildSelectMenu(pageItems, startIdx, safePage, sortType));
+  // Add select menu if there are items on this page. The factory returns
+  // null on empty input — the explicit length check is redundant with that
+  // but kept for symmetry with the embed-renders-empty-state path above.
+  const selectRow = buildBrowseSelectMenu<GuildInfo>({
+    items: pageItems,
+    customId: buildSelectCustomId(safePage, sortType),
+    placeholder: 'Select a server to view details...',
+    startIndex: startIdx,
+    formatItem: guild => ({
+      label: `${guild.name} (${formatMemberCount(guild.memberCount)})`,
+      value: guild.id,
+      description: `ID: ${guild.id}`,
+    }),
+  });
+  if (selectRow !== null) {
+    components.push(selectRow);
   }
 
   // Add pagination buttons if items exist
