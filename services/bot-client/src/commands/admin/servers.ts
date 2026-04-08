@@ -139,7 +139,24 @@ function formatMemberCount(count: number): string {
 }
 
 /**
- * Build pagination and sort buttons
+ * Build pagination and sort buttons.
+ *
+ * **Why this is local instead of using shared `buildBrowseButtons`:**
+ * `utils/browse/buttonBuilder.ts` hardcodes `currentSort: BrowseSortType`
+ * (`'name' | 'date'`) in both its type signature AND its toggle logic
+ * (`currentSort === 'date' ? 'name' : 'date'`). It can't represent the
+ * `'members' | 'name'` sort space that this admin command uses, and the
+ * binary toggle assumes the standard 2-option set.
+ *
+ * The right long-term fix is to extend `buildBrowseButtons` to accept a
+ * generic `TSort` parameter (parallel to what PR #773 did for
+ * `createBrowseCustomIdHelpers`), with caller-provided toggle logic and
+ * per-sort labels/emojis. That's tracked as a backlog item — see
+ * `[LIFT]` "Extend buildBrowseButtons to support custom TSort generic"
+ * in BACKLOG.md. Until then, this local builder is the deliberate
+ * exception that proves the rule: a new browse command with a custom
+ * sort space currently has to either roll its own buttons or live with
+ * the standard `'name' | 'date'` toggle.
  */
 function buildButtons(
   currentPage: number,
