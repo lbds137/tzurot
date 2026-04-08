@@ -330,7 +330,11 @@ describe('createBrowseCustomIdHelpers without sort', () => {
     expect(result).toEqual({
       page: 0,
       filter: 'global',
-      sort: 'date', // Default value when not in customId
+      // Default fallback when sort isn't encoded — uses validSorts[0]
+      // ('name' in the default config). When `includeSort: false`, the
+      // caller has explicitly opted out of sort encoding and should not
+      // rely on this default for anything observable.
+      sort: 'name',
       query: 'query',
     });
   });

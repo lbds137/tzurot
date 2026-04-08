@@ -52,15 +52,22 @@ export function calculatePaginationState(
 
 /**
  * Parsed browse custom ID result
- * Generic version that specific commands can extend
+ * Generic version that specific commands can extend.
+ *
+ * `TSort` defaults to the standard `BrowseSortType = 'name' | 'date'` but
+ * can be widened to a command-specific union (e.g., admin/servers uses
+ * `'members' | 'name'`).
  */
-export interface ParsedBrowseCustomId<TFilter extends string = string> {
+export interface ParsedBrowseCustomId<
+  TFilter extends string = string,
+  TSort extends string = BrowseSortType,
+> {
   /** Current page (0-indexed) */
   page: number;
   /** Filter value */
   filter: TFilter;
   /** Sort type */
-  sort: BrowseSortType;
+  sort: TSort;
   /** Search query */
   query: string | null;
 }

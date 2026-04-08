@@ -12,10 +12,6 @@ import {
   handleServers,
   handleServersBrowsePagination,
   handleServersSelect,
-  handleServersBack,
-  parseBrowseCustomId,
-  parseSelectCustomId,
-  parseBackCustomId,
   isServersBrowseInteraction,
 } from './servers.js';
 import type { ChatInputCommandInteraction, Client, Collection, Guild } from 'discord.js';
@@ -209,7 +205,7 @@ describe('Admin Servers Browse', () => {
       } as unknown as Guild;
       mockGuilds.set('111', guild);
 
-      const interaction = createMockButtonInteraction('admin-servers::browse::0::members');
+      const interaction = createMockButtonInteraction('admin-servers::browse::0::all::members::');
       await handleServersBrowsePagination(interaction);
 
       expect(interaction.deferUpdate).toHaveBeenCalled();
@@ -227,7 +223,7 @@ describe('Admin Servers Browse', () => {
       } as unknown as Guild;
       mockGuilds.set('111', guild);
 
-      const interaction = createMockButtonInteraction('admin-servers::browse::0::name');
+      const interaction = createMockButtonInteraction('admin-servers::browse::0::all::name::');
       await handleServersBrowsePagination(interaction);
 
       expect(interaction.deferUpdate).toHaveBeenCalled();
@@ -254,7 +250,10 @@ describe('Admin Servers Browse', () => {
       } as unknown as Guild;
       mockGuilds.set('111', guild);
 
-      const interaction = createMockSelectInteraction('admin-servers::select::0::members', ['111']);
+      const interaction = createMockSelectInteraction(
+        'admin-servers::browse-select::0::all::members::',
+        ['111']
+      );
       await handleServersSelect(interaction);
 
       expect(interaction.deferUpdate).toHaveBeenCalled();
@@ -265,9 +264,10 @@ describe('Admin Servers Browse', () => {
     });
 
     it('should handle server not found', async () => {
-      const interaction = createMockSelectInteraction('admin-servers::select::0::members', [
-        'nonexistent',
-      ]);
+      const interaction = createMockSelectInteraction(
+        'admin-servers::browse-select::0::all::members::',
+        ['nonexistent']
+      );
       await handleServersSelect(interaction);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
@@ -285,120 +285,52 @@ describe('Admin Servers Browse', () => {
     });
   });
 
-  describe('handleServersBack', () => {
-    it('should return to browse page', async () => {
-      const guild = {
-        id: '111',
-        name: 'Test Server',
-        memberCount: 10,
-        ownerId: '111',
-        createdAt: new Date(),
-        iconURL: () => null,
-      } as unknown as Guild;
-      mockGuilds.set('111', guild);
+  // Note: The old `handleServersBack`, `parseBrowseCustomId`,
+  // `parseSelectCustomId`, and `parseBackCustomId` tests were deleted
+  // in the Session 5 Part B migration. The back button now uses the
+  // same browse customId format as pagination (routes through
+  // `handleServersBrowsePagination`), and customId parsing is handled
+  // by the shared `createBrowseCustomIdHelpers` factory whose behavior
+  // is unit-tested in `utils/browse/browse.test.ts`.
 
-      const interaction = createMockButtonInteraction('admin-servers::back::0::members');
-      await handleServersBack(interaction);
-
-      expect(interaction.deferUpdate).toHaveBeenCalled();
-      expect(interaction.editReply).toHaveBeenCalled();
+  describe('isServersBrowseInteraction', () => {
+    it('should identify servers browse interactions in the new factory format', () => {
+      // Factory format: admin-servers::browse::{page}::{filter}::{sort}::{query}
+      expect(isServersBrowseInteraction('admin-servers::browse::0::all::members::')).toBe(true);
+      expect(isServersBrowseInteraction('admin-servers::browse::5::all::name::')).toBe(true);
+      // Select menu prefix is browse-select
+      expect(isServersBrowseInteraction('admin-servers::browse-select::0::all::members::')).toBe(
+        true
+      );
     });
 
-    it('should preserve page and sort state', async () => {
-      const guild = {
-        id: '111',
-        name: 'Test Server',
-        memberCount: 10,
-        ownerId: '111',
-        createdAt: new Date(),
-        iconURL: () => null,
-      } as unknown as Guild;
-      mockGuilds.set('111', guild);
-
-      const interaction = createMockButtonInteraction('admin-servers::back::2::name');
-      await handleServersBack(interaction);
-
-      expect(interaction.deferUpdate).toHaveBeenCalled();
-      expect(interaction.editReply).toHaveBeenCalled();
+    it('should reject non-servers browse interactions', () => {
+      expect(isServersBrowseInteraction('admin-settings::menu')).toBe(false);
+      expect(isServersBrowseInteraction('character::browse')).toBe(false);
+      expect(isServersBrowseInteraction('random')).toBe(false);
     });
 
-    it('should ignore invalid custom IDs', async () => {
-      const interaction = createMockButtonInteraction('invalid::custom::id');
-      await handleServersBack(interaction);
-
-      expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('custom ID parsing', () => {
-    describe('parseBrowseCustomId', () => {
-      it('should parse valid browse custom IDs', () => {
-        expect(parseBrowseCustomId('admin-servers::browse::0::members')).toEqual({
-          page: 0,
-          sort: 'members',
-        });
-        expect(parseBrowseCustomId('admin-servers::browse::5::name')).toEqual({
-          page: 5,
-          sort: 'name',
-        });
-      });
-
-      it('should return null for invalid custom IDs', () => {
-        expect(parseBrowseCustomId('invalid')).toBeNull();
-        expect(parseBrowseCustomId('admin-servers::browse')).toBeNull();
-        expect(parseBrowseCustomId('admin-servers::browse::invalid::members')).toBeNull();
-        expect(parseBrowseCustomId('admin-servers::browse::0::invalid')).toBeNull();
-      });
+    it('should reject the pre-migration select/back prefixes', () => {
+      // Before Session 5 Part B, admin used `::select::` and `::back::`
+      // prefixes. The new factory uses `::browse-select::` and folds back
+      // navigation into `::browse::`, so the old prefixes no longer match.
+      // In-flight stale clicks with these formats will not be routed —
+      // acceptable because Discord interactions expire within ~15 minutes.
+      expect(isServersBrowseInteraction('admin-servers::select::0::members')).toBe(false);
+      expect(isServersBrowseInteraction('admin-servers::back::0::members')).toBe(false);
     });
 
-    describe('parseSelectCustomId', () => {
-      it('should parse valid select custom IDs', () => {
-        expect(parseSelectCustomId('admin-servers::select::0::members')).toEqual({
-          page: 0,
-          sort: 'members',
-        });
-        expect(parseSelectCustomId('admin-servers::select::3::name')).toEqual({
-          page: 3,
-          sort: 'name',
-        });
-      });
-
-      it('should return null for invalid custom IDs', () => {
-        expect(parseSelectCustomId('invalid')).toBeNull();
-        expect(parseSelectCustomId('admin-servers::select')).toBeNull();
-      });
-    });
-
-    describe('parseBackCustomId', () => {
-      it('should parse valid back custom IDs', () => {
-        expect(parseBackCustomId('admin-servers::back::0::members')).toEqual({
-          page: 0,
-          sort: 'members',
-        });
-        expect(parseBackCustomId('admin-servers::back::2::name')).toEqual({
-          page: 2,
-          sort: 'name',
-        });
-      });
-
-      it('should return null for invalid custom IDs', () => {
-        expect(parseBackCustomId('invalid')).toBeNull();
-        expect(parseBackCustomId('admin-servers::back')).toBeNull();
-      });
-    });
-
-    describe('isServersBrowseInteraction', () => {
-      it('should identify servers browse interactions', () => {
-        expect(isServersBrowseInteraction('admin-servers::browse::0::members')).toBe(true);
-        expect(isServersBrowseInteraction('admin-servers::select::0::members')).toBe(true);
-        expect(isServersBrowseInteraction('admin-servers::back::0::members')).toBe(true);
-      });
-
-      it('should reject non-servers browse interactions', () => {
-        expect(isServersBrowseInteraction('admin-settings::menu')).toBe(false);
-        expect(isServersBrowseInteraction('character::browse')).toBe(false);
-        expect(isServersBrowseInteraction('random')).toBe(false);
-      });
+    it('should match pre-migration `::browse::` prefix but fail to parse downstream', () => {
+      // The browse prefix itself (`admin-servers::browse::`) is unchanged
+      // between the old 4-part and new 6-part formats, so `isBrowse`
+      // prefix-matches stale clicks. The downstream handler calls
+      // `browseHelpers.parse` which will return null for the old format
+      // (wrong segment count), and the handler will quietly return — the
+      // user sees "This interaction failed" after Discord's 3s timeout.
+      // Acceptable trade-off: stale clicks from before the deploy are
+      // rare and the alternative (silent success with wrong state) is
+      // worse.
+      expect(isServersBrowseInteraction('admin-servers::browse::0::members')).toBe(true);
     });
   });
 

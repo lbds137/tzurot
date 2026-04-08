@@ -22,23 +22,42 @@ import {
 import type { ButtonInteraction, StringSelectMenuInteraction, Guild } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { buildBrowseSelectMenu } from '../../utils/browse/index.js';
+import { buildBrowseSelectMenu, createBrowseCustomIdHelpers } from '../../utils/browse/index.js';
 
 const logger = createLogger('admin-servers');
 
 /** Servers per page for pagination */
 const SERVERS_PER_PAGE = 10;
 
-/** Sort options */
-type ServerBrowseSortType = 'name' | 'members';
+/** Sort options — custom union widens `TSort` from the factory's default `BrowseSortType`. */
+type ServerBrowseSortType = 'members' | 'name';
 
 /** Default sort type */
 const DEFAULT_SORT: ServerBrowseSortType = 'members';
 
-/** Custom ID prefixes */
-const BROWSE_PREFIX = 'admin-servers::browse';
-const SELECT_PREFIX = 'admin-servers::select';
-const BACK_PREFIX = 'admin-servers::back';
+/** Filter type — admin/servers shows all servers, no filtering concept. */
+type ServerBrowseFilter = 'all';
+
+/**
+ * Browse customId helpers using the shared factory.
+ *
+ * Two generic parameters are used here because admin/servers has a
+ * custom sort type (`'members' | 'name'`) that doesn't match the
+ * standard `BrowseSortType = 'name' | 'date'`. Passing `validSorts`
+ * is required when widening `TSort` — the factory's default only
+ * applies to the standard type.
+ *
+ * The "Back to List" button in the detail view reuses the browse
+ * customId (`browseHelpers.build(page, 'all', sort, null)`) so its
+ * click routes through the same pagination handler as regular page
+ * navigation. Before this migration, admin had a separate `::back::`
+ * prefix and a duplicate handler — now deleted.
+ */
+const browseHelpers = createBrowseCustomIdHelpers<ServerBrowseFilter, ServerBrowseSortType>({
+  prefix: 'admin-servers',
+  validFilters: ['all'],
+  validSorts: ['members', 'name'],
+});
 
 /**
  * Guild info for display
@@ -81,114 +100,15 @@ function sortGuilds(guilds: GuildInfo[], sortType: ServerBrowseSortType): GuildI
 }
 
 /**
- * Build custom ID for browse pagination
- */
-function buildBrowseCustomId(page: number, sort: ServerBrowseSortType): string {
-  return `${BROWSE_PREFIX}::${page}::${sort}`;
-}
-
-/**
- * Parse browse custom ID
- */
-export function parseBrowseCustomId(
-  customId: string
-): { page: number; sort: ServerBrowseSortType } | null {
-  if (!customId.startsWith(BROWSE_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 4) {
-    return null;
-  }
-
-  const page = parseInt(parts[2], 10);
-  const sort = parts[3] as ServerBrowseSortType;
-
-  if (isNaN(page)) {
-    return null;
-  }
-
-  if (!['name', 'members'].includes(sort)) {
-    return null;
-  }
-
-  return { page, sort };
-}
-
-/**
- * Build custom ID for select menu
- */
-function buildSelectCustomId(page: number, sort: ServerBrowseSortType): string {
-  return `${SELECT_PREFIX}::${page}::${sort}`;
-}
-
-/**
- * Parse select custom ID
- */
-export function parseSelectCustomId(
-  customId: string
-): { page: number; sort: ServerBrowseSortType } | null {
-  if (!customId.startsWith(SELECT_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 4) {
-    return null;
-  }
-
-  const page = parseInt(parts[2], 10);
-  const sort = parts[3] as ServerBrowseSortType;
-
-  if (isNaN(page)) {
-    return null;
-  }
-
-  return { page, sort };
-}
-
-/**
- * Build custom ID for back button
- */
-function buildBackCustomId(page: number, sort: ServerBrowseSortType): string {
-  return `${BACK_PREFIX}::${page}::${sort}`;
-}
-
-/**
- * Parse back custom ID
- */
-export function parseBackCustomId(
-  customId: string
-): { page: number; sort: ServerBrowseSortType } | null {
-  if (!customId.startsWith(BACK_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 4) {
-    return null;
-  }
-
-  const page = parseInt(parts[2], 10);
-  const sort = parts[3] as ServerBrowseSortType;
-
-  if (isNaN(page)) {
-    return null;
-  }
-
-  return { page, sort };
-}
-
-/**
- * Check if custom ID is a servers browse interaction
+ * Check if a customId is an admin-servers browse/select interaction.
+ *
+ * Exported for admin/index.ts routing. The back-to-list button now
+ * uses the same customId shape as browse pagination (see
+ * `buildBrowsePage` and `buildServerDetailsEmbed`) so `isBrowse`
+ * catches both regular pagination clicks and back-button clicks.
  */
 export function isServersBrowseInteraction(customId: string): boolean {
-  return (
-    customId.startsWith(BROWSE_PREFIX) ||
-    customId.startsWith(SELECT_PREFIX) ||
-    customId.startsWith(BACK_PREFIX)
-  );
+  return browseHelpers.isBrowse(customId) || browseHelpers.isBrowseSelect(customId);
 }
 
 /**
@@ -217,7 +137,7 @@ function buildButtons(
   // Previous button
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage - 1, currentSort))
+      .setCustomId(browseHelpers.build(currentPage - 1, 'all', currentSort, null))
       .setLabel('Previous')
       .setEmoji('◀️')
       .setStyle(ButtonStyle.Secondary)
@@ -227,7 +147,7 @@ function buildButtons(
   // Page indicator (disabled)
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(`${BROWSE_PREFIX}::info`)
+      .setCustomId(browseHelpers.buildInfo())
       .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true)
@@ -236,7 +156,7 @@ function buildButtons(
   // Next button
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage + 1, currentSort))
+      .setCustomId(browseHelpers.build(currentPage + 1, 'all', currentSort, null))
       .setLabel('Next')
       .setEmoji('▶️')
       .setStyle(ButtonStyle.Secondary)
@@ -249,7 +169,7 @@ function buildButtons(
   const sortLabel = currentSort === 'members' ? 'Sort A-Z' : 'Sort by Members';
   row.addComponents(
     new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage, newSort))
+      .setCustomId(browseHelpers.build(currentPage, 'all', newSort, null))
       .setLabel(sortLabel)
       .setEmoji(sortEmoji)
       .setStyle(ButtonStyle.Primary)
@@ -321,7 +241,7 @@ function buildBrowsePage(
   // but kept for symmetry with the embed-renders-empty-state path above.
   const selectRow = buildBrowseSelectMenu<GuildInfo>({
     items: pageItems,
-    customId: buildSelectCustomId(safePage, sortType),
+    customId: browseHelpers.buildSelect(safePage, 'all', sortType, null),
     placeholder: 'Select a server to view details...',
     startIndex: startIdx,
     formatItem: guild => ({
@@ -377,10 +297,13 @@ function buildServerDetailsEmbed(
     }
   );
 
-  // Back button
+  // Back button — reuses the browse customId so clicking back routes
+  // through the same pagination handler as regular page navigation.
+  // Before the Session 5 Part B migration, admin had a separate
+  // `::back::` prefix with a duplicate handler; now simplified away.
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(buildBackCustomId(page, sort))
+      .setCustomId(browseHelpers.build(page, 'all', sort, null))
       .setLabel('Back to List')
       .setEmoji('◀️')
       .setStyle(ButtonStyle.Secondary)
@@ -408,10 +331,14 @@ export async function handleServers(context: DeferredCommandContext): Promise<vo
 }
 
 /**
- * Handle browse pagination button clicks
+ * Handle browse pagination button clicks.
+ *
+ * Also handles "Back to List" clicks from the detail view — the back
+ * button uses the same customId shape as pagination (see the comment
+ * on browseHelpers above), so a single handler covers both cases.
  */
 export async function handleServersBrowsePagination(interaction: ButtonInteraction): Promise<void> {
-  const parsed = parseBrowseCustomId(interaction.customId);
+  const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
     return;
   }
@@ -433,7 +360,7 @@ export async function handleServersBrowsePagination(interaction: ButtonInteracti
  * Handle select menu - show server details
  */
 export async function handleServersSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  const parsed = parseSelectCustomId(interaction.customId);
+  const parsed = browseHelpers.parseSelect(interaction.customId);
   if (parsed === null) {
     return;
   }
@@ -464,27 +391,5 @@ export async function handleServersSelect(interaction: StringSelectMenuInteracti
       embeds: [],
       components: [],
     });
-  }
-}
-
-/**
- * Handle back button - return to browse list
- */
-export async function handleServersBack(interaction: ButtonInteraction): Promise<void> {
-  const parsed = parseBackCustomId(interaction.customId);
-  if (parsed === null) {
-    return;
-  }
-
-  await interaction.deferUpdate();
-
-  try {
-    const guildsCache = interaction.client.guilds.cache;
-    const guilds = Array.from(guildsCache.values()).map(getGuildInfo);
-
-    const { embed, components } = buildBrowsePage(guilds, parsed.page, parsed.sort);
-    await interaction.editReply({ embeds: [embed], components });
-  } catch (error) {
-    logger.error({ err: error }, '[Admin] Failed to return to servers browse');
   }
 }

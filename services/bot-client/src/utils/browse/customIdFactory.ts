@@ -18,23 +18,28 @@ import type { ParsedBrowseCustomId } from './types.js';
 const MAX_CUSTOMID_QUERY_LENGTH = 50;
 
 /**
- * Configuration for creating browse customId helpers
+ * Configuration for creating browse customId helpers.
+ *
+ * `TSort` defaults to the standard `BrowseSortType = 'name' | 'date'` but
+ * can be widened to a command-specific union (e.g., admin/servers uses
+ * `'members' | 'name'`). When a custom `TSort` is used, callers must pass
+ * matching `validSorts` to enable runtime validation of parsed values.
  */
-interface BrowseCustomIdConfig<TFilter extends string> {
+interface BrowseCustomIdConfig<TFilter extends string, TSort extends string = BrowseSortType> {
   /** Command prefix (e.g., 'character', 'preset') */
   prefix: string;
   /** Valid filter values for type safety */
   validFilters: readonly TFilter[];
   /** Valid sort values (defaults to ['name', 'date']) */
-  validSorts?: readonly BrowseSortType[];
+  validSorts?: readonly TSort[];
   /** Whether to include sort in customId (default: true) */
   includeSort?: boolean;
 }
 
 /** Internal config for parse function */
-interface ParseConfig<TFilter extends string> {
+interface ParseConfig<TFilter extends string, TSort extends string = BrowseSortType> {
   validFilters: readonly TFilter[];
-  validSorts: readonly BrowseSortType[];
+  validSorts: readonly TSort[];
   includeSort: boolean;
 }
 
@@ -63,11 +68,11 @@ function truncateQuery(query: string | null): string {
 /**
  * Core parse function for browse customIds
  */
-function parseCustomIdCore<TFilter extends string>(
+function parseCustomIdCore<TFilter extends string, TSort extends string = BrowseSortType>(
   customId: string,
   expectedPrefix: string,
-  config: ParseConfig<TFilter>
-): ParsedBrowseCustomId<TFilter> | null {
+  config: ParseConfig<TFilter, TSort>
+): ParsedBrowseCustomId<TFilter, TSort> | null {
   if (!customId.startsWith(expectedPrefix)) {
     return null;
   }
@@ -88,9 +93,12 @@ function parseCustomIdCore<TFilter extends string>(
     return null;
   }
 
-  let sort: BrowseSortType = 'date';
+  // Default sort is the first entry in validSorts (usually 'date' for the
+  // standard BrowseSortType, but commands with a custom TSort may specify
+  // a different first entry, e.g., admin/servers uses ['members', 'name']).
+  let sort: TSort = config.validSorts[0];
   if (config.includeSort && parts[4] !== undefined) {
-    const sortValue = parts[4] as BrowseSortType;
+    const sortValue = parts[4] as TSort;
     if (config.validSorts.includes(sortValue)) {
       sort = sortValue;
     }
@@ -106,22 +114,20 @@ function parseCustomIdCore<TFilter extends string>(
 /**
  * Result of createBrowseCustomIdHelpers
  */
-export interface BrowseCustomIdHelpers<TFilter extends string> {
+export interface BrowseCustomIdHelpers<
+  TFilter extends string,
+  TSort extends string = BrowseSortType,
+> {
   /** Build customId for browse pagination */
-  build: (page: number, filter: TFilter, sort: BrowseSortType, query: string | null) => string;
+  build: (page: number, filter: TFilter, sort: TSort, query: string | null) => string;
   /** Build customId for browse select menu */
-  buildSelect: (
-    page: number,
-    filter: TFilter,
-    sort: BrowseSortType,
-    query: string | null
-  ) => string;
+  buildSelect: (page: number, filter: TFilter, sort: TSort, query: string | null) => string;
   /** Build customId for info button (disabled page indicator) */
   buildInfo: () => string;
   /** Parse browse customId */
-  parse: (customId: string) => ParsedBrowseCustomId<TFilter> | null;
+  parse: (customId: string) => ParsedBrowseCustomId<TFilter, TSort> | null;
   /** Parse browse select customId */
-  parseSelect: (customId: string) => ParsedBrowseCustomId<TFilter> | null;
+  parseSelect: (customId: string) => ParsedBrowseCustomId<TFilter, TSort> | null;
   /** Check if customId is a browse interaction */
   isBrowse: (customId: string) => boolean;
   /** Check if customId is a browse select interaction */
@@ -152,21 +158,28 @@ export interface BrowseCustomIdHelpers<TFilter extends string> {
  * // { page: 0, filter: 'all', sort: 'date', query: null }
  * ```
  */
-export function createBrowseCustomIdHelpers<TFilter extends string>(
-  config: BrowseCustomIdConfig<TFilter>
-): BrowseCustomIdHelpers<TFilter> {
-  const { prefix, validFilters, validSorts = ['name', 'date'], includeSort = true } = config;
+export function createBrowseCustomIdHelpers<
+  TFilter extends string,
+  TSort extends string = BrowseSortType,
+>(config: BrowseCustomIdConfig<TFilter, TSort>): BrowseCustomIdHelpers<TFilter, TSort> {
+  const {
+    prefix,
+    validFilters,
+    // When `TSort` is omitted/defaults to `BrowseSortType`, the default
+    // ['name', 'date'] is valid. When callers widen `TSort` to a custom
+    // union (e.g., 'members' | 'name' for admin/servers), they MUST pass
+    // a matching `validSorts` — the default cast below is only sound for
+    // the `BrowseSortType` case. TypeScript can't express this constraint
+    // at the type level, so the `unknown` bridge documents the invariant.
+    validSorts = ['name', 'date'] as unknown as readonly TSort[],
+    includeSort = true,
+  } = config;
 
   const browsePrefix = `${prefix}${CUSTOM_ID_DELIMITER}browse`;
   const browseSelectPrefix = `${prefix}${CUSTOM_ID_DELIMITER}browse-select`;
-  const parseConfig: ParseConfig<TFilter> = { validFilters, validSorts, includeSort };
+  const parseConfig: ParseConfig<TFilter, TSort> = { validFilters, validSorts, includeSort };
 
-  const build = (
-    page: number,
-    filter: TFilter,
-    sort: BrowseSortType,
-    query: string | null
-  ): string => {
+  const build = (page: number, filter: TFilter, sort: TSort, query: string | null): string => {
     const parts = [browsePrefix, String(page), filter];
     if (includeSort) {
       parts.push(sort);
@@ -178,7 +191,7 @@ export function createBrowseCustomIdHelpers<TFilter extends string>(
   const buildSelect = (
     page: number,
     filter: TFilter,
-    sort: BrowseSortType,
+    sort: TSort,
     query: string | null
   ): string => {
     const parts = [browseSelectPrefix, String(page), filter];
@@ -191,10 +204,10 @@ export function createBrowseCustomIdHelpers<TFilter extends string>(
 
   const buildInfo = (): string => `${browsePrefix}${CUSTOM_ID_DELIMITER}info`;
 
-  const parse = (customId: string): ParsedBrowseCustomId<TFilter> | null =>
+  const parse = (customId: string): ParsedBrowseCustomId<TFilter, TSort> | null =>
     parseCustomIdCore(customId, browsePrefix, parseConfig);
 
-  const parseSelect = (customId: string): ParsedBrowseCustomId<TFilter> | null =>
+  const parseSelect = (customId: string): ParsedBrowseCustomId<TFilter, TSort> | null =>
     parseCustomIdCore(customId, browseSelectPrefix, parseConfig);
 
   const isBrowse = (customId: string): boolean =>
