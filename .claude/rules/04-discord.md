@@ -54,6 +54,10 @@ branching **after** the ack and use `followUp` for the error path.
 
 **Exception**: synchronous guards that don't `await` (e.g., customId prefix
 validation, parsing) can run before the ack — they don't consume the budget.
+The canonical example is a `customId` prefix check like `isMemoryBrowsePagination`
+in `memory/browse.ts`: it's a pure string comparison, so it can run before
+`deferUpdate` to decide whether this handler should claim the interaction
+at all. Contrast with a Redis/DB lookup of any kind, which _must_ run after.
 
 **Nested routers (handleButton → detail handlers)**: when a top-level
 router (e.g., `interactionHandlers.handleButton`) has to do async work

@@ -66,10 +66,15 @@ export const searchHelpers = createBrowseCustomIdHelpers<'all'>({
 export const MEMORY_SEARCH_PREFIX = MEMORY_SEARCH_ENTITY_TYPE;
 
 /**
- * Check if a customId belongs to a memory search pagination interaction.
+ * Check if a customId belongs to a memory search pagination BUTTON.
+ *
+ * Same scoping as {@link isMemoryBrowsePagination}: called only from
+ * `handleButton`, so it intentionally does NOT match select customIds.
+ * Select routing lives in `handleSelectMenu` via
+ * `searchHelpers.isBrowseSelect`.
  */
 export function isMemorySearchPagination(customId: string): boolean {
-  return searchHelpers.isBrowse(customId) || searchHelpers.isBrowseSelect(customId);
+  return searchHelpers.isBrowse(customId);
 }
 
 interface SearchResult extends MemoryItem {
@@ -91,14 +96,14 @@ interface BuildSearchEmbedOptions {
   totalPages: number;
   hasMore: boolean;
   searchType?: 'semantic' | 'text';
-  personalityFilter?: string;
+  personalityId?: string;
 }
 
 /**
  * Build the search results embed
  */
 function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
-  const { results, query, page, pageSize, totalPages, hasMore, searchType, personalityFilter } =
+  const { results, query, page, pageSize, totalPages, hasMore, searchType, personalityId } =
     options;
   const isTextFallback = searchType === 'text';
 
@@ -132,7 +137,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
   // Build footer
   const footerParts: string[] = [];
   footerParts.push(isTextFallback ? 'Text search' : 'Semantic search');
-  if (personalityFilter !== undefined) {
+  if (personalityId !== undefined) {
     footerParts.push('Filtered');
   }
   footerParts.push(`Page ${page + 1} of ${totalPages}${hasMore ? '+' : ''}`);
@@ -181,7 +186,7 @@ function buildSearchView(opts: {
     totalPages,
     hasMore: data.hasMore,
     searchType: data.searchType ?? searchType,
-    personalityFilter: personalityId,
+    personalityId,
   });
 
   const components: SearchActionRow[] =

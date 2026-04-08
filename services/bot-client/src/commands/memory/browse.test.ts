@@ -431,8 +431,11 @@ describe('isMemoryBrowsePagination', () => {
     expect(isMemoryBrowsePagination(browseHelpers.build(0, 'all', 'date', null))).toBe(true);
   });
 
-  it('recognizes browse select menus', () => {
-    expect(isMemoryBrowsePagination(browseHelpers.buildSelect(0, 'all', 'date', null))).toBe(true);
+  it('deliberately does NOT match browse select menus', () => {
+    // Selects are routed via handleSelectMenu using browseHelpers.isBrowseSelect
+    // directly. handleButton should never claim select customIds, so this
+    // guard intentionally returns false for them — keeps the name honest.
+    expect(isMemoryBrowsePagination(browseHelpers.buildSelect(0, 'all', 'date', null))).toBe(false);
   });
 
   it('rejects unrelated custom IDs', () => {

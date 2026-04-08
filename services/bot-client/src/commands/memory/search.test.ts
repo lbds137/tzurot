@@ -597,8 +597,10 @@ describe('isMemorySearchPagination', () => {
     expect(isMemorySearchPagination(searchHelpers.build(0, 'all', 'date', null))).toBe(true);
   });
 
-  it('recognizes search select menus', () => {
-    expect(isMemorySearchPagination(searchHelpers.buildSelect(0, 'all', 'date', null))).toBe(true);
+  it('deliberately does NOT match search select menus', () => {
+    // Same rationale as isMemoryBrowsePagination: handleButton never sees
+    // select interactions, so this guard stays narrow to match its name.
+    expect(isMemorySearchPagination(searchHelpers.buildSelect(0, 'all', 'date', null))).toBe(false);
   });
 
   it('rejects unrelated custom IDs', () => {
