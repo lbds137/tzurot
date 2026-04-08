@@ -336,8 +336,12 @@ describe('createBrowseCustomIdHelpers', () => {
 
     it('should reject customId with missing sort segment when includeSort is true', () => {
       // Malformed: browse format expects 5+ segments, only 4 provided.
-      // (parts.length < minParts also catches this, but the strict-sort
-      // check below it ensures that partial malformations are rejected too.)
+      // The `parts.length < minParts` check at the top of parseCustomIdCore
+      // is the sole point of enforcement for this case — the sort block
+      // below that check can then access `parts[4]` without a defensive
+      // undefined guard. (Previous rounds of this PR had a redundant
+      // `parts[4] === undefined` guard inside the sort block; it was
+      // unreachable dead code and was removed in round 8.)
       expect(helpers.parse('test::browse::0::all')).toBeNull();
     });
   });
@@ -407,6 +411,16 @@ describe('createBrowseCustomIdHelpers without sort', () => {
       sort: 'name',
       query: 'query',
     });
+  });
+
+  it('should build select customId without sort', () => {
+    // Parallel to the `build` test above — `buildSelect` must also honor
+    // includeSort: false by omitting the sort segment. Without this test,
+    // the `if (includeSort)` branch in `buildSelect` was uncovered (the
+    // `build` variant is tested above but buildSelect was not).
+    const result = helpers.buildSelect(0, 'all', 'date', null);
+    expect(result).toBe('preset::browse-select::0::all::');
+    expect(result).not.toContain('date');
   });
 });
 
