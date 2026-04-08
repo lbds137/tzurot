@@ -17,7 +17,6 @@ const {
   mockResolveOptionalPersonality,
   mockHandleMemorySelect,
   mockHandleMemoryDetailAction,
-  mockBuildMemorySelectMenu,
   mockSaveMemoryListSession,
   mockFindMemoryListSessionByMessage,
   mockUpdateMemoryListSessionPage,
@@ -26,7 +25,6 @@ const {
   mockResolveOptionalPersonality: vi.fn(),
   mockHandleMemorySelect: vi.fn(),
   mockHandleMemoryDetailAction: vi.fn(),
-  mockBuildMemorySelectMenu: vi.fn((..._args: unknown[]) => ({ components: [] })),
   mockSaveMemoryListSession: vi.fn(),
   mockFindMemoryListSessionByMessage: vi.fn(),
   mockUpdateMemoryListSessionPage: vi.fn(),
@@ -53,7 +51,11 @@ vi.mock('./resolveHelpers.js', () => ({
 }));
 
 vi.mock('./detail.js', () => ({
-  buildMemorySelectMenu: (...args: unknown[]) => mockBuildMemorySelectMenu(...args),
+  // buildMemoryActionId is a pure string-builder used by browse.ts to
+  // construct the select menu's customId. The factory accepts any
+  // pre-built customId string, so we return a deterministic stub.
+  buildMemoryActionId: (action: string, id?: string) =>
+    id !== undefined ? `memory-detail::${action}::${id}` : `memory-detail::${action}`,
   handleMemorySelect: (...args: unknown[]) => mockHandleMemorySelect(...args),
 }));
 
