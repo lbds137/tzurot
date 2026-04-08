@@ -158,6 +158,27 @@ export interface BrowseCustomIdHelpers<
  * // { page: 0, filter: 'all', sort: 'date', query: null }
  * ```
  */
+// Overload 1: standard BrowseSortType (validSorts is optional, defaults to
+// ['name', 'date']). This is the common case — all callers that don't widen
+// TSort match this signature.
+export function createBrowseCustomIdHelpers<TFilter extends string>(
+  config: BrowseCustomIdConfig<TFilter, BrowseSortType>
+): BrowseCustomIdHelpers<TFilter, BrowseSortType>;
+
+// Overload 2: custom TSort union (validSorts is REQUIRED). This catches the
+// footgun the PR #773 reviewer flagged: a caller who widens TSort without
+// passing matching validSorts would get the default ['name', 'date'] cast
+// at runtime, silently falling back to 'name' on every parse. The required
+// parameter in this overload prevents that at compile time — admin/servers'
+// `createBrowseCustomIdHelpers<_, 'members' | 'name'>({...})` must include
+// `validSorts: ['members', 'name']` or TypeScript rejects it.
+export function createBrowseCustomIdHelpers<TFilter extends string, TSort extends string>(
+  config: Omit<BrowseCustomIdConfig<TFilter, TSort>, 'validSorts'> & {
+    validSorts: readonly TSort[];
+  }
+): BrowseCustomIdHelpers<TFilter, TSort>;
+
+// Implementation signature (not visible to callers)
 export function createBrowseCustomIdHelpers<
   TFilter extends string,
   TSort extends string = BrowseSortType,
