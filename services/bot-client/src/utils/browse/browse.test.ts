@@ -312,6 +312,45 @@ describe('createBrowseCustomIdHelpers', () => {
   });
 });
 
+describe('createBrowseCustomIdHelpers with custom TSort', () => {
+  // Commands with custom sort unions (e.g., admin/servers uses 'members' | 'name'
+  // instead of the standard 'name' | 'date') widen TSort. The factory has
+  // two overloads: the default overload makes validSorts optional for the
+  // standard BrowseSortType, and a second overload makes validSorts REQUIRED
+  // when TSort is widened, to catch the footgun where a caller widens TSort
+  // without providing a matching runtime validation list.
+
+  it('builds and parses with a custom sort union', () => {
+    const helpers = createBrowseCustomIdHelpers<'all', 'members' | 'name'>({
+      prefix: 'admin-servers',
+      validFilters: ['all'],
+      validSorts: ['members', 'name'],
+    });
+
+    const customId = helpers.build(0, 'all', 'members', null);
+    expect(customId).toBe('admin-servers::browse::0::all::members::');
+
+    const parsed = helpers.parse(customId);
+    expect(parsed).toEqual({ page: 0, filter: 'all', sort: 'members', query: null });
+  });
+
+  it('refuses to compile when TSort is widened without matching validSorts', () => {
+    // This block is a compile-time assertion — the @ts-expect-error directive
+    // will fail the build if the error it predicts ever goes away. The fact
+    // that this test compiles AT ALL proves the overload is enforcing the
+    // required-validSorts constraint on custom TSort.
+    // @ts-expect-error — widening TSort without validSorts must be rejected
+    const _shouldNotCompile = createBrowseCustomIdHelpers<'all', 'members' | 'name'>({
+      prefix: 'bad',
+      validFilters: ['all'],
+    });
+    // Consume the variable to prevent "declared but never read" errors.
+    // The runtime call will still succeed (overload enforcement is type-only)
+    // but the point of this test is the compile-time check, not runtime.
+    expect(typeof _shouldNotCompile).toBe('object');
+  });
+});
+
 describe('createBrowseCustomIdHelpers without sort', () => {
   const helpers = createBrowseCustomIdHelpers({
     prefix: 'preset',
