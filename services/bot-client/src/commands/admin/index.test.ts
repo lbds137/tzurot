@@ -66,7 +66,7 @@ vi.mock('./usage.js', () => ({
 }));
 
 import { handleDbSync } from './db-sync.js';
-import { handleServers, handleServersBrowsePagination } from './servers.js';
+import { handleServers, handleServersBrowsePagination, handleServersSelect } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 
@@ -269,6 +269,51 @@ describe('admin command', () => {
       await adminCommand.handleButton?.(interaction);
 
       expect(handleServersBrowsePagination).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleSelectMenu (router)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('routes servers browse select menus to handleServersSelect', async () => {
+      // Factory-format customId: the new `::browse-select::` prefix (not
+      // the pre-migration `::select::`).
+      const interaction = {
+        customId: 'admin-servers::browse-select::0::all::members::',
+      } as unknown as Parameters<NonNullable<typeof adminCommand.handleSelectMenu>>[0];
+
+      await adminCommand.handleSelectMenu?.(interaction);
+
+      expect(handleServersSelect).toHaveBeenCalledWith(interaction);
+    });
+
+    it('does NOT route the pre-migration ::select:: prefix', async () => {
+      // Regression guard: before the Session 5 Part B migration, the broad
+      // `isServersBrowseInteraction` guard matched three prefixes including
+      // `::select::`. After the split into `isServersBrowseSelect`, only
+      // `::browse-select::` matches. Stale clicks with the old format will
+      // not route — acceptable since Discord interactions expire within
+      // ~15 minutes and the old-prefix surface is bounded to the deploy
+      // window.
+      const interaction = {
+        customId: 'admin-servers::select::0::members',
+      } as unknown as Parameters<NonNullable<typeof adminCommand.handleSelectMenu>>[0];
+
+      await adminCommand.handleSelectMenu?.(interaction);
+
+      expect(handleServersSelect).not.toHaveBeenCalled();
+    });
+
+    it('ignores unrelated select customIds', async () => {
+      const interaction = {
+        customId: 'character::browse-select::0::all::date::',
+      } as unknown as Parameters<NonNullable<typeof adminCommand.handleSelectMenu>>[0];
+
+      await adminCommand.handleSelectMenu?.(interaction);
+
+      expect(handleServersSelect).not.toHaveBeenCalled();
     });
   });
 
