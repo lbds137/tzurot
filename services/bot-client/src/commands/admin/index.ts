@@ -32,10 +32,7 @@ import {
   handleServers,
   handleServersBrowsePagination,
   handleServersSelect,
-  handleServersBack,
   isServersBrowseInteraction,
-  parseBrowseCustomId,
-  parseBackCustomId,
 } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
@@ -166,15 +163,12 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
 
-  // Servers browse pagination
-  if (parseBrowseCustomId(customId) !== null) {
+  // Servers browse pagination. After the Session 5 Part B migration,
+  // the "Back to List" button on the server details view uses the same
+  // browse customId shape, so this single handler catches both regular
+  // pagination clicks and back-button clicks.
+  if (isServersBrowseInteraction(customId)) {
     await handleServersBrowsePagination(interaction);
-    return;
-  }
-
-  // Servers back button
-  if (parseBackCustomId(customId) !== null) {
-    await handleServersBack(interaction);
     return;
   }
 
