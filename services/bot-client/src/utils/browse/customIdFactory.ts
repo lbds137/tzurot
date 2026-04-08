@@ -98,9 +98,20 @@ function parseCustomIdCore<TFilter extends string, TSort extends string = Browse
   // a hard rejection, matching the filter behavior. This was historically
   // a silent fallback to validSorts[0], which masked tampered/stale
   // customIds and produced inconsistent behavior between the two fields.
+  //
   // When `includeSort: false`, sort isn't in the customId at all and the
-  // returned value is the first entry in validSorts as a safe default
-  // (callers that opt out of sort encoding should not rely on this field).
+  // returned value is `validSorts[0]` as an arbitrary placeholder. Callers
+  // that opt out of sort encoding MUST NOT branch on this field — the
+  // returned value is meaningless.
+  //
+  // **Invariant verified (PR #773, round 4):** all 5 current `includeSort:
+  // false` callers (preset, inspect, memory/browse, memory/search,
+  // settings/voices) are audited mechanically by the 'includeSort: false
+  // contract' test block in `browse.test.ts`, which (1) scans each known
+  // caller for any `.sort` read and (2) scans the commands tree for any
+  // new `includeSort: false` occurrence not in the allowlist. Round 2's
+  // audit missed settings/voices/browse.ts, which is why round 4 replaced
+  // the grep-at-review-time approach with a test that runs in CI.
   let sort: TSort = config.validSorts[0];
   if (config.includeSort) {
     if (parts[4] === undefined) {

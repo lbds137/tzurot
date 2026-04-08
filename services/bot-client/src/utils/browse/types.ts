@@ -66,7 +66,18 @@ export interface ParsedBrowseCustomId<
   page: number;
   /** Filter value */
   filter: TFilter;
-  /** Sort type */
+  /**
+   * Sort type.
+   *
+   * **Contract for `includeSort: false` callers:** when the helper was
+   * created with `includeSort: false`, the customId does not encode a
+   * sort segment and this field is an arbitrary placeholder
+   * (`validSorts[0]`). **DO NOT read or branch on this field** in that
+   * case — the value is meaningless and may change if the default sort
+   * logic is tweaked. See the `includeSort: false contract` test in
+   * `browse.test.ts` which enforces this invariant across current
+   * callers.
+   */
   sort: TSort;
   /** Search query */
   query: string | null;
