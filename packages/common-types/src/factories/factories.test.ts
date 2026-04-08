@@ -13,6 +13,7 @@ import {
   mockCreatePersonalityResponse,
   mockGetPersonalityResponse,
 } from './personality.js';
+import { mockListPersonasResponse } from './persona.js';
 import {
   mockLlmConfigSummary,
   mockListLlmConfigsResponse,
@@ -64,6 +65,49 @@ describe('personality factories', () => {
         canDelete: false,
       });
     });
+
+    // Regression: prior to the duplicate-ID factory fix, multi-personality
+    // tests without explicit `id` overrides produced lists where every item
+    // shared DEFAULT_PERSONALITY_ID. This is invalid data — Discord select
+    // menus reject duplicate option values, and downstream factories like
+    // buildBrowseSelectMenu now throw on duplicates. Index 0 keeps
+    // DEFAULT_PERSONALITY_ID for backwards compatibility; indexes 1+ get
+    // a deterministic suffix.
+    it('should auto-generate unique ids and slugs for multi-personality lists', () => {
+      const response = mockListPersonalitiesResponse([
+        { name: 'First' },
+        { name: 'Second' },
+        { name: 'Third' },
+      ]);
+
+      expect(response.personalities).toHaveLength(3);
+
+      // All ids must be distinct
+      const ids = response.personalities.map(p => p.id);
+      expect(new Set(ids).size).toBe(3);
+
+      // All slugs must be distinct (also rejected as duplicates by Discord)
+      const slugs = response.personalities.map(p => p.slug);
+      expect(new Set(slugs).size).toBe(3);
+
+      // Index 0 keeps the default for backwards compatibility
+      expect(response.personalities[0].id).toBe('33333333-3333-5333-8333-333333333333');
+      expect(response.personalities[0].slug).toBe('test-character');
+    });
+
+    it('should respect explicit id overrides even when generating uniques for siblings', () => {
+      const explicitId = '11111111-1111-5111-8111-111111111111';
+      const response = mockListPersonalitiesResponse([
+        { name: 'First' },
+        { id: explicitId, name: 'Second' },
+        { name: 'Third' },
+      ]);
+
+      expect(response.personalities[1].id).toBe(explicitId);
+      // Distinct overall — index-0 default + explicit + index-2 generated
+      const ids = response.personalities.map(p => p.id);
+      expect(new Set(ids).size).toBe(3);
+    });
   });
 
   describe('mockCreatePersonalityResponse', () => {
@@ -98,6 +142,66 @@ describe('personality factories', () => {
 
       expect(response.personality.name).toBe('CustomName');
       expect(response.personality.isPublic).toBe(true);
+    });
+  });
+});
+
+describe('persona factories', () => {
+  describe('mockListPersonasResponse', () => {
+    it('should create a valid response with the default persona when called with no args', () => {
+      const response = mockListPersonasResponse();
+
+      expect(response.personas).toHaveLength(1);
+      expect(response.personas[0]).toMatchObject({
+        name: 'TestPersona',
+        preferredName: 'Tester',
+      });
+    });
+
+    it('should create a valid response with custom personas', () => {
+      const response = mockListPersonasResponse([
+        { name: 'PersonaA', isDefault: true },
+        { name: 'PersonaB', isDefault: false },
+      ]);
+
+      expect(response.personas).toHaveLength(2);
+      expect(response.personas[0].name).toBe('PersonaA');
+      expect(response.personas[1].name).toBe('PersonaB');
+    });
+
+    // Regression: prior to the duplicate-ID factory fix, multi-persona tests
+    // without explicit `id` overrides produced lists where every item shared
+    // DEFAULT_PERSONA_ID. buildBrowseSelectMenu now throws on duplicate
+    // option values, so this test locks the auto-uniqueness behavior in.
+    it('should auto-generate unique ids for multi-persona lists', () => {
+      const response = mockListPersonasResponse([
+        { name: 'First' },
+        { name: 'Second' },
+        { name: 'Third' },
+      ]);
+
+      expect(response.personas).toHaveLength(3);
+
+      // All ids must be distinct
+      const ids = response.personas.map(p => p.id);
+      expect(new Set(ids).size).toBe(3);
+
+      // Index 0 keeps DEFAULT_PERSONA_ID for backwards compatibility
+      expect(response.personas[0].id).toBe('22222222-2222-5222-8222-222222222222');
+    });
+
+    it('should respect explicit id overrides even when generating uniques for siblings', () => {
+      const explicitId = '99999999-9999-5999-8999-999999999999';
+      const response = mockListPersonasResponse([
+        { name: 'First' },
+        { id: explicitId, name: 'Second' },
+        { name: 'Third' },
+      ]);
+
+      expect(response.personas[1].id).toBe(explicitId);
+      // Distinct overall — index-0 default + explicit + index-2 generated
+      const ids = response.personas.map(p => p.id);
+      expect(new Set(ids).size).toBe(3);
     });
   });
 });
