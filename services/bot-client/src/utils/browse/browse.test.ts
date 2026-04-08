@@ -310,6 +310,34 @@ describe('createBrowseCustomIdHelpers', () => {
       expect(parsed).toEqual(original);
     });
   });
+
+  describe('strict sort validation (symmetric with filter validation)', () => {
+    // Before the "pre-existing is an explanation, not a reason to ignore"
+    // fix, invalid sort values silently fell back to validSorts[0] instead
+    // of rejecting the customId. The old behavior meant tampered or stale
+    // customIds like `test::browse::0::all::invalid::` would parse as
+    // sort='date' (first validSort) rather than being rejected — an
+    // asymmetry with the filter field, which always hard-rejected invalids.
+    // These tests lock in the new symmetric strict-rejection behavior.
+
+    it('should reject customId with invalid sort value', () => {
+      expect(helpers.parse('test::browse::0::all::invalid::')).toBeNull();
+      expect(helpers.parse('test::browse::0::all::invalid::query')).toBeNull();
+      // Filter rejection still works (regression guard for the symmetry)
+      expect(helpers.parse('test::browse::0::invalid::date::')).toBeNull();
+    });
+
+    it('should reject select customId with invalid sort value', () => {
+      expect(helpers.parseSelect('test::browse-select::0::all::invalid::')).toBeNull();
+    });
+
+    it('should reject customId with missing sort segment when includeSort is true', () => {
+      // Malformed: browse format expects 5+ segments, only 4 provided.
+      // (parts.length < minParts also catches this, but the strict-sort
+      // check below it ensures that partial malformations are rejected too.)
+      expect(helpers.parse('test::browse::0::all')).toBeNull();
+    });
+  });
 });
 
 describe('createBrowseCustomIdHelpers with custom TSort', () => {
