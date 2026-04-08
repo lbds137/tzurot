@@ -32,7 +32,8 @@ import {
   handleServers,
   handleServersBrowsePagination,
   handleServersSelect,
-  isServersBrowseInteraction,
+  isServersBrowsePagination,
+  isServersBrowseSelect,
 } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
@@ -143,8 +144,8 @@ async function handleServerAutocomplete(
  * Handle select menu interactions for admin commands
  */
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  // Servers browse select
-  if (isServersBrowseInteraction(interaction.customId)) {
+  // Servers browse select — narrowly matches the browse-select prefix.
+  if (isServersBrowseSelect(interaction.customId)) {
     // Note: Owner check - interaction is on admin command which requires owner
     await handleServersSelect(interaction);
     return;
@@ -163,11 +164,12 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
 
-  // Servers browse pagination. After the Session 5 Part B migration,
-  // the "Back to List" button on the server details view uses the same
-  // browse customId shape, so this single handler catches both regular
-  // pagination clicks and back-button clicks.
-  if (isServersBrowseInteraction(customId)) {
+  // Servers browse pagination — narrowly matches the browse prefix.
+  // After the Session 5 Part B migration, the "Back to List" button on
+  // the server details view also uses this browse customId shape, so
+  // this single guard catches both regular pagination clicks and
+  // back-button clicks.
+  if (isServersBrowsePagination(customId)) {
     await handleServersBrowsePagination(interaction);
     return;
   }

@@ -12,7 +12,8 @@ import {
   handleServers,
   handleServersBrowsePagination,
   handleServersSelect,
-  isServersBrowseInteraction,
+  isServersBrowsePagination,
+  isServersBrowseSelect,
 } from './servers.js';
 import type { ChatInputCommandInteraction, Client, Collection, Guild } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -293,21 +294,25 @@ describe('Admin Servers Browse', () => {
   // by the shared `createBrowseCustomIdHelpers` factory whose behavior
   // is unit-tested in `utils/browse/browse.test.ts`.
 
-  describe('isServersBrowseInteraction', () => {
-    it('should identify servers browse interactions in the new factory format', () => {
+  describe('isServersBrowsePagination', () => {
+    it('should identify servers browse pagination buttons in the new factory format', () => {
       // Factory format: admin-servers::browse::{page}::{filter}::{sort}::{query}
-      expect(isServersBrowseInteraction('admin-servers::browse::0::all::members::')).toBe(true);
-      expect(isServersBrowseInteraction('admin-servers::browse::5::all::name::')).toBe(true);
-      // Select menu prefix is browse-select
-      expect(isServersBrowseInteraction('admin-servers::browse-select::0::all::members::')).toBe(
-        true
+      expect(isServersBrowsePagination('admin-servers::browse::0::all::members::')).toBe(true);
+      expect(isServersBrowsePagination('admin-servers::browse::5::all::name::')).toBe(true);
+    });
+
+    it('should NOT match browse-select prefix (that is isServersBrowseSelect territory)', () => {
+      // After the round 2 split, this function is narrowly scoped to
+      // pagination buttons. Select menu routing uses isServersBrowseSelect.
+      expect(isServersBrowsePagination('admin-servers::browse-select::0::all::members::')).toBe(
+        false
       );
     });
 
     it('should reject non-servers browse interactions', () => {
-      expect(isServersBrowseInteraction('admin-settings::menu')).toBe(false);
-      expect(isServersBrowseInteraction('character::browse')).toBe(false);
-      expect(isServersBrowseInteraction('random')).toBe(false);
+      expect(isServersBrowsePagination('admin-settings::menu')).toBe(false);
+      expect(isServersBrowsePagination('character::browse')).toBe(false);
+      expect(isServersBrowsePagination('random')).toBe(false);
     });
 
     it('should reject the pre-migration select/back prefixes', () => {
@@ -316,8 +321,8 @@ describe('Admin Servers Browse', () => {
       // navigation into `::browse::`, so the old prefixes no longer match.
       // In-flight stale clicks with these formats will not be routed —
       // acceptable because Discord interactions expire within ~15 minutes.
-      expect(isServersBrowseInteraction('admin-servers::select::0::members')).toBe(false);
-      expect(isServersBrowseInteraction('admin-servers::back::0::members')).toBe(false);
+      expect(isServersBrowsePagination('admin-servers::select::0::members')).toBe(false);
+      expect(isServersBrowsePagination('admin-servers::back::0::members')).toBe(false);
     });
 
     it('should match pre-migration `::browse::` prefix but fail to parse downstream', () => {
@@ -330,7 +335,23 @@ describe('Admin Servers Browse', () => {
       // Acceptable trade-off: stale clicks from before the deploy are
       // rare and the alternative (silent success with wrong state) is
       // worse.
-      expect(isServersBrowseInteraction('admin-servers::browse::0::members')).toBe(true);
+      expect(isServersBrowsePagination('admin-servers::browse::0::members')).toBe(true);
+    });
+  });
+
+  describe('isServersBrowseSelect', () => {
+    it('should identify servers browse select menus', () => {
+      expect(isServersBrowseSelect('admin-servers::browse-select::0::all::members::')).toBe(true);
+      expect(isServersBrowseSelect('admin-servers::browse-select::3::all::name::')).toBe(true);
+    });
+
+    it('should NOT match browse pagination prefix', () => {
+      expect(isServersBrowseSelect('admin-servers::browse::0::all::members::')).toBe(false);
+    });
+
+    it('should reject non-servers customIds', () => {
+      expect(isServersBrowseSelect('character::browse-select::0::all::date::')).toBe(false);
+      expect(isServersBrowseSelect('random')).toBe(false);
     });
   });
 
