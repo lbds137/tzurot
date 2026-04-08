@@ -374,15 +374,18 @@ describe('createBrowseCustomIdHelpers with custom TSort', () => {
     // will fail the build if the error it predicts ever goes away. The fact
     // that this test compiles AT ALL proves the overload is enforcing the
     // required-validSorts constraint on custom TSort.
+    //
+    // Note: the variable below IS consumed by the expect() call below, so
+    // it deliberately does NOT use the `_`-prefix convention (which signals
+    // "intentionally unused"). The runtime call still succeeds — overload
+    // enforcement is purely compile-time — so the expect is a real runtime
+    // check, not a lint workaround.
     // @ts-expect-error — widening TSort without validSorts must be rejected
-    const _shouldNotCompile = createBrowseCustomIdHelpers<'all', 'members' | 'name'>({
+    const helpersWithoutValidSorts = createBrowseCustomIdHelpers<'all', 'members' | 'name'>({
       prefix: 'bad',
       validFilters: ['all'],
     });
-    // Consume the variable to prevent "declared but never read" errors.
-    // The runtime call will still succeed (overload enforcement is type-only)
-    // but the point of this test is the compile-time check, not runtime.
-    expect(typeof _shouldNotCompile).toBe('object');
+    expect(typeof helpersWithoutValidSorts).toBe('object');
   });
 });
 
