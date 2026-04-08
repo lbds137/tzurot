@@ -68,11 +68,18 @@ export const browseHelpers = createBrowseCustomIdHelpers<'all'>({
 export const MEMORY_BROWSE_PREFIX = MEMORY_BROWSE_ENTITY_TYPE;
 
 /**
- * Check if a customId belongs to a memory browse pagination interaction.
- * Used by the command's button/select router to claim the interaction.
+ * Check if a customId belongs to a memory browse pagination BUTTON.
+ *
+ * This guard is called exclusively from `handleButton`, which only sees
+ * `ButtonInteraction` — Discord.js dispatches `StringSelectMenuInteraction`
+ * separately to `handleSelectMenu`, so a browse-select customId would never
+ * reach this code path in practice. The function intentionally does NOT
+ * match select customIds: the select menu routing lives inside
+ * `handleSelectMenu` and uses `browseHelpers.isBrowseSelect` directly.
+ * Keeping this narrow means the name and behavior match.
  */
 export function isMemoryBrowsePagination(customId: string): boolean {
-  return browseHelpers.isBrowse(customId) || browseHelpers.isBrowseSelect(customId);
+  return browseHelpers.isBrowse(customId);
 }
 
 interface BrowseResponse {
@@ -88,19 +95,19 @@ interface BuildBrowseViewOptions {
   total: number;
   page: number;
   totalPages: number;
-  personalityFilter: string | undefined;
+  personalityId: string | undefined;
 }
 
 /**
  * Build the memory list embed
  */
 function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
-  const { memories, total, page, totalPages, personalityFilter } = options;
+  const { memories, total, page, totalPages, personalityId } = options;
   const embed = new EmbedBuilder().setTitle('🧠 Memory Browser').setColor(DISCORD_COLORS.BLURPLE);
 
   if (memories.length === 0) {
     embed.setDescription(
-      personalityFilter !== undefined
+      personalityId !== undefined
         ? `No memories found for this personality.\n\nTry browsing all memories or check your search filters.`
         : `You don't have any memories yet.\n\nMemories are created automatically when you chat with personalities.`
     );
@@ -124,7 +131,7 @@ function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
   embed.setDescription(lines.join('\n').trim());
 
   // Build footer
-  const filterLabel = personalityFilter !== undefined ? ' • Filtered' : '';
+  const filterLabel = personalityId !== undefined ? ' • Filtered' : '';
   embed.setFooter({
     text: `${total} memories${filterLabel} • Newest first • Page ${page + 1} of ${totalPages}`,
   });
@@ -228,7 +235,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       total,
       page: 0,
       totalPages,
-      personalityFilter: personalityId,
+      personalityId,
     });
     const components = buildBrowseComponents(memories, 0, totalPages);
 
@@ -320,7 +327,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     total: data.total,
     page: safePage,
     totalPages,
-    personalityFilter: personalityId,
+    personalityId,
   });
   const components = buildBrowseComponents(data.memories, safePage, totalPages);
 
@@ -396,7 +403,7 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
     total: result.data.total,
     page: result.page,
     totalPages,
-    personalityFilter: personalityId,
+    personalityId,
   });
   const components = buildBrowseComponents(result.data.memories, result.page, totalPages);
 
