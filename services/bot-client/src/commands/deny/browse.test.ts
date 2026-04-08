@@ -86,7 +86,30 @@ vi.mock('../../utils/browse/index.js', () => ({
     }
   ),
   ITEMS_PER_PAGE: 10,
-  truncateForSelect: vi.fn((text: string) => text),
+  // The shared select menu factory — return a sentinel object the tests
+  // can recognize without depending on Discord.js internals.
+  buildBrowseSelectMenu: vi.fn(
+    <T>(opts: {
+      items: T[];
+      customId: string;
+      placeholder: string;
+      startIndex: number;
+      formatItem: (
+        item: T,
+        oneBasedNumber: number
+      ) => { label: string; value: string; description?: string };
+    }) => {
+      if (opts.items.length === 0) {
+        return null;
+      }
+      return {
+        type: 'select-menu-row',
+        customId: opts.customId,
+        placeholder: opts.placeholder,
+        options: opts.items.map((item, i) => opts.formatItem(item, opts.startIndex + i + 1)),
+      };
+    }
+  ),
 }));
 
 // Mock detail.js for handleBrowseSelect

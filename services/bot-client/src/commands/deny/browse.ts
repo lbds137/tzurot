@@ -6,13 +6,7 @@
  * Includes a select menu for viewing entry details.
  */
 
-import {
-  EmbedBuilder,
-  escapeMarkdown,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-  ActionRowBuilder,
-} from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type {
   ButtonInteraction,
   StringSelectMenuInteraction,
@@ -25,10 +19,10 @@ import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import {
   buildBrowseButtons,
+  buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
   calculatePaginationState,
   ITEMS_PER_PAGE,
-  truncateForSelect,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 
@@ -81,12 +75,17 @@ function formatEntry(entry: DenylistEntryResponse, index: number): string {
   return `${num}. ${target}\n   ${scopeInfo}${modeBadge} · Added ${date}${reason}`;
 }
 
-/** Format entry for select menu label */
-function formatSelectLabel(entry: DenylistEntryResponse, index: number): string {
-  const num = String(index + 1);
+/**
+ * Format entry for select menu label (unprefixed).
+ *
+ * The numbering and truncation are handled by the shared
+ * `buildBrowseSelectMenu` factory; this helper returns just the
+ * type-emoji + discordId + mode-indicator portion.
+ */
+function formatSelectLabel(entry: DenylistEntryResponse): string {
   const typeEmoji = entry.type === 'USER' ? '\u{1F464}' : '\u{1F3E2}';
   const modeIndicator = entry.mode === 'MUTE' ? ' [MUTE]' : '';
-  return truncateForSelect(`${num}. ${typeEmoji} ${entry.discordId}${modeIndicator}`);
+  return `${typeEmoji} ${entry.discordId}${modeIndicator}`;
 }
 
 /** Sort entries by the specified sort type */
@@ -165,28 +164,24 @@ function buildBrowsePage(
   }
 
   // Add select menu for entry detail view
-  if (pageEntries.length > 0) {
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId(browseHelpers.buildSelect(safePage, filter, sort, null))
-      .setPlaceholder('Select an entry to view/edit...');
-
-    for (let i = 0; i < pageEntries.length; i++) {
-      const entry = pageEntries[i];
-      const label = formatSelectLabel(entry, startIndex + i);
-      const scopeInfo = entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`;
-      selectMenu.addOptions(
-        new StringSelectMenuOptionBuilder()
-          .setLabel(label)
-          .setValue(entry.id)
-          .setDescription(truncateForSelect(scopeInfo))
-      );
-    }
-
-    components.push(
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        selectMenu
-      ) as unknown as ActionRowBuilderType<ButtonBuilder>
-    );
+  const selectRow = buildBrowseSelectMenu<DenylistEntryResponse>({
+    items: pageEntries,
+    customId: browseHelpers.buildSelect(safePage, filter, sort, null),
+    placeholder: 'Select an entry to view/edit...',
+    startIndex,
+    formatItem: entry => ({
+      label: formatSelectLabel(entry),
+      value: entry.id,
+      description: entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`,
+    }),
+  });
+  if (selectRow !== null) {
+    // Cast preserved from pre-migration code: deny's components array is
+    // typed as ActionRowBuilderType<ButtonBuilder>[] for editReply compat,
+    // and the select row needs to be widened to that type. Out of scope
+    // for this migration; revisit if deny adopts the BrowseActionRow
+    // union pattern that admin/servers and others use.
+    components.push(selectRow as unknown as ActionRowBuilderType<ButtonBuilder>);
   }
 
   return { embed, components };
