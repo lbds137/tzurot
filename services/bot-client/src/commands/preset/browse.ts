@@ -14,7 +14,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
@@ -34,8 +33,8 @@ import {
 } from '../../utils/dashboard/index.js';
 import {
   ITEMS_PER_PAGE,
-  truncateForSelect,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
 } from '../../utils/browse/index.js';
 import {
@@ -86,68 +85,42 @@ export function isPresetBrowseSelectInteraction(customId: string): boolean {
   return browseHelpers.isBrowseSelect(customId);
 }
 
-/** Options for buildBrowseSelectMenu */
-interface BrowseSelectMenuOptions {
-  pageItems: LlmConfigSummary[];
-  startIdx: number;
-  isGuestMode: boolean;
-  page: number;
-  filter: PresetBrowseFilter;
-  query: string | null;
+/**
+ * Build the badge string for a preset's select menu label.
+ * Returns the unprefixed badges joined together (e.g., "🌐⭐ ", "🔒 ").
+ * The factory adds the numbering prefix; this helper handles the
+ * scope/default/free badge logic.
+ */
+function buildPresetBadges(preset: LlmConfigSummary): string {
+  const badges: string[] = [];
+  if (preset.isGlobal) {
+    badges.push('🌐');
+  } else if (preset.isOwned) {
+    badges.push('🔒');
+  } else {
+    badges.push('👤');
+  }
+  if (preset.isDefault) {
+    badges.push('⭐');
+  }
+  if (isFreeModel(preset.model)) {
+    badges.push('🆓');
+  }
+  return badges.join('') + ' ';
 }
 
 /**
- * Build select menu for choosing a preset from the list
+ * Build the description for a preset's select menu option.
+ * Shows the short model name plus an "(requires API key)" hint when
+ * the user is in guest mode and the model isn't free.
  */
-function buildBrowseSelectMenu(
-  options: BrowseSelectMenuOptions
-): ActionRowBuilder<StringSelectMenuBuilder> {
-  const { pageItems, startIdx, isGuestMode, page, filter, query } = options;
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(browseHelpers.buildSelect(page, filter, 'name', query))
-    .setPlaceholder('Select a preset to view...')
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  pageItems.forEach((preset, index) => {
-    const num = startIdx + index + 1;
-
-    // Build badges
-    const badges: string[] = [];
-    if (preset.isGlobal) {
-      badges.push('🌐');
-    } else if (preset.isOwned) {
-      badges.push('🔒');
-    } else {
-      badges.push('👤');
-    }
-    if (preset.isDefault) {
-      badges.push('⭐');
-    }
-    if (isFreeModel(preset.model)) {
-      badges.push('🆓');
-    }
-    const badgeStr = badges.join('') + ' ';
-
-    // Label: "1. 🌐⭐ Preset Name"
-    const label = truncateForSelect(`${num}. ${badgeStr}${preset.name}`);
-
-    // Description: model + optional "unavailable in guest mode"
-    const shortModel = preset.model.includes('/') ? preset.model.split('/').pop() : preset.model;
-    let description = shortModel ?? preset.model;
-    if (isGuestMode && !isFreeModel(preset.model)) {
-      description += ' (requires API key)';
-    }
-
-    selectMenu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(label)
-        .setValue(preset.id)
-        .setDescription(truncateForSelect(description))
-    );
-  });
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+function buildPresetDescription(preset: LlmConfigSummary, isGuestMode: boolean): string {
+  const shortModel = preset.model.includes('/') ? preset.model.split('/').pop() : preset.model;
+  let description = shortModel ?? preset.model;
+  if (isGuestMode && !isFreeModel(preset.model)) {
+    description += ' (requires API key)';
+  }
+  return description;
 }
 
 /**
@@ -313,18 +286,20 @@ function buildBrowsePage(
   // Build components
   const components: BrowseActionRow[] = [];
 
-  // Add select menu if there are items on this page
-  if (pageItems.length > 0) {
-    components.push(
-      buildBrowseSelectMenu({
-        pageItems,
-        startIdx,
-        isGuestMode,
-        page: safePage,
-        filter,
-        query,
-      })
-    );
+  // Add select menu — factory returns null on empty pageItems
+  const selectRow = buildBrowseSelectMenu<LlmConfigSummary>({
+    items: pageItems,
+    customId: browseHelpers.buildSelect(safePage, filter, 'name', query),
+    placeholder: 'Select a preset to view...',
+    startIndex: startIdx,
+    formatItem: preset => ({
+      label: `${buildPresetBadges(preset)}${preset.name}`,
+      value: preset.id,
+      description: buildPresetDescription(preset, isGuestMode),
+    }),
+  });
+  if (selectRow !== null) {
+    components.push(selectRow);
   }
 
   // Add pagination buttons if multiple pages
