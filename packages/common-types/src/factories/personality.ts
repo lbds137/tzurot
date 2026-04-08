@@ -115,10 +115,20 @@ export function mockListPersonalitiesResponse(
 
   return ListPersonalitiesResponseSchema.parse({
     personalities:
-      personalities?.map(p => ({
-        id: p.id ?? DEFAULT_PERSONALITY_ID,
+      personalities?.map((p, i) => ({
+        // When `id` and `slug` aren't overridden, generate unique values
+        // per index. Discord select menus reject duplicate option values,
+        // and `buildBrowseSelectMenu` throws on them — multi-personality
+        // tests must produce structurally valid lists. Index 0 keeps
+        // DEFAULT_* values for backwards compatibility with
+        // single-personality tests.
+        id:
+          p.id ??
+          (i === 0
+            ? DEFAULT_PERSONALITY_ID
+            : `33333333-3333-5333-8333-${i.toString(16).padStart(12, '0')}`),
         name: p.name ?? 'TestCharacter',
-        slug: p.slug ?? DEFAULT_SLUG,
+        slug: p.slug ?? (i === 0 ? DEFAULT_SLUG : `${DEFAULT_SLUG}-${i.toString()}`),
         displayName: p.displayName ?? DEFAULT_DISPLAY_NAME,
         isPublic: p.isPublic ?? false,
         isOwned: p.isOwned ?? true,
