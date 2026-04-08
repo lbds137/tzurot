@@ -189,4 +189,38 @@ describe('handleMemoryDetailAction', () => {
     expect(result).toBe(false);
     expect(mockHandleEditButton).not.toHaveBeenCalled();
   });
+
+  // Load-bearing invariant: session-independent actions (edit, lock, view-full,
+  // delete, etc.) must NEVER call onRefresh. interactionHandlers.handleButton
+  // routes these through handleBrowseDetailAction unconditionally — even when
+  // the memory was opened from a search session — because they don't need to
+  // refresh the list. If any case below starts calling onRefresh, memories
+  // opened from search results will silently fail to refresh (refreshBrowseList
+  // bails when session.kind !== 'browse'). See SESSION_INDEPENDENT_ACTIONS in
+  // interactionHandlers.ts for the paired routing decision.
+  describe('session-independent actions never invoke onRefresh', () => {
+    const SESSION_INDEPENDENT_CASES: Array<{
+      action: string;
+      memoryId: string | undefined;
+    }> = [
+      { action: 'edit', memoryId: 'mem-1' },
+      { action: 'edit-truncated', memoryId: 'mem-1' },
+      { action: 'cancel-edit', memoryId: undefined },
+      { action: 'lock', memoryId: 'mem-1' },
+      { action: 'view-full', memoryId: 'mem-1' },
+      { action: 'delete', memoryId: 'mem-1' }, // shows confirmation dialog — no refresh
+    ];
+
+    it.each(SESSION_INDEPENDENT_CASES)(
+      '$action action does not call onRefresh',
+      async ({ action, memoryId }) => {
+        mockParseMemoryActionId.mockReturnValue({ action, memoryId });
+        const interaction = createMockButtonInteraction(`memory-detail::${action}::${memoryId}`);
+
+        await handleMemoryDetailAction(interaction, mockOnRefresh);
+
+        expect(mockOnRefresh).not.toHaveBeenCalled();
+      }
+    );
+  });
 });
