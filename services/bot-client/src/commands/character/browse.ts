@@ -9,13 +9,7 @@
  * - Groups characters by owner for better organization
  */
 
-import {
-  ButtonBuilder,
-  EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-} from 'discord.js';
+import { ButtonBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   createLogger,
@@ -43,8 +37,8 @@ import {
   getSessionManager,
 } from '../../utils/dashboard/index.js';
 import {
-  truncateForSelect,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
 } from '../../utils/browse/index.js';
 import {
@@ -88,58 +82,27 @@ export function isCharacterBrowseSelectInteraction(customId: string): boolean {
   return browseHelpers.isBrowseSelect(customId);
 }
 
-/** Options for buildBrowseSelectMenu */
-interface BrowseSelectMenuOptions {
-  pageItems: ListItem[];
-  startIdx: number;
-  page: number;
-  filter: CharacterBrowseFilter;
-  sort: CharacterBrowseSortType;
-  query: string | null;
+/**
+ * Format a character for the select menu — returns the unprefixed
+ * label (numbering is added by the buildBrowseSelectMenu factory).
+ */
+function formatCharacterSelectLabel(item: ListItem): string {
+  const char = item.char;
+  const visibility = char.isPublic ? '🌐' : '🔒';
+  const ownBadge = item.isOwn ? '✏️' : '';
+  return `${visibility}${ownBadge} ${char.displayName ?? char.name}`;
 }
 
 /**
- * Build select menu for choosing a character from the list
+ * Build the description for a character's select menu option.
+ * Slug-prefixed identifier with an optional ownership marker.
  */
-function buildBrowseSelectMenu(
-  options: BrowseSelectMenuOptions
-): ActionRowBuilder<StringSelectMenuBuilder> {
-  const { pageItems, startIdx, page, filter, sort, query } = options;
-
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(browseHelpers.buildSelect(page, filter, sort, query))
-    .setPlaceholder('Select a character to view/edit...')
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  pageItems.forEach((item, index) => {
-    const num = startIdx + index + 1;
-    const char = item.char;
-
-    // Build badges
-    const visibility = char.isPublic ? '🌐' : '🔒';
-    const ownBadge = item.isOwn ? '✏️' : '';
-
-    // Label: "1. 🌐✏️ Character Name"
-    const label = truncateForSelect(
-      `${num}. ${visibility}${ownBadge} ${char.displayName ?? char.name}`
-    );
-
-    // Description: slug + owner indicator
-    let description = `/${char.slug}`;
-    if (item.isOwn) {
-      description += ' (yours)';
-    }
-
-    selectMenu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(label)
-        .setValue(char.slug) // Use slug as value to fetch full data
-        .setDescription(truncateForSelect(description))
-    );
-  });
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+function buildCharacterDescription(item: ListItem): string {
+  let description = `/${item.char.slug}`;
+  if (item.isOwn) {
+    description += ' (yours)';
+  }
+  return description;
 }
 
 /**
@@ -232,11 +195,21 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
   // Build components
   const components: BrowseActionRow[] = [];
 
-  // Add select menu if there are items on this page
-  if (pageItems.length > 0) {
-    components.push(
-      buildBrowseSelectMenu({ pageItems, startIdx, page: safePage, filter, sort: sortType, query })
-    );
+  // Add select menu — factory returns null on empty pageItems
+  const selectRow = buildBrowseSelectMenu<ListItem>({
+    items: pageItems,
+    customId: browseHelpers.buildSelect(safePage, filter, sortType, query),
+    placeholder: 'Select a character to view/edit...',
+    startIndex: startIdx,
+    formatItem: item => ({
+      label: formatCharacterSelectLabel(item),
+      // Use slug as value to fetch full character data on selection
+      value: item.char.slug,
+      description: buildCharacterDescription(item),
+    }),
+  });
+  if (selectRow !== null) {
+    components.push(selectRow);
   }
 
   // Add pagination buttons if multiple pages or items exist
