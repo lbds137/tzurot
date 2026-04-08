@@ -47,6 +47,14 @@ vi.mock('./db-sync.js', () => ({
 
 vi.mock('./servers.js', () => ({
   handleServers: vi.fn().mockResolvedValue(undefined),
+  handleServersBrowsePagination: vi.fn().mockResolvedValue(undefined),
+  handleServersSelect: vi.fn().mockResolvedValue(undefined),
+  // Real implementation is trivial — just `browseHelpers.isBrowse(customId) ||
+  // browseHelpers.isBrowseSelect(customId)`. Stub it with a simple prefix match
+  // so the routing test doesn't need the full factory initialization.
+  isServersBrowseInteraction: (customId: string) =>
+    customId.startsWith('admin-servers::browse::') ||
+    customId.startsWith('admin-servers::browse-select::'),
 }));
 
 vi.mock('./kick.js', () => ({
@@ -58,7 +66,7 @@ vi.mock('./usage.js', () => ({
 }));
 
 import { handleDbSync } from './db-sync.js';
-import { handleServers } from './servers.js';
+import { handleServers, handleServersBrowsePagination } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 
@@ -231,6 +239,36 @@ describe('admin command', () => {
 
       // Handlers receive DeferredCommandContext, not raw interaction
       expect(handleDbSync).toHaveBeenCalledWith(context);
+    });
+  });
+
+  describe('handleButton (router)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('routes servers browse pagination clicks to handleServersBrowsePagination', async () => {
+      // Factory-format customId matches isServersBrowseInteraction. After the
+      // Session 5 Part B migration, the "Back to List" button also uses this
+      // shape, so this one handler catches both regular pagination clicks and
+      // back-button clicks.
+      const interaction = {
+        customId: 'admin-servers::browse::0::all::members::',
+      } as unknown as Parameters<NonNullable<typeof adminCommand.handleButton>>[0];
+
+      await adminCommand.handleButton?.(interaction);
+
+      expect(handleServersBrowsePagination).toHaveBeenCalledWith(interaction);
+    });
+
+    it('ignores unrelated button customIds', async () => {
+      const interaction = {
+        customId: 'character::browse::0::all::date::',
+      } as unknown as Parameters<NonNullable<typeof adminCommand.handleButton>>[0];
+
+      await adminCommand.handleButton?.(interaction);
+
+      expect(handleServersBrowsePagination).not.toHaveBeenCalled();
     });
   });
 
