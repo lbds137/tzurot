@@ -85,6 +85,16 @@ function createBasePersonaSummary(overrides?: DeepPartial<PersonaSummary>): Pers
 
 /**
  * Create a validated mock for GET /user/persona
+ *
+ * When called with multiple personas and no explicit `id` overrides,
+ * generates unique IDs per index. This is a real-data invariant —
+ * Discord select menus reject duplicate option values, and downstream
+ * factories like `buildBrowseSelectMenu` throw on duplicates. Without
+ * this auto-uniqueness, tests would silently produce invalid lists
+ * and either crash at the factory boundary or render broken Discord
+ * components at runtime. Index 0 keeps `DEFAULT_PERSONA_ID` for
+ * backwards compatibility with single-persona tests.
+ *
  * @throws ZodError if the resulting mock doesn't match the schema
  */
 export function mockListPersonasResponse(
@@ -93,7 +103,16 @@ export function mockListPersonasResponse(
   const defaultList = [createBasePersonaSummary()];
 
   return ListPersonasResponseSchema.parse({
-    personas: personas?.map(p => createBasePersonaSummary(p)) ?? defaultList,
+    personas:
+      personas?.map((p, i) => {
+        const summary = createBasePersonaSummary(p);
+        // When the test doesn't override `id`, generate a unique one
+        // so multi-persona lists don't all share DEFAULT_PERSONA_ID.
+        if (p?.id === undefined && i > 0) {
+          summary.id = `22222222-2222-5222-8222-${i.toString(16).padStart(12, '0')}`;
+        }
+        return summary;
+      }) ?? defaultList,
   });
 }
 

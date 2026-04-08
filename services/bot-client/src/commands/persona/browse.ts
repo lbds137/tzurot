@@ -5,13 +5,7 @@
  * Shows a paginated list of user's personas with select menu to edit
  */
 
-import {
-  ButtonBuilder,
-  EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-} from 'discord.js';
+import { ButtonBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ListPersonasResponse } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -23,8 +17,8 @@ import {
 } from '../../utils/dashboard/index.js';
 import {
   ITEMS_PER_PAGE,
-  truncateForSelect,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
@@ -69,47 +63,19 @@ function sortPersonas(personas: PersonaSummary[], sortType: BrowseSortType): Per
 }
 
 /**
- * Build select menu for choosing a persona from the list
+ * Format a persona for the select menu — returns the unprefixed label
+ * (numbering is added by the buildBrowseSelectMenu factory).
  */
-function buildBrowseSelectMenu(
-  pageItems: PersonaSummary[],
-  startIdx: number,
-  page: number,
-  sort: BrowseSortType
-): ActionRowBuilder<StringSelectMenuBuilder> {
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(browseHelpers.buildSelect(page, 'all', sort, null))
-    .setPlaceholder('Select a persona to view/edit...')
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  pageItems.forEach((persona, index) => {
-    const num = startIdx + index + 1;
-
-    // Build badges
-    const defaultBadge = persona.isDefault ? '⭐' : '';
-    const nameBadge =
-      persona.preferredName !== null &&
-      persona.preferredName !== undefined &&
-      persona.preferredName !== ''
-        ? `(${persona.preferredName})`
-        : '';
-
-    // Label: "1. ⭐ Persona Name (PreferredName)"
-    const label = truncateForSelect(`${num}. ${defaultBadge} ${persona.name} ${nameBadge}`.trim());
-
-    // Description
-    const description = persona.isDefault ? 'Default persona' : 'Click to edit';
-
-    selectMenu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(label)
-        .setValue(persona.id)
-        .setDescription(description)
-    );
-  });
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+function formatPersonaSelectLabel(persona: PersonaSummary): string {
+  const defaultBadge = persona.isDefault ? '⭐' : '';
+  const nameBadge =
+    persona.preferredName !== null &&
+    persona.preferredName !== undefined &&
+    persona.preferredName !== ''
+      ? `(${persona.preferredName})`
+      : '';
+  // .trim() collapses extra whitespace when defaultBadge or nameBadge are empty
+  return `${defaultBadge} ${persona.name} ${nameBadge}`.trim();
 }
 
 /**
@@ -190,9 +156,20 @@ function buildBrowsePage(
   // Build components
   const components: BrowseActionRow[] = [];
 
-  // Add select menu if there are items on this page
-  if (pageItems.length > 0) {
-    components.push(buildBrowseSelectMenu(pageItems, startIdx, safePage, sortType));
+  // Add select menu — factory returns null on empty pageItems
+  const selectRow = buildBrowseSelectMenu<PersonaSummary>({
+    items: pageItems,
+    customId: browseHelpers.buildSelect(safePage, 'all', sortType, null),
+    placeholder: 'Select a persona to view/edit...',
+    startIndex: startIdx,
+    formatItem: persona => ({
+      label: formatPersonaSelectLabel(persona),
+      value: persona.id,
+      description: persona.isDefault ? 'Default persona' : 'Click to edit',
+    }),
+  });
+  if (selectRow !== null) {
+    components.push(selectRow);
   }
 
   // Add pagination buttons if multiple pages or items exist
