@@ -286,13 +286,23 @@ describe('Admin Servers Browse', () => {
     });
   });
 
-  // Note: The old `handleServersBack`, `parseBrowseCustomId`,
-  // `parseSelectCustomId`, and `parseBackCustomId` tests were deleted
-  // in the Session 5 Part B migration. The back button now uses the
-  // same browse customId format as pagination (routes through
-  // `handleServersBrowsePagination`), and customId parsing is handled
-  // by the shared `createBrowseCustomIdHelpers` factory whose behavior
-  // is unit-tested in `utils/browse/browse.test.ts`.
+  // ─── Legacy: tests removed in PR #773 (Session 5 Part B migration) ───
+  //
+  // The following test blocks no longer exist in this file because their
+  // subjects were deleted or replaced:
+  //
+  //   - `handleServersBack` — folded into `handleServersBrowsePagination`
+  //     (the back button now uses the same browse customId format as
+  //     pagination, so a single handler covers both cases)
+  //   - `parseBrowseCustomId` / `parseSelectCustomId` / `parseBackCustomId`
+  //     — replaced by `createBrowseCustomIdHelpers` factory; parser
+  //     behavior is tested in `utils/browse/browse.test.ts`
+  //
+  // This block is intentionally a static comment and not a `describe.skip`:
+  // skipped describes imply "temporarily disabled, re-enable later," but
+  // these tests are permanently gone. This is a "what's intentionally not
+  // here" marker for future readers.
+  // ─────────────────────────────────────────────────────────────────────
 
   describe('isServersBrowsePagination', () => {
     it('should identify servers browse pagination buttons in the new factory format', () => {
