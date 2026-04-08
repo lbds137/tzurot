@@ -354,6 +354,15 @@ export async function handleServers(context: DeferredCommandContext): Promise<vo
 export async function handleServersBrowsePagination(interaction: ButtonInteraction): Promise<void> {
   const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
+    // Stale pre-migration click: `isServersBrowsePagination` is a prefix
+    // match (`admin-servers::browse::`) which is unchanged from the old
+    // 4-part format, but `parse()` rejects the wrong segment count and
+    // returns null. We can't handle this click, so we silently return
+    // without acking — Discord shows "This interaction failed" after the
+    // 3-second timeout. Acceptable trade-off: stale clicks are bounded
+    // to the deploy window (Discord interactions expire in ~15 min) and
+    // the alternative (acking + showing an error) costs a round-trip
+    // to display a message the user can't act on anyway.
     return;
   }
 
@@ -376,6 +385,12 @@ export async function handleServersBrowsePagination(interaction: ButtonInteracti
 export async function handleServersSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   const parsed = browseHelpers.parseSelect(interaction.customId);
   if (parsed === null) {
+    // Stale or malformed customId — silently return without acking. See
+    // the equivalent guard in `handleServersBrowsePagination` above for
+    // the full reasoning. Note: the `::browse-select::` prefix is NEW
+    // (introduced by this PR), so the stale-click window here is the
+    // narrower "post-deploy with cached interaction" case rather than
+    // the full pre-migration history.
     return;
   }
 
