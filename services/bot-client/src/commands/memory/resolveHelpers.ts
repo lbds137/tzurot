@@ -11,9 +11,20 @@ import { resolvePersonalityId } from './autocomplete.js';
 /**
  * Resolve an optional personality input to an ID.
  *
- * @returns `undefined` if input is null/empty (no personality filter),
- *          the resolved ID string on success,
- *          or `null` if resolution failed (error reply already sent).
+ * **Important contract**: on resolution failure, this function calls
+ * `context.editReply` itself to surface the "not found" error to the
+ * user, then returns `null`. Callers MUST return early when they see
+ * `null` — sending a second reply via `editReply` would cause Discord
+ * to reject the duplicate and the user would see "This interaction
+ * failed." The error reply is handled here to centralize the
+ * user-facing wording across browse, search, stats, purge, and focus.
+ *
+ * @returns one of:
+ *   - `undefined` — input was null/empty, no filter to apply
+ *   - `string` — resolved personality UUID
+ *   - `null` — resolution failed; this function ALREADY sent an error
+ *     reply via `context.editReply`, so the caller must return without
+ *     sending any further reply
  */
 export async function resolveOptionalPersonality(
   context: DeferredCommandContext,
@@ -38,8 +49,13 @@ export async function resolveOptionalPersonality(
 /**
  * Resolve a required personality input to an ID.
  *
- * @returns The resolved ID string on success,
- *          or `null` if resolution failed (error reply already sent).
+ * Same null-means-replied contract as {@link resolveOptionalPersonality}:
+ * on failure, this function sends an error reply via `context.editReply`
+ * and returns `null`. Callers MUST return early without sending any
+ * further reply to avoid Discord's double-reply rejection.
+ *
+ * @returns The resolved personality UUID on success, or `null` if
+ *   resolution failed (in which case the error reply has already been sent).
  */
 export async function resolveRequiredPersonality(
   context: DeferredCommandContext,
