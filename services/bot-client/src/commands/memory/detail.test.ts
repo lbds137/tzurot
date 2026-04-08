@@ -6,7 +6,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   buildMemoryActionId,
   parseMemoryActionId,
-  buildMemorySelectMenu,
   buildDetailEmbed,
   buildDetailButtons,
   buildDeleteConfirmButtons,
@@ -119,44 +118,11 @@ describe('Memory Detail', () => {
     });
   });
 
-  describe('buildMemorySelectMenu', () => {
-    it('should build select menu with correct custom ID', () => {
-      const memories = [
-        createMockMemory(),
-        createMockMemory({ id: 'memory-456', content: 'Second memory' }),
-      ];
-      const row = buildMemorySelectMenu(memories, 0, 10);
-
-      expect(row.components).toHaveLength(1);
-      const menu = row.components[0];
-      expect(menu.data.custom_id).toBe(`${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}select`);
-    });
-
-    it('should create select menu component', () => {
-      const memories = [createMockMemory({ isLocked: true })];
-      const row = buildMemorySelectMenu(memories, 0, 10);
-
-      expect(row.components).toHaveLength(1);
-      // Verify it's a select menu by checking it has the expected properties
-      expect(row.components[0].data.custom_id).toBeDefined();
-    });
-
-    it('should handle empty memories array', () => {
-      const row = buildMemorySelectMenu([], 0, 10);
-
-      expect(row.components).toHaveLength(1);
-      expect(row.components[0].data.custom_id).toBe(
-        `${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}select`
-      );
-    });
-
-    it('should set placeholder text', () => {
-      const memories = [createMockMemory()];
-      const row = buildMemorySelectMenu(memories, 0, 10);
-
-      expect(row.components[0].data.placeholder).toBe('Select a memory to manage...');
-    });
-  });
+  // Note: buildMemorySelectMenu was deleted in favor of the shared
+  // buildBrowseSelectMenu factory in utils/browse/selectMenuBuilder.ts.
+  // Coverage of the select menu construction now lives in:
+  //   - selectMenuBuilder.test.ts (factory unit tests)
+  //   - browse.test.ts / search.test.ts (per-call-site behavior)
 
   describe('buildDetailEmbed', () => {
     it('should build embed for unlocked memory', () => {

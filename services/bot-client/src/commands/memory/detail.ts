@@ -9,21 +9,13 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   MessageFlags,
   escapeMarkdown,
   AttachmentBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  formatDateShort,
-  formatDateTimeCompact,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, formatDateTimeCompact } from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
-import { truncateForSelect, MAX_SELECT_LABEL_LENGTH } from '../../utils/browse/index.js';
 
 import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
 import type { MemoryItem } from './detailApi.js';
@@ -36,9 +28,6 @@ const logger = createLogger('memory-detail');
 
 /** Custom ID prefix for memory detail actions */
 export const MEMORY_DETAIL_PREFIX = 'memory-detail';
-
-/** Overhead for select label (number prefix "1. " to "99. " + optional lock icon "🔒 ") */
-const SELECT_LABEL_OVERHEAD = 10;
 
 /**
  * Build custom ID for memory actions
@@ -90,40 +79,6 @@ export function parseMemoryActionId(customId: string): {
     memoryId: parts[2],
     extra: parts[3],
   };
-}
-
-/**
- * Build select menu for choosing a memory from the list
- */
-export function buildMemorySelectMenu(
-  memories: MemoryItem[],
-  page: number,
-  itemsPerPage: number
-): ActionRowBuilder<StringSelectMenuBuilder> {
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(buildMemoryActionId('select'))
-    .setPlaceholder('Select a memory to manage...')
-    .setMinValues(1)
-    .setMaxValues(1);
-
-  memories.forEach((memory, index) => {
-    const num = page * itemsPerPage + index + 1;
-    const lockIcon = memory.isLocked ? '🔒 ' : '';
-    const contentLabel = truncateForSelect(memory.content, {
-      maxLength: MAX_SELECT_LABEL_LENGTH - SELECT_LABEL_OVERHEAD,
-      stripNewlines: true,
-    });
-    const label = `${num}. ${lockIcon}${contentLabel}`;
-
-    selectMenu.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel(label)
-        .setValue(memory.id)
-        .setDescription(`${memory.personalityName} • ${formatDateShort(memory.createdAt)}`)
-    );
-  });
-
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 }
 
 /**

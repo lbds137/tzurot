@@ -34,10 +34,11 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseSelectMenu,
   calculatePaginationState,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
-import { buildMemorySelectMenu, handleMemorySelect } from './detail.js';
+import { buildMemoryActionId, handleMemorySelect } from './detail.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import type { MemoryItem } from './detailApi.js';
 import { truncateContent } from './formatters.js';
@@ -148,12 +149,25 @@ function buildBrowseComponents(
   page: number,
   totalPages: number
 ): BrowseActionRow[] {
-  if (memories.length === 0) {
+  // Empty case is handled by the factory's null return — no explicit
+  // length check needed, the function below short-circuits on null.
+  const selectRow = buildBrowseSelectMenu<MemoryItem>({
+    items: memories,
+    customId: buildMemoryActionId('select'),
+    placeholder: 'Select a memory to manage...',
+    startIndex: page * MEMORIES_PER_PAGE,
+    formatItem: memory => ({
+      label: `${memory.isLocked ? '🔒 ' : ''}${memory.content}`,
+      value: memory.id,
+      description: `${memory.personalityName} • ${formatDateShort(memory.createdAt)}`,
+    }),
+  });
+  if (selectRow === null) {
     return [];
   }
 
   return [
-    buildMemorySelectMenu(memories, page, MEMORIES_PER_PAGE),
+    selectRow,
     buildSharedBrowseButtons({
       currentPage: page,
       totalPages,
