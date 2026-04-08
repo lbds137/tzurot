@@ -237,6 +237,25 @@ describe('Admin Servers Browse', () => {
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
+
+    it('should silently return without acking on stale pre-migration customId', async () => {
+      // Regression guard for the documented stale-click trade-off. The
+      // pre-migration `admin-servers::browse::` format had 4 parts; the new
+      // factory format has 6. `isServersBrowsePagination` is a prefix match
+      // (unchanged between old and new), so stale 4-part clicks pass the
+      // router's guard and reach this handler. `browseHelpers.parse` then
+      // returns null (segment count mismatch), and we silently return WITHOUT
+      // calling `deferUpdate` — Discord shows "This interaction failed" after
+      // the 3s timeout, which is the correct UX for an unactionable click.
+      //
+      // If a future refactor accidentally moves `deferUpdate()` above the
+      // `if (parsed === null)` guard, this test will catch it.
+      const interaction = createMockButtonInteraction('admin-servers::browse::0::members');
+      await handleServersBrowsePagination(interaction);
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+      expect(interaction.editReply).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleServersSelect', () => {
@@ -283,6 +302,25 @@ describe('Admin Servers Browse', () => {
       await handleServersSelect(interaction);
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should silently return without acking on malformed browse-select customId', async () => {
+      // Unlike the pagination handler (which has a real pre-migration stale-
+      // click surface), the `::browse-select::` prefix is new in PR #773, so
+      // this test guards against the more general "prefix matches but parse
+      // fails" case. The mechanism is the same: a 4-part customId passes the
+      // `isServersBrowseSelect` prefix check but fails `parseSelect` on
+      // segment count, and the handler must not call `deferUpdate`.
+      //
+      // Regression guard: if a future refactor moves `deferUpdate()` above
+      // the null-parse guard, this test will catch it.
+      const interaction = createMockSelectInteraction('admin-servers::browse-select::0::members', [
+        '111',
+      ]);
+      await handleServersSelect(interaction);
+
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+      expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });
 
