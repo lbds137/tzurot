@@ -8,21 +8,15 @@
  * which is routed through CommandHandler — not inline collectors.
  */
 
-import {
-  EmbedBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
-  ActionRowBuilder,
-  type ButtonBuilder,
-} from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, type ButtonBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import { createBrowseCustomIdHelpers } from '../../utils/browse/customIdFactory.js';
 import { buildBrowseButtons } from '../../utils/browse/buttonBuilder.js';
+import { buildBrowseSelectMenu } from '../../utils/browse/selectMenuBuilder.js';
 import { calculatePaginationState } from '../../utils/browse/types.js';
 import { ITEMS_PER_PAGE, type BrowseSortType } from '../../utils/browse/constants.js';
-import { truncateForSelect } from '../../utils/browse/truncation.js';
 
 const logger = createLogger('shapes-browse');
 
@@ -101,22 +95,23 @@ export function buildBrowsePage(
 
   const components: ActionRowBuilder[] = [];
 
-  // Select menu for choosing a shape
-  if (pageItems.length > 0) {
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId(shapesBrowseIds.buildSelect(pagination.safePage, 'all', sort, null))
-      .setPlaceholder('Select a shape to view details...');
-
-    for (const shape of pageItems) {
-      selectMenu.addOptions(
-        new StringSelectMenuOptionBuilder()
-          .setLabel(truncateForSelect(shape.name))
-          .setValue(shape.username)
-          .setDescription(`Slug: ${shape.username}`)
-      );
-    }
-
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu));
+  // Select menu for choosing a shape. Numbering is added by the factory
+  // (Shapes was the only browse command without numbered options before
+  // standardization — the embed body already numbered items, now the
+  // select menu matches).
+  const selectRow = buildBrowseSelectMenu<ShapeItem>({
+    items: pageItems,
+    customId: shapesBrowseIds.buildSelect(pagination.safePage, 'all', sort, null),
+    placeholder: 'Select a shape to view details...',
+    startIndex: pagination.startIndex,
+    formatItem: shape => ({
+      label: shape.name,
+      value: shape.username,
+      description: `Slug: ${shape.username}`,
+    }),
+  });
+  if (selectRow !== null) {
+    components.push(selectRow);
   }
 
   // Pagination + sort buttons (only if more than one page or to show sort toggle)
