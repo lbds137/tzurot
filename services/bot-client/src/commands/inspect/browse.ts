@@ -19,7 +19,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  StringSelectMenuBuilder,
   type ButtonInteraction,
   type StringSelectMenuInteraction,
   type MessageActionRowComponentBuilder,
@@ -28,10 +27,9 @@ import { z } from 'zod';
 import { createLogger, DISCORD_COLORS, formatRelativeTime } from '@tzurot/common-types';
 import {
   ITEMS_PER_PAGE,
-  truncateForSelect,
-  truncateForDescription,
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
+  buildBrowseSelectMenu,
   calculatePaginationState,
 } from '../../utils/browse/index.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
@@ -137,36 +135,6 @@ export function buildEmptyBrowseEmbed(): EmbedBuilder {
 }
 
 // ---------------------------------------------------------------------------
-// Select menu builder
-// ---------------------------------------------------------------------------
-
-/** Build select menu for log selection */
-function buildBrowseSelectMenu(
-  pageItems: DiagnosticLogSummary[],
-  startIdx: number,
-  page: number
-): StringSelectMenuBuilder {
-  const options = pageItems.map((log, i) => {
-    const num = startIdx + i + 1;
-    const name = log.personalityName ?? 'Unknown';
-    const label = truncateForSelect(`${num}. ${name} \u00b7 ${log.model}`);
-    const description = truncateForDescription(
-      `${formatRelativeTime(log.createdAt)} \u00b7 ${log.durationMs.toLocaleString()}ms`
-    );
-    return {
-      label,
-      description,
-      value: log.requestId,
-    };
-  });
-
-  return new StringSelectMenuBuilder()
-    .setCustomId(browseHelpers.buildSelect(page, 'all', 'date', null))
-    .setPlaceholder('Select a log to inspect...')
-    .addOptions(options);
-}
-
-// ---------------------------------------------------------------------------
 // Button builders
 // ---------------------------------------------------------------------------
 
@@ -225,14 +193,36 @@ export function buildBrowsePage(
     pagination.totalPages,
     logs.length
   );
-  const selectRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-    buildBrowseSelectMenu(pageItems, pagination.startIndex, pagination.safePage)
-  );
+
+  const selectRow = buildBrowseSelectMenu<DiagnosticLogSummary>({
+    items: pageItems,
+    customId: browseHelpers.buildSelect(pagination.safePage, 'all', 'date', null),
+    placeholder: 'Select a log to inspect...',
+    startIndex: pagination.startIndex,
+    formatItem: log => {
+      const name = log.personalityName ?? 'Unknown';
+      return {
+        label: `${name} \u00b7 ${log.model}`,
+        value: log.requestId,
+        description: `${formatRelativeTime(log.createdAt)} \u00b7 ${log.durationMs.toLocaleString()}ms`,
+      };
+    },
+  });
+
   const buttonRow = buildInspectBrowseButtons(pagination.safePage, pagination.totalPages);
+
+  // selectRow is null only when pageItems is empty, which can't happen here:
+  // we returned early on logs.length === 0 above, and calculatePaginationState
+  // clamps to safePage so the slice is non-empty. Defensive check satisfies
+  // the type system without adding a runtime branch that can fire.
+  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] =
+    selectRow !== null
+      ? [selectRow as unknown as ActionRowBuilder<MessageActionRowComponentBuilder>, buttonRow]
+      : [buttonRow];
 
   return {
     embeds: [embed],
-    components: [selectRow, buttonRow],
+    components,
   };
 }
 
