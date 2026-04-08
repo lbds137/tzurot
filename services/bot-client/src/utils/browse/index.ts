@@ -35,3 +35,10 @@ export { createBrowseCustomIdHelpers } from './customIdFactory.js';
 
 // Button builder
 export { buildBrowseButtons } from './buttonBuilder.js';
+
+// Select menu builder
+export {
+  buildBrowseSelectMenu,
+  type BrowseSelectOption,
+  type BuildBrowseSelectMenuOptions,
+} from './selectMenuBuilder.js';
