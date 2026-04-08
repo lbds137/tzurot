@@ -78,6 +78,12 @@ function parseCustomIdCore<TFilter extends string, TSort extends string = Browse
   }
 
   const parts = customId.split(CUSTOM_ID_DELIMITER);
+  // When `includeSort` is true, `minParts = 5` guarantees `parts[0]`
+  // through `parts[4]` are all defined past this check — the sort block
+  // below can access `parts[4]` without a defensive `=== undefined`
+  // guard. When `includeSort` is false, `minParts = 4` guarantees
+  // `parts[0]` through `parts[3]` (prefix, `browse`, page, filter) are
+  // defined; query access at `parts[queryIndex]` is optional.
   const minParts = config.includeSort ? 5 : 4;
   if (parts.length < minParts) {
     return null;
@@ -114,10 +120,10 @@ function parseCustomIdCore<TFilter extends string, TSort extends string = Browse
   // the grep-at-review-time approach with a test that runs in CI.
   let sort: TSort = config.validSorts[0];
   if (config.includeSort) {
-    if (parts[4] === undefined) {
-      // Missing sort segment where one was expected — malformed, reject.
-      return null;
-    }
+    // `parts[4]` is guaranteed defined here — see the minParts check
+    // above. Previous versions had a defensive `=== undefined` guard
+    // here, but it was unreachable dead code and caused a coverage
+    // miss. The single point of enforcement is the length check.
     const sortValue = parts[4] as TSort;
     if (!config.validSorts.includes(sortValue)) {
       // Invalid sort value — reject, matching filter validation.
