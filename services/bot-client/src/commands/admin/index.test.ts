@@ -49,11 +49,11 @@ vi.mock('./servers.js', () => ({
   handleServers: vi.fn().mockResolvedValue(undefined),
   handleServersBrowsePagination: vi.fn().mockResolvedValue(undefined),
   handleServersSelect: vi.fn().mockResolvedValue(undefined),
-  // Real implementation is trivial — just `browseHelpers.isBrowse(customId) ||
-  // browseHelpers.isBrowseSelect(customId)`. Stub it with a simple prefix match
-  // so the routing test doesn't need the full factory initialization.
-  isServersBrowseInteraction: (customId: string) =>
-    customId.startsWith('admin-servers::browse::') ||
+  // After the round 2 split, these are two narrow guards rather than
+  // one broad `isServersBrowseInteraction`. Each one is a simple prefix
+  // match stub so the routing tests don't need the full factory.
+  isServersBrowsePagination: (customId: string) => customId.startsWith('admin-servers::browse::'),
+  isServersBrowseSelect: (customId: string) =>
     customId.startsWith('admin-servers::browse-select::'),
 }));
 

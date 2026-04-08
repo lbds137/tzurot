@@ -100,15 +100,29 @@ function sortGuilds(guilds: GuildInfo[], sortType: ServerBrowseSortType): GuildI
 }
 
 /**
- * Check if a customId is an admin-servers browse/select interaction.
+ * Check if a customId is an admin-servers browse PAGINATION button.
  *
- * Exported for admin/index.ts routing. The back-to-list button now
- * uses the same customId shape as browse pagination (see
- * `buildBrowsePage` and `buildServerDetailsEmbed`) so `isBrowse`
- * catches both regular pagination clicks and back-button clicks.
+ * After the Session 5 Part B migration, the "Back to List" button on
+ * the server details view also uses the browse customId shape (see
+ * `buildServerDetailsEmbed`), so this single guard catches regular
+ * pagination clicks and back-button clicks.
+ *
+ * Exported for admin/index.ts button router.
  */
-export function isServersBrowseInteraction(customId: string): boolean {
-  return browseHelpers.isBrowse(customId) || browseHelpers.isBrowseSelect(customId);
+export function isServersBrowsePagination(customId: string): boolean {
+  return browseHelpers.isBrowse(customId);
+}
+
+/**
+ * Check if a customId is an admin-servers browse SELECT menu.
+ *
+ * Exported for admin/index.ts select menu router. Kept as a separate
+ * function from `isServersBrowsePagination` because Discord.js dispatches
+ * button and select menu interactions to different handlers — each
+ * router should only match the prefixes it can actually receive.
+ */
+export function isServersBrowseSelect(customId: string): boolean {
+  return browseHelpers.isBrowseSelect(customId);
 }
 
 /**
