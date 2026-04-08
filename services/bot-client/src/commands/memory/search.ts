@@ -30,9 +30,10 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
+  buildBrowseSelectMenu,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
-import { buildMemorySelectMenu, handleMemorySelect, type MemoryItem } from './detail.js';
+import { buildMemoryActionId, handleMemorySelect, type MemoryItem } from './detail.js';
 import { handleMemoryDetailAction } from './detailActionRouter.js';
 import { formatSimilarity, truncateContent } from './formatters.js';
 import {
@@ -189,10 +190,23 @@ function buildSearchView(opts: {
     personalityId,
   });
 
+  // Empty case is handled by the factory's null return.
+  const selectRow = buildBrowseSelectMenu<SearchResult>({
+    items: data.results,
+    customId: buildMemoryActionId('select'),
+    placeholder: 'Select a memory to manage...',
+    startIndex: page * pageSize,
+    formatItem: memory => ({
+      label: `${memory.isLocked ? '🔒 ' : ''}${memory.content}`,
+      value: memory.id,
+      description: `${memory.personalityName} • ${formatDateShort(memory.createdAt)}`,
+    }),
+  });
+
   const components: SearchActionRow[] =
-    data.results.length > 0
+    selectRow !== null
       ? [
-          buildMemorySelectMenu(data.results, page, pageSize),
+          selectRow,
           buildSharedBrowseButtons({
             currentPage: page,
             totalPages,
