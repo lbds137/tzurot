@@ -31,7 +31,7 @@ import {
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
 
-import { truncateForSelect } from './truncation.js';
+import { truncateForSelect, truncateForDescription } from './truncation.js';
 
 /**
  * Discord's hard limit on the number of options in a single select menu.
@@ -43,9 +43,16 @@ const DISCORD_SELECT_OPTIONS_LIMIT = 25;
  * Per-item option fields returned by the caller's `formatItem` callback.
  * Labels and descriptions are returned UNPREFIXED — the factory adds the
  * `${num}. ` numbering and truncates automatically.
+ *
+ * **Contract**: callers must NOT include the `${num}. ` numbering prefix
+ * in `label`. The factory always prepends it, so doubling it produces
+ * labels like `"1. 1. foo"`. The `oneBasedNumber` passed to `formatItem`
+ * is available if a caller wants to reference the display number inside
+ * the description (or elsewhere in the returned fields), but the label
+ * specifically must not embed it.
  */
 export interface BrowseSelectOption {
-  /** Visible label, without the numbering prefix. */
+  /** Visible label, without the numbering prefix (factory adds "${num}. "). */
   label: string;
   /** Value sent back to the bot when this option is selected. Must be unique within the menu. */
   value: string;
@@ -157,7 +164,10 @@ export function buildBrowseSelectMenu<T>(
 
     const option = new StringSelectMenuOptionBuilder().setLabel(label).setValue(value);
     if (rawDescription !== undefined) {
-      option.setDescription(truncateForSelect(rawDescription, { stripNewlines: true }));
+      // Descriptions are anchored to their own limit (MAX_SELECT_DESCRIPTION_LENGTH).
+      // Both constants are 100 today, but using truncateForDescription keeps the
+      // factory semantically correct if the limits ever diverge.
+      option.setDescription(truncateForDescription(rawDescription, { stripNewlines: true }));
     }
     selectMenu.addOptions(option);
   });

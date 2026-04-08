@@ -53,11 +53,16 @@ export function truncateForSelect(
 
 /**
  * Truncate text specifically for select menu descriptions.
- * Convenience function that uses MAX_SELECT_DESCRIPTION_LENGTH.
+ * Pre-fills `maxLength` with `MAX_SELECT_DESCRIPTION_LENGTH`; callers
+ * can still pass other `TruncateOptions` fields like `stripNewlines`.
  *
  * @param text - Text to truncate
+ * @param options - Additional options (maxLength is fixed)
  * @returns Truncated text
  */
-export function truncateForDescription(text: string): string {
-  return truncateForSelect(text, MAX_SELECT_DESCRIPTION_LENGTH);
+export function truncateForDescription(
+  text: string,
+  options?: Omit<TruncateOptions, 'maxLength'>
+): string {
+  return truncateForSelect(text, { maxLength: MAX_SELECT_DESCRIPTION_LENGTH, ...options });
 }
