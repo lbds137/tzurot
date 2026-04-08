@@ -6,6 +6,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ITEMS_PER_PAGE,
   MAX_SELECT_LABEL_LENGTH,
@@ -404,6 +407,106 @@ describe('createBrowseCustomIdHelpers without sort', () => {
       sort: 'name',
       query: 'query',
     });
+  });
+});
+
+describe('includeSort: false contract', () => {
+  // Mechanical enforcement of the contract documented on
+  // `ParsedBrowseCustomId.sort` and in `parseCustomIdCore`: when a helper
+  // is created with `includeSort: false`, the parsed `sort` field is an
+  // arbitrary placeholder (`validSorts[0]`) and MUST NOT be read by callers.
+  //
+  // PR #773 verified via audit that the 4 current `includeSort: false`
+  // callers all honor this contract. This test re-verifies the invariant
+  // at test time so a future contributor can't silently add a `.sort`
+  // read without tripping CI.
+  //
+  // Why a file-content scan and not a type-level check: TypeScript can't
+  // express "this field is a placeholder" — the field has to have *some*
+  // type. Runtime checks can't distinguish "deliberately reading the
+  // placeholder" from "accidentally reading it." A lint rule would work
+  // but adds infrastructure. A targeted test run against the known
+  // caller set is the simplest durable enforcement.
+  const INCLUDE_SORT_FALSE_CALLERS = [
+    '../../commands/preset/browse.ts',
+    '../../commands/inspect/browse.ts',
+    '../../commands/memory/browse.ts',
+    '../../commands/memory/search.ts',
+    '../../commands/settings/voices/browse.ts',
+  ] as const;
+
+  // Resolve caller paths relative to this test file. ESM doesn't have
+  // __dirname, so we derive it from import.meta.url.
+  const thisDir = dirname(fileURLToPath(import.meta.url));
+
+  it.each(INCLUDE_SORT_FALSE_CALLERS)(
+    '%s must not read .sort on a parsed browse result',
+    caller => {
+      const filePath = resolve(thisDir, caller);
+      const content = readFileSync(filePath, 'utf-8');
+
+      // Strict check: these files currently have zero legitimate need for
+      // `.sort` access because none of them use sorting on the parsed
+      // customId, and none need Array.prototype.sort either. If a future
+      // change adds Array.sort() for unrelated reasons, the fix is to use
+      // `.toSorted()` (non-mutating) or `.sort((a,b) => ...)` on a variable
+      // whose name makes the intent obvious AND to update this test to
+      // a narrower pattern (e.g., `/(parsed|browseContext)\.sort\b/`).
+      // The intent is to catch `parsed.sort` reads before review, not to
+      // make sorting arrays forbidden forever.
+      expect(
+        content,
+        `${caller} contains \`.sort\` — either a parsed-result read (bug) ` +
+          `or an Array.sort() call (update this test to a narrower pattern)`
+      ).not.toMatch(/\.sort\b/);
+    }
+  );
+
+  it('caller list is exhaustive — update when adding a new includeSort: false caller', () => {
+    // Also a static check: fail loudly if someone adds a new
+    // `includeSort: false` caller without adding it to the list above.
+    // The check is a grep-style scan of the commands tree rooted at the
+    // service's src/commands dir. If it finds more `includeSort: false`
+    // occurrences than the known callers, this test fails and the new
+    // caller must either be added to INCLUDE_SORT_FALSE_CALLERS or the
+    // test must be updated to reflect the new set.
+    const commandsDir = resolve(thisDir, '../../commands');
+
+    // Walk the commands tree looking for `includeSort: false`. Using a
+    // plain readdirSync walk keeps the test dependency-free (no glob lib).
+    const foundFiles = new Set<string>();
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir)) {
+        const full = resolve(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) {
+          walk(full);
+        } else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts')) {
+          const text = readFileSync(full, 'utf-8');
+          if (/includeSort:\s*false/.test(text)) {
+            foundFiles.add(full);
+          }
+        }
+      }
+    };
+    walk(commandsDir);
+
+    const expectedFiles = new Set(INCLUDE_SORT_FALSE_CALLERS.map(c => resolve(thisDir, c)));
+
+    // Symmetric diff: both directions must be empty.
+    const unexpected = [...foundFiles].filter(f => !expectedFiles.has(f));
+    const missing = [...expectedFiles].filter(f => !foundFiles.has(f));
+
+    expect(
+      unexpected,
+      `New includeSort: false caller(s) not in allowlist — add them to ` +
+        `INCLUDE_SORT_FALSE_CALLERS and verify they don't read .sort`
+    ).toEqual([]);
+    expect(
+      missing,
+      `Allowlist references file(s) that no longer use includeSort: false — ` +
+        `remove them from INCLUDE_SORT_FALSE_CALLERS`
+    ).toEqual([]);
   });
 });
 
