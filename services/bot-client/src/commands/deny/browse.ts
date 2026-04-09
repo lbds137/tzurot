@@ -21,6 +21,7 @@ import {
   buildBrowseButtons,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
+  createBrowseSortToggle,
   calculatePaginationState,
   ITEMS_PER_PAGE,
   type BrowseSortType,
@@ -158,7 +159,13 @@ function buildBrowsePage(
         query: null,
         buildCustomId: browseHelpers.build,
         buildInfoId: browseHelpers.buildInfo,
-        labels: { sortByName: 'Sort by ID' },
+        // Deny entries are keyed by ID (not name), so override the
+        // default 'Sort A-Z' label to reflect that. The rest of the
+        // default BrowseSortType toggle (toggling between 'name' and
+        // 'date', the emoji choices) is preserved.
+        sortToggle: createBrowseSortToggle({
+          sortByName: { label: 'Sort by ID', emoji: '🔤' },
+        }),
       })
     );
   }

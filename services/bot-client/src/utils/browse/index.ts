@@ -34,7 +34,12 @@ export { calculatePaginationState } from './types.js';
 export { createBrowseCustomIdHelpers } from './customIdFactory.js';
 
 // Button builder
-export { buildBrowseButtons } from './buttonBuilder.js';
+export {
+  buildBrowseButtons,
+  createBrowseSortToggle,
+  type BrowseSortToggle,
+  type BrowseSortDisplay,
+} from './buttonBuilder.js';
 
 // Select menu builder
 export {
