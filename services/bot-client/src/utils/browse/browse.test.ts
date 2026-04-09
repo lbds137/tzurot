@@ -688,22 +688,187 @@ describe('buildBrowseButtons', async () => {
     });
   });
 
-  describe('custom labels', () => {
-    it('should use custom button labels', () => {
+  describe('createBrowseSortToggle helper', () => {
+    // Imported via the dynamic import at the top of the parent describe,
+    // but Node can't destructure an async import at that depth — re-import
+    // here. The overhead is negligible (cached) and keeps this block
+    // self-contained.
+    it('returns default labels when no overrides given', async () => {
+      const { createBrowseSortToggle } = await import('./buttonBuilder.js');
+      const toggle = createBrowseSortToggle();
+
+      expect(toggle.next('date')).toBe('name');
+      expect(toggle.next('name')).toBe('date');
+      expect(toggle.labelFor('name')).toEqual({ label: 'Sort A-Z', emoji: '🔤' });
+      expect(toggle.labelFor('date')).toEqual({ label: 'Sort by Date', emoji: '📅' });
+    });
+
+    it('overrides sortByName while preserving sortByDate default', async () => {
+      const { createBrowseSortToggle } = await import('./buttonBuilder.js');
+      const toggle = createBrowseSortToggle({
+        sortByName: { label: 'Sort by ID', emoji: '🆔' },
+      });
+
+      expect(toggle.labelFor('name')).toEqual({ label: 'Sort by ID', emoji: '🆔' });
+      // sortByDate untouched
+      expect(toggle.labelFor('date')).toEqual({ label: 'Sort by Date', emoji: '📅' });
+    });
+
+    it('overrides both sortByName and sortByDate', async () => {
+      const { createBrowseSortToggle } = await import('./buttonBuilder.js');
+      const toggle = createBrowseSortToggle({
+        sortByName: { label: 'ABC', emoji: '🔠' },
+        sortByDate: { label: 'Recent', emoji: '🕒' },
+      });
+
+      expect(toggle.labelFor('name')).toEqual({ label: 'ABC', emoji: '🔠' });
+      expect(toggle.labelFor('date')).toEqual({ label: 'Recent', emoji: '🕒' });
+    });
+
+    it('custom labels flow through buildBrowseButtons when TSort = BrowseSortType', async () => {
+      const { createBrowseSortToggle } = await import('./buttonBuilder.js');
       const row = buildBrowseButtons({
         ...baseConfig,
-        labels: {
-          previous: 'Back',
-          next: 'Forward',
-          sortByName: 'ABC',
-          sortByDate: 'Recent',
-        },
+        currentSort: 'date',
+        sortToggle: createBrowseSortToggle({
+          sortByName: { label: 'ABC', emoji: '🔠' },
+        }),
       });
-      const buttons = row.components;
+      const sortButton = row.components[3];
+      const buttonData = getButtonData(sortButton);
 
-      expect(getButtonData(buttons[0]).label).toBe('Back');
-      expect(getButtonData(buttons[2]).label).toBe('Forward');
-      expect(getButtonData(buttons[3]).label).toBe('ABC'); // currentSort is 'date', so shows name option
+      // currentSort is 'date', so the button shows the label for the
+      // NEXT sort ('name'), which is our overridden 'ABC' label.
+      expect(buttonData.label).toBe('ABC');
+      expect(buttonData.emoji?.name).toBe('🔠');
+      expect(buttonData.custom_id).toContain('::name::');
+    });
+  });
+
+  describe('custom TSort path (generic)', () => {
+    // These tests exercise the second overload where TSort is widened
+    // beyond BrowseSortType. The factory requires sortToggle in this
+    // case — the compile-time assertion test below enforces that via
+    // a `@ts-expect-error` directive (backticks intentional — without
+    // them, TypeScript would treat the comment itself as a real
+    // suppression directive and complain about it being unused).
+
+    type CustomSort = 'priority' | 'alpha' | 'recent';
+
+    const customConfig = {
+      currentPage: 0,
+      totalPages: 3,
+      filter: 'all' as const,
+      currentSort: 'priority' as CustomSort,
+      query: null,
+      buildCustomId: (page: number, filter: string, sort: string, query: string | null) =>
+        `custom::browse::${page}::${filter}::${sort}::${query ?? ''}`,
+      buildInfoId: () => 'custom::browse::info',
+    };
+
+    it('uses caller-provided sortToggle for a 3-element cycle', () => {
+      // 3-element cycle demonstrates the generic handles more than the
+      // binary toggle that `BrowseSortType` supports.
+      const cycle: CustomSort[] = ['priority', 'alpha', 'recent'];
+      const sortToggle = {
+        next: (current: CustomSort): CustomSort => {
+          const idx = cycle.indexOf(current);
+          return cycle[(idx + 1) % cycle.length];
+        },
+        labelFor: (sort: CustomSort) =>
+          ({
+            priority: { label: 'By Priority', emoji: '⭐' },
+            alpha: { label: 'A-Z', emoji: '🔤' },
+            recent: { label: 'Recent', emoji: '🕒' },
+          })[sort],
+      };
+
+      const row = buildBrowseButtons<'all', CustomSort>({
+        ...customConfig,
+        sortToggle,
+      });
+      const sortButton = row.components[3];
+      const buttonData = getButtonData(sortButton);
+
+      // currentSort is 'priority', next is 'alpha', label is 'A-Z'
+      expect(buttonData.custom_id).toContain('::alpha::');
+      expect(buttonData.label).toBe('A-Z');
+      expect(buttonData.emoji?.name).toBe('🔤');
+    });
+
+    it('advances through the cycle on repeated toggles', () => {
+      const cycle: CustomSort[] = ['priority', 'alpha', 'recent'];
+      const sortToggle = {
+        next: (current: CustomSort): CustomSort => {
+          const idx = cycle.indexOf(current);
+          return cycle[(idx + 1) % cycle.length];
+        },
+        labelFor: (sort: CustomSort) =>
+          ({
+            priority: { label: 'By Priority', emoji: '⭐' },
+            alpha: { label: 'A-Z', emoji: '🔤' },
+            recent: { label: 'Recent', emoji: '🕒' },
+          })[sort],
+      };
+
+      // Start at 'alpha' — next should be 'recent'
+      const rowFromAlpha = buildBrowseButtons<'all', CustomSort>({
+        ...customConfig,
+        currentSort: 'alpha',
+        sortToggle,
+      });
+      expect(getButtonData(rowFromAlpha.components[3]).custom_id).toContain('::recent::');
+      expect(getButtonData(rowFromAlpha.components[3]).label).toBe('Recent');
+
+      // Start at 'recent' — next should wrap to 'priority'
+      const rowFromRecent = buildBrowseButtons<'all', CustomSort>({
+        ...customConfig,
+        currentSort: 'recent',
+        sortToggle,
+      });
+      expect(getButtonData(rowFromRecent.components[3]).custom_id).toContain('::priority::');
+      expect(getButtonData(rowFromRecent.components[3]).label).toBe('By Priority');
+    });
+
+    it('refuses to compile when TSort is widened without matching sortToggle', () => {
+      // Compile-time assertion: the second overload requires `sortToggle`
+      // when TSort is widened beyond BrowseSortType. If the overload is
+      // accidentally relaxed (e.g., sortToggle becomes optional on
+      // overload 2), this `@ts-expect-error` stops being an error and
+      // the build fails.
+      //
+      // Mirrors the parallel assertion for `createBrowseCustomIdHelpers`
+      // in the 'createBrowseCustomIdHelpers with custom TSort' describe
+      // block earlier in this file. Same pattern, same rationale: catch
+      // the footgun at compile time rather than at runtime (where a
+      // missing sortToggle would silently fall back to the default
+      // BrowseSortType toggle — wrong behavior for non-BrowseSortType
+      // callers).
+      //
+      // The config is inlined (not the `customConfig` fixture) because
+      // TypeScript's overload resolution needs precisely-typed literals
+      // to discriminate between overload 1 (BrowseSortType) and overload
+      // 2 (custom TSort). The fixture's `sort: string` / `filter: string`
+      // parameters on `buildCustomId` are too loose — the inlined form
+      // lets TypeScript infer against the narrow types the overloads
+      // actually constrain.
+      //
+      // The variable IS consumed by the expect below, so it deliberately
+      // does NOT use the `_`-prefix convention (which signals
+      // "intentionally unused"). The runtime call still succeeds —
+      // overload enforcement is purely compile-time.
+      // @ts-expect-error — widening TSort without sortToggle must be rejected
+      const buttonsWithoutSortToggle = buildBrowseButtons<'all', CustomSort>({
+        currentPage: 0,
+        totalPages: 3,
+        filter: 'all',
+        currentSort: 'priority',
+        query: null,
+        buildCustomId: (page: number, _filter: 'all', sort: CustomSort, query: string | null) =>
+          `custom::browse::${page}::all::${sort}::${query ?? ''}`,
+        buildInfoId: () => 'custom::browse::info',
+      });
+      expect(buttonsWithoutSortToggle.components.length).toBeGreaterThan(0);
     });
   });
 
