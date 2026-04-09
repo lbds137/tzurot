@@ -22,7 +22,12 @@ import {
 import type { ButtonInteraction, StringSelectMenuInteraction, Guild } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { buildBrowseSelectMenu, createBrowseCustomIdHelpers } from '../../utils/browse/index.js';
+import {
+  buildBrowseButtons,
+  buildBrowseSelectMenu,
+  createBrowseCustomIdHelpers,
+  type BrowseSortToggle,
+} from '../../utils/browse/index.js';
 
 const logger = createLogger('admin-servers');
 
@@ -139,75 +144,29 @@ function formatMemberCount(count: number): string {
 }
 
 /**
- * Build pagination and sort buttons.
+ * Sort toggle for admin/servers' custom `'members' | 'name'` sort space.
  *
- * **Why this is local instead of using shared `buildBrowseButtons`:**
- * `utils/browse/buttonBuilder.ts` hardcodes `currentSort: BrowseSortType`
- * (`'name' | 'date'`) in both its type signature AND its toggle logic
- * (`currentSort === 'date' ? 'name' : 'date'`). It can't represent the
- * `'members' | 'name'` sort space that this admin command uses, and the
- * binary toggle assumes the standard 2-option set.
+ * The shared `buildBrowseButtons` factory requires callers that widen
+ * `TSort` beyond the default `BrowseSortType` to provide a matching
+ * `sortToggle` at compile time. This constant is that toggle:
  *
- * The right long-term fix is to extend `buildBrowseButtons` to accept a
- * generic `TSort` parameter (parallel to what PR #773 did for
- * `createBrowseCustomIdHelpers`), with caller-provided toggle logic and
- * per-sort labels/emojis. That's tracked as a backlog item — see
- * `[LIFT]` "Extend buildBrowseButtons to support custom TSort generic"
- * in BACKLOG.md. Until then, this local builder is the deliberate
- * exception that proves the rule: a new browse command with a custom
- * sort space currently has to either roll its own buttons or live with
- * the standard `'name' | 'date'` toggle.
+ * - `next('members') → 'name'` and vice versa (binary flip)
+ * - `labelFor('name')` shows "Sort A-Z" with 🔤 (A-Z is the action the
+ *   button performs when currentSort is 'members')
+ * - `labelFor('members')` shows "Sort by Members" with 👥 (the action
+ *   when currentSort is 'name')
+ *
+ * The button shows the label/emoji for the *next* sort — i.e., the
+ * action the button performs — not the current sort. See
+ * `buildBrowseButtons` in `utils/browse/buttonBuilder.ts` for details.
  */
-function buildButtons(
-  currentPage: number,
-  totalPages: number,
-  currentSort: ServerBrowseSortType
-): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>();
-
-  // Previous button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(browseHelpers.build(currentPage - 1, 'all', currentSort, null))
-      .setLabel('Previous')
-      .setEmoji('◀️')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage === 0)
-  );
-
-  // Page indicator (disabled)
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(browseHelpers.buildInfo())
-      .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
-  );
-
-  // Next button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(browseHelpers.build(currentPage + 1, 'all', currentSort, null))
-      .setLabel('Next')
-      .setEmoji('▶️')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= totalPages - 1)
-  );
-
-  // Sort toggle button
-  const newSort: ServerBrowseSortType = currentSort === 'members' ? 'name' : 'members';
-  const sortEmoji = currentSort === 'members' ? '🔤' : '👥';
-  const sortLabel = currentSort === 'members' ? 'Sort A-Z' : 'Sort by Members';
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(browseHelpers.build(currentPage, 'all', newSort, null))
-      .setLabel(sortLabel)
-      .setEmoji(sortEmoji)
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  return row;
-}
+const SERVERS_SORT_TOGGLE: BrowseSortToggle<ServerBrowseSortType> = {
+  next: current => (current === 'members' ? 'name' : 'members'),
+  labelFor: sort =>
+    sort === 'name'
+      ? { label: 'Sort A-Z', emoji: '🔤' }
+      : { label: 'Sort by Members', emoji: '👥' },
+};
 
 /** Union type for action rows */
 type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
@@ -287,7 +246,18 @@ function buildBrowsePage(
 
   // Add pagination buttons if items exist
   if (sortedGuilds.length > 0) {
-    components.push(buildButtons(safePage, totalPages, sortType));
+    components.push(
+      buildBrowseButtons<ServerBrowseFilter, ServerBrowseSortType>({
+        currentPage: safePage,
+        totalPages,
+        filter: 'all',
+        currentSort: sortType,
+        query: null,
+        buildCustomId: browseHelpers.build,
+        buildInfoId: browseHelpers.buildInfo,
+        sortToggle: SERVERS_SORT_TOGGLE,
+      })
+    );
   }
 
   return { embed, components };

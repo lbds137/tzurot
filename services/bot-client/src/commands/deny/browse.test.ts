@@ -70,6 +70,18 @@ vi.mock('../../utils/browse/index.js', () => ({
     browseSelectPrefix: 'deny::browse-select',
   })),
   buildBrowseButtons: vi.fn(() => ({ type: 'action-row', components: [] })),
+  createBrowseSortToggle: vi.fn(
+    (overrides?: {
+      sortByName?: { label: string; emoji: string };
+      sortByDate?: { label: string; emoji: string };
+    }) => ({
+      next: (current: string) => (current === 'date' ? 'name' : 'date'),
+      labelFor: (sort: string) =>
+        sort === 'name'
+          ? (overrides?.sortByName ?? { label: 'Sort A-Z', emoji: '🔤' })
+          : (overrides?.sortByDate ?? { label: 'Sort by Date', emoji: '📅' }),
+    })
+  ),
   calculatePaginationState: vi.fn(
     (totalItems: number, itemsPerPage: number, requestedPage: number) => {
       const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
