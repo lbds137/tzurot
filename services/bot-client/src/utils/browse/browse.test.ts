@@ -6,9 +6,6 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   ITEMS_PER_PAGE,
   MAX_SELECT_LABEL_LENGTH,
@@ -404,16 +401,18 @@ describe('createBrowseCustomIdHelpers without sort', () => {
 
   it('should parse customId without sort', () => {
     const result = helpers.parse('preset::browse::0::global::query');
+    // Step 7: `includeSort: false` callers get a discriminated
+    // `ParsedBrowseCustomIdWithoutSort` variant — no `sort` field,
+    // neither at the type level nor at runtime. Previous versions
+    // returned a `validSorts[0]` placeholder with a "don't read this"
+    // contract; the discriminated return type makes reading `.sort`
+    // a compile error AND the field is stripped at runtime.
     expect(result).toEqual({
       page: 0,
       filter: 'global',
-      // Default fallback when sort isn't encoded — uses validSorts[0]
-      // ('name' in the default config). When `includeSort: false`, the
-      // caller has explicitly opted out of sort encoding and should not
-      // rely on this default for anything observable.
-      sort: 'name',
       query: 'query',
     });
+    expect(Object.hasOwn(result ?? {}, 'sort')).toBe(false);
   });
 
   it('should build select customId without sort', () => {
@@ -427,152 +426,70 @@ describe('createBrowseCustomIdHelpers without sort', () => {
   });
 });
 
-describe('includeSort: false contract', () => {
-  // Mechanical enforcement of the contract documented on
-  // `ParsedBrowseCustomId.sort` and in `parseCustomIdCore`: when a helper
-  // is created with `includeSort: false`, the parsed `sort` field is an
-  // arbitrary placeholder (`validSorts[0]`) and MUST NOT be read by callers.
+describe('includeSort: false discriminated return type (Step 7)', () => {
+  // The previous "includeSort: false contract" block in this file
+  // (PR #773 rounds 4-5) enforced via a file-content scan that callers
+  // never read `parsed.sort` when `includeSort: false`. Step 7 replaces
+  // that enforcement with a type-level split: `createBrowseCustomIdHelpers`
+  // now returns `BrowseCustomIdHelpersWithoutSort<TFilter>` for the
+  // includeSort-false case, and its `parse`/`parseSelect` return a
+  // `ParsedBrowseCustomIdWithoutSort<TFilter>` that has NO `sort`
+  // field at all — reading it is a TypeScript compile error AND the
+  // field is stripped at runtime via object destructure.
   //
-  // PR #773 round 4 replaced a commit-message-documented grep audit with
-  // this test after round 4's own exhaustiveness check caught a 5th
-  // caller (`settings/voices/browse.ts`) that the round-2 grep missed
-  // because it was added later. As of that round there are 5 callers;
-  // see `INCLUDE_SORT_FALSE_CALLERS` below for the authoritative list
-  // (the exhaustiveness test further down keeps that list honest).
-  //
-  // Why a file-content scan and not a type-level check: TypeScript can't
-  // express "this field is a placeholder" — the field has to have *some*
-  // type. Runtime checks can't distinguish "deliberately reading the
-  // placeholder" from "accidentally reading it." A lint rule would work
-  // but adds infrastructure. A targeted test run against the known
-  // caller set is the simplest durable enforcement.
-  const INCLUDE_SORT_FALSE_CALLERS = [
-    '../../commands/preset/browse.ts',
-    '../../commands/inspect/browse.ts',
-    '../../commands/memory/browse.ts',
-    '../../commands/memory/search.ts',
-    '../../commands/settings/voices/browse.ts',
-  ] as const;
+  // This describe block has two tests:
+  // 1. Runtime strip: a real parse result has no `sort` property (via
+  //    `Object.hasOwn`). This catches regressions where someone tries
+  //    to optimize away the strip destructure at runtime.
+  // 2. Compile-time error: a caller that tries to read `.sort` on an
+  //    includeSort-false parse result fails to compile. Uses the same
+  //    `ts-expect-error` pattern as the other compile-time assertions
+  //    in this file (see `createBrowseCustomIdHelpers with custom TSort`
+  //    and the `buildBrowseButtons` generic tests).
 
-  // Resolve caller paths relative to this test file. ESM doesn't have
-  // __dirname, so we derive it from import.meta.url.
-  const thisDir = dirname(fileURLToPath(import.meta.url));
-
-  // Variable names that conventionally hold a `browseHelpers.parse(...)` or
-  // `browseHelpers.parseSelect(...)` result in this codebase. The regex is
-  // deliberately narrower than a blanket `\.sort\b` so that legitimate
-  // `Array.prototype.sort()` calls on arbitrary local variables don't trip
-  // the contract — memory/browse.ts in particular might plausibly need to
-  // sort a local memory list in the future, and that shouldn't fail this
-  // test.
-  //
-  // The trade-off: if a future caller stores a parse result in a variable
-  // whose name isn't in this list (e.g., `const x = helpers.parse(...)`
-  // followed by `x.sort`), the check will miss it. Mitigations:
-  // 1. The exhaustiveness test below keeps the caller set explicit, so
-  //    new `includeSort: false` callers get code review that should
-  //    catch an unusual variable name.
-  // 2. The JSDoc on `ParsedBrowseCustomId.sort` documents the contract,
-  //    so a reviewer seeing `x.sort` has a clear reference to flag.
-  // 3. Adding a new name to this list is a one-line fix and the failure
-  //    is local, so future-maintenance cost is bounded.
-  const PARSE_RESULT_VAR_NAMES =
-    '(?:parsed|parseResult|browseContext|browseResult|customIdParsed|browseData|browseParsed)';
-  const PARSE_RESULT_SORT_ACCESS_RE = new RegExp(`\\b${PARSE_RESULT_VAR_NAMES}\\.sort\\b`);
-
-  it.each(INCLUDE_SORT_FALSE_CALLERS)(
-    '%s must not read .sort on a parsed browse result',
-    caller => {
-      const filePath = resolve(thisDir, caller);
-      const content = readFileSync(filePath, 'utf-8');
-
-      const match = PARSE_RESULT_SORT_ACCESS_RE.exec(content);
-      expect(
-        match,
-        `${caller} contains \`${match?.[0] ?? '<none>'}\` — reading .sort ` +
-          `on a parsed browse result violates the includeSort: false contract. ` +
-          `If this is intentional (e.g., you just added a new caller that ` +
-          `DOES use sort), either switch to \`includeSort: true\` or remove ` +
-          `this file from INCLUDE_SORT_FALSE_CALLERS.`
-      ).toBeNull();
-    }
-  );
-
-  it('regex sanity check: detects violations, ignores Array.sort on other names', () => {
-    // Meta-test: verify the narrowed regex actually does what we want. If
-    // someone accidentally breaks the alternation list (typo, regex escape
-    // error), this test fails loudly instead of silently passing the
-    // per-caller checks above.
-    const violations = [
-      'const sort = parsed.sort;',
-      'return { sort: parseResult.sort };',
-      'if (browseContext.sort === "name") { ... }',
-      'const { sort } = browseResult;\nreturn sort;\n// later: browseResult.sort',
-      'customIdParsed.sort',
-      'browseData.sort',
-      'browseParsed.sort',
-    ];
-    for (const v of violations) {
-      expect(PARSE_RESULT_SORT_ACCESS_RE.test(v), `should match: ${v}`).toBe(true);
-    }
-
-    const safe = [
-      'memories.sort((a, b) => a.createdAt - b.createdAt)',
-      'const sorted = [...items].sort(compareByName)',
-      'results.sort()',
-      'const sort: Sort = "name"', // bare `sort` identifier, not a property access
-      'parsedMemories.sort((a, b) => ...)', // "parsed" is a prefix, not a whole word
-    ];
-    for (const s of safe) {
-      expect(PARSE_RESULT_SORT_ACCESS_RE.test(s), `should NOT match: ${s}`).toBe(false);
-    }
+  const withoutSortHelpers = createBrowseCustomIdHelpers({
+    prefix: 'test-no-sort',
+    validFilters: ['all'] as const,
+    includeSort: false,
   });
 
-  it('caller list is exhaustive — update when adding a new includeSort: false caller', () => {
-    // Also a static check: fail loudly if someone adds a new
-    // `includeSort: false` caller without adding it to the list above.
-    // The check is a grep-style scan of the commands tree rooted at the
-    // service's src/commands dir. If it finds more `includeSort: false`
-    // occurrences than the known callers, this test fails and the new
-    // caller must either be added to INCLUDE_SORT_FALSE_CALLERS or the
-    // test must be updated to reflect the new set.
-    const commandsDir = resolve(thisDir, '../../commands');
+  it('parse result has no sort property at runtime (stripped via destructure)', () => {
+    const result = withoutSortHelpers.parse('test-no-sort::browse::0::all::');
+    expect(result).not.toBeNull();
+    // Object.hasOwn is the correct check for "field literally absent",
+    // stronger than `result.sort === undefined` which would be true for
+    // a field that exists with value undefined.
+    expect(Object.hasOwn(result ?? {}, 'sort')).toBe(false);
+    // Non-sort fields are still present
+    expect(result?.page).toBe(0);
+    expect(result?.filter).toBe('all');
+  });
 
-    // Walk the commands tree looking for `includeSort: false`. Using a
-    // plain readdirSync walk keeps the test dependency-free (no glob lib).
-    const foundFiles = new Set<string>();
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir)) {
-        const full = resolve(dir, entry);
-        const stat = statSync(full);
-        if (stat.isDirectory()) {
-          walk(full);
-        } else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts')) {
-          const text = readFileSync(full, 'utf-8');
-          if (/includeSort:\s*false/.test(text)) {
-            foundFiles.add(full);
-          }
-        }
-      }
-    };
-    walk(commandsDir);
+  it('parseSelect result also strips sort at runtime', () => {
+    const result = withoutSortHelpers.parseSelect('test-no-sort::browse-select::2::all::');
+    expect(result).not.toBeNull();
+    expect(Object.hasOwn(result ?? {}, 'sort')).toBe(false);
+    expect(result?.page).toBe(2);
+  });
 
-    const expectedFiles = new Set(INCLUDE_SORT_FALSE_CALLERS.map(c => resolve(thisDir, c)));
-
-    // Symmetric diff: both directions must be empty.
-    const unexpected = [...foundFiles].filter(f => !expectedFiles.has(f));
-    const missing = [...expectedFiles].filter(f => !foundFiles.has(f));
-
-    expect(
-      unexpected,
-      `New includeSort: false caller(s) not in allowlist — add them to ` +
-        `INCLUDE_SORT_FALSE_CALLERS and verify they don't read .sort`
-    ).toEqual([]);
-    expect(
-      missing,
-      `Allowlist references file(s) that no longer use includeSort: false — ` +
-        `remove them from INCLUDE_SORT_FALSE_CALLERS`
-    ).toEqual([]);
+  it('reading .sort on an includeSort: false parse result is a compile error', () => {
+    // Compile-time assertion via `ts-expect-error` directive. If the
+    // discriminated return type is accidentally relaxed (e.g.,
+    // `BrowseCustomIdHelpersWithoutSort` regains a `sort` field),
+    // this directive stops catching an error and the build fails.
+    //
+    // The variable IS consumed by the expect below — the `_`-prefix
+    // convention deliberately does NOT apply here because the runtime
+    // access succeeds (returns `undefined`), and we want the runtime
+    // value to participate in the assertion.
+    const parsed = withoutSortHelpers.parse('test-no-sort::browse::0::all::');
+    if (parsed === null) {
+      throw new Error('parse should succeed for valid input');
+    }
+    // @ts-expect-error — `.sort` is absent on ParsedBrowseCustomIdWithoutSort
+    const shouldNotCompile: string | undefined = parsed.sort;
+    // Runtime value is undefined because the field was stripped.
+    expect(shouldNotCompile).toBeUndefined();
   });
 });
 

@@ -9,7 +9,7 @@
 
 import { CUSTOM_ID_DELIMITER } from '../customIds.js';
 import type { BrowseSortType } from './constants.js';
-import type { ParsedBrowseCustomId } from './types.js';
+import type { ParsedBrowseCustomIdWithSort, ParsedBrowseCustomIdWithoutSort } from './types.js';
 
 /**
  * Maximum query length in customIds.
@@ -66,13 +66,26 @@ function truncateQuery(query: string | null): string {
 }
 
 /**
- * Core parse function for browse customIds
+ * Core parse function for browse customIds.
+ *
+ * Returns an internal "always has sort" shape. The public `parse` /
+ * `parseSelect` wrappers exposed by {@link createBrowseCustomIdHelpers}
+ * strip the sort field at the factory boundary when `includeSort: false`,
+ * so external callers see `ParsedBrowseCustomIdWithoutSort` with no
+ * sort property (neither at the type level nor at runtime).
  */
+interface ParsedCoreResult<TFilter extends string, TSort extends string> {
+  page: number;
+  filter: TFilter;
+  sort: TSort;
+  query: string | null;
+}
+
 function parseCustomIdCore<TFilter extends string, TSort extends string = BrowseSortType>(
   customId: string,
   expectedPrefix: string,
   config: ParseConfig<TFilter, TSort>
-): ParsedBrowseCustomId<TFilter, TSort> | null {
+): ParsedCoreResult<TFilter, TSort> | null {
   if (!customId.startsWith(expectedPrefix)) {
     return null;
   }
@@ -105,19 +118,13 @@ function parseCustomIdCore<TFilter extends string, TSort extends string = Browse
   // a silent fallback to validSorts[0], which masked tampered/stale
   // customIds and produced inconsistent behavior between the two fields.
   //
-  // When `includeSort: false`, sort isn't in the customId at all and the
-  // returned value is `validSorts[0]` as an arbitrary placeholder. Callers
-  // that opt out of sort encoding MUST NOT branch on this field — the
-  // returned value is meaningless.
-  //
-  // **Invariant verified (PR #773, round 4):** all 5 current `includeSort:
-  // false` callers (preset, inspect, memory/browse, memory/search,
-  // settings/voices) are audited mechanically by the 'includeSort: false
-  // contract' test block in `browse.test.ts`, which (1) scans each known
-  // caller for any `.sort` read and (2) scans the commands tree for any
-  // new `includeSort: false` occurrence not in the allowlist. Round 2's
-  // audit missed settings/voices/browse.ts, which is why round 4 replaced
-  // the grep-at-review-time approach with a test that runs in CI.
+  // When `includeSort: false`, this `sort` field is set to `validSorts[0]`
+  // as an internal placeholder so the unified core shape
+  // (`ParsedCoreResult`) stays consistent. The factory's public `parse`
+  // wrappers strip this field before returning, so `includeSort: false`
+  // callers never observe it — reading `.sort` on a `WithoutSort` parse
+  // result is a TypeScript compile error AND the field is literally
+  // absent at runtime (via object destructure at the factory boundary).
   let sort: TSort = config.validSorts[0];
   if (config.includeSort) {
     // `parts[4]` is guaranteed defined here — see the minParts check
@@ -140,22 +147,12 @@ function parseCustomIdCore<TFilter extends string, TSort extends string = Browse
 }
 
 /**
- * Result of createBrowseCustomIdHelpers
+ * Fields common to both helper variants. Extracted to keep the two
+ * variant interfaces in sync.
  */
-export interface BrowseCustomIdHelpers<
-  TFilter extends string,
-  TSort extends string = BrowseSortType,
-> {
-  /** Build customId for browse pagination */
-  build: (page: number, filter: TFilter, sort: TSort, query: string | null) => string;
-  /** Build customId for browse select menu */
-  buildSelect: (page: number, filter: TFilter, sort: TSort, query: string | null) => string;
+interface BrowseCustomIdHelpersBase {
   /** Build customId for info button (disabled page indicator) */
   buildInfo: () => string;
-  /** Parse browse customId */
-  parse: (customId: string) => ParsedBrowseCustomId<TFilter, TSort> | null;
-  /** Parse browse select customId */
-  parseSelect: (customId: string) => ParsedBrowseCustomId<TFilter, TSort> | null;
   /** Check if customId is a browse interaction */
   isBrowse: (customId: string) => boolean;
   /** Check if customId is a browse select interaction */
@@ -164,6 +161,56 @@ export interface BrowseCustomIdHelpers<
   browsePrefix: string;
   /** Browse select prefix for matching */
   browseSelectPrefix: string;
+}
+
+/**
+ * Result of `createBrowseCustomIdHelpers` when `includeSort` is `true`
+ * or omitted (the default). The `parse` / `parseSelect` functions
+ * return results with a typed `sort` field.
+ */
+export interface BrowseCustomIdHelpersWithSort<
+  TFilter extends string,
+  TSort extends string = BrowseSortType,
+> extends BrowseCustomIdHelpersBase {
+  /** Build customId for browse pagination */
+  build: (page: number, filter: TFilter, sort: TSort, query: string | null) => string;
+  /** Build customId for browse select menu */
+  buildSelect: (page: number, filter: TFilter, sort: TSort, query: string | null) => string;
+  /** Parse browse customId (includes typed `sort` field) */
+  parse: (customId: string) => ParsedBrowseCustomIdWithSort<TFilter, TSort> | null;
+  /** Parse browse select customId (includes typed `sort` field) */
+  parseSelect: (customId: string) => ParsedBrowseCustomIdWithSort<TFilter, TSort> | null;
+}
+
+/**
+ * Result of `createBrowseCustomIdHelpers` when `includeSort: false`.
+ * The `parse` / `parseSelect` functions return results WITHOUT a
+ * `sort` field — reading `.sort` on the result is a TypeScript compile
+ * error, and the field is also absent at runtime (stripped at the
+ * factory boundary via object destructure).
+ *
+ * Note: the `build` / `buildSelect` signatures still take a `sort`
+ * parameter (typed as `BrowseSortType`) for shape compatibility with
+ * `buildBrowseButtons`, which expects a 4-arg `buildCustomId` callback.
+ * The parameter is ignored at runtime — the customId format omits the
+ * sort segment entirely when `includeSort: false`.
+ */
+export interface BrowseCustomIdHelpersWithoutSort<
+  TFilter extends string,
+> extends BrowseCustomIdHelpersBase {
+  /** Build customId for browse pagination (sort arg is ignored) */
+  build: (page: number, filter: TFilter, sort: BrowseSortType, query: string | null) => string;
+  /** Build customId for browse select menu (sort arg is ignored) */
+  buildSelect: (
+    page: number,
+    filter: TFilter,
+    sort: BrowseSortType,
+    query: string | null
+  ) => string;
+  /** Parse browse customId (no `sort` field in the result) */
+  parse: (customId: string) => ParsedBrowseCustomIdWithoutSort<TFilter> | null;
+  /** Parse browse select customId (no `sort` field in the result) */
+  parseSelect: (customId: string) => ParsedBrowseCustomIdWithoutSort<TFilter> | null;
 }
 
 /**
@@ -186,31 +233,56 @@ export interface BrowseCustomIdHelpers<
  * // { page: 0, filter: 'all', sort: 'date', query: null }
  * ```
  */
-// Overload 1: standard BrowseSortType (validSorts is optional, defaults to
-// ['name', 'date']). This is the common case — all callers that don't widen
-// TSort match this signature.
+// Overload 1: standard BrowseSortType, `includeSort` true or omitted.
+// `validSorts` is optional and defaults to ['name', 'date']. This is
+// the common case — all callers that don't widen TSort and don't opt
+// out of sort encoding match this signature.
 export function createBrowseCustomIdHelpers<TFilter extends string>(
-  config: BrowseCustomIdConfig<TFilter, BrowseSortType>
-): BrowseCustomIdHelpers<TFilter, BrowseSortType>;
+  config: BrowseCustomIdConfig<TFilter, BrowseSortType> & { includeSort?: true }
+): BrowseCustomIdHelpersWithSort<TFilter, BrowseSortType>;
 
-// Overload 2: custom TSort union (validSorts is REQUIRED). This catches the
-// footgun the PR #773 reviewer flagged: a caller who widens TSort without
-// passing matching validSorts would get the default ['name', 'date'] cast
-// at runtime, silently falling back to 'name' on every parse. The required
-// parameter in this overload prevents that at compile time — admin/servers'
-// `createBrowseCustomIdHelpers<_, 'members' | 'name'>({...})` must include
-// `validSorts: ['members', 'name']` or TypeScript rejects it.
+// Overload 2: custom TSort union, `includeSort` true or omitted.
+// `validSorts` is REQUIRED. Catches the PR #773 footgun: a caller who
+// widens TSort without passing matching validSorts would silently fall
+// back to the default ['name', 'date'] cast at runtime, getting 'name'
+// on every parse. The required parameter prevents that at compile time —
+// admin/servers' `createBrowseCustomIdHelpers<_, 'members' | 'name'>({...})`
+// must include `validSorts: ['members', 'name']` or TypeScript rejects it.
 export function createBrowseCustomIdHelpers<TFilter extends string, TSort extends string>(
   config: Omit<BrowseCustomIdConfig<TFilter, TSort>, 'validSorts'> & {
     validSorts: readonly TSort[];
+    includeSort?: true;
   }
-): BrowseCustomIdHelpers<TFilter, TSort>;
+): BrowseCustomIdHelpersWithSort<TFilter, TSort>;
 
-// Implementation signature (not visible to callers)
+// Overload 3: `includeSort: false`. The returned helpers have no `sort`
+// field in parse results (TypeScript compile error to access), and the
+// field is also stripped at runtime. TSort doesn't apply — the customId
+// format omits the sort segment entirely — so this overload fixes TSort
+// to BrowseSortType and treats validSorts as unused (optional).
+//
+// This overload is the Step 7 enforcement: previous versions returned a
+// `validSorts[0]` placeholder for sort that callers were expected not to
+// read, enforced via a file-content scan test. The discriminated return
+// type makes the contract compile-time-checked — see
+// `BrowseCustomIdHelpersWithoutSort` for details.
+export function createBrowseCustomIdHelpers<TFilter extends string>(
+  config: Omit<BrowseCustomIdConfig<TFilter, BrowseSortType>, 'validSorts'> & {
+    includeSort: false;
+    validSorts?: readonly BrowseSortType[];
+  }
+): BrowseCustomIdHelpersWithoutSort<TFilter>;
+
+// Implementation signature (not visible to callers). Returns the union
+// of both variants; the runtime branch on `config.includeSort` decides
+// which shape is actually returned. Each call site's overload
+// resolution narrows the return type correctly.
 export function createBrowseCustomIdHelpers<
   TFilter extends string,
   TSort extends string = BrowseSortType,
->(config: BrowseCustomIdConfig<TFilter, TSort>): BrowseCustomIdHelpers<TFilter, TSort> {
+>(
+  config: BrowseCustomIdConfig<TFilter, TSort>
+): BrowseCustomIdHelpersWithSort<TFilter, TSort> | BrowseCustomIdHelpersWithoutSort<TFilter> {
   const {
     prefix,
     validFilters,
@@ -253,12 +325,6 @@ export function createBrowseCustomIdHelpers<
 
   const buildInfo = (): string => `${browsePrefix}${CUSTOM_ID_DELIMITER}info`;
 
-  const parse = (customId: string): ParsedBrowseCustomId<TFilter, TSort> | null =>
-    parseCustomIdCore(customId, browsePrefix, parseConfig);
-
-  const parseSelect = (customId: string): ParsedBrowseCustomId<TFilter, TSort> | null =>
-    parseCustomIdCore(customId, browseSelectPrefix, parseConfig);
-
   const isBrowse = (customId: string): boolean =>
     customId.startsWith(browsePrefix + CUSTOM_ID_DELIMITER) || customId === browsePrefix;
 
@@ -266,6 +332,60 @@ export function createBrowseCustomIdHelpers<
     customId.startsWith(browseSelectPrefix + CUSTOM_ID_DELIMITER) ||
     customId === browseSelectPrefix;
 
+  if (includeSort) {
+    // Sort IS encoded in the customId. Public parse returns the full
+    // core result, typed as `ParsedBrowseCustomIdWithSort<TFilter, TSort>`.
+    const parse = (customId: string): ParsedBrowseCustomIdWithSort<TFilter, TSort> | null =>
+      parseCustomIdCore(customId, browsePrefix, parseConfig);
+
+    const parseSelect = (customId: string): ParsedBrowseCustomIdWithSort<TFilter, TSort> | null =>
+      parseCustomIdCore(customId, browseSelectPrefix, parseConfig);
+
+    return {
+      build,
+      buildSelect,
+      buildInfo,
+      parse,
+      parseSelect,
+      isBrowse,
+      isBrowseSelect,
+      browsePrefix,
+      browseSelectPrefix,
+    };
+  }
+
+  // `includeSort: false` branch. The core parser still populates `sort`
+  // with the `validSorts[0]` placeholder internally (to keep the unified
+  // core shape), but we strip it here via object destructure so callers
+  // observe no `sort` field at runtime. Combined with the
+  // `ParsedBrowseCustomIdWithoutSort` return type on overload 3, this
+  // makes `.sort` access on the returned parse result both a compile
+  // error AND a runtime `undefined`.
+  const stripSort = (
+    result: ParsedCoreResult<TFilter, TSort> | null
+  ): ParsedBrowseCustomIdWithoutSort<TFilter> | null => {
+    if (result === null) {
+      return null;
+    }
+    // Destructure discards `sort`. The `_sort` variable is unused by
+    // design — the point of the destructure is the rest-spread, not
+    // the named capture.
+    const { sort: _sort, ...withoutSort } = result;
+    return withoutSort;
+  };
+
+  const parse = (customId: string): ParsedBrowseCustomIdWithoutSort<TFilter> | null =>
+    stripSort(parseCustomIdCore(customId, browsePrefix, parseConfig));
+
+  const parseSelect = (customId: string): ParsedBrowseCustomIdWithoutSort<TFilter> | null =>
+    stripSort(parseCustomIdCore(customId, browseSelectPrefix, parseConfig));
+
+  // The cast is needed because TypeScript can't correlate `includeSort
+  // === false` with `TSort === BrowseSortType` at the implementation
+  // signature's generic level. Overload 3 constrains TSort to
+  // BrowseSortType for this branch, so the cast is sound at every call
+  // site — same pattern as the `as unknown as readonly TSort[]` bridge
+  // earlier in this file.
   return {
     build,
     buildSelect,
@@ -276,5 +396,5 @@ export function createBrowseCustomIdHelpers<
     isBrowseSelect,
     browsePrefix,
     browseSelectPrefix,
-  };
+  } as unknown as BrowseCustomIdHelpersWithoutSort<TFilter>;
 }

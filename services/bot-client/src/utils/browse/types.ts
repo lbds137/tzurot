@@ -51,34 +51,47 @@ export function calculatePaginationState(
 }
 
 /**
- * Parsed browse custom ID result
- * Generic version that specific commands can extend.
+ * Fields common to both parsed-browse variants.
  *
- * `TSort` defaults to the standard `BrowseSortType = 'name' | 'date'` but
- * can be widened to a command-specific union (e.g., admin/servers uses
- * `'members' | 'name'`).
+ * The discriminator between variants is the presence or absence of the
+ * `sort` field (see below). This base interface is internal — callers
+ * should use one of the variant types, not the base directly.
  */
-export interface ParsedBrowseCustomId<
-  TFilter extends string = string,
-  TSort extends string = BrowseSortType,
-> {
+interface ParsedBrowseCustomIdBase<TFilter extends string> {
   /** Current page (0-indexed) */
   page: number;
   /** Filter value */
   filter: TFilter;
-  /**
-   * Sort type.
-   *
-   * **Contract for `includeSort: false` callers:** when the helper was
-   * created with `includeSort: false`, the customId does not encode a
-   * sort segment and this field is an arbitrary placeholder
-   * (`validSorts[0]`). **DO NOT read or branch on this field** in that
-   * case — the value is meaningless and may change if the default sort
-   * logic is tweaked. See the `includeSort: false contract` test in
-   * `browse.test.ts` which enforces this invariant across current
-   * callers.
-   */
-  sort: TSort;
   /** Search query */
   query: string | null;
 }
+
+/**
+ * Parsed browse custom ID result for helpers created with
+ * `includeSort: true` (the default).
+ *
+ * Exposes a typed `sort` field. `TSort` defaults to the standard
+ * `BrowseSortType = 'name' | 'date'` but can be widened to a
+ * command-specific union (e.g., admin/servers uses `'members' | 'name'`).
+ */
+export interface ParsedBrowseCustomIdWithSort<
+  TFilter extends string,
+  TSort extends string = BrowseSortType,
+> extends ParsedBrowseCustomIdBase<TFilter> {
+  /** Parsed sort type from the customId. */
+  sort: TSort;
+}
+
+/**
+ * Parsed browse custom ID result for helpers created with
+ * `includeSort: false`.
+ *
+ * **Omits the `sort` field entirely.** Previous versions included a
+ * placeholder (`validSorts[0]`) with a "don't read this" contract
+ * enforced at test time via a file-content scan. The discriminated
+ * variant makes reading `.sort` on an `includeSort: false` parse
+ * result a TypeScript compile error — the file-content scan is no
+ * longer needed and was removed in Step 7.
+ */
+export type ParsedBrowseCustomIdWithoutSort<TFilter extends string> =
+  ParsedBrowseCustomIdBase<TFilter>;
