@@ -48,7 +48,9 @@ const TRANSIENT_NETWORK_CODES: ReadonlySet<string> = new Set([
  *
  * Use this in retry classifiers instead of duplicating the TypeError check.
  */
-export function isTransientNetworkError(error: unknown): boolean {
+export function isTransientNetworkError(error: unknown, _depth = 0): boolean {
+  if (_depth > 5) {return false;}
+
   if (!(error instanceof Error)) {
     // Handle plain objects with a `code` property in the cause chain
     // (Node undici sometimes wraps POSIX errors as plain objects)
@@ -73,7 +75,7 @@ export function isTransientNetworkError(error: unknown): boolean {
 
   // Recurse into cause chain for wrapped POSIX errors (e.g., fetch wrapping ECONNREFUSED)
   if (error.cause !== undefined) {
-    return isTransientNetworkError(error.cause);
+    return isTransientNetworkError(error.cause, _depth + 1);
   }
 
   return false;
