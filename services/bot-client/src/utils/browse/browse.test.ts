@@ -838,7 +838,10 @@ describe('joinFooter', () => {
     );
   });
 
-  it('should filter out numeric values (0 from count && helper pattern)', () => {
+  it('should filter out numeric values (guards against 0 leaking from && short-circuit)', () => {
+    // Note: do NOT use `count && pluralize(count, noun)` — when count is 0,
+    // && short-circuits to 0 which is silently dropped. Use a boolean guard
+    // like `count > 0 && pluralize(count, noun)` instead.
     expect(joinFooter(0, 'b', 'c')).toBe('b \u2022 c');
   });
 

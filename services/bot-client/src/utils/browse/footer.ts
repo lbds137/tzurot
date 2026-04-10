@@ -82,6 +82,9 @@ export function formatSortNatural(label: string): string {
  * Return a pre-formatted sort phrase verbatim. Used when the sort display
  * doesn't fit the "Sorted by X" pattern (e.g. `"Newest first"`,
  * `"Sorted alphabetically"`).
+ *
+ * This is an identity function. It exists to signal intent at call sites:
+ * the phrase is deliberately not normalized to the `formatSortNatural` pattern.
  */
 export function formatSortVerbatim(phrase: string): string {
   return phrase;
