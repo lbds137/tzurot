@@ -83,7 +83,7 @@ export function formatSortNatural(label: string): string {
  * doesn't fit the "Sorted by X" pattern (e.g. `"Newest first"`,
  * `"Sorted alphabetically"`).
  */
-export function formatSortHardcoded(phrase: string): string {
+export function formatSortVerbatim(phrase: string): string {
   return phrase;
 }
 

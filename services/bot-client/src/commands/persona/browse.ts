@@ -23,7 +23,7 @@ import {
   joinFooter,
   pluralize,
   formatSortNatural,
-  formatSortHardcoded,
+  formatSortVerbatim,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 import { createListComparator } from '../../utils/listSorting.js';
@@ -157,9 +157,7 @@ function buildBrowsePage(
   embed.setFooter({
     text: joinFooter(
       pluralize(sortedPersonas.length, { singular: 'persona', plural: 'personas' }),
-      sortType === 'date'
-        ? formatSortNatural('date')
-        : formatSortHardcoded('Sorted alphabetically'),
+      sortType === 'date' ? formatSortNatural('date') : formatSortVerbatim('Sorted alphabetically'),
       '\u2B50 Default'
     ),
   });

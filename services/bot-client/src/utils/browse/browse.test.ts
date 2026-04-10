@@ -20,7 +20,7 @@ import {
   formatFilterLabeled,
   formatFilterParens,
   formatSortNatural,
-  formatSortHardcoded,
+  formatSortVerbatim,
   formatPageIndicator,
 } from './index.js';
 
@@ -906,13 +906,13 @@ describe('formatSortNatural', () => {
   });
 });
 
-describe('formatSortHardcoded', () => {
+describe('formatSortVerbatim', () => {
   it('should return the phrase verbatim', () => {
-    expect(formatSortHardcoded('Newest first')).toBe('Newest first');
+    expect(formatSortVerbatim('Newest first')).toBe('Newest first');
   });
 
   it('should pass through "Sorted alphabetically" unchanged', () => {
-    expect(formatSortHardcoded('Sorted alphabetically')).toBe('Sorted alphabetically');
+    expect(formatSortVerbatim('Sorted alphabetically')).toBe('Sorted alphabetically');
   });
 });
 

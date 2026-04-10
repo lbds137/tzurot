@@ -16,9 +16,8 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   createBrowseCustomIdHelpers,
   joinFooter,
-  pluralize,
   formatSortNatural,
-  formatSortHardcoded,
+  formatSortVerbatim,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 import {
@@ -242,8 +241,8 @@ function buildEmbedSingleGuild(
 
   embed.setFooter({
     text: joinFooter(
-      pluralize(activations.length, { singular: 'activated', plural: 'activated' }),
-      sortType === 'date' ? formatSortNatural('date') : formatSortHardcoded('Sorted alphabetically')
+      `${activations.length} activated`,
+      sortType === 'date' ? formatSortNatural('date') : formatSortVerbatim('Sorted alphabetically')
     ),
   });
 
@@ -291,8 +290,9 @@ function buildEmbedAllServers(
       ? `(${channelCount} shown)`
       : `(${channelCount} channels)`;
   const sortPhrase =
-    sortType === 'date' ? formatSortNatural('date') : formatSortHardcoded('Sorted alphabetically');
+    sortType === 'date' ? formatSortNatural('date') : formatSortVerbatim('Sorted alphabetically');
 
+  // guildStatus annotates the sort phrase (no delimiter between them)
   embed.setFooter({
     text: joinFooter(`${totalChannels} total across all servers`, `${sortPhrase} ${guildStatus}`),
   });
