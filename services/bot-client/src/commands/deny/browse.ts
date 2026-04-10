@@ -24,6 +24,10 @@ import {
   createBrowseSortToggle,
   calculatePaginationState,
   ITEMS_PER_PAGE,
+  joinFooter,
+  pluralize,
+  formatFilterParens,
+  formatSortNatural,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 
@@ -143,9 +147,12 @@ function buildBrowsePage(
   }
 
   const filterLabel = filter === 'all' ? 'all types' : `${filter}s only`;
-  const sortLabel = sort === 'date' ? 'by date' : 'by target ID';
   embed.setFooter({
-    text: `${String(entries.length)} entries (${filterLabel}) \u2022 Sorted ${sortLabel}`,
+    text: joinFooter(
+      pluralize(entries.length, { singular: 'entry', plural: 'entries' }),
+      formatFilterParens(filterLabel),
+      sort === 'date' ? formatSortNatural('date') : formatSortNatural('target ID')
+    ),
   });
 
   const components: ActionRowBuilderType<ButtonBuilder>[] = [];

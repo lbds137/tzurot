@@ -20,6 +20,10 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
+  joinFooter,
+  pluralize,
+  formatSortNatural,
+  formatSortHardcoded,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 import { createListComparator } from '../../utils/listSorting.js';
@@ -150,8 +154,15 @@ function buildBrowsePage(
     .setTimestamp();
 
   // Footer
-  const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
-  embed.setFooter({ text: `${sortedPersonas.length} personas • Sorted ${sortLabel} • ⭐ Default` });
+  embed.setFooter({
+    text: joinFooter(
+      pluralize(sortedPersonas.length, { singular: 'persona', plural: 'personas' }),
+      sortType === 'date'
+        ? formatSortNatural('date')
+        : formatSortHardcoded('Sorted alphabetically'),
+      '\u2B50 Default'
+    ),
+  });
 
   // Build components
   const components: BrowseActionRow[] = [];
