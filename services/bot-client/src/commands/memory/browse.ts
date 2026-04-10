@@ -36,6 +36,10 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   buildBrowseSelectMenu,
   calculatePaginationState,
+  joinFooter,
+  pluralize,
+  formatSortHardcoded,
+  formatPageIndicator,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect } from './detail.js';
@@ -132,9 +136,13 @@ function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
   embed.setDescription(lines.join('\n').trim());
 
   // Build footer
-  const filterLabel = personalityId !== undefined ? ' • Filtered' : '';
   embed.setFooter({
-    text: `${total} memories${filterLabel} • Newest first • Page ${page + 1} of ${totalPages}`,
+    text: joinFooter(
+      pluralize(total, { singular: 'memory', plural: 'memories' }),
+      personalityId !== undefined && 'Filtered',
+      formatSortHardcoded('Newest first'),
+      formatPageIndicator(page + 1, totalPages)
+    ),
   });
 
   return embed;
