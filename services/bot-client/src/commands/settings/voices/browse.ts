@@ -12,6 +12,7 @@ import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
+  pluralize,
 } from '../../../utils/browse/index.js';
 import type { VoicesListResponse } from './types.js';
 
@@ -67,7 +68,7 @@ function buildVoiceBrowsePage(
 
   embed.setDescription(voiceLines.join('\n'));
   embed.setFooter({
-    text: `${tzurotCount} Tzurot voice${tzurotCount !== 1 ? 's' : ''} / ${totalVoices} total in ElevenLabs account`,
+    text: `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total in ElevenLabs account`,
   });
 
   // Show management hints only on first page to avoid clutter
