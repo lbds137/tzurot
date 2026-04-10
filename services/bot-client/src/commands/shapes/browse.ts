@@ -12,17 +12,18 @@ import { EmbedBuilder, ActionRowBuilder, type ButtonBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
-import { createBrowseCustomIdHelpers } from '../../utils/browse/customIdFactory.js';
-import { buildBrowseButtons } from '../../utils/browse/buttonBuilder.js';
-import { buildBrowseSelectMenu } from '../../utils/browse/selectMenuBuilder.js';
-import { calculatePaginationState } from '../../utils/browse/types.js';
-import { ITEMS_PER_PAGE, type BrowseSortType } from '../../utils/browse/constants.js';
 import {
+  createBrowseCustomIdHelpers,
+  buildBrowseButtons,
+  buildBrowseSelectMenu,
+  calculatePaginationState,
+  ITEMS_PER_PAGE,
   joinFooter,
   pluralize,
   formatPageIndicator,
   formatSortNatural,
-} from '../../utils/browse/footer.js';
+  type BrowseSortType,
+} from '../../utils/browse/index.js';
 
 const logger = createLogger('shapes-browse');
 
