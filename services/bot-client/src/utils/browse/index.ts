@@ -47,3 +47,16 @@ export {
   type BrowseSelectOption,
   type BuildBrowseSelectMenuOptions,
 } from './selectMenuBuilder.js';
+
+// Footer helpers
+export {
+  FOOTER_DELIMITER,
+  joinFooter,
+  pluralize,
+  formatFilterLabeled,
+  formatFilterParens,
+  formatSortNatural,
+  formatSortHardcoded,
+  formatPageIndicator,
+  type NounSpec,
+} from './footer.js';
