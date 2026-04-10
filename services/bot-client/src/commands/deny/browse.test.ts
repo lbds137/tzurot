@@ -36,93 +36,98 @@ vi.mock('../../utils/commandContext/index.js', () => ({
   requireBotOwnerContext: vi.fn(),
 }));
 
-// Mock browse utilities — return simple objects instead of Discord.js builders
-vi.mock('../../utils/browse/index.js', () => ({
-  createBrowseCustomIdHelpers: vi.fn(() => ({
-    build: vi.fn(
-      (page: number, filter: string, sort: string, _query: string | null) =>
-        `deny::browse::${String(page)}::${filter}::${sort}::`
+// Mock browse utilities — return simple objects instead of Discord.js builders.
+// Footer helpers are pure functions re-exported from the real module.
+vi.mock('../../utils/browse/index.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/browse/index.js')>();
+  return {
+    ...actual,
+    createBrowseCustomIdHelpers: vi.fn(() => ({
+      build: vi.fn(
+        (page: number, filter: string, sort: string, _query: string | null) =>
+          `deny::browse::${String(page)}::${filter}::${sort}::`
+      ),
+      buildSelect: vi.fn(
+        (page: number, filter: string, sort: string, _query: string | null) =>
+          `deny::browse-select::${String(page)}::${filter}::${sort}::`
+      ),
+      buildInfo: vi.fn(() => 'deny::browse::info'),
+      parse: vi.fn((customId: string) => {
+        if (!customId.startsWith('deny::browse::')) return null;
+        const parts = customId.split('::');
+        if (parts.length < 5) return null;
+        const page = parseInt(parts[2], 10);
+        if (isNaN(page)) return null;
+        return { page, filter: parts[3], sort: parts[4], query: null };
+      }),
+      parseSelect: vi.fn((customId: string) => {
+        if (!customId.startsWith('deny::browse-select::')) return null;
+        const parts = customId.split('::');
+        if (parts.length < 5) return null;
+        const page = parseInt(parts[2], 10);
+        if (isNaN(page)) return null;
+        return { page, filter: parts[3], sort: parts[4], query: null };
+      }),
+      isBrowse: vi.fn((customId: string) => customId.startsWith('deny::browse::')),
+      isBrowseSelect: vi.fn((customId: string) => customId.startsWith('deny::browse-select::')),
+      browsePrefix: 'deny::browse',
+      browseSelectPrefix: 'deny::browse-select',
+    })),
+    buildBrowseButtons: vi.fn(() => ({ type: 'action-row', components: [] })),
+    createBrowseSortToggle: vi.fn(
+      (overrides?: {
+        sortByName?: { label: string; emoji: string };
+        sortByDate?: { label: string; emoji: string };
+      }) => ({
+        next: (current: string) => (current === 'date' ? 'name' : 'date'),
+        labelFor: (sort: string) =>
+          sort === 'name'
+            ? (overrides?.sortByName ?? { label: 'Sort A-Z', emoji: '🔤' })
+            : (overrides?.sortByDate ?? { label: 'Sort by Date', emoji: '📅' }),
+      })
     ),
-    buildSelect: vi.fn(
-      (page: number, filter: string, sort: string, _query: string | null) =>
-        `deny::browse-select::${String(page)}::${filter}::${sort}::`
-    ),
-    buildInfo: vi.fn(() => 'deny::browse::info'),
-    parse: vi.fn((customId: string) => {
-      if (!customId.startsWith('deny::browse::')) return null;
-      const parts = customId.split('::');
-      if (parts.length < 5) return null;
-      const page = parseInt(parts[2], 10);
-      if (isNaN(page)) return null;
-      return { page, filter: parts[3], sort: parts[4], query: null };
-    }),
-    parseSelect: vi.fn((customId: string) => {
-      if (!customId.startsWith('deny::browse-select::')) return null;
-      const parts = customId.split('::');
-      if (parts.length < 5) return null;
-      const page = parseInt(parts[2], 10);
-      if (isNaN(page)) return null;
-      return { page, filter: parts[3], sort: parts[4], query: null };
-    }),
-    isBrowse: vi.fn((customId: string) => customId.startsWith('deny::browse::')),
-    isBrowseSelect: vi.fn((customId: string) => customId.startsWith('deny::browse-select::')),
-    browsePrefix: 'deny::browse',
-    browseSelectPrefix: 'deny::browse-select',
-  })),
-  buildBrowseButtons: vi.fn(() => ({ type: 'action-row', components: [] })),
-  createBrowseSortToggle: vi.fn(
-    (overrides?: {
-      sortByName?: { label: string; emoji: string };
-      sortByDate?: { label: string; emoji: string };
-    }) => ({
-      next: (current: string) => (current === 'date' ? 'name' : 'date'),
-      labelFor: (sort: string) =>
-        sort === 'name'
-          ? (overrides?.sortByName ?? { label: 'Sort A-Z', emoji: '🔤' })
-          : (overrides?.sortByDate ?? { label: 'Sort by Date', emoji: '📅' }),
-    })
-  ),
-  calculatePaginationState: vi.fn(
-    (totalItems: number, itemsPerPage: number, requestedPage: number) => {
-      const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
-      const safePage = Math.min(Math.max(0, requestedPage), totalPages - 1);
-      return {
-        page: safePage,
-        safePage,
-        totalPages,
-        totalItems,
-        itemsPerPage,
-        startIndex: safePage * itemsPerPage,
-        endIndex: Math.min(safePage * itemsPerPage + itemsPerPage, totalItems),
-      };
-    }
-  ),
-  ITEMS_PER_PAGE: 10,
-  // The shared select menu factory — return a sentinel object the tests
-  // can recognize without depending on Discord.js internals.
-  buildBrowseSelectMenu: vi.fn(
-    <T>(opts: {
-      items: T[];
-      customId: string;
-      placeholder: string;
-      startIndex: number;
-      formatItem: (
-        item: T,
-        oneBasedNumber: number
-      ) => { label: string; value: string; description?: string };
-    }) => {
-      if (opts.items.length === 0) {
-        return null;
+    calculatePaginationState: vi.fn(
+      (totalItems: number, itemsPerPage: number, requestedPage: number) => {
+        const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+        const safePage = Math.min(Math.max(0, requestedPage), totalPages - 1);
+        return {
+          page: safePage,
+          safePage,
+          totalPages,
+          totalItems,
+          itemsPerPage,
+          startIndex: safePage * itemsPerPage,
+          endIndex: Math.min(safePage * itemsPerPage + itemsPerPage, totalItems),
+        };
       }
-      return {
-        type: 'select-menu-row',
-        customId: opts.customId,
-        placeholder: opts.placeholder,
-        options: opts.items.map((item, i) => opts.formatItem(item, opts.startIndex + i + 1)),
-      };
-    }
-  ),
-}));
+    ),
+    ITEMS_PER_PAGE: 10,
+    // The shared select menu factory — return a sentinel object the tests
+    // can recognize without depending on Discord.js internals.
+    buildBrowseSelectMenu: vi.fn(
+      <T>(opts: {
+        items: T[];
+        customId: string;
+        placeholder: string;
+        startIndex: number;
+        formatItem: (
+          item: T,
+          oneBasedNumber: number
+        ) => { label: string; value: string; description?: string };
+      }) => {
+        if (opts.items.length === 0) {
+          return null;
+        }
+        return {
+          type: 'select-menu-row',
+          customId: opts.customId,
+          placeholder: opts.placeholder,
+          options: opts.items.map((item, i) => opts.formatItem(item, opts.startIndex + i + 1)),
+        };
+      }
+    ),
+  };
+});
 
 // Mock detail.js for handleBrowseSelect
 vi.mock('./detail.js', () => ({
