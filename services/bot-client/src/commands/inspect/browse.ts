@@ -31,6 +31,9 @@ import {
   buildBrowseButtons,
   buildBrowseSelectMenu,
   calculatePaginationState,
+  joinFooter,
+  pluralize,
+  formatPageIndicator,
 } from '../../utils/browse/index.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import { lookupByRequestId } from './lookup.js';
@@ -120,7 +123,11 @@ function buildBrowseEmbed(
     .setDescription(lines.join('\n'))
     .setColor(DISCORD_COLORS.BLURPLE)
     .setFooter({
-      text: `Page ${page + 1} of ${totalPages} \u00b7 ${totalCount} total logs \u00b7 Select a log below to inspect`,
+      text: joinFooter(
+        formatPageIndicator(page + 1, totalPages),
+        pluralize(totalCount, { singular: 'total log', plural: 'total logs' }),
+        'Select a log below to inspect'
+      ),
     });
 }
 

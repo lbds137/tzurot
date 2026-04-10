@@ -40,6 +40,11 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
+  joinFooter,
+  pluralize,
+  formatFilterLabeled,
+  formatSortNatural,
+  formatSortHardcoded,
 } from '../../utils/browse/index.js';
 import {
   type ListItem,
@@ -184,13 +189,16 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
     .setTimestamp();
 
   // Footer with legend
-  const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
-  const footerParts = [`${allItems.length} characters`];
-  if (filter !== 'all') {
-    footerParts.push(`filtered by: ${FILTER_LABELS[filter]}`);
-  }
-  footerParts.push(`Sorted ${sortLabel} • 🌐 Public 🔒 Private`);
-  embed.setFooter({ text: footerParts.join(' • ') });
+  embed.setFooter({
+    text: joinFooter(
+      pluralize(allItems.length, { singular: 'character', plural: 'characters' }),
+      filter !== 'all' && formatFilterLabeled(FILTER_LABELS[filter]),
+      sortType === 'date'
+        ? formatSortNatural('date')
+        : formatSortHardcoded('Sorted alphabetically'),
+      '\uD83C\uDF10 Public \uD83D\uDD12 Private'
+    ),
+  });
 
   // Build components
   const components: BrowseActionRow[] = [];
