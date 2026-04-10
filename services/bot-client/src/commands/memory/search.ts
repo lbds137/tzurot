@@ -31,6 +31,8 @@ import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
   buildBrowseSelectMenu,
+  joinFooter,
+  formatPageIndicator,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect, type MemoryItem } from './detail.js';
@@ -136,14 +138,13 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
   embed.setDescription(lines.join('\n').trim());
 
   // Build footer
-  const footerParts: string[] = [];
-  footerParts.push(isTextFallback ? 'Text search' : 'Semantic search');
-  if (personalityId !== undefined) {
-    footerParts.push('Filtered');
-  }
-  footerParts.push(`Page ${page + 1} of ${totalPages}${hasMore ? '+' : ''}`);
-
-  embed.setFooter({ text: footerParts.join(' • ') });
+  embed.setFooter({
+    text: joinFooter(
+      isTextFallback ? 'Text search' : 'Semantic search',
+      personalityId !== undefined && 'Filtered',
+      formatPageIndicator(page + 1, totalPages, { hasMore })
+    ),
+  });
 
   return embed;
 }
