@@ -17,6 +17,12 @@ import { buildBrowseButtons } from '../../utils/browse/buttonBuilder.js';
 import { buildBrowseSelectMenu } from '../../utils/browse/selectMenuBuilder.js';
 import { calculatePaginationState } from '../../utils/browse/types.js';
 import { ITEMS_PER_PAGE, type BrowseSortType } from '../../utils/browse/constants.js';
+import {
+  joinFooter,
+  pluralize,
+  formatPageIndicator,
+  formatSortNatural,
+} from '../../utils/browse/footer.js';
 
 const logger = createLogger('shapes-browse');
 
@@ -89,7 +95,11 @@ export function buildBrowsePage(
         : 'No shapes found. Create characters on shapes.inc first.'
     )
     .setFooter({
-      text: `${String(sorted.length)} shapes \u00B7 Page ${String(pagination.safePage + 1)} of ${String(pagination.totalPages)} \u00B7 Sorted by ${sort}`,
+      text: joinFooter(
+        pluralize(sorted.length, { singular: 'shape', plural: 'shapes' }),
+        formatPageIndicator(pagination.safePage + 1, pagination.totalPages),
+        formatSortNatural(sort)
+      ),
     })
     .setTimestamp();
 
