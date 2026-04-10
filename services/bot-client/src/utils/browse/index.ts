@@ -56,7 +56,7 @@ export {
   formatFilterLabeled,
   formatFilterParens,
   formatSortNatural,
-  formatSortHardcoded,
+  formatSortVerbatim,
   formatPageIndicator,
   type NounSpec,
 } from './footer.js';

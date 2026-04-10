@@ -28,7 +28,7 @@ import {
   createBrowseCustomIdHelpers,
   joinFooter,
   formatSortNatural,
-  formatSortHardcoded,
+  formatSortVerbatim,
   type BrowseSortToggle,
 } from '../../utils/browse/index.js';
 
@@ -226,7 +226,7 @@ function buildBrowsePage(
       `${formatMemberCount(totalMembers)} total members`,
       sortType === 'members'
         ? formatSortNatural('member count')
-        : formatSortHardcoded('Sorted alphabetically')
+        : formatSortVerbatim('Sorted alphabetically')
     ),
   });
 

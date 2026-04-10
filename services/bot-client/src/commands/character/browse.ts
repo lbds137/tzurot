@@ -44,7 +44,7 @@ import {
   pluralize,
   formatFilterLabeled,
   formatSortNatural,
-  formatSortHardcoded,
+  formatSortVerbatim,
 } from '../../utils/browse/index.js';
 import {
   type ListItem,
@@ -193,9 +193,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
     text: joinFooter(
       pluralize(allItems.length, { singular: 'character', plural: 'characters' }),
       filter !== 'all' && formatFilterLabeled(FILTER_LABELS[filter]),
-      sortType === 'date'
-        ? formatSortNatural('date')
-        : formatSortHardcoded('Sorted alphabetically'),
+      sortType === 'date' ? formatSortNatural('date') : formatSortVerbatim('Sorted alphabetically'),
       '\uD83C\uDF10 Public \uD83D\uDD12 Private'
     ),
   });

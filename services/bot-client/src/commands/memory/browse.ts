@@ -38,7 +38,7 @@ import {
   calculatePaginationState,
   joinFooter,
   pluralize,
-  formatSortHardcoded,
+  formatSortVerbatim,
   formatPageIndicator,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
@@ -140,7 +140,7 @@ function buildBrowseEmbed(options: BuildBrowseViewOptions): EmbedBuilder {
     text: joinFooter(
       pluralize(total, { singular: 'memory', plural: 'memories' }),
       personalityId !== undefined && 'Filtered',
-      formatSortHardcoded('Newest first'),
+      formatSortVerbatim('Newest first'),
       formatPageIndicator(page + 1, totalPages)
     ),
   });
