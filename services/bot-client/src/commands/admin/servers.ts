@@ -26,6 +26,9 @@ import {
   buildBrowseButtons,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
+  joinFooter,
+  formatSortNatural,
+  formatSortHardcoded,
   type BrowseSortToggle,
 } from '../../utils/browse/index.js';
 
@@ -218,9 +221,13 @@ function buildBrowsePage(
     .setTimestamp();
 
   // Footer
-  const sortLabel = sortType === 'members' ? 'by member count' : 'alphabetically';
   embed.setFooter({
-    text: `${formatMemberCount(totalMembers)} total members • Sorted ${sortLabel}`,
+    text: joinFooter(
+      `${formatMemberCount(totalMembers)} total members`,
+      sortType === 'members'
+        ? formatSortNatural('member count')
+        : formatSortHardcoded('Sorted alphabetically')
+    ),
   });
 
   // Build components
