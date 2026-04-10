@@ -36,6 +36,9 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   buildBrowseSelectMenu,
   createBrowseCustomIdHelpers,
+  joinFooter,
+  pluralize,
+  formatFilterLabeled,
 } from '../../utils/browse/index.js';
 import {
   PRESET_DASHBOARD_CONFIG,
@@ -276,12 +279,13 @@ function buildBrowsePage(
 
   // Footer with legend
   const freeCount = filtered.filter(c => isFreeModel(c.model)).length;
-  const footerParts = [`${filtered.length} presets`];
-  if (filter !== 'all') {
-    footerParts.push(`filtered by: ${filterLabels[filter]}`);
-  }
-  footerParts.push(`🌐 Global  🔒 Private  👤 Other user  ⭐ Default  🆓 Free (${freeCount})`);
-  embed.setFooter({ text: footerParts.join(' • ') });
+  embed.setFooter({
+    text: joinFooter(
+      pluralize(filtered.length, { singular: 'preset', plural: 'presets' }),
+      filter !== 'all' && formatFilterLabeled(filterLabels[filter]),
+      `\uD83C\uDF10 Global  \uD83D\uDD12 Private  \uD83D\uDC64 Other user  \u2B50 Default  \uD83C\uDD93 Free (${freeCount})`
+    ),
+  });
 
   // Build components
   const components: BrowseActionRow[] = [];
