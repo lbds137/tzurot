@@ -32,12 +32,15 @@ interface PageIndicatorOptions {
 /**
  * Join non-empty footer segments with the standard delimiter.
  *
- * Accepts strings plus common falsy values so the idiomatic
- * `cond && helper(x)` pattern works regardless of whether `cond` is a
- * boolean, number, or comparison result. Non-string values are filtered
- * out at runtime.
+ * Accepts `string | false | null | undefined` so the idiomatic
+ * `cond && helper(x)` pattern works when `cond` is a boolean comparison.
+ * Non-string values are filtered out at runtime.
+ *
+ * The type intentionally excludes `number` and `true` — if `count && helper(x)`
+ * short-circuits to `0` when count is zero, that's a bug the compiler should
+ * catch. Use `count > 0 && helper(x)` instead.
  */
-export function joinFooter(...segments: (string | number | boolean | null | undefined)[]): string {
+export function joinFooter(...segments: (string | false | null | undefined)[]): string {
   return segments
     .filter((s): s is string => typeof s === 'string' && s.length > 0)
     .join(FOOTER_DELIMITER);
