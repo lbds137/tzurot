@@ -15,6 +15,10 @@ import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, escapeMarkdown } from 'd
 import {
   buildBrowseButtons as buildSharedBrowseButtons,
   createBrowseCustomIdHelpers,
+  joinFooter,
+  pluralize,
+  formatSortNatural,
+  formatSortHardcoded,
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 import {
@@ -236,9 +240,11 @@ function buildEmbedSingleGuild(
 
   embed.setDescription(lines.join('\n\n'));
 
-  const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
   embed.setFooter({
-    text: `${activations.length} activated • Sorted ${sortLabel}`,
+    text: joinFooter(
+      pluralize(activations.length, { singular: 'activated', plural: 'activated' }),
+      sortType === 'date' ? formatSortNatural('date') : formatSortHardcoded('Sorted alphabetically')
+    ),
   });
 
   return embed;
@@ -279,15 +285,16 @@ function buildEmbedAllServers(
   lines.push(channelList || '_No activated channels found._');
   embed.setDescription(lines.join('\n'));
 
-  const sortLabel = sortType === 'date' ? 'by date' : 'alphabetically';
   const channelCount = guildPage.settings.length;
   const guildStatus =
     guildPage.isContinuation || !guildPage.isComplete
-      ? ` (${channelCount} shown)`
-      : ` (${channelCount} channels)`;
+      ? `(${channelCount} shown)`
+      : `(${channelCount} channels)`;
+  const sortPhrase =
+    sortType === 'date' ? formatSortNatural('date') : formatSortHardcoded('Sorted alphabetically');
 
   embed.setFooter({
-    text: `${totalChannels} total across all servers • Sorted ${sortLabel}${guildStatus}`,
+    text: joinFooter(`${totalChannels} total across all servers`, `${sortPhrase} ${guildStatus}`),
   });
 
   return embed;
