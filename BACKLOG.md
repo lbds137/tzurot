@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-04-06
-> **Version**: v3.0.0-beta.92
+> **Last Updated**: 2026-04-10
+> **Version**: v3.0.0-beta.94
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -58,7 +58,7 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 127 (PRs #599, #665–#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137. Current: 137.
+**Progress**: 175 → 127 (PRs #599, #665–#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137; PR #776 (browse footer helpers) → 126. Current: 126.
 
 ### Completed (Phases 1-4)
 
@@ -78,8 +78,8 @@ Session/ownership boilerplate and modal/select handling repeated across all dash
 Subcommand routing, browse/pagination, custom IDs, and command-specific duplication.
 
 - [ ] Consolidate subcommand routers — parameterized router with context-type generic (3 clones)
-- [ ] Migrate browse consumers to `browse/` utilities, delete `paginationBuilder.ts` (4 clones)
-- [ ] Servers command: use `createBrowseCustomIdHelpers` instead of inline parsing (4 clones)
+- [x] Migrate browse consumers to `browse/` utilities, delete `paginationBuilder.ts` (4 clones) — PRs #771-776
+- [x] Servers command: use `createBrowseCustomIdHelpers` instead of inline parsing (4 clones) — PR #773
 - [ ] Extract memory command shared helpers — `formatMemoryLine` (remaining clones)
 
 ### Phase 7: Cross-Service & Common-Types (~15 clones)
@@ -105,7 +105,7 @@ Smaller wins in ai-worker internal patterns and tooling utilities.
 
 Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
 
-**Target**: <100 clones or <1.5%. Currently 145 clones.
+**Target**: <100 clones or <1.5%. Currently 126 clones.
 
 ---
 
