@@ -427,4 +427,15 @@ describe('isTransientNetworkError', () => {
     const error = new TypeError('error', { cause: { code: 'ENOENT' } });
     expect(isTransientNetworkError(error)).toBe(false);
   });
+
+  it('should bail out on deeply nested cause chains to prevent stack overflow', () => {
+    // Build a cause chain deeper than the depth limit (5)
+    let error: Error = new Error('ECONNREFUSED') as NodeJS.ErrnoException;
+    (error as NodeJS.ErrnoException).code = 'ECONNREFUSED';
+    for (let i = 0; i < 10; i++) {
+      error = new Error(`wrapper-${i}`, { cause: error });
+    }
+    // The transient code is buried 10 levels deep — beyond the depth guard
+    expect(isTransientNetworkError(error)).toBe(false);
+  });
 });
