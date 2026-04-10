@@ -149,8 +149,7 @@ function buildBrowsePage(
   const filterLabel = filter === 'all' ? 'all types' : `${filter}s only`;
   embed.setFooter({
     text: joinFooter(
-      pluralize(entries.length, { singular: 'entry', plural: 'entries' }),
-      formatFilterParens(filterLabel),
+      `${pluralize(entries.length, { singular: 'entry', plural: 'entries' })} ${formatFilterParens(filterLabel)}`,
       sort === 'date' ? formatSortNatural('date') : formatSortNatural('target ID')
     ),
   });
