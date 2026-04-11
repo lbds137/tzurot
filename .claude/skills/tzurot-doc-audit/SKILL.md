@@ -42,7 +42,7 @@ Work through each section. For each item, verify accuracy and fix inline or note
 
 ### 0. Auto-Memory Audit (run FIRST)
 
-Claude's auto-memory in `~/.claude/projects/*tzurot*/memory/` accumulates per-session knowledge that may belong in more durable, team-visible layers. Audit all entries before moving on — items that migrate to rules/docs/skills affect those layers' audits in later sections.
+Claude's auto-memory in `~/.claude/projects/*tzurot*/memory/` accumulates per-session knowledge that may belong in more durable, team-visible layers. Each memory file is catalogued in `~/.claude/projects/*tzurot*/memory/MEMORY.md` (the index Claude reads at session start). Audit all entries before moving on — items that migrate to rules/docs/skills affect those layers' audits in later sections.
 
 ```bash
 # Skip this section if the memory directory doesn't exist (fresh install,
@@ -50,7 +50,18 @@ Claude's auto-memory in `~/.claude/projects/*tzurot*/memory/` accumulates per-se
 ls ~/.claude/projects/*tzurot*/memory/
 ```
 
-For each memory file, classify into one of:
+#### How to classify each memory file
+
+Read each file and pick the matching trigger first — these are the heuristics for choosing a verdict in the table below:
+
+- **Memory content already exists verbatim in a rule/doc/skill** → **Delete** (no migration needed; this is the steady-state outcome — once the initial backlog is cleared, most future audits hit this case)
+- Memory references a constraint that's now enforced by a rule → **Delete** (it's redundant)
+- Memory describes a multi-step procedure → **Migrate to `.claude/skills/`** (skill candidate)
+- Memory captures a one-time investigation finding → **Migrate to `docs/research/`** if distilled to TL;DR, or **Delete** if used and outdated
+- Memory describes "always do X for this project" → **Migrate to `.claude/rules/`** (rule candidate)
+- Memory describes "this user prefers X" or time-bound state → **Keep in memory** (per-user context, not generalizable)
+
+#### Verdict table
 
 | Verdict                          | Action                                                                                                                                                                                                         | When                                                                                                                                                                                                                                            |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,15 +72,6 @@ For each memory file, classify into one of:
 | **Delete**                       | Remove the memory file, remove from `MEMORY.md` index                                                                                                                                                          | Stale, no longer relevant, redundant with content already captured elsewhere, or describes a one-time investigation that's been resolved                                                                                                        |
 
 The "verify target covers full intent" step in the three migrate verdicts is load-bearing: a memory entry often has nuance (a specific exception, a concrete failure case) that the destination file doesn't yet cover. If you delete the memory before the destination has the nuance, the nuance is gone. Either extend the destination first, or downgrade the verdict to **Keep** until the destination is updated.
-
-Common migration triggers:
-
-- **Memory content already exists verbatim in a rule/doc/skill** → **delete** (no migration needed; this is the steady-state outcome — once the initial backlog is cleared, most future audits hit this case)
-- Memory references a constraint that's now enforced by a rule → **delete** (it's redundant)
-- Memory describes a multi-step procedure → **skill candidate**
-- Memory captures a one-time investigation finding → **`docs/research/`** if distilled to TL;DR, or **delete** if used and outdated
-- Memory describes "always do X for this project" → **rule candidate**
-- Memory describes "this user prefers X" → **keep** (per-user context, not generalizable)
 
 After processing each file, update `MEMORY.md` (the index) to remove deleted entries and revise descriptions for any that changed.
 
