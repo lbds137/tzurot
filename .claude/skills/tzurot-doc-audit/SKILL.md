@@ -48,6 +48,10 @@ Claude's auto-memory in `~/.claude/projects/*tzurot*/memory/` accumulates per-se
 # Skip this section if the memory directory doesn't exist (fresh install,
 # different machine) — there's nothing to audit.
 ls ~/.claude/projects/*tzurot*/memory/
+
+# If the glob silently expands to nothing (different checkout path),
+# find the project directory manually:
+ls ~/.claude/projects/ | grep -i tzurot
 ```
 
 #### How to classify each memory file
@@ -73,7 +77,13 @@ Read each file and pick the matching trigger first — these are the heuristics 
 
 The "verify target covers full intent" step in the three migrate verdicts is load-bearing: a memory entry often has nuance (a specific exception, a concrete failure case) that the destination file doesn't yet cover. If you delete the memory before the destination has the nuance, the nuance is gone. Either extend the destination first, or downgrade the verdict to **Keep** until the destination is updated.
 
-After processing each file, update `MEMORY.md` (the index) to remove deleted entries and revise descriptions for any that changed.
+After processing each file, the order matters — for migrate verdicts especially, do these steps in sequence:
+
+1. **Write to the destination layer first** (rule, doc, or skill — verifying it captures the full intent of the memory entry)
+2. **Delete the memory file**
+3. **Update `MEMORY.md`** (the index) to remove deleted entries and revise descriptions for any that changed
+
+Doing them out of order risks orphaning the memory's nuance: if you delete the memory file before the destination has the content, the nuance is gone (the verdict table's bold "Verify the target..." callouts above guard against this).
 
 Auto-memory audit runs as part of the recurring `/tzurot-doc-audit` cycle — there is no separate backlog item to track. If this section grows expensive enough to warrant its own cadence (e.g., audited weekly, while docs are quarterly), split it out then.
 
