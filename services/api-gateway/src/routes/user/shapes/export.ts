@@ -29,6 +29,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { resolveUserIdOrSendError } from '../../../utils/configOverrideHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
@@ -130,11 +131,9 @@ function createExportHandler(
     const normalizedSlug = slug.trim().toLowerCase();
     const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
-    // Get or create internal user (display name resolved later by bot-client;
-    // passing discordUserId as placeholder username matches the import flow)
-    const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+    const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
     if (userId === null) {
-      return sendError(res, ErrorResponses.validationError('Cannot create user'));
+      return;
     }
 
     // Verify credentials exist (don't decrypt — ai-worker does that)
