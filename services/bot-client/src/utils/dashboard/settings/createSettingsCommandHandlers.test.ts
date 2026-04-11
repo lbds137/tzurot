@@ -96,6 +96,24 @@ describe('createSettingsCommandHandlers', () => {
         TEST_ENTITY_TYPE
       );
     });
+
+    it('returns false when isSettingsInteraction returns false', () => {
+      vi.mocked(isSettingsInteraction).mockReturnValue(false);
+
+      const handlers = createSettingsCommandHandlers({
+        entityType: TEST_ENTITY_TYPE,
+        settingsConfig: testConfig,
+        createUpdateHandler: mockCreateUpdateHandler,
+      });
+
+      const result = handlers.isInteraction('other-type::button::xyz');
+
+      expect(result).toBe(false);
+      expect(isSettingsInteraction).toHaveBeenCalledWith(
+        'other-type::button::xyz',
+        TEST_ENTITY_TYPE
+      );
+    });
   });
 
   describe('handleButton', () => {

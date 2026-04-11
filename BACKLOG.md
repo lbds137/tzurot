@@ -19,7 +19,7 @@ _Active bugs observed in production. Fix before new features._
 
   **2. Blocked API writes when body carries over-long fields**: `PersonalityUpdateSchema` composes `...PersonalityCharacterFieldsSchema.shape`, so any PATCH body containing an over-long field fails `safeParse` at `services/api-gateway/src/routes/admin/updatePersonality.ts:123`. The error reaches the client as `"personalityAppearance: String must contain at most 4000 character(s)"` via `sendZodError`. Whether an unchanged over-long field blocks unrelated edits depends on whether the dashboard sends partial bodies (only changed fields — safe) or full snapshots (unsafe) — the dashboard flow uses section-level modals with `extractModalValues` returning only fields in the submitted modal, which suggests partial-per-section, but needs confirmation.
 
-  **DB survey** (Railway dev, 2026-04-11, `scripts/src/db/survey-character-field-lengths.ts`):
+  **DB survey** (Railway dev, 2026-04-11, script preserved in git history at commit `1de7f127` — deleted from working tree post-review per prod-safety concern: read-only script in `scripts/` was reachable from `pnpm ops run --env prod` and could be re-run against prod without review; results captured here are authoritative):
   - **168 total personalities**; **40 (23.8%) have at least one over-cap field** — roughly 1 in 4 characters is actively affected
   - `characterInfo` (cap 4000): **27 over-cap**, max 6082 chars (52% over cap), avg 2821. Required field, affects 16.1% of characters.
   - `conversationalExamples` (cap 4000): **18 over-cap**, max 7479 chars (87% over cap), avg 2589. 11.3% affected.
