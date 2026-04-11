@@ -21,6 +21,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
+  resolveUserIdOrSendError,
 } from '../../utils/configOverrideHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -76,9 +77,9 @@ export function createPersonalityConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await userService.getOrCreateUser(req.userId, req.userId);
+      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
       if (userId === null) {
-        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+        return;
       }
 
       // Verify creator ownership

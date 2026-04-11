@@ -22,6 +22,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { resolveUserIdOrSendError } from '../../../utils/configOverrideHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
@@ -106,10 +107,9 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 
     const validImportType = importType === 'memory_only' ? 'memory_only' : 'full';
 
-    // Get or create internal user
-    const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+    const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
     if (userId === null) {
-      return sendError(res, ErrorResponses.validationError('Cannot create user'));
+      return;
     }
 
     // Atomically check for conflicts and create the import job
