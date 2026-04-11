@@ -73,7 +73,7 @@ Common migration triggers:
 
 After processing each file, update `MEMORY.md` (the index) to remove deleted entries and revise descriptions for any that changed.
 
-**This section subsumes the standalone "Audit Claude auto-memory vs. project rules/docs" backlog item** that was previously tracked separately — running `/tzurot-doc-audit` periodically now covers it as part of the recurring audit cycle.
+Auto-memory audit runs as part of the recurring `/tzurot-doc-audit` cycle — there is no separate backlog item to track. If this section grows expensive enough to warrant its own cadence (e.g., audited weekly, while docs are quarterly), split it out then.
 
 ### 1. docs/README.md Index
 
