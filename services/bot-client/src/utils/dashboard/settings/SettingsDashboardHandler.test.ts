@@ -140,9 +140,9 @@ describe('SettingsDashboardHandler', () => {
       expect(isSettingsInteraction(customId, 'personality-settings')).toBe(true);
     });
 
-    it('should match channel-context entity type', () => {
-      const customId = 'channel-context::back::chan-123';
-      expect(isSettingsInteraction(customId, 'channel-context')).toBe(true);
+    it('should match channel-settings entity type', () => {
+      const customId = 'channel-settings::back::chan-123';
+      expect(isSettingsInteraction(customId, 'channel-settings')).toBe(true);
     });
 
     it('should match global entity type', () => {

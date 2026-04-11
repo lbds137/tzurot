@@ -1,7 +1,8 @@
 /**
- * Tests for Channel Context Dashboard
+ * Tests for Channel Settings Dashboard
  *
- * Tests the interactive settings dashboard for channel context settings.
+ * Tests the interactive settings dashboard for the /channel settings subcommand
+ * (which manages channel-tier cascade settings: context window, memory, display, voice).
  *
  * This command uses deferralMode: 'ephemeral' which means:
  * - Framework calls deferReply before execute()
@@ -13,11 +14,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
-  handleContext,
-  handleChannelContextButton,
-  handleChannelContextSelectMenu,
-  handleChannelContextModal,
-  isChannelContextInteraction,
+  handleChannelSettings,
+  handleChannelSettingsButton,
+  handleChannelSettingsSelectMenu,
+  handleChannelSettingsModal,
+  isChannelSettingsInteraction,
 } from './settings.js';
 
 // Mock dependencies
@@ -66,7 +67,7 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
   },
 }));
 
-describe('Channel Context Dashboard', () => {
+describe('Channel Settings Dashboard', () => {
   const mockChannelSettings = {
     settings: {
       activatedPersonalityId: 'personality-123',
@@ -192,11 +193,11 @@ describe('Channel Context Dashboard', () => {
     });
   });
 
-  describe('handleContext', () => {
+  describe('handleChannelSettings', () => {
     it('should require Manage Messages permission', async () => {
       const context = createMockContext(false);
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       expect(context.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Manage Messages'),
@@ -207,7 +208,7 @@ describe('Channel Context Dashboard', () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       expect(mockGetChannelSettings).toHaveBeenCalledWith('channel-123');
       expect(context.editReply).toHaveBeenCalledWith(
@@ -222,7 +223,7 @@ describe('Channel Context Dashboard', () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(editReplyCall.embeds).toHaveLength(1);
@@ -235,7 +236,7 @@ describe('Channel Context Dashboard', () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
@@ -247,7 +248,7 @@ describe('Channel Context Dashboard', () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
@@ -276,7 +277,7 @@ describe('Channel Context Dashboard', () => {
       // Channel has no activated personality
       mockGetChannelSettings.mockResolvedValue({ settings: {} });
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       // Should call resolve-defaults as fallback (not full resolve which needs personalityId)
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -330,7 +331,7 @@ describe('Channel Context Dashboard', () => {
           data: { configOverrides: { maxMessages: 25 } },
         });
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
@@ -360,7 +361,7 @@ describe('Channel Context Dashboard', () => {
       // Resolve endpoint returns error
       mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Not found' });
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       // Should still display the dashboard with fallback data
       expect(context.editReply).toHaveBeenCalledWith(
@@ -374,7 +375,7 @@ describe('Channel Context Dashboard', () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockRejectedValue(new Error('Network error'));
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       expect(context.editReply).toHaveBeenCalledWith({
         content: '❌ An error occurred while opening the context settings dashboard.',
@@ -390,40 +391,40 @@ describe('Channel Context Dashboard', () => {
       });
       mockGetChannelSettings.mockRejectedValue(new Error('Network error'));
 
-      await handleContext(context);
+      await handleChannelSettings(context);
 
       // editReply should not be called when interaction.replied is true
       expect(context.editReply).not.toHaveBeenCalled();
     });
   });
 
-  describe('isChannelContextInteraction', () => {
-    it('should return true for channel context custom IDs', () => {
-      expect(isChannelContextInteraction('channel-settings::select::chan-123')).toBe(true);
-      expect(isChannelContextInteraction('channel-settings::set::chan-123::maxMessages:auto')).toBe(
-        true
-      );
-      expect(isChannelContextInteraction('channel-settings::back::chan-123')).toBe(true);
-      expect(isChannelContextInteraction('channel-settings::close::chan-123')).toBe(true);
+  describe('isChannelSettingsInteraction', () => {
+    it('should return true for channel settings custom IDs', () => {
+      expect(isChannelSettingsInteraction('channel-settings::select::chan-123')).toBe(true);
+      expect(
+        isChannelSettingsInteraction('channel-settings::set::chan-123::maxMessages:auto')
+      ).toBe(true);
+      expect(isChannelSettingsInteraction('channel-settings::back::chan-123')).toBe(true);
+      expect(isChannelSettingsInteraction('channel-settings::close::chan-123')).toBe(true);
     });
 
-    it('should return false for non-channel-context custom IDs', () => {
-      expect(isChannelContextInteraction('character-settings::select::aurora')).toBe(false);
-      expect(isChannelContextInteraction('admin-settings::set::global')).toBe(false);
+    it('should return false for non-channel-settings custom IDs', () => {
+      expect(isChannelSettingsInteraction('character-settings::select::aurora')).toBe(false);
+      expect(isChannelSettingsInteraction('admin-settings::set::global')).toBe(false);
       // channel::list is channel list pagination, not settings
-      expect(isChannelContextInteraction('channel::list::1::date')).toBe(false);
+      expect(isChannelSettingsInteraction('channel::list::1::date')).toBe(false);
     });
 
     it('should return false for empty custom ID', () => {
-      expect(isChannelContextInteraction('')).toBe(false);
+      expect(isChannelSettingsInteraction('')).toBe(false);
     });
   });
 
-  describe('handleChannelContextButton', () => {
-    it('should ignore non-channel-context interactions', async () => {
+  describe('handleChannelSettingsButton', () => {
+    it('should ignore non-channel-settings interactions', async () => {
       const interaction = createMockButtonInteraction('admin-settings::set::global::enabled:true');
 
-      await handleChannelContextButton(interaction);
+      await handleChannelSettingsButton(interaction);
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
@@ -456,27 +457,27 @@ describe('Channel Context Dashboard', () => {
         error: 'Server error',
       });
 
-      await handleChannelContextButton(interaction as unknown as ButtonInteraction);
+      await handleChannelSettingsButton(interaction as unknown as ButtonInteraction);
 
       // On failure, handler returns early and doesn't call editReply
       expect(interaction.update).not.toHaveBeenCalled();
     });
   });
 
-  describe('handleChannelContextSelectMenu', () => {
-    it('should ignore non-channel-context interactions', async () => {
+  describe('handleChannelSettingsSelectMenu', () => {
+    it('should ignore non-channel-settings interactions', async () => {
       const interaction = createMockSelectMenuInteraction(
         'admin-settings::select::global',
         'enabled'
       );
 
-      await handleChannelContextSelectMenu(interaction);
+      await handleChannelSettingsSelectMenu(interaction);
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
   });
 
-  describe('handleChannelContextModal', () => {
+  describe('handleChannelSettingsModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
       user: { id: 'user-456' },
@@ -503,13 +504,13 @@ describe('Channel Context Dashboard', () => {
       },
     });
 
-    it('should ignore non-channel-context modal interactions', async () => {
+    it('should ignore non-channel-settings modal interactions', async () => {
       const interaction = createMockModalInteraction(
         'admin-settings::modal::global::enabled',
         '50'
       );
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       expect(interaction.reply).not.toHaveBeenCalled();
     });
@@ -524,7 +525,7 @@ describe('Channel Context Dashboard', () => {
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       // Should use new config-overrides endpoint with flat body shape
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -546,7 +547,7 @@ describe('Channel Context Dashboard', () => {
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/channel/channel-123/config-overrides',
@@ -567,7 +568,7 @@ describe('Channel Context Dashboard', () => {
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       // "off" maps to -1 in the modal, mapSettingToApiUpdate converts -1 → null
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -589,7 +590,7 @@ describe('Channel Context Dashboard', () => {
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/channel/channel-123/config-overrides',
@@ -610,7 +611,7 @@ describe('Channel Context Dashboard', () => {
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       expect(mockInvalidateChannelSettingsCache).toHaveBeenCalledWith('channel-123');
     });
@@ -624,7 +625,7 @@ describe('Channel Context Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       // When update fails, handler returns early - verify interaction.editReply wasn't called
       expect(interaction.editReply).not.toHaveBeenCalled();
@@ -640,7 +641,7 @@ describe('Channel Context Dashboard', () => {
       // First call is PATCH (returns error), second would be resolve (not called)
       mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Validation failed' });
 
-      await handleChannelContextModal(interaction as never);
+      await handleChannelSettingsModal(interaction as never);
 
       // Cache should NOT be invalidated on failure
       expect(mockInvalidateChannelSettingsCache).not.toHaveBeenCalled();
