@@ -192,6 +192,22 @@ describe('createSettingsCommandHandlers', () => {
 
       expect(handleSettingsSelectMenu).not.toHaveBeenCalled();
     });
+
+    it('returns early when parseSettingsCustomId returns null', async () => {
+      vi.mocked(isSettingsInteraction).mockReturnValue(true);
+      vi.mocked(parseSettingsCustomId).mockReturnValue(null);
+
+      const handlers = createSettingsCommandHandlers({
+        entityType: TEST_ENTITY_TYPE,
+        settingsConfig: testConfig,
+        createUpdateHandler: mockCreateUpdateHandler,
+      });
+
+      await handlers.handleSelectMenu(makeSelectMenuInteraction('character-test::select::'));
+
+      expect(mockCreateUpdateHandler).not.toHaveBeenCalled();
+      expect(handleSettingsSelectMenu).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleModal', () => {
@@ -227,6 +243,22 @@ describe('createSettingsCommandHandlers', () => {
 
       await handlers.handleModal(makeModalInteraction('nope::modal::xyz'));
 
+      expect(handleSettingsModal).not.toHaveBeenCalled();
+    });
+
+    it('returns early when parseSettingsCustomId returns null', async () => {
+      vi.mocked(isSettingsInteraction).mockReturnValue(true);
+      vi.mocked(parseSettingsCustomId).mockReturnValue(null);
+
+      const handlers = createSettingsCommandHandlers({
+        entityType: TEST_ENTITY_TYPE,
+        settingsConfig: testConfig,
+        createUpdateHandler: mockCreateUpdateHandler,
+      });
+
+      await handlers.handleModal(makeModalInteraction('character-test::modal::'));
+
+      expect(mockCreateUpdateHandler).not.toHaveBeenCalled();
       expect(handleSettingsModal).not.toHaveBeenCalled();
     });
   });
