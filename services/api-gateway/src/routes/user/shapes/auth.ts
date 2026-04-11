@@ -25,6 +25,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { resolveUserIdOrSendError } from '../../../utils/configOverrideHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-auth');
@@ -60,9 +61,9 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       );
     }
 
-    const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+    const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
     if (userId === null) {
-      return sendError(res, ErrorResponses.validationError('Cannot create user'));
+      return;
     }
 
     const encrypted = encryptApiKey(sessionCookie);

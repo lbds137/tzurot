@@ -29,15 +29,14 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { resolveUserIdOrSendError } from '../../utils/configOverrideHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService, type LlmConfigScope } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
-import {
-  validateModelAndContextWindow,
-  enrichWithModelContext,
-} from '../../utils/modelValidation.js';
+import { enrichWithModelContext } from '../../utils/modelValidation.js';
+import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 import { createResolveHandler } from './llmConfigResolve.js';
 
 const logger = createLogger('user-llm-config');
@@ -141,20 +140,14 @@ function createCreateHandler(
     }
     const body = parseResult.data;
 
-    // Validate model ID and context window cap
-    const modelValidation = await validateModelAndContextWindow(
-      modelCache,
-      body.model,
-      body.contextWindowTokens
-    );
-    if (modelValidation.error !== undefined) {
-      return sendError(res, ErrorResponses.validationError(modelValidation.error));
+    if (!(await validateLlmConfigModelFields({ res, modelCache, body }))) {
+      return;
     }
 
     // Get or create user
-    const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+    const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
     if (userId === null) {
-      return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+      return;
     }
 
     // Check for duplicate name using service
@@ -216,23 +209,15 @@ function createUpdateHandler(
     }
     const body = parseResult.data;
 
-    // Validate model ID and context window cap if either is being updated
-    if (body.model !== undefined || body.contextWindowTokens !== undefined) {
-      // For context window validation, we need the effective model:
-      // use the new model if provided, otherwise look up the existing config's model
-      let effectiveModel = body.model;
-      if (effectiveModel === undefined) {
-        const existing = await service.getById(configId ?? '');
-        effectiveModel = existing?.model;
-      }
-      const modelValidation = await validateModelAndContextWindow(
+    if (
+      !(await validateLlmConfigModelFields({
+        res,
         modelCache,
-        effectiveModel,
-        body.contextWindowTokens
-      );
-      if (modelValidation.error !== undefined) {
-        return sendError(res, ErrorResponses.validationError(modelValidation.error));
-      }
+        body,
+        fallback: { service, configId: configId ?? '' },
+      }))
+    ) {
+      return;
     }
 
     const user = await prisma.user.findFirst({

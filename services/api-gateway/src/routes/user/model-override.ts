@@ -26,7 +26,7 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
+import { tryInvalidateCache, resolveUserIdOrSendError } from '../../utils/configOverrideHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -127,11 +127,9 @@ export function createModelOverrideRoutes(
 
       const { personalityId, configId } = parseResult.data;
 
-      // Get or create user via centralized UserService
-      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
       if (userId === null) {
-        // Should not happen for slash commands (bots can't use them)
-        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+        return;
       }
 
       // Verify personality exists
@@ -253,11 +251,9 @@ export function createModelOverrideRoutes(
 
       const { configId } = parseResult.data;
 
-      // Get or create user via centralized UserService
-      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
       if (userId === null) {
-        // Should not happen for slash commands (bots can't use them)
-        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+        return;
       }
 
       // Verify config exists and user can access it (global or owned)

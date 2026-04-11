@@ -30,10 +30,8 @@ import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
-import {
-  validateModelAndContextWindow,
-  enrichWithModelContext,
-} from '../../utils/modelValidation.js';
+import { enrichWithModelContext } from '../../utils/modelValidation.js';
+import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 
 const logger = createLogger('admin-llm-config');
 
@@ -83,14 +81,8 @@ function createCreateConfigHandler(
     }
     const body = parseResult.data;
 
-    // Validate model ID and context window cap
-    const modelValidation = await validateModelAndContextWindow(
-      modelCache,
-      body.model,
-      body.contextWindowTokens
-    );
-    if (modelValidation.error !== undefined) {
-      return sendError(res, ErrorResponses.validationError(modelValidation.error));
+    if (!(await validateLlmConfigModelFields({ res, modelCache, body }))) {
+      return;
     }
 
     // Get admin user's internal ID for ownership
@@ -140,21 +132,15 @@ function createEditConfigHandler(
     }
     const body = parseResult.data;
 
-    // Validate model ID and context window cap if either is being updated
-    if (body.model !== undefined || body.contextWindowTokens !== undefined) {
-      let effectiveModel = body.model;
-      if (effectiveModel === undefined) {
-        const current = await service.getById(configId ?? '');
-        effectiveModel = current?.model;
-      }
-      const modelValidation = await validateModelAndContextWindow(
+    if (
+      !(await validateLlmConfigModelFields({
+        res,
         modelCache,
-        effectiveModel,
-        body.contextWindowTokens
-      );
-      if (modelValidation.error !== undefined) {
-        return sendError(res, ErrorResponses.validationError(modelValidation.error));
-      }
+        body,
+        fallback: { service, configId: configId ?? '' },
+      }))
+    ) {
+      return;
     }
 
     const existing = await prisma.llmConfig.findUnique({

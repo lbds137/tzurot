@@ -18,6 +18,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { resolveUserIdOrSendError } from '../../utils/configOverrideHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
@@ -94,11 +95,9 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
 
       logger.info({ discordUserId, timezone }, '[Timezone] Setting user timezone');
 
-      // Ensure user exists via centralized UserService (creates shell user if needed)
-      const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+      const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
       if (userId === null) {
-        // Should not happen for slash commands (bots can't use them)
-        return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
+        return;
       }
 
       // Update the timezone
