@@ -19,7 +19,16 @@ _Active bugs observed in production. Fix before new features._
 
   **2. Blocked API writes when body carries over-long fields**: `PersonalityUpdateSchema` composes `...PersonalityCharacterFieldsSchema.shape`, so any PATCH body containing an over-long field fails `safeParse` at `services/api-gateway/src/routes/admin/updatePersonality.ts:123`. The error reaches the client as `"personalityAppearance: String must contain at most 4000 character(s)"` via `sendZodError`. Whether an unchanged over-long field blocks unrelated edits depends on whether the dashboard sends partial bodies (only changed fields — safe) or full snapshots (unsafe) — the dashboard flow uses section-level modals with `extractModalValues` returning only fields in the submitted modal, which suggests partial-per-section, but needs confirmation.
 
-  **DB survey**: _Pending Railway CLI auth. Run `pnpm ops run --env dev tsx scripts/src/db/survey-character-field-lengths.ts` to fill in affected counts, max lengths, and field distribution._
+  **DB survey** (Railway dev, 2026-04-11, `scripts/src/db/survey-character-field-lengths.ts`):
+  - **168 total personalities**; **40 (23.8%) have at least one over-cap field** — roughly 1 in 4 characters is actively affected
+  - `characterInfo` (cap 4000): **27 over-cap**, max 6082 chars (52% over cap), avg 2821. Required field, affects 16.1% of characters.
+  - `conversationalExamples` (cap 4000): **18 over-cap**, max 7479 chars (87% over cap), avg 2589. 11.3% affected.
+  - `personalityAge` (cap 100): **5 over-cap**, max 236 chars. The 100-char cap is clearly miscalibrated — users write prose like "late 20s but claims to be 300 due to fae heritage" that doesn't fit. 3.0% affected.
+  - `personalityTraits` (cap 1000): **1 over-cap**, max 1172 chars. 0.6% affected.
+  - Near-cap but not over: `personalityLikes` max 3915 (98% of cap), `conversationalGoals` max 3869 (97%), `personalityDislikes` max 3732 (93%). Users are actively writing up against the wall; these will flip over when caps are relaxed or content grows.
+  - All-clear: `personalityTone` (max 875 / cap 1000), `personalityAppearance` (max 3480 / cap 4000), `errorMessage` (max 938 / cap 1000)
+
+  **Severity reframe**: this is not a latent "edge case with legacy data" — 1 in 4 characters is affected today, with the worst offenders being the two long-form narrative fields (`characterInfo` and `conversationalExamples`) where users invest the most prompt-engineering effort. These are exactly the characters people are most likely to edit and most likely to lose work on.
 
   **Reference fix — prior art in `/memory` command**: The memory command already solves this elegantly for its own over-long content case (`services/bot-client/src/commands/memory/detailModals.ts` lines 61–156). Pattern has two complementary flows:
   - **Edit path** (`detailModals.ts:95-130`): detect over-long content before opening modal; show `buildTruncationWarningEmbed` (lines 61–75) with exact char count, destructive-action disclaimer, 200-char preview, and explicit `"Edit with Truncation"` opt-in button; only on opt-in does `handleEditTruncatedButton` (lines 132–156) run with the truncated content reaching the modal.
