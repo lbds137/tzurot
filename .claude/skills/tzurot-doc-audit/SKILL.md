@@ -77,11 +77,12 @@ Auto-memory audit runs as part of the recurring `/tzurot-doc-audit` cycle — th
 
 ### 1. docs/README.md Index
 
-- [ ] Files listed under "Active proposals" match actual `docs/proposals/active/` contents
 - [ ] Files listed under "Backlog proposals" are a representative subset of `docs/proposals/backlog/`
 - [ ] Quick Links point to files that exist
 - [ ] Reference subdirectory table matches actual subdirectories
 - [ ] Root-level documentation section references correct filenames
+
+> Note: this project uses `BACKLOG.md` for active work tracking, not `docs/proposals/active/` — that directory does not exist by design. If you see references to it in any doc, they're stale and should be removed.
 
 ### 2. Rules Files (`.claude/rules/`)
 
