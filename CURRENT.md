@@ -1,39 +1,75 @@
 # Current
 
-> **Session**: 2026-04-10
+> **Session**: 2026-04-11
 > **Version**: v3.0.0-beta.94
 
 ---
 
 ## Session Goal
 
-_Browse Standardization Step 8: Footer helper module + migration of all 11 browse commands._
+_CPD Zero Roadmap Session 1 — bot-client settings factory + api-gateway shared helpers + latent cap bug investigation._
 
 ## Active Task
 
-Browse footer standardization complete (PR #776 merged). Ready to cut beta.93 release.
+Session 1 wrap-up: three PRs in flight (PR #778 refactor, PR #779 refactor, PR #780 wrap-up docs). PR #778 review feedback already addressed. Ready for user review + merge.
 
 ---
 
 ## Completed This Session
 
-### PR #776 — Browse Footer Standardization (CPD 137→126)
+### PR #778 — Bot-Client Settings Command Factory + Governance Rule + Cap Bug Investigation
 
-- **New module**: `footer.ts` — composable helpers: `joinFooter`, `pluralize`, `formatFilterLabeled`, `formatFilterParens`, `formatSortNatural`, `formatSortVerbatim`, `formatPageIndicator`
-- **Migrated all 11 browse commands** to use shared helpers
-- **Two cosmetic fixes**: delimiter `·` → `•` in inspect + shapes; singular-aware pluralization
-- **Deny test mock** upgraded with `importOriginal` pattern
-- **3 review rounds addressed**: renamed `formatSortHardcoded` → `formatSortVerbatim`, narrowed `joinFooter` type to exclude `number`/`true`, extracted `footer.test.ts`, fixed deny footer UX regression, consolidated shapes imports
+**Refactor**: Extracted `createSettingsCommandHandlers` factory from three entity-ID settings dashboards (`character/overrides.ts`, `character/settings.ts`, `channel/settings.ts`). Public API preserved — zero test file changes, 70 existing tests pass untouched. The plan's original "2 twin files" scope expanded to 3 after investigation found `channel/settings.ts` was the surprise third consumer with an inline closure pattern that hoisted cleanly into a shared `createUpdateHandler(channelId)`.
+
+**Governance rule**: Added "Out-of-Scope Items Must Be Tracked" section to `.claude/rules/06-backlog.md`. Distinguishes type (a) design decisions (no tracking) from type (b) known defects (must have backlog entry). Session-end gate requires all promised backlog additions in place before closing.
+
+**Cap bug investigation**: Root-cause investigation of `PersonalityCharacterFieldsSchema` caps leaking into data validation. DB survey found **40 of 168 personalities (23.8%) actively affected**. Silent-data-loss bug identified at `ModalFactory.ts:108` — `currentValue.slice(0, maxLength)` pre-fill truncation destroys content on save with no warning. Reference fix found in `/memory` command's `detailModals.ts:61-156` (two-flow pattern: destructive-edit warning with explicit opt-in, "View Full" button for reads). New 🚨 Production Issue entry + cross-cutting Inbox item added to `BACKLOG.md`.
+
+**Review feedback**: Addressed null-parse test coverage gap for `handleSelectMenu` and `handleModal` (factory test: 9 → 11).
+
+### PR #779 — API Gateway Shared Helpers (`resolveUserIdOrSendError` + `validateLlmConfigModelFields`)
+
+Two related extractions:
+
+- `resolveUserIdOrSendError` in `configOverrideHelpers.ts` — collapsed `getOrCreateUser + bot-null-check + error-send` pattern across **15 call sites in 9 files** (grep rule revealed nearly double the plan's original 9-site estimate; 3 shapes files unified from `'Cannot create user'` to `'Cannot create user for bot'`, minor user-facing text improvement).
+- `validateLlmConfigModelFields` in new `llmConfigValidation.ts` — collapsed model-id + context-window validation across 4 call sites (admin + user llm-config, create + update), including the subtle "fetch current model as fallback when only contextWindowTokens is updated" logic.
+
+13 new unit tests total (4 for user-resolution helper, 9 for LLM config validation). All 1703 api-gateway tests pass with zero consumer-test changes.
+
+### PR #780 — Session 1 Wrap-Up Docs
+
+This PR. BACKLOG.md additions for the type-(b) items the two refactor PRs flagged but didn't fix. CURRENT.md update. Roadmap recalibration in `~/.claude/plans/cpd-zero-roadmap.md`.
 
 ### CPD Progress
 
-- **Before**: 137 clones
-- **After**: 126 clones (-11)
-- **Target**: <100
+- **Before**: 126 clones (end of 2026-04-10 session)
+- **After both PRs merge**: 118 clones (-8 total, -5 from PR #778, -3 from PR #779)
+- **Target**: <100 (still 18 clones to go across Sessions 2-4)
+- **Honest framing**: the original roadmap estimated ~24 clones for Session 1 based on a stale snapshot. Investigation revealed the roadmap's assumptions didn't match current code; realistic Session 1 target was 6-8. Delivered 8. Sessions 2-4 estimates need similar recalibration — flagged in roadmap update.
+
+### Backlog Additions (Session 1 Governance Output)
+
+Per the new out-of-scope tracking rule, these type-(b) items are now in `BACKLOG.md`:
+
+1. 🚨 **Character field length caps cause silent data loss** (Production Issues) — from cap bug investigation, with DB survey numbers and reference fix
+2. 🏗️ **Standardize over-long field handling pattern across commands** (Inbox) — cross-cutting concern, rule-of-three progression tied to the Production Issue
+3. 🏗️ **Rename `channel/settings.ts` → `channel/context.ts`** (Quick Wins) — four-layer naming drift flagged during PR #778 migration
+4. 🧹 **Trim 18 duplicated guard/parse tests** (Quick Wins) — post-factory-landing cleanup, deferred from PR #778
+5. 🧹 **Audit Claude auto-memory vs. project rules/docs** (Inbox) — meta-level governance, draft "what belongs where" rule
+6. 🧹 **Periodic audit of `scripts/` for promotion candidates** (Inbox) — meta-level governance, catch "one-offs" that secretly repeat
+7. Marked stale Phase 7 entry "DRY personality create/update Zod schemas" as `[x]` done — confirmed implemented during investigation
 
 ---
 
 ## Unreleased on Develop (since beta.92)
+
+### CPD Zero Roadmap Session 1 (2026-04-11)
+
+| PR   | Type     | Summary                                                                                      |
+| ---- | -------- | -------------------------------------------------------------------------------------------- |
+| #778 | refactor | Bot-client `createSettingsCommandHandlers` factory + governance rule + cap bug investigation |
+| #779 | refactor | API gateway `resolveUserIdOrSendError` + `validateLlmConfigModelFields`                      |
+| #780 | docs     | Session 1 wrap-up: backlog additions + CURRENT update                                        |
 
 ### Browse Standardization Epic (Steps 1-8)
 
@@ -67,6 +103,7 @@ Browse footer standardization complete (PR #776 merged). Ready to cut beta.93 re
 
 ## Previous Sessions
 
+- **2026-04-10**: Browse Step 8 (PR #776), CPD 137→126
 - **2026-04-09**: Browse Steps 6-7 (PR #775), footer design plan + council consultation
 - **2026-04-06**: Architecture day (PRs #766, #768, #769), CPD 146→137
 - **2026-04-05**: Voice engine retry (PR #759), security fixes (PR #760)
