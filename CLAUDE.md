@@ -57,6 +57,8 @@ gh pr merge <number> --rebase                  # Release PRs (develop → main) 
 
 ## Post-Mortems
 
+> **Entry criteria**: Only catastrophic, AI-specific behavioral failures that cause unrecoverable loss of code, data, or context. All other bugs go to PROJECT_POSTMORTEMS.md.
+
 | Date       | Incident                       | Rule                                         |
 | ---------- | ------------------------------ | -------------------------------------------- |
 | 2026-02-03 | Context settings not cascading | Trace full runtime flow                      |
