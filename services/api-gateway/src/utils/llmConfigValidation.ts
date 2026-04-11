@@ -27,9 +27,11 @@ import type { LlmConfigService } from '../services/LlmConfigService.js';
  *
  * The `fallback` property distinguishes create from update semantics:
  *
- * - **Create path**: omit `fallback`. Validation always runs, using `body.model`
- *   directly. Absence of `body.model` is allowed only when `modelCache` is
- *   undefined (graceful skip).
+ * - **Create path**: omit `fallback`. The helper forwards `body.model` directly
+ *   to `validateModelAndContextWindow`, which handles an undefined model
+ *   gracefully (skips model-specific checks and returns no error). So a create
+ *   body without `model` is valid — validation simply has nothing to verify
+ *   about the model in that case. Same goes for `modelCache: undefined`.
  * - **Update path**: pass `fallback: { service, configId }`. Validation skips
  *   entirely when neither `body.model` nor `body.contextWindowTokens` is present
  *   (no-op edit). If only `body.contextWindowTokens` is provided, the helper
