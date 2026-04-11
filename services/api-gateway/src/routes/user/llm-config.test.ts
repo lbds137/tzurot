@@ -398,6 +398,10 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should return 400 when model validation fails on create', async () => {
+      // Mock req/res approach — no real HTTP client, so returning `false` without
+      // calling res.status()/res.json() is safe. Contrast with admin/llm-config.test.ts
+      // which uses supertest and must have the mock write the error response to res
+      // (otherwise supertest hangs waiting for a response that never comes).
       mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
