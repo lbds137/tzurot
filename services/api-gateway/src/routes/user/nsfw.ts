@@ -69,7 +69,14 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
 
       logger.info({ discordUserId }, '[NSFW] Verifying user via NSFW channel interaction');
 
-      // Ensure user exists via centralized UserService (creates shell user if needed)
+      // Ensure user exists via centralized UserService (creates shell user if needed).
+      //
+      // NOTE: Deliberately not migrated to `resolveUserIdOrSendError` from
+      // `configOverrideHelpers.ts` (PR #779). That helper sends a 400 validation-error
+      // response on the bot-null case, which is wrong here: NSFW verification status
+      // is advisory, and the correct bot-user response is a 200 with
+      // `{ nsfwVerified: false }` — not an error. This route uses `sendCustomSuccess`
+      // with a clear advisory message instead of a rejection.
       const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
       if (userId === null) {
         // Should not happen for slash commands (bots can't use them)

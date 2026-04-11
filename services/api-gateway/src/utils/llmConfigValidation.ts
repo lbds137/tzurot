@@ -38,6 +38,15 @@ import type { LlmConfigService } from '../services/LlmConfigService.js';
  */
 export interface ValidateLlmConfigModelFieldsOptions {
   res: Response;
+  /**
+   * OpenRouter model cache used to look up context-window caps.
+   *
+   * **Accepting `undefined` is intentional**: the underlying
+   * `validateModelAndContextWindow` gracefully skips all validation when the
+   * cache is absent (e.g., in local dev without an OpenRouter API key, or in
+   * tests that construct routes without a cache). Callers should pass through
+   * whatever cache reference they have without a pre-check.
+   */
   modelCache: OpenRouterModelCache | undefined;
   body: {
     model?: string;
