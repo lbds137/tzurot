@@ -20,7 +20,8 @@ Fast triage before a full audit:
 # What docs exist?
 find docs/ -name '*.md' | sort
 
-# What auto-memory entries exist? (Section 0 covers these)
+# What auto-memory entries exist? (Section 0 covers these — skip if
+# this returns "No such file or directory" on a fresh install)
 ls ~/.claude/projects/*tzurot*/memory/
 
 # Recent changes (last 30 days)?
