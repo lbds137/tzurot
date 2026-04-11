@@ -13,7 +13,41 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-_None — all cleared in beta.92 and 2026-04-05 session._
+- 🐛 `[FIX]` **Character field length caps cause silent data loss in dashboard edit + block API updates** — `PersonalityCharacterFieldsSchema` enforces length caps (1000/100/4000 chars per field, matching Discord modal input limits) at the Zod validation layer. Characters with legacy fields exceeding those caps (likely from shapes.inc imports or pre-cap data) exhibit two failure modes:
+
+  **1. Silent data loss via dashboard edit** (CRITICAL): When a user clicks a character dashboard section that contains an over-long field (e.g., Biography → Appearance), `ModalFactory.buildSectionModal` silently truncates the pre-fill to `maxLength` chars at `services/bot-client/src/utils/dashboard/ModalFactory.ts:108` (`currentValue.slice(0, maxLength)`). The user sees no warning. If they submit, the trailing content is irrecoverably lost. The truncation is justified at line 107 as "Discord modals require value to be within length constraints" — a genuine API constraint — but the destructive behavior is hidden from the user.
+
+  **2. Blocked API writes when body carries over-long fields**: `PersonalityUpdateSchema` composes `...PersonalityCharacterFieldsSchema.shape`, so any PATCH body containing an over-long field fails `safeParse` at `services/api-gateway/src/routes/admin/updatePersonality.ts:123`. The error reaches the client as `"personalityAppearance: String must contain at most 4000 character(s)"` via `sendZodError`. Whether an unchanged over-long field blocks unrelated edits depends on whether the dashboard sends partial bodies (only changed fields — safe) or full snapshots (unsafe) — the dashboard flow uses section-level modals with `extractModalValues` returning only fields in the submitted modal, which suggests partial-per-section, but needs confirmation.
+
+  **DB survey**: _Pending Railway CLI auth. Run `pnpm ops run --env dev tsx scripts/src/db/survey-character-field-lengths.ts` to fill in affected counts, max lengths, and field distribution._
+
+  **Reference fix — prior art in `/memory` command**: The memory command already solves this elegantly for its own over-long content case (`services/bot-client/src/commands/memory/detailModals.ts` lines 61–156). Pattern has two complementary flows:
+  - **Edit path** (`detailModals.ts:95-130`): detect over-long content before opening modal; show `buildTruncationWarningEmbed` (lines 61–75) with exact char count, destructive-action disclaimer, 200-char preview, and explicit `"Edit with Truncation"` opt-in button; only on opt-in does `handleEditTruncatedButton` (lines 132–156) run with the truncated content reaching the modal.
+  - **Display path** (`detail.ts:85-155`): `buildDetailEmbed` returns `{ embed, isTruncated }`; when truncated, adds a `"View Full"` button that renders the complete content via a non-modal path, so users can still _read_ over-long content without losing data.
+
+  **Proposed fix**: Port the memory pattern to the character edit dashboard.
+  - Detect per-section whether any field exceeds its cap before opening the section modal
+  - Show a `buildCharacterTruncationWarningEmbed`-equivalent with clear destructive-action warning
+  - Only open the section modal on explicit user opt-in
+  - Add a "View Full" affordance to the character dashboard for reading over-long legacy field values without triggering the destructive edit path
+
+  **Architectural complication**: Memory uses hand-rolled detail modal flow (`detailModals.ts`), while character uses the generic `ModalFactory`/`DashboardBuilder` abstraction — the ports have different plumbing. Two migration strategies:
+  - **(a) Port-in-place**: copy the memory pattern into character-specific handlers. Fast, but creates a second implementation of the same pattern.
+  - **(b) Shared-utility extraction**: generalize memory's pattern into a `utils/dashboard/overLongFieldWarning.ts` helper that both commands use. Slower, but is the cleaner long-term direction and closes out the cross-cutting concern tracked in the Inbox item "standardize over-long field handling pattern."
+
+  The rule-of-three trigger suggests _port-in-place first, then extract shared utility when a third consumer appears_. But if a third consumer is genuinely likely (e.g., persona character fields eventually develop similar issues), doing (b) directly may be worth it.
+
+  **Out of scope for CPD Session 1** (2026-04-11): This fix is its own focused PR where the reviewer can compare the memory implementation to the character implementation directly. Investigation track for Session 1 produced this entry; the fix executes in a follow-up session.
+
+  **Start**:
+  - Reference pattern: `services/bot-client/src/commands/memory/detailModals.ts:61-156`, `memory/detail.ts:85-155`
+  - Silent-truncate site: `services/bot-client/src/utils/dashboard/ModalFactory.ts:108`
+  - Target for detection logic: `services/bot-client/src/commands/character/sections.ts` (per-section field arrays) + wherever the section-modal button handler lives in `utils/dashboard/`
+  - Caps themselves: `packages/common-types/src/schemas/api/personality.ts:159-168` — consider whether these should stay as write-validation or move to display-only markers
+  - Update-path Zod entry: `services/api-gateway/src/routes/admin/updatePersonality.ts:123`
+  - Related cross-cutting item: see Inbox "Standardize over-long field handling pattern across commands"
+
+  **Severity rationale for Production Issues placement**: the silent data loss is a real destructive-on-save bug affecting an unknown number of real users, and users have no affordance to detect it before save. This is strictly worse than "can't update" — which itself is a UX bug — because at least "can't update" fails loudly.
 
 ---
 
@@ -35,6 +69,7 @@ _New items go here. Triage to appropriate section weekly._
 - 🐛 `[FIX]` **Preset save errors are opaque — context-too-large surfaces as "failed to save"** — When a vendor restricts context on an existing model (e.g., z.ai dropping GLM context limits when releasing newer models — observed dropping to 40k–80k), editing an existing preset whose `maxContextTokens` was set to the old higher value fails with a generic "failed to save" message. User has to read Railway logs to discover the real cause. The vendor's 4xx error needs to be parsed and surfaced to the user with actionable wording (e.g., "This model's context limit is now N tokens — please reduce maxContextTokens before saving"). **Start**: preset save endpoint in `api-gateway` (search for the route handler); upstream LLM provider error mapping needs context-limit detection. Likely a missed branch in the existing error-to-user-message translation.
 - 🐛 `[FIX]` **Preset clone fails on name collision instead of auto-numbering** — Cloning a preset that's already a copy fails with "a copy already exists." Other clone flows in the codebase appear to handle this by auto-numbering (e.g., "Foo (2)", "Foo (3)") but presets don't. Should be standardized — every clone button should resolve name collisions the same way. **Start**: grep for clone/copy handlers in `services/bot-client/src/commands/{personality,character,persona,preset}/` — find the existing auto-number pattern (if any) and either reuse or extract into a shared helper. If no existing pattern: create one and apply to all clone flows. Related: consider whether this also surfaces clone affordances inconsistently across commands.
 - 🏗️ `[LIFT]` **Migrate deny/browse to `BrowseActionRow` union type** — `deny/browse.ts` uses `ActionRowBuilderType<ButtonBuilder>[]` for its components array and casts the select menu row via `as unknown as ActionRowBuilderType<ButtonBuilder>`. Other browse commands use a `BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>` union that fits select menus cleanly without a cast. Adopting the union pattern in deny would remove the cast (noted in PR #772 review as a cleanup follow-up). **Start**: `services/bot-client/src/commands/deny/browse.ts` around the select menu push site; replace the components array type alias with `BrowseActionRow`.
+- 🏗️ `[LIFT]` **Standardize over-long field handling pattern across commands** — The `/memory` command has a well-designed two-flow pattern for handling content exceeding Discord modal input limits: detection + destructive-action warning + explicit opt-in for edits (`detailModals.ts:61-156`), and a `"View Full"` affordance for reads that renders content without modal constraints (`detail.ts:85-155`). The character edit dashboard is known to have the same class of bug (see 🚨 Production Issue "Character field length caps cause silent data loss...") but currently lacks any warning — `ModalFactory.buildSectionModal` silently truncates via `slice(0, maxLength)`. Other commands with similar potential (personas with long descriptions, presets with long system prompts, etc.) may also be affected but haven't been audited. **Action**: (1) Fix character first as its own PR using memory's pattern directly (reference fix in the Production Issue entry). (2) When a second or third consumer needs the same behavior, extract the pattern into `services/bot-client/src/utils/dashboard/overLongFieldWarning.ts` as a shared utility and migrate memory + character to use it (rule of three). (3) Audit other commands for silent truncation patterns that should also use it. **Start**: `services/bot-client/src/commands/memory/detailModals.ts:61-156` (reference implementation); `services/bot-client/src/commands/{persona,preset,character}/` for additional audit targets; grep for `slice(0, maxLength)` and `setValue` across bot-client commands to find silent-truncate sites.
 
 ## 🎯 Current Focus
 

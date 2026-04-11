@@ -32,6 +32,38 @@ The backlog follows a "Now, Next, Later" topology with clear focus:
 3. Add any new items to Inbox
 4. Triage Inbox if items are piling up
 
+## Out-of-Scope Items Must Be Tracked
+
+Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in `BACKLOG.md` with a concrete destination section. Applies to plans, PRs, code reviews, and ad-hoc work.
+
+### Two types of "out of scope" — only one needs tracking
+
+| Type                    | What it is                                                                                                                     | Example                                                                                             | Track?                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **(a) Design decision** | Current code is fine; you're choosing not to extract/refactor because doing so would be over-abstraction                       | "Not extracting this helper — trades 5 lines of linear code for 8 lines of options-object ceremony" | **No** — it's a judgment call, not a defect       |
+| **(b) Known defect**    | Something is wrong (bug, naming drift, stale entry, duplicated code) but fixing it would bloat the PR or needs separate design | "File is `settings.ts` but command is `/channel context`; four-layer naming drift"                  | **Yes** — concrete entry with destination section |
+
+When uncertain between (a) and (b), **err toward tracking**.
+
+### Plan-level requirement
+
+Plan files produced in plan mode must include a "Backlog Additions Required" section enumerating every type-(b) out-of-scope item with:
+
+1. **Destination section** (🚨 Production Issues / 📥 Inbox / ⚡️ Quick Wins / 🧊 Icebox / ⏸️ Deferred)
+2. **Problem**: one paragraph describing what's wrong
+3. **Action**: concrete, specific steps to fix
+4. **Why out of scope**: one sentence on why it isn't being fixed now
+
+### Session-end gate
+
+A session is NOT done until every promised backlog addition is actually written to `BACKLOG.md`. Before running session-end cleanup:
+
+- Re-read the plan's "Backlog Additions Required" section
+- Verify each item exists in `BACKLOG.md` in the promised destination section
+- If any are missing, write them first — then close the session
+
+This rule pairs with the session-end workflow in the `/tzurot-docs` skill.
+
 ## Triage Rules
 
 ### Inbox → Other Sections
