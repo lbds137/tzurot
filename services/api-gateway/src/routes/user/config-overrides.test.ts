@@ -282,6 +282,19 @@ describe('/user/config-overrides routes', () => {
   });
 
   describe('GET /defaults', () => {
+    it('should return 400 when user is a bot', async () => {
+      mockGetOrCreateUser.mockResolvedValueOnce(null);
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/defaults');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+    });
+
     it('should return null when no config defaults set', async () => {
       const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/defaults');
@@ -314,6 +327,19 @@ describe('/user/config-overrides routes', () => {
   });
 
   describe('PATCH /defaults', () => {
+    it('should return 400 when user is a bot', async () => {
+      mockGetOrCreateUser.mockResolvedValueOnce(null);
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'patch', '/defaults');
+      const { req, res } = createMockReqRes({ maxImages: 5 });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+    });
+
     it('should merge valid overrides with existing defaults', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         configDefaults: { maxMessages: 30 },
@@ -369,6 +395,19 @@ describe('/user/config-overrides routes', () => {
   });
 
   describe('DELETE /defaults', () => {
+    it('should return 400 when user is a bot', async () => {
+      mockGetOrCreateUser.mockResolvedValueOnce(null);
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/defaults');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+    });
+
     it('should clear user config defaults', async () => {
       const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/defaults');
@@ -454,6 +493,22 @@ describe('/user/config-overrides routes', () => {
   });
 
   describe('PATCH /:personalityId', () => {
+    it('should return 400 when user is a bot', async () => {
+      mockGetOrCreateUser.mockResolvedValueOnce(null);
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'patch', '/:personalityId');
+      const { req, res } = createMockReqRes(
+        { maxMessages: 25 },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+    });
+
     it('should reject non-UUID personalityId', async () => {
       const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'patch', '/:personalityId');
@@ -555,6 +610,19 @@ describe('/user/config-overrides routes', () => {
   });
 
   describe('DELETE /:personalityId', () => {
+    it('should return 400 when user is a bot', async () => {
+      mockGetOrCreateUser.mockResolvedValueOnce(null);
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:personalityId');
+      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+    });
+
     it('should reject non-UUID personalityId', async () => {
       const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:personalityId');
