@@ -10,30 +10,32 @@
 
 Each layer points down. No upward references. No duplicated content.
 
+**A note on Claude auto-memory**: there is also a per-Claude-instance, machine-local memory store at `~/.claude/projects/*tzurot*/memory/` that accumulates knowledge across sessions. It is **not** a fourth durable layer — it's volatile, not git-tracked, and visible only to one Claude instance. Use it for per-user context, working preferences, and time-bound state. Anything that should be visible to every developer or apply to every session belongs in one of the three layers above. Placement criteria and migration triggers live in the `/tzurot-doc-audit` skill (Section 0).
+
 ## Where to Put New Docs
 
-| Doc Type              | Location                       | When                       |
-| --------------------- | ------------------------------ | -------------------------- |
-| Constraint/standard   | `.claude/rules/`               | Enforced during all work   |
-| Procedure/workflow    | `.claude/skills/`              | Step-by-step how-tos       |
-| Architecture decision | `docs/reference/architecture/` | After implementation       |
-| Caching design        | `docs/reference/caching/`      | Cache patterns, pub/sub    |
-| Database reference    | `docs/reference/database/`     | Schema, drift, Prisma      |
-| Deployment procedure  | `docs/reference/deployment/`   | Railway, production        |
-| Feature docs          | `docs/reference/features/`     | User-facing behavior       |
-| Developer guide       | `docs/reference/guides/`       | How-tos for common tasks   |
-| Operations runbook    | `docs/reference/operations/`   | Maintenance, backups       |
-| Coding standard       | `docs/reference/standards/`    | Patterns to follow         |
-| Templates             | `docs/reference/templates/`    | Reusable doc scaffolding   |
-| Test procedure        | `docs/reference/testing/`      | Manual test plans, setup   |
-| Tooling reference     | `docs/reference/tooling/`      | CLI, ops commands          |
-| Active proposal       | `docs/proposals/active/`       | On roadmap, being worked   |
-| Future idea           | `docs/proposals/backlog/`      | Good idea, not scheduled   |
-| Post-mortem           | `docs/incidents/`              | After incident resolution  |
-| Migration guide       | `docs/migration/`              | Active data migrations     |
-| Research note         | `docs/research/`               | Distilled AI insights      |
-| Steam Deck setup      | `docs/steam-deck/`             | Dev environment guides     |
-| Work tracking         | `CURRENT.md`, `BACKLOG.md`     | Root-level, always visible |
+| Doc Type              | Location                              | When                                                                                                                      |
+| --------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Constraint/standard   | `.claude/rules/`                      | Enforced during all work                                                                                                  |
+| Procedure/workflow    | `.claude/skills/`                     | Step-by-step how-tos                                                                                                      |
+| Architecture decision | `docs/reference/architecture/`        | After implementation                                                                                                      |
+| Caching design        | `docs/reference/caching/`             | Cache patterns, pub/sub                                                                                                   |
+| Database reference    | `docs/reference/database/`            | Schema, drift, Prisma                                                                                                     |
+| Deployment procedure  | `docs/reference/deployment/`          | Railway, production                                                                                                       |
+| Feature docs          | `docs/reference/features/`            | User-facing behavior                                                                                                      |
+| Developer guide       | `docs/reference/guides/`              | How-tos for common tasks                                                                                                  |
+| Operations runbook    | `docs/reference/operations/`          | Maintenance, backups                                                                                                      |
+| Coding standard       | `docs/reference/standards/`           | Patterns to follow                                                                                                        |
+| Templates             | `docs/reference/templates/`           | Reusable doc scaffolding                                                                                                  |
+| Test procedure        | `docs/reference/testing/`             | Manual test plans, setup                                                                                                  |
+| Tooling reference     | `docs/reference/tooling/`             | CLI, ops commands                                                                                                         |
+| Future idea           | `docs/proposals/backlog/`             | Good idea, not scheduled                                                                                                  |
+| Post-mortem           | `docs/incidents/`                     | After incident resolution                                                                                                 |
+| Migration guide       | `docs/migration/`                     | Active data migrations                                                                                                    |
+| Research note         | `docs/research/`                      | Distilled AI insights                                                                                                     |
+| Steam Deck setup      | `docs/steam-deck/`                    | Dev environment guides                                                                                                    |
+| Work tracking         | `CURRENT.md`, `BACKLOG.md`            | Root-level, always visible                                                                                                |
+| Per-Claude memory     | `~/.claude/projects/*tzurot*/memory/` | Per-user context, working preferences, time-bound state. Not git-tracked. See `/tzurot-doc-audit` Section 0 for criteria. |
 
 ## Naming Conventions
 

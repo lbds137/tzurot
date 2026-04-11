@@ -87,10 +87,14 @@ Forgetting this causes Prisma `P2002` and other constraint errors at runtime bec
 
 Prisma tries to DROP these indexes in migrations - ALWAYS review and remove:
 
-| Index                         | Type           | Why Protected                        |
-| ----------------------------- | -------------- | ------------------------------------ |
-| `idx_memories_embedding`      | IVFFlat vector | 100x slower queries if dropped       |
-| `memories_chunk_group_id_idx` | Partial B-tree | Prisma can't represent WHERE clauses |
+| Index                             | Type           | Why Protected                                 |
+| --------------------------------- | -------------- | --------------------------------------------- |
+| `idx_memories_embedding`          | IVFFlat vector | 100x slower queries if dropped                |
+| `memories_chunk_group_id_idx`     | Partial B-tree | Prisma can't represent WHERE clauses          |
+| `llm_configs_free_default_unique` | Partial unique | Prisma can't represent partial unique indexes |
+| `idx_memories_is_locked`          | Partial B-tree | Prisma can't represent WHERE clauses          |
+
+Source of truth: `prisma/drift-ignore.json` `protectedIndexes` and `ignorePatterns` arrays. Add new entries there when introducing partial indexes that Prisma can't represent.
 
 ### Anti-Patterns
 
@@ -133,6 +137,7 @@ const cache = new TTLCache<ValueType>({
 | Admin Settings     | `GatewayClient.ts`           | 30s   | TTLCache (in-memory)     |
 | Personality        | `PersonalityService.ts`      | 5 min | TTLCache + pub/sub       |
 | Personality IDs    | `PersonalityIdCache.ts`      | 5 min | Custom (in-memory)       |
+| Denylist           | `DenylistCache.ts`           | -     | In-memory + pub/sub      |
 | User               | `UserService.ts`             | 5 min | TTLCache (in-memory)     |
 | Autocomplete       | `autocompleteCache.ts`       | 30s   | TTLCache (in-memory)     |
 | OpenRouter Models  | `OpenRouterModelCache.ts`    | 24h   | Redis-backed             |
