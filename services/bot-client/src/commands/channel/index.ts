@@ -32,11 +32,11 @@ import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
 import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 import {
-  handleContext,
-  handleChannelContextSelectMenu,
-  handleChannelContextButton,
-  handleChannelContextModal,
-  isChannelContextInteraction,
+  handleChannelSettings,
+  handleChannelSettingsSelectMenu,
+  handleChannelSettingsButton,
+  handleChannelSettingsModal,
+  isChannelSettingsInteraction,
 } from './settings.js';
 import { handleAutocomplete } from './autocomplete.js';
 
@@ -51,7 +51,7 @@ const channelRouter = createSubcommandContextRouter(
     activate: handleActivate,
     deactivate: handleDeactivate,
     browse: handleBrowse,
-    settings: handleContext,
+    settings: handleChannelSettings,
   },
   { logger, logPrefix: '[Channel]' }
 );
@@ -78,9 +78,9 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
  * Handle select menu interactions for channel commands
  */
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  // Context dashboard interactions
-  if (isChannelContextInteraction(interaction.customId)) {
-    await handleChannelContextSelectMenu(interaction);
+  // Settings dashboard interactions
+  if (isChannelSettingsInteraction(interaction.customId)) {
+    await handleChannelSettingsSelectMenu(interaction);
   }
 }
 
@@ -94,9 +94,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
-  // Context dashboard interactions
-  if (isChannelContextInteraction(interaction.customId)) {
-    await handleChannelContextButton(interaction);
+  // Settings dashboard interactions
+  if (isChannelSettingsInteraction(interaction.customId)) {
+    await handleChannelSettingsButton(interaction);
   }
 }
 
@@ -104,9 +104,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
  * Handle modal interactions for channel commands
  */
 async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
-  // Context dashboard interactions
-  if (isChannelContextInteraction(interaction.customId)) {
-    await handleChannelContextModal(interaction);
+  // Settings dashboard interactions
+  if (isChannelSettingsInteraction(interaction.customId)) {
+    await handleChannelSettingsModal(interaction);
   }
 }
 

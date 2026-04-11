@@ -34,11 +34,11 @@ vi.mock('./autocomplete.js', () => ({
 }));
 
 vi.mock('./settings.js', () => ({
-  handleContext: vi.fn().mockResolvedValue(undefined),
-  handleChannelContextSelectMenu: vi.fn().mockResolvedValue(undefined),
-  handleChannelContextButton: vi.fn().mockResolvedValue(undefined),
-  handleChannelContextModal: vi.fn().mockResolvedValue(undefined),
-  isChannelContextInteraction: vi.fn().mockReturnValue(false),
+  handleChannelSettings: vi.fn().mockResolvedValue(undefined),
+  handleChannelSettingsSelectMenu: vi.fn().mockResolvedValue(undefined),
+  handleChannelSettingsButton: vi.fn().mockResolvedValue(undefined),
+  handleChannelSettingsModal: vi.fn().mockResolvedValue(undefined),
+  isChannelSettingsInteraction: vi.fn().mockReturnValue(false),
 }));
 
 // Mock logger
@@ -59,7 +59,7 @@ import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
 import { handleBrowse } from './browse.js';
 import { handleAutocomplete } from './autocomplete.js';
-import { handleContext } from './settings.js';
+import { handleChannelSettings } from './settings.js';
 
 describe('/channel command group', () => {
   beforeEach(() => {
@@ -165,7 +165,7 @@ describe('/channel command group', () => {
 
       await execute(context);
 
-      expect(handleContext).toHaveBeenCalled();
+      expect(handleChannelSettings).toHaveBeenCalled();
     });
   });
 
