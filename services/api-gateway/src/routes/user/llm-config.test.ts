@@ -71,6 +71,19 @@ vi.mock('../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
+// Mock validateLlmConfigModelFields so tests can force early-return on
+// invalid-model paths without orchestrating full model cache + Zod responses.
+// resolveUserIdOrSendError is NOT mocked here — tests that need the bot-user
+// early-return path spy on UserService.prototype.getOrCreateUser directly so
+// existing tests asserting on UserService.$transaction side effects still work.
+const { mockValidateLlmConfigModelFields } = vi.hoisted(() => ({
+  mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock('../../utils/llmConfigValidation.js', () => ({
+  validateLlmConfigModelFields: mockValidateLlmConfigModelFields,
+}));
+
 // Mock Prisma with UserService dependencies
 const mockPrisma = {
   user: {
@@ -126,7 +139,7 @@ const mockCacheInvalidation = {
 
 import { createLlmConfigRoutes } from './llm-config.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { UserService, type PrismaClient } from '@tzurot/common-types';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
@@ -365,6 +378,39 @@ describe('/user/llm-config routes', () => {
   });
 
   describe('POST /user/llm-config', () => {
+    it('should return 400 when user is a bot', async () => {
+      const getOrCreateUserSpy = vi
+        .spyOn(UserService.prototype, 'getOrCreateUser')
+        .mockResolvedValueOnce(null);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
+
+      await handler(req, res);
+
+      expect(getOrCreateUserSpy).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+      expect(mockPrisma.llmConfig.create).not.toHaveBeenCalled();
+
+      getOrCreateUserSpy.mockRestore();
+    });
+
+    it('should return 400 when model validation fails on create', async () => {
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({ name: 'My Config', model: 'bad-model' });
+
+      await handler(req, res);
+
+      // The mock returned false; route should have bailed before creating anything
+      expect(mockValidateLlmConfigModelFields).toHaveBeenCalled();
+      expect(mockPrisma.llmConfig.create).not.toHaveBeenCalled();
+    });
+
     it('should reject missing name', async () => {
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/');
@@ -562,6 +608,25 @@ describe('/user/llm-config routes', () => {
   });
 
   describe('PUT /user/llm-config/:id', () => {
+    it('should return 400 when model validation fails on update', async () => {
+      mockValidateLlmConfigModelFields.mockResolvedValueOnce(false);
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes(
+        { contextWindowTokens: 999999999 },
+        { id: 'config-123' }
+      );
+
+      await handler(req, res);
+
+      expect(mockValidateLlmConfigModelFields).toHaveBeenCalled();
+      expect(mockPrisma.llmConfig.update).not.toHaveBeenCalled();
+    });
+
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
 

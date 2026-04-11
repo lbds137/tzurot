@@ -79,6 +79,27 @@ describe('validateLlmConfigModelFields', () => {
 
       expect(mockGetById).not.toHaveBeenCalled();
     });
+
+    it('skips validation gracefully when body.model is absent on create', async () => {
+      // Reviewer-flagged edge case: create path with only contextWindowTokens (no model).
+      // validateModelAndContextWindow handles modelId === undefined by returning {} — the
+      // helper should forward that undefined model without throwing or pre-checking.
+      mockValidateModelAndContextWindow.mockResolvedValue({});
+
+      const result = await validateLlmConfigModelFields({
+        res: mockRes,
+        modelCache: mockModelCache,
+        body: { contextWindowTokens: 8000 },
+      });
+
+      expect(result).toBe(true);
+      expect(mockValidateModelAndContextWindow).toHaveBeenCalledWith(
+        mockModelCache,
+        undefined,
+        8000
+      );
+      expect(mockSendError).not.toHaveBeenCalled();
+    });
   });
 
   describe('update path (with fallback)', () => {
