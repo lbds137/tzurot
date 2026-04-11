@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
-import { AIProvider } from '@tzurot/common-types';
+import { AIProvider, UserService } from '@tzurot/common-types';
 
 // Mock apiKeyValidation module
 vi.mock('../../utils/apiKeyValidation.js', () => ({
@@ -193,6 +193,24 @@ describe('POST /wallet/set', () => {
   });
 
   describe('API key validation', () => {
+    it('should return 400 when user is a bot', async () => {
+      const spy = vi.spyOn(UserService.prototype, 'getOrCreateUser').mockResolvedValueOnce(null);
+
+      const { req, res } = createMockReqRes({
+        provider: AIProvider.OpenRouter,
+        apiKey: 'sk-valid-key',
+      });
+
+      await callHandler(mockPrisma, req, res);
+
+      expect(spy).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+      expect(mockPrisma.userApiKey.upsert).not.toHaveBeenCalled();
+
+      spy.mockRestore();
+    });
+
     it('should validate API key with provider', async () => {
       const { req, res } = createMockReqRes({
         provider: AIProvider.OpenRouter,

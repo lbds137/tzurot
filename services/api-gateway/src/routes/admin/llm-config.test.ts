@@ -16,6 +16,16 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
   },
 }));
 
+// Mock validateLlmConfigModelFields so tests can force early-return on
+// invalid-model paths without orchestrating a full model cache.
+const { mockValidateLlmConfigModelFields } = vi.hoisted(() => ({
+  mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock('../../utils/llmConfigValidation.js', () => ({
+  validateLlmConfigModelFields: mockValidateLlmConfigModelFields,
+}));
+
 const createMockCacheInvalidationService = () => ({
   invalidateAll: vi.fn().mockResolvedValue(undefined),
   invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
@@ -247,6 +257,25 @@ describe('Admin LLM Config Routes', () => {
   });
 
   describe('POST /admin/llm-config', () => {
+    it('should return 400 when model validation fails on create', async () => {
+      // Mock must write the error to res before returning false — matches the
+      // real helper's contract. Otherwise supertest hangs waiting for a response.
+      mockValidateLlmConfigModelFields.mockImplementationOnce(
+        async (opts: { res: { status: (n: number) => { json: (body: unknown) => unknown } } }) => {
+          opts.res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Test: invalid model' });
+          return false;
+        }
+      );
+
+      const response = await request(app)
+        .post('/admin/llm-config')
+        .send({ name: 'Bad Config', model: 'invalid-model' });
+
+      expect(mockValidateLlmConfigModelFields).toHaveBeenCalled();
+      expect(prisma.llmConfig.create).not.toHaveBeenCalled();
+      expect(response.status).toBe(400);
+    });
+
     it('should create a global LLM config', async () => {
       prisma.llmConfig.findFirst.mockResolvedValue(null);
       prisma.llmConfig.create.mockResolvedValue({
@@ -360,6 +389,25 @@ describe('Admin LLM Config Routes', () => {
   });
 
   describe('PUT /admin/llm-config/:id', () => {
+    it('should return 400 when model validation fails on update', async () => {
+      mockValidateLlmConfigModelFields.mockImplementationOnce(
+        async (opts: { res: { status: (n: number) => { json: (body: unknown) => unknown } } }) => {
+          opts.res
+            .status(400)
+            .json({ error: 'VALIDATION_ERROR', message: 'Test: context too large' });
+          return false;
+        }
+      );
+
+      const response = await request(app)
+        .put('/admin/llm-config/config-id')
+        .send({ contextWindowTokens: 999999999 });
+
+      expect(mockValidateLlmConfigModelFields).toHaveBeenCalled();
+      expect(prisma.llmConfig.update).not.toHaveBeenCalled();
+      expect(response.status).toBe(400);
+    });
+
     it('should update a global config', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
