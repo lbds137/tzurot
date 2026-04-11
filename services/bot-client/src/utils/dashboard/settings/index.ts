@@ -48,3 +48,13 @@ export {
   handleSettingsButton,
   handleSettingsModal,
 } from './SettingsDashboardHandler.js';
+
+// Command Handler Factory — builds the 4-handler bundle (select/button/modal/guard)
+// for entity-ID-based settings dashboards (character/overrides, character/settings,
+// channel/settings). Collapses the ~19-line router pattern previously duplicated
+// across each consumer.
+export {
+  createSettingsCommandHandlers,
+  type SettingsCommandHandlerOptions,
+  type SettingsCommandHandlers,
+} from './createSettingsCommandHandlers.js';
