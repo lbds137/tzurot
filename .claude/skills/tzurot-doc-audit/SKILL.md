@@ -162,12 +162,6 @@ ls .claude/skills/*/SKILL.md
 - [ ] No raw AI chat dumps (distill or delete)
 - [ ] Research links to actionable items in BACKLOG.md or proposals
 
-### 7. Migration Docs
-
-- [ ] Active migrations in `docs/migration/` are still in progress
-- [ ] Completed migrations deleted (feature documented in reference instead)
-- [ ] Migration steps still reference correct tools/schemas
-
 ### 8. Incidents
 
 - [ ] `docs/incidents/PROJECT_POSTMORTEMS.md` entries match CLAUDE.md post-mortem table
@@ -176,10 +170,8 @@ ls .claude/skills/*/SKILL.md
 
 ### 9. Other Docs
 
-| Directory          | Check                                                    |
-| ------------------ | -------------------------------------------------------- |
-| `docs/steam-deck/` | Setup guides still accurate for current SteamOS version? |
-| `docs/testing/`    | Not duplicating `docs/reference/testing/`?               |
+- [ ] `docs/steam-deck/` setup guides still accurate for current SteamOS version
+- [ ] `docs/steam-deck/` paths and commands work for the current dev environment
 
 ### 10. Root README.md
 

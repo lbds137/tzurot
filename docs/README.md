@@ -32,16 +32,17 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 - `reference/architecture/ARCHITECTURE_DECISIONS.md` - Core architectural choices
 - `reference/deployment/RAILWAY_OPERATIONS.md` - Primary deployment and operations guide
-- `reference/guides/DEVELOPMENT.md` - Local development setup
 - `reference/standards/FOLDER_STRUCTURE.md` - File organization standards
+
+> Local dev setup lives in the root [`README.md`](../README.md) ([Quick Start](../README.md#quick-start) and [Development](../README.md#development) sections), not in this directory.
 
 ### [proposals/](proposals/)
 
 **What we want to build** - Plans and ideas for future work.
 
-| Subdirectory | Contents                               |
-| ------------ | -------------------------------------- |
-| `backlog/`   | Ideas not yet scheduled                |
+| Subdirectory | Contents                |
+| ------------ | ----------------------- |
+| `backlog/`   | Ideas not yet scheduled |
 
 **Backlog proposals (selected):**
 
@@ -67,7 +68,8 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 **Dev environment** - Steam Deck development setup.
 
-- `steam-deck/SSH_SETUP.md` - SSH configuration
+- `steam-deck/SSH_SETUP.md` - SSH configuration for Git
+- `steam-deck/VOICE_ENGINE_PYTHON.md` - Running voice-engine Python tests via distrobox
 
 ---
 
@@ -75,7 +77,7 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 **Starting Development:**
 
-1. [Development Setup](reference/guides/DEVELOPMENT.md)
+1. [Quick Start (root README)](../README.md#quick-start)
 2. [Architecture Overview](reference/architecture/ARCHITECTURE_DECISIONS.md)
 3. [Operations Guide](reference/deployment/RAILWAY_OPERATIONS.md)
 
