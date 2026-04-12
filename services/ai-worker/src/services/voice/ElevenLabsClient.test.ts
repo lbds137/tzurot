@@ -150,6 +150,20 @@ describe('ElevenLabsClient', () => {
       expect(error.timeoutMs).toBe(60_000);
       expect(error.operationName).toBe('ElevenLabs /text-to-speech/v1');
     });
+
+    it('should throw ElevenLabsTimeoutError when abort fires during response.arrayBuffer()', async () => {
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'content-type': 'audio/mpeg' }),
+        arrayBuffer: vi.fn().mockRejectedValue(abortError),
+      });
+
+      await expect(
+        elevenLabsTTS({ text: 'test', voiceId: 'v1', apiKey: 'sk_test' })
+      ).rejects.toThrow(ElevenLabsTimeoutError);
+    });
   });
 
   describe('elevenLabsSTT', () => {
@@ -187,6 +201,24 @@ describe('ElevenLabsClient', () => {
       });
 
       expect(result.text).toBe('');
+    });
+
+    it('should throw ElevenLabsTimeoutError when abort fires during response.json()', async () => {
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockRejectedValue(abortError),
+      });
+
+      await expect(
+        elevenLabsSTT({
+          audioBuffer: Buffer.from('audio'),
+          filename: 'test.wav',
+          contentType: 'audio/wav',
+          apiKey: 'sk_test',
+        })
+      ).rejects.toThrow(ElevenLabsTimeoutError);
     });
   });
 

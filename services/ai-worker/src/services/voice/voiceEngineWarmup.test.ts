@@ -2,7 +2,7 @@
  * Tests for Voice Engine Warm-Up
  *
  * Verifies the shared health-polling loop used by both TTS and STT paths
- * to handle Railway Serverless cold starts (~56s).
+ * to handle Railway Serverless cold starts (~25s model loading).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -135,7 +135,7 @@ describe('waitForVoiceEngine', () => {
     const result = await promise;
 
     expect(result).toEqual({ ready: false, elapsedMs: expect.any(Number) });
-    // Default: 75_000 / 3_000 = 25 polls
-    expect(client.getHealth).toHaveBeenCalledTimes(25);
+    // Default: 120_000 / 3_000 = 40 polls
+    expect(client.getHealth).toHaveBeenCalledTimes(40);
   });
 });
