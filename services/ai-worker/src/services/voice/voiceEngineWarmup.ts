@@ -14,10 +14,11 @@ import type { VoiceEngineClient } from './VoiceEngineClient.js';
 const logger = createLogger('VoiceEngineWarmup');
 
 /** Total time budget for health polling during voice engine cold start (ms).
- * Railway Serverless cold boot measured at ~56s — 75s gives comfortable margin.
- * Note: effective poll count varies — ECONNREFUSED resolves instantly (~25 polls),
- * but once Railway's LB is up the 5s health timeout may reduce it to ~10 polls. */
-const DEFAULT_BUDGET_MS = 75_000;
+ * Railway Serverless model loading takes ~25s (voices are lazy-loaded, not
+ * pre-loaded). 120s gives ample margin for variable Railway container startup.
+ * Note: effective poll count varies — ECONNREFUSED resolves instantly (~40 polls),
+ * but once Railway's LB is up the 5s health timeout may reduce it to ~15 polls. */
+const DEFAULT_BUDGET_MS = 120_000;
 
 /** Interval between health check polls (ms) */
 const DEFAULT_POLL_INTERVAL_MS = 3_000;
