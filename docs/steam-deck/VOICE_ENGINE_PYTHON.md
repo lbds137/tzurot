@@ -7,9 +7,9 @@ The `services/voice-engine/` service runs Python (FastAPI + heavy ML deps), but 
 | Environment  | Has `python3`? | Has `pip`? | Use for                   |
 | ------------ | -------------- | ---------- | ------------------------- |
 | SteamOS host | Yes (3.11+)    | **No**     | Reading code only         |
-| `tzurot-dev` | Yes (3.13)     | Yes        | Running tests, installing |
+| `tzurot-dev` | Yes (3.13+)    | Yes        | Running tests, installing |
 
-The host's Python is unusable for development because the immutable filesystem blocks `pip install`. The `tzurot-dev` Fedora 41 distrobox has Python 3.13 + pip and is the only place voice-engine work can happen.
+The host's Python is unusable for development because the immutable filesystem blocks `pip install`. The `tzurot-dev` Fedora 41 distrobox has Python 3.13+ and pip and is the only place voice-engine work can happen. Run `python3 --version` inside the container to confirm the exact version on your machine — the base image updates with Fedora releases.
 
 ## Running Python tests
 
@@ -41,5 +41,5 @@ For integration testing against real models, the deps live in `requirements.txt`
 ## Related
 
 - `services/voice-engine/README.md` — service overview and architecture
-- `~/Documents/dev-docs/STEAM_DECK_DEV_ENVIRONMENT.md` — full dev environment setup (containers, Node, etc.)
+- `~/Documents/dev-docs/STEAM_DECK_DEV_ENVIRONMENT.md` _(machine-local, not in repo)_ — full dev environment setup (containers, Node, etc.)
 - [`SSH_SETUP.md`](./SSH_SETUP.md) — Git SSH setup for the same dev environment
