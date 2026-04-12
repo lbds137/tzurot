@@ -223,8 +223,10 @@ async def _load_voice(
     Caller must hold the per-voice lock (_voice_locks[voice_id]) to prevent
     duplicate computation from concurrent requests.
     """
-    # Try loading from voices/ directory first (registered custom voices)
-    disk_path = _find_voice_on_disk(voice_id)
+    # Try loading from voices/ directory first (registered custom voices).
+    # os.listdir() inside _find_voice_on_disk is blocking I/O — offload to
+    # executor to avoid stalling the event loop.
+    disk_path = await loop.run_in_executor(None, _find_voice_on_disk, voice_id)
     if disk_path is not None:
         voice_state: Any = await loop.run_in_executor(
             None, tts_model.get_state_for_audio_prompt, disk_path
@@ -501,9 +503,8 @@ async def text_to_speech(
                 else:
                     # Cache miss — acquire per-voice lock to prevent duplicate
                     # computation when concurrent requests hit the same voice.
-                    if voice_id not in _voice_locks:
-                        _voice_locks[voice_id] = asyncio.Lock()
-                    async with _voice_locks[voice_id]:
+                    lock = _voice_locks.setdefault(voice_id, asyncio.Lock())
+                    async with lock:
                         # Double-check: another request may have loaded it while
                         # we waited for the lock. No LRU refresh needed — the
                         # concurrent request just cached it, so it's already newest.
