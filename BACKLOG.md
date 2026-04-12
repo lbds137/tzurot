@@ -66,7 +66,7 @@ _New items go here. Triage to appropriate section weekly._
 
 - 🐛 `[FIX]` **Apostrophes and periods break @ mention matching** — Personality names containing `'` or `.` (e.g., "O'Reilly", "Dr. Smith") fail to match because `personalityMentionParser.ts` line 82 strips them as trailing punctuation. Needs context-aware matching (try with punctuation first, strip only on no match). **Start**: `services/bot-client/src/utils/personalityMentionParser.ts` (line 82, extraction logic lines 238-259), `personalityMentionParser.test.ts`.
 - 🐛 `[FIX]` **LLM duplicate/looping response detection** — GLM-5 observed producing responses with repeated content blocks (same paragraphs appearing twice within one message). Post-processing should detect and deduplicate repeated paragraph-level blocks. Observed 2026-04-05 with `z-ai/glm-5`. **Start**: `services/ai-worker/src/services/ResponsePostProcessor.ts` — add a deduplication step; `services/ai-worker/src/utils/responseArtifacts.ts` — may fit alongside existing cleanup patterns.
-- 🐛 `[FIX]` **ElevenLabs API errors surface as "aborted"** — ElevenLabs failures show unhelpful "aborted" error to users instead of a descriptive message. Likely a `DOMException` from `AbortController` timeout or a fetch abort that isn't being caught and wrapped. **Start**: Search for `aborted` in error handling paths; check ElevenLabs client timeout/abort handling.
+- 🐛 `[FIX]` **ElevenLabs API errors surface as "aborted"** — ~~Partially fixed in PR #785: `readBody()` wrapper now catches AbortError during response body parsing.~~ Remaining edge case: if the ElevenLabs server itself returns an error that looks like "aborted" in the response body (not an AbortController timeout), the user still sees an unhelpful message. Needs investigation of whether this is still observed post-beta.95.
 - 🐛 `[FIX]` **Forwarded messages with personality tags trigger AI responses** — When a user forwards a message containing an @ mention of a personality, the bot treats it as a new invocation. Needs design decision on whether forwarded mentions should be ignored. **Start**: `services/bot-client/src/processors/PersonalityMentionProcessor.ts` — check forwarded message flags.
 - 🏗️ `[LIFT]` **Refactor tag stripping to data-driven architecture** — Adding a new thinking tag requires updating 7 separate regex patterns across `thinkingExtraction.ts`. Refactor to a single `KNOWN_THINKING_TAGS` array that all patterns are generated from. Good CPD clone reduction candidate. **Start**: `services/ai-worker/src/utils/thinkingExtraction.ts`.
 - 🏗️ `[LIFT]` **Rate limit `/voice-references/:slug`** — Unauthenticated endpoint serving binary audio from DB. Low urgency (Railway private networking limits exposure).
@@ -86,7 +86,23 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-_(Empty — pull from Quick Wins or Active Epic)_
+- ✨ `[FEAT]` **TTS engine upgrade — replace Pocket TTS + add cheaper BYOK alternative** — Current pain: ElevenLabs v3 costs ~$200/month, Pocket TTS quality is inadequate for users. Research (2026-04-12) identified two top candidates:
+
+  **Self-hosted (replace Pocket TTS):**
+  - **Chatterbox Turbo** (350M, Resemble AI, MIT) — beats ElevenLabs in 63.75% of blind tests, has native zero-shot voice cloning + emotion control, explicit CPU Docker support, OpenAI-compatible API servers exist. Primary candidate.
+  - **Kokoro 82M** (Apache) — #1 TTS Arena, tiny and CPU-optimized, but **no native voice cloning** (needs third-party KokoClone addon). Backup if Chatterbox is too heavy for Railway 4GB.
+
+  **Paid API (cheaper BYOK alternative to ElevenLabs):**
+  - **Voxtral API** (Mistral, $16/1M chars vs ElevenLabs ~$60) — 73% cheaper, wins 68% vs EL Flash in human prefs, zero-shot cloning from 3s audio. Open-weight model available as self-host fallback.
+  - **Fish Audio** ($15/1M chars) — #1 TTS-Arena, 75% cheaper than ElevenLabs.
+
+  **Next steps:**
+  1. Spin up Chatterbox Turbo in a test container (Railway dev or local)
+  2. Feed it a character reference audio, compare output vs Pocket TTS vs ElevenLabs
+  3. If quality is good, plan the voice-engine integration (swap TTS backend, keep STT as-is)
+  4. Evaluate Voxtral API as a BYOK option alongside or replacing ElevenLabs
+
+  **Start**: `services/voice-engine/server.py` (current Pocket TTS integration), Chatterbox Docker: `docker compose -f docker/docker-compose.cpu.yml up -d` from [devnen/Chatterbox-TTS-Server](https://github.com/devnen/Chatterbox-TTS-Server). Research links saved in Claude auto-memory (`project_voice_tts_research.md`).
 
 ---
 
