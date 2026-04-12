@@ -28,18 +28,20 @@ for _mod_name in (
     if _mod_name not in sys.modules:
         sys.modules[_mod_name] = MagicMock()
 
-from server import app, models, voice_cache  # noqa: E402 -- must import after sys.modules mocking above
+from server import app, models, voice_cache, _voice_locks  # noqa: E402 -- must import after sys.modules mocking above
 from tests.helpers import FakeTranscription  # noqa: E402 -- must import after sys.modules mocking above
 
 
 @pytest.fixture(autouse=True)
 def _reset_state() -> Generator[None, None, None]:
-    """Clear models and voice_cache before each test to prevent leaks."""
+    """Clear models, voice_cache, and voice_locks before each test to prevent leaks."""
     models.clear()
     voice_cache.clear()
+    _voice_locks.clear()
     yield
     models.clear()
     voice_cache.clear()
+    _voice_locks.clear()
 
 
 @pytest.fixture()

@@ -172,6 +172,30 @@ async function extractErrorDetail(response: globalThis.Response): Promise<string
 }
 
 /**
+ * Read response body with AbortError → ElevenLabsTimeoutError conversion.
+ *
+ * The fetch signal remains attached to the response stream, so an abort
+ * during body consumption (arrayBuffer, json) throws a raw AbortError.
+ * This wrapper catches it and converts to the same typed timeout error
+ * that elevenLabsFetch uses for fetch-phase aborts.
+ */
+async function readBody<T>(
+  response: globalThis.Response,
+  reader: (r: globalThis.Response) => Promise<T>,
+  timeoutMs: number,
+  path: string
+): Promise<T> {
+  try {
+    return await reader(response);
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ElevenLabsTimeoutError(timeoutMs, path, error);
+    }
+    throw error;
+  }
+}
+
+/**
  * Synthesize speech via ElevenLabs TTS.
  *
  * Returns MP3 audio (~10x smaller than WAV from voice-engine).
@@ -183,7 +207,8 @@ export async function elevenLabsTTS(options: ElevenLabsTTSOptions): Promise<Elev
   const { text, voiceId, apiKey, modelId = 'eleven_multilingual_v2' } = options;
 
   // SSRF prevention: encode voiceId in URL path
-  const response = await elevenLabsFetch(`/text-to-speech/${encodeURIComponent(voiceId)}`, apiKey, {
+  const path = `/text-to-speech/${encodeURIComponent(voiceId)}`;
+  const response = await elevenLabsFetch(path, apiKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -197,7 +222,7 @@ export async function elevenLabsTTS(options: ElevenLabsTTSOptions): Promise<Elev
     throw new ElevenLabsApiError(response.status, detail);
   }
 
-  const arrayBuffer = await response.arrayBuffer();
+  const arrayBuffer = await readBody(response, r => r.arrayBuffer(), ELEVENLABS_TIMEOUT_MS, path);
   return {
     audioBuffer: Buffer.from(arrayBuffer),
     contentType: response.headers.get('content-type') ?? 'audio/mpeg',
@@ -217,7 +242,8 @@ export async function elevenLabsSTT(options: ElevenLabsSTTOptions): Promise<Elev
   // Upgrade to 'scribe_v2' when audio event tags ([laughter], [sigh]) support is added.
   formData.append('model_id', 'scribe_v1');
 
-  const response = await elevenLabsFetch('/speech-to-text', apiKey, {
+  const path = '/speech-to-text';
+  const response = await elevenLabsFetch(path, apiKey, {
     method: 'POST',
     body: formData,
   });
@@ -227,7 +253,12 @@ export async function elevenLabsSTT(options: ElevenLabsSTTOptions): Promise<Elev
     throw new ElevenLabsApiError(response.status, detail);
   }
 
-  const data = (await response.json()) as { text?: string };
+  const data = await readBody(
+    response,
+    async r => (await r.json()) as { text?: string },
+    ELEVENLABS_TIMEOUT_MS,
+    path
+  );
   return { text: data.text ?? '' };
 }
 
@@ -255,7 +286,8 @@ export async function elevenLabsCloneVoice(
     formData.append('description', description);
   }
 
-  const response = await elevenLabsFetch('/voices/add', apiKey, {
+  const path = '/voices/add';
+  const response = await elevenLabsFetch(path, apiKey, {
     method: 'POST',
     body: formData,
   });
@@ -265,7 +297,12 @@ export async function elevenLabsCloneVoice(
     throw new ElevenLabsApiError(response.status, detail);
   }
 
-  const data = (await response.json()) as { voice_id?: string };
+  const data = await readBody(
+    response,
+    async r => (await r.json()) as { voice_id?: string },
+    ELEVENLABS_TIMEOUT_MS,
+    path
+  );
   if (data.voice_id === undefined) {
     throw new Error('ElevenLabs voice clone response missing voice_id');
   }
@@ -278,8 +315,9 @@ export async function elevenLabsCloneVoice(
  * List voices in the user's ElevenLabs account.
  */
 export async function elevenLabsListVoices(apiKey: string): Promise<ElevenLabsVoiceInfo[]> {
+  const path = '/voices';
   const response = await elevenLabsFetch(
-    '/voices',
+    path,
     apiKey,
     { method: 'GET' },
     ELEVENLABS_FAST_TIMEOUT_MS
@@ -290,7 +328,12 @@ export async function elevenLabsListVoices(apiKey: string): Promise<ElevenLabsVo
     throw new ElevenLabsApiError(response.status, detail);
   }
 
-  const data = (await response.json()) as { voices?: { voice_id: string; name: string }[] };
+  const data = await readBody(
+    response,
+    async r => (await r.json()) as { voices?: { voice_id: string; name: string }[] },
+    ELEVENLABS_FAST_TIMEOUT_MS,
+    path
+  );
   return (data.voices ?? []).map(v => ({ voiceId: v.voice_id, name: v.name }));
 }
 
@@ -304,8 +347,9 @@ export async function elevenLabsListVoices(apiKey: string): Promise<ElevenLabsVo
  * while api-gateway uses Zod and surfaces parse failures as 500 errors to the caller.
  */
 export async function elevenLabsListModels(apiKey: string): Promise<ElevenLabsModelInfo[]> {
+  const path = '/models';
   const response = await elevenLabsFetch(
-    '/models',
+    path,
     apiKey,
     { method: 'GET' },
     ELEVENLABS_FAST_TIMEOUT_MS
@@ -316,11 +360,13 @@ export async function elevenLabsListModels(apiKey: string): Promise<ElevenLabsMo
     throw new ElevenLabsApiError(response.status, detail);
   }
 
-  const data = (await response.json()) as {
-    model_id?: string;
-    name?: string;
-    can_do_text_to_speech?: boolean;
-  }[];
+  const data = await readBody(
+    response,
+    async r =>
+      (await r.json()) as { model_id?: string; name?: string; can_do_text_to_speech?: boolean }[],
+    ELEVENLABS_FAST_TIMEOUT_MS,
+    path
+  );
 
   // ElevenLabs /v1/models returns a top-level array of model objects
   return (Array.isArray(data) ? data : [])

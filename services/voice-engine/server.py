@@ -158,6 +158,14 @@ def _safe_voice_path(voices_dir: str, filename: str) -> str:
 models: dict[str, Any] = {}
 voice_cache: dict[str, Any] = {}
 
+# Per-voice locks — prevents duplicate computation when concurrent TTS requests
+# hit a cache miss for the same voice. Without this, both requests would redundantly
+# call get_state_for_audio_prompt (~2.5s each), wasting a semaphore slot.
+_voice_locks: dict[str, asyncio.Lock] = {}
+
+# Audio file extensions recognized when scanning the voices/ directory for lazy loading.
+_VOICE_FILE_EXTENSIONS: tuple[str, ...] = (".wav", ".mp3", ".flac", ".ogg")
+
 # Concurrency cap for model inference — prevents OOM on Railway's 4GB ceiling.
 # Two concurrent Parakeet TDT passes on 1-min WAV ≈ 480MB audio + 1.2GB model.
 try:
@@ -183,6 +191,61 @@ def _cache_voice(voice_id: str, voice_state: Any) -> None:
         })
 
 
+def _find_voice_on_disk(voice_id: str) -> str | None:
+    """Find a registered voice file in the voices/ directory.
+
+    Returns the full file path if found, None otherwise.
+    Used for lazy loading: voices registered via /v1/voices/register are
+    persisted to disk but only loaded into memory on first TTS request.
+    """
+    voices_dir = os.environ.get("VOICES_DIR", "./voices")
+    if not os.path.isdir(voices_dir):
+        return None
+    for filename in os.listdir(voices_dir):
+        name, ext = os.path.splitext(filename)
+        if name == voice_id and ext in _VOICE_FILE_EXTENSIONS:
+            return os.path.join(voices_dir, filename)
+    return None
+
+
+async def _load_voice(
+    voice_id: str, tts_model: Any, loop: asyncio.AbstractEventLoop
+) -> Any:
+    """Load a voice state from disk or preset, caching the result.
+
+    Resolution order:
+    1. voices/ directory (registered custom voices persisted to disk)
+    2. Pocket TTS preset name or HuggingFace path
+    3. HTTPException 404 if nothing found
+
+    Caller must hold the per-voice lock (_voice_locks[voice_id]) to prevent
+    duplicate computation from concurrent requests.
+    """
+    # Try loading from voices/ directory first (registered custom voices)
+    disk_path = _find_voice_on_disk(voice_id)
+    if disk_path is not None:
+        voice_state: Any = await loop.run_in_executor(
+            None, tts_model.get_state_for_audio_prompt, disk_path
+        )
+        _cache_voice(voice_id, voice_state)
+        logger.info("Lazy-loaded voice from disk", extra={"voice_id": voice_id})
+        return voice_state
+
+    # Fallback: try as a Pocket TTS preset name or HuggingFace path
+    try:
+        voice_state = await loop.run_in_executor(
+            None, tts_model.get_state_for_audio_prompt, voice_id
+        )
+        _cache_voice(voice_id, voice_state)
+        return voice_state
+    except Exception:
+        logger.warning("Voice not found", extra={"voice_id": voice_id})
+        raise HTTPException(
+            status_code=404,
+            detail=f"Voice '{voice_id}' not found",
+        ) from None
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Load models on startup, clean up on shutdown."""
@@ -204,50 +267,20 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     models["tts"] = tts_model
     logger.info("Pocket TTS loaded", extra={"sample_rate": tts_model.sample_rate})
 
-    # --- Pre-load default voices ---
-    default_voices = os.environ.get("DEFAULT_VOICES", "alba,bria").split(",")
-    for voice_name in default_voices:
-        voice_name = voice_name.strip()
-        if not voice_name:
-            continue
-        if not _is_valid_voice_id(voice_name):
-            logger.warning("Skipping invalid preset voice name", extra={"voice_id": voice_name})
-            continue
-        try:
-            _cache_voice(
-                voice_name,
-                tts_model.get_state_for_audio_prompt(voice_name),
-            )
-            logger.info("Pre-loaded voice", extra={"voice_id": voice_name})
-        except Exception:
-            logger.warning("Failed to pre-load voice", exc_info=True, extra={"voice_id": voice_name})
+    # Voices are loaded lazily on first TTS request — no pre-loading.
+    # This keeps startup fast (~25s for models only) which is critical for
+    # Railway Serverless where containers sleep after 10 min idle.
+    # Custom voices persist in the voices/ directory and are loaded into
+    # voice_cache on demand when a TTS request references them.
 
-    # --- Pre-load any custom voices from the voices/ directory ---
-    voices_dir = os.environ.get("VOICES_DIR", "./voices")
-    if os.path.isdir(voices_dir):
-        for filename in os.listdir(voices_dir):
-            if filename.endswith((".wav", ".mp3", ".flac", ".ogg")):
-                voice_id = os.path.splitext(filename)[0]
-                if not _is_valid_voice_id(voice_id):
-                    logger.warning("Skipping voice file with invalid ID", extra={"filename": filename})
-                    continue
-                filepath = os.path.join(voices_dir, filename)
-                try:
-                    _cache_voice(
-                        voice_id,
-                        tts_model.get_state_for_audio_prompt(filepath),
-                    )
-                    logger.info("Pre-loaded custom voice", extra={"voice_id": voice_id})
-                except Exception:
-                    logger.warning("Failed to pre-load custom voice", exc_info=True, extra={"voice_id": voice_id})
-
-    logger.info("Voice Engine ready", extra={"voices_loaded": len(voice_cache)})
+    logger.info("Voice Engine ready")
 
     yield
 
     # Shutdown cleanup
     models.clear()
     voice_cache.clear()
+    _voice_locks.clear()
     gc.collect()
     logger.info("Voice Engine shut down")
 
@@ -461,18 +494,20 @@ async def text_to_speech(
                     _cache_voice(voice_id, voice_state)
 
                 else:
-                    # Try loading as a preset name or HF path
-                    try:
-                        voice_state = await loop.run_in_executor(
-                            None, tts_model.get_state_for_audio_prompt, voice_id
-                        )
-                        _cache_voice(voice_id, voice_state)
-                    except Exception:
-                        logger.warning("Voice not found", extra={"voice_id": voice_id})
-                        raise HTTPException(
-                            status_code=404,
-                            detail=f"Voice '{voice_id}' not found",
-                        ) from None
+                    # Cache miss — acquire per-voice lock to prevent duplicate
+                    # computation when concurrent requests hit the same voice.
+                    if voice_id not in _voice_locks:
+                        _voice_locks[voice_id] = asyncio.Lock()
+                    async with _voice_locks[voice_id]:
+                        # Double-check: another request may have loaded it while
+                        # we waited for the lock.
+                        if voice_id in voice_cache:
+                            voice_state = voice_cache[voice_id]
+                            _cache_voice(voice_id, voice_state)
+                        else:
+                            voice_state = await _load_voice(
+                                voice_id, tts_model, loop
+                            )
 
                 # Generate audio
                 audio_tensor: Any = await loop.run_in_executor(
@@ -593,14 +628,24 @@ async def register_voice(
         # Write and process — clean up on any failure (disk full, model error).
         # File write is offloaded to executor to avoid blocking the event loop
         # for large uploads (up to MAX_AUDIO_UPLOAD_BYTES = 50MB).
+        # Atomic write (temp + rename) prevents corrupted reads if a TTS request
+        # tries to lazy-load this voice file mid-write.
         loop = asyncio.get_running_loop()
 
-        def _write_file(path: str, data: bytes) -> None:
-            with open(path, "wb") as f:
-                f.write(data)
+        def _write_file_atomic(final_path: str, data: bytes) -> None:
+            dir_name = os.path.dirname(final_path)
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    f.write(data)
+                os.rename(tmp_path, final_path)
+            except BaseException:
+                with suppress(OSError):
+                    os.unlink(tmp_path)
+                raise
 
         try:
-            await loop.run_in_executor(None, _write_file, voice_path, audio_bytes)
+            await loop.run_in_executor(None, _write_file_atomic, voice_path, audio_bytes)
             async with _inference_semaphore:
                 voice_state: Any = await loop.run_in_executor(
                     None, tts_model.get_state_for_audio_prompt, voice_path

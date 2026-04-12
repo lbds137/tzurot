@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+import asyncio
+from unittest.mock import MagicMock, patch
 
 import httpx
 
@@ -109,3 +110,50 @@ async def test_tts_requires_auth_when_key_set(
     )
 
     assert response.status_code == 401
+
+
+async def test_tts_lazy_loads_voice_from_disk(
+    client: httpx.AsyncClient, mock_tts: MagicMock
+) -> None:
+    """Voice not in cache but file exists on disk — should lazy-load from disk path."""
+    # _find_voice_on_disk returns a disk path; get_state_for_audio_prompt is called with it
+    fake_path = "/app/voices/my-custom-voice.wav"
+    with patch("server._find_voice_on_disk", return_value=fake_path):
+        response = await client.post(
+            "/v1/tts",
+            data={"text": "Hello", "voice_id": "my-custom-voice"},
+        )
+
+    assert response.status_code == 200
+    # Verify get_state_for_audio_prompt was called with the disk path, not the bare voice_id
+    mock_tts.get_state_for_audio_prompt.assert_called_once_with(fake_path)
+    # Voice should now be cached
+    assert "my-custom-voice" in voice_cache
+
+
+async def test_tts_concurrent_requests_compute_voice_state_once(
+    client: httpx.AsyncClient, mock_tts: MagicMock
+) -> None:
+    """Two concurrent TTS requests for the same uncached voice should only compute state once."""
+    fake_path = "/app/voices/shared-voice.wav"
+
+    # Simulate slow voice state computation (~0.1s) to expose concurrency
+    original_return = mock_tts.get_state_for_audio_prompt.return_value
+
+    def slow_load(path: str) -> dict[str, str]:
+        import time
+        time.sleep(0.05)
+        return original_return
+
+    mock_tts.get_state_for_audio_prompt.side_effect = slow_load
+
+    with patch("server._find_voice_on_disk", return_value=fake_path):
+        results = await asyncio.gather(
+            client.post("/v1/tts", data={"text": "Hello 1", "voice_id": "shared-voice"}),
+            client.post("/v1/tts", data={"text": "Hello 2", "voice_id": "shared-voice"}),
+        )
+
+    assert results[0].status_code == 200
+    assert results[1].status_code == 200
+    # Per-voice lock should deduplicate: state computed once, second request uses cache
+    assert mock_tts.get_state_for_audio_prompt.call_count == 1
