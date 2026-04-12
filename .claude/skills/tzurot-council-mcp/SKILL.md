@@ -81,6 +81,10 @@ mcp__council__recommend_model({ task: 'reasoning' });
 
 **Known drift incident (2026-04-09)**: `google/gemini-3-pro-preview` returned 404 mid-session — it had been superseded by `google/gemini-3.1-pro-preview`. Cached IDs from prior sessions are landmines.
 
+### When a model 404s mid-session
+
+End the failed session, call `list_models` to find a replacement with similar capabilities (reasoning → reasoning, coding → coding), and restart. **Do not retry the original ID** — it's gone, not transient.
+
 ### Recommended models by task
 
 | Task Type        | Recommended Models                              | Notes                                                               |
@@ -91,10 +95,6 @@ mcp__council__recommend_model({ task: 'reasoning' });
 | Long Documents   | Gemini (1M token context)                       | (verify availability with `list_models`)                            |
 
 **Why avoid DeepSeek R1 for reasoning/design**: explicit user feedback (2026-04-09) — _"In the future, I would recommend not using R1 because again, it is dated. There are better models out there."_ R1 is acceptable for narrow factual queries but not for architectural decisions that ship to users. Default to Gemini 3.1 Pro Preview (or current SOTA equivalent — verify with `list_models`). If Gemini is unavailable, fall back to Claude Sonnet 4 / Opus 4, **not** R1.
-
-### When a model 404s mid-session
-
-End the failed session, call `list_models` to find a replacement with similar capabilities (reasoning → reasoning, coding → coding), and restart. **Do not retry the original ID** — it's gone, not transient.
 
 ### Per-call model specification
 
