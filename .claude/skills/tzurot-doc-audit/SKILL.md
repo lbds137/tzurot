@@ -46,12 +46,16 @@ Claude's auto-memory in `~/.claude/projects/*tzurot*/memory/` accumulates per-se
 
 ```bash
 # Skip this section if the memory directory doesn't exist (fresh install,
-# different machine) — there's nothing to audit.
-ls ~/.claude/projects/*tzurot*/memory/
+# different machine) — there's nothing to audit. The 2>/dev/null + ||
+# fallback turns the bash glob-expansion error into a friendly skip
+# signal so a copy-paster sees clean output.
+ls ~/.claude/projects/*tzurot*/memory/ 2>/dev/null \
+  || echo "(no memory directory found — skip Section 0)"
 
 # If the glob silently expands to nothing (different checkout path),
 # find the project directory manually:
-ls ~/.claude/projects/ | grep -i tzurot
+ls ~/.claude/projects/ 2>/dev/null | grep -i tzurot \
+  || echo "(no tzurot project directory found in ~/.claude/projects/)"
 ```
 
 #### How to classify each memory file
