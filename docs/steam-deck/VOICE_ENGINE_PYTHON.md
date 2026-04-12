@@ -13,9 +13,10 @@ The host's Python is unusable for development because the immutable filesystem b
 
 ## Running Python tests
 
-Wrap any Python command in `distrobox enter`:
+Wrap any Python command in `distrobox enter` (adjust the path to match where you've checked out the repo):
 
 ```bash
+# Replace /home/deck/Projects/tzurot with your checkout path
 distrobox enter tzurot-dev -- bash -c "cd /home/deck/Projects/tzurot && python3 -m pytest services/voice-engine/tests/"
 ```
 
@@ -23,7 +24,7 @@ The `bash -c` wrapper is necessary because `distrobox enter -- <cmd>` doesn't pr
 
 ## Installing dev dependencies
 
-Inside the container:
+Inside the container (again, adjust the `cd` path for your checkout):
 
 ```bash
 distrobox enter tzurot-dev
