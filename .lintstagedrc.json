@@ -1,5 +1,6 @@
 {
   "*.{ts,tsx}": ["prettier --write", "eslint --fix --max-warnings=0 --no-warn-ignored"],
+  "*.py": ["ruff check --fix", "ruff format"],
   "*.{md,json,yml,yaml}": ["prettier --write"],
   "*.{ts,tsx,js,jsx,json}": ["secretlint"]
 }
