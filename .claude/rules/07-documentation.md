@@ -31,7 +31,6 @@ Each layer points down. No upward references. No duplicated content.
 | Tooling reference     | `docs/reference/tooling/`             | CLI, ops commands                                                 |
 | Future idea           | `docs/proposals/backlog/`             | Good idea, not scheduled                                          |
 | Post-mortem           | `docs/incidents/`                     | After incident resolution                                         |
-| Migration guide       | `docs/migration/`                     | Active data migrations                                            |
 | Research note         | `docs/research/`                      | Distilled AI insights                                             |
 | Steam Deck setup      | `docs/steam-deck/`                    | Dev environment guides                                            |
 | Work tracking         | `CURRENT.md`, `BACKLOG.md`            | Root-level, always visible                                        |
@@ -49,7 +48,6 @@ Each layer points down. No upward references. No duplicated content.
 - **Completed proposals** -- verify feature is documented in `reference/`, then delete
 - **Raw AI transcripts** -- distill to `docs/research/` (2-5KB TL;DR), then delete raw
 - **Abandoned plans** -- delete (git preserves history)
-- **Completed migrations** -- delete after confirming no ongoing use
 - **Build process docs** -- delete after shipping (document the feature, not the process)
 
 ## Reference Root Files

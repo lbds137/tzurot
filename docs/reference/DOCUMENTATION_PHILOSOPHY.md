@@ -38,13 +38,15 @@ CLI commands, API schemas, configuration.
 - Skills with project patterns
 - CLI command references
 
-### Active Proposals
+### Backlog Proposals
 
-Features being planned or built.
+Features that are good ideas but not currently scheduled.
 
-- Lives in `docs/proposals/active/`
-- Moves to backlog if deprioritized
-- **Deleted when implemented** (after extracting learnings)
+- Lives in `docs/proposals/backlog/`
+- **Deleted when implemented** (after extracting learnings to feature docs)
+- May be deleted outright if abandoned
+
+> **Note**: The project does **not** use a `docs/proposals/active/` directory. Active work is tracked in `BACKLOG.md` (🎯 Current Focus, 🏗 Active Epic). Proposals stay in `backlog/` until they're either implemented (and deleted) or promoted to a Current Focus item in `BACKLOG.md`.
 
 ### Research Notes
 
@@ -107,7 +109,7 @@ Is this documentation about...
   → NO ↓
 
 [Active work in progress?]
-  → YES → Keep in docs/proposals/active/
+  → YES → Track in BACKLOG.md (🎯 Current Focus or 🏗 Active Epic)
   → NO ↓
 
 [Future idea (not scheduled)?]
