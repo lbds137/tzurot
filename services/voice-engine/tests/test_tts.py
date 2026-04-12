@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -87,9 +88,7 @@ async def test_tts_rejects_invalid_voice_id(client: httpx.AsyncClient, mock_tts:
     assert "voice_id" in response.json()["detail"]
 
 
-async def test_tts_rejects_empty_text_after_tag_stripping(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_tts_rejects_empty_text_after_tag_stripping(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     voice_cache["alba"] = {"state": "mock"}
 
     response = await client.post(
@@ -101,9 +100,7 @@ async def test_tts_rejects_empty_text_after_tag_stripping(
     assert "No text to synthesize" in response.json()["detail"]
 
 
-async def test_tts_requires_auth_when_key_set(
-    client: httpx.AsyncClient, mock_tts: MagicMock, api_key: str
-) -> None:
+async def test_tts_requires_auth_when_key_set(client: httpx.AsyncClient, mock_tts: MagicMock, api_key: str) -> None:
     response = await client.post(
         "/v1/tts",
         data={"text": "Hello", "voice_id": "alba"},
@@ -112,9 +109,7 @@ async def test_tts_requires_auth_when_key_set(
     assert response.status_code == 401
 
 
-async def test_tts_lazy_loads_voice_from_disk(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_tts_lazy_loads_voice_from_disk(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """Voice not in cache but file exists on disk — should lazy-load from disk path."""
     # _find_voice_on_disk returns a disk path; get_state_for_audio_prompt is called with it
     fake_path = "/app/voices/my-custom-voice.wav"
@@ -131,17 +126,16 @@ async def test_tts_lazy_loads_voice_from_disk(
     assert "my-custom-voice" in voice_cache
 
 
-async def test_tts_concurrent_requests_compute_voice_state_once(
-    client: httpx.AsyncClient, mock_tts: MagicMock
-) -> None:
+async def test_tts_concurrent_requests_compute_voice_state_once(client: httpx.AsyncClient, mock_tts: MagicMock) -> None:
     """Two concurrent TTS requests for the same uncached voice should only compute state once."""
     fake_path = "/app/voices/shared-voice.wav"
 
     # Simulate slow voice state computation (~0.1s) to expose concurrency
     original_return = mock_tts.get_state_for_audio_prompt.return_value
 
-    def slow_load(path: str) -> dict[str, str]:
+    def slow_load(path: str) -> Any:
         import time
+
         time.sleep(0.05)
         return original_return
 
