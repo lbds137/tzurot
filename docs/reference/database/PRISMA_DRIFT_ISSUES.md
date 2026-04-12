@@ -174,11 +174,14 @@ npx prisma migrate resolve --applied "<migration_name>"
 If critical indexes were accidentally dropped:
 
 ```bash
-# Connect to database and recreate
+# Connect to database and recreate. SQL must match prisma/drift-ignore.json
+# protectedIndexes[].recreateSQL — keep these in sync.
 DATABASE_URL="..." npx prisma db execute --stdin <<SQL
--- HNSW vector index
+-- IVFFlat vector index (NOT HNSW — see Section 1 above for the rationale).
+-- This must match the type in prisma/drift-ignore.json; HNSW would silently
+-- give different memory/perf characteristics.
 CREATE INDEX IF NOT EXISTS "idx_memories_embedding"
-ON "memories" USING hnsw ("embedding" vector_cosine_ops);
+ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);
 
 -- Partial index for chunk groups
 DROP INDEX IF EXISTS "memories_chunk_group_id_idx";

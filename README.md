@@ -158,54 +158,54 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 
 **Characters & Personas**
 
-| Command | Subcommands | Purpose |
-| --- | --- | --- |
-| `/character` | `create` `edit` `view` `browse` | Manage AI characters |
-| | `import` `export` `template` | Character portability (JSON) |
-| | `chat` `avatar` `voice` `voice-clear` | Interaction and media |
-| | `settings` `overrides` | Per-character config and personal overrides |
-| `/persona` | `view` `edit` `create` `browse` `default` | User persona management |
-| | `override set` `override clear` | Per-character persona overrides |
+| Command      | Subcommands                               | Purpose                                     |
+| ------------ | ----------------------------------------- | ------------------------------------------- |
+| `/character` | `create` `edit` `view` `browse`           | Manage AI characters                        |
+|              | `import` `export` `template`              | Character portability (JSON)                |
+|              | `chat` `avatar` `voice` `voice-clear`     | Interaction and media                       |
+|              | `settings` `overrides`                    | Per-character config and personal overrides |
+| `/persona`   | `view` `edit` `create` `browse` `default` | User persona management                     |
+|              | `override set` `override clear`           | Per-character persona overrides             |
 
 **Presets & Channels**
 
-| Command | Subcommands | Purpose |
-| --- | --- | --- |
-| `/preset` | `create` `edit` `browse` | Custom LLM presets (model + parameters) |
-| | `export` `import` `template` | Preset portability (JSON) |
-| | `global` (`default` `free-default`) | System-wide defaults (owner only) |
-| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management |
+| Command    | Subcommands                                 | Purpose                                 |
+| ---------- | ------------------------------------------- | --------------------------------------- |
+| `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters) |
+|            | `export` `import` `template`                | Preset portability (JSON)               |
+|            | `global` (`default` `free-default`)         | System-wide defaults (owner only)       |
+| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management        |
 
 **Memory & History**
 
-| Command | Subcommands | Purpose |
-| --- | --- | --- |
-| `/memory` | `browse` `search` `stats` | Browse and search long-term memories |
-| | `delete` `purge` | Memory management operations |
-| | `focus` (`enable` `disable` `status`) | Temporarily disable LTM retrieval |
-| | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes) |
-| `/history` | `clear` `stats` `undo` `hard-delete` | Conversation history management |
+| Command    | Subcommands                                        | Purpose                              |
+| ---------- | -------------------------------------------------- | ------------------------------------ |
+| `/memory`  | `browse` `search` `stats`                          | Browse and search long-term memories |
+|            | `delete` `purge`                                   | Memory management operations         |
+|            | `focus` (`enable` `disable` `status`)              | Temporarily disable LTM retrieval    |
+|            | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes)         |
+| `/history` | `clear` `stats` `undo` `hard-delete`               | Conversation history management      |
 
 **Settings & Tools**
 
-| Command | Subcommands | Purpose |
-| --- | --- | --- |
-| `/settings` | `timezone` (`set` `get`) | Timezone for timestamps |
-| | `apikey` (`set` `browse` `remove` `test`) | BYOK API key management |
-| | `preset` (`browse` `set` `reset` `default` `clear-default`) | Per-character preset overrides |
-| | `defaults` (`edit`) | User default settings dashboard |
-| | `voices` (`browse` `delete` `clear` `model`) | ElevenLabs voice management |
-| `/shapes` | `auth` `logout` `browse` `import` `export` `status` | Shapes.inc character migration |
-| `/inspect` | `[identifier]` | Diagnostic log browser — omit to browse recent, provide to inspect specific |
-| `/help` | _(optional command)_ | Show available commands |
+| Command     | Subcommands                                                 | Purpose                                                                     |
+| ----------- | ----------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `/settings` | `timezone` (`set` `get`)                                    | Timezone for timestamps                                                     |
+|             | `apikey` (`set` `browse` `remove` `test`)                   | BYOK API key management                                                     |
+|             | `preset` (`browse` `set` `reset` `default` `clear-default`) | Per-character preset overrides                                              |
+|             | `defaults` (`edit`)                                         | User default settings dashboard                                             |
+|             | `voices` (`browse` `delete` `clear` `model`)                | ElevenLabs voice management                                                 |
+| `/shapes`   | `auth` `logout` `browse` `import` `export` `status`         | Shapes.inc character migration                                              |
+| `/inspect`  | `[identifier]`                                              | Diagnostic log browser — omit to browse recent, provide to inspect specific |
+| `/help`     | _(optional command)_                                        | Show available commands                                                     |
 
 **Administration (owner only)**
 
-| Command | Subcommands | Purpose |
-| --- | --- | --- |
-| `/admin` | `ping` `health` `servers` `kick` `usage` | Monitoring and management |
-| | `cleanup` `db-sync` `settings` `presence` `stop-sequences` | Maintenance and configuration |
-| `/deny` | `add` `remove` `browse` `view` | User and guild denial management |
+| Command  | Subcommands                                                | Purpose                          |
+| -------- | ---------------------------------------------------------- | -------------------------------- |
+| `/admin` | `ping` `health` `servers` `kick` `usage`                   | Monitoring and management        |
+|          | `cleanup` `db-sync` `settings` `presence` `stop-sequences` | Maintenance and configuration    |
+| `/deny`  | `add` `remove` `browse` `view`                             | User and guild denial management |
 
 ### 📋 Planned Features
 
@@ -277,10 +277,11 @@ pnpm dev
 
 ### Development Guides
 
-- **[Development Guide](docs/reference/guides/DEVELOPMENT.md)** - Local development setup
 - **[Testing Guide](docs/reference/guides/TESTING.md)** - Testing philosophy and patterns
 - **[Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md)** - Railway deployment and operations
 - **[OPS CLI Reference](docs/reference/tooling/OPS_CLI_REFERENCE.md)** - CLI tooling reference
+
+> Local dev setup: see [Quick Start](#quick-start) and [Development](#development) above. Steam Deck specifics: [`docs/steam-deck/`](docs/steam-deck/).
 
 ## Project History
 

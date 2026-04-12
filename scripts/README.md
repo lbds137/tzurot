@@ -132,7 +132,7 @@ railway login
 
 - **[packages/tooling/](../packages/tooling/)** - The new ops CLI package
 - **[docs/reference/deployment/RAILWAY_OPERATIONS.md](../docs/reference/deployment/RAILWAY_OPERATIONS.md)** - Railway guide
-- **[docs/guides/DEVELOPMENT.md](../docs/guides/DEVELOPMENT.md)** - Local setup
+- **[../README.md](../README.md)** - Root README (Quick Start, Development sections)
 
 ## 🎯 Claude Code Skills
 
