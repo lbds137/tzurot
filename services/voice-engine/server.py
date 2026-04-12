@@ -236,16 +236,16 @@ async def _load_voice(
         return voice_state
 
     # Fallback: try as a Pocket TTS preset name or HuggingFace path.
-    # FileNotFoundError is the specific exception Pocket TTS raises for unknown
-    # preset names — catch it for the 404 path. Any other exception (OOM, model
-    # crash, I/O failure) propagates as 500 via the outer handler.
+    # Pocket TTS raises OSError (including FileNotFoundError) for unknown preset
+    # names, ValueError for invalid formats. Any other exception (OOM, model
+    # crash) propagates as 500 via the outer handler.
     try:
         voice_state = await loop.run_in_executor(
             None, tts_model.get_state_for_audio_prompt, voice_id
         )
         _cache_voice(voice_id, voice_state)
         return voice_state
-    except (FileNotFoundError, ValueError, OSError):
+    except (ValueError, OSError):
         logger.warning("Voice not found", extra={"voice_id": voice_id})
         raise HTTPException(
             status_code=404,
@@ -503,6 +503,10 @@ async def text_to_speech(
                 else:
                     # Cache miss — acquire per-voice lock to prevent duplicate
                     # computation when concurrent requests hit the same voice.
+                    # Lock dict growth is bounded: only authenticated ai-worker
+                    # calls reach here (VOICE_ENGINE_API_KEY + Railway private
+                    # networking), and voice_id is format-validated by
+                    # _is_valid_voice_id. Practical max = registered voice count.
                     lock = _voice_locks.setdefault(voice_id, asyncio.Lock())
                     async with lock:
                         # Double-check: another request may have loaded it while
