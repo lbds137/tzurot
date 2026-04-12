@@ -15,6 +15,7 @@ overrides:
   lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
   ajv@>=6.0.0 <6.14.0: '>=6.14.0 <7.0.0'
   tar@<=7.5.10: '>=7.5.11'
+  langsmith@<0.5.18: '>=0.5.18'
 
 importers:
   .:
@@ -4136,12 +4137,6 @@ packages:
       }
     engines: { node: ^14.18.0 || >=16.10.0 }
 
-  console-table-printer@2.15.0:
-    resolution:
-      {
-        integrity: sha512-SrhBq4hYVjLCkBVOWaTzceJalvn5K1Zq5aQA6wXC/cYjI3frKWNPEMK3sZsJfNNQApvCQmgBcc13ZKmFj8qExw==,
-      }
-
   constantinople@4.0.1:
     resolution:
       {
@@ -5744,10 +5739,10 @@ packages:
     peerDependencies:
       '@langchain/core': ^1.1.39
 
-  langsmith@0.5.16:
+  langsmith@0.5.18:
     resolution:
       {
-        integrity: sha512-nSsSnTo3gjg1dnb48vb8i582zyjvtPbn+EpR6P1pNELb+4Hb4R3nt7LDy+Tl1ltw73vPGfJQtUWOl28irI1b5w==,
+        integrity: sha512-3zuZUWffTHQ+73EAwnodADtf534VNEZUpXr9jC12qyG8/IQuJET7PRsCpTb9wX2lmBspakwLUpqpj3tNm/0bVA==,
       }
     peerDependencies:
       '@opentelemetry/api': '*'
@@ -7366,12 +7361,6 @@ packages:
         integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==,
       }
     engines: { node: '>=14' }
-
-  simple-wcswidth@1.1.2:
-    resolution:
-      {
-        integrity: sha512-j7piyCjAeTDSjzTSQ7DokZtMNwNlEAyxqSZeCS+CXH7fJ4jx3FuJ/mTW3mE+6JLs4VJBbcll0Kjn+KXI5t21Iw==,
-      }
 
   sisteransi@1.0.5:
     resolution:
@@ -9217,7 +9206,7 @@ snapshots:
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.5.16(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+      langsmith: 0.5.18(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       mustache: 4.2.0
       p-queue: 6.6.2
       uuid: 11.1.0
@@ -10400,10 +10389,6 @@ snapshots:
 
   consola@3.4.2: {}
 
-  console-table-printer@2.15.0:
-    dependencies:
-      simple-wcswidth: 1.1.2
-
   constantinople@4.0.1:
     dependencies:
       '@babel/parser': 7.29.2
@@ -11444,7 +11429,7 @@ snapshots:
       '@langchain/core': 1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       '@langchain/langgraph': 1.2.7(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(zod@4.3.6)
       '@langchain/langgraph-checkpoint': 1.0.1(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))
-      langsmith: 0.5.16(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+      langsmith: 0.5.18(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       uuid: 11.1.0
       zod: 4.3.6
     transitivePeerDependencies:
@@ -11459,12 +11444,9 @@ snapshots:
       - ws
       - zod-to-json-schema
 
-  langsmith@0.5.16(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0):
+  langsmith@0.5.18(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0):
     dependencies:
-      chalk: 5.6.2
-      console-table-printer: 2.15.0
       p-queue: 6.6.2
-      semver: 7.7.4
       uuid: 10.0.0
     optionalDependencies:
       openai: 6.33.0(ws@8.20.0)(zod@4.3.6)
@@ -12513,8 +12495,6 @@ snapshots:
   signal-exit@3.0.7: {}
 
   signal-exit@4.1.0: {}
-
-  simple-wcswidth@1.1.2: {}
 
   sisteransi@1.0.5: {}
 
