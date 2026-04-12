@@ -28,7 +28,7 @@ for _mod_name in (
     if _mod_name not in sys.modules:
         sys.modules[_mod_name] = MagicMock()
 
-from server import app, models, voice_cache, _voice_locks  # noqa: E402 -- must import after sys.modules mocking above
+from server import _voice_locks, app, models, voice_cache  # noqa: E402 -- must import after sys.modules mocking above
 from tests.helpers import FakeTranscription  # noqa: E402 -- must import after sys.modules mocking above
 
 
