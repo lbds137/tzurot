@@ -7,11 +7,11 @@
 
 ## Session Goal
 
-_CPD Zero Roadmap Session 1 — bot-client settings factory + api-gateway shared helpers + latent cap bug investigation._
+_Started: CPD Zero Roadmap Session 1. Pivoted mid-session to a full documentation + Claude auto-memory audit cycle after backlog hygiene work surfaced multiple low-hanging items. Both arcs now complete._
 
 ## Active Task
 
-Session 1 wrap-up: three PRs in flight (PR #778 refactor, PR #779 refactor, PR #780 wrap-up docs). PR #778 review feedback already addressed. Ready for user review + merge.
+**None — session complete.** Seven PRs merged (#778, #779, #780, #781, #782, #783, #784). CPD 126 → 118. ~2200 net lines of stale documentation deleted. Doc-audit skill hardened with memory section, glob fallbacks, verify-before-deleting, and diverged-planning-docs lifecycle rule. See "Completed This Session" below.
 
 ---
 
@@ -47,16 +47,40 @@ This PR. BACKLOG.md additions for the type-(b) items the two refactor PRs flagge
 - **Target**: <100 (still 18 clones to go across Sessions 2-4)
 - **Honest framing**: the original roadmap estimated ~24 clones for Session 1 based on a stale snapshot. Investigation revealed the roadmap's assumptions didn't match current code; realistic Session 1 target was 6-8. Delivered 8. Sessions 2-4 estimates need similar recalibration — flagged in roadmap update.
 
+### PR #781 — Channel Settings Function Rename (Quick Win)
+
+Pivot from CPD work to clearing low-hanging backlog items. Originally framed as "rename `channel/settings.ts` → `channel/context.ts`" but investigation showed the rename direction was backwards: the slash command is `/channel settings`, the file is `channel/settings.ts`, and the function names were the outliers (`handleChannelContext*`). Rename moved in the OPPOSITE direction: function names aligned to the subcommand. 7 dispatcher tests added for codecov.
+
+### Documentation + Auto-Memory Audit Cycle (PRs #782, #783, #784)
+
+Started as a small "memory audit + maybe docs" task, scope-expanded into a full audit cycle covering all 13 sections of the `/tzurot-doc-audit` checklist. Three PRs in dependency order:
+
+**PR #782** — Expanded `tzurot-doc-audit` skill to cover Claude auto-memory as Section 0 (runs FIRST so layer migrations cascade into later sections). Added 5-verdict classification table (Keep / Migrate-to-rules / Migrate-to-docs / Migrate-to-skills / Delete), verify-before-deleting safeguards, classification heuristics, glob error suppression, and several rounds of polish from 7+ review iterations. The standalone "Audit Claude auto-memory" backlog item is now subsumed by the recurring audit.
+
+**PR #783** — Output of running the new audit. Sections 0 + 1-3 + 10-13:
+
+- **Memory audit**: 8 → 5 files. Deleted `feedback_out_of_scope_tracking.md` (already covered by `06-backlog.md` rule). Migrated `feedback_council_model_selection.md` + `mcp_council_model_drift.md` into `tzurot-council-mcp` skill (which was _also_ stale — recommending DeepSeek R1 against explicit user feedback). Migrated "Distrobox for Python" inline section to new `docs/steam-deck/VOICE_ENGINE_PYTHON.md`. Refreshed CPD project memory (126→118). MEMORY.md restructured to a pure index.
+- **Rules fixes**: 03-database.md two-tier `protectedIndexes` vs `ignorePatterns` clarification + DenylistCache row. 04-discord.md added 2 missing dashboard utilities. 07-documentation.md fourth-layer auto-memory callout + removed dead `docs/proposals/active/` row. CLAUDE.md gained a 1-line entry criterion for the post-mortem table (recommended by Gemini 3.1 Pro Preview via council MCP — reframed the criterion from "recency + severity" to "AI-specific behavioral failures").
+
+**PR #784** — Output of running sections 4-9. Mostly deletes:
+
+- **3 deletions** (~1990 lines): `DEVELOPMENT.md` (v3-launch-era rot, redundant with root README), `SLASH_COMMAND_UX_FEATURES.md` (planning doc whose implementation moved to `/preset`), `SHAPES_INC_SLASH_COMMAND_DESIGN.md` (proposal for a fully-implemented feature with dead self-supersede references).
+- **Real correctness bug**: `PRISMA_DRIFT_ISSUES.md` recovery SQL said `USING hnsw` but the actual index is IVFFlat — silent footgun if anyone copy-pasted. Fixed.
+- **Dead-directory references**: removed `docs/migration/` and `docs/testing/` from the rules placement table and skill checklist (same dead-directory pattern as `docs/proposals/active/`).
+- **New lifecycle rule**: "Diverged planning docs" — covers the archetype that produced both `DEVELOPMENT.md` and `SLASH_COMMAND_UX_FEATURES.md`. The existing 4 categories (completed proposals, raw transcripts, abandoned plans, build process docs) had a gap for "we built _something_, but the thing we built isn't what the doc described." Added a one-line bullet to `07-documentation.md` and a full paragraph to `DOCUMENTATION_PHILOSOPHY.md`.
+
+**Cumulative audit impact**: ~25:1 deletion-to-insertion ratio across the 3 PRs. The doc-audit skill's own outputs (rules + skill improvements) materially raised the floor on each subsequent review round — PR #784 reached "approved as-is" with minimal iteration.
+
 ### Backlog Additions (Session 1 Governance Output)
 
-Per the new out-of-scope tracking rule, these type-(b) items are now in `BACKLOG.md`:
+Per the new out-of-scope tracking rule, these type-(b) items were added to `BACKLOG.md`. Status updated at session end:
 
-1. 🚨 **Character field length caps cause silent data loss** (Production Issues) — from cap bug investigation, with DB survey numbers and reference fix
-2. 🏗️ **Standardize over-long field handling pattern across commands** (Inbox) — cross-cutting concern, rule-of-three progression tied to the Production Issue
-3. 🏗️ **Rename `channel/settings.ts` → `channel/context.ts`** (Quick Wins) — four-layer naming drift flagged during PR #778 migration
-4. 🧹 **Trim 18 duplicated guard/parse tests** (Quick Wins) — post-factory-landing cleanup, deferred from PR #778
-5. 🧹 **Audit Claude auto-memory vs. project rules/docs** (Inbox) — meta-level governance, draft "what belongs where" rule
-6. 🧹 **Periodic audit of `scripts/` for promotion candidates** (Inbox) — meta-level governance, catch "one-offs" that secretly repeat
+1. 🚨 **Character field length caps cause silent data loss** (Production Issues) — still open, with DB survey numbers and reference fix documented
+2. 🏗️ **Standardize over-long field handling pattern across commands** (Inbox) — still open, cross-cutting concern
+3. ✅ **Rename `channel/settings.ts` → `channel/context.ts`** (Quick Wins) — **DONE in PR #781**, but with the rename direction inverted: function names aligned to the existing `settings` subcommand instead of the file being renamed to match the function names
+4. 🧹 **Trim 18 duplicated guard/parse tests** (Quick Wins) — still open, post-factory-landing cleanup
+5. ✅ **Audit Claude auto-memory vs. project rules/docs** (Inbox) — **DONE via PRs #782/#783** — fully subsumed by the recurring `/tzurot-doc-audit` skill (Section 0). Removed from BACKLOG.
+6. 🧹 **Periodic audit of `scripts/` for promotion candidates** (Inbox) — still open
 7. Marked stale Phase 7 entry "DRY personality create/update Zod schemas" as `[x]` done — confirmed implemented during investigation
 
 ---
@@ -70,6 +94,15 @@ Per the new out-of-scope tracking rule, these type-(b) items are now in `BACKLOG
 | #778 | refactor | Bot-client `createSettingsCommandHandlers` factory + governance rule + cap bug investigation |
 | #779 | refactor | API gateway `resolveUserIdOrSendError` + `validateLlmConfigModelFields`                      |
 | #780 | docs     | Session 1 wrap-up: backlog additions + CURRENT update                                        |
+
+### Quick Win + Documentation Audit Cycle (2026-04-11, same day)
+
+| PR   | Type     | Summary                                                                                                                  |
+| ---- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| #781 | refactor | Channel command function rename (align to subcommand instead of renaming the file)                                       |
+| #782 | docs     | Expand `tzurot-doc-audit` skill to cover Claude auto-memory (Section 0, runs first)                                      |
+| #783 | docs     | Audit output: memory cleanup (8→5 files), rules/skill refresh, post-mortem entry criterion (council-recommended)         |
+| #784 | docs     | Audit output: 3 deletions of rotted docs (~1990 lines), IVFFlat correctness fix, "Diverged planning docs" lifecycle rule |
 
 ### Browse Standardization Epic (Steps 1-8)
 
