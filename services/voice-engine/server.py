@@ -228,6 +228,9 @@ async def _load_voice(voice_id: str, tts_model: Any, loop: asyncio.AbstractEvent
     # executor to avoid stalling the event loop.
     disk_path = await loop.run_in_executor(None, _find_voice_on_disk, voice_id)
     if disk_path is not None:
+        # No error handling here — if the file exists but is corrupted,
+        # the resulting 500 is the correct signal (server-side data error,
+        # not a missing-voice user error). Re-registering the voice fixes it.
         voice_state: Any = await loop.run_in_executor(None, tts_model.get_state_for_audio_prompt, disk_path)
         _cache_voice(voice_id, voice_state)
         logger.info("Lazy-loaded voice from disk", extra={"voice_id": voice_id})
@@ -278,7 +281,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Custom voices persist in the voices/ directory and are loaded into
     # voice_cache on demand when a TTS request references them.
     if os.environ.get("DEFAULT_VOICES"):
-        logger.warning("DEFAULT_VOICES is set but no longer used — voices are lazy-loaded")
+        logger.warning(
+            "DEFAULT_VOICES is set but no longer used — remove it from your environment. "
+            "Voices load automatically on first TTS request."
+        )
 
     logger.info("Voice Engine ready", extra={"mode": "lazy"})
 
