@@ -102,6 +102,21 @@ git commit -am "chore: bump version to 3.0.0-beta.XX"
 
 Write release notes following the Conventional Changelog format defined in `.claude/rules/05-tooling.md`.
 
+**Source of truth**: `git log v<previous-tag>..HEAD --no-merges` — NOT CURRENT.md.
+CURRENT.md tracks session work; release notes track what shipped between tags.
+Using CURRENT.md caused duplicate entries in beta.94 (items from beta.93 re-listed).
+
+```bash
+# 1. Find the previous release tag
+git tag --list "v3.0.0-beta.*" --sort=-version:refname | head -1
+
+# 2. List actual commits for this release
+git log v<previous>..HEAD --no-merges --oneline
+
+# 3. Cross-check: every release note item must map to a commit in that range
+# 4. Cross-check: no item should appear in the previous release's notes
+```
+
 ### 3. Create Release PR
 
 ```bash
@@ -129,6 +144,13 @@ git checkout develop && git pull origin develop
 git rebase origin/main
 git push origin develop --force-with-lease
 ```
+
+### 6. Reset CURRENT.md Unreleased Section
+
+After a release merges to main, reset the "Unreleased on Develop" section in
+CURRENT.md to only track items since the new release tag. Failing to do this
+caused duplicate entries in the beta.94 release notes (items from beta.93
+were re-listed because CURRENT.md still tracked them).
 
 ## GitHub CLI (Use ops instead of broken `gh pr edit`)
 
