@@ -49,6 +49,7 @@ Each layer points down. No upward references. No duplicated content.
 - **Raw AI transcripts** -- distill to `docs/research/` (2-5KB TL;DR), then delete raw
 - **Abandoned plans** -- delete (git preserves history)
 - **Build process docs** -- delete after shipping (document the feature, not the process)
+- **Diverged planning docs** -- delete when implementation took a meaningfully different shape than what the doc describes; the code is the source of truth. Test: would a reader following this doc end up confused about what currently exists?
 
 ## Reference Root Files
 

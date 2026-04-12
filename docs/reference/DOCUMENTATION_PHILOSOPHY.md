@@ -90,6 +90,16 @@ Schema designs, migration strategies that were abandoned.
 
 **Example**: `LEGACY_MEMORY_SCHEMA_DESIGN.md` deleted (never executed).
 
+### Diverged Planning Docs
+
+Planning documents whose implementation took a meaningfully different shape than what the doc described — distinct from "never executed" (we built _something_), and distinct from "completed proposal" (the thing we built isn't what the doc described).
+
+**Why delete?** The doc describes a structure that doesn't exist. A reader following it will end up confused about what currently exists. Updating is rarely worth it — by the time the divergence is noticed, the actual code is already the better source of truth, and "rewriting the planning doc to match reality" produces something that's neither a useful design artifact nor a useful reference.
+
+**Test**: would a reader following this doc end up confused about what currently exists? If yes, delete.
+
+**Example**: A planning doc proposing `/admin personality` subcommands when the actual implementation moved that functionality to `/preset` — the doc describes an architecture that doesn't exist. Even if the proposal was good and the implementation was inspired by it, the gap between "what we planned" and "what we built" is the load-bearing problem.
+
 ## Triage Triggers
 
 Run documentation triage when:

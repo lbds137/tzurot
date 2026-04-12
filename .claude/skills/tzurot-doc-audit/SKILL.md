@@ -27,8 +27,8 @@ ls ~/.claude/projects/*tzurot*/memory/
 # Recent changes (last 30 days)?
 git log --since="30 days ago" --name-only --pretty=format: -- docs/ .claude/rules/ .claude/skills/ | sort -u | grep .
 
-# Proposals that might be stale?
-ls docs/proposals/active/
+# Proposals that might be stale? (project uses backlog/ — no active/ dir by design)
+ls docs/proposals/backlog/
 
 # Skills lastUpdated dates
 grep -r 'lastUpdated' .claude/skills/*/SKILL.md
