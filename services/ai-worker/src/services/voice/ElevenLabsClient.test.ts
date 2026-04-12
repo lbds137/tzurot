@@ -276,6 +276,24 @@ describe('ElevenLabsClient', () => {
         })
       ).rejects.toThrow(ElevenLabsApiError);
     });
+
+    it('should throw ElevenLabsTimeoutError when abort fires during response.json()', async () => {
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockRejectedValue(abortError),
+      });
+
+      await expect(
+        elevenLabsCloneVoice({
+          name: 'test',
+          audioBuffer: Buffer.from('audio'),
+          contentType: 'audio/wav',
+          apiKey: 'sk_test',
+        })
+      ).rejects.toThrow(ElevenLabsTimeoutError);
+    });
   });
 
   describe('elevenLabsListVoices', () => {
@@ -322,6 +340,17 @@ describe('ElevenLabsClient', () => {
           headers: expect.objectContaining({ 'xi-api-key': 'sk_my_key' }),
         })
       );
+    });
+
+    it('should throw ElevenLabsTimeoutError when abort fires during response.json()', async () => {
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockRejectedValue(abortError),
+      });
+
+      await expect(elevenLabsListVoices('sk_test')).rejects.toThrow(ElevenLabsTimeoutError);
     });
   });
 
@@ -406,6 +435,17 @@ describe('ElevenLabsClient', () => {
       });
 
       await expect(elevenLabsListModels('bad_key')).rejects.toThrow(ElevenLabsApiError);
+    });
+
+    it('should throw ElevenLabsTimeoutError when abort fires during response.json()', async () => {
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockRejectedValue(abortError),
+      });
+
+      await expect(elevenLabsListModels('sk_test')).rejects.toThrow(ElevenLabsTimeoutError);
     });
   });
 
