@@ -45,11 +45,12 @@ fi
 # 3. Check if only docs/config changed
 # Include package.json and pnpm-lock.yaml as they can affect builds (dependencies, scripts)
 CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|d\.ts)$|package\.json$|pnpm-lock\.yaml$' || true)
+PYTHON_FILES=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
 
 if [ -z "$CHANGED_FILES" ]; then
     echo "${YELLOW}No files detected in push - skipping checks${NC}"
     exit 0
-elif [ -z "$CODE_FILES" ]; then
+elif [ -z "$CODE_FILES" ] && [ -z "$PYTHON_FILES" ]; then
     echo "${GREEN}Only documentation/config files changed - skipping build and tests${NC}"
     exit 0
 fi
@@ -132,6 +133,19 @@ if ! pnpm depcruise; then
     echo "${RED}Dependency boundary check failed!${NC}"
     echo "Run 'pnpm depcruise' for details"
     exit 1
+fi
+
+# 10. Run Python quality checks if Python files changed
+if [ -n "$PYTHON_FILES" ]; then
+    echo "Running Python quality checks (ruff + mypy)..."
+    if ! (cd services/voice-engine && ruff check .); then
+        echo "${RED}Python linting (ruff) failed!${NC}"
+        exit 1
+    fi
+    if ! (cd services/voice-engine && mypy --strict server.py tests/); then
+        echo "${RED}Python type checking (mypy) failed!${NC}"
+        exit 1
+    fi
 fi
 
 echo "${GREEN}All pre-push checks passed!${NC}"
