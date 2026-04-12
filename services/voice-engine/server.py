@@ -40,9 +40,7 @@ class _JsonFormatter(logging.Formatter):
     # Standard LogRecord attributes to exclude from extra-field merging.
     # Derived from a dummy LogRecord's __dict__ — common pattern in logging libraries.
     # If CPython adds new internal attrs in future versions, they'll be auto-excluded.
-    _STANDARD_ATTRS: frozenset[str] = frozenset(
-        logging.LogRecord("", 0, "", 0, "", (), None).__dict__
-    )
+    _STANDARD_ATTRS: frozenset[str] = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__)
 
     def format(self, record: logging.LogRecord) -> str:
         # Intentionally does NOT call super().format() — that would set record.message
@@ -188,9 +186,13 @@ def _cache_voice(voice_id: str, voice_state: Any) -> None:
     if len(voice_cache) > MAX_VOICE_CACHE_SIZE:
         oldest = next(iter(voice_cache))
         del voice_cache[oldest]
-        logger.warning("Voice cache full, evicted oldest entry", extra={
-            "voice_id": oldest, "voice_count": MAX_VOICE_CACHE_SIZE,
-        })
+        logger.warning(
+            "Voice cache full, evicted oldest entry",
+            extra={
+                "voice_id": oldest,
+                "voice_count": MAX_VOICE_CACHE_SIZE,
+            },
+        )
 
 
 def _find_voice_on_disk(voice_id: str) -> str | None:
@@ -210,9 +212,7 @@ def _find_voice_on_disk(voice_id: str) -> str | None:
     return None
 
 
-async def _load_voice(
-    voice_id: str, tts_model: Any, loop: asyncio.AbstractEventLoop
-) -> Any:
+async def _load_voice(voice_id: str, tts_model: Any, loop: asyncio.AbstractEventLoop) -> Any:
     """Load a voice state from disk or preset, caching the result.
 
     Resolution order:
@@ -228,9 +228,7 @@ async def _load_voice(
     # executor to avoid stalling the event loop.
     disk_path = await loop.run_in_executor(None, _find_voice_on_disk, voice_id)
     if disk_path is not None:
-        voice_state: Any = await loop.run_in_executor(
-            None, tts_model.get_state_for_audio_prompt, disk_path
-        )
+        voice_state: Any = await loop.run_in_executor(None, tts_model.get_state_for_audio_prompt, disk_path)
         _cache_voice(voice_id, voice_state)
         logger.info("Lazy-loaded voice from disk", extra={"voice_id": voice_id})
         return voice_state
@@ -240,17 +238,19 @@ async def _load_voice(
     # names, ValueError for invalid formats. Any other exception (OOM, model
     # crash) propagates as 500 via the outer handler.
     try:
-        voice_state = await loop.run_in_executor(
-            None, tts_model.get_state_for_audio_prompt, voice_id
-        )
+        voice_state = await loop.run_in_executor(None, tts_model.get_state_for_audio_prompt, voice_id)
         _cache_voice(voice_id, voice_state)
         return voice_state
-    except (ValueError, OSError):
-        logger.warning("Voice not found", extra={"voice_id": voice_id})
+    except (ValueError, OSError) as exc:
+        logger.warning(
+            "Voice not found",
+            exc_info=True,
+            extra={"voice_id": voice_id},
+        )
         raise HTTPException(
             status_code=404,
             detail=f"Voice '{voice_id}' not found",
-        ) from None
+        ) from exc
 
 
 @asynccontextmanager
@@ -260,9 +260,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     # --- Load STT model ---
     logger.info("Loading Parakeet TDT 0.6B v3")
-    asr_model = nemo_asr.models.ASRModel.from_pretrained(
-        model_name="nvidia/parakeet-tdt-0.6b-v3"
-    )
+    asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name="nvidia/parakeet-tdt-0.6b-v3")
     asr_model = asr_model.cpu()
     asr_model.eval()
     models["asr"] = asr_model
@@ -279,8 +277,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Railway Serverless where containers sleep after 10 min idle.
     # Custom voices persist in the voices/ directory and are loaded into
     # voice_cache on demand when a TTS request references them.
+    if os.environ.get("DEFAULT_VOICES"):
+        logger.warning("DEFAULT_VOICES is set but no longer used — voices are lazy-loaded")
 
-    logger.info("Voice Engine ready")
+    logger.info("Voice Engine ready", extra={"mode": "lazy"})
 
     yield
 
@@ -306,9 +306,7 @@ if _API_KEY is not None and not _API_KEY.strip():
 
 
 @app.middleware("http")
-async def check_api_key(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]]
-) -> Response:
+async def check_api_key(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     if _API_KEY is not None and request.url.path != "/health":
         provided = request.headers.get("x-api-key", "")
         if not provided:
@@ -316,9 +314,7 @@ async def check_api_key(
             if auth.startswith("Bearer "):
                 provided = auth[7:]
         if not provided or not secrets.compare_digest(provided, _API_KEY):
-            return JSONResponse(
-                status_code=401, content={"detail": "Invalid or missing API key"}
-            )
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
     return await call_next(request)
 
 
@@ -375,9 +371,7 @@ async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
                 )
 
             # Transcribe — NeMo returns objects with .text attribute
-            transcriptions: list[Any] = await loop.run_in_executor(
-                None, asr_model.transcribe, [audio_array]
-            )
+            transcriptions: list[Any] = await loop.run_in_executor(None, asr_model.transcribe, [audio_array])
             text: str = transcriptions[0].text if transcriptions else ""
 
         # Cleanup
@@ -414,6 +408,7 @@ async def transcribe_openai_compat(
 # ---------------------------------------------------------------------------
 # TTS Endpoints
 # ---------------------------------------------------------------------------
+
 
 @app.post("/v1/tts")
 async def text_to_speech(
@@ -463,73 +458,65 @@ async def text_to_speech(
             if reference_audio:
                 ref_audio_bytes = await reference_audio.read()
                 if len(ref_audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
-                    raise HTTPException(
-                        status_code=413, detail="Reference audio file too large"
-                    )
-                if (
-                    reference_audio.content_type
-                    and reference_audio.content_type not in _AUDIO_EXTENSIONS
-                ):
+                    raise HTTPException(status_code=413, detail="Reference audio file too large")
+                if reference_audio.content_type and reference_audio.content_type not in _AUDIO_EXTENSIONS:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Unsupported audio type: {reference_audio.content_type}. "
                         f"Allowed: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
                     )
-                ext = _AUDIO_EXTENSIONS.get(
-                    reference_audio.content_type or "", _DEFAULT_AUDIO_EXT
-                )
-                with tempfile.NamedTemporaryFile(
-                    suffix=ext, delete=False
-                ) as tmp:
+                ext = _AUDIO_EXTENSIONS.get(reference_audio.content_type or "", _DEFAULT_AUDIO_EXT)
+                with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
                     ref_tmp_path = tmp.name
                     tmp.write(ref_audio_bytes)
                 del ref_audio_bytes
 
+            # --- Phase 1: Resolve voice state (outside semaphore) ---
+            # Voice resolution uses per-voice locks to prevent duplicate
+            # computation. Keeping this outside the inference semaphore
+            # avoids wasting a concurrency slot while waiting on a lock.
+            voice_state: Any
+            if ref_tmp_path is not None:
+                # Zero-shot cloning — state extraction inside semaphore
+                # because uploaded reference audio can be large.
+                pass
+            elif voice_id in voice_cache:
+                # Refresh LRU position via _cache_voice (pop-and-reinsert)
+                voice_state = voice_cache[voice_id]
+                _cache_voice(voice_id, voice_state)
+            else:
+                # Cache miss — acquire per-voice lock to prevent duplicate
+                # computation when concurrent requests hit the same voice.
+                # Lock dict growth is bounded: only authenticated ai-worker
+                # calls reach here (VOICE_ENGINE_API_KEY + Railway private
+                # networking), and voice_id is format-validated by
+                # _is_valid_voice_id. Practical max = registered voice count.
+                lock = _voice_locks.setdefault(voice_id, asyncio.Lock())
+                async with lock:
+                    # Double-check: another request may have loaded it while
+                    # we waited for the lock. No LRU refresh needed — the
+                    # concurrent request just cached it, so it's already newest.
+                    if voice_id in voice_cache:
+                        voice_state = voice_cache[voice_id]
+                    else:
+                        voice_state = await _load_voice(voice_id, tts_model, loop)
+
+            # --- Phase 2: Model inference (semaphore) ---
             # Semaphore caps concurrency to prevent OOM on Railway 4GB ceiling.
             async with _inference_semaphore:
-                # Get or create voice state
                 if ref_tmp_path is not None:
-                    # Zero-shot cloning from uploaded audio
-                    voice_state: Any = await loop.run_in_executor(
-                        None, tts_model.get_state_for_audio_prompt, ref_tmp_path
-                    )
+                    voice_state = await loop.run_in_executor(None, tts_model.get_state_for_audio_prompt, ref_tmp_path)
                     _cache_voice(voice_id, voice_state)
-
-                elif voice_id in voice_cache:
-                    # Refresh LRU position via _cache_voice (pop-and-reinsert)
-                    voice_state = voice_cache[voice_id]
-                    _cache_voice(voice_id, voice_state)
-
-                else:
-                    # Cache miss — acquire per-voice lock to prevent duplicate
-                    # computation when concurrent requests hit the same voice.
-                    # Lock dict growth is bounded: only authenticated ai-worker
-                    # calls reach here (VOICE_ENGINE_API_KEY + Railway private
-                    # networking), and voice_id is format-validated by
-                    # _is_valid_voice_id. Practical max = registered voice count.
-                    lock = _voice_locks.setdefault(voice_id, asyncio.Lock())
-                    async with lock:
-                        # Double-check: another request may have loaded it while
-                        # we waited for the lock. No LRU refresh needed — the
-                        # concurrent request just cached it, so it's already newest.
-                        if voice_id in voice_cache:
-                            voice_state = voice_cache[voice_id]
-                        else:
-                            voice_state = await _load_voice(
-                                voice_id, tts_model, loop
-                            )
 
                 # Generate audio
-                audio_tensor: Any = await loop.run_in_executor(
-                    None, tts_model.generate_audio, voice_state, clean_text
-                )
+                audio_tensor: Any = await loop.run_in_executor(None, tts_model.generate_audio, voice_state, clean_text)
         finally:
             # Clean up temp file regardless of semaphore/model errors
             if ref_tmp_path is not None and os.path.exists(ref_tmp_path):
                 os.unlink(ref_tmp_path)
-        audio_np: np.ndarray[Any, np.dtype[np.int16]] = np.clip(
-            audio_tensor.numpy() * 32767, -32768, 32767
-        ).astype(np.int16)
+        audio_np: np.ndarray[Any, np.dtype[np.int16]] = np.clip(audio_tensor.numpy() * 32767, -32768, 32767).astype(
+            np.int16
+        )
 
         # Convert to WAV bytes
         wav_buffer = io.BytesIO()
@@ -575,11 +562,7 @@ async def tts_openai_compat(
 @app.get("/v1/voices")
 def list_voices() -> dict[str, list[dict[str, str]]]:
     """List all available voices."""
-    return {
-        "voices": [
-            {"id": voice_id, "type": "cached"} for voice_id in voice_cache
-        ]
-    }
+    return {"voices": [{"id": voice_id, "type": "cached"} for voice_id in voice_cache]}
 
 
 @app.post("/v1/voices/register")
@@ -611,8 +594,7 @@ async def register_voice(
         if audio.content_type and audio.content_type not in _AUDIO_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported audio type: {audio.content_type}. "
-                f"Allowed: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
+                detail=f"Unsupported audio type: {audio.content_type}. Allowed: {', '.join(sorted(_AUDIO_EXTENSIONS))}",
             )
 
         # Save to voices directory for persistence across restarts.
@@ -657,9 +639,7 @@ async def register_voice(
         try:
             await loop.run_in_executor(None, _write_file_atomic, voice_path, audio_bytes)
             async with _inference_semaphore:
-                voice_state: Any = await loop.run_in_executor(
-                    None, tts_model.get_state_for_audio_prompt, voice_path
-                )
+                voice_state: Any = await loop.run_in_executor(None, tts_model.get_state_for_audio_prompt, voice_path)
             _cache_voice(voice_id, voice_state)
         except Exception:
             # Inline containment check for cleanup (CodeQL py/path-injection #63/#64).
