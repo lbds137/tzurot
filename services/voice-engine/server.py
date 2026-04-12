@@ -161,6 +161,8 @@ voice_cache: dict[str, Any] = {}
 # Per-voice locks — prevents duplicate computation when concurrent TTS requests
 # hit a cache miss for the same voice. Without this, both requests would redundantly
 # call get_state_for_audio_prompt (~2.5s each), wasting a semaphore slot.
+# Grows without bound but bounded by total voice count (~60-100 in practice).
+# Entries are cheap (asyncio.Lock is ~100 bytes) and cleared on shutdown.
 _voice_locks: dict[str, asyncio.Lock] = {}
 
 # Audio file extensions recognized when scanning the voices/ directory for lazy loading.
@@ -231,14 +233,17 @@ async def _load_voice(
         logger.info("Lazy-loaded voice from disk", extra={"voice_id": voice_id})
         return voice_state
 
-    # Fallback: try as a Pocket TTS preset name or HuggingFace path
+    # Fallback: try as a Pocket TTS preset name or HuggingFace path.
+    # FileNotFoundError is the specific exception Pocket TTS raises for unknown
+    # preset names — catch it for the 404 path. Any other exception (OOM, model
+    # crash, I/O failure) propagates as 500 via the outer handler.
     try:
         voice_state = await loop.run_in_executor(
             None, tts_model.get_state_for_audio_prompt, voice_id
         )
         _cache_voice(voice_id, voice_state)
         return voice_state
-    except Exception:
+    except (FileNotFoundError, ValueError, OSError):
         logger.warning("Voice not found", extra={"voice_id": voice_id})
         raise HTTPException(
             status_code=404,
@@ -500,10 +505,10 @@ async def text_to_speech(
                         _voice_locks[voice_id] = asyncio.Lock()
                     async with _voice_locks[voice_id]:
                         # Double-check: another request may have loaded it while
-                        # we waited for the lock.
+                        # we waited for the lock. No LRU refresh needed — the
+                        # concurrent request just cached it, so it's already newest.
                         if voice_id in voice_cache:
                             voice_state = voice_cache[voice_id]
-                            _cache_voice(voice_id, voice_state)
                         else:
                             voice_state = await _load_voice(
                                 voice_id, tts_model, loop
