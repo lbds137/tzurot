@@ -477,8 +477,8 @@ async def text_to_speech(
             # avoids wasting a concurrency slot while waiting on a lock.
             voice_state: Any
             if ref_tmp_path is not None:
-                # Zero-shot cloning — state extraction inside semaphore
-                # because uploaded reference audio can be large.
+                # Zero-shot cloning — voice_state set in Phase 2 (inside
+                # semaphore) because uploaded reference audio can be large.
                 pass
             elif voice_id in voice_cache:
                 # Refresh LRU position via _cache_voice (pop-and-reinsert)
