@@ -227,7 +227,9 @@ describe('Preset Create', () => {
         model: 'anthropic/claude-sonnet-4',
       });
 
-      vi.mocked(api.createPreset).mockRejectedValue(new Error('409 - Conflict'));
+      vi.mocked(api.createPreset).mockRejectedValue(
+        new Error('Failed to create preset: 409 - You already have a config named "Duplicate"')
+      );
 
       const mockInteraction = createMockModalInteraction({
         name: 'Duplicate',

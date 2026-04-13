@@ -116,8 +116,16 @@ export async function updateGlobalPreset(
   const response = await adminPutJson(`/admin/llm-config/${presetId}`, data);
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to update global preset: ${response.status} - ${text}`);
+    // Try JSON first (structured API error), fall back to raw text.
+    // Avoids surfacing garbled HTML from gateway 502/nginx error pages.
+    let detail: string;
+    try {
+      const json = (await response.json()) as { message?: string; error?: string };
+      detail = json.message ?? json.error ?? 'Unknown';
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`Failed to update global preset: ${response.status} - ${detail}`);
   }
 
   const result = (await response.json()) as PresetResponse;
