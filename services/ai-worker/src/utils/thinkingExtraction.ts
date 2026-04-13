@@ -38,33 +38,36 @@ interface ThinkingExtraction {
 }
 
 /**
- * All supported thinking tag patterns.
+ * All known thinking/reasoning tag names.
  *
- * Each pattern captures the content inside the tags for extraction.
+ * Single source of truth — every pattern in this module is generated from
+ * this array. To add support for a new tag, add it here and all patterns
+ * (extraction, normalization, fallback, cleanup) update automatically.
+ */
+const KNOWN_THINKING_TAGS = [
+  'think', // DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2
+  'thinking', // Claude prompted, some distilled models
+  'ant_thinking', // Legacy Anthropic format
+  'reasoning', // Some fine-tuned models
+  'thought', // Legacy fine-tunes (Llama, Mistral)
+  'reflection', // Reflection AI
+  'scratchpad', // Legacy research models
+  'character_analysis', // GLM 4.5 Air internal chain-of-thought
+] as const;
+
+/** Alternation pattern fragment for use in regex: `think|thinking|...` */
+const TAG_ALT = KNOWN_THINKING_TAGS.join('|');
+
+/**
+ * Per-tag extraction patterns. Each captures the content inside the tags.
  * Uses non-greedy matching ([\s\S]*?) to handle content without over-capturing.
- * All patterns are case-insensitive.
  *
  * Order matters for extraction priority (first match wins for display),
  * but ALL patterns are always removed from visible content.
  */
-const THINKING_PATTERNS = [
-  // Primary: DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2
-  /<think>([\s\S]*?)<\/think>/gi,
-  // Claude prompted, some distilled models
-  /<thinking>([\s\S]*?)<\/thinking>/gi,
-  // Legacy Anthropic format
-  /<ant_thinking>([\s\S]*?)<\/ant_thinking>/gi,
-  // Some fine-tuned models
-  /<reasoning>([\s\S]*?)<\/reasoning>/gi,
-  // Legacy fine-tunes (Llama, Mistral)
-  /<thought>([\s\S]*?)<\/thought>/gi,
-  // Reflection AI
-  /<reflection>([\s\S]*?)<\/reflection>/gi,
-  // Legacy research models
-  /<scratchpad>([\s\S]*?)<\/scratchpad>/gi,
-  // GLM 4.5 Air internal chain-of-thought
-  /<character_analysis>([\s\S]*?)<\/character_analysis>/gi,
-] as const;
+const THINKING_PATTERNS = KNOWN_THINKING_TAGS.map(
+  tag => new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'gi')
+);
 
 /**
  * Strip any XML namespace prefix from known thinking tag names. GLM-4.5-Air leaks Anthropic's
@@ -72,10 +75,7 @@ const THINKING_PATTERNS = [
  * The \b anchor prevents false matches on hypothetical tags like <thinker>.
  */
 function normalizeThinkingTagNamespaces(content: string): string {
-  return content.replace(
-    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking|character_analysis)\b/gi,
-    '<$1$2'
-  );
+  return content.replace(new RegExp(`<(\\/?)[a-z][a-z0-9]*:(${TAG_ALT})\\b`, 'gi'), '<$1$2');
 }
 
 /**
@@ -83,8 +83,7 @@ function normalizeThinkingTagNamespaces(content: string): string {
  * Matches opening tag followed by content until end of string.
  * Only used as a fallback when no complete tags are found.
  */
-const UNCLOSED_TAG_PATTERN =
-  /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>([\s\S]*)$/gi;
+const UNCLOSED_TAG_PATTERN = new RegExp(`<(${TAG_ALT})>([\\s\\S]*)$`, 'gi');
 
 /**
  * Pattern to match orphan closing tags with preceding content (no opening tag).
@@ -92,22 +91,22 @@ const UNCLOSED_TAG_PATTERN =
  * just closing with </think>. This captures the content before the closing tag.
  * Matches: "thinking content here</think>visible response"
  */
-const ORPHAN_CLOSING_TAG_PATTERN =
-  /^([\s\S]*?)<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/i;
+const ORPHAN_CLOSING_TAG_PATTERN = new RegExp(`^([\\s\\S]*?)<\\/(${TAG_ALT})>`, 'i');
 
 /**
  * Pattern to clean up "chimera artifacts" - short garbage fragments before orphan closing tags.
  * Some merged/chimera models (e.g., tng-r1t-chimera) output a stutter pattern.
  * Note: Whitespace limited to {0,50} to prevent ReDoS on pathological input.
  */
-const CHIMERA_ARTIFACT_PATTERN =
-  /(?:^|[\r\n])[\s]{0,50}[^\s<.]{0,9}\.[\s]{0,50}<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/gi;
+const CHIMERA_ARTIFACT_PATTERN = new RegExp(
+  `(?:^|[\\r\\n])[\\s]{0,50}[^\\s<.]{0,9}\\.[\\s]{0,50}<\\/(${TAG_ALT})>`,
+  'gi'
+);
 
 /**
  * Pattern to remove any remaining orphan closing tags.
  */
-const ORPHAN_CLOSING_TAG_CLEANUP =
-  /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/gi;
+const ORPHAN_CLOSING_TAG_CLEANUP = new RegExp(`<\\/(${TAG_ALT})>`, 'gi');
 
 /**
  * Pattern to clean up OpenAI "Harmony" format tokens that leak from GPT-OSS-120B.
@@ -122,8 +121,7 @@ const HARMONY_TOKEN_PATTERN = /<\|(?:start|end|channel|separator|im_start|im_end
 const MIN_ORPHAN_CONTENT_LENGTH = 20;
 
 /** Opening tag pattern for stripping bare tags without capturing content */
-const OPENING_TAG_PATTERN =
-  /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad|character_analysis)>/gi;
+const OPENING_TAG_PATTERN = new RegExp(`<(${TAG_ALT})>`, 'gi');
 
 /**
  * Extract content from unclosed thinking tags (model truncation fallback).
