@@ -106,6 +106,7 @@ _This week's active work. Max 3 items._
 
 _Small tasks that can be done between major features. Good for momentum._
 
+- 🐛 `[FIX]` **Flaky xray analyzer test — "should include suppressions in file data" times out in CI** — `packages/tooling/src/xray/analyzer.test.ts:182` timed out at 15s on CI runner (observed 2026-04-13, run #24367518180). The test calls `analyzeMonorepo` which initializes a `ts-morph` Project — CPU-intensive on resource-constrained CI runners. May have worsened with `ts-morph` 27→28. Fix options: (a) increase timeout for this specific test, (b) mock `ts-morph` Project creation, (c) split suppression parsing from full analysis so it can be tested without the expensive Project init. **Start**: `packages/tooling/src/xray/analyzer.test.ts:182`, `packages/tooling/src/xray/analyzer.ts` (analyzeMonorepo function).
 - 🧹 `[CHORE]` **Investigate `pnpm/action-setup` v5 → v6 upgrade** — Reverted in PR #798 due to `ERR_PNPM_BROKEN_LOCKFILE` in CI despite the lockfile being valid locally with `--frozen-lockfile`. v6 may require a different lockfile format or settings. **Start**: check pnpm/action-setup v6 changelog for breaking changes, test in an isolated branch.
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
