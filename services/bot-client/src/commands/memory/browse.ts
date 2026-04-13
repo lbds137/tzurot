@@ -15,13 +15,7 @@
  * because UUIDs can't fit in the filter enum slot.
  */
 
-import type {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonInteraction,
-  StringSelectMenuBuilder,
-  StringSelectMenuInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
 import {
   createLogger,
@@ -40,6 +34,7 @@ import {
   pluralize,
   formatSortVerbatim,
   formatPageIndicator,
+  type BrowseActionRow,
 } from '../../utils/browse/index.js';
 import { resolveOptionalPersonality } from './resolveHelpers.js';
 import { buildMemoryActionId, handleMemorySelect } from './detail.js';
@@ -53,9 +48,6 @@ import {
   fetchPageWithEmptyFallback,
   MEMORY_BROWSE_ENTITY_TYPE,
 } from './browseSession.js';
-
-/** Union type for action rows containing buttons or select menus */
-type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
 const logger = createLogger('memory-browse');
 

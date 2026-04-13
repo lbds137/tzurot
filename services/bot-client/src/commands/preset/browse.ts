@@ -8,13 +8,7 @@
  * - Pagination support for larger lists
  */
 
-import {
-  EmbedBuilder,
-  escapeMarkdown,
-  ActionRowBuilder,
-  ButtonBuilder,
-  StringSelectMenuBuilder,
-} from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   createLogger,
@@ -39,6 +33,7 @@ import {
   joinFooter,
   pluralize,
   formatFilterLabeled,
+  type BrowseActionRow,
 } from '../../utils/browse/index.js';
 import {
   PRESET_DASHBOARD_CONFIG,
@@ -216,9 +211,6 @@ function buildBrowseButtons(
     showSortToggle: false, // Presets don't have sort toggle
   });
 }
-
-/** Union type for action rows that can contain buttons or select menus */
-type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
 /**
  * Build the browse embed and components

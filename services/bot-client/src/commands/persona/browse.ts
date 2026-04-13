@@ -5,7 +5,7 @@
  * Shows a paginated list of user's personas with select menu to edit
  */
 
-import { ButtonBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ListPersonasResponse } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -25,6 +25,7 @@ import {
   formatSortNatural,
   formatSortVerbatim,
   type BrowseSortType,
+  type BrowseActionRow,
 } from '../../utils/browse/index.js';
 import { createListComparator } from '../../utils/listSorting.js';
 
@@ -100,9 +101,6 @@ function buildBrowseButtons(
     buildInfoId: browseHelpers.buildInfo,
   });
 }
-
-/** Union type for action rows */
-type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
 /**
  * Build the browse embed and components
