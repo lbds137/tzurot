@@ -209,15 +209,51 @@ describe('updateGlobalPreset', () => {
     });
   });
 
-  it('should throw on error with body', async () => {
+  it('should extract message from JSON error response', async () => {
     mockAdminPutJson.mockResolvedValue({
       ok: false,
       status: 400,
-      text: async () => 'Invalid data',
+      text: async () => JSON.stringify({ message: 'Context window too large' }),
     });
 
     await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
-      'Failed to update global preset: 400 - Invalid data'
+      'Failed to update global preset: 400 - Context window too large'
+    );
+  });
+
+  it('should extract error field from JSON error response', async () => {
+    mockAdminPutJson.mockResolvedValue({
+      ok: false,
+      status: 422,
+      text: async () => JSON.stringify({ error: 'VALIDATION_ERROR' }),
+    });
+
+    await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
+      'Failed to update global preset: 422 - VALIDATION_ERROR'
+    );
+  });
+
+  it('should fall back to raw text for non-JSON error response', async () => {
+    mockAdminPutJson.mockResolvedValue({
+      ok: false,
+      status: 502,
+      text: async () => '<html>Bad Gateway</html>',
+    });
+
+    await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
+      'Failed to update global preset: 502 - <html>Bad Gateway</html>'
+    );
+  });
+
+  it('should use Unknown when JSON has no message or error field', async () => {
+    mockAdminPutJson.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ detail: 'some other field' }),
+    });
+
+    await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
+      'Failed to update global preset: 400 - Unknown'
     );
   });
 });
