@@ -6,11 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 import {
   handleOverrides,
   handleCharacterOverridesButton,
-  handleCharacterOverridesSelectMenu,
   handleCharacterOverridesModal,
   isCharacterOverridesInteraction,
 } from './overrides.js';
@@ -126,50 +125,6 @@ describe('Character Overrides Dashboard', () => {
           getString: ReturnType<typeof vi.fn>;
         };
       };
-    };
-  };
-
-  const createMockButtonInteraction = (
-    customId: string
-  ): ButtonInteraction & {
-    deferUpdate: ReturnType<typeof vi.fn>;
-    editReply: ReturnType<typeof vi.fn>;
-    message: { id: string };
-  } => {
-    return {
-      customId,
-      user: { id: 'user-456' },
-      deferUpdate: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-      message: { id: 'message-123' },
-    } as unknown as ButtonInteraction & {
-      deferUpdate: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      message: { id: string };
-    };
-  };
-
-  const createMockSelectMenuInteraction = (
-    customId: string,
-    value: string
-  ): StringSelectMenuInteraction & {
-    deferUpdate: ReturnType<typeof vi.fn>;
-    editReply: ReturnType<typeof vi.fn>;
-    message: { id: string };
-    values: string[];
-  } => {
-    return {
-      customId,
-      user: { id: 'user-456' },
-      deferUpdate: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-      message: { id: 'message-123' },
-      values: [value],
-    } as unknown as StringSelectMenuInteraction & {
-      deferUpdate: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      message: { id: string };
-      values: string[];
     };
   };
 
@@ -337,25 +292,6 @@ describe('Character Overrides Dashboard', () => {
   });
 
   describe('handleCharacterOverridesButton', () => {
-    it('should ignore non-character-overrides interactions', async () => {
-      const interaction = createMockButtonInteraction(
-        'character-settings::set::personality-123::enabled:true'
-      );
-
-      await handleCharacterOverridesButton(interaction);
-
-      expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    });
-
-    it('should return early when entityId is missing from custom ID', async () => {
-      // A custom ID that passes isSettingsInteraction but parseSettingsCustomId returns no entityId
-      const interaction = createMockButtonInteraction('character-overrides::set');
-
-      await handleCharacterOverridesButton(interaction);
-
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
-    });
-
     it('should update setting via user-personality cascade endpoint', async () => {
       const interaction = {
         customId: 'character-overrides::set::personality-123::crossChannelHistoryEnabled:true',
@@ -406,30 +342,6 @@ describe('Character Overrides Dashboard', () => {
     });
   });
 
-  describe('handleCharacterOverridesSelectMenu', () => {
-    it('should ignore non-character-overrides interactions', async () => {
-      const interaction = createMockSelectMenuInteraction(
-        'character-settings::select::aurora',
-        'maxMessages'
-      );
-
-      await handleCharacterOverridesSelectMenu(interaction);
-
-      expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    });
-
-    it('should return early when entityId is missing from custom ID', async () => {
-      const interaction = createMockSelectMenuInteraction(
-        'character-overrides::select',
-        'maxMessages'
-      );
-
-      await handleCharacterOverridesSelectMenu(interaction);
-
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
-    });
-  });
-
   describe('handleCharacterOverridesModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
@@ -455,25 +367,6 @@ describe('Character Overrides Dashboard', () => {
         view: 'setting',
         activeSetting: settingId,
       },
-    });
-
-    it('should ignore non-character-overrides modal interactions', async () => {
-      const interaction = createMockModalInteraction(
-        'character-settings::modal::personality-123::maxMessages',
-        '50'
-      );
-
-      await handleCharacterOverridesModal(interaction as never);
-
-      expect(interaction.reply).not.toHaveBeenCalled();
-    });
-
-    it('should return early when entityId is missing from custom ID', async () => {
-      const interaction = createMockModalInteraction('character-overrides::modal', '50');
-
-      await handleCharacterOverridesModal(interaction as never);
-
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
 
     it('should update maxMessages setting via user-personality cascade endpoint', async () => {

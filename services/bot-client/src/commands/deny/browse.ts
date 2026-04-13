@@ -7,12 +7,7 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import type {
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  ActionRowBuilder as ActionRowBuilderType,
-  ButtonBuilder,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, isBotOwner, DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
@@ -29,6 +24,7 @@ import {
   formatFilterParens,
   formatSortNatural,
   type BrowseSortType,
+  type BrowseActionRow,
 } from '../../utils/browse/index.js';
 
 const logger = createLogger('deny-browse');
@@ -125,7 +121,7 @@ function buildBrowsePage(
   page: number,
   filter: DenyBrowseFilter,
   sort: BrowseSortType
-): { embed: EmbedBuilder; components: ActionRowBuilderType<ButtonBuilder>[] } {
+): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const { safePage, totalPages, startIndex, endIndex } = calculatePaginationState(
     entries.length,
     ITEMS_PER_PAGE,
@@ -154,7 +150,7 @@ function buildBrowsePage(
     ),
   });
 
-  const components: ActionRowBuilderType<ButtonBuilder>[] = [];
+  const components: BrowseActionRow[] = [];
   if (entries.length > 0) {
     components.push(
       buildBrowseButtons({
@@ -189,12 +185,7 @@ function buildBrowsePage(
     }),
   });
   if (selectRow !== null) {
-    // Cast preserved from pre-migration code: deny's components array is
-    // typed as ActionRowBuilderType<ButtonBuilder>[] for editReply compat,
-    // and the select row needs to be widened to that type. Out of scope
-    // for this migration; revisit if deny adopts the BrowseActionRow
-    // union pattern that admin/servers and others use.
-    components.push(selectRow as unknown as ActionRowBuilderType<ButtonBuilder>);
+    components.push(selectRow);
   }
 
   return { embed, components };
@@ -224,7 +215,7 @@ export function buildBrowseResponse(
   page: number,
   filter: DenyBrowseFilter,
   sort: BrowseSortType
-): { embed: EmbedBuilder; components: ActionRowBuilderType<ButtonBuilder>[] } {
+): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const filtered = filterByType(entries, filter);
   const sorted = sortEntries(filtered, sort);
   return buildBrowsePage(sorted, page, filter, sort);
