@@ -24,7 +24,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
-import { resolveUserIdOrSendError } from '../../utils/configOverrideHelpers.js';
+import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { validateApiKey, type ApiKeyValidationResult } from '../../utils/apiKeyValidation.js';
 import type { AuthenticatedRequest } from '../../types.js';

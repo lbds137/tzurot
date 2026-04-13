@@ -26,7 +26,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import { getParam } from '../../utils/requestParams.js';
+import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
@@ -51,9 +51,9 @@ function createListHandler(service: LlmConfigService) {
 
 function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   return async (req: Request, res: Response) => {
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
-    const config = await service.getById(configId ?? '');
+    const config = await service.getById(configId);
     if (config === null) {
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
@@ -123,7 +123,7 @@ function createEditConfigHandler(
   modelCache?: OpenRouterModelCache
 ) {
   return async (req: Request, res: Response) => {
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
     // Validate request body with shared Zod schema from common-types
     const parseResult = LlmConfigUpdateSchema.safeParse(req.body);
@@ -137,7 +137,7 @@ function createEditConfigHandler(
         res,
         modelCache,
         body,
-        fallback: { service, configId: configId ?? '' },
+        fallback: { service, configId: configId },
       }))
     ) {
       return;
@@ -170,7 +170,7 @@ function createEditConfigHandler(
       return sendError(res, ErrorResponses.validationError('No fields to update'));
     }
 
-    const config = await service.update(configId ?? '', body);
+    const config = await service.update(configId, body);
     const formatted = service.formatConfigDetail(config);
     await enrichWithModelContext(formatted, config.model, modelCache);
 
@@ -184,7 +184,7 @@ function createEditConfigHandler(
 
 function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
     const config = await prisma.llmConfig.findUnique({
       where: { id: configId },
@@ -201,7 +201,7 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
       );
     }
 
-    await service.setAsDefault(configId ?? '');
+    await service.setAsDefault(configId);
 
     logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as system default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
@@ -210,7 +210,7 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
 
 function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
     const config = await prisma.llmConfig.findUnique({
       where: { id: configId },
@@ -235,7 +235,7 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
       );
     }
 
-    await service.setAsFreeDefault(configId ?? '');
+    await service.setAsFreeDefault(configId);
 
     logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as free tier default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
@@ -244,7 +244,7 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
 
 function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
     const config = await prisma.llmConfig.findUnique({
       where: { id: configId },
@@ -265,12 +265,12 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
     }
 
     // Check delete constraints
-    const constraintError = await service.checkDeleteConstraints(configId ?? '');
+    const constraintError = await service.checkDeleteConstraints(configId);
     if (constraintError !== null) {
       return sendError(res, ErrorResponses.validationError(constraintError));
     }
 
-    await service.delete(configId ?? '');
+    await service.delete(configId);
 
     logger.info({ configId, name: config.name }, '[AdminLlmConfig] Deleted global config');
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);

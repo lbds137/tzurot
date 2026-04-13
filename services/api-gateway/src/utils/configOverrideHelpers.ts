@@ -7,57 +7,12 @@
  */
 
 import type { Response } from 'express';
-import { Prisma, createLogger, type UserService } from '@tzurot/common-types';
+import { Prisma, createLogger } from '@tzurot/common-types';
 import { mergeConfigOverrides } from './configOverrideMerge.js';
 import { sendError } from './responseHelpers.js';
 import { ErrorResponses } from './errorResponses.js';
 
 const logger = createLogger('configOverrideHelpers');
-
-// ============================================================================
-// User Resolution
-// ============================================================================
-
-/**
- * Resolve the internal user UUID for an incoming Discord user ID, sending a
- * validation error response and returning `null` if the lookup fails because
- * the Discord user is a bot.
- *
- * Collapses the repeated pattern:
- *
- * ```ts
- * const userId = await userService.getOrCreateUser(req.userId, req.userId);
- * if (userId === null) {
- *   return sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
- * }
- * ```
- *
- * into:
- *
- * ```ts
- * const userId = await resolveUserIdOrSendError(userService, req.userId, res);
- * if (userId === null) return;
- * ```
- *
- * 15 call sites across 9 route files currently duplicate this pattern with
- * two minor error-text variants (`'Cannot create user for bot'` and
- * `'Cannot create user'`). This helper standardizes on the more specific
- * former message.
- *
- * @returns internal user UUID on success, or `null` if error was sent
- */
-export async function resolveUserIdOrSendError(
-  userService: UserService,
-  discordUserId: string,
-  res: Response
-): Promise<string | null> {
-  const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
-  if (userId === null) {
-    sendError(res, ErrorResponses.validationError('Cannot create user for bot'));
-    return null;
-  }
-  return userId;
-}
 
 // ============================================================================
 // Cache Invalidation
