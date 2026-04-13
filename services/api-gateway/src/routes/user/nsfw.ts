@@ -72,7 +72,7 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
       // Ensure user exists via centralized UserService (creates shell user if needed).
       //
       // NOTE: Deliberately not migrated to `resolveUserIdOrSendError` from
-      // `configOverrideHelpers.ts` (PR #779). That helper sends a 400 validation-error
+      // `routeHelpers.ts` (PR #779). That helper sends a 400 validation-error
       // response on the bot-null case, which is wrong here: NSFW verification status
       // is advisory, and the correct bot-user response is a 200 with
       // `{ nsfwVerified: false }` — not an error. This route uses `sendCustomSuccess`

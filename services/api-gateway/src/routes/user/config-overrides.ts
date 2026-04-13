@@ -34,8 +34,8 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
-  resolveUserIdOrSendError,
 } from '../../utils/configOverrideHelpers.js';
+import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
