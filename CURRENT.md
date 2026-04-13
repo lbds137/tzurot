@@ -1,67 +1,84 @@
 # Current
 
-> **Session**: 2026-04-12
-> **Version**: v3.0.0-beta.95
+> **Session**: 2026-04-13
+> **Version**: v3.0.0-beta.96
 
 ---
 
 ## Session Goal
 
-_Voice engine cold start hardening, ElevenLabs abort fix, release process audit, and release v3.0.0-beta.95._
+_Backlog shrinkage: knock out small items and inbox triage, dependency updates, preset UX improvements, release v3.0.0-beta.96._
 
 ## Active Task
 
-**None — session complete.** PR #785 merged + release v3.0.0-beta.95 shipped. Voice engine startup reduced from ~70s to ~25s. Python developer tooling parity achieved (pre-commit + pre-push hooks). Release notes process fixed after audit found beta.94 had duplicate entries from beta.93.
+**None — session complete.** 6 PRs merged (#794-800), 1 release PR (#801) awaiting merge to main. 8 backlog items cleared, 3 review follow-ups fixed, full dependency update shipped.
 
 ---
 
 ## Completed This Session
 
-### PR #785 — Voice Engine Cold Start Hardening + ElevenLabs Abort Fix
+### PR #794 — BrowseActionRow Extraction + Guard Test Trim
 
-**Three independent fixes:**
+- Extracted shared `BrowseActionRow` type from 5 duplicate definitions into `browse/types.ts`
+- Fixed deny/browse `as unknown as` cast by adopting the union type
+- Removed 12 duplicate guard/parse tests from 3 settings test files (covered by factory)
+- Cleaned up dead mock helpers and unused imports
 
-1. **Python voice-engine**: Removed all voice pre-loading from startup. Voices now lazy-load from `voices/` directory on first TTS request with per-voice `asyncio.Lock` (thundering herd prevention) and double-check pattern. Atomic file writes in `/register` via `tempfile.mkstemp` + `os.rename`. Startup drops from ~70s to ~25s (model loading only).
+### PR #795 — Route Helpers Split + configId Tightening
 
-2. **TypeScript warmup**: Increased health-poll budget from 75s to 120s — ample headroom with the faster startup.
+- Split `resolveUserIdOrSendError` into new `routeHelpers.ts` (9 import sites updated)
+- Replaced `getParam` with `getRequiredParam` for configId in LLM config routes
+- Added `ParameterError → 400` mapping in `asyncHandler` (was 500)
+- Created `asyncHandler.test.ts` with 4 tests
 
-3. **ElevenLabs abort fix**: Added `readBody()` helper wrapping `response.arrayBuffer()` / `response.json()` with AbortError → ElevenLabsTimeoutError conversion. All 5 endpoints covered with explicit tests. Prevents raw "aborted" message surfacing to users.
+### PR #796 — Thinking Tags Data-Driven
 
-9 rounds of AI review feedback addressed. Council MCP consulted for architecture validation (Gemini 3.1 Pro Preview).
+- Replaced 7 hardcoded regex patterns with single `KNOWN_THINKING_TAGS` array
+- Adding a new tag now requires one line change instead of seven
+- Added constraint comment, ordering safety note, readonly annotation
 
-### Python Developer Tooling Parity
+### PR #797 — Mention Parser Fixes + Forwarded Messages
 
-- **Pre-commit** (lint-staged): `ruff check --fix` + `ruff format` for staged `.py` files
-- **Pre-push**: `ruff check` + `mypy --strict` when Python files are in the push
+- Forwarded messages no longer trigger AI responses in either processor
+- Apostrophe names work (`@O'Reilly`)
+- Possessive forms work (`@Lilith's` → matches `Lilith`)
+- MCP council consulted for forwarded message design decision
 
-Both were prompted by CI failures that should have been caught locally — ruff import sorting and mypy `no-any-return`.
+### PR #798 — Dependency Updates
 
-### Release Process Audit + Fix
+- 30+ packages bumped (Prisma 7.7, vite 8, ts-morph 28, vitest 4.1.4, etc.)
+- `pnpm/action-setup` v6 attempted → reverted due to CI lockfile breakage
+- Regenerated `pnpm-lock.yaml`
 
-Audited last 5 releases (beta.90–94). Found beta.94 had 4 duplicate items from beta.93 (PR #759, #760, ConfigStep fix, bogus PR #764/#767 references). Root cause: CURRENT.md tracked "since beta.92" and was never reset after beta.93 shipped.
+### PR #799 — Preset Error Surfacing
 
-**Fixes applied:**
+- Preset save/clone/create now show actual API error messages instead of generic "Failed to X"
+- Extracted `extractApiErrorMessage` helper with Discord length guard (1800 char cap)
+- Regex anchored to HTTP status format to prevent false positives
 
-- Corrected beta.94 release notes on GitHub
-- Updated git-workflow skill: release notes must use `git log v<previous-tag>..HEAD` as source of truth
-- Added post-release CURRENT.md reset step to release procedure
-- Added `release:verify-notes` tooling command to backlog (Icebox)
+### PR #800 — Session Follow-ups
+
+- Fixed double body consumption in `updateGlobalPreset` error path (read-once pattern)
+- Tightened 409 duplicate check from `includes('409')` to `includes(': 409 ')`
+- Increased xray analyzer test timeout to 30s for CI stability
 
 ### Other
 
-- **langsmith >=0.5.18** security override (prototype pollution CVE, Dependabot #83)
-- **Release v3.0.0-beta.95** — 47 commits, PR #786
+- Closed 7 Dependabot PRs (#787-793) — superseded by consolidated #798
+- ElevenLabs "aborted" edge case closed (resolved in beta.95)
+- Backlog updated: 8 items cleared, 5 new items added from review findings
 
 ---
 
-## Unreleased on Develop (since beta.95)
+## Unreleased on Develop (since beta.96)
 
-_(Empty — just released)_
+_(Empty — release pending merge to main)_
 
 ---
 
 ## Previous Sessions
 
+- **2026-04-13**: Backlog shrinkage (PRs #794-800), deps update, preset UX, beta.96
 - **2026-04-12**: Voice engine hardening (PR #785), Python hooks, release audit, beta.95
 - **2026-04-11**: CPD Session 1 (PRs #778-780), channel rename (#781), doc audit (#782-784)
 - **2026-04-10**: Browse Step 8 (PR #776), CPD 137→126
@@ -70,6 +87,7 @@ _(Empty — just released)_
 
 ## Recent Releases
 
+- **v3.0.0-beta.96** (2026-04-13) — Mention parser fixes, forwarded messages, preset error surfacing, deps update, refactors
 - **v3.0.0-beta.95** (2026-04-12) — Voice engine lazy loading, ElevenLabs abort fix, CPD Session 1, browse epic, doc audit
 - **v3.0.0-beta.94** (2026-04-10) — Browse standardization, config override helpers, shared abstractions
 - **v3.0.0-beta.93** (2026-04-05) — Voice engine retry, security bumps, cascade resolver fixes
