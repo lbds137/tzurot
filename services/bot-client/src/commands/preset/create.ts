@@ -132,8 +132,8 @@ export async function handleSeedModalSubmit(
   } catch (error) {
     logger.error({ err: error }, 'Failed to create preset');
 
-    // Check for duplicate name error
-    if (error instanceof Error && error.message.includes('409')) {
+    // Check for duplicate name error (match structured format to avoid false positives)
+    if (error instanceof Error && error.message.includes(': 409 ')) {
       await interaction.editReply(
         `❌ A preset with name "${values.name}" already exists.\n` +
           'Please choose a different name.'
