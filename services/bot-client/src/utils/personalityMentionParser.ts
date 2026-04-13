@@ -235,9 +235,11 @@ function extractPotentialMentions(
     }
   }
 
-  // Extract single-word mentions (e.g., @Lilith, @Ha-Shem)
-  // Include Discord markdown chars (*_~|) as valid word boundaries
-  const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"'*_~|]|\\s|$)`, 'gi');
+  // Extract single-word mentions (e.g., @Lilith, @Ha-Shem, @O'Reilly)
+  // Include Discord markdown chars (*_~|) as valid word boundaries.
+  // Apostrophe (') is allowed mid-word for names like O'Reilly;
+  // trailing apostrophes are stripped by trailingPunctuationRegex.
+  const singleWordRegex = new RegExp(`${escapedChar}([\\w'-]+)(?:[.,!?;:)"*_~|]|\\s|$)`, 'gi');
   const singleWordMatches = content.match(singleWordRegex);
 
   if (singleWordMatches) {
