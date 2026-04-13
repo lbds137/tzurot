@@ -141,6 +141,8 @@ export async function handleSeedModalSubmit(
       return;
     }
 
-    await interaction.editReply('❌ Failed to create preset. Please try again.');
+    const apiMessage =
+      error instanceof Error ? ((/ - (.+)$/.exec(error.message))?.[1] ?? null) : null;
+    await interaction.editReply(`❌ ${apiMessage ?? 'Failed to create preset. Please try again.'}`);
   }
 }
