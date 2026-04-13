@@ -25,7 +25,7 @@ export function extractApiErrorMessage(error: unknown): string | null {
   if (!(error instanceof Error)) {
     return null;
   }
-  const match = / - (.+)$/.exec(error.message);
+  const match = /: \d{3} - (.+)$/.exec(error.message);
   if (match?.[1] === undefined) {
     return null;
   }

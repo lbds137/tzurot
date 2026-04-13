@@ -237,6 +237,16 @@ describe('extractApiErrorMessage', () => {
     expect(extractApiErrorMessage(new Error('Network error'))).toBeNull();
   });
 
+  it('should return null for non-API errors containing dashes', () => {
+    expect(extractApiErrorMessage(new Error('Request timed out - after 30s'))).toBeNull();
+    expect(extractApiErrorMessage(new Error('TLS handshake failed - connection reset'))).toBeNull();
+  });
+
+  it('should preserve dashes in the API message portion', () => {
+    const error = new Error('Failed to update preset: 400 - limit is 4096 - not 131072');
+    expect(extractApiErrorMessage(error)).toBe('limit is 4096 - not 131072');
+  });
+
   it('should truncate very long API messages', () => {
     const longMessage = 'A'.repeat(2000);
     const error = new Error(`Failed to update preset: 400 - ${longMessage}`);
