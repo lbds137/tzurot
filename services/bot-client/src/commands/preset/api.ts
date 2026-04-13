@@ -10,7 +10,7 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { adminFetch, adminPutJson } from '../../utils/adminApiClient.js';
 import type { PresetData, PresetResponse } from './types.js';
 
-/** Discord message content limit */
+/** Conservative limit — leaves room for the "❌ " prefix and Discord's 2000-char cap */
 const MAX_DISCORD_CONTENT = 1800;
 
 /**
@@ -22,9 +22,13 @@ const MAX_DISCORD_CONTENT = 1800;
  * Truncates to Discord's content limit to avoid silent send failures.
  */
 export function extractApiErrorMessage(error: unknown): string | null {
-  if (!(error instanceof Error)) {return null;}
+  if (!(error instanceof Error)) {
+    return null;
+  }
   const match = / - (.+)$/.exec(error.message);
-  if (match?.[1] === undefined) {return null;}
+  if (match?.[1] === undefined) {
+    return null;
+  }
   const msg = match[1];
   return msg.length > MAX_DISCORD_CONTENT ? msg.slice(0, MAX_DISCORD_CONTENT) + '…' : msg;
 }
