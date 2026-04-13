@@ -107,6 +107,32 @@ describe('personalityMentionParser', () => {
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe("O'Reilly");
     });
+
+    it('should match possessive form of personality name', async () => {
+      const result = await findPersonalityMention(
+        "@Lilith's approach is interesting",
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+      expect(result?.cleanContent).toBe('approach is interesting');
+    });
+
+    it('should match possessive form of apostrophe-containing name', async () => {
+      const result = await findPersonalityMention(
+        "@O'Reilly's book is great",
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe("O'Reilly");
+      expect(result?.cleanContent).toBe('book is great');
+    });
   });
 
   describe('Priority Rules', () => {
