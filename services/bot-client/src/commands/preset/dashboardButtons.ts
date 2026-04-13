@@ -30,7 +30,13 @@ import {
   unflattenPresetData,
   buildPresetDashboardOptions,
 } from './config.js';
-import { fetchPreset, updatePreset, fetchGlobalPreset, createPreset } from './api.js';
+import {
+  fetchPreset,
+  updatePreset,
+  fetchGlobalPreset,
+  createPreset,
+  extractApiErrorMessage,
+} from './api.js';
 import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 
 // Re-export for backward compatibility
@@ -452,10 +458,8 @@ export async function handleCloneButton(
   } catch (error) {
     logger.error({ err: error, entityId }, 'Failed to clone preset');
 
-    const apiMessage =
-      error instanceof Error ? ((/ - (.+)$/.exec(error.message))?.[1] ?? null) : null;
     await interaction.followUp({
-      content: `❌ ${apiMessage ?? 'Failed to clone preset. Please try again.'}`,
+      content: `❌ ${extractApiErrorMessage(error) ?? 'Failed to clone preset. Please try again.'}`,
       flags: MessageFlags.Ephemeral,
     });
   }

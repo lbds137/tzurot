@@ -31,7 +31,7 @@ import {
   presetSeedFields,
   buildPresetDashboardOptions,
 } from './config.js';
-import { createPreset } from './api.js';
+import { createPreset, extractApiErrorMessage } from './api.js';
 
 const logger = createLogger('preset-create');
 
@@ -141,8 +141,8 @@ export async function handleSeedModalSubmit(
       return;
     }
 
-    const apiMessage =
-      error instanceof Error ? ((/ - (.+)$/.exec(error.message))?.[1] ?? null) : null;
-    await interaction.editReply(`❌ ${apiMessage ?? 'Failed to create preset. Please try again.'}`);
+    await interaction.editReply(
+      `❌ ${extractApiErrorMessage(error) ?? 'Failed to create preset. Please try again.'}`
+    );
   }
 }

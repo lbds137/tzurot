@@ -33,13 +33,17 @@ const mockUpdatePreset = vi.fn();
 const mockFetchGlobalPreset = vi.fn();
 const mockUpdateGlobalPreset = vi.fn();
 const mockCreatePreset = vi.fn();
-vi.mock('./api.js', () => ({
-  fetchPreset: (...args: unknown[]) => mockFetchPreset(...args),
-  updatePreset: (...args: unknown[]) => mockUpdatePreset(...args),
-  fetchGlobalPreset: (...args: unknown[]) => mockFetchGlobalPreset(...args),
-  updateGlobalPreset: (...args: unknown[]) => mockUpdateGlobalPreset(...args),
-  createPreset: (...args: unknown[]) => mockCreatePreset(...args),
-}));
+vi.mock('./api.js', async () => {
+  const actual = await vi.importActual('./api.js');
+  return {
+    ...(actual as Record<string, unknown>),
+    fetchPreset: (...args: unknown[]) => mockFetchPreset(...args),
+    updatePreset: (...args: unknown[]) => mockUpdatePreset(...args),
+    fetchGlobalPreset: (...args: unknown[]) => mockFetchGlobalPreset(...args),
+    updateGlobalPreset: (...args: unknown[]) => mockUpdateGlobalPreset(...args),
+    createPreset: (...args: unknown[]) => mockCreatePreset(...args),
+  };
+});
 
 // Mock customIds
 const mockPresetCustomIdsParse = vi.fn();
