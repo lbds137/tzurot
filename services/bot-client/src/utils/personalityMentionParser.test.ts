@@ -28,6 +28,7 @@ describe('personalityMentionParser', () => {
       { name: 'Bambi Prime', displayName: 'Bambi Prime', systemPrompt: 'Test prompt' },
       { name: 'Administrator', displayName: 'Administrator', systemPrompt: 'Test prompt' },
       { name: 'Angel Dust', displayName: 'Angel Dust', systemPrompt: 'Test prompt' },
+      { name: "O'Reilly", displayName: "O'Reilly", systemPrompt: 'Test prompt' },
     ]);
   });
 
@@ -78,6 +79,33 @@ describe('personalityMentionParser', () => {
       );
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('Names with apostrophes', () => {
+    it('should match personality names containing apostrophes', async () => {
+      const result = await findPersonalityMention(
+        "@O'Reilly hello there",
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe("O'Reilly");
+      expect(result?.cleanContent).toBe('hello there');
+    });
+
+    it('should match apostrophe names followed by punctuation', async () => {
+      const result = await findPersonalityMention(
+        "@O'Reilly, what do you think?",
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe("O'Reilly");
     });
   });
 
