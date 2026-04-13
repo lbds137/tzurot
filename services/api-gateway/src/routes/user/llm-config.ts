@@ -29,9 +29,9 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { resolveUserIdOrSendError } from '../../utils/configOverrideHelpers.js';
+import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import { getParam } from '../../utils/requestParams.js';
+import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService, type LlmConfigScope } from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
@@ -92,10 +92,10 @@ function createGetHandler(
 ) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
     // Use service to get config
-    const config = await service.getById(configId ?? '');
+    const config = await service.getById(configId);
     if (config === null) {
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
@@ -200,7 +200,7 @@ function createUpdateHandler(
 ) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
     // Validate request body with shared Zod schema from common-types
     const parseResult = LlmConfigUpdateSchema.safeParse(req.body);
@@ -214,7 +214,7 @@ function createUpdateHandler(
         res,
         modelCache,
         body,
-        fallback: { service, configId: configId ?? '' },
+        fallback: { service, configId: configId },
       }))
     ) {
       return;
@@ -230,7 +230,7 @@ function createUpdateHandler(
     }
 
     // Get existing config using service
-    const config = await service.getById(configId ?? '');
+    const config = await service.getById(configId);
     if (config === null) {
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
@@ -245,7 +245,7 @@ function createUpdateHandler(
       const nameCheck = await service.checkNameExists(
         body.name,
         { type: 'USER', userId: user.id, discordId: discordUserId },
-        configId ?? ''
+        configId
       );
       if (nameCheck.exists) {
         return sendError(
@@ -260,7 +260,7 @@ function createUpdateHandler(
     }
 
     // Update using service (handles cache invalidation)
-    const updated = await service.update(configId ?? '', body);
+    const updated = await service.update(configId, body);
 
     // User always owns their own updated config (we already checked ownership above)
     const permissions = computeLlmConfigPermissions(
@@ -289,7 +289,7 @@ function createUpdateHandler(
 function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const configId = getParam(req.params.id);
+    const configId = getRequiredParam(req.params.id, 'id');
 
     const user = await prisma.user.findFirst({
       where: { discordId: discordUserId },
@@ -301,7 +301,7 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
     }
 
     // Get config using service
-    const config = await service.getById(configId ?? '');
+    const config = await service.getById(configId);
     if (config === null) {
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
@@ -317,13 +317,13 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
     }
 
     // Check delete constraints using service
-    const constraintError = await service.checkDeleteConstraints(configId ?? '');
+    const constraintError = await service.checkDeleteConstraints(configId);
     if (constraintError !== null) {
       return sendError(res, ErrorResponses.validationError(constraintError));
     }
 
     // Delete using service (handles cache invalidation)
-    await service.delete(configId ?? '');
+    await service.delete(configId);
 
     logger.info({ discordUserId, configId, name: config.name }, '[LlmConfig] Deleted config');
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);

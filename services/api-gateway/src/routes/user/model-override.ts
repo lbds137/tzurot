@@ -26,7 +26,8 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { tryInvalidateCache, resolveUserIdOrSendError } from '../../utils/configOverrideHelpers.js';
+import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
+import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
