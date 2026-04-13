@@ -133,6 +133,19 @@ describe('personalityMentionParser', () => {
       expect(result?.personalityName).toBe("O'Reilly");
       expect(result?.cleanContent).toBe('book is great');
     });
+
+    it('should match possessive form of multi-word personality name', async () => {
+      const result = await findPersonalityMention(
+        "@Bambi Prime's strategy is interesting",
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Bambi Prime');
+      expect(result?.cleanContent).toBe('strategy is interesting');
+    });
   });
 
   describe('Priority Rules', () => {
