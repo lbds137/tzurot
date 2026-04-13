@@ -20,6 +20,15 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
 
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 
+const mockIsForwardedMessage = vi.fn().mockReturnValue(false);
+vi.mock('../utils/forwardedMessageUtils.js', async () => {
+  const actual = await vi.importActual('../utils/forwardedMessageUtils.js');
+  return {
+    ...(actual as Record<string, unknown>),
+    isForwardedMessage: (...args: unknown[]) => mockIsForwardedMessage(...args),
+  };
+});
+
 function createMockMessage(options?: { content?: string; hasReference?: boolean }): Message {
   return {
     id: '123456789',
@@ -71,6 +80,18 @@ describe('ReplyMessageProcessor', () => {
       mockReplyResolver as unknown as ReplyResolutionService,
       mockPersonalityHandler as unknown as PersonalityMessageHandler
     );
+  });
+
+  describe('Forwarded message handling', () => {
+    it('should skip forwarded messages without resolving reply target', async () => {
+      mockIsForwardedMessage.mockReturnValueOnce(true);
+      const message = createMockMessage({ content: 'forwarded reply', hasReference: true });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(false);
+      expect(mockReplyResolver.resolvePersonality).not.toHaveBeenCalled();
+    });
   });
 
   describe('Reply detection', () => {

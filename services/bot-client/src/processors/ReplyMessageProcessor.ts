@@ -12,6 +12,7 @@ import { ReplyResolutionService } from '../services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
+import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 
 const logger = createLogger('ReplyMessageProcessor');
 
@@ -22,6 +23,12 @@ export class ReplyMessageProcessor implements IMessageProcessor {
   ) {}
 
   async process(message: Message): Promise<boolean> {
+    // Forwarded messages have a reference but it points to the original channel,
+    // not a personality webhook. Skip early to avoid unnecessary lookups.
+    if (isForwardedMessage(message)) {
+      return false;
+    }
+
     // Check if this is a reply
     if (!message.reference) {
       return false; // Not a reply, continue to next processor

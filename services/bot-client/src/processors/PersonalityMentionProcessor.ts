@@ -13,6 +13,7 @@ import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
+import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 
 const logger = createLogger('PersonalityMentionProcessor');
 
@@ -23,9 +24,14 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
   ) {}
 
   async process(message: Message): Promise<boolean> {
+    // Forwarded messages are referential ("look at this"), not invocational.
+    // A forwarded message containing @PersonalityName should not trigger AI.
+    if (isForwardedMessage(message)) {
+      return false;
+    }
+
     // Check for personality mentions (e.g., "@personality hello")
     // Pass userId for access control - only matches accessible personalities
-    // For forwarded messages, getEffectiveContent extracts content from the snapshot
     const config = getConfig();
     const userId = message.author.id;
     const effectiveContent = getEffectiveContent(message);
