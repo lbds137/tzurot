@@ -36,6 +36,15 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
   },
 }));
 
+const mockIsForwardedMessage = vi.fn().mockReturnValue(false);
+vi.mock('../utils/forwardedMessageUtils.js', async () => {
+  const actual = await vi.importActual('../utils/forwardedMessageUtils.js');
+  return {
+    ...(actual as Record<string, unknown>),
+    isForwardedMessage: (...args: unknown[]) => mockIsForwardedMessage(...args),
+  };
+});
+
 import { getConfig } from '@tzurot/common-types';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
@@ -90,6 +99,18 @@ describe('PersonalityMentionProcessor', () => {
       mockPersonalityService as unknown as IPersonalityLoader,
       mockPersonalityHandler as unknown as PersonalityMessageHandler
     );
+  });
+
+  describe('Forwarded message handling', () => {
+    it('should skip forwarded messages without processing mentions', async () => {
+      mockIsForwardedMessage.mockReturnValueOnce(true);
+      const message = createMockMessage({ content: '@lilith hello' });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(false);
+      expect(findPersonalityMention).not.toHaveBeenCalled();
+    });
   });
 
   describe('Personality mention detection', () => {
