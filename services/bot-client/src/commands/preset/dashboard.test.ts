@@ -316,6 +316,7 @@ describe('handleModalSubmit', () => {
   const mockDeferUpdate = vi.fn();
   const mockEditReply = vi.fn();
   const mockReply = vi.fn();
+  const mockModalFollowUp = vi.fn();
 
   function createMockModalInteraction(customId: string) {
     return {
@@ -324,6 +325,7 @@ describe('handleModalSubmit', () => {
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
       reply: mockReply,
+      followUp: mockModalFollowUp,
     } as unknown as Parameters<typeof handleModalSubmit>[0];
   }
 
@@ -407,6 +409,50 @@ describe('handleModalSubmit', () => {
         browseContext, // browseContext should be preserved
       })
     );
+  });
+
+  it('should surface API validation error when update fails', async () => {
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'identity',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
+    });
+    mockUpdatePreset.mockRejectedValue(
+      new Error(
+        'Failed to update preset: 400 - contextWindowTokens (131072) exceeds 50% of the model context window'
+      )
+    );
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+    expect(mockModalFollowUp).toHaveBeenCalledWith({
+      content: '❌ contextWindowTokens (131072) exceeds 50% of the model context window',
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should show generic error when update fails without structured message', async () => {
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'identity',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
+    });
+    mockUpdatePreset.mockRejectedValue(new Error('Network error'));
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+    expect(mockModalFollowUp).toHaveBeenCalledWith({
+      content: '❌ Failed to update preset. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
   });
 });
 
@@ -982,6 +1028,31 @@ describe('handleButton', () => {
 
       expect(mockFollowUp).toHaveBeenCalledWith({
         content: '❌ Failed to clone preset. Please try again.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should surface API error message when clone fails with a structured error', async () => {
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+      mockCreatePreset.mockRejectedValue(
+        new Error(
+          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"'
+        )
+      );
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      expect(mockFollowUp).toHaveBeenCalledWith({
+        content: '❌ You already have a config named "Test Preset (Copy)"',
         flags: MessageFlags.Ephemeral,
       });
     });

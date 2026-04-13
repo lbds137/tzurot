@@ -192,9 +192,13 @@ async function handleSectionModalSubmit(
     logger.info({ presetId: entityId, sectionId }, 'Preset section updated');
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update preset section');
-    // Notify user of failure via followUp (since we deferred update)
+
+    // Extract the API error message (e.g., context window validation) if available;
+    // fall back to generic message for network errors or unexpected failures.
+    const apiMessage =
+      error instanceof Error ? ((/ - (.+)$/.exec(error.message))?.[1] ?? null) : null;
     await interaction.followUp({
-      content: '❌ Failed to update preset. Please try again.',
+      content: `❌ ${apiMessage ?? 'Failed to update preset. Please try again.'}`,
       flags: MessageFlags.Ephemeral,
     });
   }

@@ -451,8 +451,11 @@ export async function handleCloneButton(
     );
   } catch (error) {
     logger.error({ err: error, entityId }, 'Failed to clone preset');
+
+    const apiMessage =
+      error instanceof Error ? ((/ - (.+)$/.exec(error.message))?.[1] ?? null) : null;
     await interaction.followUp({
-      content: '❌ Failed to clone preset. Please try again.',
+      content: `❌ ${apiMessage ?? 'Failed to clone preset. Please try again.'}`,
       flags: MessageFlags.Ephemeral,
     });
   }
