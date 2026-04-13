@@ -179,7 +179,8 @@ describe('analyzeMonorepo', () => {
     consoleWarnSpy.mockRestore();
   });
 
-  it('should include suppressions in file data', () => {
+  // ts-morph Project initialization is CPU-intensive; CI runners need extra time
+  it('should include suppressions in file data', { timeout: 30_000 }, () => {
     setupMockPackage('test-pkg', 'packages', {
       'index.ts': `// @ts-expect-error -- test\nexport const x = 1;\n// eslint-disable-next-line no-unused-vars\nconst y = 2;\n`,
     });
