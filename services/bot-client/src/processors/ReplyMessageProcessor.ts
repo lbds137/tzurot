@@ -48,7 +48,6 @@ export class ReplyMessageProcessor implements IMessageProcessor {
     }
 
     // Get voice transcript if available (set by VoiceMessageProcessor)
-    // For forwarded messages, getEffectiveContent extracts content from the snapshot
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
     const content = voiceTranscript ?? getEffectiveContent(message);
 
