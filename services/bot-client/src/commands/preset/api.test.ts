@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchPreset, fetchGlobalPreset, updatePreset, updateGlobalPreset } from './api.js';
+import {
+  fetchPreset,
+  fetchGlobalPreset,
+  updatePreset,
+  updateGlobalPreset,
+  extractApiErrorMessage,
+} from './api.js';
 import type { PresetData } from './config.js';
 
 // Mock userGatewayClient
@@ -213,5 +219,30 @@ describe('updateGlobalPreset', () => {
     await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
       'Failed to update global preset: 400 - Invalid data'
     );
+  });
+});
+
+describe('extractApiErrorMessage', () => {
+  it('should extract API message from structured error', () => {
+    const error = new Error('Failed to update preset: 400 - Context window too large');
+    expect(extractApiErrorMessage(error)).toBe('Context window too large');
+  });
+
+  it('should return null for non-Error values', () => {
+    expect(extractApiErrorMessage('string error')).toBeNull();
+    expect(extractApiErrorMessage(null)).toBeNull();
+  });
+
+  it('should return null for errors without API format', () => {
+    expect(extractApiErrorMessage(new Error('Network error'))).toBeNull();
+  });
+
+  it('should truncate very long API messages', () => {
+    const longMessage = 'A'.repeat(2000);
+    const error = new Error(`Failed to update preset: 400 - ${longMessage}`);
+    const result = extractApiErrorMessage(error);
+    expect(result).not.toBeNull();
+    expect(result!.length).toBeLessThanOrEqual(1801); // 1800 + ellipsis
+    expect(result!.endsWith('…')).toBe(true);
   });
 });
