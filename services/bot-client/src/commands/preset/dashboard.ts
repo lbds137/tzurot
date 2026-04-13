@@ -193,6 +193,7 @@ async function handleSectionModalSubmit(
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update preset section');
 
+    // Use followUp (not editReply/reply) because the interaction was already deferred via deferUpdate
     await interaction.followUp({
       content: `❌ ${extractApiErrorMessage(error) ?? 'Failed to update preset. Please try again.'}`,
       flags: MessageFlags.Ephemeral,
