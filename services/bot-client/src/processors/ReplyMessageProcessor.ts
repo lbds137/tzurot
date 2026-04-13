@@ -26,6 +26,7 @@ export class ReplyMessageProcessor implements IMessageProcessor {
     // Forwarded messages have a reference but it points to the original channel,
     // not a personality webhook. Skip early to avoid unnecessary lookups.
     if (isForwardedMessage(message)) {
+      logger.debug({ messageId: message.id }, '[ReplyMessageProcessor] Skipping forwarded message');
       return false;
     }
 

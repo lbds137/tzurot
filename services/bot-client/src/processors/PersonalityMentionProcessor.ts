@@ -27,6 +27,10 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
     // Forwarded messages are referential ("look at this"), not invocational.
     // A forwarded message containing @PersonalityName should not trigger AI.
     if (isForwardedMessage(message)) {
+      logger.debug(
+        { messageId: message.id },
+        '[PersonalityMentionProcessor] Skipping forwarded message'
+      );
       return false;
     }
 

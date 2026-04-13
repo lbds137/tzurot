@@ -106,6 +106,7 @@ describe('personalityMentionParser', () => {
 
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe("O'Reilly");
+      expect(result?.cleanContent).toBe('what do you think?');
     });
 
     it('should match possessive form of personality name', async () => {
