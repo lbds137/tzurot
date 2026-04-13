@@ -16,6 +16,9 @@ const logger = createLogger('PersonalityMentionParser');
 const MAX_MENTION_WORDS = 4;
 const MAX_POTENTIAL_MENTIONS = 10; // Security: Prevent resource exhaustion from excessive @mentions
 
+/** Strip possessive suffix ('s) from a name candidate to also try the base form */
+const POSSESSIVE_SUFFIX = /'s$/i;
+
 interface PersonalityMentionResult {
   personalityName: string;
   cleanContent: string;
@@ -149,9 +152,10 @@ export async function findPersonalityMention(
   );
 
   // Step 5: Clean the content by removing the matched personality mention
+  // Handle possessive suffix (@Lilith's → remove entirely, not just @Lilith)
   // Include Discord markdown chars (*_~|) as valid word boundaries
   const matchRegex = new RegExp(
-    `${escapedChar}${bestMatch.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"'*_~|]|\\s|$)`,
+    `${escapedChar}${bestMatch.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:'s)?(?:[.,!?;:)"'*_~|]|\\s|$)`,
     'gi' // Note: 'gi' flag removes ALL occurrences of the mention
   );
   const cleanContent = content.replace(matchRegex, '').trim();
@@ -227,9 +231,19 @@ function extractPotentialMentions(
       for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
         const potentialName = words.slice(0, wordCount).join(' ').trim();
 
-        // Only store non-empty names that we haven't seen yet
-        if (potentialName && !potentialMentions.has(potentialName)) {
+        if (!potentialName) {
+          continue;
+        }
+
+        // Store if we haven't seen this name yet
+        if (!potentialMentions.has(potentialName)) {
           potentialMentions.set(potentialName, wordCount);
+        }
+
+        // Also try without possessive suffix: @Bambi Prime's → Bambi Prime
+        const withoutPossessive = potentialName.replace(POSSESSIVE_SUFFIX, '');
+        if (withoutPossessive !== potentialName && !potentialMentions.has(withoutPossessive)) {
+          potentialMentions.set(withoutPossessive, wordCount);
         }
       }
     }
@@ -257,6 +271,12 @@ function extractPotentialMentions(
       // Deduplicate: only store if we haven't seen this name yet
       if (!potentialMentions.has(personalityName)) {
         potentialMentions.set(personalityName, 1); // Single word = word count of 1
+      }
+
+      // Also try without possessive suffix: @Lilith's → Lilith
+      const withoutPossessive = personalityName.replace(POSSESSIVE_SUFFIX, '');
+      if (withoutPossessive !== personalityName && !potentialMentions.has(withoutPossessive)) {
+        potentialMentions.set(withoutPossessive, 1);
       }
     }
   }
