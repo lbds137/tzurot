@@ -81,10 +81,9 @@ describe('asyncHandler', () => {
 
     const wrapped = asyncHandler(handler);
     wrapped(mockReq, res);
+    // vi.waitFor polls the microtask queue, so by the time it resolves
+    // the rejection handler in asyncHandler will have run
     await vi.waitFor(() => expect(handler).toHaveBeenCalled());
-
-    // Give the async handler time to process the error
-    await new Promise(resolve => setTimeout(resolve, 10));
     expect(res.status).not.toHaveBeenCalled();
   });
 });
