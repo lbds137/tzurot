@@ -7,6 +7,7 @@ import type { Request, Response } from 'express';
 import { createLogger } from '@tzurot/common-types';
 import { ErrorResponses } from './errorResponses.js';
 import { sendError } from './responseHelpers.js';
+import { ParameterError } from './requestParams.js';
 
 const logger = createLogger('asyncHandler');
 
@@ -55,13 +56,19 @@ export function asyncHandler<R extends Request = Request>(
       try {
         await handler(req as R, res);
       } catch (error) {
-        logger.error({ err: error }, 'Request handler error');
-
         // If response already sent, don't try to send error
         if (res.headersSent) {
-          logger.warn({}, 'Response already sent, cannot send error response');
+          logger.warn({ err: error }, 'Response already sent, cannot send error response');
           return;
         }
+
+        // Missing/invalid route parameters are client errors, not server errors
+        if (error instanceof ParameterError) {
+          sendError(res, ErrorResponses.validationError(error.message));
+          return;
+        }
+
+        logger.error({ err: error }, 'Request handler error');
 
         const errorResponse = ErrorResponses.internalError(
           error instanceof Error ? error.message : 'Internal server error'

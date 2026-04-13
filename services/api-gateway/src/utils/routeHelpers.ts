@@ -31,6 +31,10 @@ import { ErrorResponses } from './errorResponses.js';
  * if (userId === null) return;
  * ```
  *
+ * Extracted because 15 call sites across 9 route files duplicated this
+ * pattern with two minor error-text variants. This helper standardizes
+ * on the more specific `'Cannot create user for bot'` message.
+ *
  * @returns internal user UUID on success, or `null` if error was sent
  */
 export async function resolveUserIdOrSendError(
