@@ -5,7 +5,13 @@
  * and browse context for back navigation.
  */
 
+import type { ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder } from 'discord.js';
 import type { BrowseSortType } from './constants.js';
+
+/** Union type for action rows that can contain buttons or select menus */
+export type BrowseActionRow =
+  | ActionRowBuilder<ButtonBuilder>
+  | ActionRowBuilder<StringSelectMenuBuilder>;
 
 /**
  * Pagination state for browse lists

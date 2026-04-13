@@ -28,7 +28,7 @@ export {
 export { truncateForSelect, truncateForDescription } from './truncation.js';
 
 // Types
-export { calculatePaginationState } from './types.js';
+export { calculatePaginationState, type BrowseActionRow } from './types.js';
 
 // CustomId factory
 export { createBrowseCustomIdHelpers } from './customIdFactory.js';

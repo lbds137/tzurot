@@ -17,7 +17,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  StringSelectMenuBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction, Guild } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
@@ -30,6 +29,7 @@ import {
   formatSortNatural,
   formatSortVerbatim,
   type BrowseSortToggle,
+  type BrowseActionRow,
 } from '../../utils/browse/index.js';
 
 const logger = createLogger('admin-servers');
@@ -170,9 +170,6 @@ const SERVERS_SORT_TOGGLE: BrowseSortToggle<ServerBrowseSortType> = {
       ? { label: 'Sort A-Z', emoji: '🔤' }
       : { label: 'Sort by Members', emoji: '👥' },
 };
-
-/** Union type for action rows */
-type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
 /**
  * Build the browse embed and components

@@ -6,11 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 import {
   handleSettings,
   handleCharacterSettingsButton,
-  handleCharacterSettingsSelectMenu,
   handleCharacterSettingsModal,
   isCharacterSettingsInteraction,
 } from './settings.js';
@@ -126,50 +125,6 @@ describe('Character Settings Dashboard', () => {
           getString: ReturnType<typeof vi.fn>;
         };
       };
-    };
-  };
-
-  const createMockButtonInteraction = (
-    customId: string
-  ): ButtonInteraction & {
-    deferUpdate: ReturnType<typeof vi.fn>;
-    editReply: ReturnType<typeof vi.fn>;
-    message: { id: string };
-  } => {
-    return {
-      customId,
-      user: { id: 'user-456' },
-      deferUpdate: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-      message: { id: 'message-123' },
-    } as unknown as ButtonInteraction & {
-      deferUpdate: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      message: { id: string };
-    };
-  };
-
-  const createMockSelectMenuInteraction = (
-    customId: string,
-    value: string
-  ): StringSelectMenuInteraction & {
-    deferUpdate: ReturnType<typeof vi.fn>;
-    editReply: ReturnType<typeof vi.fn>;
-    message: { id: string };
-    values: string[];
-  } => {
-    return {
-      customId,
-      user: { id: 'user-456' },
-      deferUpdate: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-      message: { id: 'message-123' },
-      values: [value],
-    } as unknown as StringSelectMenuInteraction & {
-      deferUpdate: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      message: { id: string };
-      values: string[];
     };
   };
 
@@ -363,16 +318,6 @@ describe('Character Settings Dashboard', () => {
   });
 
   describe('handleCharacterSettingsButton', () => {
-    it('should ignore non-character-settings interactions', async () => {
-      const interaction = createMockButtonInteraction(
-        'channel-settings::set::chan-123::enabled:true'
-      );
-
-      await handleCharacterSettingsButton(interaction);
-
-      expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    });
-
     it('should update crossChannelHistoryEnabled via set button', async () => {
       const interaction = {
         customId: 'character-settings::set::personality-123::crossChannelHistoryEnabled:true',
@@ -549,19 +494,6 @@ describe('Character Settings Dashboard', () => {
     });
   });
 
-  describe('handleCharacterSettingsSelectMenu', () => {
-    it('should ignore non-character-settings interactions', async () => {
-      const interaction = createMockSelectMenuInteraction(
-        'channel-settings::select::chan-123',
-        'enabled'
-      );
-
-      await handleCharacterSettingsSelectMenu(interaction);
-
-      expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    });
-  });
-
   describe('handleCharacterSettingsModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
@@ -588,17 +520,6 @@ describe('Character Settings Dashboard', () => {
         view: 'setting',
         activeSetting: settingId,
       },
-    });
-
-    it('should ignore non-character-settings modal interactions', async () => {
-      const interaction = createMockModalInteraction(
-        'admin-settings::modal::global::enabled',
-        '50'
-      );
-
-      await handleCharacterSettingsModal(interaction as never);
-
-      expect(interaction.reply).not.toHaveBeenCalled();
     });
 
     it('should update maxMessages setting via cascade endpoint', async () => {

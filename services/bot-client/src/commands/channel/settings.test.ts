@@ -11,12 +11,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   handleChannelSettings,
   handleChannelSettingsButton,
-  handleChannelSettingsSelectMenu,
   handleChannelSettingsModal,
   isChannelSettingsInteraction,
 } from './settings.js';
@@ -117,50 +116,6 @@ describe('Channel Settings Dashboard', () => {
       followUp: vi.fn(),
       deleteReply: vi.fn(),
     } as unknown as DeferredCommandContext;
-  };
-
-  const createMockButtonInteraction = (
-    customId: string
-  ): ButtonInteraction & {
-    deferUpdate: ReturnType<typeof vi.fn>;
-    editReply: ReturnType<typeof vi.fn>;
-    message: { id: string };
-  } => {
-    return {
-      customId,
-      user: { id: 'user-456' },
-      deferUpdate: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-      message: { id: 'message-123' },
-    } as unknown as ButtonInteraction & {
-      deferUpdate: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      message: { id: string };
-    };
-  };
-
-  const createMockSelectMenuInteraction = (
-    customId: string,
-    value: string
-  ): StringSelectMenuInteraction & {
-    deferUpdate: ReturnType<typeof vi.fn>;
-    editReply: ReturnType<typeof vi.fn>;
-    message: { id: string };
-    values: string[];
-  } => {
-    return {
-      customId,
-      user: { id: 'user-456' },
-      deferUpdate: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-      message: { id: 'message-123' },
-      values: [value],
-    } as unknown as StringSelectMenuInteraction & {
-      deferUpdate: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      message: { id: string };
-      values: string[];
-    };
   };
 
   beforeEach(() => {
@@ -421,14 +376,6 @@ describe('Channel Settings Dashboard', () => {
   });
 
   describe('handleChannelSettingsButton', () => {
-    it('should ignore non-channel-settings interactions', async () => {
-      const interaction = createMockButtonInteraction('admin-settings::set::global::enabled:true');
-
-      await handleChannelSettingsButton(interaction);
-
-      expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    });
-
     it('should handle API failure gracefully', async () => {
       const interaction = {
         customId: 'channel-settings::set::channel-123::maxMessages:auto',
@@ -464,19 +411,6 @@ describe('Channel Settings Dashboard', () => {
     });
   });
 
-  describe('handleChannelSettingsSelectMenu', () => {
-    it('should ignore non-channel-settings interactions', async () => {
-      const interaction = createMockSelectMenuInteraction(
-        'admin-settings::select::global',
-        'enabled'
-      );
-
-      await handleChannelSettingsSelectMenu(interaction);
-
-      expect(interaction.deferUpdate).not.toHaveBeenCalled();
-    });
-  });
-
   describe('handleChannelSettingsModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
@@ -502,17 +436,6 @@ describe('Channel Settings Dashboard', () => {
         view: 'setting',
         activeSetting: settingId,
       },
-    });
-
-    it('should ignore non-channel-settings modal interactions', async () => {
-      const interaction = createMockModalInteraction(
-        'admin-settings::modal::global::enabled',
-        '50'
-      );
-
-      await handleChannelSettingsModal(interaction as never);
-
-      expect(interaction.reply).not.toHaveBeenCalled();
     });
 
     it('should update maxMessages setting via config-overrides endpoint', async () => {

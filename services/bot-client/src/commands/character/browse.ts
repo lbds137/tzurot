@@ -9,7 +9,7 @@
  * - Groups characters by owner for better organization
  */
 
-import { ButtonBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   createLogger,
@@ -45,6 +45,7 @@ import {
   formatFilterLabeled,
   formatSortNatural,
   formatSortVerbatim,
+  type BrowseActionRow,
 } from '../../utils/browse/index.js';
 import {
   type ListItem,
@@ -130,9 +131,6 @@ function buildBrowseButtons(
     buildInfoId: browseHelpers.buildInfo,
   });
 }
-
-/** Union type for action rows that can contain buttons or select menus */
-type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
 /** Options for buildBrowsePage */
 interface BuildBrowsePageOptions {
