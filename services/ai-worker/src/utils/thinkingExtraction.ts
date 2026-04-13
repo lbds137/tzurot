@@ -55,12 +55,18 @@ const KNOWN_THINKING_TAGS = [
   'character_analysis', // GLM 4.5 Air internal chain-of-thought
 ] as const;
 
-/** Alternation pattern fragment for use in regex: `think|thinking|...` */
+/**
+ * Alternation pattern fragment for use in regex: `think|thinking|...`
+ *
+ * Order is safe — all usage sites have structural terminators (`>`, `\b`)
+ * that prevent `think` from matching as a prefix of `thinking`.
+ */
 const TAG_ALT = KNOWN_THINKING_TAGS.join('|');
 
 /**
  * Per-tag extraction patterns. Each captures the content inside the tags.
  * Uses non-greedy matching ([\s\S]*?) to handle content without over-capturing.
+ * All patterns are case-insensitive (`gi` flags).
  *
  * Order matters for extraction priority (first match wins for display),
  * but ALL patterns are always removed from visible content.
