@@ -62,8 +62,10 @@ export function asyncHandler<R extends Request = Request>(
           return;
         }
 
-        // Missing/invalid route parameters are client errors, not server errors
+        // Missing/invalid route parameters are client errors, not server errors.
+        // Logged at warn since it could indicate a routing misconfiguration.
         if (error instanceof ParameterError) {
+          logger.warn({ err: error }, 'Missing required route parameter');
           sendError(res, ErrorResponses.validationError(error.message));
           return;
         }
