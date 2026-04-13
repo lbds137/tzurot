@@ -32,7 +32,7 @@ import {
   buildPresetDashboardOptions,
 } from './config.js';
 import type { PresetData } from './types.js';
-import { fetchPreset, updatePreset, updateGlobalPreset } from './api.js';
+import { fetchPreset, updatePreset, updateGlobalPreset, extractApiErrorMessage } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
 import { PresetCustomIds } from '../../utils/customIds.js';
 import { presetConfigValidator } from './presetValidation.js';
@@ -193,12 +193,8 @@ async function handleSectionModalSubmit(
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update preset section');
 
-    // Extract the API error message (e.g., context window validation) if available;
-    // fall back to generic message for network errors or unexpected failures.
-    const apiMessage =
-      error instanceof Error ? ((/ - (.+)$/.exec(error.message))?.[1] ?? null) : null;
     await interaction.followUp({
-      content: `❌ ${apiMessage ?? 'Failed to update preset. Please try again.'}`,
+      content: `❌ ${extractApiErrorMessage(error) ?? 'Failed to update preset. Please try again.'}`,
       flags: MessageFlags.Ephemeral,
     });
   }

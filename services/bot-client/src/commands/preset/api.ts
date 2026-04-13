@@ -10,6 +10,25 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { adminFetch, adminPutJson } from '../../utils/adminApiClient.js';
 import type { PresetData, PresetResponse } from './types.js';
 
+/** Discord message content limit */
+const MAX_DISCORD_CONTENT = 1800;
+
+/**
+ * Extract user-facing error message from API errors.
+ *
+ * API errors follow the format "Failed to X preset: HTTP_STATUS - api_message".
+ * This extracts the api_message portion for display. Returns null for network
+ * errors or unexpected formats, signaling callers to use a generic fallback.
+ * Truncates to Discord's content limit to avoid silent send failures.
+ */
+export function extractApiErrorMessage(error: unknown): string | null {
+  if (!(error instanceof Error)) {return null;}
+  const match = / - (.+)$/.exec(error.message);
+  if (match?.[1] === undefined) {return null;}
+  const msg = match[1];
+  return msg.length > MAX_DISCORD_CONTENT ? msg.slice(0, MAX_DISCORD_CONTENT) + '…' : msg;
+}
+
 /**
  * Fetch a preset by ID (user endpoint)
  */

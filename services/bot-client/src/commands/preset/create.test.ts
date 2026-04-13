@@ -24,9 +24,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-vi.mock('./api.js', () => ({
-  createPreset: vi.fn(),
-}));
+vi.mock('./api.js', async () => {
+  const actual = await vi.importActual('./api.js');
+  return {
+    ...(actual as Record<string, unknown>),
+    createPreset: vi.fn(),
+  };
+});
 
 vi.mock('../../utils/dashboard/index.js', () => ({
   buildDashboardEmbed: vi.fn().mockReturnValue({ data: {} }),
@@ -254,6 +258,30 @@ describe('Preset Create', () => {
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
         '❌ Failed to create preset. Please try again.'
+      );
+    });
+
+    it('should surface API validation error when create fails with structured error', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Test',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      vi.mocked(api.createPreset).mockRejectedValue(
+        new Error(
+          'Failed to create preset: 400 - contextWindowTokens (131072) exceeds 50% of the model context window'
+        )
+      );
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Test',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        '❌ contextWindowTokens (131072) exceeds 50% of the model context window'
       );
     });
   });
