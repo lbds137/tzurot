@@ -43,6 +43,9 @@ interface ThinkingExtraction {
  * Single source of truth — every pattern in this module is generated from
  * this array. To add support for a new tag, add it here and all patterns
  * (extraction, normalization, fallback, cleanup) update automatically.
+ *
+ * CONSTRAINT: Tag names must use only [a-z_] characters (no regex
+ * metacharacters), since names are interpolated directly into patterns.
  */
 const KNOWN_THINKING_TAGS = [
   'think', // DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2
@@ -71,7 +74,7 @@ const TAG_ALT = KNOWN_THINKING_TAGS.join('|');
  * Order matters for extraction priority (first match wins for display),
  * but ALL patterns are always removed from visible content.
  */
-const THINKING_PATTERNS = KNOWN_THINKING_TAGS.map(
+const THINKING_PATTERNS: readonly RegExp[] = KNOWN_THINKING_TAGS.map(
   tag => new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'gi')
 );
 
