@@ -570,17 +570,20 @@ describe('UserService', () => {
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
 
-    it('should cache the result for subsequent calls', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'cached-shell-user' });
+    it('should NOT populate the shared userCache (singleton hazard prevention)', async () => {
+      // Shell path intentionally skips this.userCache.set. The cache is shared
+      // with getOrCreateUser — populating it from the shell path would cause
+      // a subsequent getOrCreateUser call to short-circuit out of the cache
+      // and skip runMaintenanceTasks (persona backfill, username upgrade).
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ id: 'shell-user' }) // first call
+        .mockResolvedValueOnce({ id: 'shell-user' }); // second call should hit DB again, not cache
 
-      // First call — hits DB
       await userService.getOrCreateUserShell('discord-123');
-      // Second call — should hit cache only, no DB
-      mockPrisma.user.findUnique.mockClear();
-      const second = await userService.getOrCreateUserShell('discord-123');
+      await userService.getOrCreateUserShell('discord-123');
 
-      expect(second).toBe('cached-shell-user');
-      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      // Both calls must hit the DB — cache is not populated by the shell path
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
 
     it('should rethrow non-P2002 errors from shell creation', async () => {
