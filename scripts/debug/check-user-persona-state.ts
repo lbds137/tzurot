@@ -139,9 +139,9 @@ async function main(): Promise<void> {
       });
       console.log(`\nMost recent 5 messages:`);
       for (const m of recent) {
-        const preview = m.content.substring(0, 80).replace(/\n/g, ' ');
+        // Log length only — message content is PII per 00-critical.md logging rules.
         console.log(
-          `  [${m.createdAt.toISOString()}] role=${m.role} personaId=${m.personaId ?? '(null)'} channel=${m.channelId} content="${preview}"`
+          `  [${m.createdAt.toISOString()}] role=${m.role} personaId=${m.personaId ?? '(null)'} channel=${m.channelId} contentLength=${m.content.length}`
         );
       }
     }
