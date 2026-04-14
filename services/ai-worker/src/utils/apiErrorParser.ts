@@ -256,24 +256,6 @@ function detectContentError(error: unknown): ApiErrorCategory | null {
 }
 
 /**
- * Parse an error from LangChain/OpenRouter and extract structured info
- *
- * @param error - The error to parse
- * @returns Structured error info for retry logic and user messaging
- *
- * @example
- * try {
- *   await model.invoke(messages);
- * } catch (error) {
- *   const errorInfo = parseApiError(error);
- *   if (!errorInfo.shouldRetry) {
- *     // Fast-fail, don't retry
- *   }
- *   // Use errorInfo.userMessage for user feedback
- *   // Use errorInfo.referenceId for support
- * }
- */
-/**
  * Resolve category + type from error, running detection layers in priority order:
  * 1. Special cases (AbortError, media-URL 404s) — must win over HTTP status
  * 2. HTTP status classification (most reliable when no special case)
@@ -321,6 +303,24 @@ function resolveCategoryAndType(
   return { category: ApiErrorCategory.UNKNOWN, type: ApiErrorType.UNKNOWN };
 }
 
+/**
+ * Parse an error from LangChain/OpenRouter and extract structured info
+ *
+ * @param error - The error to parse
+ * @returns Structured error info for retry logic and user messaging
+ *
+ * @example
+ * try {
+ *   await model.invoke(messages);
+ * } catch (error) {
+ *   const errorInfo = parseApiError(error);
+ *   if (!errorInfo.shouldRetry) {
+ *     // Fast-fail, don't retry
+ *   }
+ *   // Use errorInfo.userMessage for user feedback
+ *   // Use errorInfo.referenceId for support
+ * }
+ */
 export function parseApiError(error: unknown): ApiErrorInfo {
   const referenceId = generateErrorReferenceId();
   const statusCode = extractStatusCode(error);

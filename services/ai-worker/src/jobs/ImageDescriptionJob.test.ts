@@ -8,8 +8,9 @@ import type { Job } from 'bullmq';
 import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
 import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS } from '@tzurot/common-types';
 
-// Vision intentionally caps retries below the project-wide RETRY_CONFIG default —
-// see ImageDescriptionJob.ts for rationale.
+// Mirrors the module-level constant in ImageDescriptionJob.ts. Intentionally
+// kept as a copy so the test asserts the expected *contract* (vision uses 2
+// attempts) rather than coupling to the implementation's internal name.
 const VISION_MAX_ATTEMPTS = 2;
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
@@ -127,6 +128,9 @@ describe('ImageDescriptionJob', () => {
           globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
           operationName: 'Image description (image1.png)',
           shouldRetry: expect.any(Function),
+          // Telemetry hook — guards against silent regression of errorCategory
+          // enrichment in failure logs.
+          getErrorContext: expect.any(Function),
         })
       );
     });
