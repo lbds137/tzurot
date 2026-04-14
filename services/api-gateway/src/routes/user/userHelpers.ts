@@ -36,11 +36,6 @@ export async function getOrCreateInternalUser(
   // Persona backfill happens via bot-client's interaction path.
   const userId = await userService.getOrCreateUserShell(discordUserId);
 
-  if (userId === null) {
-    // getOrCreateUserShell returns null only for bots; shouldn't happen via HTTP
-    throw new Error('Cannot create user for bot');
-  }
-
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, defaultPersonaId: true },

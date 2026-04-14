@@ -358,7 +358,12 @@ export class MemoryRetriever {
       resolvedIdToName.set(resolvedPersonaId, participant.personaName);
 
       logger.debug(
-        `[MemoryRetriever] Loaded persona ${participant.personaName} (${resolvedPersonaId.substring(0, 8)}...): ${personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
+        {
+          personaName: participant.personaName,
+          resolvedPersonaId,
+          contentPreview: personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
+        },
+        '[MemoryRetriever] Loaded persona'
       );
     }
 

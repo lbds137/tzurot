@@ -112,10 +112,14 @@ export class UserService {
    * that snowflake as the user's identity in system prompts instead of their
    * real Discord username. See docs/incidents/ for the full write-up.
    *
+   * No bot-filtering is done here (unlike {@link getOrCreateUser}) because
+   * HTTP routes authenticate via session/discordId — bots don't hit these
+   * endpoints in practice.
+   *
    * @param discordId Discord user ID
-   * @returns The user's UUID, or null if the user is a bot
+   * @returns The user's UUID
    */
-  async getOrCreateUserShell(discordId: string): Promise<string | null> {
+  async getOrCreateUserShell(discordId: string): Promise<string> {
     const cached = this.userCache.get(discordId);
     if (cached !== null) {
       return cached;
