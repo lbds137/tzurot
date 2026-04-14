@@ -58,13 +58,14 @@ const TTS_MAX_TOTAL_MS = 240_000;
  * failure path, (b) text is always delivered regardless of audio outcome. */
 const ELEVENLABS_MAX_ATTEMPTS = 1;
 
-/** Initial backoff delay for ElevenLabs TTS retry. Intentionally short — the
- * retry primarily helps with brief 5xx blips. For sustained 429 rate limits
- * (30-60s windows), the voice-engine fallback is the real safety net. */
-const ELEVENLABS_RETRY_DELAY_MS = 5_000;
-
 /** Classify errors as transient (worth retrying) for ElevenLabs TTS.
- * Covers: 429 rate limit, 5xx server errors, network timeouts, connection failures. */
+ * Covers: 429 rate limit, 5xx server errors, network timeouts, connection failures.
+ *
+ * Note: at {@link ELEVENLABS_MAX_ATTEMPTS}=1, the transient/non-transient
+ * distinction no longer affects retry behavior (there's no 2nd attempt for
+ * either kind). The classification still matters for the fallback trigger —
+ * {@link performElevenLabsTTSWithFallback} uses it to decide whether the
+ * voice-engine fallback should fire. */
 function isTransientElevenLabsError(error: unknown): boolean {
   if (error instanceof ElevenLabsApiError) {
     return error.isTransient;
@@ -319,10 +320,9 @@ export class TTSStep implements IPipelineStep {
       },
       {
         maxAttempts: ELEVENLABS_MAX_ATTEMPTS,
-        initialDelayMs: ELEVENLABS_RETRY_DELAY_MS,
-        // No globalTimeoutMs — with maxAttempts=1, between-attempts soft cap is
-        // irrelevant. The outer Promise.race (TTS_MAX_TOTAL_MS) remains the
-        // effective upper bound.
+        // No initialDelayMs or globalTimeoutMs — both are no-ops at
+        // maxAttempts=1 (no between-attempts gap exists). The outer
+        // Promise.race (TTS_MAX_TOTAL_MS) is the effective upper bound.
         shouldRetry: isTransientElevenLabsError,
         operationName: 'ElevenLabs TTS',
         logger,
