@@ -114,31 +114,44 @@ describe('fetchLogs', () => {
     });
   });
 
-  describe('log filtering', () => {
-    it('should filter logs by keyword', async () => {
-      vi.mocked(execFileSync).mockReturnValue(
-        '2024-01-24 10:00:00 Request received\n' +
-          '2024-01-24 10:00:01 Database connection failed\n' +
-          '2024-01-24 10:00:02 Another message\n'
+  describe('--filter passthrough', () => {
+    it('should pass --filter through to Railway CLI args', async () => {
+      await fetchLogs({ env: 'dev', filter: '@level:error' });
+
+      expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
+        'railway',
+        expect.arrayContaining(['--filter', '@level:error']),
+        expect.anything()
       );
+    });
+
+    it('should pass complex Railway DSL queries unchanged', async () => {
+      await fetchLogs({ env: 'dev', filter: 'vision AND (404 OR 400)' });
+
+      expect(vi.mocked(execFileSync)).toHaveBeenCalledWith(
+        'railway',
+        expect.arrayContaining(['--filter', 'vision AND (404 OR 400)']),
+        expect.anything()
+      );
+    });
+
+    it('should omit --filter when not provided', async () => {
+      await fetchLogs({ env: 'dev' });
+
+      const callArgs = vi.mocked(execFileSync).mock.calls[0]?.[1] as string[];
+      expect(callArgs).not.toContain('--filter');
+    });
+
+    it('should not filter output client-side (Railway owns filtering)', async () => {
+      // Railway returns only matching lines when --filter is used. Our wrapper
+      // must print them verbatim — no client-side grep on top.
+      vi.mocked(execFileSync).mockReturnValue('Database connection failed\nAnother message\n');
 
       await fetchLogs({ env: 'dev', filter: 'database' });
 
       const output = consoleLogSpy.mock.calls.flat().join(' ');
       expect(output).toContain('Database connection failed');
-      expect(output).not.toContain('Request received');
-    });
-
-    it('should filter by log level (JSON format)', async () => {
-      vi.mocked(execFileSync).mockReturnValue(
-        '{"level":"info","message":"Info log"}\n{"level":"error","message":"Error log"}\n'
-      );
-
-      await fetchLogs({ env: 'dev', filter: 'error' });
-
-      const output = consoleLogSpy.mock.calls.flat().join(' ');
-      expect(output).toContain('Error log');
-      expect(output).not.toContain('Info log');
+      expect(output).toContain('Another message');
     });
   });
 

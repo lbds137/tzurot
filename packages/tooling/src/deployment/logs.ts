@@ -39,35 +39,6 @@ function validateService(service: string | undefined): string | undefined {
 }
 
 /**
- * Filter log lines by keyword or log level
- */
-function filterLogs(logs: string, filter: string | undefined): string {
-  if (!filter) return logs;
-
-  const filterLower = filter.toLowerCase();
-  const lines = logs.split('\n');
-
-  // Check if filter is a log level
-  const logLevels = ['error', 'warn', 'info', 'debug'];
-  const isLevelFilter = logLevels.includes(filterLower);
-
-  return lines
-    .filter(line => {
-      const lineLower = line.toLowerCase();
-      if (isLevelFilter) {
-        // For level filters, match the level keyword
-        return (
-          lineLower.includes(`"level":"${filterLower}"`) ||
-          lineLower.includes(`level=${filterLower}`)
-        );
-      }
-      // For other filters, do a simple substring match
-      return lineLower.includes(filterLower);
-    })
-    .join('\n');
-}
-
-/**
  * Colorize log output based on log level
  */
 function colorizeLogs(logs: string): string {
@@ -117,9 +88,10 @@ function displayHeader(
 function displayFooter(): void {
   console.log('');
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
-  console.log(chalk.dim('💡 Tips:'));
+  console.log(chalk.dim('💡 Tips (--filter uses Railway query DSL):'));
   console.log(chalk.dim('   pnpm ops logs --env dev --service api-gateway'));
-  console.log(chalk.dim('   pnpm ops logs --env dev --filter error'));
+  console.log(chalk.dim('   pnpm ops logs --env dev --filter "@level:error"'));
+  console.log(chalk.dim('   pnpm ops logs --env dev --filter "vision AND 404"'));
   console.log(chalk.dim('   pnpm ops logs --env dev --follow'));
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
 }
@@ -127,7 +99,7 @@ function displayFooter(): void {
 /**
  * Stream logs in follow mode using spawn
  */
-async function streamLogsWithFollow(args: string[], filter: string | undefined): Promise<void> {
+async function streamLogsWithFollow(args: string[]): Promise<void> {
   const { spawn } = await import('node:child_process');
   const proc = spawn('railway', args, {
     stdio: ['inherit', 'pipe', 'pipe'],
@@ -135,10 +107,7 @@ async function streamLogsWithFollow(args: string[], filter: string | undefined):
   });
 
   proc.stdout?.on('data', (data: Buffer) => {
-    let output = data.toString();
-    if (filter) {
-      output = filterLogs(output, filter);
-    }
+    const output = data.toString();
     if (output.trim()) {
       process.stdout.write(colorizeLogs(output));
     }
@@ -164,20 +133,15 @@ async function streamLogsWithFollow(args: string[], filter: string | undefined):
 /**
  * Fetch logs synchronously (non-follow mode)
  */
-function fetchLogsSync(args: string[], filter: string | undefined): void {
+function fetchLogsSync(args: string[]): void {
   const result = execFileSync('railway', args, {
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
     maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large log output
   });
 
-  let output = result;
-  if (filter) {
-    output = filterLogs(output, filter);
-  }
-
-  if (output.trim()) {
-    console.log(colorizeLogs(output));
+  if (result.trim()) {
+    console.log(colorizeLogs(result));
   } else {
     console.log(chalk.dim('No logs found matching the criteria.'));
   }
@@ -219,21 +183,26 @@ export async function fetchLogs(options: LogsOptions): Promise<void> {
 
   displayHeader(railwayEnv, validatedService, lines, filter);
 
-  // Build Railway logs command arguments
+  // Build Railway logs command arguments.
+  // --filter is passed through as a Railway 4.11.2 server-side query (attribute
+  // filters like `@level:error`, boolean operators like `"vision AND 404"`).
   const args = ['logs', '--environment', railwayEnv];
   if (validatedService) {
     args.push('--service', validatedService);
   }
   args.push('-n', String(lines));
+  if (filter !== undefined) {
+    args.push('--filter', filter);
+  }
   if (follow) {
     args.push('--follow');
   }
 
   try {
     if (follow) {
-      await streamLogsWithFollow(args, filter);
+      await streamLogsWithFollow(args);
     } else {
-      fetchLogsSync(args, filter);
+      fetchLogsSync(args);
     }
   } catch (error) {
     handleLogsError(error, validatedService);

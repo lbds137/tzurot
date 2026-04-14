@@ -34,6 +34,7 @@ const FAILURE_LABELS: Record<string, string> = {
   content_policy: 'content filtered',
   bad_request: 'invalid request',
   model_not_found: 'model unavailable',
+  media_not_found: 'image unavailable',
   rate_limit: 'rate limited',
   server_error: 'server error',
   timeout: 'timed out',
