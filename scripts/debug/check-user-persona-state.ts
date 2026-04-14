@@ -1,20 +1,29 @@
 #!/usr/bin/env tsx
 /**
- * One-off debug: check provisioning state for a specific user reported in a
- * production bug — new user shows raw Discord snowflake in system prompt
- * `<message from="...">` attribute and is missing from participants section.
+ * Debug helper: inspect user/persona/history state for a given UUID.
  *
- * Investigates three hypotheses in order:
- *   1. User record exists at all (by the UUID seen in from_id attribute)
- *   2. If yes, does the user have a default persona with a non-empty name?
- *   3. Is conversation history being persisted for this user?
+ * The input UUID can refer to either a User.id or a Persona.id — the script
+ * probes both, then dumps the full provisioning state (default persona, all
+ * owned personas, conversation history count + recent sample).
  *
- * Usage: pnpm ops run --env prod -- tsx scripts/debug/check-user-persona-state.ts
+ * Originally written for the 2026-04-14 persona-snowflake-name incident;
+ * generic enough to reuse for future identity-pipeline debugging.
+ *
+ * Usage:
+ *   TARGET_UUID=<uuid> pnpm ops run --env prod --force tsx scripts/debug/check-user-persona-state.ts
  */
 
 import { getPrismaClient } from '@tzurot/common-types';
 
-const TARGET_UUID = '9ef82999-bfd8-5831-8156-e263b45dab2d';
+const TARGET_UUID = process.env.TARGET_UUID ?? '';
+
+if (TARGET_UUID === '') {
+  console.error(
+    'ERROR: TARGET_UUID env var is required.\n' +
+      'Example: TARGET_UUID=9ef82999-bfd8-5831-8156-e263b45dab2d pnpm ops run --env prod --force tsx scripts/debug/check-user-persona-state.ts'
+  );
+  process.exit(1);
+}
 
 const prisma = getPrismaClient();
 
