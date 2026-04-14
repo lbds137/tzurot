@@ -453,6 +453,53 @@ describe('MemoryRetriever', () => {
       expect(result.get('Active User')?.guildInfo).toEqual({ roles: ['Admin'] });
       expect(result.get('Inactive User')?.guildInfo).toBeUndefined();
     });
+
+    it('should include participant with empty persona content (identity-only)', async () => {
+      // Regression guard: a user whose persona has no bio text (e.g., created
+      // via api-gateway shell path before their first Discord interaction)
+      // must still appear in the participants map — identity (name, pronouns,
+      // guild info) is valuable to the LLM even without a bio. Silently
+      // dropping them caused a production incident where a new user was
+      // absent from <participants> and the AI confused them with another user.
+      mockPersonaResolver.resolveToUuid.mockResolvedValueOnce('persona-empty');
+      mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+        preferredName: null,
+        pronouns: null,
+        content: '', // empty content — the bug shape
+      });
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [{ personaId: 'persona-empty', personaName: 'New User', isActive: true }],
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+      expect(result.size).toBe(1);
+      expect(result.get('New User')).toEqual(
+        expect.objectContaining({
+          content: '',
+          isActive: true,
+          personaId: 'persona-empty',
+        })
+      );
+    });
+
+    it('should drop participant only when persona record is truly missing', async () => {
+      mockPersonaResolver.resolveToUuid.mockResolvedValueOnce('persona-missing');
+      mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce(null);
+
+      const context: ConversationContext = {
+        userId: 'user-123',
+        participants: [
+          { personaId: 'persona-missing', personaName: 'Ghost User', isActive: false },
+        ],
+      };
+
+      const result = await retriever.getAllParticipantPersonas(context, testPersonalityId);
+
+      expect(result.size).toBe(0);
+    });
   });
 
   describe('retrieveRelevantMemories', () => {

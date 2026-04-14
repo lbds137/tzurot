@@ -527,6 +527,73 @@ describe('UserService', () => {
     });
   });
 
+  describe('getOrCreateUserShell', () => {
+    it('should return existing user ID without creating a persona when user already exists', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'existing-shell-user' });
+
+      const result = await userService.getOrCreateUserShell('discord-123');
+
+      expect(result).toBe('existing-shell-user');
+      // Must NOT create a persona or open a transaction
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.persona.create).not.toHaveBeenCalled();
+    });
+
+    it('should create a shell user with discordId-as-username placeholder when user does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null); // user absent
+      mockPrisma.user.create.mockResolvedValueOnce({ id: 'test-user-uuid' });
+
+      const result = await userService.getOrCreateUserShell('discord-123');
+
+      expect(result).toBe('test-user-uuid');
+      // Critical: no persona side effects on the shell path
+      expect(mockPrisma.persona.create).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      // The shell user is created with discordId as the placeholder username
+      expect(mockPrisma.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          id: 'test-user-uuid',
+          discordId: 'discord-123',
+          username: 'discord-123', // placeholder, upgraded by runMaintenanceTasks later
+        }),
+      });
+    });
+
+    it('should handle P2002 race condition and return the existing user', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null); // initial absent
+      mockPrisma.user.create.mockRejectedValueOnce({ code: 'P2002' }); // race
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'raced-user-id' }); // fetch after race
+
+      const result = await userService.getOrCreateUserShell('discord-123');
+
+      expect(result).toBe('raced-user-id');
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('should cache the result for subsequent calls', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'cached-shell-user' });
+
+      // First call — hits DB
+      await userService.getOrCreateUserShell('discord-123');
+      // Second call — should hit cache only, no DB
+      mockPrisma.user.findUnique.mockClear();
+      const second = await userService.getOrCreateUserShell('discord-123');
+
+      expect(second).toBe('cached-shell-user');
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow non-P2002 errors from shell creation', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      const dbError = new Error('some other DB error');
+      mockPrisma.user.create.mockRejectedValueOnce(dbError);
+
+      await expect(userService.getOrCreateUserShell('discord-123')).rejects.toThrow(
+        'some other DB error'
+      );
+    });
+  });
+
   describe('getUserTimezone', () => {
     it('should return user timezone when set', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ timezone: 'America/New_York' });

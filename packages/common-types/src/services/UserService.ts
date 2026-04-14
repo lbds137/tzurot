@@ -98,6 +98,91 @@ export class UserService {
   }
 
   /**
+   * Get or create a user by Discord ID WITHOUT a default persona.
+   *
+   * Use this from code paths that don't have a real Discord username available
+   * (e.g., api-gateway HTTP routes where auth middleware only passes the
+   * discordId). Persona creation is deferred until the user interacts via the
+   * bot-client path, which has the real username and can populate a proper
+   * Persona via backfillDefaultPersona.
+   *
+   * This exists because prior to this method, such callers passed the discordId
+   * as both the Discord ID AND the username parameter, which baked the raw
+   * snowflake into Persona.name and Persona.preferredName — later rendering
+   * that snowflake as the user's identity in system prompts instead of their
+   * real Discord username. See docs/incidents/ for the full write-up.
+   *
+   * @param discordId Discord user ID
+   * @returns The user's UUID, or null if the user is a bot
+   */
+  async getOrCreateUserShell(discordId: string): Promise<string | null> {
+    const cached = this.userCache.get(discordId);
+    if (cached !== null) {
+      return cached;
+    }
+
+    try {
+      const user =
+        (await this.prisma.user.findUnique({
+          where: { discordId },
+          select: { id: true },
+        })) ?? (await this.createShellUserWithRaceProtection(discordId));
+
+      this.userCache.set(discordId, user.id);
+      return user.id;
+    } catch (error) {
+      logger.error({ err: error, discordId }, 'Failed to get/create user shell');
+      throw error;
+    }
+  }
+
+  /**
+   * Create a shell user (no persona) with race condition protection.
+   * Username is stored as discordId as a placeholder; it'll be upgraded when
+   * the user interacts via bot-client with their real Discord username.
+   */
+  private async createShellUserWithRaceProtection(discordId: string): Promise<{ id: string }> {
+    const userId = generateUserUuid(discordId);
+    const shouldBeSuperuser = isBotOwner(discordId);
+
+    try {
+      await this.prisma.user.create({
+        data: {
+          id: userId,
+          discordId,
+          // Placeholder — upgraded by runMaintenanceTasks when bot-client
+          // calls getOrCreateUser with a real username.
+          username: discordId,
+          isSuperuser: shouldBeSuperuser,
+        },
+      });
+      if (shouldBeSuperuser) {
+        logger.info({ userId, discordId }, 'Bot owner auto-promoted to superuser (shell creation)');
+      }
+      logger.info({ userId, discordId }, 'Created shell user (no default persona)');
+      return { id: userId };
+    } catch (error) {
+      if (this.isPrismaUniqueConstraintError(error)) {
+        logger.warn(
+          { discordId },
+          'Race condition detected during shell user creation, fetching existing user'
+        );
+        const existingUser = await this.prisma.user.findUnique({
+          where: { discordId },
+          select: { id: true },
+        });
+        if (existingUser === null) {
+          throw new Error(`User not found after P2002 error for discordId: ${discordId}`, {
+            cause: error,
+          });
+        }
+        return existingUser;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Create user with race condition protection
    * If two requests try to create the same user simultaneously, one will fail with P2002.
    * We catch that and fetch the existing user instead.

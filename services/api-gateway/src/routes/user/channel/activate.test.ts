@@ -238,6 +238,11 @@ describe('POST /user/channel/activate', () => {
     const personality = createMockPersonality({ isPublic: true });
     const settings = createMockActivation();
 
+    // Override default mock so the shell path sees "user missing"
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce(null) // getOrCreateUserShell initial lookup
+      .mockResolvedValueOnce({ id: MOCK_USER_UUID, defaultPersonaId: null }); // post-create lookup in userHelpers
+    mockPrisma.user.create.mockResolvedValueOnce({ id: MOCK_USER_UUID });
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.personality.findUnique.mockResolvedValue(personality);
     mockPrisma.channelSettings.upsert.mockResolvedValue(settings);
@@ -252,8 +257,10 @@ describe('POST /user/channel/activate', () => {
 
     await handler(req, res);
 
-    // UserService creates users via $transaction, not direct create
-    expect(mockPrisma.$transaction).toHaveBeenCalled();
+    // Shell creation — api-gateway routes don't have username context, so
+    // UserService.getOrCreateUserShell creates a User-only record (no persona,
+    // no transaction). Full provisioning happens later via the bot-client path.
+    expect(mockPrisma.user.create).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
   });
 });

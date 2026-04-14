@@ -9,10 +9,22 @@ import { UserService, type PrismaClient } from '@tzurot/common-types';
 
 /**
  * Get or create internal user from Discord ID.
- * Uses centralized UserService to ensure users always get default personas.
  *
- * Returns both `id` and `defaultPersonaId` — callers that don't need
- * defaultPersonaId simply ignore it (TypeScript structural typing allows this).
+ * HTTP routes don't have Discord username context (auth middleware only passes
+ * the discordId), so this creates a **shell user** — User record only, no
+ * default persona. The persona is populated later when the user interacts via
+ * the bot-client path, which has the real Discord username and can call
+ * {@link UserService.getOrCreateUser} with full context (name, displayName, bio).
+ *
+ * Previously this method passed `discordUserId` as the username argument to
+ * `UserService.getOrCreateUser`, which baked the raw Discord snowflake into
+ * `Persona.name` and `Persona.preferredName` — later rendering as the user's
+ * identity in system prompts. See the identity-provisioning incident write-up
+ * in `docs/incidents/` for the full history.
+ *
+ * Returns both `id` and `defaultPersonaId`. Callers that require a persona
+ * (e.g., for persona CRUD operations) must handle the null case — this can
+ * happen if the user has only interacted via HTTP routes and not via Discord.
  */
 export async function getOrCreateInternalUser(
   prisma: PrismaClient,
@@ -20,15 +32,15 @@ export async function getOrCreateInternalUser(
 ): Promise<{ id: string; defaultPersonaId: string | null }> {
   const userService = new UserService(prisma);
 
-  // Use centralized UserService - creates shell user with default persona if needed
-  const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
+  // Shell creation only — we don't have username context here.
+  // Persona backfill happens via bot-client's interaction path.
+  const userId = await userService.getOrCreateUserShell(discordUserId);
 
-  // Bots should not reach here via slash commands, but handle defensively
   if (userId === null) {
+    // getOrCreateUserShell returns null only for bots; shouldn't happen via HTTP
     throw new Error('Cannot create user for bot');
   }
 
-  // Look up the full user record to get defaultPersonaId
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, defaultPersonaId: true },
