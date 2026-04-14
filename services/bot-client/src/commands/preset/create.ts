@@ -16,7 +16,7 @@ import {
   MessageFlags,
 } from 'discord.js';
 import type { ModalSubmitInteraction } from 'discord.js';
-import { createLogger, type EnvConfig, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -65,10 +65,7 @@ export async function handleCreate(context: ModalCommandContext): Promise<void> 
 /**
  * Handle seed modal submission - create new preset
  */
-export async function handleSeedModalSubmit(
-  interaction: ModalSubmitInteraction,
-  config: EnvConfig
-): Promise<void> {
+export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const values = extractModalValues(
@@ -95,8 +92,7 @@ export async function handleSeedModalSubmit(
         model: values.model.trim(),
         provider: 'openrouter', // Default provider
       },
-      interaction.user.id,
-      config
+      interaction.user.id
     );
 
     // Flatten the data for dashboard display

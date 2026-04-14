@@ -143,7 +143,14 @@ export class UserService {
           select: { id: true },
         })) ?? (await this.createShellUserWithRaceProtection(discordId));
 
-      this.userCache.set(discordId, user.id);
+      // Intentionally NOT populated: this.userCache.set(discordId, user.id).
+      // The cache is shared with getOrCreateUser. Writing from the shell path
+      // would cause a later getOrCreateUser call for the same discordId to
+      // short-circuit out of the cache and skip runMaintenanceTasks (persona
+      // backfill, username upgrade). Today's per-request UserService
+      // instantiation keeps the cache cold anyway, so the write was a no-op;
+      // omitting it makes the invariant "only getOrCreateUser populates the
+      // cache" explicit and singleton-safe.
       return user.id;
     } catch (error) {
       logger.error({ err: error, discordId }, 'Failed to get/create user shell');
@@ -178,20 +185,7 @@ export class UserService {
       return { id: userId };
     } catch (error) {
       if (this.isPrismaUniqueConstraintError(error)) {
-        logger.warn(
-          { discordId },
-          'Race condition detected during shell user creation, fetching existing user'
-        );
-        const existingUser = await this.prisma.user.findUnique({
-          where: { discordId },
-          select: { id: true },
-        });
-        if (existingUser === null) {
-          throw new Error(`User not found after P2002 error for discordId: ${discordId}`, {
-            cause: error,
-          });
-        }
-        return existingUser;
+        return this.fetchExistingUserAfterRace(discordId, { id: true }, error, 'shell');
       }
       throw error;
     }
@@ -214,22 +208,12 @@ export class UserService {
       // P2002 is Prisma's unique constraint violation error
       // Use duck typing to check for Prisma error (safer than instanceof in test environments)
       if (this.isPrismaUniqueConstraintError(error)) {
-        logger.warn(
-          { discordId },
-          'Race condition detected during user creation, fetching existing user'
+        return this.fetchExistingUserAfterRace(
+          discordId,
+          { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
+          error,
+          'full'
         );
-        // Another request created the user - fetch it
-        const existingUser = await this.prisma.user.findUnique({
-          where: { discordId },
-          select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
-        });
-        if (existingUser === null) {
-          // This shouldn't happen - P2002 means the record exists
-          throw new Error(`User not found after P2002 error for discordId: ${discordId}`, {
-            cause: error,
-          });
-        }
-        return existingUser;
       }
       throw error;
     }
@@ -241,6 +225,35 @@ export class UserService {
    */
   private isPrismaUniqueConstraintError(error: unknown): boolean {
     return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
+  }
+
+  /**
+   * Recover after a P2002 race — another concurrent request created the user
+   * between our findUnique and create. Fetch the now-existing row with the
+   * caller's preferred select shape and return it.
+   *
+   * Shared by both shell and full creation paths. `creationType` is logged as
+   * a structured field so the two call sites stay distinguishable in logs.
+   */
+  private async fetchExistingUserAfterRace<T extends Prisma.UserSelect>(
+    discordId: string,
+    select: T,
+    cause: unknown,
+    creationType: 'shell' | 'full'
+  ): Promise<Prisma.UserGetPayload<{ select: T }>> {
+    logger.warn(
+      { discordId, creationType },
+      'Race condition detected during user creation, fetching existing user'
+    );
+    const existingUser = await this.prisma.user.findUnique({
+      where: { discordId },
+      select,
+    });
+    if (existingUser === null) {
+      // Shouldn't happen — P2002 means the record exists
+      throw new Error(`User not found after P2002 error for discordId: ${discordId}`, { cause });
+    }
+    return existingUser;
   }
 
   /**

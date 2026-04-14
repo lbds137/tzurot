@@ -10,7 +10,7 @@
 
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   buildDeleteConfirmation,
@@ -376,7 +376,6 @@ export async function handleCloneButton(
   }
 
   try {
-    const config = getConfig();
     const sourceData = session.data;
     const sessionManager = getSessionManager();
 
@@ -397,8 +396,7 @@ export async function handleCloneButton(
             ? sourceData.visionModel
             : undefined,
       },
-      interaction.user.id,
-      config
+      interaction.user.id
     );
 
     // Build update payload with all non-basic fields from source

@@ -594,7 +594,6 @@ describe('Preset Dashboard Buttons', () => {
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
       expect(mockCreatePreset).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Original Preset (Copy)' }),
-        expect.anything(),
         expect.anything()
       );
     });
@@ -615,7 +614,6 @@ describe('Preset Dashboard Buttons', () => {
 
       expect(mockCreatePreset).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'My Preset (Copy 2)' }),
-        expect.anything(),
         expect.anything()
       );
     });
@@ -636,7 +634,6 @@ describe('Preset Dashboard Buttons', () => {
 
       expect(mockCreatePreset).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'My Preset (Copy 6)' }),
-        expect.anything(),
         expect.anything()
       );
     });
@@ -659,7 +656,6 @@ describe('Preset Dashboard Buttons', () => {
       // Should append (Copy) since (Copy) is not at the end
       expect(mockCreatePreset).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Preset (Copy) Edition (Copy)' }),
-        expect.anything(),
         expect.anything()
       );
     });

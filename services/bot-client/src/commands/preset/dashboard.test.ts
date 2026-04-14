@@ -913,8 +913,7 @@ describe('handleButton', () => {
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
         }),
-        'user-456',
-        expect.anything()
+        'user-456'
       );
       expect(mockSessionManagerSet).toHaveBeenCalled();
       expect(mockSessionManagerDelete).toHaveBeenCalledWith('user-456', 'preset', 'preset-123');
@@ -948,8 +947,7 @@ describe('handleButton', () => {
         expect.objectContaining({
           name: 'Test Preset (Copy 2)',
         }),
-        'user-456',
-        expect.anything()
+        'user-456'
       );
     });
 

@@ -7,7 +7,6 @@ import { MessageFlags } from 'discord.js';
 import { handleCreate, handleSeedModalSubmit } from './create.js';
 import * as api from './api.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
-import type { EnvConfig } from '@tzurot/common-types';
 import type { ModalSubmitInteraction } from 'discord.js';
 
 // Mock common-types
@@ -43,8 +42,6 @@ vi.mock('../../utils/dashboard/index.js', () => ({
 }));
 
 describe('Preset Create', () => {
-  const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
-
   describe('handleCreate', () => {
     const mockContext = {
       showModal: vi.fn(),
@@ -125,7 +122,7 @@ describe('Preset Create', () => {
         model: 'anthropic/claude-sonnet-4',
       });
 
-      await handleSeedModalSubmit(mockInteraction, mockConfig);
+      await handleSeedModalSubmit(mockInteraction);
 
       expect(mockInteraction.deferReply).toHaveBeenCalledWith({
         flags: MessageFlags.Ephemeral,
@@ -143,7 +140,7 @@ describe('Preset Create', () => {
         model: 'anthropic/claude-sonnet-4',
       });
 
-      await handleSeedModalSubmit(mockInteraction, mockConfig);
+      await handleSeedModalSubmit(mockInteraction);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ Preset name is required.');
       expect(api.createPreset).not.toHaveBeenCalled();
@@ -160,7 +157,7 @@ describe('Preset Create', () => {
         model: '',
       });
 
-      await handleSeedModalSubmit(mockInteraction, mockConfig);
+      await handleSeedModalSubmit(mockInteraction);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ Model ID is required.');
       expect(api.createPreset).not.toHaveBeenCalled();
@@ -193,7 +190,7 @@ describe('Preset Create', () => {
         model: 'anthropic/claude-sonnet-4',
       });
 
-      await handleSeedModalSubmit(mockInteraction, mockConfig);
+      await handleSeedModalSubmit(mockInteraction);
 
       expect(api.createPreset).toHaveBeenCalledWith(
         {
@@ -201,8 +198,7 @@ describe('Preset Create', () => {
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
         },
-        'user-123',
-        mockConfig
+        'user-123'
       );
 
       // Dashboard should be built
@@ -236,7 +232,7 @@ describe('Preset Create', () => {
         model: 'anthropic/claude-sonnet-4',
       });
 
-      await handleSeedModalSubmit(mockInteraction, mockConfig);
+      await handleSeedModalSubmit(mockInteraction);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
         expect.stringContaining('already exists')
@@ -256,7 +252,7 @@ describe('Preset Create', () => {
         model: 'anthropic/claude-sonnet-4',
       });
 
-      await handleSeedModalSubmit(mockInteraction, mockConfig);
+      await handleSeedModalSubmit(mockInteraction);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
         '❌ Failed to create preset. Please try again.'
@@ -280,7 +276,7 @@ describe('Preset Create', () => {
         model: 'anthropic/claude-sonnet-4',
       });
 
-      await handleSeedModalSubmit(mockInteraction, mockConfig);
+      await handleSeedModalSubmit(mockInteraction);
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith(
         '❌ contextWindowTokens (131072) exceeds 50% of the model context window'
