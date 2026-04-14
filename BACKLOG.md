@@ -813,6 +813,22 @@ Define free-tier model allowlist, usage quotas, upgrade prompts.
 
 **Why out of scope now**: Cannot decide empirically without the telemetry the diagnostic bundle installs.
 
+#### 🧹 Deduplicate `parseApiError` Calls in Retry Path
+
+**Problem**: `ImageDescriptionJob` (and other vision-adjacent callers) pass both `shouldRetry: shouldRetryError` and `getErrorContext: getErrorLogContext` to `withRetry`. Each wrapper internally calls `parseApiError(error)`, so every failed attempt parses the same error twice. Not a correctness issue — both return the same result for a given input — but inefficient if the parser grows more expensive (e.g., deeper cause-chain traversal, richer classification).
+
+**Action**: Add an optional `getErrorContext` variant that receives a pre-parsed `ApiErrorInfo` instead of raw error, or have `withRetry` expose the parsed info from its own `shouldRetry` call into `getErrorContext`. Either approach removes the duplicate parse without changing the external surface for callers that don't need it.
+
+**Why out of scope**: Efficiency nit flagged during PR #802 review; the parser is currently cheap (regex + switch) so duplication is zero-impact in practice. Fix when touching the retry primitive for other reasons.
+
+#### 🐛 `modelName` Lost as Structured Attribute Field After LLMInvoker Log Deletion
+
+**Problem**: PR #802 deleted the `[LLMInvoker] LLM invocation completed` log which had `modelName` as a top-level structured field (queryable via Railway DSL `@modelName:claude-sonnet-4-6`). The replacement `withRetry` success log embeds model name inside `operationName: "LLM invocation (claude-sonnet-4-6)"` — still substring-searchable but no longer an attribute filter. Per-model latency/success-rate queries are harder.
+
+**Action**: Add an optional `extraLogFields: Record<string, unknown>` option to `RetryOptions` that spreads into every lifecycle log. `LLMInvoker` can then pass `extraLogFields: { modelName }` to restore the structured field without reintroducing a second log line. Alternative: extract model name from `operationName` via a Railway query macro — less ergonomic.
+
+**Why out of scope**: Legit queryability regression but low priority for a solo-dev workflow where substring search suffices. Right home is the Observability & Telemetry Strategy epic in Future Themes — that epic will standardize the `extraLogFields` / `dimensions` pattern across all retry-like primitives.
+
 #### 🐛 Revisit `TIMEOUTS.VISION_MODEL` After Telemetry Data
 
 **Problem**: 90s vision-model timeout may be mis-calibrated. 63% hit rate in 2026-04-14 prod-log analysis suggests systemic (provider/CDN stall) rather than "almost-long-enough." If p95 successful response times are 25–35s, 90s is 2–3x overkill.

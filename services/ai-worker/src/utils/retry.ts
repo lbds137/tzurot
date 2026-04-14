@@ -255,6 +255,12 @@ async function waitBeforeRetry(ctx: DelayContext): Promise<void> {
  * @returns Result with value, attempts, and timing info
  * @throws RetryError if all attempts fail or global timeout is reached
  *
+ * Log prefix convention: `[Retry]` prefixes every lifecycle log — success,
+ * per-attempt failure, and exhaustion — regardless of whether retries
+ * actually occurred. A `[Retry] ... succeeded on attempt 1` line is normal
+ * first-try success, not a retry event. Filter on `attempt > 1` to isolate
+ * actual retry recovery events.
+ *
  * @example
  * const result = await withRetry(
  *   () => model.invoke(messages),

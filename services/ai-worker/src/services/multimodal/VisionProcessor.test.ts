@@ -501,6 +501,22 @@ describe('VisionProcessor', () => {
         expect(result).toBe('[Image unavailable: content filtered]');
       });
 
+      it('should use friendly label for media_not_found failures', async () => {
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'media_not_found',
+          permanent: true,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('[Image unavailable: image unavailable]');
+      });
+
       it('should fall back to raw category for unknown categories', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'some_new_category',
