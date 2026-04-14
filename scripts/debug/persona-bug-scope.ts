@@ -112,33 +112,6 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log("\n=== Lila's persona state (comparison) ===\n");
-  const lila = await prisma.persona.findFirst({
-    where: { id: '57240faf-0a7d-511c-b5ae-a52b26c3b5d8' },
-    select: {
-      id: true,
-      name: true,
-      preferredName: true,
-      content: true,
-      pronouns: true,
-      ownerId: true,
-      owner: { select: { discordId: true, username: true, defaultPersonaId: true } },
-    },
-  });
-
-  if (lila !== null) {
-    console.log(`  id:             ${lila.id}`);
-    console.log(`  name:           ${JSON.stringify(lila.name)}`);
-    console.log(`  preferredName:  ${JSON.stringify(lila.preferredName)}`);
-    console.log(`  pronouns:       ${JSON.stringify(lila.pronouns)}`);
-    console.log(`  content length: ${lila.content.length} chars`);
-    console.log(`  ownerId:        ${lila.ownerId}`);
-    console.log(`  owner.username: ${JSON.stringify(lila.owner?.username)}`);
-    console.log(`  is default?     ${lila.owner?.defaultPersonaId === lila.id ? 'YES' : 'NO'}`);
-  } else {
-    console.log('  Lila persona not found by that id');
-  }
-
   console.log('\n=== Done ===\n');
   await prisma.$disconnect();
 }
