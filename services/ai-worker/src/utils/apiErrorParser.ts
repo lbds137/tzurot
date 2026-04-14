@@ -200,6 +200,9 @@ function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
  * maxAttempts × timeout budget.
  */
 function detectSpecialCases(error: unknown): ApiErrorCategory | null {
+  // AbortError is always an Error subclass at the runtime level. If a future
+  // LangChain version ever wraps the abort in a plain object, this check falls
+  // through to UNKNOWN — acceptable safety behavior, but update this guard.
   if (error instanceof Error) {
     if (error.name === 'AbortError' || /request was aborted/i.test(error.message)) {
       return ApiErrorCategory.TIMEOUT;
