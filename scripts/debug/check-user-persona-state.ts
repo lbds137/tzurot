@@ -105,6 +105,9 @@ async function main(): Promise<void> {
       where: { ownerId: userId },
       select: { id: true, name: true, preferredName: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
+      // Explicit upper bound per 03-database rules; a single user rarely has
+      // more than a handful of personas, this is pure defense-in-depth.
+      take: 100,
     });
     console.log(`All personas owned by this user: ${allPersonas.length}`);
     for (const p of allPersonas) {

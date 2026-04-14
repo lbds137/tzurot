@@ -37,7 +37,18 @@ const USER_CACHE_TTL_MS = 60 * 60 * 1000;
 const USER_CACHE_MAX_SIZE = 10_000;
 
 export class UserService {
-  /** Cache discordId -> userId (UUID) with TTL to prevent memory leaks */
+  /**
+   * Cache discordId -> userId (UUID) with TTL to prevent memory leaks.
+   *
+   * **Shared between {@link getOrCreateUser} and {@link getOrCreateUserShell}.**
+   * This is safe today because `getOrCreateInternalUser` (the shell caller) news up
+   * a `UserService` per request — the cache doesn't persist across requests. If
+   * `UserService` is ever refactored to a singleton, revisit this: a shell call
+   * would cache a discordId → userId mapping without ever running
+   * `runMaintenanceTasks`, so a subsequent `getOrCreateUser` for the same
+   * discordId would short-circuit out of the cache and silently skip username
+   * and persona backfill for the session.
+   */
   private userCache: TTLCache<string>;
 
   constructor(private prisma: PrismaClient) {
