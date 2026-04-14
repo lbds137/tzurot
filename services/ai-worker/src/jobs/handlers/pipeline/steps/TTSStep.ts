@@ -28,29 +28,35 @@ import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');
 
-/** TTS synthesis budget (no cold start) — used for ElevenLabs path.
- * Budget: voice cloning (cached ~1s) + synthesis (60s per attempt × 2) + margin (30s).
- * ElevenLabs is a cloud service with no cold start, so this is generous. */
-const TTS_SYNTHESIS_BUDGET_MS = 150_000;
-
-/** TTS total budget including cold start — used for voice-engine path.
- * Budget: cold start warmup (75s) + registration (15s) + multi-chunk synthesis (~120s) + margin (30s).
- * Text is always delivered regardless — this only affects whether audio is attached.
- * Wider than the ElevenLabs budget because Railway Serverless cold starts are unavoidable. */
+/** Total TTS budget (single budget across ElevenLabs + voice-engine fallback paths).
+ *
+ * Sized to accommodate the worst case where ElevenLabs fails and voice-engine
+ * has to cold-start from scratch:
+ *   ElevenLabs attempt (60s) + voice-engine cold start (~47s observed,
+ *   75s budget) + registration (15s) + multi-chunk synthesis (~90s) + margin.
+ *
+ * Previously this was two separate budgets (150s for ElevenLabs-only path,
+ * 240s for voice-engine path) which had a bug: when an ElevenLabs-configured
+ * user's request failed and fell back to voice-engine, the outer race was
+ * still bound by the 150s budget, and voice-engine cold start couldn't
+ * complete in the remaining ~25s. Unified to 240s for robustness regardless
+ * of which path is taken. Text is always delivered regardless — this only
+ * affects whether audio is attached. */
 const TTS_MAX_TOTAL_MS = 240_000;
 
-/** Max ElevenLabs TTS outer retry attempts (1 initial + 1 retry).
- * Each attempt may make 1 extra elevenLabsTTS call if 404 triggers re-clone.
- * Coupled with ELEVENLABS_RETRY_TIMEOUT_MS — if raised to 3+, review the
- * soft timeout cap and voice-engine fallback budget (see TTS_TIMEOUT_MS). */
-const ELEVENLABS_MAX_ATTEMPTS = 2;
-
-/** Soft global timeout for ElevenLabs retry attempts. Checked between attempts,
- * not mid-operation — a single attempt can exceed this (e.g., 60s AbortController
- * timeout). Effectively inert with maxAttempts=2 (both attempts start under 90s).
- * Becomes effective if maxAttempts is raised to 3+. The real budget enforcer is
- * TTS_TIMEOUT_MS (150s) via Promise.race. */
-const ELEVENLABS_RETRY_TIMEOUT_MS = 90_000;
+/** Max ElevenLabs TTS outer retry attempts (1 attempt, no retry).
+ *
+ * Previously 2 (1 initial + 1 retry). Reduced to 1 for the same reason we
+ * capped vision retries in beta.97: a 60s ElevenLabs timeout retried with
+ * another 60s budget rarely succeeds if the first attempt timed out — the
+ * provider's network state hasn't changed. When 60s isn't enough, the
+ * voice-engine fallback is the real safety net (see
+ * performElevenLabsTTSWithFallback) and needs the budget headroom.
+ *
+ * Cost of this choice: we lose recovery on brief 5xx blips that would've
+ * succeeded on a second attempt. Accepted because: (a) fallback handles the
+ * failure path, (b) text is always delivered regardless of audio outcome. */
+const ELEVENLABS_MAX_ATTEMPTS = 1;
 
 /** Initial backoff delay for ElevenLabs TTS retry. Intentionally short — the
  * retry primarily helps with brief 5xx blips. For sustained 429 rate limits
@@ -138,9 +144,9 @@ export class TTSStep implements IPipelineStep {
       // is discarded (ttsAudioKey never written), and the audio expires via Redis TTL.
       let timedOut = false;
       let timeoutId: NodeJS.Timeout | undefined;
-      // Select timeout based on path: ElevenLabs has no cold start, voice-engine does
+      // Single outer budget across both paths (ElevenLabs + voice-engine fallback).
+      // See TTS_MAX_TOTAL_MS comment for the rationale behind the unified budget.
       const isElevenLabs = elevenlabsApiKey !== undefined;
-      const effectiveTimeout = isElevenLabs ? TTS_SYNTHESIS_BUDGET_MS : TTS_MAX_TOTAL_MS;
 
       const ttsPromise = isElevenLabs
         ? this.performElevenLabsTTSWithFallback(text, slug, elevenlabsApiKey, context)
@@ -172,8 +178,8 @@ export class TTSStep implements IPipelineStep {
         new Promise<null>((_, reject) => {
           timeoutId = setTimeout(() => {
             timedOut = true;
-            reject(new TimeoutError(effectiveTimeout, 'TTS processing'));
-          }, effectiveTimeout);
+            reject(new TimeoutError(TTS_MAX_TOTAL_MS, 'TTS processing'));
+          }, TTS_MAX_TOTAL_MS);
         }),
       ]);
 
@@ -314,7 +320,9 @@ export class TTSStep implements IPipelineStep {
       {
         maxAttempts: ELEVENLABS_MAX_ATTEMPTS,
         initialDelayMs: ELEVENLABS_RETRY_DELAY_MS,
-        globalTimeoutMs: ELEVENLABS_RETRY_TIMEOUT_MS,
+        // No globalTimeoutMs — with maxAttempts=1, between-attempts soft cap is
+        // irrelevant. The outer Promise.race (TTS_MAX_TOTAL_MS) remains the
+        // effective upper bound.
         shouldRetry: isTransientElevenLabsError,
         operationName: 'ElevenLabs TTS',
         logger,
