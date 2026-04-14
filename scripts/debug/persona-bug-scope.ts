@@ -1,23 +1,26 @@
 #!/usr/bin/env tsx
 /**
- * Scope-and-state query for the persona-name-placeholder bug.
+ * Scope-and-state query for persona-name-placeholder class of bugs.
  *
- * Produces three numbers that shape the fix plan:
- *   1. How many personas have name matching Discord snowflake pattern (/^\d{17,19}$/)
- *   2. How many personas have preferredName null (triggers activePersonaName-undefined path)
- *   3. How many personas have name != owner.username (divergence indicator)
+ * Counts personas whose name/preferredName matches the Discord snowflake
+ * pattern (/^\d{17,19}$/) — an indicator that the persona was created via
+ * a code path that didn't have a real Discord username available.
  *
- * Also dumps Lila's persona state for comparison with laranthras.
+ * Also reports divergences between `persona.name` and `owner.username` as a
+ * broader health signal (the two should normally agree for default personas).
  */
 
 import { getPrismaClient } from '@tzurot/common-types';
+
+// Upper bound on scan size; far above the expected total personas count at
+// this stage (per 03-database rules, all findMany must have an explicit take).
+const SCAN_LIMIT = 10_000;
 
 const prisma = getPrismaClient();
 
 async function main(): Promise<void> {
   const snowflakeRegex = /^\d{17,19}$/;
 
-  // Pull every default persona with its owner. Bounded — personas table is small.
   const allPersonas = await prisma.persona.findMany({
     select: {
       id: true,
@@ -32,7 +35,7 @@ async function main(): Promise<void> {
         },
       },
     },
-    take: 10000,
+    take: SCAN_LIMIT,
   });
 
   const defaultPersonas = allPersonas.filter(p => p.owner?.defaultPersonaId === p.id);
@@ -75,6 +78,7 @@ async function main(): Promise<void> {
       owner: { select: { discordId: true, username: true, createdAt: true, updatedAt: true } },
     },
     orderBy: { createdAt: 'asc' },
+    take: SCAN_LIMIT,
   });
 
   for (const p of affected) {
