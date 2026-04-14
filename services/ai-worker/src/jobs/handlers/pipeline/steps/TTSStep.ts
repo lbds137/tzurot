@@ -61,11 +61,12 @@ const ELEVENLABS_MAX_ATTEMPTS = 1;
 /** Classify errors as transient (worth retrying) for ElevenLabs TTS.
  * Covers: 429 rate limit, 5xx server errors, network timeouts, connection failures.
  *
- * Note: at {@link ELEVENLABS_MAX_ATTEMPTS}=1, the transient/non-transient
- * distinction no longer affects retry behavior (there's no 2nd attempt for
- * either kind). The classification still matters for the fallback trigger —
- * {@link performElevenLabsTTSWithFallback} uses it to decide whether the
- * voice-engine fallback should fire. */
+ * Note: at {@link ELEVENLABS_MAX_ATTEMPTS}=1, `shouldRetry` is never invoked
+ * (no retry attempts exist), so this classification has no runtime effect.
+ * Kept in place so that if maxAttempts is raised in the future, retry gating
+ * still works without code changes. The voice-engine fallback in
+ * {@link performElevenLabsTTSWithFallback} fires unconditionally on any
+ * error — it does not consult this classifier. */
 function isTransientElevenLabsError(error: unknown): boolean {
   if (error instanceof ElevenLabsApiError) {
     return error.isTransient;
