@@ -196,10 +196,11 @@ describe('POST /user/personality (create)', () => {
   });
 
   it('should create user if not exists', async () => {
-    // First findUnique returns null (user doesn't exist), second returns created user
+    // First findUnique returns null (user doesn't exist), second returns created shell user
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce(null) // UserService lookup
-      .mockResolvedValueOnce({ id: 'user-uuid-123', defaultPersonaId: 'test-persona-uuid' }); // After creation
+      .mockResolvedValueOnce(null) // getOrCreateUserShell lookup
+      .mockResolvedValueOnce({ id: 'user-uuid-123', defaultPersonaId: null }); // After shell creation
+    mockPrisma.user.create.mockResolvedValueOnce({ id: 'user-uuid-123' });
     mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
 
     const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
@@ -213,8 +214,9 @@ describe('POST /user/personality (create)', () => {
 
     await handler(req, res);
 
-    // UserService creates users via $transaction, not direct create
-    expect(mockPrisma.$transaction).toHaveBeenCalled();
+    // Shell creation — api-gateway routes don't have username context.
+    // See UserService.getOrCreateUserShell.
+    expect(mockPrisma.user.create).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
   });
 

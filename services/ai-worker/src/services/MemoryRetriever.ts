@@ -310,37 +310,56 @@ export class MemoryRetriever {
       }
 
       const personaData = await this.getPersonaData(resolvedPersonaId);
-      if (personaData !== null && personaData.content.length > 0) {
-        // Include guild info:
-        // - For active speaker: use activePersonaGuildInfo (from triggering message)
-        // - For other participants: look up in participantGuildInfo (from extended context)
-        // Note: participantGuildInfo is keyed by original personaId (may be discord: format)
-        let guildInfo;
-        if (participant.isActive) {
-          guildInfo = context.activePersonaGuildInfo;
-        } else if (context.participantGuildInfo) {
-          guildInfo = context.participantGuildInfo[participant.personaId];
-        }
-
-        personaMap.set(participant.personaName, {
-          preferredName: personaData.preferredName ?? undefined,
-          pronouns: personaData.pronouns ?? undefined,
-          content: personaData.content,
-          isActive: participant.isActive,
-          personaId: resolvedPersonaId, // Use resolved UUID for ID binding
-          guildInfo,
-        });
-        resolvedIdToName.set(resolvedPersonaId, participant.personaName);
-
-        logger.debug(
-          `[MemoryRetriever] Loaded persona ${participant.personaName} (${resolvedPersonaId.substring(0, 8)}...): ${personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
-        );
-      } else {
+      if (personaData === null) {
+        // Truly no persona record found — can't include without identity data.
+        // Warn so missing records don't stay silent.
         logger.warn(
-          {},
-          `[MemoryRetriever] No content found for participant ${participant.personaName} (${resolvedPersonaId})`
+          { resolvedPersonaId, personaName: participant.personaName },
+          `[MemoryRetriever] No persona record for participant — omitting from prompt`
+        );
+        continue;
+      }
+
+      // Note: empty content is allowed. Identity (name, pronouns, guild info)
+      // is still valuable to the LLM even without a bio. Dropping an active
+      // participant for empty content was the root of an incident where new
+      // users whose persona had no bio text were entirely missing from the
+      // <participants> section of the system prompt.
+      if (personaData.content.length === 0) {
+        logger.warn(
+          {
+            resolvedPersonaId,
+            personaName: participant.personaName,
+            isActive: participant.isActive,
+          },
+          `[MemoryRetriever] Persona has empty content — including with identity fields only`
         );
       }
+
+      // Include guild info:
+      // - For active speaker: use activePersonaGuildInfo (from triggering message)
+      // - For other participants: look up in participantGuildInfo (from extended context)
+      // Note: participantGuildInfo is keyed by original personaId (may be discord: format)
+      let guildInfo;
+      if (participant.isActive) {
+        guildInfo = context.activePersonaGuildInfo;
+      } else if (context.participantGuildInfo) {
+        guildInfo = context.participantGuildInfo[participant.personaId];
+      }
+
+      personaMap.set(participant.personaName, {
+        preferredName: personaData.preferredName ?? undefined,
+        pronouns: personaData.pronouns ?? undefined,
+        content: personaData.content,
+        isActive: participant.isActive,
+        personaId: resolvedPersonaId, // Use resolved UUID for ID binding
+        guildInfo,
+      });
+      resolvedIdToName.set(resolvedPersonaId, participant.personaName);
+
+      logger.debug(
+        `[MemoryRetriever] Loaded persona ${participant.personaName} (${resolvedPersonaId.substring(0, 8)}...): ${personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
+      );
     }
 
     return personaMap;

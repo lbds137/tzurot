@@ -54,16 +54,25 @@ describe('getOrCreateInternalUser', () => {
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('should create new user if not found', async () => {
+  it('should create shell user (no persona) if not found', async () => {
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce(null) // UserService lookup
-      .mockResolvedValueOnce({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' }); // Follow-up query
+      .mockResolvedValueOnce(null) // UserService shell lookup
+      .mockResolvedValueOnce({ id: 'test-user-uuid', defaultPersonaId: null }); // Follow-up query — shell has null persona
+    mockPrisma.user.create.mockResolvedValueOnce({ id: 'test-user-uuid' });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
     const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-456');
 
-    expect(result).toEqual({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' });
-    expect(mockPrisma.$transaction).toHaveBeenCalled();
+    // Shell user — no persona created, no transaction opened
+    expect(result).toEqual({ id: 'test-user-uuid', defaultPersonaId: null });
+    expect(mockPrisma.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        discordId: 'discord-456',
+        username: 'discord-456', // placeholder until bot-client upgrades
+      }),
+    });
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockPrisma.persona.create).not.toHaveBeenCalled();
   });
 
   it('should return user even when defaultPersonaId is null', async () => {
