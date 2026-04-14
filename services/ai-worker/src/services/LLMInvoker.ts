@@ -212,11 +212,6 @@ export class LLMInvoker {
     // We do NOT strip tags here to avoid losing reasoning content before it can be
     // extracted and displayed to users (when showThinking is enabled).
 
-    logger.info(
-      { modelName, attempts: result.attempts, totalTimeMs: result.totalTimeMs },
-      '[LLMInvoker] LLM invocation completed'
-    );
-
     return result.value;
   }
 
