@@ -23,6 +23,14 @@ import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
 
+/**
+ * Vision retry cap: 2 attempts (1 initial + 1 retry). LangChain's 90s internal
+ * timeout fires deterministically on provider stalls; retrying beyond 2 attempts
+ * doubled wait time without measurable recovery.
+ * Revisit after telemetry confirms TIMEOUT retry-success-rate.
+ */
+const VISION_MAX_ATTEMPTS = 2;
+
 /** Result of processing a single image */
 interface ImageProcessResult {
   url: string;
@@ -85,11 +93,6 @@ async function processSingleImage(
   userApiKey?: string
 ): Promise<ImageProcessResult> {
   try {
-    // Vision cap: 2 attempts (1 initial + 1 retry). LangChain's 90s internal
-    // timeout fires deterministically on provider stalls; retrying beyond
-    // 2 attempts doubled wait time without measurable recovery.
-    // Revisit after telemetry confirms TIMEOUT retry-success-rate.
-    const VISION_MAX_ATTEMPTS = 2;
     const result = await withRetry(
       () =>
         describeImage(attachment, personality, isGuestMode, userApiKey, {
