@@ -669,6 +669,38 @@ Add supertest-style integration tests that boot the actual Express app with real
 
 Migrate stub commands to proper TypeScript implementations.
 
+### Theme: Observability & Analytics
+
+_Codebase-wide decisions on retry counts, timeouts, cache TTLs, rate limits, and feature adoption currently rely on guesswork because we don't systematically capture the data needed to answer them. Vision-pipeline telemetry landed 2026-04-14 as the first concrete step; treat the rest as epic-sized work._
+
+#### ✨ Observability & Telemetry Strategy
+
+**Problem**: System-health decisions (retry counts, timeouts, cache TTLs, queue concurrency) are made without quantitative data. Same pattern exists throughout ai-worker, api-gateway, bot-client — vision-pipeline fix on 2026-04-14 was just the first concrete instance.
+
+**Scope**:
+
+- Audit current logging across all services, identify gap events (hot-path successes with `durationMs`, cache hit/miss rates, job durations, queue depths, retry success rates per category)
+- Establish `{ durationMs, attempt, errorCategory, ...dimensionX }` structured-log conventions across the codebase (vision-pipeline retry logs are the prototype)
+- Document Railway query cookbook (builds on `pnpm ops logs --filter` DSL passthrough)
+- Define "decision-triggering metrics" — events that, when queried, answer a specific tuning question
+
+**Non-goal**: standing up Prometheus/Datadog/OTel. Pino + structured logs + Railway server-side query DSL is likely sufficient at one-person-project scale.
+
+#### ✨ User Analytics Strategy
+
+**Problem**: No systematic view of product usage. Questions unanswerable today: which personalities have active users? Are users adopting `/browse` or falling back to `/list`? Does voice-engine adoption correlate with specific personalities? What's retention look like by user cohort?
+
+**Scope**:
+
+- Event taxonomy: command invocations, personality switches, voice/vision/memory usage, user-facing errors (as product signals, not debug signals)
+- Privacy constraints: opaque user IDs only — never usernames, message content, or PII
+- **Build-vs-buy decision** (first real decision point for this epic):
+  - Off-the-shelf leading candidate: **PostHog self-hosted on Railway** (open-source, product-analytics-native, supports server-side event ingestion, self-hostable to avoid third-party data)
+  - Lighter alternatives: Plausible (too web-page-centric for a Discord bot), custom Postgres event table + query UI (most control, heaviest ops burden)
+- Integration surface: event emission as middleware/hooks in command handlers and job processors, decoupled from business logic
+
+**Non-goal**: anything requiring message-content inspection (privacy non-starter).
+
 ---
 
 ## 🧊 Icebox
@@ -772,6 +804,22 @@ Full audit of all slash command UI patterns. Review shared utilities usage, iden
 #### 🧹 Free-Tier Model Strategy
 
 Define free-tier model allowlist, usage quotas, upgrade prompts.
+
+#### 🐛 Revisit Vision `maxAttempts` After Telemetry Data
+
+**Problem**: Vision retry cap set to `maxAttempts: 2` (1 initial + 1 retry) on 2026-04-14 without empirical retry-success-rate data for AbortError-originated TIMEOUT errors. Council argued for 1 attempt (0 retries) on the assumption that 90s-budget AbortErrors are near-100% deterministic per URL. Kept 2 attempts until measurement proves otherwise.
+
+**Action**: After 1–2 weeks of prod telemetry from the vision-pipeline diagnostic bundle, grep ai-worker logs for `attempt=2` successes on operations where `attempt=1` failed with `errorCategory=timeout`. If retry success rate on TIMEOUT is <5%, cut `VISION_MAX_ATTEMPTS` in `services/ai-worker/src/jobs/ImageDescriptionJob.ts` to 1. If >20%, keep at 2. Between, reconsider with fresh eyes.
+
+**Why out of scope now**: Cannot decide empirically without the telemetry the diagnostic bundle installs.
+
+#### 🐛 Revisit `TIMEOUTS.VISION_MODEL` After Telemetry Data
+
+**Problem**: 90s vision-model timeout may be mis-calibrated. 63% hit rate in 2026-04-14 prod-log analysis suggests systemic (provider/CDN stall) rather than "almost-long-enough." If p95 successful response times are 25–35s, 90s is 2–3x overkill.
+
+**Action**: After 1–2 weeks of prod telemetry, analyze `durationMs` distribution from `[Retry] Image description succeeded on attempt` log entries. Tune `TIMEOUTS.VISION_MODEL` in `packages/common-types/src/constants/timing.ts` to p99 + small headroom.
+
+**Why out of scope now**: Cannot tune without the telemetry the diagnostic bundle installs.
 
 ---
 

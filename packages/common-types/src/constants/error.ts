@@ -53,7 +53,9 @@ export function isTransientNetworkError(error: unknown): boolean {
 }
 
 function checkTransientNetwork(error: unknown, depth: number): boolean {
-  if (depth > 5) {return false;}
+  if (depth > 5) {
+    return false;
+  }
 
   if (!(error instanceof Error)) {
     // Handle plain objects with a `code` property in the cause chain
@@ -131,6 +133,8 @@ export enum ApiErrorCategory {
   BAD_REQUEST = 'bad_request',
   /** 404 - Model not found */
   MODEL_NOT_FOUND = 'model_not_found',
+  /** Media URL unavailable (e.g., Discord CDN link expired, upstream 404 fetching image). Permanent per-URL. */
+  MEDIA_NOT_FOUND = 'media_not_found',
   /** 429 - Rate limit (may be temporary or daily) */
   RATE_LIMIT = 'rate_limit',
   /** 500/502/503/504 - Server errors */
@@ -162,6 +166,8 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
     'The conversation has become too long. Please start a new conversation or try a shorter message.',
   [ApiErrorCategory.MODEL_NOT_FOUND]:
     'The requested AI model is not available. Please try again or use a different personality.',
+  [ApiErrorCategory.MEDIA_NOT_FOUND]:
+    'The media attachment could not be fetched — the link may have expired.',
   [ApiErrorCategory.RATE_LIMIT]:
     "I'm receiving too many requests right now. Please wait a moment and try again.",
   [ApiErrorCategory.SERVER_ERROR]:
@@ -204,6 +210,7 @@ export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.QUOTA_EXCEEDED,
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.MODEL_NOT_FOUND,
+  ApiErrorCategory.MEDIA_NOT_FOUND,
 ]);
 
 /**

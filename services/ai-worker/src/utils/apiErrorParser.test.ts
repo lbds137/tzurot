@@ -197,6 +197,52 @@ describe('parseApiError', () => {
     });
   });
 
+  describe('special-case detection (pre-status)', () => {
+    it('should classify AbortError by name as TIMEOUT', () => {
+      const error = new Error('Request was aborted');
+      error.name = 'AbortError';
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.TIMEOUT);
+      expect(result.type).toBe(ApiErrorType.TRANSIENT);
+      expect(result.shouldRetry).toBe(true);
+    });
+
+    it('should classify error with "Request was aborted" message as TIMEOUT', () => {
+      const error = new Error('Request was aborted due to timeout');
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.TIMEOUT);
+      expect(result.shouldRetry).toBe(true);
+    });
+
+    it('should classify AbortError even when wrapped with a status code', () => {
+      // Some LangChain wrappers attach a fake status to abort errors — special-case
+      // must still win over status-based classification.
+      const error = Object.assign(new Error('Request was aborted'), {
+        name: 'AbortError',
+        status: 500,
+      });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.TIMEOUT);
+    });
+
+    it('should classify "Received 404 when fetching URL" as permanent MEDIA_NOT_FOUND', () => {
+      // OpenRouter/vision APIs wrap media-fetch 404s inside a 400 response.
+      // Without the special case, the wrapping 400 would make this retryable BAD_REQUEST.
+      const error = new Error('400 Received 404 when fetching URL https://cdn.discord.com/foo.png');
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+      expect(result.type).toBe(ApiErrorType.PERMANENT);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('should classify MEDIA_NOT_FOUND even when error object carries status 400', () => {
+      const error = Object.assign(new Error('Received 404 when fetching URL'), { status: 400 });
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+      expect(result.shouldRetry).toBe(false);
+    });
+  });
+
   describe('network error detection', () => {
     it('should detect ECONNRESET as network error', () => {
       const error = { code: 'ECONNRESET', message: 'Connection reset' };

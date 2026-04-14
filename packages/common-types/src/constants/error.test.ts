@@ -124,6 +124,7 @@ describe('isPermanentError', () => {
     expect(isPermanentError(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(true);
     expect(isPermanentError(ApiErrorCategory.CONTENT_POLICY)).toBe(true);
     expect(isPermanentError(ApiErrorCategory.MODEL_NOT_FOUND)).toBe(true);
+    expect(isPermanentError(ApiErrorCategory.MEDIA_NOT_FOUND)).toBe(true);
   });
 
   it('should return false for transient categories', () => {
@@ -159,6 +160,7 @@ describe('isTransientError', () => {
     expect(isTransientError(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(false);
     expect(isTransientError(ApiErrorCategory.CONTENT_POLICY)).toBe(false);
     expect(isTransientError(ApiErrorCategory.MODEL_NOT_FOUND)).toBe(false);
+    expect(isTransientError(ApiErrorCategory.MEDIA_NOT_FOUND)).toBe(false);
   });
 
   it('should return false for unknown category', () => {

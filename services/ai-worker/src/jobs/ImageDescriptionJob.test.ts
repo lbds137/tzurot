@@ -6,7 +6,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import type { Job } from 'bullmq';
 import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS, RETRY_CONFIG } from '@tzurot/common-types';
+import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS } from '@tzurot/common-types';
+
+// Vision intentionally caps retries below the project-wide RETRY_CONFIG default —
+// see ImageDescriptionJob.ts for rationale.
+const VISION_MAX_ATTEMPTS = 2;
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 // Mock describeImage, withRetry, and shouldRetryError
@@ -20,6 +24,7 @@ vi.mock('../utils/retry.js', () => ({
 
 vi.mock('../utils/apiErrorParser.js', () => ({
   shouldRetryError: vi.fn((_error: unknown) => true),
+  getErrorLogContext: vi.fn((_error: unknown) => ({})),
 }));
 
 // Import the mocked modules
@@ -118,8 +123,8 @@ describe('ImageDescriptionJob', () => {
       expect(mockWithRetry).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({
-          maxAttempts: 3,
-          globalTimeoutMs: TIMEOUTS.VISION_MODEL * RETRY_CONFIG.MAX_ATTEMPTS,
+          maxAttempts: VISION_MAX_ATTEMPTS,
+          globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
           operationName: 'Image description (image1.png)',
           shouldRetry: expect.any(Function),
         })
@@ -243,7 +248,7 @@ describe('ImageDescriptionJob', () => {
       expect(mockWithRetry).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({
-          maxAttempts: 3,
+          maxAttempts: VISION_MAX_ATTEMPTS,
         })
       );
     });
@@ -671,7 +676,7 @@ describe('ImageDescriptionJob', () => {
       expect(mockWithRetry).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({
-          globalTimeoutMs: TIMEOUTS.VISION_MODEL * RETRY_CONFIG.MAX_ATTEMPTS,
+          globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
         })
       );
     });
