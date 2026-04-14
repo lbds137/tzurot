@@ -367,6 +367,94 @@ describe('retryService', () => {
       );
     });
 
+    it('should log success with attempt and durationMs on first-attempt success', async () => {
+      const fn = vi.fn().mockResolvedValue('ok');
+
+      const promise = withRetry(fn, {
+        logger: mockLogger,
+        operationName: 'fast-op',
+      });
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operationName: 'fast-op',
+          attempt: 1,
+          durationMs: expect.any(Number),
+          totalTimeMs: expect.any(Number),
+        }),
+        expect.stringContaining('succeeded on attempt 1')
+      );
+    });
+
+    it('should log success with attempt number reflecting retry index', async () => {
+      const fn = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('first try fails'))
+        .mockResolvedValue('ok');
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 10,
+        logger: mockLogger,
+        operationName: 'retry-op',
+      });
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ attempt: 2, durationMs: expect.any(Number) }),
+        expect.stringContaining('succeeded on attempt 2')
+      );
+    });
+
+    it('should include durationMs in per-attempt failure log', async () => {
+      const fn = vi.fn().mockRejectedValueOnce(new Error('transient')).mockResolvedValue('ok');
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 10,
+        logger: mockLogger,
+        operationName: 'fail-log-op',
+      });
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operationName: 'fail-log-op',
+          attempt: 1,
+          maxAttempts: 2,
+          durationMs: expect.any(Number),
+        }),
+        expect.stringContaining('failed (attempt 1/2)')
+      );
+    });
+
+    it('should include operationName in exhaustion log', async () => {
+      const fn = vi.fn().mockRejectedValue(new Error('permanent failure'));
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 10,
+        logger: mockLogger,
+        operationName: 'exhaust-op',
+      });
+      const assertion = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operationName: 'exhaust-op',
+          attempts: 2,
+          totalTimeMs: expect.any(Number),
+        }),
+        expect.stringContaining('exhausted all retry attempts')
+      );
+    });
+
     it('should include custom operation name in errors', async () => {
       const fn = vi.fn().mockRejectedValue(new Error('Fail'));
 

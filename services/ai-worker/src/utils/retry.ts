@@ -287,21 +287,26 @@ export async function withRetry<T>(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     checkGlobalTimeout({ globalTimeoutMs, startTime, attempt, operationName, lastError, logger });
+    const attemptStartTime = Date.now();
 
     try {
       const value = await fn();
-      const totalTimeMs = Date.now() - startTime;
+      const now = Date.now();
+      const durationMs = now - attemptStartTime;
+      const totalTimeMs = now - startTime;
 
-      if (attempt > 1) {
-        logger?.info(
-          { attempt, totalTimeMs },
-          `[Retry] ${operationName} succeeded after ${attempt} attempts`
-        );
-      }
+      // Log every successful attempt with per-attempt duration so post-deploy
+      // analysis can answer: attempt-1 success rate, p95 response time per
+      // attempt index, retry success rate.
+      logger?.info(
+        { operationName, attempt, durationMs, totalTimeMs },
+        `[Retry] ${operationName} succeeded on attempt ${attempt}`
+      );
 
       return { value, attempts: attempt, totalTimeMs };
     } catch (error) {
       lastError = error;
+      const durationMs = Date.now() - attemptStartTime;
       checkRetryableError({
         error,
         shouldRetry,
@@ -316,8 +321,10 @@ export async function withRetry<T>(
         {
           ...errorContext,
           err: normalizeErrorForLogging(error, operationName),
+          operationName,
           attempt,
           maxAttempts,
+          durationMs,
         },
         `[Retry] ${operationName} failed (attempt ${attempt}/${maxAttempts})`
       );
@@ -342,7 +349,7 @@ export async function withRetry<T>(
   );
   const exhaustionContext = safeGetErrorContext(getErrorContext, lastError, logger);
   logger?.error(
-    { ...exhaustionContext, err: error, attempts: maxAttempts, totalTimeMs },
+    { ...exhaustionContext, err: error, operationName, attempts: maxAttempts, totalTimeMs },
     `[Retry] ${operationName} exhausted all retry attempts`
   );
   throw error;

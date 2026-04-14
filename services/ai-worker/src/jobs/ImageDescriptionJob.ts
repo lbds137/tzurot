@@ -10,7 +10,6 @@ import { Job } from 'bullmq';
 import {
   createLogger,
   CONTENT_TYPES,
-  RETRY_CONFIG,
   TIMEOUTS,
   AIProvider,
   type ImageDescriptionJobData,
@@ -19,7 +18,7 @@ import {
 } from '@tzurot/common-types';
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
-import { shouldRetryError } from '../utils/apiErrorParser.js';
+import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
@@ -86,17 +85,25 @@ async function processSingleImage(
   userApiKey?: string
 ): Promise<ImageProcessResult> {
   try {
+    // Vision cap: 2 attempts (1 initial + 1 retry). LangChain's 90s internal
+    // timeout fires deterministically on provider stalls; retrying beyond
+    // 2 attempts doubled wait time without measurable recovery.
+    // Revisit after telemetry confirms TIMEOUT retry-success-rate.
+    const VISION_MAX_ATTEMPTS = 2;
     const result = await withRetry(
       () =>
         describeImage(attachment, personality, isGuestMode, userApiKey, {
           skipNegativeCache: true,
         }),
       {
-        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-        globalTimeoutMs: TIMEOUTS.VISION_MODEL * RETRY_CONFIG.MAX_ATTEMPTS,
+        maxAttempts: VISION_MAX_ATTEMPTS,
+        globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
         logger,
         operationName: `Image description (${attachment.name})`,
         shouldRetry: shouldRetryError,
+        // Enrich failure logs with errorCategory, statusCode, etc. so post-deploy
+        // telemetry can answer: "retry success rate per errorCategory".
+        getErrorContext: getErrorLogContext,
       }
     );
     return { url: attachment.url, description: result.value, success: true };
