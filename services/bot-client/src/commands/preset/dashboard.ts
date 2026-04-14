@@ -15,7 +15,7 @@ import type {
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import {
   extractAndMergeSectionValues,
   getSessionManager,
@@ -62,8 +62,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
   // Handle seed modal for new preset creation
   // Format: preset::seed
   if (parsed?.entityType === 'preset' && parsed.action === 'seed') {
-    const config = getConfig();
-    await handleSeedModalSubmit(interaction, config);
+    await handleSeedModalSubmit(interaction);
     return;
   }
 

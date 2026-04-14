@@ -5,7 +5,6 @@
  * Uses callGatewayApi for user endpoints and adminFetch for admin endpoints.
  */
 
-import type { EnvConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { adminFetch, adminPutJson } from '../../utils/adminApiClient.js';
 import type { PresetData, PresetResponse } from './types.js';
@@ -154,8 +153,7 @@ export async function createPreset(
     description?: string;
     visionModel?: string;
   },
-  userId: string,
-  _config: EnvConfig
+  userId: string
 ): Promise<PresetData> {
   const result = await callGatewayApi<PresetResponse>('/user/llm-config', {
     method: 'POST',
