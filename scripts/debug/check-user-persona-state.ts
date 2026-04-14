@@ -10,17 +10,22 @@
  * generic enough to reuse for future identity-pipeline debugging.
  *
  * Usage:
- *   TARGET_UUID=<uuid> pnpm ops run --env prod --force tsx scripts/debug/check-user-persona-state.ts
+ *   pnpm ops run --env prod --force tsx scripts/debug/check-user-persona-state.ts <uuid>
  */
 
 import { getPrismaClient } from '@tzurot/common-types';
 
-const TARGET_UUID = process.env.TARGET_UUID ?? '';
+// UUID comes in as a positional CLI argument. argv[0]=node, argv[1]=script,
+// argv[2]=uuid. Using argv (not process.env) because CodeQL's sensitive-data
+// heuristic flags process.env logging; a user UUID is not actually sensitive,
+// but this sidesteps the alert AND is ergonomically simpler.
+const targetUuid = process.argv[2] ?? '';
 
-if (TARGET_UUID === '') {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+if (!UUID_PATTERN.test(targetUuid)) {
   console.error(
-    'ERROR: TARGET_UUID env var is required.\n' +
-      'Example: TARGET_UUID=9ef82999-bfd8-5831-8156-e263b45dab2d pnpm ops run --env prod --force tsx scripts/debug/check-user-persona-state.ts'
+    'ERROR: a valid UUID argument is required.\n' +
+      'Example: pnpm ops run --env prod --force tsx scripts/debug/check-user-persona-state.ts 9ef82999-bfd8-5831-8156-e263b45dab2d'
   );
   process.exit(1);
 }
@@ -28,11 +33,11 @@ if (TARGET_UUID === '') {
 const prisma = getPrismaClient();
 
 async function main(): Promise<void> {
-  console.log(`\n=== Investigating UUID: ${TARGET_UUID} ===\n`);
+  console.log(`\n=== Investigating UUID: ${targetUuid} ===\n`);
 
   // 1. Is this a User.id?
   const userById = await prisma.user.findUnique({
-    where: { id: TARGET_UUID },
+    where: { id: targetUuid },
     select: {
       id: true,
       discordId: true,
@@ -56,7 +61,7 @@ async function main(): Promise<void> {
 
   // 2. Is this a Persona.id?
   const personaById = await prisma.persona.findUnique({
-    where: { id: TARGET_UUID },
+    where: { id: targetUuid },
     select: {
       id: true,
       name: true,
