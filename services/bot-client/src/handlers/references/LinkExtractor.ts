@@ -226,7 +226,10 @@ export class LinkExtractor {
       // docs/reference/architecture/epic-identity-hardening.md.
       const invokerCanAccess = await this.verifyInvokerCanAccessSource(channel, invokingMessage);
       if (!invokerCanAccess) {
-        logger.debug(
+        // Access denial is a security event — log at info so it surfaces in
+        // production logs for probe/abuse detection (e.g., "is someone
+        // pasting staff-channel links hoping the bot will expand them?").
+        logger.info(
           {
             messageId: link.messageId,
             channelId: link.channelId,
@@ -333,6 +336,13 @@ export class LinkExtractor {
       // DM channel is always 1-on-1 (`DMChannel` with a single `recipientId`,
       // never a `PartialGroupDMChannel`). The invoker is either THE recipient
       // or not — there's no third option we need to worry about.
+      //
+      // Note: `MessageLinkParser.MESSAGE_LINK_REGEX` requires `\d+` for the
+      // guild segment, so DM-format links (`/channels/@me/...`) are pre-
+      // filtered and never reach this method through normal user input. This
+      // branch is defensive for edge cases where a DM channel could be
+      // resolved via `client.channels.fetch()` fallback on a guild-format
+      // link that happens to reference a DM channel ID.
       if (channel.isDMBased()) {
         const dmChannel = channel as DMChannel;
         return dmChannel.recipientId === invokerId;
@@ -356,8 +366,14 @@ export class LinkExtractor {
       // lets CFA narrow out the uninitialized case — no `| undefined` needed.
       let sourceMember: GuildMember;
       try {
-        // `fetch` with cache preference — returns cached member or falls back
-        // to API call. Throws if the user isn't in the guild.
+        // Discord.js's single-ID `members.fetch(id)` is cache-first: it
+        // returns the cached member without an API call when available, and
+        // only falls back to `GET /guilds/{id}/members/{id}` on a miss.
+        // With the `GuildMembers` intent enabled (see services/bot-client/src/index.ts),
+        // `MESSAGE_CREATE` payloads auto-cache the message author on receipt,
+        // so the invoker is typically cached for same-guild lookups. Cross-
+        // guild lookups may incur one API call on first access, then cached.
+        // Throws if the user isn't in the guild (caught → deny below).
         sourceMember = await sourceGuild.members.fetch(invokerId);
       } catch {
         // Invoker isn't a member of the source guild. Deny.
@@ -383,8 +399,11 @@ export class LinkExtractor {
       // member list that `ViewChannel` on parent does NOT imply.
       if (channel.isThread()) {
         const thread = channel as ThreadChannel;
-        // Private threads have an explicit member list; public and announcement
-        // threads inherit parent-channel access.
+        // Private threads (type 12) have an explicit member list that
+        // `ViewChannel` on the parent does NOT imply — they need the extra
+        // check below. Public threads (type 11) and announcement threads
+        // (type 10) inherit parent-channel access, so the base permission
+        // check is sufficient and we skip the thread-membership lookup.
         const isPrivateThread = thread.type === ChannelType.PrivateThread;
         if (isPrivateThread) {
           try {
