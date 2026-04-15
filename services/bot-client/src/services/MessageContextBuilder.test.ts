@@ -229,7 +229,10 @@ describe('MessageContextBuilder', () => {
   describe('buildContext', () => {
     it('should build complete context with user lookup and history', async () => {
       // Setup mocks
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
@@ -308,7 +311,10 @@ describe('MessageContextBuilder', () => {
       // Mock fetch to also return null (simulates member not fetchable)
       vi.mocked(mockMessage.guild!.members.fetch).mockResolvedValue(null as any);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // Override to return null preferredName
       mockPersonaResolver.resolve.mockResolvedValue({
         config: {
@@ -338,7 +344,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should handle empty conversation history', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -370,7 +379,10 @@ describe('MessageContextBuilder', () => {
         },
       ];
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -397,7 +409,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should extract conversation history message IDs for deduplication', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
@@ -449,7 +464,10 @@ describe('MessageContextBuilder', () => {
         },
       ];
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -472,7 +490,10 @@ describe('MessageContextBuilder', () => {
         channelType: 'text',
       };
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -489,7 +510,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should handle empty content with fallback', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -537,7 +561,10 @@ describe('MessageContextBuilder', () => {
         messageId: 'reply-to-msg',
       } as any;
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
@@ -573,7 +600,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should not include referencedMessages in context when empty', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -597,7 +627,10 @@ describe('MessageContextBuilder', () => {
       } as User;
       (mockMessage.mentions.users as Map<string, User>).set('123456', mockMentionedUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -646,7 +679,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should not include mentionedPersonas when no mentions resolved', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
@@ -673,7 +709,10 @@ describe('MessageContextBuilder', () => {
         lastContextReset: contextEpoch,
       } as any);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -714,7 +753,10 @@ describe('MessageContextBuilder', () => {
       // No epoch set (default mock returns null)
       vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue(null);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -738,7 +780,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should fetch and merge extended context when enabled', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
 
       // DB history (when extended context is enabled, getChannelHistory is used)
@@ -822,7 +867,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should not fetch extended context when botUserId is not provided', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -854,7 +902,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should collect image attachments when maxImages > 0', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
@@ -936,7 +987,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should not collect images when maxImages is 0', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
@@ -997,7 +1051,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should resolve discord:XXXX personaIds to actual UUIDs when users are created', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
@@ -1130,7 +1187,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should continue without cross-channel history when fetch throws', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -1154,7 +1214,10 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should suppress cross-channel history when isWeighInMode is true', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({

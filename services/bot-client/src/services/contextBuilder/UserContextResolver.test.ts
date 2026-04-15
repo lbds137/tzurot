@@ -100,7 +100,12 @@ describe('UserContextResolver', () => {
 
     const createMockDeps = () => ({
       userService: {
-        getOrCreateUser: vi.fn().mockResolvedValue('internal-user-uuid'),
+        getOrCreateUser: vi
+          .fn()
+          .mockResolvedValue({
+            userId: 'internal-user-uuid',
+            defaultPersonaId: 'persona-uuid-123',
+          }),
         getUserTimezone: vi.fn().mockResolvedValue('America/New_York'),
       } as unknown as UserService,
       personaResolver: {

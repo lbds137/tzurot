@@ -35,7 +35,6 @@ import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
 } from '../../utils/configOverrideHelpers.js';
-import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
@@ -81,10 +80,7 @@ export function createConfigOverrideRoutes(
   router.get(
     '/resolve-defaults',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(req.userId);
 
       // Load admin and user tiers in parallel
       const [adminSettings, user] = await Promise.all([
@@ -141,10 +137,7 @@ export function createConfigOverrideRoutes(
   router.get(
     '/defaults',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(req.userId);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -167,10 +160,7 @@ export function createConfigOverrideRoutes(
   router.patch(
     '/defaults',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(req.userId);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -207,10 +197,7 @@ export function createConfigOverrideRoutes(
   router.delete(
     '/defaults',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(req.userId);
 
       await prisma.user.update({
         where: { id: userId },
@@ -263,10 +250,7 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(req.userId);
 
       // Upsert UserPersonalityConfig with deterministic UUID
       const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
@@ -320,10 +304,7 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(req.userId);
 
       const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
 

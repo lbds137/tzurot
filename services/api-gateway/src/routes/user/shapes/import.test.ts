@@ -28,7 +28,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 }));
 
 import { createShapesImportRoutes } from './import.js';
-import { UserService, type PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 // Mock Prisma
@@ -108,18 +108,6 @@ describe('Shapes Import Routes', () => {
       await handler(req, res);
       return { req, res };
     }
-
-    it('should return 400 when user is a bot', async () => {
-      const spy = vi.spyOn(UserService.prototype, 'getOrCreateUser').mockResolvedValueOnce(null);
-
-      const { res } = await callImportHandler({ sourceSlug: 'test-shape' });
-
-      expect(spy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-
-      spy.mockRestore();
-    });
 
     it('should reject missing sourceSlug', async () => {
       const { res } = await callImportHandler({});

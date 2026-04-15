@@ -61,7 +61,7 @@ const mockPrisma = {
 };
 
 import { createTimezoneRoutes } from './timezone.js';
-import { UserService, type PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 
 // Helper to create mock request/response
@@ -187,23 +187,6 @@ describe('/user/timezone routes', () => {
   });
 
   describe('PUT /user/timezone', () => {
-    it('should return 400 when user is a bot', async () => {
-      const spy = vi.spyOn(UserService.prototype, 'getOrCreateUser').mockResolvedValueOnce(null);
-
-      const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'put', '/');
-      const { req, res } = createMockReqRes({ timezone: 'America/New_York' });
-
-      await handler(req, res);
-
-      expect(spy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
-
-      spy.mockRestore();
-    });
-
     it('should reject missing timezone', async () => {
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
@@ -294,8 +277,9 @@ describe('/user/timezone routes', () => {
 
       await handler(req, res);
 
-      // UserService is now used to create/get user
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      // Phase 2: HTTP routes go through getOrCreateUserShell which calls
+      // prisma.user.create directly (no $transaction, no persona creation).
+      expect(mockPrisma.user.create).toHaveBeenCalled();
 
       // Timezone is then updated via direct update
       expect(mockPrisma.user.update).toHaveBeenCalledWith({

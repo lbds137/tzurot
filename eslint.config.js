@@ -145,7 +145,7 @@ export default tseslint.config(
       '@typescript-eslint/await-thenable': 'error',
       'no-return-await': 'error',
 
-      // Pino logger error handling rules
+      // Pino logger error handling + identity-provisioning choke point rules
       'no-restricted-syntax': [
         'error',
         {
@@ -159,6 +159,23 @@ export default tseslint.config(
             'CallExpression[callee.property.name="warn"] > *.arguments:first-child:not(ObjectExpression)',
           message:
             'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
+        },
+        // Identity & Provisioning Hardening (epic Phase 2): all User creation
+        // must route through UserService so deterministic UUIDs, race handling,
+        // and persona backfill stay in one place. Direct prisma.user.create
+        // (and upsert/createMany) is how the snowflake-as-Persona.name bug
+        // shipped in PR #803 — see docs/reference/architecture/epic-identity-hardening.md.
+        {
+          selector:
+            "CallExpression[callee.property.name=/^(create|upsert|createMany)$/][callee.object.property.name='user']",
+          message:
+            'Direct prisma.user.create/upsert/createMany is banned outside UserService. Use userService.getOrCreateUser (for Discord-interaction paths with username) or userService.getOrCreateUserShell (for HTTP routes). See epic-identity-hardening.md Phase 2.',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name=/^(create|upsert|createMany)$/][callee.object.property.name='persona']",
+          message:
+            'Direct prisma.persona.create/upsert/createMany is banned outside UserService and persona/crud.ts. Persona lifecycle must go through the centralized service to preserve the userId+personaId deterministic-UUID invariant.',
         },
       ],
 
@@ -247,6 +264,33 @@ export default tseslint.config(
     ],
     rules: {
       'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
+  // Files exempt from the prisma.user/persona.create ban (epic Phase 2).
+  // These ARE the canonical creation sites — the ban exists to funnel every
+  // other caller through them. Logger rules still apply.
+  {
+    files: [
+      'packages/common-types/src/services/UserService.ts',
+      'services/api-gateway/src/routes/user/persona/crud.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.property.name="error"] > *.arguments:first-child:not(ObjectExpression)',
+          message:
+            'logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
+        },
+        {
+          selector:
+            'CallExpression[callee.property.name="warn"] > *.arguments:first-child:not(ObjectExpression)',
+          message:
+            'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
+        },
+      ],
     },
   },
 
