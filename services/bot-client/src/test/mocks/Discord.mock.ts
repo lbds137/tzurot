@@ -129,6 +129,12 @@ export function createMockGuild(overrides: MockInput<Guild> = EMPTY_OVERRIDES): 
     name: 'Test Server',
     ownerId: '111111111111111111',
     memberCount: 100,
+    // Security-check default: members.fetch resolves to a valid member so that
+    // LinkExtractor.verifyInvokerCanAccessSource passes by default. Security-
+    // specific tests override this to reject.
+    members: {
+      fetch: vi.fn().mockResolvedValue({ id: '111111111111111111' }),
+    } as unknown as Guild['members'],
     // Plain arrow function - we don't need to spy on valueOf()
     valueOf: () => id,
   };
@@ -175,6 +181,14 @@ export function createMockTextChannel(
     isThread: vi.fn(() => false),
     // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
     isTextBased: vi.fn(() => true),
+    // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+    isDMBased: vi.fn(() => false),
+    // Security-check default: permissionsFor returns a permissive stub so that
+    // LinkExtractor.verifyInvokerCanAccessSource passes by default. Security-
+    // specific tests override this to deny.
+    permissionsFor: vi.fn(() => ({
+      has: vi.fn(() => true),
+    })) as unknown as TextChannel['permissionsFor'],
     send: vi.fn().mockResolvedValue(null),
     // Plain arrow functions - we don't need to spy on these
     toString: () => `<#${id}>`,
