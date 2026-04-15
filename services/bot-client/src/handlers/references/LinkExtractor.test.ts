@@ -899,6 +899,14 @@ describe('LinkExtractor', () => {
 
       expect(references).toHaveLength(1);
       expect(mockChannel.messages.fetch).toHaveBeenCalledWith('ref-msg-123');
+      // Assert the permission check ACTUALLY RAN, not just that the happy
+      // path produced the right result. Without this assertion, a future
+      // refactor that accidentally bypasses `permissionsFor()` (e.g., moved
+      // behind an unrelated flag) would still pass this test because the
+      // default permissive mocks would let the expansion succeed regardless.
+      // Closes the "test coverage theater" gap — we now verify both the
+      // outcome AND that the security check is in the code path.
+      expect(mockChannel.permissionsFor).toHaveBeenCalled();
     });
 
     it('denies expansion when invoker lacks ViewChannel on source channel', async () => {
