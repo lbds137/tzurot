@@ -146,10 +146,9 @@ export class TTSStep implements IPipelineStep {
       // is discarded (ttsAudioKey never written), and the audio expires via Redis TTL.
       let timedOut = false;
       let timeoutId: NodeJS.Timeout | undefined;
-      // Single outer budget across both paths (ElevenLabs + voice-engine fallback).
-      // See TTS_MAX_TOTAL_MS comment for the rationale behind the unified budget.
-      const isElevenLabs = elevenlabsApiKey !== undefined;
 
+      // Dispatch based on whether the user has ElevenLabs configured.
+      const isElevenLabs = elevenlabsApiKey !== undefined;
       const ttsPromise = isElevenLabs
         ? this.performElevenLabsTTSWithFallback(text, slug, elevenlabsApiKey, context)
         : this.performVoiceEngineTTS(text, slug, context);
@@ -171,6 +170,8 @@ export class TTSStep implements IPipelineStep {
         }
       );
 
+      // Single outer budget across both paths (ElevenLabs + voice-engine fallback).
+      // See TTS_MAX_TOTAL_MS comment for the rationale behind the unified budget.
       const ttsResult = await Promise.race([
         ttsPromise.finally(() => {
           if (timeoutId !== undefined) {
