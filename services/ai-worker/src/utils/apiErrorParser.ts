@@ -207,10 +207,22 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
     if (error.name === 'AbortError' || /request was aborted/i.test(error.message)) {
       return ApiErrorCategory.TIMEOUT;
     }
-    // OpenRouter/vision API wrap media-fetch 404s inside a 400 response body
-    // (e.g., "400 Received 404 when fetching URL"). Must catch before status
-    // extraction so the wrapping 400 doesn't classify this as retryable BAD_REQUEST.
-    if (/received 404 when fetching url/i.test(error.message)) {
+    // OpenRouter/vision API wrap media-fetch 404s inside a 400 response body.
+    // Must catch before status extraction so the wrapping 400 doesn't classify
+    // this as retryable BAD_REQUEST.
+    //
+    // Observed prod variants (verified from Railway logs 2026-04-14+):
+    //   "400 Received 404 when fetching URL"                        ← minimal
+    //   "400 Received 404 status code when fetching URL"            ← OpenRouter variant
+    //   "400 Received 404 status code when fetching image from URL" ← Google AI Studio variant
+    //   "400 Received 404 when fetching image from URL"             ← plausible variant
+    //
+    // The regex allows up to ~40 chars between "received 404" and "fetching",
+    // and up to ~30 chars between "fetching" and "url", using non-greedy
+    // matching to restrict to a single error-message span. This covers every
+    // observed variant without matching loosely-related content across
+    // different parts of a longer error message.
+    if (/received 404.{0,40}?fetching.{0,30}?url/i.test(error.message)) {
       return ApiErrorCategory.MEDIA_NOT_FOUND;
     }
   }
