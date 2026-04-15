@@ -11,17 +11,17 @@ _Resume after Anthropic auth downtime; council-review Phase 2 design of the Iden
 
 ## Active Task
 
-🏗 **Identity & Provisioning Hardening Epic — Phase 1 + 2 shipped. Phases 3-6 queued.**
+🏗 **Identity & Provisioning Hardening Epic — Phase 1 + 2 shipped (PRs #803, #807, #808). Phase 3 queued for council review.**
 
-Phase 2 (this session): single choke point for user creation. All `prisma.user.create` / `prisma.persona.create` outside UserService + persona/crud.ts are banned at the AST level via ESLint `no-restricted-syntax`. `getOrCreateUser` now returns `ProvisionedUser` (non-null `defaultPersonaId`) so callers can't silently consume a shell user where a full one was expected.
+Phase 2 this session: single choke point for user creation. All `prisma.user.create` / `prisma.persona.create` outside UserService + persona/crud.ts are banned at the AST level via ESLint `no-restricted-syntax`. `getOrCreateUser` now returns `ProvisionedUser` (non-null `defaultPersonaId`) so callers can't silently consume a shell user where a full one was expected. PR #808 applied two review-nit follow-ups on top (tighter int-test assertion + aliasing-bypass note in epic D5).
 
-**Next session entry point**: open PR, verify CI, merge, release. Then pressure-test Phase 3 design (eliminate `PersonaResolver.setUserDefault` side effect).
+**Next session entry point**: council pressure-test of Phase 3 design (eliminate `PersonaResolver.setUserDefault` lazy mutation side effect — ~3 days estimated). Start at `docs/reference/architecture/epic-identity-hardening.md` § Phase 3. Cross-cutting principle: council review BEFORE each phase starts, not mid-implementation.
 
 ---
 
 ## Completed This Session (2026-04-15)
 
-### PR #807 — Identity epic Phase 2 (branch: `feat/identity-phase-2-provisioning-choke-point`)
+### PR #807 — Identity epic Phase 2 — provisioning choke point (merged)
 
 - **Scope discovery**: Phase 1 audit missed 13 `resolveUserIdOrSendError` callers across 9 route files. All migrated to inline `userService.getOrCreateUserShell(discordUserId)`.
 - **Deleted** `services/api-gateway/src/utils/routeHelpers.ts` + its test. The 400-for-bot branch was defensive-only — HTTP routes aren't bot-accessible.
@@ -31,6 +31,12 @@ Phase 2 (this session): single choke point for user creation. All `prisma.user.c
 - **Three bot-client consumers** updated for new shape: `UserContextResolver`, `ReferenceEnrichmentService`, `MentionResolver`.
 - **Council pressure-test** (Gemini 3.1 Pro) right-sized the scope: structural type > branded, ESLint > dep-cruiser, tests exempted entirely. Actual shipped in ~3 hrs vs. ~1-week estimate.
 - Epic living doc updated with D4 (structural ProvisionedUser) and D5 (ESLint + test exemption) decisions.
+- **Post-review follow-up** (commit `20333f4f0` on the same PR): split `backfillDefaultPersona` info/debug logs based on whether we did the backfill or short-circuited behind a concurrent winner. Extracted `PINO_LOGGER_RULES` constant in `eslint.config.js` (reviewer caught this as load-bearing — without extraction, the UserService override would have silently dropped Pino logger enforcement for that file). Historical-note comment in `nsfw.ts` explaining why dropping the old 200-advisory-for-bots is safe. Phase 3 breadcrumb in `UserContextResolver`. +5 tests covering concurrent-backfill branches. UserService.ts coverage: 94.21% → 100% lines, 82.53% → 98.41% branches.
+
+### PR #808 — Phase 2 follow-up nits (merged)
+
+- Tightened `UserService.int.test.ts` backfill assertion from `.not.toBeNull()` to deterministic UUID equality via `generatePersonaUuid(testUsername, userId)`. The test is now a contract for the UUID-generation function, not just the backfill flow.
+- Documented ESLint aliasing-bypass limitation under epic D5 — `const { user } = prisma; user.create(...)` isn't caught by the AST selector. Escalation path (catch in review → dep-cruiser rule if pattern appears) explicitly specified in the decision record.
 
 ### Earlier session (2026-04-14)
 
@@ -102,25 +108,25 @@ pnpm ops logs --service ai-worker --env prod --filter "@level:info attempt" --li
 - Vision: 99 failures / 1000 log lines, 63% AbortError classified as UNKNOWN (should be 0% now)
 - TTS: any failure where ElevenLabs was attempted twice AND voice-engine failed to warm up (should be zero 2-attempt cases now)
 
-**Identity epic Phase 2 scope reminder** (from the pre-Phase-1 audit):
+**Identity epic remaining phases** (detailed in `docs/reference/architecture/epic-identity-hardening.md`):
 
-1. Unify user provisioning — all creation through a single UserService method, no direct `prisma.user.create` outside service
-2. Eliminate `PersonaResolver.setUserDefault` lazy mutation side effect
-3. Kill `discord:XXXX` dual-tier personaId format
-4. DB-level FK constraint `User.defaultPersonaId → Persona.id`
-5. Integration test coverage for the refactor-regression class (would have caught `c88ae5b7`)
+- ~~Phase 2: Unify user provisioning~~ ✅ shipped in PRs #807, #808
+- **Phase 3**: Eliminate `PersonaResolver.setUserDefault` lazy mutation side effect (council review first)
+- Phase 4: Kill `discord:XXXX` dual-tier personaId format
+- Phase 5: DB-level FK constraint `User.defaultPersonaId → Persona.id` + migration
+- Phase 6: Integration test coverage for the refactor-regression class (would have caught `c88ae5b7`)
 
 ---
 
 ## Unreleased on Develop (since beta.97)
 
-_(Empty — Phase 2 still on feature branch pending PR.)_
+- **refactor(common-types)**: Phase 2 Identity Hardening — provisioning choke point (#807, #808). `ProvisionedUser` return shape for `UserService.getOrCreateUser`, ESLint `no-restricted-syntax` ban on direct `prisma.user.create` / `prisma.persona.create` outside UserService + persona/crud.ts, 13 HTTP-route callers migrated to `getOrCreateUserShell`, `routeHelpers.ts` deleted.
 
 ---
 
 ## Previous Sessions
 
-- **2026-04-15**: **Identity epic Phase 2** — provisioning choke point + `ProvisionedUser` type + ESLint guard (PR #807, branch)
+- **2026-04-15**: **Identity epic Phase 2** — provisioning choke point + `ProvisionedUser` type + ESLint guard (PRs #807, #808)
 - **2026-04-14**: **Identity epic Phase 1** + vision retry fix + TTS budget fix + release (PRs #802-#806), beta.97
 - **2026-04-13**: Backlog shrinkage (PRs #794-800), deps update, preset UX, beta.96
 - **2026-04-12**: Voice engine hardening (PR #785), Python hooks, release audit, beta.95
