@@ -4,7 +4,8 @@
  * Extracts referenced messages from Discord message links
  */
 
-import type { Message, Channel, TextChannel, ThreadChannel } from 'discord.js';
+import type { Message, Channel, TextChannel, ThreadChannel, DMChannel } from 'discord.js';
+import { ChannelType, PermissionsBitField } from 'discord.js';
 import { createLogger, INTERVALS } from '@tzurot/common-types';
 import type { ReferencedMessage } from '@tzurot/common-types';
 import { MessageLinkParser, type ParsedMessageLink } from '../../utils/MessageLinkParser.js';
@@ -208,6 +209,26 @@ export class LinkExtractor {
         return null;
       }
 
+      // SECURITY: verify the invoking user (not just the bot) has access to the
+      // source channel before fetching. Without this check, the bot's credentials
+      // would let anyone expand a message link from a channel they cannot see,
+      // leaking private content into the AI reply via context assembly.
+      // Phase 2 of the Identity & Provisioning Hardening epic — see
+      // docs/reference/architecture/epic-identity-hardening.md.
+      const invokerCanAccess = await this.verifyInvokerCanAccessSource(channel, sourceMessage);
+      if (!invokerCanAccess) {
+        logger.debug(
+          {
+            messageId: link.messageId,
+            channelId: link.channelId,
+            guildId: link.guildId,
+            invokerId: sourceMessage.author.id,
+          },
+          '[LinkExtractor] Invoking user lacks access to source channel — skipping expansion'
+        );
+        return null;
+      }
+
       const fetchedMessage = await (channel as TextChannel | ThreadChannel).messages.fetch(
         link.messageId
       );
@@ -258,6 +279,113 @@ export class LinkExtractor {
    */
   private isTextBasedChannel(channel: Channel | null): boolean {
     return channel !== null && channel.isTextBased() && 'messages' in channel;
+  }
+
+  /**
+   * Verify the invoking user (author of sourceMessage) has access to the
+   * source channel of a message link, not just the bot.
+   *
+   * Without this check, the bot's credentials would let anyone expand a
+   * message link from a channel they cannot see, leaking private content
+   * into the AI reply via conversation-context assembly.
+   *
+   * Decision tree:
+   * - **DM source**: allowed iff the invoker is one of the DM participants.
+   *   DMs have no roles/permissions; the participant set is the access set.
+   *   Covers the legitimate "I want to reference my own DM with the bot
+   *   somewhere else" case.
+   * - **Guild source**: fetch the invoker's member record for the SOURCE
+   *   guild (which may differ from where they're invoking from). If the
+   *   invoker isn't a member of the source guild, deny. If they are, check
+   *   `permissionsFor(sourceMember).has(ViewChannel | ReadMessageHistory)`.
+   * - **Thread source**: threads inherit permissions from their parent, BUT
+   *   private threads require explicit access that `ViewChannel` on parent
+   *   does not imply. For private threads we additionally verify the user
+   *   can view the thread itself via `threadMembers.fetch()` presence (a
+   *   private thread has an explicit member list).
+   *
+   * **Fail closed**: if any lookup returns null/undefined unexpectedly (e.g.,
+   * member fetch rejects, thread membership fetch throws), deny access.
+   *
+   * @returns true if the invoker can access the source channel
+   */
+  private async verifyInvokerCanAccessSource(
+    channel: Channel,
+    sourceMessage: Message
+  ): Promise<boolean> {
+    try {
+      const invokerId = sourceMessage.author.id;
+
+      // DM case — check DM participant.
+      // Bots cannot participate in Group DMs (Discord restriction), so a bot's
+      // DM channel is always 1-on-1 (`DMChannel` with a single `recipientId`,
+      // never a `PartialGroupDMChannel`). The invoker is either THE recipient
+      // or not — there's no third option we need to worry about.
+      if (channel.isDMBased()) {
+        const dmChannel = channel as DMChannel;
+        return dmChannel.recipientId === invokerId;
+      }
+
+      // Guild case — invoker must be a member of the SOURCE guild (which may
+      // differ from sourceMessage.guild if this is a cross-guild link)
+      if (!('guild' in channel) || channel.guild === null || channel.guild === undefined) {
+        // Text-based but not a DM and no guild — unexpected. Fail closed.
+        return false;
+      }
+
+      const sourceGuild = channel.guild;
+      let sourceMember;
+      try {
+        // `fetch` with cache preference — returns cached member or falls back
+        // to API call. Throws if the user isn't in the guild.
+        sourceMember = await sourceGuild.members.fetch(invokerId);
+      } catch {
+        // Invoker isn't a member of the source guild. Deny.
+        return false;
+      }
+
+      // Check base channel permissions
+      const permissions = channel.permissionsFor(sourceMember);
+      if (permissions === null) {
+        // Rare: permission calculation failed. Fail closed.
+        return false;
+      }
+      const hasBaseAccess = permissions.has([
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.ReadMessageHistory,
+      ]);
+      if (!hasBaseAccess) {
+        return false;
+      }
+
+      // Thread case — additionally verify private-thread membership.
+      // Public threads inherit parent perms; private threads have an explicit
+      // member list that `ViewChannel` on parent does NOT imply.
+      if (channel.isThread()) {
+        const thread = channel as ThreadChannel;
+        // Private threads have an explicit member list; public and announcement
+        // threads inherit parent-channel access.
+        const isPrivateThread = thread.type === ChannelType.PrivateThread;
+        if (isPrivateThread) {
+          try {
+            const threadMember = await thread.members.fetch(invokerId);
+            return threadMember !== null && threadMember !== undefined;
+          } catch {
+            // Not a thread member. Deny.
+            return false;
+          }
+        }
+      }
+
+      return true;
+    } catch (error) {
+      // Catch-all: any unexpected error during permission checks fails closed.
+      logger.warn(
+        { err: error, invokerId: sourceMessage.author.id, channelId: channel.id },
+        '[LinkExtractor] Unexpected error during access check — failing closed'
+      );
+      return false;
+    }
   }
 
   /**

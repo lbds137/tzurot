@@ -22,8 +22,26 @@ vi.mock('../../utils/MessageLinkParser.js', () => ({
 // Type for mock input - allows any properties to be overridden
 type MockMessageInput = Record<string, unknown>;
 
-// Helper to create mock Discord message
+// Helper to create mock Discord message.
+// Security-check defaults: channel returns a permissive `permissionsFor` result
+// and the guild returns a valid member on `members.fetch`, so existing tests
+// (which don't exercise the access-check path) continue to pass. Security-
+// specific tests in the "access control" describe block override these.
 function createMockMessage(overrides: MockMessageInput = {}): Message {
+  const permissiveChannelMethods = {
+    isDMBased: vi.fn(() => false),
+    isThread: vi.fn(() => false),
+    permissionsFor: vi.fn(() => ({ has: vi.fn(() => true) })),
+  };
+
+  const mockGuild = {
+    id: 'guild-123',
+    name: 'Test Guild',
+    members: {
+      fetch: vi.fn().mockResolvedValue({ id: 'user-123' }),
+    },
+  } as unknown as Guild;
+
   const mockChannel = {
     id: 'channel-123',
     type: 0, // GUILD_TEXT
@@ -31,16 +49,15 @@ function createMockMessage(overrides: MockMessageInput = {}): Message {
     messages: {
       fetch: vi.fn(),
     },
+    guild: mockGuild,
+    ...permissiveChannelMethods,
   } as unknown as TextChannel;
 
-  const mockGuild = {
-    id: 'guild-123',
-    name: 'Test Guild',
-    channels: {
-      cache: new Map([[mockChannel.id, mockChannel as Channel]]),
-      fetch: vi.fn(),
-    },
-  } as unknown as Guild;
+  // Attach the channel into the guild's channel cache now that both exist
+  (mockGuild as any).channels = {
+    cache: new Map([[mockChannel.id, mockChannel as Channel]]),
+    fetch: vi.fn(),
+  };
 
   const mockClient: Partial<Client> = {
     guilds: {
@@ -347,11 +364,18 @@ describe('LinkExtractor', () => {
         channels: {
           cache: new Map(),
         },
+        members: {
+          fetch: vi.fn().mockResolvedValue({ id: 'user-123' }),
+        },
       } as unknown as Guild;
 
       const mockChannel = {
         id: 'channel-456',
         isTextBased: vi.fn(() => true),
+        isThread: vi.fn(() => false),
+        isDMBased: vi.fn(() => false),
+        permissionsFor: vi.fn(() => ({ has: vi.fn(() => true) })),
+        guild: mockGuild,
         messages: {
           fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'ref-msg-456' })),
         },
@@ -434,6 +458,9 @@ describe('LinkExtractor', () => {
         type: 11, // PUBLIC_THREAD
         isTextBased: vi.fn(() => true),
         isThread: vi.fn(() => true),
+        isDMBased: vi.fn(() => false),
+        permissionsFor: vi.fn(() => ({ has: vi.fn(() => true) })),
+        guild: mockGuild,
         messages: {
           fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'thread-msg-789' })),
         },
@@ -822,6 +849,236 @@ describe('LinkExtractor', () => {
       // Should NOT be deduplicated (user message, not bot/webhook)
       expect(references).toHaveLength(1);
       expect(linkMap.size).toBe(1);
+    });
+  });
+
+  // ============================================================================
+  // SECURITY: invoking-user access check on message-link expansion.
+  //
+  // The bot has cross-channel credentials that the invoking user may not share.
+  // Without the invoker-access check, pasting a link to a private #staff channel
+  // in a public channel would let the bot expand the private content into the
+  // AI's context, potentially surfacing in the AI reply the victim user reads.
+  //
+  // These tests cover the access-check decision tree in
+  // `LinkExtractor.verifyInvokerCanAccessSource`:
+  //   - DM source: only DM participant can expand
+  //   - Guild source: invoker must be a guild member AND have ViewChannel +
+  //     ReadMessageHistory on the source channel
+  //   - Private thread: additionally requires thread membership
+  //   - Fail closed: any null/undefined check result denies access
+  // ============================================================================
+  describe('access control (verifyInvokerCanAccessSource)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      // Default: every link parses to the same test link
+      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
+        {
+          fullUrl: 'https://discord.com/channels/guild-123/channel-123/ref-msg-123',
+          guildId: 'guild-123',
+          channelId: 'channel-123',
+          messageId: 'ref-msg-123',
+        },
+      ]);
+    });
+
+    it('allows expansion when invoker has ViewChannel + ReadMessageHistory in same-guild source', async () => {
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
+        createMockMessage({ id: 'ref-msg-123' }) as any
+      );
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(1);
+      expect(mockChannel.messages.fetch).toHaveBeenCalledWith('ref-msg-123');
+    });
+
+    it('denies expansion when invoker lacks ViewChannel on source channel', async () => {
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      // Override permissionsFor to deny
+      (mockChannel as any).permissionsFor = vi.fn(() => ({ has: vi.fn(() => false) }));
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('denies expansion when invoker is not a member of the source guild (cross-guild leak)', async () => {
+      // Classic exploit: bot is in private guild Y, attacker in guild X pastes
+      // a guild-Y link into a guild-X channel. Invoker isn't in guild Y →
+      // members.fetch rejects → deny.
+      const mockMessage = createMockMessage();
+      const mockGuild = mockMessage.guild!;
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      // members.fetch rejects (user not in source guild)
+      vi.mocked(mockGuild.members.fetch).mockRejectedValue(new Error('Unknown Member') as never);
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('allows expansion when invoker is a DM participant (self-reference to own DM)', async () => {
+      // The legitimate case: you're in a DM with the bot and you paste a link
+      // to your own DM message in another conversation. You have access.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      // Override channel to be a DM where invoker (user-123) is the recipient
+      (mockChannel as any).isDMBased = vi.fn(() => true);
+      (mockChannel as any).recipientId = 'user-123';
+      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
+        createMockMessage({ id: 'ref-msg-123' }) as any
+      );
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(1);
+    });
+
+    it('denies expansion when invoker is NOT a DM participant (third-party DM leak)', async () => {
+      // The exploit case: someone else pastes a link to a DM they're not part
+      // of, trying to get the bot to expand it. Deny.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      // DM exists but invoker (user-123) is NOT the recipient
+      (mockChannel as any).isDMBased = vi.fn(() => true);
+      (mockChannel as any).recipientId = 'some-other-user-999';
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('denies expansion for private thread when invoker is not a thread member', async () => {
+      // Private threads (type 12) have an explicit member list. Parent-channel
+      // ViewChannel isn't enough — you must be in the thread's member list.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      (mockChannel as any).isThread = vi.fn(() => true);
+      (mockChannel as any).type = 12; // PrivateThread
+      (mockChannel as any).members = {
+        fetch: vi.fn().mockRejectedValue(new Error('Unknown Member')),
+      };
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('allows expansion for private thread when invoker IS a thread member', async () => {
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      (mockChannel as any).isThread = vi.fn(() => true);
+      (mockChannel as any).type = 12; // PrivateThread
+      (mockChannel as any).members = {
+        fetch: vi.fn().mockResolvedValue({ id: 'user-123' }),
+      };
+      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
+        createMockMessage({ id: 'ref-msg-123' }) as any
+      );
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(1);
+    });
+
+    it('allows expansion for PUBLIC thread (inherits parent permissions, no extra check)', async () => {
+      // Public threads don't have a per-thread member list for access control.
+      // Parent ViewChannel + ReadMessageHistory is sufficient.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      (mockChannel as any).isThread = vi.fn(() => true);
+      (mockChannel as any).type = 11; // PublicThread — NOT private
+      vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
+        createMockMessage({ id: 'ref-msg-123' }) as any
+      );
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(1);
+    });
+
+    it('fails closed when permissionsFor returns null (unexpected Discord.js state)', async () => {
+      // Defense in depth: if Discord.js returns null from permissionsFor for
+      // any reason (malformed member, edge-case channel type), deny rather
+      // than default-allow.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      (mockChannel as any).permissionsFor = vi.fn(() => null);
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
   });
 });
