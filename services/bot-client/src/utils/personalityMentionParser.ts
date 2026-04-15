@@ -20,10 +20,12 @@ const MAX_POTENTIAL_MENTIONS = 10; // Security: Prevent resource exhaustion from
 const POSSESSIVE_SUFFIX = /'s$/i;
 
 /**
- * Strip trailing punctuation from a word — full-strip variant.
- * Matches `trailingPunctuationRegex` used at the message level; used when
- * we assume the trailing period etc. is sentence-ending punctuation, not
- * part of the name ("Hey @Lilith." → "Lilith").
+ * Strip trailing punctuation from a word — full-strip variant. Strips sentence
+ * punctuation (".", "!", "?"), list punctuation (",", ";", ":"), quotes, and
+ * Discord markdown chars (`*_~|`). Used when the trailing period is treated
+ * as sentence-ending punctuation, not part of the name ("Hey @Lilith." →
+ * "Lilith"). Also the regex passed to {@link extractPotentialMentions} for
+ * cleaning the full matched text at the message-spanning level.
  */
 const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|]+$/;
 
@@ -101,15 +103,13 @@ export async function findPersonalityMention(
 
   const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const mentionCharRegex = new RegExp(`^${escapedChar}`);
-  // Discord markdown chars (*_~|) plus standard punctuation - used to strip after extraction
-  const trailingPunctuationRegex = /[.,!?;:)"'*_~|]+$/; // No 'g' flag needed - replace() doesn't use lastIndex
 
   // Step 1: Extract all potential personality names from the message
   const potentialMentions = extractPotentialMentions(
     content,
     escapedChar,
     mentionCharRegex,
-    trailingPunctuationRegex
+    WORD_PUNCTUATION_STRIP_ALL
   );
 
   if (potentialMentions.length === 0) {
@@ -187,6 +187,37 @@ export async function findPersonalityMention(
 }
 
 /**
+ * Add name candidates to the deduplication map, including the possessive-stripped
+ * variant. Extracted to flatten nesting depth in the multi-word extraction loop
+ * (multi-word match × word-count × candidate × possessive = 4 levels deep
+ * inline). Accepts both the full-strip and period-preserving candidate forms
+ * for the two-pass approach.
+ */
+function addMultiWordCandidates(
+  map: Map<string, number>,
+  stripped: string,
+  withPeriod: string,
+  wordCount: number
+): void {
+  // Deduplicate the two variants before storage (often identical for
+  // period-free names like "Bambi Prime").
+  const candidates = stripped === withPeriod ? [stripped] : [stripped, withPeriod];
+
+  for (const name of candidates) {
+    if (!name) {
+      continue;
+    }
+    if (!map.has(name)) {
+      map.set(name, wordCount);
+    }
+    const withoutPossessive = name.replace(POSSESSIVE_SUFFIX, '');
+    if (withoutPossessive !== name && !map.has(withoutPossessive)) {
+      map.set(withoutPossessive, wordCount);
+    }
+  }
+}
+
+/**
  * Extract all potential personality mentions from message content
  *
  * This function performs a two-pass extraction to find both multi-word and single-word
@@ -218,37 +249,6 @@ export async function findPersonalityMention(
  * @param trailingPunctuationRegex - Regex to remove trailing punctuation
  * @returns Array of unique potential mentions with their word counts
  */
-/**
- * Add name candidates to the deduplication map, including the possessive-stripped
- * variant. Extracted to flatten nesting depth in the multi-word extraction loop
- * (multi-word match × word-count × candidate × possessive = 4 levels deep
- * inline). Accepts both the full-strip and period-preserving candidate forms
- * for the two-pass approach.
- */
-function addMultiWordCandidates(
-  map: Map<string, number>,
-  stripped: string,
-  withPeriod: string,
-  wordCount: number
-): void {
-  // Deduplicate the two variants before storage (often identical for
-  // period-free names like "Bambi Prime").
-  const candidates = stripped === withPeriod ? [stripped] : [stripped, withPeriod];
-
-  for (const name of candidates) {
-    if (!name) {
-      continue;
-    }
-    if (!map.has(name)) {
-      map.set(name, wordCount);
-    }
-    const withoutPossessive = name.replace(POSSESSIVE_SUFFIX, '');
-    if (withoutPossessive !== name && !map.has(withoutPossessive)) {
-      map.set(withoutPossessive, wordCount);
-    }
-  }
-}
-
 // eslint-disable-next-line sonarjs/cognitive-complexity -- Extracts multi-word and single-word mentions with deduplication, escape handling, and punctuation stripping
 function extractPotentialMentions(
   content: string,
