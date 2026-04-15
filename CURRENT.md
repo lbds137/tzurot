@@ -15,14 +15,15 @@ _Ship the NOW bundle from last night's vision-pipeline investigation → ship th
 
 Phase 1 (this session, PR #803): tactical heal for persona-snowflake bug. 14 affected users healed in prod. Code-side regression closed via `getOrCreateUserShell`.
 
-**Phase 2 (next session)**: structural refactor. Council-review the epic plan before Phase 2 code work begins. Full epic plan + ADR template + session-end doc infrastructure pending (flagged as "Session-end infrastructure work" below).
+**Next session entry point**: `docs/reference/architecture/epic-identity-hardening.md` — the epic's living document. Start by council-reviewing the Phase 2 design (unify provisioning choke point) before writing any code.
 
-Three more session-end items to address before closing out:
+Session-end infrastructure (all done):
 
-- [ ] Draft the epic's living document (`docs/reference/architecture/epic-identity-hardening.md`)
-- [ ] Create a lightweight ADR template in `docs/reference/templates/`
-- [ ] Update auto-memory with the 7-week recovery context (full-time availability through ~end of May, quality-over-velocity focus)
-- [ ] Plan-file housekeeping (delete merged plans from `~/.claude/plans/`)
+- [x] Epic living doc — `docs/reference/architecture/epic-identity-hardening.md`
+- [x] ADR template — `docs/reference/templates/adr-template.md`
+- [x] Auto-memory refreshed — 7-week recovery window + Identity epic project memory
+- [x] Plan-file housekeeping — `majestic-drifting-lightning.md` deleted (merged)
+- [x] `/tzurot-git-workflow` skill updated with missing GitHub-Release step (procedural gap from this session's release)
 
 ---
 

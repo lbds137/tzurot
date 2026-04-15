@@ -145,7 +145,42 @@ git rebase origin/main
 git push origin develop --force-with-lease
 ```
 
-### 6. Reset CURRENT.md Unreleased Section
+### 6. Tag and Push
+
+Git tag + GitHub Release are **separate** things. The merge does neither — you must:
+
+```bash
+# On main (after the pull above)
+git checkout main
+git tag -a v3.0.0-beta.XX -m "Release v3.0.0-beta.XX: Description"
+git push origin v3.0.0-beta.XX
+```
+
+### 7. Create GitHub Release
+
+The tag is git metadata; the GitHub Release is the user-facing page with notes.
+Both are needed. Use the same release notes prepared in step 2:
+
+```bash
+gh release create v3.0.0-beta.XX \
+  --title "v3.0.0-beta.XX" \
+  --prerelease \
+  --notes "$(cat <<'EOF'
+### Bug Fixes
+- ...
+
+### Improvements
+- ...
+
+**Full Changelog**: https://github.com/lbds137/tzurot/compare/v3.0.0-beta.YY...v3.0.0-beta.XX
+EOF
+)"
+```
+
+`--prerelease` flag is used for all `-beta.*` tags (match existing convention
+via `gh release list`).
+
+### 8. Reset CURRENT.md Unreleased Section
 
 After a release merges to main, reset the "Unreleased on Develop" section in
 CURRENT.md to only track items since the new release tag. Failing to do this
