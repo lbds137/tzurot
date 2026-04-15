@@ -29,6 +29,8 @@ describe('personalityMentionParser', () => {
       { name: 'Administrator', displayName: 'Administrator', systemPrompt: 'Test prompt' },
       { name: 'Angel Dust', displayName: 'Angel Dust', systemPrompt: 'Test prompt' },
       { name: "O'Reilly", displayName: "O'Reilly", systemPrompt: 'Test prompt' },
+      { name: 'Dr. Gregory House', displayName: 'Dr. Gregory House', systemPrompt: 'Test prompt' },
+      { name: 'J.R.R. Tolkien', displayName: 'J.R.R. Tolkien', systemPrompt: 'Test prompt' },
     ]);
   });
 
@@ -146,6 +148,97 @@ describe('personalityMentionParser', () => {
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Bambi Prime');
       expect(result?.cleanContent).toBe('strategy is interesting');
+    });
+  });
+
+  describe('Names with periods (abbreviations)', () => {
+    // User-reported bug (beta.97): "Dr. Gregory House" couldn't be matched
+    // because the per-word trailing-punctuation strip removed the period
+    // from "Dr." before generating candidates, so only "Dr Gregory House"
+    // (no period) was tried — which didn't match any personality.
+    // Fix: two-pass per-word punctuation strip (full vs. period-preserving),
+    // so both "Dr. Gregory House" and "Dr Gregory House" become candidates.
+
+    it('should match personality names containing abbreviation periods', async () => {
+      const result = await findPersonalityMention(
+        '@Dr. Gregory House how are you?',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Dr. Gregory House');
+      expect(result?.cleanContent).toBe('how are you?');
+    });
+
+    it('should match period-name followed by sentence-ending period', async () => {
+      // Trailing period here is sentence-ending, not part of "House"
+      const result = await findPersonalityMention(
+        '@Dr. Gregory House.',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Dr. Gregory House');
+      expect(result?.cleanContent).toBe('');
+    });
+
+    it('should match period-name followed by other punctuation', async () => {
+      const result = await findPersonalityMention(
+        '@Dr. Gregory House, what do you think?',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Dr. Gregory House');
+      expect(result?.cleanContent).toBe('what do you think?');
+    });
+
+    it('should match personality names with multiple abbreviation periods', async () => {
+      const result = await findPersonalityMention(
+        '@J.R.R. Tolkien wrote fantasy novels',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('J.R.R. Tolkien');
+      expect(result?.cleanContent).toBe('wrote fantasy novels');
+    });
+
+    it('should match possessive form of period-containing name', async () => {
+      const result = await findPersonalityMention(
+        "@Dr. Gregory House's diagnosis was correct",
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Dr. Gregory House');
+      expect(result?.cleanContent).toBe('diagnosis was correct');
+    });
+
+    it('should still match simple names without periods (no regression)', async () => {
+      // Regression guard: the new period-preserving pass MUST NOT break the
+      // common case of a name without periods followed by sentence-ending
+      // punctuation.
+      const result = await findPersonalityMention(
+        '@Lilith.',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+      expect(result?.cleanContent).toBe('');
     });
   });
 

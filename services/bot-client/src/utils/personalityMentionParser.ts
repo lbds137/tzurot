@@ -19,6 +19,26 @@ const MAX_POTENTIAL_MENTIONS = 10; // Security: Prevent resource exhaustion from
 /** Strip possessive suffix ('s) from a name candidate to also try the base form */
 const POSSESSIVE_SUFFIX = /'s$/i;
 
+/**
+ * Strip trailing punctuation from a word — full-strip variant.
+ * Matches `trailingPunctuationRegex` used at the message level; used when
+ * we assume the trailing period etc. is sentence-ending punctuation, not
+ * part of the name ("Hey @Lilith." → "Lilith").
+ */
+const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|]+$/;
+
+/**
+ * Strip trailing punctuation from a word — period-preserving variant.
+ * Used to generate alternate candidates when the trailing period might be
+ * semantically part of the name ("@Dr. Gregory House" → "Dr." is preserved
+ * as a candidate prefix, so "Dr. Gregory House" can match). Personalities
+ * with abbreviation-style names ("Dr.", "J.R.R. Tolkien") can't be matched
+ * without this variant. Two-pass approach: try with period → on miss,
+ * fall back to the full-strip version. Both variants feed into the Map,
+ * so lookups resolve whichever actually exists.
+ */
+const WORD_PUNCTUATION_STRIP_NON_PERIOD = /[,!?;:)"'*_~|]+$/;
+
 interface PersonalityMentionResult {
   personalityName: string;
   cleanContent: string;
@@ -198,6 +218,37 @@ export async function findPersonalityMention(
  * @param trailingPunctuationRegex - Regex to remove trailing punctuation
  * @returns Array of unique potential mentions with their word counts
  */
+/**
+ * Add name candidates to the deduplication map, including the possessive-stripped
+ * variant. Extracted to flatten nesting depth in the multi-word extraction loop
+ * (multi-word match × word-count × candidate × possessive = 4 levels deep
+ * inline). Accepts both the full-strip and period-preserving candidate forms
+ * for the two-pass approach.
+ */
+function addMultiWordCandidates(
+  map: Map<string, number>,
+  stripped: string,
+  withPeriod: string,
+  wordCount: number
+): void {
+  // Deduplicate the two variants before storage (often identical for
+  // period-free names like "Bambi Prime").
+  const candidates = stripped === withPeriod ? [stripped] : [stripped, withPeriod];
+
+  for (const name of candidates) {
+    if (!name) {
+      continue;
+    }
+    if (!map.has(name)) {
+      map.set(name, wordCount);
+    }
+    const withoutPossessive = name.replace(POSSESSIVE_SUFFIX, '');
+    if (withoutPossessive !== name && !map.has(withoutPossessive)) {
+      map.set(withoutPossessive, wordCount);
+    }
+  }
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- Extracts multi-word and single-word mentions with deduplication, escape handling, and punctuation stripping
 function extractPotentialMentions(
   content: string,
@@ -222,29 +273,30 @@ function extractPotentialMentions(
         .replace(mentionCharRegex, '') // Remove mention char
         .replace(trailingPunctuationRegex, ''); // Remove trailing punctuation
 
-      // Split into words and remove punctuation from each
-      const words = capturedText
-        .split(/\s+/)
-        .map(word => word.replace(trailingPunctuationRegex, ''));
+      // Split into words and produce TWO variants per word (two-pass approach):
+      // - `words`: full strip — handles "Hey @Lilith." sentence-ending periods
+      // - `wordsWithPeriods`: preserves trailing periods — handles abbreviation
+      //   names like "Dr." in "@Dr. Gregory House". User-reported: "Dr. Gregory
+      //   House" couldn't be matched because the per-word strip removed the
+      //   period from "Dr." before generating candidates, so only
+      //   "Dr Gregory House" (no period) was tried. Both variants feed into
+      //   the Map and the lookup succeeds for whichever matches an actual
+      //   personality name; deduplication prevents candidate explosion.
+      const rawWords = capturedText.split(/\s+/);
+      const words = rawWords.map(word => word.replace(WORD_PUNCTUATION_STRIP_ALL, ''));
+      const wordsWithPeriods = rawWords.map(word =>
+        word.replace(WORD_PUNCTUATION_STRIP_NON_PERIOD, '')
+      );
 
-      // Try combinations from longest to shortest for this match
+      // Try combinations from longest to shortest for this match, using both
+      // per-word variants so abbreviation-style names are discoverable.
       for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
-        const potentialName = words.slice(0, wordCount).join(' ').trim();
-
-        if (!potentialName) {
-          continue;
-        }
-
-        // Store if we haven't seen this name yet
-        if (!potentialMentions.has(potentialName)) {
-          potentialMentions.set(potentialName, wordCount);
-        }
-
-        // Also try without possessive suffix: @Bambi Prime's → Bambi Prime
-        const withoutPossessive = potentialName.replace(POSSESSIVE_SUFFIX, '');
-        if (withoutPossessive !== potentialName && !potentialMentions.has(withoutPossessive)) {
-          potentialMentions.set(withoutPossessive, wordCount);
-        }
+        addMultiWordCandidates(
+          potentialMentions,
+          words.slice(0, wordCount).join(' ').trim(),
+          wordsWithPeriods.slice(0, wordCount).join(' ').trim(),
+          wordCount
+        );
       }
     }
   }
