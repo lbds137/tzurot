@@ -920,6 +920,40 @@ describe('LinkExtractor', () => {
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
+    it('denies expansion when invoker has ViewChannel but not ReadMessageHistory', async () => {
+      // Documents the AND-semantics of the permission check. The production
+      // code asserts BOTH flags via `permissions.has([ViewChannel, ReadMessageHistory])`.
+      // An accidental refactor to `has(ViewChannel)` only would silently
+      // weaken the check — this test would catch that regression.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      // Mock `has()` to return true for ViewChannel alone but false when
+      // both flags are required as an array. This simulates the real
+      // PermissionsBitField.has() behavior: `has(single)` vs `has([a, b])`.
+      (mockChannel as any).permissionsFor = vi.fn(() => ({
+        has: vi.fn((flags: unknown) => {
+          // The production call passes an array of both flags → must return false
+          if (Array.isArray(flags)) {
+            return false;
+          }
+          // A single-flag call (what a weakened refactor might use) → would be true
+          return true;
+        }),
+      }));
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
     it('denies expansion when invoker is not a member of the source guild (cross-guild leak)', async () => {
       // Classic exploit: bot is in private guild Y, attacker in guild X pastes
       // a guild-Y link into a guild-X channel. Invoker isn't in guild Y →

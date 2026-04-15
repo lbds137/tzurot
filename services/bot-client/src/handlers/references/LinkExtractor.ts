@@ -4,7 +4,14 @@
  * Extracts referenced messages from Discord message links
  */
 
-import type { Message, Channel, TextChannel, ThreadChannel, DMChannel } from 'discord.js';
+import type {
+  Message,
+  Channel,
+  TextChannel,
+  ThreadChannel,
+  DMChannel,
+  GuildMember,
+} from 'discord.js';
 import { ChannelType, PermissionsBitField } from 'discord.js';
 import { createLogger, INTERVALS } from '@tzurot/common-types';
 import type { ReferencedMessage } from '@tzurot/common-types';
@@ -334,7 +341,11 @@ export class LinkExtractor {
       }
 
       const sourceGuild = channel.guild;
-      let sourceMember;
+      // Explicit type: `members.fetch(id)` returns `Promise<GuildMember>`, but
+      // the no-args overload returns `Promise<Collection<string, GuildMember>>`.
+      // Annotating prevents a future refactor of the fetch call from silently
+      // widening the type through either overload.
+      let sourceMember: GuildMember | undefined;
       try {
         // `fetch` with cache preference — returns cached member or falls back
         // to API call. Throws if the user isn't in the guild.
