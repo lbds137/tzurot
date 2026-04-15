@@ -454,6 +454,106 @@ describe('UserService', () => {
       });
     });
 
+    it('should return concurrent-winner persona ID when inner transaction finds persona already linked', async () => {
+      // Race: we entered backfill because user.defaultPersonaId was null at the
+      // outer findUnique, but a concurrent request won and linked a persona
+      // before our transaction acquired its snapshot. The inner findUnique
+      // sees the linked persona and we return that ID without re-creating.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: null, // Outer check: no persona → enter backfill
+      });
+
+      const mockPersonaCreate = vi.fn();
+      const mockUserUpdateMany = vi.fn();
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            persona: { create: mockPersonaCreate },
+            user: {
+              // Inner check: concurrent request already linked a different persona
+              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: 'concurrent-persona-id' }),
+              updateMany: mockUserUpdateMany,
+            },
+          };
+          return await callback(mockTx);
+        }
+      );
+
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+
+      expect(result?.defaultPersonaId).toBe('concurrent-persona-id');
+      // Must NOT attempt to create or re-link — another request already did the work
+      expect(mockPersonaCreate).not.toHaveBeenCalled();
+      expect(mockUserUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('should handle P2002 race on persona.create inside backfill transaction', async () => {
+      // Race: two requests enter the backfill transaction simultaneously, both
+      // pass the inner findUnique (defaultPersonaId === null), both try to
+      // persona.create with the same deterministic UUID. The second gets P2002,
+      // we swallow it and continue to updateMany (idempotent).
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: null,
+      });
+
+      const mockPersonaCreate = vi.fn().mockRejectedValue({ code: 'P2002' });
+      const mockUserUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            persona: { create: mockPersonaCreate },
+            user: {
+              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
+              updateMany: mockUserUpdateMany,
+            },
+          };
+          return await callback(mockTx);
+        }
+      );
+
+      const result = await userService.getOrCreateUser('123456', 'testuser');
+
+      // Should succeed despite the P2002 — returns the deterministic persona ID
+      expect(result?.defaultPersonaId).toBe('test-persona-uuid');
+      expect(mockPersonaCreate).toHaveBeenCalled();
+      // updateMany still runs — it's idempotent (WHERE defaultPersonaId = null)
+      expect(mockUserUpdateMany).toHaveBeenCalled();
+    });
+
+    it('should rethrow non-P2002 errors from persona.create inside backfill transaction', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: null,
+      });
+
+      const nonP2002Error = new Error('FK violation or something else');
+      const mockPersonaCreate = vi.fn().mockRejectedValue(nonP2002Error);
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            persona: { create: mockPersonaCreate },
+            user: {
+              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
+              updateMany: vi.fn(),
+            },
+          };
+          return await callback(mockTx);
+        }
+      );
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
+        'FK violation or something else'
+      );
+    });
+
     it('should NOT backfill persona when user already has one', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
@@ -607,6 +707,63 @@ describe('UserService', () => {
       await expect(userService.getOrCreateUserShell('discord-123')).rejects.toThrow(
         'some other DB error'
       );
+    });
+
+    it('should rethrow and log when the initial findUnique itself fails', async () => {
+      // Distinct from the create-path error — this covers the outer catch
+      // block wrapping BOTH the findUnique and the create-with-race path.
+      const findError = new Error('DB connection lost mid-findUnique');
+      mockPrisma.user.findUnique.mockRejectedValueOnce(findError);
+
+      await expect(userService.getOrCreateUserShell('discord-123')).rejects.toThrow(
+        'DB connection lost mid-findUnique'
+      );
+      // user.create should NOT have been attempted
+      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('should return cached userId when getOrCreateUser previously populated the cache', async () => {
+      // The shell path only writes null to the cache — it reads though. If an
+      // earlier getOrCreateUser call (same service instance, same discordId)
+      // populated the cache, the shell path must return that userId without
+      // hitting the DB again.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'cached-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'cached-persona-id',
+      });
+      // First call via full path populates the cache
+      await userService.getOrCreateUser('discord-cached', 'testuser');
+
+      // Now the shell path should hit the cache
+      const result = await userService.getOrCreateUserShell('discord-cached');
+
+      expect(result).toBe('cached-user-id');
+      // Only the initial findUnique (from the first getOrCreateUser call) should
+      // have run — the shell path must NOT have hit the DB.
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('should log superuser promotion when bot owner creates a shell user', async () => {
+      // Shell-path equivalent of the full-path superuser promotion test.
+      // Covers the `shouldBeSuperuser` branch inside createShellUserWithRaceProtection.
+      process.env.BOT_OWNER_ID = '999888777';
+      resetConfig();
+
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.user.create.mockImplementationOnce(({ data }) => {
+        // Verify the data written includes isSuperuser: true
+        expect((data as { isSuperuser: boolean }).isSuperuser).toBe(true);
+        return Promise.resolve({ id: 'test-user-uuid' });
+      });
+
+      const result = await userService.getOrCreateUserShell('999888777');
+
+      expect(result).toBe('test-user-uuid');
+      expect(mockPrisma.user.create).toHaveBeenCalled();
+
+      delete process.env.BOT_OWNER_ID;
     });
   });
 

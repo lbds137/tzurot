@@ -365,8 +365,14 @@ export class UserService {
     const personaDisplayName = displayName ?? username;
     const personaContent = bio ?? '';
 
-    const effectivePersonaId = await this.prisma.$transaction(
-      async (tx: Prisma.TransactionClient): Promise<string> => {
+    // Transaction returns a discriminator so the caller can log the
+    // backfill-we-did vs. backfill-already-happened paths differently.
+    // Prior to this split the info log fired on the no-op path too, making
+    // the two cases indistinguishable in production logs.
+    const result = await this.prisma.$transaction(
+      async (
+        tx: Prisma.TransactionClient
+      ): Promise<{ personaId: string; alreadyBackfilled: boolean }> => {
         // Double-check inside transaction that persona is still needed
         // (another request may have created it between our check and this transaction)
         const user = await tx.user.findUnique({
@@ -379,7 +385,7 @@ export class UserService {
           // Can differ from our deterministic `personaId` if the linked persona
           // was user-selected later via UI (unlikely for a user that just had
           // null defaultPersonaId, but we don't assume).
-          return user.defaultPersonaId;
+          return { personaId: user.defaultPersonaId, alreadyBackfilled: true };
         }
 
         // Create default persona (with P2002 race handling)
@@ -414,15 +420,22 @@ export class UserService {
           data: { defaultPersonaId: personaId },
         });
 
-        return personaId;
+        return { personaId, alreadyBackfilled: false };
       }
     );
 
-    logger.info(
-      { userId, username, personaId: effectivePersonaId },
-      'Backfilled default persona for existing user'
-    );
-    return effectivePersonaId;
+    if (result.alreadyBackfilled) {
+      logger.debug(
+        { userId, personaId: result.personaId },
+        'Persona already backfilled by concurrent request'
+      );
+    } else {
+      logger.info(
+        { userId, username, personaId: result.personaId },
+        'Backfilled default persona for existing user'
+      );
+    }
+    return result.personaId;
   }
 
   /**
