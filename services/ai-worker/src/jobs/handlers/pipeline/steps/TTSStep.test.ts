@@ -606,7 +606,13 @@ describe('TTSStep', () => {
         label: '500 server error',
         error: () => new ElevenLabsApiError(500, 'Internal server error'),
       },
-      { label: '401 auth error', error: () => new ElevenLabsApiError(401, 'Invalid API key') },
+      // 401 is non-retryable per isTransientElevenLabsError. At maxAttempts=1
+      // the transient/non-transient distinction has no runtime effect (both
+      // produce 1 attempt), so it's grouped here alongside transient cases.
+      {
+        label: '401 auth error (non-retryable)',
+        error: () => new ElevenLabsApiError(401, 'Invalid API key'),
+      },
       {
         label: 'network timeout',
         error: () =>
