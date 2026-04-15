@@ -344,8 +344,9 @@ export class LinkExtractor {
       // Explicit type: `members.fetch(id)` returns `Promise<GuildMember>`, but
       // the no-args overload returns `Promise<Collection<string, GuildMember>>`.
       // Annotating prevents a future refactor of the fetch call from silently
-      // widening the type through either overload.
-      let sourceMember: GuildMember | undefined;
+      // widening the type through either overload. The diverging catch below
+      // lets CFA narrow out the uninitialized case — no `| undefined` needed.
+      let sourceMember: GuildMember;
       try {
         // `fetch` with cache preference — returns cached member or falls back
         // to API call. Throws if the user isn't in the guild.
@@ -379,8 +380,11 @@ export class LinkExtractor {
         const isPrivateThread = thread.type === ChannelType.PrivateThread;
         if (isPrivateThread) {
           try {
-            const threadMember = await thread.members.fetch(invokerId);
-            return threadMember !== null && threadMember !== undefined;
+            // `thread.members.fetch(id)` throws if the user isn't a thread
+            // member — it never returns null/undefined — so reaching the
+            // line after the await is itself proof of membership.
+            await thread.members.fetch(invokerId);
+            return true;
           } catch {
             // Not a thread member. Deny.
             return false;

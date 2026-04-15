@@ -954,6 +954,72 @@ describe('LinkExtractor', () => {
       expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
     });
 
+    it('allows expansion when invoker IS a member of the source guild (cross-guild happy path)', async () => {
+      // Critical correctness test: ensures the access check targets the
+      // SOURCE guild (the guild that owns the linked channel) and NOT the
+      // invoker's current guild. A naive refactor using `sourceMessage.guild`
+      // instead of `channel.guild` would still pass the same-guild tests
+      // above but would silently break cross-guild access control — this
+      // test catches that regression by giving the two guilds DIFFERENT
+      // members.fetch mocks and asserting the SOURCE guild's was called.
+      const mockMessage = createMockMessage();
+      const invokerCurrentGuild = mockMessage.guild!;
+
+      // Distinct source guild with its own members.fetch. Invoker IS a
+      // member of this foreign guild → fetch resolves → expansion allowed.
+      const sourceGuildFetch = vi.fn().mockResolvedValue({ id: 'user-123' });
+      const sourceGuild = {
+        id: 'other-guild-999',
+        name: 'Other Guild',
+        members: { fetch: sourceGuildFetch },
+      } as unknown as Guild;
+
+      // Point the test link at the OTHER guild, and swap the mocked channel
+      // onto that guild's resolution path.
+      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
+        {
+          fullUrl: 'https://discord.com/channels/other-guild-999/channel-456/ref-msg-456',
+          guildId: 'other-guild-999',
+          channelId: 'channel-456',
+          messageId: 'ref-msg-456',
+        },
+      ]);
+
+      const foreignChannel = {
+        id: 'channel-456',
+        isTextBased: vi.fn(() => true),
+        isThread: vi.fn(() => false),
+        isDMBased: vi.fn(() => false),
+        permissionsFor: vi.fn(() => ({ has: vi.fn(() => true) })),
+        guild: sourceGuild,
+        messages: {
+          fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'ref-msg-456' })),
+        },
+      } as unknown as TextChannel;
+
+      // Client-level resolution: the link parser hits guilds.fetch → returns
+      // the source guild; guild.channels.cache lookup misses → falls to
+      // client.channels.fetch → returns the foreign channel.
+      vi.mocked(mockMessage.client.guilds.fetch).mockResolvedValue(sourceGuild as any);
+      vi.mocked(mockMessage.client.channels.fetch).mockResolvedValue(foreignChannel as any);
+      (sourceGuild as any).channels = { cache: new Map() };
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(1);
+      // CRITICAL assertions: the SOURCE guild's fetch was called, NOT the
+      // invoker's current guild's fetch. A bug here would pass the denial
+      // test (same-guild-lookup-fails) but fail this one (wrong guild queried).
+      expect(sourceGuildFetch).toHaveBeenCalledWith('user-123');
+      expect(invokerCurrentGuild.members.fetch).not.toHaveBeenCalled();
+    });
+
     it('denies expansion when invoker is not a member of the source guild (cross-guild leak)', async () => {
       // Classic exploit: bot is in private guild Y, attacker in guild X pastes
       // a guild-Y link into a guild-X channel. Invoker isn't in guild Y →
