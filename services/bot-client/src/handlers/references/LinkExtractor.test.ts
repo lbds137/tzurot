@@ -7,7 +7,7 @@ import { LinkExtractor } from './LinkExtractor.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
 import { MessageLinkParser } from '../../utils/MessageLinkParser.js';
-import { MessageReferenceType, Collection } from 'discord.js';
+import { ChannelType, MessageReferenceType, Collection } from 'discord.js';
 import { INTERVALS } from '@tzurot/common-types';
 import type { Message, Guild, Channel, TextChannel, Client, MessageSnapshot } from 'discord.js';
 import type { ReferencedMessage } from '@tzurot/common-types';
@@ -996,7 +996,7 @@ describe('LinkExtractor', () => {
       const mockChannel = mockMessage.channel as TextChannel;
 
       (mockChannel as any).isThread = vi.fn(() => true);
-      (mockChannel as any).type = 12; // PrivateThread
+      (mockChannel as any).type = ChannelType.PrivateThread;
       (mockChannel as any).members = {
         fetch: vi.fn().mockRejectedValue(new Error('Unknown Member')),
       };
@@ -1018,7 +1018,7 @@ describe('LinkExtractor', () => {
       const mockChannel = mockMessage.channel as TextChannel;
 
       (mockChannel as any).isThread = vi.fn(() => true);
-      (mockChannel as any).type = 12; // PrivateThread
+      (mockChannel as any).type = ChannelType.PrivateThread;
       (mockChannel as any).members = {
         fetch: vi.fn().mockResolvedValue({ id: 'user-123' }),
       };
@@ -1044,7 +1044,7 @@ describe('LinkExtractor', () => {
       const mockChannel = mockMessage.channel as TextChannel;
 
       (mockChannel as any).isThread = vi.fn(() => true);
-      (mockChannel as any).type = 11; // PublicThread — NOT private
+      (mockChannel as any).type = ChannelType.PublicThread;
       vi.mocked(mockChannel.messages.fetch).mockResolvedValue(
         createMockMessage({ id: 'ref-msg-123' }) as any
       );
@@ -1068,6 +1068,30 @@ describe('LinkExtractor', () => {
       const mockChannel = mockMessage.channel as TextChannel;
 
       (mockChannel as any).permissionsFor = vi.fn(() => null);
+
+      const [references] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(mockChannel.messages.fetch).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when a non-DM channel has no guild reference (malformed state)', async () => {
+      // Defensive guard: a text-based, non-DM channel should always have a
+      // guild. If Discord.js produces a channel without one (malformed state,
+      // edge-case fetch race), we refuse to proceed rather than assuming it's
+      // safe to expand.
+      const mockMessage = createMockMessage();
+      const mockChannel = mockMessage.channel as TextChannel;
+
+      // Non-DM channel, but guild property is missing (`guild` is still in the
+      // object shape because TextChannel requires it, but we explicitly null it)
+      (mockChannel as any).guild = null;
 
       const [references] = await linkExtractor.extractLinkReferences(
         mockMessage,
