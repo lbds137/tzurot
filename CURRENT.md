@@ -21,7 +21,7 @@ Phase 2 (this session): single choke point for user creation. All `prisma.user.c
 
 ## Completed This Session (2026-04-15)
 
-### PR TBD — Identity epic Phase 2 (branch: `feat/identity-phase-2-provisioning-choke-point`)
+### PR #807 — Identity epic Phase 2 (branch: `feat/identity-phase-2-provisioning-choke-point`)
 
 - **Scope discovery**: Phase 1 audit missed 13 `resolveUserIdOrSendError` callers across 9 route files. All migrated to inline `userService.getOrCreateUserShell(discordUserId)`.
 - **Deleted** `services/api-gateway/src/utils/routeHelpers.ts` + its test. The 400-for-bot branch was defensive-only — HTTP routes aren't bot-accessible.
@@ -120,7 +120,7 @@ _(Empty — Phase 2 still on feature branch pending PR.)_
 
 ## Previous Sessions
 
-- **2026-04-15**: **Identity epic Phase 2** — provisioning choke point + `ProvisionedUser` type + ESLint guard (PR TBD, branch)
+- **2026-04-15**: **Identity epic Phase 2** — provisioning choke point + `ProvisionedUser` type + ESLint guard (PR #807, branch)
 - **2026-04-14**: **Identity epic Phase 1** + vision retry fix + TTS budget fix + release (PRs #802-#806), beta.97
 - **2026-04-13**: Backlog shrinkage (PRs #794-800), deps update, preset UX, beta.96
 - **2026-04-12**: Voice engine hardening (PR #785), Python hooks, release audit, beta.95
