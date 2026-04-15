@@ -35,9 +35,12 @@ const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|]+$/;
  * semantically part of the name ("@Dr. Gregory House" → "Dr." is preserved
  * as a candidate prefix, so "Dr. Gregory House" can match). Personalities
  * with abbreviation-style names ("Dr.", "J.R.R. Tolkien") can't be matched
- * without this variant. Two-pass approach: try with period → on miss,
- * fall back to the full-strip version. Both variants feed into the Map,
- * so lookups resolve whichever actually exists.
+ * without this variant.
+ *
+ * Both the period-preserving and full-strip candidates are inserted into the
+ * Map simultaneously; whichever matches an actual personality name wins at
+ * lookup time. Deduplication prevents candidate explosion for period-free
+ * names (where both variants produce identical strings).
  */
 const WORD_PUNCTUATION_STRIP_NON_PERIOD = /[,!?;:)"'*_~|]+$/;
 
