@@ -18,6 +18,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { UserService } from './UserService.js';
+import { generatePersonaUuid } from '../utils/deterministicUuid.js';
 import { loadPGliteSchema } from '@tzurot/test-utils';
 
 // Mock isBotOwner - will be configured per test
@@ -222,8 +223,12 @@ describe('UserService', () => {
         testDisplayName
       );
 
+      // Persona UUID is deterministic (generatePersonaUuid(username, userId)),
+      // so we can assert the exact expected value rather than a weaker
+      // .not.toBeNull() check.
+      const expectedPersonaId = generatePersonaUuid(testUsername, userId);
       expect(provisioned?.userId).toBe(userId);
-      expect(provisioned?.defaultPersonaId).not.toBeNull();
+      expect(provisioned?.defaultPersonaId).toBe(expectedPersonaId);
 
       // Verify persona was backfilled
       const user = await prisma.user.findUnique({
