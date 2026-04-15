@@ -241,6 +241,52 @@ describe('parseApiError', () => {
       expect(result.category).toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
       expect(result.shouldRetry).toBe(false);
     });
+
+    it('should classify the actual prod OpenRouter variant "400 Received 404 status code when fetching image from URL"', () => {
+      // Verified prod log sample (Railway 2026-04-14). Google AI Studio via
+      // OpenRouter wraps media-fetch 404s with extra phrasing ("status code",
+      // "image from") that the original minimal regex failed to match —
+      // this test locks in the fix for that prod miss.
+      const error = new Error(
+        '400 Received 404 status code when fetching image from URL: https://i.redd.it/ks0yn4k5ed6f1.jpeg'
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+      expect(result.type).toBe(ApiErrorType.PERMANENT);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('should classify OpenRouter variant with "status code" but without "image from"', () => {
+      const error = new Error(
+        '400 Received 404 status code when fetching URL: https://cdn.discordapp.com/attachments/123/456/image.png'
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('should classify variant with "image from" but without "status code"', () => {
+      const error = new Error(
+        'Received 404 when fetching image from URL https://example.com/photo.jpg'
+      );
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+      expect(result.shouldRetry).toBe(false);
+    });
+
+    it('should NOT match loosely-related "404" and "fetching URL" across distant parts of a message', () => {
+      // Defensive: the regex limits distance between anchors to prevent
+      // false positives on longer messages that mention both "404" and
+      // "fetching URL" in unrelated contexts. The bounded .{0,40}? / .{0,30}?
+      // quantifiers restrict matching to a single error-message span.
+      const error = new Error(
+        'Received 404 from upstream validation service. Separately, a retry fetching the secondary URL succeeded eventually after many attempts and some other long explanation.'
+      );
+      const result = parseApiError(error);
+      // Should NOT classify as MEDIA_NOT_FOUND — the 404 is about validation,
+      // not about fetching a URL.
+      expect(result.category).not.toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+    });
   });
 
   describe('network error detection', () => {
