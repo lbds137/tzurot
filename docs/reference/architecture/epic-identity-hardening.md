@@ -1,7 +1,8 @@
 # Epic: Identity & Provisioning Hardening
 
 > **Status**: Active Epic. Phase 1 shipped 2026-04-14 (PR #803, beta.97).
-> Phase 2 shipped 2026-04-15 (PR TBD).
+> Phase 2 shipped 2026-04-15 (PRs #807, #808 — provisioning choke point +
+> review follow-ups, unreleased on develop).
 > Phases 3-6 queued.
 >
 > **Type**: Living document. Update after each phase with outcomes, design
