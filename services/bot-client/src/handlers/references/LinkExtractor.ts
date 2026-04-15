@@ -120,18 +120,20 @@ export class LinkExtractor {
 
   /**
    * Fetch a message from a parsed Discord link
-   * @param link - Parsed message link
-   * @param sourceMessage - Original message (for guild access)
+   * @param link - Parsed message link (the link being expanded)
+   * @param invokingMessage - Message that contains the link (its author is
+   *   the user whose access is being verified). Named to disambiguate from
+   *   the linked-to message, which is what this method FETCHES.
    * @returns Discord message or null if not accessible
    */
   // eslint-disable-next-line complexity, max-lines-per-function -- Discord API requires nested try-catch for guild→channel→message fetch chain with different error codes (10008, 50001, 50013). Extracting would obscure the sequential fetch flow and error handling context.
   async fetchMessageFromLink(
     link: ParsedMessageLink,
-    sourceMessage: Message
+    invokingMessage: Message
   ): Promise<Message | null> {
     try {
       // Try to get guild from cache first
-      let guild = sourceMessage.client.guilds.cache.get(link.guildId);
+      let guild = invokingMessage.client.guilds.cache.get(link.guildId);
 
       // If not in cache, try to fetch it (bot might be in the guild but it's not cached)
       if (!guild) {
@@ -144,7 +146,7 @@ export class LinkExtractor {
             '[LinkExtractor] Guild not in cache, attempting fetch...'
           );
 
-          guild = await sourceMessage.client.guilds.fetch(link.guildId);
+          guild = await invokingMessage.client.guilds.fetch(link.guildId);
 
           logger.info(
             {
@@ -180,7 +182,7 @@ export class LinkExtractor {
             '[LinkExtractor] Channel not in cache, fetching...'
           );
 
-          channel = await sourceMessage.client.channels.fetch(link.channelId);
+          channel = await invokingMessage.client.channels.fetch(link.channelId);
 
           logger.debug(
             {
@@ -222,14 +224,14 @@ export class LinkExtractor {
       // leaking private content into the AI reply via context assembly.
       // Phase 2 of the Identity & Provisioning Hardening epic — see
       // docs/reference/architecture/epic-identity-hardening.md.
-      const invokerCanAccess = await this.verifyInvokerCanAccessSource(channel, sourceMessage);
+      const invokerCanAccess = await this.verifyInvokerCanAccessSource(channel, invokingMessage);
       if (!invokerCanAccess) {
         logger.debug(
           {
             messageId: link.messageId,
             channelId: link.channelId,
             guildId: link.guildId,
-            invokerId: sourceMessage.author.id,
+            invokerId: invokingMessage.author.id,
           },
           '[LinkExtractor] Invoking user lacks access to source channel — skipping expansion'
         );
@@ -289,39 +291,42 @@ export class LinkExtractor {
   }
 
   /**
-   * Verify the invoking user (author of sourceMessage) has access to the
-   * source channel of a message link, not just the bot.
+   * Verify the invoking user (author of `invokingMessage`) has access to
+   * the channel that the link points at, not just the bot.
    *
    * Without this check, the bot's credentials would let anyone expand a
    * message link from a channel they cannot see, leaking private content
    * into the AI reply via conversation-context assembly.
    *
    * Decision tree:
-   * - **DM source**: allowed iff the invoker is one of the DM participants.
+   * - **DM link target**: allowed iff the invoker is the DM participant.
    *   DMs have no roles/permissions; the participant set is the access set.
    *   Covers the legitimate "I want to reference my own DM with the bot
    *   somewhere else" case.
-   * - **Guild source**: fetch the invoker's member record for the SOURCE
-   *   guild (which may differ from where they're invoking from). If the
-   *   invoker isn't a member of the source guild, deny. If they are, check
-   *   `permissionsFor(sourceMember).has(ViewChannel | ReadMessageHistory)`.
-   * - **Thread source**: threads inherit permissions from their parent, BUT
-   *   private threads require explicit access that `ViewChannel` on parent
-   *   does not imply. For private threads we additionally verify the user
-   *   can view the thread itself via `threadMembers.fetch()` presence (a
-   *   private thread has an explicit member list).
+   * - **Guild link target**: fetch the invoker's member record for the
+   *   TARGET guild (which may differ from where they're invoking from —
+   *   cross-guild link case). If the invoker isn't a member of the target
+   *   guild, deny. If they are, check `permissionsFor(member).has(ViewChannel,
+   *   ReadMessageHistory)` on the target channel.
+   * - **Thread target**: threads inherit permissions from their parent,
+   *   BUT private threads require explicit membership that `ViewChannel`
+   *   on the parent does not imply. For private threads we additionally
+   *   verify the user is in the thread's member list via `thread.members.fetch()`.
    *
-   * **Fail closed**: if any lookup returns null/undefined unexpectedly (e.g.,
-   * member fetch rejects, thread membership fetch throws), deny access.
+   * **Fail closed**: if any lookup returns null/undefined unexpectedly
+   * (e.g., member fetch rejects, thread membership fetch throws), deny.
    *
-   * @returns true if the invoker can access the source channel
+   * @param channel - The channel the link points at (NOT the invoking channel)
+   * @param invokingMessage - The message containing the link. Its author is
+   *   the user whose access is being verified.
+   * @returns true if the invoker can access the channel the link points at
    */
   private async verifyInvokerCanAccessSource(
     channel: Channel,
-    sourceMessage: Message
+    invokingMessage: Message
   ): Promise<boolean> {
     try {
-      const invokerId = sourceMessage.author.id;
+      const invokerId = invokingMessage.author.id;
 
       // DM case — check DM participant.
       // Bots cannot participate in Group DMs (Discord restriction), so a bot's
@@ -333,8 +338,11 @@ export class LinkExtractor {
         return dmChannel.recipientId === invokerId;
       }
 
-      // Guild case — invoker must be a member of the SOURCE guild (which may
-      // differ from sourceMessage.guild if this is a cross-guild link)
+      // Guild case — invoker must be a member of the TARGET guild (which may
+      // differ from invokingMessage.guild if this is a cross-guild link).
+      // The `'guild' in channel` + null checks also serve to narrow `channel`
+      // from the broad `Channel` type to a guild-channel variant so that
+      // `channel.permissionsFor()` below is type-safe to call.
       if (!('guild' in channel) || channel.guild === null || channel.guild === undefined) {
         // Text-based but not a DM and no guild — unexpected. Fail closed.
         return false;
@@ -396,7 +404,7 @@ export class LinkExtractor {
     } catch (error) {
       // Catch-all: any unexpected error during permission checks fails closed.
       logger.warn(
-        { err: error, invokerId: sourceMessage.author.id, channelId: channel.id },
+        { err: error, invokerId: invokingMessage.author.id, channelId: channel.id },
         '[LinkExtractor] Unexpected error during access check — failing closed'
       );
       return false;
