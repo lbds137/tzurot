@@ -72,6 +72,15 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
       // Ensure user exists via centralized UserService. Shell creation — no
       // username context on HTTP routes, persona backfilled on first Discord
       // interaction. See UserService.getOrCreateUserShell for rationale.
+      //
+      // Historical note: the prior implementation used the `resolveUserIdOrSendError`
+      // helper, which returned `200 { nsfwVerified: false }` as an advisory for bot
+      // user IDs rather than creating a record. That carve-out was defensive-only
+      // (HTTP routes aren't reachable by bots — they authenticate via Discord
+      // interactions, which happen through bot-client's UserContextResolver path
+      // that rejects bots upstream). The ban on direct prisma.user.create calls
+      // (eslint.config.js) enforces that all user provisioning goes through
+      // UserService, so the simpler shell-creation path here is safe.
       const userId = await userService.getOrCreateUserShell(discordUserId);
 
       // Check if already verified

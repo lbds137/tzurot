@@ -9,6 +9,25 @@ import tzurotPlugin from './packages/tooling/dist/eslint/index.js';
 // Get the directory name of the current module (monorepo root)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Shared Pino logger rules — applied in the main TS block AND re-applied in
+// the UserService/persona-crud override block (which otherwise resets the
+// full `no-restricted-syntax` array and would drop these rules for those
+// files). Extracted to avoid silent drift if the selectors change.
+const PINO_LOGGER_RULES = [
+  {
+    selector:
+      'CallExpression[callee.property.name="error"] > *.arguments:first-child:not(ObjectExpression)',
+    message:
+      'logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
+  },
+  {
+    selector:
+      'CallExpression[callee.property.name="warn"] > *.arguments:first-child:not(ObjectExpression)',
+    message:
+      'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
+  },
+];
+
 export default tseslint.config(
   // Base configurations
   js.configs.recommended,
@@ -145,21 +164,21 @@ export default tseslint.config(
       '@typescript-eslint/await-thenable': 'error',
       'no-return-await': 'error',
 
-      // Pino logger error handling + identity-provisioning choke point rules
+      // Pino logger error handling + identity-provisioning choke point rules.
+      //
+      // The identity-provisioning selectors below match the syntactic pattern
+      // `X.user.create(...)` / `X.persona.create(...)`. They do NOT catch
+      // bypasses via aliasing:
+      //     const u = prisma.user; u.create(...)          // NOT flagged
+      //     const { user } = prisma; user.create(...)     // NOT flagged
+      // Type-flow analysis would be needed for exhaustive coverage. In
+      // practice nobody destructures `prisma.user` in this codebase, so the
+      // syntactic rule is a strong first line of defense. If that changes,
+      // either stop the destructure in review or extend this with a
+      // dependency-cruiser rule that catches the import-level pattern.
       'no-restricted-syntax': [
         'error',
-        {
-          selector:
-            'CallExpression[callee.property.name="error"] > *.arguments:first-child:not(ObjectExpression)',
-          message:
-            'logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
-        },
-        {
-          selector:
-            'CallExpression[callee.property.name="warn"] > *.arguments:first-child:not(ObjectExpression)',
-          message:
-            'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
-        },
+        ...PINO_LOGGER_RULES,
         // Identity & Provisioning Hardening (epic Phase 2): all User creation
         // must route through UserService so deterministic UUIDs, race handling,
         // and persona backfill stay in one place. Direct prisma.user.create
@@ -269,28 +288,14 @@ export default tseslint.config(
 
   // Files exempt from the prisma.user/persona.create ban (epic Phase 2).
   // These ARE the canonical creation sites — the ban exists to funnel every
-  // other caller through them. Logger rules still apply.
+  // other caller through them. Logger rules still apply via PINO_LOGGER_RULES.
   {
     files: [
       'packages/common-types/src/services/UserService.ts',
       'services/api-gateway/src/routes/user/persona/crud.ts',
     ],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector:
-            'CallExpression[callee.property.name="error"] > *.arguments:first-child:not(ObjectExpression)',
-          message:
-            'logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
-        },
-        {
-          selector:
-            'CallExpression[callee.property.name="warn"] > *.arguments:first-child:not(ObjectExpression)',
-          message:
-            'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...PINO_LOGGER_RULES],
     },
   },
 

@@ -86,7 +86,13 @@ export async function resolveUserContext(
 ): Promise<UserContextResult> {
   const { userService, personaResolver, prisma } = deps;
 
-  // Get internal user ID for database operations
+  // Get internal user ID for database operations.
+  //
+  // `provisioned.defaultPersonaId` is available here but currently unused —
+  // PersonaResolver below re-resolves per (user, personality) combination.
+  // Phase 3 of the identity epic will eliminate `PersonaResolver.setUserDefault`'s
+  // lazy mutation side effect, at which point this caller can short-circuit
+  // the persona lookup for the user-default case using `provisioned.defaultPersonaId`.
   const provisioned = await userService.getOrCreateUser(
     user.id,
     user.username,
