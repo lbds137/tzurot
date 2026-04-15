@@ -1,33 +1,38 @@
 # Current
 
-> **Session**: 2026-04-14
-> **Version**: v3.0.0-beta.97
+> **Session**: 2026-04-15
+> **Version**: v3.0.0-beta.97 (unreleased: Phase 2 on develop)
 
 ---
 
 ## Session Goal
 
-_Ship the NOW bundle from last night's vision-pipeline investigation → ship the PRs that surfaced along the way → cut a release._ Ended up shipping **four PRs + a release** in one sitting, driven by two prod incidents surfaced mid-session (persona identity confusion + TTS voice failure).\_
+_Resume after Anthropic auth downtime; council-review Phase 2 design of the Identity & Provisioning Hardening Epic, then ship the implementation._ Done: beta.97 prod-validated, Phase 2 shipped on `feat/identity-phase-2-provisioning-choke-point` branch.
 
 ## Active Task
 
-🏗 **Identity & Provisioning Hardening Epic — Phase 1 shipped, Phase 2 queued.**
+🏗 **Identity & Provisioning Hardening Epic — Phase 1 + 2 shipped. Phases 3-6 queued.**
 
-Phase 1 (this session, PR #803): tactical heal for persona-snowflake bug. 14 affected users healed in prod. Code-side regression closed via `getOrCreateUserShell`.
+Phase 2 (this session): single choke point for user creation. All `prisma.user.create` / `prisma.persona.create` outside UserService + persona/crud.ts are banned at the AST level via ESLint `no-restricted-syntax`. `getOrCreateUser` now returns `ProvisionedUser` (non-null `defaultPersonaId`) so callers can't silently consume a shell user where a full one was expected.
 
-**Next session entry point**: `docs/reference/architecture/epic-identity-hardening.md` — the epic's living document. Start by council-reviewing the Phase 2 design (unify provisioning choke point) before writing any code.
-
-Session-end infrastructure (all done):
-
-- [x] Epic living doc — `docs/reference/architecture/epic-identity-hardening.md`
-- [x] ADR template — `docs/reference/templates/adr-template.md`
-- [x] Auto-memory refreshed — 7-week recovery window + Identity epic project memory
-- [x] Plan-file housekeeping — `majestic-drifting-lightning.md` deleted (merged)
-- [x] `/tzurot-git-workflow` skill updated with missing GitHub-Release step (procedural gap from this session's release)
+**Next session entry point**: open PR, verify CI, merge, release. Then pressure-test Phase 3 design (eliminate `PersonaResolver.setUserDefault` side effect).
 
 ---
 
-## Completed This Session
+## Completed This Session (2026-04-15)
+
+### PR TBD — Identity epic Phase 2 (branch: `feat/identity-phase-2-provisioning-choke-point`)
+
+- **Scope discovery**: Phase 1 audit missed 13 `resolveUserIdOrSendError` callers across 9 route files. All migrated to inline `userService.getOrCreateUserShell(discordUserId)`.
+- **Deleted** `services/api-gateway/src/utils/routeHelpers.ts` + its test. The 400-for-bot branch was defensive-only — HTTP routes aren't bot-accessible.
+- **`getOrCreateUser` return type**: `Promise<string | null>` → `Promise<ProvisionedUser | null>` where `ProvisionedUser = { userId; defaultPersonaId }`. Non-null `defaultPersonaId` is a structural assertion of full provisioning.
+- **`runMaintenanceTasks` + `backfillDefaultPersona`** now return the effective persona id so cold-path lookups propagate the authoritative value even when backfill just-ran or short-circuited.
+- **ESLint rule**: `no-restricted-syntax` bans `X.user.{create,upsert,createMany}` and `X.persona.{create,upsert,createMany}` outside `UserService.ts` and `persona/crud.ts`. Verified the AST selector doesn't false-positive on `mockPrisma.user.create.mockResolvedValue(...)`.
+- **Three bot-client consumers** updated for new shape: `UserContextResolver`, `ReferenceEnrichmentService`, `MentionResolver`.
+- **Council pressure-test** (Gemini 3.1 Pro) right-sized the scope: structural type > branded, ESLint > dep-cruiser, tests exempted entirely. Actual shipped in ~3 hrs vs. ~1-week estimate.
+- Epic living doc updated with D4 (structural ProvisionedUser) and D5 (ESLint + test exemption) decisions.
+
+### Earlier session (2026-04-14)
 
 ### PR #802 — Vision-pipeline diagnostic bundle
 
@@ -109,12 +114,13 @@ pnpm ops logs --service ai-worker --env prod --filter "@level:info attempt" --li
 
 ## Unreleased on Develop (since beta.97)
 
-_(Empty — release just shipped.)_
+_(Empty — Phase 2 still on feature branch pending PR.)_
 
 ---
 
 ## Previous Sessions
 
+- **2026-04-15**: **Identity epic Phase 2** — provisioning choke point + `ProvisionedUser` type + ESLint guard (PR TBD, branch)
 - **2026-04-14**: **Identity epic Phase 1** + vision retry fix + TTS budget fix + release (PRs #802-#806), beta.97
 - **2026-04-13**: Backlog shrinkage (PRs #794-800), deps update, preset UX, beta.96
 - **2026-04-12**: Voice engine hardening (PR #785), Python hooks, release audit, beta.95

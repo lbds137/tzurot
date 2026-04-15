@@ -70,7 +70,7 @@ const mockPrisma = {
 
 import { createModelOverrideRoutes } from './model-override.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import { UserService, type PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
@@ -218,26 +218,6 @@ describe('/user/model-override routes', () => {
   });
 
   describe('PUT /user/model-override', () => {
-    it('should return 400 when user is a bot', async () => {
-      const spy = vi.spyOn(UserService.prototype, 'getOrCreateUser').mockResolvedValueOnce(null);
-
-      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'put', '/');
-      const { req, res } = createMockReqRes({
-        personalityId: '11111111-1111-4111-a111-111111111111',
-        configId: '22222222-2222-4222-a222-222222222222',
-      });
-
-      await handler(req, res);
-
-      expect(spy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
-
-      spy.mockRestore();
-    });
-
     it('should reject missing personalityId', async () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
@@ -315,6 +295,8 @@ describe('/user/model-override routes', () => {
     });
 
     it('should create user if not exists', async () => {
+      // getOrCreateUserShell calls findUnique first; override beforeEach's user result to null
+      mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
       mockPrisma.personality.findFirst.mockResolvedValue({
@@ -341,8 +323,8 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      // UserService creates users via $transaction, not direct create
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      // getOrCreateUserShell creates users via direct user.create
+      expect(mockPrisma.user.create).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -538,24 +520,6 @@ describe('/user/model-override routes', () => {
   });
 
   describe('PUT /user/model-override/default', () => {
-    it('should return 400 when user is a bot', async () => {
-      const spy = vi.spyOn(UserService.prototype, 'getOrCreateUser').mockResolvedValueOnce(null);
-
-      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({
-        configId: '22222222-2222-4222-a222-222222222222',
-      });
-
-      await handler(req, res);
-
-      expect(spy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-
-      spy.mockRestore();
-    });
-
     it('should reject missing configId', async () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/default');
@@ -599,6 +563,8 @@ describe('/user/model-override routes', () => {
     });
 
     it('should create user if not exists', async () => {
+      // getOrCreateUserShell calls findUnique first; override beforeEach's user result to null
+      mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
@@ -612,8 +578,8 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      // UserService creates users via $transaction, not direct create
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      // getOrCreateUserShell creates users via direct user.create
+      expect(mockPrisma.user.create).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 

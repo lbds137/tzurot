@@ -163,7 +163,7 @@ export class MentionResolver {
       const displayName = discordUser.globalName ?? discordUser.username;
 
       // Get or create user + default persona (skip bots)
-      const userId = await this.userService.getOrCreateUser(
+      const provisioned = await this.userService.getOrCreateUser(
         discordUser.id,
         discordUser.username,
         displayName,
@@ -172,9 +172,11 @@ export class MentionResolver {
       );
 
       // Skip bots - they don't have personas
-      if (userId === null) {
+      if (provisioned === null) {
         return null;
       }
+
+      const userId = provisioned.userId;
 
       // Get persona for this user + personality combination
       // Uses PersonaResolver with proper cache invalidation via Redis pub/sub

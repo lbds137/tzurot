@@ -10,8 +10,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
 // Hoisted mocks
-const { mockGetOrCreateUser, mockResolveOverrides } = vi.hoisted(() => ({
+const { mockGetOrCreateUser, mockGetOrCreateUserShell, mockResolveOverrides } = vi.hoisted(() => ({
   mockGetOrCreateUser: vi.fn().mockResolvedValue('internal-user-id'),
+  mockGetOrCreateUserShell: vi.fn().mockResolvedValue('internal-user-id'),
   mockResolveOverrides: vi.fn().mockResolvedValue({
     maxMessages: 50,
     maxAge: null,
@@ -41,6 +42,7 @@ vi.mock('@tzurot/common-types', async () => {
 
   class MockUserService {
     getOrCreateUser = mockGetOrCreateUser;
+    getOrCreateUserShell = mockGetOrCreateUserShell;
   }
 
   class MockConfigCascadeResolver {
@@ -148,22 +150,6 @@ describe('/user/config-overrides personality routes', () => {
   });
 
   describe('PATCH /personality/:personalityId', () => {
-    it('should return 400 when user is a bot', async () => {
-      mockGetOrCreateUser.mockResolvedValueOnce(null);
-
-      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'patch', '/personality/:personalityId');
-      const { req, res } = createMockReqRes(
-        { maxMessages: 25 },
-        { personalityId: TEST_PERSONALITY_ID }
-      );
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-    });
-
     it('should reject non-UUID personalityId', async () => {
       const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'patch', '/personality/:personalityId');

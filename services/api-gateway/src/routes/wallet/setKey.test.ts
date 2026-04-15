@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
-import { AIProvider, UserService } from '@tzurot/common-types';
+import { AIProvider } from '@tzurot/common-types';
 
 // Mock apiKeyValidation module
 vi.mock('../../utils/apiKeyValidation.js', () => ({
@@ -193,24 +193,6 @@ describe('POST /wallet/set', () => {
   });
 
   describe('API key validation', () => {
-    it('should return 400 when user is a bot', async () => {
-      const spy = vi.spyOn(UserService.prototype, 'getOrCreateUser').mockResolvedValueOnce(null);
-
-      const { req, res } = createMockReqRes({
-        provider: AIProvider.OpenRouter,
-        apiKey: 'sk-valid-key',
-      });
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(spy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-      expect(mockPrisma.userApiKey.upsert).not.toHaveBeenCalled();
-
-      spy.mockRestore();
-    });
-
     it('should validate API key with provider', async () => {
       const { req, res } = createMockReqRes({
         provider: AIProvider.OpenRouter,
@@ -322,7 +304,7 @@ describe('POST /wallet/set', () => {
           where: { discordId: 'discord-user-123' },
         })
       );
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPrisma.user.create).toHaveBeenCalled();
     });
 
     it('should encrypt and store API key', async () => {
@@ -413,9 +395,9 @@ describe('POST /wallet/set', () => {
 
       await callHandler(mockPrisma, req, res);
 
-      // User creation is now handled by UserService which uses $transaction
-      // Verify user was created by checking the transaction was called
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      // User creation is now handled by UserService which uses direct user.create
+      // Verify user was created by checking user.create was called
+      expect(mockPrisma.user.create).toHaveBeenCalled();
 
       // API key should be stored with the user ID returned by UserService
       expect(mockPrisma.userApiKey.upsert).toHaveBeenCalled();

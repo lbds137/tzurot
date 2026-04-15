@@ -73,9 +73,6 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 
 // Mock validateLlmConfigModelFields so tests can force early-return on
 // invalid-model paths without orchestrating full model cache + Zod responses.
-// resolveUserIdOrSendError is NOT mocked here — tests that need the bot-user
-// early-return path spy on UserService.prototype.getOrCreateUser directly so
-// existing tests asserting on UserService.$transaction side effects still work.
 const { mockValidateLlmConfigModelFields } = vi.hoisted(() => ({
   mockValidateLlmConfigModelFields: vi.fn().mockResolvedValue(true),
 }));
@@ -139,7 +136,7 @@ const mockCacheInvalidation = {
 
 import { createLlmConfigRoutes } from './llm-config.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import { UserService, type PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
@@ -378,25 +375,6 @@ describe('/user/llm-config routes', () => {
   });
 
   describe('POST /user/llm-config', () => {
-    it('should return 400 when user is a bot', async () => {
-      const getOrCreateUserSpy = vi
-        .spyOn(UserService.prototype, 'getOrCreateUser')
-        .mockResolvedValueOnce(null);
-
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'post', '/');
-      const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
-
-      await handler(req, res);
-
-      expect(getOrCreateUserSpy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-      expect(mockPrisma.llmConfig.create).not.toHaveBeenCalled();
-
-      getOrCreateUserSpy.mockRestore();
-    });
-
     it('should return 400 when model validation fails on create', async () => {
       // Mock req/res approach — no real HTTP client, so returning `false` without
       // calling res.status()/res.json() is safe. Contrast with admin/llm-config.test.ts
@@ -586,6 +564,8 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should create user if not exists', async () => {
+      // getOrCreateUserShell calls findUnique first; override beforeEach's user result to null
+      mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
       mockPrisma.llmConfig.create.mockResolvedValue({
@@ -605,8 +585,8 @@ describe('/user/llm-config routes', () => {
 
       await handler(req, res);
 
-      // UserService creates users via $transaction
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      // Phase 2: HTTP routes use getOrCreateUserShell → direct user.create (no transaction)
+      expect(mockPrisma.user.create).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
   });

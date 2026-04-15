@@ -115,7 +115,10 @@ describe('ReferenceEnrichmentService', () => {
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      mockUserService.getOrCreateUser.mockResolvedValue('user-123');
+      mockUserService.getOrCreateUser.mockResolvedValue({
+        userId: 'user-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve is already mocked in beforeEach with persona-123
 
       await service.enrichWithPersonaNames(references, conversationHistory, 'personality-123');
@@ -139,7 +142,10 @@ describe('ReferenceEnrichmentService', () => {
       const conversationHistory: ConversationMessage[] = []; // Empty history
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      mockUserService.getOrCreateUser.mockResolvedValue('user-123');
+      mockUserService.getOrCreateUser.mockResolvedValue({
+        userId: 'user-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // Override persona resolver to return persona-456
       mockPersonaResolver.resolve.mockResolvedValue({
         config: {
@@ -249,8 +255,8 @@ describe('ReferenceEnrichmentService', () => {
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       mockUserService.getOrCreateUser
-        .mockResolvedValueOnce('user-1')
-        .mockResolvedValueOnce('user-2');
+        .mockResolvedValueOnce({ userId: 'user-1', defaultPersonaId: 'persona-1' })
+        .mockResolvedValueOnce({ userId: 'user-2', defaultPersonaId: 'persona-2' });
       // Override persona resolver to return different personas for each user
       mockPersonaResolver.resolve
         .mockResolvedValueOnce({
@@ -290,7 +296,10 @@ describe('ReferenceEnrichmentService', () => {
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      mockUserService.getOrCreateUser.mockResolvedValue('user-123');
+      mockUserService.getOrCreateUser.mockResolvedValue({
+        userId: 'user-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve returns persona-123 by default (from beforeEach)
       mockUserService.getPersonaName.mockResolvedValue(null);
 
@@ -356,7 +365,10 @@ describe('ReferenceEnrichmentService', () => {
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      mockUserService.getOrCreateUser.mockResolvedValue('user-123');
+      mockUserService.getOrCreateUser.mockResolvedValue({
+        userId: 'user-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve returns persona-123 by default (from beforeEach)
       mockUserService.getPersonaName.mockResolvedValue('Johnny');
 
@@ -407,7 +419,10 @@ describe('ReferenceEnrichmentService', () => {
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      mockUserService.getOrCreateUser.mockResolvedValue('user-123');
+      mockUserService.getOrCreateUser.mockResolvedValue({
+        userId: 'user-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // Override persona resolver to return persona-1 which is in the conversation history
       mockPersonaResolver.resolve.mockResolvedValue({
         config: {

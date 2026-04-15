@@ -22,7 +22,6 @@ import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
 } from '../../utils/configOverrideHelpers.js';
-import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
@@ -77,10 +76,7 @@ export function createPersonalityConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await resolveUserIdOrSendError(userService, req.userId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(req.userId);
 
       // Verify creator ownership
       const personality = await prisma.personality.findUnique({

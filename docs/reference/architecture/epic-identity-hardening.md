@@ -1,7 +1,8 @@
 # Epic: Identity & Provisioning Hardening
 
 > **Status**: Active Epic. Phase 1 shipped 2026-04-14 (PR #803, beta.97).
-> Phases 2-6 queued pending MCP council review.
+> Phase 2 shipped 2026-04-15 (PR TBD).
+> Phases 3-6 queued.
 >
 > **Type**: Living document. Update after each phase with outcomes, design
 > decisions, and next-phase entry points. This is the source of truth for
@@ -76,19 +77,46 @@ existing `runMaintenanceTasks`.
 - Drop `userCache.set` from shell path (singleton-hazard prevention)
 - DRY'd `P2002` race recovery into `fetchExistingUserAfterRace` helper
 
-### Phase 2 — Unify user provisioning (~1 week, PENDING council review)
+### Phase 2 — Unify user provisioning ✅ (shipped 2026-04-15)
 
 **Goal**: Single choke point for user creation. No direct
 `prisma.user.create` outside `UserService`. All callers use one of the
 two documented entry points (`getOrCreateUser` full, `getOrCreateUserShell`
 HTTP).
 
-- Audit + eliminate direct `prisma.user.create` in test files
-- CI rule (lint/depcruise) banning `prisma.user.create` imports outside
-  `UserService`
-- Return a typed `ProvisionedUser` certificate from `getOrCreateUser`
-  (non-nullable `defaultPersonaId`) so callers can't silently consume a
-  shell user where a full one was expected
+Shipped:
+
+- Scope expansion: discovered 13 more `resolveUserIdOrSendError` callers
+  across 9 route files (the Phase 1 audit missed them). All migrated to
+  `userService.getOrCreateUserShell(discordUserId)` inline.
+- Deleted `services/api-gateway/src/utils/routeHelpers.ts` and its test
+  (the 400-for-bot branch was defensive-only — HTTP routes aren't
+  bot-accessible in practice).
+- `UserService.getOrCreateUser` return type changed from
+  `Promise<string | null>` to `Promise<ProvisionedUser | null>` where
+  `ProvisionedUser = { userId: string; defaultPersonaId: string }`. The
+  non-null `defaultPersonaId` is a structural assertion that the user is
+  fully provisioned (both User and Persona rows exist).
+- `runMaintenanceTasks` and `backfillDefaultPersona` now return the
+  effective `defaultPersonaId` instead of `void`, so a cold-path
+  `getOrCreateUser` call can propagate the authoritative id even when
+  backfill just-ran or short-circuited-because-already-backfilled.
+- ESLint `no-restricted-syntax` rule bans direct
+  `prisma.user.{create,upsert,createMany}` and
+  `prisma.persona.{create,upsert,createMany}` outside `UserService.ts`
+  and `persona/crud.ts`. Test files exempted via existing glob ignores.
+  Verified the rule fires on synthetic violations and does NOT false-
+  positive on `mockPrisma.user.create.mockResolvedValue(...)` (the mock
+  access is a property chain, not a CallExpression ending in `.create`).
+- Three bot-client consumers updated for the new return shape:
+  `UserContextResolver`, `ReferenceEnrichmentService`, `MentionResolver`.
+- `getOrCreateUsersInBatch` internally extracts `.userId` from the new
+  shape; external `Map<string, string>` contract unchanged.
+
+Scope that shrank: the original "~1 week" estimate assumed a larger
+surface. Council review (Gemini 3.1 Pro) right-sized the scope: structural
+type over branded, ESLint over dep-cruiser, tests exempted entirely.
+Actual shipped in ~2-3 hours.
 
 ### Phase 3 — Eliminate `PersonaResolver.setUserDefault` side effect (~3 days)
 
@@ -174,6 +202,35 @@ visibility.
 **Rationale**: Identity (name, pronouns, guild info) is valuable to
 the LLM even without a bio. The silent drop was masking identity gaps.
 Fail loud, don't fail silent.
+
+### D4 (Phase 2) — Structural `ProvisionedUser`, not branded
+
+**Chose**: `interface ProvisionedUser { userId: string; defaultPersonaId: string }`
+— a plain structural type, not a branded nominal type.
+
+**Rationale**: Council (Gemini 3.1 Pro) pushed back on the initial
+branded-type proposal: the value of a brand is enforcing that "only code
+that checked X can produce Y". But here the producer IS `UserService` —
+the ESLint rule plus the two-method split already enforces that. A brand
+would just add ceremony (`asProvisionedUser(...)` helpers) without
+preventing any additional mistake. Structural typing plus the non-null
+`defaultPersonaId` field is load-bearing enough.
+
+### D5 (Phase 2) — ESLint rule + test-file exemption, not depcruise
+
+**Chose**: `no-restricted-syntax` with AST selector matching
+`X.user.create(...)` / `X.persona.create(...)` patterns. Test files
+exempted via the existing `*.test.ts` glob ignore.
+
+**Rationale**: Dep-cruiser operates on import graphs and would require
+inventing an "only these files may import PrismaClient.UserCreate" which
+doesn't map cleanly to how Prisma's client works (every Prisma-using
+file imports the full client). An AST rule catches the actual misuse
+pattern (the call-site) rather than approximating via imports. Test files
+are exempted entirely per council recommendation: tests are "omnipotent
+DB admins" for fixture setup, and gating test fixtures through UserService
+would force integration tests to go through a cache layer and race-
+protection logic they don't need.
 
 ## Related backlog items
 
