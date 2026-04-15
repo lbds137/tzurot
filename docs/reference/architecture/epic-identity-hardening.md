@@ -232,6 +232,27 @@ DB admins" for fixture setup, and gating test fixtures through UserService
 would force integration tests to go through a cache layer and race-
 protection logic they don't need.
 
+**Known limitation — aliasing bypass**: the syntactic AST pattern does
+NOT catch variable aliasing:
+
+```ts
+const userTable = prisma.user;
+await userTable.create({ ... });              // NOT flagged
+
+const { user } = prisma;
+await user.create({ ... });                   // NOT flagged
+```
+
+Full type-flow analysis would be needed for exhaustive coverage. In
+practice nobody destructures `prisma.user` or aliases it in this
+codebase, so the syntactic rule is a strong first line of defense. If
+the pattern ever appears in a PR, catch it in review; if it becomes
+common, extend with a dependency-cruiser rule that looks at the
+import-level pattern (e.g., banning indirect access through local
+aliases of Prisma client substructures). The ESLint rule's inline
+comment in `eslint.config.js` documents this gap so grep-auditors
+don't assume it's comprehensive.
+
 ## Related backlog items
 
 See `BACKLOG.md` Icebox/Inbox for:
