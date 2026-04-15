@@ -599,6 +599,13 @@ describe('TTSStep', () => {
     // ELEVENLABS_MAX_ATTEMPTS is now 1 — see TTSStep.ts for rationale.
     // Transient-error classification still matters for the fallback path,
     // which is exercised by the "ElevenLabs fallback to voice-engine" block below.
+    //
+    // Exception to "exactly one ElevenLabs call": 404 (voice_id not found)
+    // is handled inline by the re-clone path, which invalidates the cache and
+    // retries with a freshly cloned voice. That is intentional state-fix
+    // recovery, not retry-on-transient — this contract covers the withRetry
+    // budget, not the total ElevenLabs invocation count. The double-404
+    // fallback case is tested separately in the fallback block below.
 
     it.each([
       { label: '429 rate limit', error: () => new ElevenLabsApiError(429, 'Rate limited') },
