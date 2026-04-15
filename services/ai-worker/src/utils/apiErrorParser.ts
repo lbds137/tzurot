@@ -204,7 +204,14 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
   // LangChain version ever wraps the abort in a plain object, this check falls
   // through to UNKNOWN — acceptable safety behavior, but update this guard.
   if (error instanceof Error) {
-    if (error.name === 'AbortError' || /request was aborted/i.test(error.message)) {
+    // Cap the scanned message length to match `extractStatusCode`'s ReDoS
+    // prevention convention. The bounded quantifiers below make catastrophic
+    // backtracking essentially impossible on their own, but keeping this
+    // function consistent with the rest of the file prevents a future pattern
+    // addition (e.g., one with unbounded `.*`) from accidentally regressing
+    // that safety.
+    const messageToSearch = error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+    if (error.name === 'AbortError' || /request was aborted/i.test(messageToSearch)) {
       return ApiErrorCategory.TIMEOUT;
     }
     // OpenRouter/vision API wrap media-fetch 404s inside a 400 response body.
@@ -222,7 +229,7 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
     // matching to restrict to a single error-message span. This covers every
     // observed variant without matching loosely-related content across
     // different parts of a longer error message.
-    if (/received 404.{0,40}?fetching.{0,30}?url/i.test(error.message)) {
+    if (/received 404.{0,40}?fetching.{0,30}?url/i.test(messageToSearch)) {
       return ApiErrorCategory.MEDIA_NOT_FOUND;
     }
   }

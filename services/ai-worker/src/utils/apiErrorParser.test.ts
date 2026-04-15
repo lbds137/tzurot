@@ -283,9 +283,16 @@ describe('parseApiError', () => {
         'Received 404 from upstream validation service. Separately, a retry fetching the secondary URL succeeded eventually after many attempts and some other long explanation.'
       );
       const result = parseApiError(error);
-      // Should NOT classify as MEDIA_NOT_FOUND — the 404 is about validation,
-      // not about fetching a URL.
+      // Two assertions for defense in depth:
+      // - `category !== MEDIA_NOT_FOUND`: confirms the regex guard didn't
+      //   false-match the distant-anchor wording.
+      // - `shouldRetry === true`: asserts the behavioral contract the
+      //   production code actually depends on — this error must remain
+      //   retryable. If a future refactor classified this error as any
+      //   OTHER permanent category (AUTHENTICATION, QUOTA_EXCEEDED, etc.)
+      //   the category check would pass but the behavior check would fail.
       expect(result.category).not.toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+      expect(result.shouldRetry).toBe(true);
     });
   });
 
