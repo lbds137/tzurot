@@ -87,7 +87,7 @@ export async function resolveUserContext(
   const { userService, personaResolver, prisma } = deps;
 
   // Get internal user ID for database operations
-  const internalUserId = await userService.getOrCreateUser(
+  const provisioned = await userService.getOrCreateUser(
     user.id,
     user.username,
     displayName,
@@ -95,9 +95,11 @@ export async function resolveUserContext(
     user.bot ?? false
   );
 
-  if (internalUserId === null) {
+  if (provisioned === null) {
     throw new Error('Cannot process messages from bots');
   }
+
+  const internalUserId = provisioned.userId;
 
   const discordUserId = user.id;
   const personaResult = await personaResolver.resolve(discordUserId, personality.id);

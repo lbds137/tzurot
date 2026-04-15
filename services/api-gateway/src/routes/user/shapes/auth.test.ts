@@ -35,7 +35,7 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 }));
 
 import { createShapesAuthRoutes } from './auth.js';
-import { UserService, type PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 // Mock Prisma
@@ -117,18 +117,6 @@ describe('Shapes Auth Routes', () => {
       await handler(req, res);
       return { req, res };
     }
-
-    it('should return 400 when user is a bot', async () => {
-      const spy = vi.spyOn(UserService.prototype, 'getOrCreateUser').mockResolvedValueOnce(null);
-
-      const { res } = await callStoreHandler({ sessionCookie: 'appSession=valid' });
-
-      expect(spy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
-
-      spy.mockRestore();
-    });
 
     it('should reject missing sessionCookie', async () => {
       const { res } = await callStoreHandler({});

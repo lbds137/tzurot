@@ -18,7 +18,6 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
@@ -95,10 +94,7 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
 
       logger.info({ discordUserId, timezone }, '[Timezone] Setting user timezone');
 
-      const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(discordUserId);
 
       // Update the timezone
       await prisma.user.update({

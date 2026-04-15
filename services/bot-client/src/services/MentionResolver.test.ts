@@ -118,7 +118,10 @@ describe('MentionResolver', () => {
       const mockUser = createMockUser('123456', 'testuser', 'Test User');
       mockMentionedUsers.set('123456', mockUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
@@ -154,7 +157,10 @@ describe('MentionResolver', () => {
       const mockUser = createMockUser('123456', 'testuser', 'Test User');
       mockMentionedUsers.set('123456', mockUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
@@ -171,7 +177,10 @@ describe('MentionResolver', () => {
       const mockUser = createMockUser('123456', 'testuser', 'Test User');
       mockMentionedUsers.set('123456', mockUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
@@ -196,8 +205,8 @@ describe('MentionResolver', () => {
       mockMentionedUsers.set('222222', mockUser2);
 
       vi.mocked(mockUserService.getOrCreateUser)
-        .mockResolvedValueOnce('alice-uuid')
-        .mockResolvedValueOnce('bob-uuid');
+        .mockResolvedValueOnce({ userId: 'alice-uuid', defaultPersonaId: 'alice-persona' })
+        .mockResolvedValueOnce({ userId: 'bob-uuid', defaultPersonaId: 'bob-persona' });
       mockPersonaResolver.resolve
         .mockResolvedValueOnce({
           config: {
@@ -283,7 +292,10 @@ describe('MentionResolver', () => {
       const mockUser = createMockUser('123456', 'testuser', null);
       mockMentionedUsers.set('123456', mockUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       mockPersonaResolver.resolve.mockResolvedValue({
         config: {
           personaId: 'persona-uuid-123',
@@ -348,7 +360,10 @@ describe('MentionResolver', () => {
       const mockUser = createMockUser('111111', 'alice', 'Alice');
       mockMentionedUsers.set('111111', mockUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'alice-uuid',
+        defaultPersonaId: 'alice-persona-id',
+      });
       mockPersonaResolver.resolve.mockResolvedValue({
         config: {
           personaId: 'alice-persona',
@@ -402,7 +417,10 @@ describe('MentionResolver', () => {
       const mockUser = createMockUser('123456', 'testuser', 'Test User');
       mockMentionedUsers.set('123456', mockUser);
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
       // PersonaResolver.resolve mock returns 'persona-123' and 'Test Persona' by default
 
       const result = await resolver.resolveMentions(
@@ -431,7 +449,7 @@ describe('MentionResolver', () => {
       }
 
       vi.mocked(mockUserService.getOrCreateUser).mockImplementation(async discordId => {
-        return `uuid-${discordId}`;
+        return { userId: `uuid-${discordId}`, defaultPersonaId: `persona-${discordId}` };
       });
       mockPersonaResolver.resolve.mockImplementation(async (discordId: string) => ({
         config: {
@@ -678,7 +696,10 @@ describe('MentionResolver', () => {
         mockRoles
       );
 
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('alice-uuid');
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'alice-uuid',
+        defaultPersonaId: 'alice-persona-id',
+      });
       mockPersonaResolver.resolve.mockResolvedValue({
         config: {
           personaId: 'alice-persona',

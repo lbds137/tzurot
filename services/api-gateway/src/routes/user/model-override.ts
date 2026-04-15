@@ -27,7 +27,6 @@ import {
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
-import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -128,10 +127,7 @@ export function createModelOverrideRoutes(
 
       const { personalityId, configId } = parseResult.data;
 
-      const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(discordUserId);
 
       // Verify personality exists
       const personality = await prisma.personality.findFirst({
@@ -252,10 +248,7 @@ export function createModelOverrideRoutes(
 
       const { configId } = parseResult.data;
 
-      const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(discordUserId);
 
       // Verify config exists and user can access it (global or owned)
       const llmConfig = await verifyConfigAccess(prisma, configId, userId);

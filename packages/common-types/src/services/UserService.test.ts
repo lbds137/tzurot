@@ -70,15 +70,23 @@ describe('UserService', () => {
 
   describe('getOrCreateUser', () => {
     it('should return cached user ID if available', async () => {
-      // First call to populate cache
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'cached-user-id' });
+      // First call to populate cache — mock must include defaultPersonaId so
+      // the backfill branch in runMaintenanceTasks doesn't trigger (which
+      // would call $transaction and fail without a mock).
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'cached-user-id',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'cached-persona-id',
+      });
 
       const result1 = await userService.getOrCreateUser('123456', 'testuser');
-      expect(result1).toBe('cached-user-id');
+      expect(result1?.userId).toBe('cached-user-id');
+      expect(result1?.defaultPersonaId).toBe('cached-persona-id');
 
       // Second call should use cache
       const result2 = await userService.getOrCreateUser('123456', 'testuser');
-      expect(result2).toBe('cached-user-id');
+      expect(result2?.userId).toBe('cached-user-id');
 
       // findUnique should only be called once
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
@@ -94,7 +102,8 @@ describe('UserService', () => {
 
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
-      expect(result).toBe('existing-user-id');
+      expect(result?.userId).toBe('existing-user-id');
+      expect(result?.defaultPersonaId).toBe('existing-persona-id');
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
 
@@ -113,7 +122,7 @@ describe('UserService', () => {
 
       const result = await userService.getOrCreateUser('123456', 'realusername');
 
-      expect(result).toBe('existing-user-id');
+      expect(result?.userId).toBe('existing-user-id');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'existing-user-id' },
         data: { username: 'realusername' },
@@ -130,7 +139,7 @@ describe('UserService', () => {
 
       const result = await userService.getOrCreateUser('123456', 'newusername');
 
-      expect(result).toBe('existing-user-id');
+      expect(result?.userId).toBe('existing-user-id');
       // Should not update since username is not a placeholder
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
@@ -253,7 +262,7 @@ describe('UserService', () => {
 
       const result = await userService.getOrCreateUser('999888777', 'botowner');
 
-      expect(result).toBe('existing-user-id');
+      expect(result?.userId).toBe('existing-user-id');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'existing-user-id' },
         data: { isSuperuser: true },
@@ -281,7 +290,7 @@ describe('UserService', () => {
 
       const result = await userService.getOrCreateUser('999888777', 'botowner');
 
-      expect(result).toBe('existing-user-id');
+      expect(result?.userId).toBe('existing-user-id');
       // Should NOT call update since already superuser
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
 
@@ -313,7 +322,7 @@ describe('UserService', () => {
 
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
-      expect(result).toBe('existing-user-uuid');
+      expect(result?.userId).toBe('existing-user-uuid');
       // Should have called findUnique twice (initial check + after P2002)
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
@@ -404,8 +413,11 @@ describe('UserService', () => {
       const mockPersonaCreate = vi.fn().mockResolvedValue({ id: 'test-persona-uuid' });
       const mockUserUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
 
+      // IMPORTANT: $transaction mock must return callback result so backfill
+      // can propagate its effective personaId upward. Prior to Phase 2 the
+      // transaction was void-returning and the mock could ignore the result.
       mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
+        async (callback: (tx: unknown) => Promise<unknown>) => {
           const mockTx = {
             persona: { create: mockPersonaCreate },
             user: {
@@ -413,7 +425,7 @@ describe('UserService', () => {
               updateMany: mockUserUpdateMany,
             },
           };
-          await callback(mockTx);
+          return await callback(mockTx);
         }
       );
 
@@ -424,7 +436,8 @@ describe('UserService', () => {
         'User bio'
       );
 
-      expect(result).toBe('existing-user-id');
+      expect(result?.userId).toBe('existing-user-id');
+      expect(result?.defaultPersonaId).toBe('test-persona-uuid');
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(mockPersonaCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -451,7 +464,7 @@ describe('UserService', () => {
 
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
-      expect(result).toBe('existing-user-id');
+      expect(result?.userId).toBe('existing-user-id');
       // Should NOT call $transaction since persona already exists
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
@@ -496,7 +509,7 @@ describe('UserService', () => {
         false
       );
 
-      expect(result).toBe('test-user-uuid');
+      expect(result?.userId).toBe('test-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalled();
       expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
@@ -521,7 +534,7 @@ describe('UserService', () => {
       // Not passing isBot parameter at all (undefined)
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
-      expect(result).toBe('test-user-uuid');
+      expect(result?.userId).toBe('test-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalled();
       expect(mockPrisma.$transaction).toHaveBeenCalled();
     });

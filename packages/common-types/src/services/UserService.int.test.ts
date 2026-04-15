@@ -77,15 +77,16 @@ describe('UserService', () => {
 
   describe('getOrCreateUser', () => {
     it('should create a new user with default persona', async () => {
-      const userId = await service.getOrCreateUser(
+      const provisioned = await service.getOrCreateUser(
         testDiscordId,
         testUsername,
         testDisplayName,
         testBio
       );
 
-      expect(userId).toBeDefined();
-      expect(typeof userId).toBe('string');
+      expect(provisioned).not.toBeNull();
+      expect(typeof provisioned?.userId).toBe('string');
+      expect(typeof provisioned?.defaultPersonaId).toBe('string');
 
       // Verify user was created
       const user = await prisma.user.findUnique({
@@ -93,7 +94,7 @@ describe('UserService', () => {
       });
       expect(user).not.toBeNull();
       expect(user?.username).toBe(testUsername);
-      expect(user?.defaultPersonaId).not.toBeNull();
+      expect(user?.defaultPersonaId).toBe(provisioned?.defaultPersonaId);
 
       // Verify persona was created
       const persona = await prisma.persona.findUnique({
@@ -107,12 +108,12 @@ describe('UserService', () => {
 
     it('should return existing user without creating duplicate', async () => {
       // Create user first
-      const userId1 = await service.getOrCreateUser(testDiscordId, testUsername);
+      const first = await service.getOrCreateUser(testDiscordId, testUsername);
 
       // Call again - should return same user
-      const userId2 = await service.getOrCreateUser(testDiscordId, testUsername);
+      const second = await service.getOrCreateUser(testDiscordId, testUsername);
 
-      expect(userId1).toBe(userId2);
+      expect(first?.userId).toBe(second?.userId);
 
       // Verify only one user exists
       const users = await prisma.user.findMany({
@@ -123,7 +124,7 @@ describe('UserService', () => {
     });
 
     it('should return null for bot users', async () => {
-      const userId = await service.getOrCreateUser(
+      const result = await service.getOrCreateUser(
         testDiscordId,
         testUsername,
         undefined,
@@ -131,7 +132,7 @@ describe('UserService', () => {
         true // isBot
       );
 
-      expect(userId).toBeNull();
+      expect(result).toBeNull();
 
       // Verify no user was created
       const user = await prisma.user.findUnique({
@@ -143,10 +144,10 @@ describe('UserService', () => {
     it('should promote bot owner to superuser on creation', async () => {
       vi.mocked(isBotOwner).mockReturnValue(true);
 
-      const userId = await service.getOrCreateUser(testDiscordId, testUsername);
+      const provisioned = await service.getOrCreateUser(testDiscordId, testUsername);
 
       const user = await prisma.user.findUnique({
-        where: { id: userId ?? '' },
+        where: { id: provisioned?.userId ?? '' },
       });
       expect(user?.isSuperuser).toBe(true);
     });
@@ -189,10 +190,10 @@ describe('UserService', () => {
       // Second call should use cache (we can't directly test this, but we can
       // verify it returns quickly and correctly)
       const startTime = Date.now();
-      const userId = await service.getOrCreateUser(testDiscordId, testUsername);
+      const provisioned = await service.getOrCreateUser(testDiscordId, testUsername);
       const duration = Date.now() - startTime;
 
-      expect(userId).toBeDefined();
+      expect(provisioned?.userId).toBeDefined();
       // Cached lookup should be very fast (< 10ms typically)
       expect(duration).toBeLessThan(100);
     });
@@ -215,13 +216,14 @@ describe('UserService', () => {
       const newService = new UserService(prisma);
 
       // getOrCreateUser should trigger backfill
-      const returnedId = await newService.getOrCreateUser(
+      const provisioned = await newService.getOrCreateUser(
         testDiscordId,
         testUsername,
         testDisplayName
       );
 
-      expect(returnedId).toBe(userId);
+      expect(provisioned?.userId).toBe(userId);
+      expect(provisioned?.defaultPersonaId).not.toBeNull();
 
       // Verify persona was backfilled
       const user = await prisma.user.findUnique({
@@ -283,21 +285,22 @@ describe('UserService', () => {
 
   describe('getUserTimezone', () => {
     it('should return user timezone', async () => {
-      const userId = await service.getOrCreateUser(testDiscordId, testUsername);
+      const provisioned = await service.getOrCreateUser(testDiscordId, testUsername);
+      const userId = provisioned!.userId;
 
       // Set timezone
       await prisma.user.update({
-        where: { id: userId! },
+        where: { id: userId },
         data: { timezone: 'America/New_York' },
       });
 
-      const timezone = await service.getUserTimezone(userId!);
+      const timezone = await service.getUserTimezone(userId);
       expect(timezone).toBe('America/New_York');
     });
 
     it('should return UTC for user without timezone set', async () => {
-      const userId = await service.getOrCreateUser(testDiscordId, testUsername);
-      const timezone = await service.getUserTimezone(userId!);
+      const provisioned = await service.getOrCreateUser(testDiscordId, testUsername);
+      const timezone = await service.getUserTimezone(provisioned!.userId);
       expect(timezone).toBe('UTC');
     });
 
@@ -309,10 +312,14 @@ describe('UserService', () => {
 
   describe('getPersonaName', () => {
     it('should return preferredName when set', async () => {
-      const userId = await service.getOrCreateUser(testDiscordId, testUsername, testDisplayName);
+      const provisioned = await service.getOrCreateUser(
+        testDiscordId,
+        testUsername,
+        testDisplayName
+      );
 
       const user = await prisma.user.findUnique({
-        where: { id: userId ?? '' },
+        where: { id: provisioned?.userId ?? '' },
       });
 
       const name = await service.getPersonaName(user!.defaultPersonaId!);
@@ -320,10 +327,10 @@ describe('UserService', () => {
     });
 
     it('should return name when preferredName is not set', async () => {
-      const userId = await service.getOrCreateUser(testDiscordId, testUsername);
+      const provisioned = await service.getOrCreateUser(testDiscordId, testUsername);
 
       const user = await prisma.user.findUnique({
-        where: { id: userId ?? '' },
+        where: { id: provisioned?.userId ?? '' },
       });
 
       // Clear preferredName

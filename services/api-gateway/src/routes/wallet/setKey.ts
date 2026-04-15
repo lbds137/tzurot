@@ -24,7 +24,6 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
-import { resolveUserIdOrSendError } from '../../utils/routeHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { validateApiKey, type ApiKeyValidationResult } from '../../utils/apiKeyValidation.js';
 import type { AuthenticatedRequest } from '../../types.js';
@@ -86,10 +85,7 @@ export function createSetKeyRoute(
         return sendError(res, mapValidationErrorToResponse(validation));
       }
 
-      const userId = await resolveUserIdOrSendError(userService, discordUserId, res);
-      if (userId === null) {
-        return;
-      }
+      const userId = await userService.getOrCreateUserShell(discordUserId);
 
       // Encrypt and store the API key
       const encrypted = encryptApiKey(apiKey);

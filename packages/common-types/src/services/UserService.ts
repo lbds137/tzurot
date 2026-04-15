@@ -25,6 +25,23 @@ interface UserWithBackfillFields {
   defaultPersonaId: string | null;
 }
 
+/**
+ * Return shape for {@link UserService.getOrCreateUser}.
+ *
+ * Structurally asserts that the user is fully provisioned — both the User
+ * row AND its default Persona exist. Callers that only need `userId` should
+ * destructure `{ userId }` rather than special-casing any field.
+ *
+ * This shape is the Phase 2 contract in the Identity & Provisioning Hardening
+ * epic: by bundling `defaultPersonaId` non-null into the return type, we move
+ * the "does this user have a persona?" invariant out of read-time repair
+ * (runMaintenanceTasks) and into the type system.
+ */
+export interface ProvisionedUser {
+  userId: string;
+  defaultPersonaId: string;
+}
+
 const logger = createLogger('UserService');
 
 /** Default description for auto-created personas */
@@ -38,29 +55,34 @@ const USER_CACHE_MAX_SIZE = 10_000;
 
 export class UserService {
   /**
-   * Cache discordId -> userId (UUID) with TTL to prevent memory leaks.
+   * Cache discordId -> ProvisionedUser with TTL to prevent memory leaks.
    *
-   * **Shared between {@link getOrCreateUser} and {@link getOrCreateUserShell}.**
-   * This is safe today because `getOrCreateInternalUser` (the shell caller) news up
-   * a `UserService` per request — the cache doesn't persist across requests. If
-   * `UserService` is ever refactored to a singleton, revisit this: a shell call
-   * would cache a discordId → userId mapping without ever running
-   * `runMaintenanceTasks`, so a subsequent `getOrCreateUser` for the same
-   * discordId would short-circuit out of the cache and silently skip username
-   * and persona backfill for the session.
+   * **Only populated by {@link getOrCreateUser}.** The shell path reads from
+   * this cache (and returns `.userId`) but never writes, because a shell-only
+   * provisioning doesn't guarantee a non-null `defaultPersonaId`.
+   *
+   * If `UserService` is ever refactored to a singleton, the shell path's
+   * cache-read short-circuits a later `getOrCreateUser` call's persona
+   * backfill + username upgrade for the same discordId. Today's per-request
+   * instantiation keeps the cache cold, so this is a future-singleton hazard
+   * tracked in BACKLOG.md rather than a current bug.
    */
-  private userCache: TTLCache<string>;
+  private userCache: TTLCache<ProvisionedUser>;
 
   constructor(private prisma: PrismaClient) {
-    this.userCache = new TTLCache<string>({
+    this.userCache = new TTLCache<ProvisionedUser>({
       ttl: USER_CACHE_TTL_MS,
       maxSize: USER_CACHE_MAX_SIZE,
     });
   }
 
   /**
-   * Get or create a user by Discord ID
-   * Returns the user's UUID for use in foreign keys, or null if the user is a bot
+   * Get or create a user by Discord ID.
+   *
+   * Returns a {@link ProvisionedUser} (both `userId` and non-null
+   * `defaultPersonaId`) for use in foreign keys. Returns `null` only if the
+   * caller identifies the subject as a bot.
+   *
    * @param discordId Discord user ID
    * @param username Discord username (e.g., "alt_hime")
    * @param displayName Discord display name (e.g., "Alt Hime") - falls back to username if not provided
@@ -73,7 +95,7 @@ export class UserService {
     displayName?: string,
     bio?: string,
     isBot?: boolean
-  ): Promise<string | null> {
+  ): Promise<ProvisionedUser | null> {
     // Skip user creation for bots - they shouldn't have user records or personas
     if (isBot === true) {
       logger.debug({ discordId, username }, 'Skipping user creation for bot');
@@ -96,12 +118,20 @@ export class UserService {
       // Create if doesn't exist (with race condition handling)
       user ??= await this.createUserWithRaceProtection(discordId, username, displayName, bio);
 
-      // Run maintenance tasks for existing users (backfill, promotions, etc.)
-      await this.runMaintenanceTasks(user, discordId, username, displayName, bio);
+      // Run maintenance tasks (backfill, promotions, etc.) and get the effective
+      // defaultPersonaId. This may differ from user.defaultPersonaId if backfill
+      // just ran; we rely on runMaintenanceTasks to return the authoritative value.
+      const defaultPersonaId = await this.runMaintenanceTasks(
+        user,
+        discordId,
+        username,
+        displayName,
+        bio
+      );
 
-      // Cache the result
-      this.userCache.set(discordId, user.id);
-      return user.id;
+      const provisioned: ProvisionedUser = { userId: user.id, defaultPersonaId };
+      this.userCache.set(discordId, provisioned);
+      return provisioned;
     } catch (error) {
       logger.error({ err: error, discordId }, 'Failed to get/create user');
       throw error;
@@ -133,7 +163,7 @@ export class UserService {
   async getOrCreateUserShell(discordId: string): Promise<string> {
     const cached = this.userCache.get(discordId);
     if (cached !== null) {
-      return cached;
+      return cached.userId;
     }
 
     try {
@@ -143,14 +173,14 @@ export class UserService {
           select: { id: true },
         })) ?? (await this.createShellUserWithRaceProtection(discordId));
 
-      // Intentionally NOT populated: this.userCache.set(discordId, user.id).
-      // The cache is shared with getOrCreateUser. Writing from the shell path
-      // would cause a later getOrCreateUser call for the same discordId to
-      // short-circuit out of the cache and skip runMaintenanceTasks (persona
-      // backfill, username upgrade). Today's per-request UserService
-      // instantiation keeps the cache cold anyway, so the write was a no-op;
-      // omitting it makes the invariant "only getOrCreateUser populates the
-      // cache" explicit and singleton-safe.
+      // Intentionally NOT populated: this.userCache.set(...).
+      // The cache is shared with getOrCreateUser and stores ProvisionedUser
+      // (userId + non-null defaultPersonaId). The shell path doesn't guarantee
+      // a persona exists yet — persona creation is deferred to the first
+      // bot-client call with a real username. Writing here with a synthetic
+      // defaultPersonaId would either lie about the invariant or force us to
+      // widen the cache type. Omitting the write keeps the invariant "only
+      // getOrCreateUser populates the cache" explicit and singleton-safe.
       return user.id;
     } catch (error) {
       logger.error({ err: error, discordId }, 'Failed to get/create user shell');
@@ -260,6 +290,9 @@ export class UserService {
    * Run maintenance tasks for existing users
    * Handles backfilling personas, promoting superusers, and updating placeholder usernames.
    * These are "read-repair" operations that fix legacy data on access.
+   *
+   * Returns the effective `defaultPersonaId` — either the existing one from
+   * `user.defaultPersonaId`, or the newly-backfilled one if it was null.
    */
   private async runMaintenanceTasks(
     user: UserWithBackfillFields,
@@ -267,15 +300,15 @@ export class UserService {
     username: string,
     displayName?: string,
     bio?: string
-  ): Promise<void> {
+  ): Promise<string> {
     // Check if existing user should be promoted to superuser
     await this.promoteToSuperuserIfNeeded(user, discordId);
 
     // Backfill default persona if missing
     // (api-gateway creates users without personas via direct prisma calls)
-    if (user.defaultPersonaId === null) {
-      await this.backfillDefaultPersona(user.id, username, displayName, bio);
-    }
+    const defaultPersonaId =
+      user.defaultPersonaId ??
+      (await this.backfillDefaultPersona(user.id, username, displayName, bio));
 
     // Update placeholder username if we now have a real username
     // Only updates usernames that exactly match discordId (placeholder pattern).
@@ -291,6 +324,8 @@ export class UserService {
         'Updated placeholder username'
       );
     }
+
+    return defaultPersonaId;
   }
 
   /**
@@ -325,58 +360,69 @@ export class UserService {
     username: string,
     displayName?: string,
     bio?: string
-  ): Promise<void> {
+  ): Promise<string> {
     const personaId = generatePersonaUuid(username, userId);
     const personaDisplayName = displayName ?? username;
     const personaContent = bio ?? '';
 
-    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Double-check inside transaction that persona is still needed
-      // (another request may have created it between our check and this transaction)
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-        select: { defaultPersonaId: true },
-      });
-
-      if (user?.defaultPersonaId !== null) {
-        // Another request already backfilled - nothing to do
-        return;
-      }
-
-      // Create default persona (with P2002 race handling)
-      // If two requests pass the findUnique check simultaneously, both will try
-      // to create the same persona (deterministic UUID). The second gets P2002.
-      try {
-        await tx.persona.create({
-          data: {
-            id: personaId,
-            name: username,
-            preferredName: personaDisplayName,
-            description: DEFAULT_PERSONA_DESCRIPTION,
-            content: personaContent,
-            ownerId: userId,
-          },
+    const effectivePersonaId = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient): Promise<string> => {
+        // Double-check inside transaction that persona is still needed
+        // (another request may have created it between our check and this transaction)
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { defaultPersonaId: true },
         });
-      } catch (error) {
-        if (this.isPrismaUniqueConstraintError(error)) {
-          logger.debug(
-            { userId, personaId },
-            'Persona already created by concurrent request, continuing to link'
-          );
-          // Continue to updateMany - it's idempotent and will link the existing persona
-        } else {
-          throw error;
+
+        if (user?.defaultPersonaId !== null && user?.defaultPersonaId !== undefined) {
+          // Another request already backfilled — return whatever they linked.
+          // Can differ from our deterministic `personaId` if the linked persona
+          // was user-selected later via UI (unlikely for a user that just had
+          // null defaultPersonaId, but we don't assume).
+          return user.defaultPersonaId;
         }
+
+        // Create default persona (with P2002 race handling)
+        // If two requests pass the findUnique check simultaneously, both will try
+        // to create the same persona (deterministic UUID). The second gets P2002.
+        try {
+          await tx.persona.create({
+            data: {
+              id: personaId,
+              name: username,
+              preferredName: personaDisplayName,
+              description: DEFAULT_PERSONA_DESCRIPTION,
+              content: personaContent,
+              ownerId: userId,
+            },
+          });
+        } catch (error) {
+          if (this.isPrismaUniqueConstraintError(error)) {
+            logger.debug(
+              { userId, personaId },
+              'Persona already created by concurrent request, continuing to link'
+            );
+            // Continue to updateMany - it's idempotent and will link the existing persona
+          } else {
+            throw error;
+          }
+        }
+
+        // Link persona as user's default (idempotent - only updates if still null)
+        await tx.user.updateMany({
+          where: { id: userId, defaultPersonaId: null },
+          data: { defaultPersonaId: personaId },
+        });
+
+        return personaId;
       }
+    );
 
-      // Link persona as user's default (idempotent - only updates if still null)
-      await tx.user.updateMany({
-        where: { id: userId, defaultPersonaId: null },
-        data: { defaultPersonaId: personaId },
-      });
-    });
-
-    logger.info({ userId, username, personaId }, 'Backfilled default persona for existing user');
+    logger.info(
+      { userId, username, personaId: effectivePersonaId },
+      'Backfilled default persona for existing user'
+    );
+    return effectivePersonaId;
   }
 
   /**
@@ -513,14 +559,14 @@ export class UserService {
       const batchResults = await Promise.all(
         batch.map(async user => {
           try {
-            const userId = await this.getOrCreateUser(
+            const provisioned = await this.getOrCreateUser(
               user.discordId,
               user.username,
               user.displayName,
               undefined, // bio
               user.isBot
             );
-            return { discordId: user.discordId, userId };
+            return { discordId: user.discordId, userId: provisioned?.userId ?? null };
           } catch (error) {
             // Log but don't fail the entire batch for one user
             logger.warn(
