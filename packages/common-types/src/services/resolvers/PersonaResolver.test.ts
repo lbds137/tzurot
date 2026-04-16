@@ -3,8 +3,9 @@
  *
  * Tests the cascading configuration pattern for persona resolution:
  * 1. Per-personality override (UserPersonalityConfig.personaId)
- * 2. User's default persona (User.defaultPersonaId)
- * 3. Auto-default to first owned persona (lazy initialization)
+ * 2. User's explicit default (User.defaultPersonaId)
+ * 3. Transient first-owned-persona fallback (warns, no persist)
+ * 4. System default (errors, user has no personas at all)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -24,13 +25,19 @@ const mockPrismaClient = {
   },
 };
 
-vi.mock('../../utils/logger.js', () => ({
-  createLogger: () => ({
+// Shared logger mock — hoisted so `vi.mock` factory (hoisted too) can close over
+// it and tests can still assert on which level fired.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-  }),
+  },
+}));
+
+vi.mock('../../utils/logger.js', () => ({
+  createLogger: () => mockLogger,
 }));
 
 describe('PersonaResolver', () => {
@@ -118,7 +125,11 @@ describe('PersonaResolver', () => {
       expect(result.config.preferredName).toBe('Default Name');
     });
 
-    it('should auto-default to first owned persona and persist it', async () => {
+    it('should return first owned persona as transient resolution without persisting', async () => {
+      // Phase 3 regression guard: resolution is strictly read-only. When a user
+      // has owned personas but no defaultPersonaId, we pick the first-owned
+      // persona for this request only. Persistence is UserService's job (via
+      // runMaintenanceTasks → backfillDefaultPersona on the next interaction).
       mockPrismaClient.user.findUnique.mockResolvedValue({
         id: 'user-uuid',
         defaultPersonaId: null,
@@ -134,22 +145,65 @@ describe('PersonaResolver', () => {
       });
 
       mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      mockPrismaClient.user.update.mockResolvedValue({});
 
       const result = await resolver.resolve('discord-123', 'personality-456');
 
       expect(result.source).toBe('user-default');
-      expect(result.sourceName).toBe('auto-default');
+      expect(result.sourceName).toBe('transient-first-owned');
       expect(result.config.personaId).toBe('first-owned-persona');
 
-      // Should persist the auto-default
-      expect(mockPrismaClient.user.update).toHaveBeenCalledWith({
-        where: { id: 'user-uuid' },
-        data: { defaultPersonaId: 'first-owned-persona' },
-      });
+      // Must NOT persist. No Prisma writes from the read path.
+      expect(mockPrismaClient.user.update).not.toHaveBeenCalled();
+
+      // Must warn so the transient state is visible in production logs.
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          discordUserId: 'discord-123',
+          userId: 'user-uuid',
+          selectedPersonaId: 'first-owned-persona',
+          ownedPersonaCount: 1,
+        }),
+        expect.stringContaining('Transient resolution')
+      );
     });
 
-    it('should return system default when user has no personas at all', async () => {
+    it('should log error and fall through when defaultPersonaId is dangling', async () => {
+      // Schema has onDelete: SetNull, so this shouldn't happen — but we guard
+      // defensively as a precursor signal for Phase 5's NOT NULL FK upgrade.
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: 'persona-that-was-deleted',
+        defaultPersona: null, // relation returns null when referenced row is gone
+        ownedPersonas: [
+          {
+            id: 'fallback-persona',
+            preferredName: 'Fallback',
+            pronouns: null,
+            content: 'Fallback content',
+          },
+        ],
+      });
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolve('discord-123', 'personality-456');
+
+      // Falls through to owned-persona resolution so the request succeeds.
+      expect(result.config.personaId).toBe('fallback-persona');
+      expect(result.sourceName).toBe('transient-first-owned');
+
+      // Dangling reference must be error-logged as a data-integrity signal.
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          discordUserId: 'discord-123',
+          userId: 'user-uuid',
+          defaultPersonaId: 'persona-that-was-deleted',
+        }),
+        expect.stringContaining('Dangling defaultPersonaId')
+      );
+    });
+
+    it('should return system default and log error when user has no personas at all', async () => {
       mockPrismaClient.user.findUnique.mockResolvedValue({
         id: 'user-uuid',
         defaultPersonaId: null,
@@ -163,6 +217,16 @@ describe('PersonaResolver', () => {
 
       expect(result.source).toBe('system-default');
       expect(result.config.personaId).toBe('');
+
+      // Post-Phase-2, every user should have at least one persona. Log at error
+      // level so provisioning bugs surface loudly in logs.
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          discordUserId: 'discord-123',
+          userId: 'user-uuid',
+        }),
+        expect.stringContaining('User has no personas')
+      );
     });
 
     it('should resolve without personalityId (default persona only)', async () => {
@@ -564,32 +628,11 @@ describe('PersonaResolver', () => {
     });
   });
 
-  describe('auto-default persistence error handling', () => {
-    it('should still return persona even if persist fails', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-uuid',
-        defaultPersonaId: null,
-        defaultPersona: null,
-        ownedPersonas: [
-          {
-            id: 'first-owned-persona',
-            preferredName: 'First',
-            pronouns: null,
-            content: '',
-          },
-        ],
-      });
-
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      mockPrismaClient.user.update.mockRejectedValue(new Error('Update failed'));
-
-      const result = await resolver.resolve('discord-123', 'personality-456');
-
-      // Should still return the persona even if persist failed
-      expect(result.config.personaId).toBe('first-owned-persona');
-      expect(result.source).toBe('user-default');
-    });
-  });
+  // Note: the "auto-default persistence error handling" describe block was
+  // removed in the Phase 3 refactor. Persistence is no longer part of the
+  // resolve() path, so there's no write-failure mode to test here. Provisioning
+  // tests live in UserService.test.ts (createUserWithDefaultPersona +
+  // backfillDefaultPersona).
 
   describe('cache management', () => {
     it('should clear all cache entries', async () => {

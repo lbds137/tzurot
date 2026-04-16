@@ -89,10 +89,11 @@ export async function resolveUserContext(
   // Get internal user ID for database operations.
   //
   // `provisioned.defaultPersonaId` is available here but currently unused —
-  // PersonaResolver below re-resolves per (user, personality) combination.
-  // Phase 3 of the identity epic will eliminate `PersonaResolver.setUserDefault`'s
-  // lazy mutation side effect, at which point this caller can short-circuit
-  // the persona lookup for the user-default case using `provisioned.defaultPersonaId`.
+  // PersonaResolver below re-resolves because Priority 1 (per-personality
+  // override in UserPersonalityConfig) can't be short-circuited from the
+  // provisioned value. If we ever split "resolve override vs fall back to
+  // default" into separate calls, this is the point where the default side
+  // could skip a query.
   const provisioned = await userService.getOrCreateUser(
     user.id,
     user.username,
