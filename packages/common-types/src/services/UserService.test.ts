@@ -180,6 +180,28 @@ describe('UserService', () => {
       });
     });
 
+    it('should use displayName for persona preferredName on placeholder upgrade', async () => {
+      // PR #818 review fix: the shell→full upgrade must propagate displayName
+      // into preferredName, matching the full-path create behavior. Without
+      // this, a user who shell-created via HTTP and then first interacts via
+      // bot-client with a distinct displayName would lose it on the rename.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'existing-user-id',
+        isSuperuser: false,
+        username: '123456', // Placeholder = discordId
+        defaultPersonaId: 'existing-persona-id',
+      });
+      mockPrisma.user.update.mockResolvedValueOnce({ id: 'existing-user-id' });
+      mockPrisma.persona.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      await userService.getOrCreateUser('123456', 'lbds137', 'LB');
+
+      expect(mockPrisma.persona.updateMany).toHaveBeenCalledWith({
+        where: { ownerId: 'existing-user-id', name: 'User 123456' },
+        data: { name: 'lbds137', preferredName: 'LB' },
+      });
+    });
+
     it('should not update username if already set to real value', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
@@ -201,6 +223,12 @@ describe('UserService', () => {
       await userService.getOrCreateUser('123456', 'testuser');
 
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      // Cross-check that the decoded positional values landed on the right
+      // slots — if the CTE template ever reorders columns or adds a new one,
+      // these sentinels fail loud rather than silently pass with wrong data
+      // (PR #818 review).
+      expect(call?.discordId).toBe('123456');
+      expect(call?.username).toBe('testuser');
       expect(call?.isSuperuser).toBe(false);
     });
 
