@@ -324,6 +324,10 @@ describe('NSFW Verification Utilities', () => {
       expect(NSFW_VERIFICATION_MESSAGE).toContain('NSFW');
       expect(NSFW_VERIFICATION_MESSAGE).toContain('@personality_name');
       expect(NSFW_VERIFICATION_MESSAGE).toContain('18+');
+      // Both verification paths must be documented: personality ping AND direct bot ping.
+      // The direct-ping path was added 2026-04-16 when BotMentionProcessor started
+      // wiring handleNsfwVerification, making the bot-ping flow viable.
+      expect(NSFW_VERIFICATION_MESSAGE).toContain('ping me directly');
     });
   });
 

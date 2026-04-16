@@ -9,11 +9,7 @@
 import type { Message, SendableChannels } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
-import {
-  isNsfwChannel,
-  verifyNsfwUser,
-  sendVerificationConfirmation,
-} from '../utils/nsfwVerification.js';
+import { handleNsfwVerification, sendVerificationConfirmation } from '../utils/nsfwVerification.js';
 
 const logger = createLogger('BotMentionProcessor');
 
@@ -44,17 +40,18 @@ export class BotMentionProcessor implements IMessageProcessor {
       '[BotMentionProcessor] Processing generic bot mention, sending help'
     );
 
-    // Auto-verify in NSFW channels (fire-and-forget with feedback)
-    if (isNsfwChannel(message.channel)) {
-      void verifyNsfwUser(message.author.id)
-        .then(result => {
-          if (result !== null && !result.alreadyVerified) {
-            void sendVerificationConfirmation(message.channel as SendableChannels);
-          }
-        })
-        .catch(() => {
-          // Ignore verification errors - non-critical
-        });
+    // NSFW verification gate: auto-verify in NSFW channels; prompt + block in
+    // non-NSFW channels and DMs. Previously this path only auto-verified fire-
+    // and-forget in NSFW channels and silently skipped verification everywhere
+    // else, letting unverified users direct-ping the bot repeatedly without
+    // ever being nudged to verify.
+    const verification = await handleNsfwVerification(message, 'BotMentionProcessor');
+    if (!verification.allowed) {
+      // Verification message already sent by handleNsfwVerification; stop here.
+      return true;
+    }
+    if (verification.wasNewVerification) {
+      void sendVerificationConfirmation(message.channel as SendableChannels);
     }
 
     const config = getConfig();
