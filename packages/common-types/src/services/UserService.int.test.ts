@@ -439,7 +439,7 @@ describe('UserService', () => {
     // don't make it into the regenerated PGLite schema. They're exercised
     // by the real-Postgres migration applies (local + Railway).
 
-    it('should reject deleting a persona that is still someone default (Restrict FK)', async () => {
+    it("should reject deleting a persona that is still someone's default (Restrict FK)", async () => {
       // Pre-Phase-5: this delete would succeed and silently null the FK.
       // Post-Phase-5: the FK is ON DELETE RESTRICT, so the delete fails at
       // the DB level with P2003.
