@@ -171,15 +171,18 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-### beta.98 release bundle (council-approved 2026-04-15, execute A → B → C)
+### Identity & Provisioning Hardening Epic — Phase 3 (next session)
 
-MCP council (Gemini 3.1 Pro Preview) triaged three independent items as a single "Quality, Security, and Polish" release. Execute in order — A first (highest risk, peak energy), B in the middle (heaviest lift), C last (dopamine hit).
+Phase 1 + 2 shipped in beta.97 + beta.98. Phase 3 eliminates `PersonaResolver.setUserDefault`'s lazy mutation side effect — extracts `ensureDefaultPersona()` as an explicit method called at request boundary rather than mid-resolution. Estimated ~3 days.
 
-- 🐛 `[FIX]` **A: Cross-channel reference permission leak** — `LinkExtractor.fetchMessageFromLink()` uses bot credentials to fetch messages without checking if the invoking user has source-channel access. Live prod data leak vector (bot in private #staff → attacker pastes link in public → victim sees content in AI reply). One-file fix with careful Discord.js traps: (1) DM source — check invoker is a recipient; (2) cross-guild source — fetch invoker's member record for source guild, fail closed if absent; (3) thread source — check thread-specific access, not just parent; (4) fail closed on any null/undefined check result. **Conceptually belongs in the Identity Hardening epic** (council observation). **Start**: `services/bot-client/src/handlers/references/LinkExtractor.ts:124`.
+**Entry point for next session**: council pressure-test the Phase 3 design BEFORE writing code (epic's cross-cutting principle). Start at `docs/reference/architecture/epic-identity-hardening.md § Phase 3`. Post-council, proceed to implementation across 1-2 sessions.
 
-- 🐛 `[FIX]` **B: AbortError vision retry amplifier** — Our own 90s vision-model timeout throws `AbortError` classified as UNKNOWN, triggering 3×90s retries = 270s worst-case reply delay. Verified from 3000 prod log lines 2026-04-14: 63% of vision failures are AbortError. Fix: pattern-detect in `apiErrorParser.ts` classifier, reclassify as TIMEOUT, cap TIMEOUT retries at 1. **Prereq (same PR)**: add per-attempt success telemetry to `withRetry` so we can measure post-deploy. Single-file change + telemetry. Also: add permanent-non-retryable classification for "400 Received 404 status code when fetching image from URL" (addresses the 7% 404 cascade). **Start**: `services/ai-worker/src/utils/apiErrorParser.ts` `detectCategoryFromMessage()`, `services/ai-worker/src/utils/retry.ts` (both the retry-budget cap and the success-telemetry addition).
+### Post-deploy validation — beta.98
 
-- 🐛 `[FIX]` **C: Periods break @ mention matching** — "Dr. Gregory House" can't be matched because the parser can't disambiguate period-as-abbreviation from period-as-sentence-boundary. Confirmed user impact: user renamed a character to work around. Pattern already established for apostrophes (PR #797): two-pass — try with punctuation first, strip only on no-match. **Start**: `services/bot-client/src/utils/personalityMentionParser.ts` (single-word regex ~line 242, multi-word per-word strip ~line 228).
+Run at the start of next session. Two log queries ready in the v3.0.0-beta.98 release notes:
+
+- Cross-channel leak guard firing: `pnpm ops logs --service bot-client --env prod --filter "@level:info LinkExtractor Invoking user lacks access"`
+- MEDIA_NOT_FOUND classification rate up: `pnpm ops logs --service ai-worker --env prod --filter "@level:info errorCategory:media_not_found"`
 
 ### Other in-flight
 
@@ -213,7 +216,6 @@ _Small tasks that can be done between major features. Good for momentum._
 - 🐛 `[FIX]` **Preset clone fails on name collision instead of auto-numbering** — Cloning a preset that's already a copy fails with "a copy already exists." Other clone flows in the codebase appear to handle this by auto-numbering (e.g., "Foo (2)", "Foo (3)") but presets don't. Should be standardized — every clone button should resolve name collisions the same way. **Start**: grep for clone/copy handlers in `services/bot-client/src/commands/{personality,character,persona,preset}/` — find the existing auto-number pattern (if any) and either reuse or extract into a shared helper. If no existing pattern: create one and apply to all clone flows. Related: consider whether this also surfaces clone affordances inconsistently across commands.
 - 🐛 `[FIX]` **Avatar upload fetch has no timeout — silent hang risk** — `services/bot-client/src/utils/avatarProcessor.ts:56` and `services/bot-client/src/commands/character/avatar.ts:70` both do a naked `await fetch(attachment.url)` with no `AbortSignal`. If Discord CDN stalls during an avatar upload, the command interaction silently hangs until Discord's interaction timeout (~15 min). Not on the reply critical path (it's user-initiated, not message processing), but visible to users as "nothing is happening after I uploaded the avatar." Fix: wrap with a 30s `AbortSignal.timeout()` matching the established pattern in `commands/character/voice.ts:110-117`.
 - 🐛 `[FIX]` **"Taking longer" notification fires too late and never cleans up** — `services/bot-client/src/services/JobTracker.ts:17` defines `MAX_JOB_AGE_MS = 10 * 60 * 1000` (10 minutes). Two issues: (a) 10 minutes is too late — users have given up by then; lower to ~5min OR decouple notification timer from typing-indicator cutoff via new `TAKING_LONGER_NOTIFY_MS`. (b) Notification never cleans up when the job completes — should capture the returned `Message` from `channel.send()` at JobTracker.ts:85-88, store on the tracked job, and `.delete()` it on completion (handle delete failure gracefully). **Start**: `JobTracker.ts:17` (constant), `:83-88` (send site), completion path in same file.
-- 🧹 `[CHORE]` **`pnpm ops logs --filter` passthrough to Railway CLI** — Railway CLI 4.11.2 supports server-side `--filter` with full query syntax (`@level:error`, boolean AND/OR/-, `"@level:warn AND rate limit"`). But `packages/tooling/src/deployment/logs.ts:44-68` does CLIENT-side substring grep in JS after fetching unfiltered logs. The wrapper's `--filter` never reaches the Railway args array at line 227. ~30 min fix, unlocks powerful ad-hoc diagnostic queries (e.g., `pnpm ops logs --filter "vision AND (404 OR 400)"`). Especially useful for validating the AbortError fix (Item B) post-deploy. **Start**: `packages/tooling/src/deployment/logs.ts:227` — add `--filter <value>` to Railway args array when provided, demote or remove JS-side substring grep.
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
@@ -221,9 +223,28 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 ---
 
-## 🏗 Active Epic: CPD Clone Reduction
+## 🏗 Active Epic: Identity & Provisioning Hardening
 
-_Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
+_Focus: eliminate the structural conditions that let the persona-snowflake bug ship undetected for 4 months. Six phases total, four remaining._
+
+**Status**: Phase 1 shipped 2026-04-14 (PR #803, beta.97). Phase 2 shipped 2026-04-15 (PRs #807 + #808, beta.98). Phase 3 queued for council pressure-test.
+
+**Full epic doc**: `docs/reference/architecture/epic-identity-hardening.md` — phase scopes, decision records (D1–D5), cross-cutting principles.
+
+**Remaining phases**:
+
+- **Phase 3**: eliminate `PersonaResolver.setUserDefault` lazy mutation side effect — extract `ensureDefaultPersona()` as explicit method called at request boundary. ~3 days.
+- **Phase 4**: kill `discord:XXXX` dual-tier personaId format — resolve extended-context participants to UUIDs at fetch time. ~3 days.
+- **Phase 5**: DB-level FK constraint `User.defaultPersonaId → Persona.id` (`ON DELETE RESTRICT`) + unique index `(ownerId, name)` on Persona. ~1 day + migration.
+- **Phase 6**: integration test coverage for the refactor-regression class (would have caught `c88ae5b7`). ~2 days.
+
+**Cross-cutting principle**: council pressure-test BEFORE each phase starts, not mid-implementation. ADR when an architectural choice is made.
+
+---
+
+## 📅 Next Epic: CPD Clone Reduction
+
+_Focus: Reduce code clones to <100. Paused for Identity Hardening; resume after Phase 6._
 
 **Progress**: 175 → 127 (PRs #599, #665–#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137; PR #776 (browse footer helpers) → 126; Session 1 (PRs #778, #779) → 118; PR #785 (ElevenLabs `readBody` extraction) → 119; 2026-04-13 quick wins session (PRs #794-798, thinking tags data-driven, BrowseActionRow extraction, routeHelpers split) → 119. **Current (`develop`): 119.** BrowseActionRow and thinking tag dedup were type/regex clones not counted by CPD; runtime code clone count unchanged.
 
@@ -272,13 +293,17 @@ Smaller wins in ai-worker internal patterns and tooling utilities.
 
 Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
 
-**Target**: <100 clones or <1.5%. Currently 126 clones.
+**Target**: <100 clones or <1.5%. Currently 119 clones on develop.
 
 ---
 
-## 📅 Next Epic: Package Extraction
+## 📦 Future Themes
 
-_Focus: Reduce common-types export bloat and split bot-client, the largest package._
+_Epics ordered by dependency. Pick the next one when current epic completes._
+
+### Theme: Package Extraction
+
+_Focus: Reduce common-types export bloat and split bot-client, the largest package. Demoted from Next Epic 2026-04-15 when Identity Hardening promoted; resume after CPD Clone Reduction completes._
 
 **Codebase snapshot (2026-02-12)**: 108K hand-written production LOC + 45K Prisma-generated.
 
@@ -290,13 +315,13 @@ _Focus: Reduce common-types export bloat and split bot-client, the largest packa
 | common-types | 99    | 16K | 607     | LOC is fine (45K "bloat" was Prisma-generated); **607 exports** is the real problem |
 | tooling      | 61    | 9K  | —       | Fine                                                                                |
 
-### Phase 1: Assessment
+#### Phase 1: Assessment
 
 - [ ] Reassess common-types export count — categorize exports by domain to identify extraction boundaries
 - [ ] Profile bot-client's 46K lines — which subdirectories are self-contained?
 - [ ] Reference: PR #558 analysis
 
-### Phase 2: Extraction
+#### Phase 2: Extraction
 
 - [ ] Candidates: `@tzurot/discord-dashboard` (30 files, self-contained), `@tzurot/message-references` (12 files), `@tzurot/discord-command-context` (6 files)
 - [ ] Re-evaluate whether common-types needs splitting or just export pruning
@@ -304,10 +329,6 @@ _Focus: Reduce common-types export bloat and split bot-client, the largest packa
 **Previous work**: Architecture Health epic (PRs #593–#597) completed dead code purge, oversized file splits, 400-line max-lines limit, and circular dependency resolution (54→25, all remaining are generated Prisma code).
 
 ---
-
-## 📦 Future Themes
-
-_Epics ordered by dependency. Pick the next one when current epic completes._
 
 ### Theme: Memory System Overhaul
 
