@@ -91,10 +91,17 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // Exclude user preference columns - settings, not raw data
-    // - default_llm_config_id: user's global LLM preset default
-    // - default_persona_id: user's default persona across all characters
-    excludeColumns: ['default_llm_config_id', 'default_persona_id'],
+    // Deferred FK columns — circular dependencies resolved via two-pass sync.
+    // - default_persona_id: FK to personas.id (circular with personas.owner_id → users.id)
+    // - default_llm_config_id: FK to llm_configs.id (circular with llm_configs.owner_id → users.id)
+    // Pass 1 inserts users with these columns NULL; pass 2 updates them after
+    // personas and llm_configs are synced. Previously these were blanket-excluded,
+    // which orphaned mirrored users on dev (their prod default_persona_id was dropped
+    // even though the referenced persona was synced). Syncing them keeps the invariant
+    // that "user with owned personas has a default persona" intact across environments.
+    // Trade-off: the dev user's own preferences now bleed between envs via last-write-wins
+    // on users.updated_at. Solo dev accepts this; document for future readers.
+    deferredFkColumns: ['default_llm_config_id', 'default_persona_id'],
   },
   personas: {
     pk: 'id',
@@ -150,11 +157,14 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // Exclude user preference columns - settings, not raw data
-    // - llm_config_id: user's LLM preset override for this character
-    // - persona_id: user's active persona for this character
-    // - focus_mode_enabled: user's focus mode setting (disables LTM retrieval)
-    excludeColumns: ['llm_config_id', 'persona_id', 'focus_mode_enabled'],
+    // persona_id and llm_config_id are synced directly (not deferred) — personas and
+    // llm_configs come before user_personality_configs in SYNC_TABLE_ORDER, so their
+    // rows exist by the time this table is synced; no circular-FK deferral needed.
+    // Previously excluded as "user preferences" but that orphaned per-character
+    // persona/llm overrides for mirrored users on dev. Same trade-off as on users:
+    // the dev user's own overrides will bleed across envs via last-write-wins.
+    // (Note: focus_mode_enabled was previously in excludeColumns but that column was
+    // dropped in migration 20260216004720 — data moved to config_overrides JSONB.)
   },
   user_persona_history_configs: {
     pk: 'id',
@@ -203,7 +213,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  *
  * Dependencies:
  * - system_prompts: no FK deps
- * - users: no synced FK deps (default_persona_id and default_llm_config_id are excluded)
+ * - users: default_persona_id and default_llm_config_id are DEFERRED FKs (pass 2 fills them
+ *   after personas/llm_configs are synced, breaking the circular dependency)
  * - llm_configs: owner_id → users (NOT NULL)
  * - personas: owner_id → users (NOT NULL)
  * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)

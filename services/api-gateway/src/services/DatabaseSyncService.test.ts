@@ -1146,31 +1146,35 @@ describe('DatabaseSyncService', () => {
       expect(usersIndex).toBeGreaterThanOrEqual(0);
 
       // users must come before personas (personas.owner_id -> users.id is NOT NULL)
-      // Note: users.default_persona_id is now excluded from sync entirely (user preference)
+      // default_persona_id is a NULLABLE circular FK, deferred to pass 2 by
+      // ForeignKeyReconciler after personas are synced.
       expect(
         usersIndex,
         'users must be synced before personas to satisfy FK constraint (personas.owner_id is NOT NULL)'
       ).toBeLessThan(personasIndex);
     });
 
-    it('should exclude user preference columns from sync (default_persona_id, default_llm_config_id)', async () => {
-      // Track all queries to verify excluded columns are not synced
-      const prodQueries: string[] = [];
+    it('should defer user preference FK columns via two-pass sync (not exclude them)', async () => {
+      // Regression guard: these columns were previously blanket-excluded, which
+      // orphaned mirrored users on dev (the referenced persona synced, but the
+      // FK on the user row was wiped). They must now appear in the INSERT column
+      // list (as NULL in pass 1) and be OMITTED from ON CONFLICT DO UPDATE SET
+      // (to avoid clobbering during pass 1). Pass 2 issues a separate UPDATE.
+      const executedQueries: Array<{ query: string; params: unknown[] }> = [];
       const userId = '00000000-0000-5000-a000-000000000001';
       const personaId = '00000000-0000-5000-a000-000000000002';
 
-      // Mock dev client to return a user with default_persona_id set
+      // Dev client returns one user with default_persona_id set.
       devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
-
-        // Return user data with default_persona_id (excluded column)
         if (queryStr.includes('FROM "users"') && !queryStr.includes('UPDATE')) {
           return [
             {
               id: userId,
               discord_id: '123456789',
-              default_persona_id: personaId, // This should be excluded from sync
-              default_llm_config_id: null, // This should be excluded from sync
+              username: 'testuser',
+              default_persona_id: personaId,
+              default_llm_config_id: null,
               created_at: new Date('2024-01-01'),
               updated_at: new Date('2024-01-02'),
               timezone: 'UTC',
@@ -1178,42 +1182,49 @@ describe('DatabaseSyncService', () => {
             },
           ];
         }
-
         return [];
       });
+      prodClient.$queryRawUnsafe.mockResolvedValue([]);
 
-      // Track prod client SELECT queries
-      prodClient.$queryRawUnsafe.mockImplementation(async query => {
-        const queryStr = String(query);
-        prodQueries.push(queryStr);
-        return [];
-      });
-
-      // Track prod client INSERT/UPDATE queries (via $executeRawUnsafe)
-      prodClient.$executeRawUnsafe.mockImplementation(async (query: unknown) => {
-        const queryStr = String(query);
-        prodQueries.push(queryStr);
-        return { count: 1 };
-      });
+      // Capture every INSERT/UPDATE issued on prod.
+      prodClient.$executeRawUnsafe.mockImplementation(
+        async (query: unknown, ...params: unknown[]) => {
+          executedQueries.push({ query: String(query), params });
+          return { count: 1 };
+        }
+      );
 
       await service.sync({ dryRun: false });
 
-      // Check that users INSERT/UPSERT was called on prod
-      const usersUpsertQuery = prodQueries.find(q => q.includes('INSERT') && q.includes('"users"'));
-      expect(usersUpsertQuery).toBeDefined();
-
-      // Verify that excluded columns are NOT in the INSERT query
-      // (they should be completely excluded from sync, not deferred)
-      if (usersUpsertQuery) {
-        expect(usersUpsertQuery).not.toContain('default_persona_id');
-        expect(usersUpsertQuery).not.toContain('default_llm_config_id');
-      }
-
-      // Verify no separate UPDATE for deferred columns (we no longer defer anything)
-      const updateDeferredQuery = prodQueries.find(
-        q => q.includes('UPDATE') && q.includes('"users"') && q.includes('default_persona_id')
+      // Pass 1: the users INSERT must include both deferred columns in the
+      // column list (so they're set to NULL during the initial write), but
+      // must OMIT them from the DO UPDATE SET clause (so they aren't clobbered
+      // back to NULL on re-runs after pass 2 has filled them in).
+      const usersInsert = executedQueries.find(
+        ({ query }) => query.includes('INSERT INTO "users"') && query.includes('ON CONFLICT')
       );
-      expect(updateDeferredQuery).toBeUndefined();
+      expect(usersInsert, 'expected users upsert in pass 1').toBeDefined();
+      if (usersInsert) {
+        const [columnListSection, updateSetSection] = usersInsert.query.split('DO UPDATE SET');
+        expect(columnListSection).toContain('"default_persona_id"');
+        expect(columnListSection).toContain('"default_llm_config_id"');
+        expect(updateSetSection).toBeDefined();
+        expect(updateSetSection).not.toContain('default_persona_id');
+        expect(updateSetSection).not.toContain('default_llm_config_id');
+
+        // Verify deferred columns were passed as NULL values (not the real
+        // dev value) in pass 1. The column order in the INSERT dictates the
+        // parameter position.
+        const columnOrder = /\(([^)]+)\)/.exec(columnListSection);
+        expect(columnOrder).not.toBeNull();
+        if (columnOrder) {
+          const cols = columnOrder[1].split(',').map(c => c.trim().replace(/"/g, ''));
+          const personaIdx = cols.indexOf('default_persona_id');
+          const llmIdx = cols.indexOf('default_llm_config_id');
+          expect(usersInsert.params[personaIdx]).toBeNull();
+          expect(usersInsert.params[llmIdx]).toBeNull();
+        }
+      }
     });
 
     it('should return stats for all tables in SYNC_TABLE_ORDER', async () => {
