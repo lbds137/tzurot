@@ -83,7 +83,7 @@ describe('syncTables Configuration', () => {
     }
 
     // Circular FK dependency between users and personas:
-    // - users.default_persona_id -> personas.id (NULLABLE - can be deferred)
+    // - users.default_persona_id -> personas.id (NULLABLE - deferred to pass 2)
     // - personas.owner_id -> users.id (NOT NULL - cannot be deferred)
     //
     // Solution: users synced BEFORE personas with default_persona_id set to NULL (pass 1),
@@ -93,8 +93,10 @@ describe('syncTables Configuration', () => {
       assertParentBeforeChild('users', 'personas', 'owner_id');
     });
 
-    // users.default_llm_config_id -> llm_configs.id (EXCLUDED from sync - env-specific)
-    // No order test needed - column is not synced between environments
+    // Same circular-FK pattern for users.default_llm_config_id -> llm_configs.id:
+    // - NULLABLE FK, deferred to pass 2
+    // - llm_configs.owner_id -> users.id is NOT NULL (forces users-first ordering)
+    // The users-before-llm_configs assertion below is the load-bearing check.
 
     // personalities.system_prompt_id -> system_prompts.id
     it('should sync system_prompts before personalities (personalities.system_prompt_id FK)', () => {
@@ -230,19 +232,38 @@ describe('syncTables Configuration', () => {
   });
 
   describe('Deferred FK columns (two-pass sync)', () => {
-    it('should not have any deferred FK columns (all user preference FKs are excluded)', () => {
-      // Previously users.default_persona_id was deferred for circular dependency,
-      // but now all user preference columns are excluded from sync entirely.
-      // This simplifies sync by eliminating the need for two-pass updates.
+    it('should defer users.default_persona_id and users.default_llm_config_id (circular FKs)', () => {
+      // These columns form a circular dependency with personas.owner_id and
+      // llm_configs.owner_id. Two-pass sync: pass 1 inserts users with these
+      // NULL; pass 2 updates them after personas/llm_configs are synced.
       const usersConfig = SYNC_CONFIG.users;
-      expect(usersConfig.deferredFkColumns).toBeUndefined();
+      expect(usersConfig.deferredFkColumns).toContain('default_persona_id');
+      expect(usersConfig.deferredFkColumns).toContain('default_llm_config_id');
     });
 
-    it('should exclude user preference columns instead of deferring them', () => {
-      // User preference columns are excluded from sync (settings, not raw data)
+    it('should not exclude the deferred user preference columns', () => {
+      // Regression guard: previously these were in excludeColumns, which
+      // orphaned mirrored users on dev (the referenced persona synced,
+      // but the FK on the user row was wiped). Deferred sync keeps the
+      // invariant "user with owned personas has a default" intact across envs.
       const usersConfig = SYNC_CONFIG.users;
-      expect(usersConfig.excludeColumns).toContain('default_llm_config_id');
-      expect(usersConfig.excludeColumns).toContain('default_persona_id');
+      const excluded = usersConfig.excludeColumns ?? [];
+      expect(excluded).not.toContain('default_persona_id');
+      expect(excluded).not.toContain('default_llm_config_id');
+    });
+
+    it('should not exclude user_personality_configs preference columns', () => {
+      // Same regression guard for the per-character overrides. personas and
+      // llm_configs sync before user_personality_configs (per SYNC_TABLE_ORDER),
+      // so these FKs are NOT circular — direct sync, no deferral needed.
+      // Previously excluded blanket-style; that wiped per-character overrides
+      // for mirrored users on dev. (focus_mode_enabled column was dropped in
+      // migration 20260216004720 — data moved to config_overrides JSONB.)
+      const upcConfig = SYNC_CONFIG.user_personality_configs;
+      const excluded = upcConfig.excludeColumns ?? [];
+      expect(excluded).not.toContain('persona_id');
+      expect(excluded).not.toContain('llm_config_id');
+      expect(excluded).not.toContain('focus_mode_enabled');
     });
 
     it('should have deferredFkColumns as array or undefined for all tables', () => {
@@ -256,35 +277,22 @@ describe('syncTables Configuration', () => {
       }
     });
 
-    it('should include excluded FK columns in uuidColumns for validation', () => {
-      // Excluded FK columns that reference UUID primary keys should still be in uuidColumns
-      // so the sync validation can handle them properly if they appear in data
+    it('should include deferred FK columns in uuidColumns for validation', () => {
+      // Deferred FK columns that reference UUID primary keys must still be in
+      // uuidColumns so the sync validation casts them correctly during pass 2.
       const usersConfig = SYNC_CONFIG.users;
       expect(usersConfig.uuidColumns).toContain('default_persona_id');
       expect(usersConfig.uuidColumns).toContain('default_llm_config_id');
     });
 
-    it('should not defer any FK columns currently (verify no deferred FKs)', () => {
-      // Guard test: if we add deferred FKs in the future, we need to verify they're nullable
-      for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
-        const deferredFks = config.deferredFkColumns ?? [];
-        expect(
-          deferredFks.length,
-          `Table "${tableName}" has deferred FKs - add validation for nullable constraint`
-        ).toBe(0);
-      }
-    });
-
-    it('should warn about potential issues with non-nullable FK deferral attempts', () => {
-      // This documents which FKs CANNOT be deferred due to NOT NULL constraints
+    it('should not defer non-nullable FK columns (would violate NOT NULL on pass 1)', () => {
+      // Deferral sets the column to NULL in pass 1. A NOT NULL FK cannot be deferred.
       const nonNullableFks: Record<string, string[]> = {
         personas: ['owner_id'], // Required FK - forces users-before-personas order
         personality_owners: ['personality_id', 'user_id'], // Composite PK, both required
         personality_aliases: ['personality_id'], // Required FK
-        // Most junction tables have required FKs
       };
 
-      // Verify none of these are in deferredFkColumns
       for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
         const deferredFks = config.deferredFkColumns ?? [];
         const notAllowed = nonNullableFks[tableName] ?? [];
