@@ -53,16 +53,13 @@ export async function processAvatarAttachment(
 
   // Download and convert to base64, with 30s timeout to avoid a stalled
   // Discord CDN holding the deferred interaction until Discord's 15-min cap.
-  // Pattern matches commands/character/voice.ts:109-117.
+  // Matches the flat try/catch/finally pattern in commands/character/avatar.ts:
+  // one clearTimeout in the finally, guaranteed regardless of which branch
+  // exits.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
-    let response: Response;
-    try {
-      response = await fetch(attachment.url, { signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
-    }
+    const response = await fetch(attachment.url, { signal: controller.signal });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -88,5 +85,7 @@ export async function processAvatarAttachment(
       );
     }
     throw new AvatarProcessingError('❌ Failed to download avatar image', 'DOWNLOAD_FAILED');
+  } finally {
+    clearTimeout(timeout);
   }
 }
