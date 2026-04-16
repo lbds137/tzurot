@@ -141,51 +141,52 @@ describe('JobTracker', () => {
     });
   });
 
-  describe('Job timeout handling', () => {
-    it('should send timeout notification and stop typing after MAX_JOB_AGE (10 minutes)', async () => {
+  describe('Taking-longer notification (5 min)', () => {
+    it('should send notification once the job exceeds TAKING_LONGER_NOTIFY_MS (5 min)', async () => {
       const mockChannel = {
         id: 'channel-123',
         sendTyping: vi.fn().mockResolvedValue(undefined),
-        send: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: vi.fn() }),
       } as any;
 
       jobTracker.trackJob('job-123', mockChannel, createMockContext());
-
-      // Initial typing
       await vi.advanceTimersByTimeAsync(0);
-      expect(mockChannel.sendTyping).toHaveBeenCalledTimes(1);
 
-      // Advance to just before timeout (9 minutes 52 seconds - last interval before 10 min)
-      await vi.advanceTimersByTimeAsync(9 * 60 * 1000 + 52 * 1000);
+      // Before 5 min: no notification yet
+      await vi.advanceTimersByTimeAsync(4 * 60 * 1000 + 56 * 1000); // 4:56
+      expect(mockChannel.send).not.toHaveBeenCalled();
 
-      // Should still be sending typing indicators
-      const typingCallsBeforeTimeout = mockChannel.sendTyping.mock.calls.length;
-      expect(typingCallsBeforeTimeout).toBeGreaterThan(1);
-
-      // Advance past 10 minute timeout to next interval (10 min 8 sec total)
-      // Interval fires at 8s intervals: 592s, 600s, 608s
-      // At 608s (10:08), age > 600000ms, so timeout triggers
-      await vi.advanceTimersByTimeAsync(16 * 1000);
-
-      // Should have sent timeout notification
+      // Past 5 min: notification fires on next interval tick
+      await vi.advanceTimersByTimeAsync(16 * 1000); // -> ~5:12
       expect(mockChannel.send).toHaveBeenCalledWith(
         expect.stringContaining('⏱️ This is taking longer than expected')
       );
 
-      // Typing should stop after timeout
-      const typingCallsAfterTimeout = mockChannel.sendTyping.mock.calls.length;
-
-      // Advance more time - typing should NOT continue
+      // Typing should STILL be firing (typing cutoff is 10 min, decoupled now)
+      const typingCallsAfterNotify = mockChannel.sendTyping.mock.calls.length;
       await vi.advanceTimersByTimeAsync(60 * 1000);
-      expect(mockChannel.sendTyping).toHaveBeenCalledTimes(typingCallsAfterTimeout);
+      expect(mockChannel.sendTyping.mock.calls.length).toBeGreaterThan(typingCallsAfterNotify);
 
-      // Job should still be tracked for result delivery
+      // Job still tracked
       expect(jobTracker.isTracking('job-123')).toBe(true);
-      const context = jobTracker.getContext('job-123');
-      expect(context).not.toBeNull();
     });
 
-    it('should handle timeout notification send failures gracefully', async () => {
+    it('should not re-send the notification on subsequent interval ticks', async () => {
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: vi.fn() }),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+
+      // Advance past 5 min plus several additional ticks
+      await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
+
+      expect(mockChannel.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle notification send failures gracefully', async () => {
       const mockChannel = {
         id: 'channel-123',
         sendTyping: vi.fn().mockResolvedValue(undefined),
@@ -193,14 +194,82 @@ describe('JobTracker', () => {
       } as any;
 
       jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
 
-      // Advance past timeout
-      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 8000);
-
-      // Should have attempted to send notification (but it failed)
       expect(mockChannel.send).toHaveBeenCalled();
+      expect(jobTracker.isTracking('job-123')).toBe(true); // not unregistered
+    });
 
-      // Job should still be tracked despite notification failure
+    it('should delete the notification message on job completion', async () => {
+      const deleteMock = vi.fn().mockResolvedValue(undefined);
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: deleteMock }),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+
+      // Trigger notification
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
+      expect(mockChannel.send).toHaveBeenCalledTimes(1);
+
+      // Complete the job — the "taking longer" message should be deleted
+      jobTracker.completeJob('job-123');
+      expect(deleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow delete failures on completion (Discord 404/429 safe)', async () => {
+      const deleteMock = vi.fn().mockRejectedValue(new Error('Unknown Message'));
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: deleteMock }),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
+
+      // Must not throw — delete failure is silent-swallow per design
+      expect(() => jobTracker.completeJob('job-123')).not.toThrow();
+      expect(deleteMock).toHaveBeenCalled();
+    });
+
+    it('should not attempt delete when notification was never sent', async () => {
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn(),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      // Complete quickly — no notification should have fired
+      await vi.advanceTimersByTimeAsync(30 * 1000);
+
+      jobTracker.completeJob('job-123');
+      expect(mockChannel.send).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Typing indicator cutoff (10 min)', () => {
+    it('should stop typing after TYPING_INDICATOR_TIMEOUT_MS, keep job tracked', async () => {
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: vi.fn() }),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+
+      // Advance past 10 min typing cutoff
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
+
+      const typingCallsAfterCutoff = mockChannel.sendTyping.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(60 * 1000);
+
+      // Typing stopped — no new calls
+      expect(mockChannel.sendTyping).toHaveBeenCalledTimes(typingCallsAfterCutoff);
+      // Job still tracked for result delivery
       expect(jobTracker.isTracking('job-123')).toBe(true);
     });
   });
