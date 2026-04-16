@@ -231,13 +231,20 @@ describe('BotMentionProcessor', () => {
     });
 
     it('documents that handleNsfwVerification is expected to be error-safe', async () => {
-      // The old fire-and-forget code wrapped `verifyNsfwUser` in `.catch(() => {})`
-      // because verification errors were non-critical — losing an auto-verify
-      // shouldn't crash the processor. The new code calls `handleNsfwVerification`
-      // directly with no local try/catch because handleNsfwVerification handles
-      // its own errors internally (verifyNsfwUser/checkNsfwVerification return
-      // null or a falsy default on API failure, and sendNsfwVerificationMessage
-      // has its own try/catch around message.reply).
+      // The old fire-and-forget code wrapped `verifyNsfwUser` in `.catch(() => {})`.
+      // The new code calls `handleNsfwVerification` directly with no local try/catch
+      // for two reasons:
+      //
+      // 1. handleNsfwVerification is internally error-safe: verifyNsfwUser and
+      //    checkNsfwVerification return null/falsy on API failure;
+      //    sendNsfwVerificationMessage wraps message.reply in its own try/catch.
+      //    So throwing requires something catastrophic deeper in the stack.
+      //
+      // 2. If it does throw, MessageHandler.handleMessage wraps the full
+      //    processor chain in try/catch (handlers/MessageHandler.ts:80-92)
+      //    and sends the user a friendly "Sorry, I encountered an error"
+      //    reply. Propagating is BETTER UX than the old silent swallow —
+      //    the user now gets explicit feedback that something broke.
       //
       // This test documents that contract: if the invariant ever breaks and
       // handleNsfwVerification starts throwing, this test fails loudly so we
