@@ -25,6 +25,7 @@ import {
   type LLMGenerationJobData,
   generateSystemPromptUuid,
   generatePersonalityUuid,
+  generatePersonaUuid,
   generateUserUuid,
 } from '@tzurot/common-types';
 import type { Job } from 'bullmq';
@@ -32,7 +33,7 @@ import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
 // Mock Redis service to avoid real Redis dependency
 vi.mock('../redis.js', () => ({
@@ -73,16 +74,17 @@ describe('AIJobProcessor Component Test', () => {
 
     // Seed test data (using deterministic UUIDs for consistency)
 
-    // Create test user first (required for ownerId)
-    // Use deterministic UUID for sync compatibility
+    // Create test user + default persona atomically (Phase 5b NOT NULL).
     const testDiscordId = 'test-discord-id';
-    const testUser = await prisma.user.create({
-      data: {
-        id: generateUserUuid(testDiscordId),
-        discordId: testDiscordId,
-        username: 'test-user',
-      },
+    const testUserId = generateUserUuid(testDiscordId);
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: generatePersonaUuid('test-user', testUserId),
+      discordId: testDiscordId,
+      username: 'test-user',
+      personaName: 'test-user',
     });
+    const testUser = { id: testUserId };
 
     const systemPrompt = await prisma.systemPrompt.create({
       data: {

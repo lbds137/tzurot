@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import {
   createMockReqRes,
   getHandler,
-  createUserServiceTransactionMock,
+  createUserServiceExecuteRawMock,
   type RouteHandler,
 } from '../../../test/shared-route-test-utils.js';
 
@@ -65,7 +65,7 @@ interface MockPrismaClient {
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
-  $transaction: ReturnType<typeof vi.fn>;
+  $executeRaw: ReturnType<typeof vi.fn>;
 }
 
 /** Create mock Prisma client for testing - includes UserService dependencies */
@@ -100,6 +100,6 @@ export function createMockPrisma(): MockPrismaClient {
       update: vi.fn(),
       delete: vi.fn(),
     },
-    $transaction: createUserServiceTransactionMock(MOCK_USER_ID, MOCK_PERSONA_ID),
+    $executeRaw: createUserServiceExecuteRawMock(),
   };
 }

@@ -19,7 +19,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
 // Mock logger to avoid console noise
 vi.mock('../utils/logger.js', () => ({
@@ -63,20 +63,22 @@ describe('ConversationRetentionService', () => {
   }, 30000);
 
   beforeEach(async () => {
-    // Clear tables between tests (order matters due to FK constraints)
+    // Clear tables between tests. After Phase 5 (Restrict FK on
+    // users.default_persona_id) we delete users FIRST — the Cascade on
+    // persona.owner_id removes personas in the same statement.
     await prisma.conversationHistoryTombstone.deleteMany();
     await prisma.conversationHistory.deleteMany();
-    await prisma.persona.deleteMany();
     await prisma.personality.deleteMany();
     await prisma.user.deleteMany();
 
-    // Create test user (required for persona FK)
-    await prisma.user.create({
-      data: {
-        id: testUserId,
-        discordId: '111111111111111111',
-        username: 'testuser',
-      },
+    // Create test user + default persona atomically (Phase 5b NOT NULL).
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: testPersonaId,
+      discordId: '111111111111111111',
+      username: 'testuser',
+      personaName: 'TestPersona',
+      personaContent: 'Test persona content',
     });
 
     // Create test personality (requires slug, ownerId, characterInfo, personalityTraits)
@@ -88,16 +90,6 @@ describe('ConversationRetentionService', () => {
         ownerId: testUserId,
         characterInfo: 'A test personality for integration testing',
         personalityTraits: 'Helpful and deterministic',
-      },
-    });
-
-    // Create test persona
-    await prisma.persona.create({
-      data: {
-        id: testPersonaId,
-        name: 'TestPersona',
-        content: 'Test persona content',
-        ownerId: testUserId,
       },
     });
 

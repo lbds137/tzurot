@@ -61,27 +61,11 @@ export function getHandler(
 }
 
 /**
- * Create a mock $transaction implementation with UserService dependencies.
- *
- * @param mockUserId - User UUID returned by transaction mocks
- * @param mockPersonaId - Persona UUID returned by transaction mocks
+ * Create a mock `$executeRaw` implementation for UserService's
+ * CTE-based user creation (Phase 5b). UserService uses a single
+ * `$executeRaw` call to atomically create the user + default persona,
+ * so mocks need only resolve successfully.
  */
-export function createUserServiceTransactionMock(
-  mockUserId: string,
-  mockPersonaId: string
-): ReturnType<typeof vi.fn> {
-  return vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-    const mockTx = {
-      user: {
-        create: vi.fn().mockResolvedValue({ id: mockUserId }),
-        update: vi.fn().mockResolvedValue({ id: mockUserId }), // For new user creation
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
-        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
-      },
-      persona: {
-        create: vi.fn().mockResolvedValue({ id: mockPersonaId }),
-      },
-    };
-    await callback(mockTx);
-  });
+export function createUserServiceExecuteRawMock(): ReturnType<typeof vi.fn> {
+  return vi.fn().mockResolvedValue(1);
 }

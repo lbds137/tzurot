@@ -25,7 +25,12 @@ import {
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { setupTestEnvironment, loadPGliteSchema, type TestEnvironment } from '@tzurot/test-utils';
+import {
+  setupTestEnvironment,
+  loadPGliteSchema,
+  seedUserWithPersona,
+  type TestEnvironment,
+} from '@tzurot/test-utils';
 
 // Test user Discord ID (must be <= 20 chars for varchar(20))
 const TEST_DISCORD_ID = '12345678901234567890';
@@ -78,49 +83,29 @@ describe('LLM Config Resolution Integration', () => {
     // Clean up test data - order matters due to foreign keys
     await prisma.userPersonalityConfig.deleteMany({});
 
-    // Find and delete user-owned data (configs, personas)
+    // Find and delete user-owned data. Phase 5b made default_persona_id NOT
+    // NULL, so we can't "unlink" the default persona before deleting — instead,
+    // deleting the user cascades to its personas via the reverse owner FK.
     const testUser = await prisma.user.findFirst({
       where: { discordId: TEST_DISCORD_ID },
     });
     if (testUser) {
-      // Clear default persona reference first
-      await prisma.user.update({
-        where: { id: testUser.id },
-        data: { defaultPersonaId: null, defaultLlmConfigId: null },
-      });
       await prisma.llmConfig.deleteMany({ where: { ownerId: testUser.id } });
-      await prisma.persona.deleteMany({ where: { ownerId: testUser.id } });
     }
 
     await prisma.user.deleteMany({ where: { discordId: TEST_DISCORD_ID } });
 
-    // Create test user first (persona needs owner)
-    const personaId = generatePersonaUuid(TEST_DISCORD_ID);
+    // Create test user + default persona atomically. The bare Discord ID would
+    // violate the personas_name_not_snowflake CHECK constraint, so we seed
+    // with a real name instead.
+    const personaName = 'integration-test-user';
     testUserId = generateUserUuid(TEST_DISCORD_ID);
-
-    // Create user without persona first
-    await prisma.user.create({
-      data: {
-        id: testUserId,
-        discordId: TEST_DISCORD_ID,
-        username: 'integration-test-user',
-      },
-    });
-
-    // Create persona owned by user
-    await prisma.persona.create({
-      data: {
-        id: personaId,
-        name: TEST_DISCORD_ID,
-        content: '',
-        ownerId: testUserId,
-      },
-    });
-
-    // Link persona as user's default
-    await prisma.user.update({
-      where: { id: testUserId },
-      data: { defaultPersonaId: personaId },
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: generatePersonaUuid(personaName, testUserId),
+      discordId: TEST_DISCORD_ID,
+      username: personaName,
+      personaName,
     });
   });
 

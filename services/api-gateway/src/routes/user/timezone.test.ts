@@ -44,6 +44,7 @@ const mockPrisma = {
   persona: {
     create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
     const mockTx = {
       user: {
@@ -279,7 +280,7 @@ describe('/user/timezone routes', () => {
 
       // Phase 2: HTTP routes go through getOrCreateUserShell which calls
       // prisma.user.create directly (no $transaction, no persona creation).
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
 
       // Timezone is then updated via direct update
       expect(mockPrisma.user.update).toHaveBeenCalledWith({

@@ -112,6 +112,7 @@ const mockPrisma = {
   personalityDefaultConfig: {
     count: vi.fn(),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
     const mockTx = {
       user: {
@@ -586,7 +587,7 @@ describe('/user/llm-config routes', () => {
       await handler(req, res);
 
       // Phase 2: HTTP routes use getOrCreateUserShell → direct user.create (no transaction)
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
   });

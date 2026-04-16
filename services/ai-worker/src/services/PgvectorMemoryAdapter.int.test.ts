@@ -15,7 +15,7 @@ import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { PgvectorMemoryAdapter, type MemoryMetadata } from './PgvectorMemoryAdapter.js';
 import type { IEmbeddingService } from '@tzurot/embeddings';
 
@@ -76,18 +76,19 @@ describe('PgvectorMemoryAdapter Component Test', () => {
     const pgliteAdapter = new PrismaPGlite(pglite);
     prisma = new PrismaClient({ adapter: pgliteAdapter }) as PrismaClient;
 
-    // Seed test data using parameterized queries (not string interpolation)
+    // Seed test data. Phase 5b: user + default persona must be created
+    // atomically via the CTE helper (users.default_persona_id is NOT NULL).
     const systemPromptId = '00000000-0000-0000-0000-000000000004';
 
-    await prisma.$executeRaw`
-      INSERT INTO users (id, discord_id, username, updated_at)
-      VALUES (${testUserId}::uuid, '111111111111111111', 'testuser', NOW())
-    `;
-
-    await prisma.$executeRaw`
-      INSERT INTO personas (id, name, content, preferred_name, owner_id, updated_at)
-      VALUES (${testPersonaId}::uuid, 'Test Persona', 'A test persona', 'Tester', ${testUserId}::uuid, NOW())
-    `;
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: testPersonaId,
+      discordId: '111111111111111111',
+      username: 'testuser',
+      personaName: 'Test Persona',
+      personaPreferredName: 'Tester',
+      personaContent: 'A test persona',
+    });
 
     await prisma.$executeRaw`
       INSERT INTO system_prompts (id, name, content, updated_at)

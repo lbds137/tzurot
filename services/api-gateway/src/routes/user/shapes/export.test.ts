@@ -56,6 +56,7 @@ const mockPrisma = {
     upsert: vi.fn().mockResolvedValue({ id: 'export-job-123' }),
     findMany: vi.fn().mockResolvedValue([]),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
     const mockTx = {
       user: {

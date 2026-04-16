@@ -14,7 +14,7 @@ import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
 describe('Database Infrastructure', () => {
   let prisma: PrismaClient;
@@ -62,19 +62,21 @@ describe('Database Infrastructure', () => {
 
   describe('CRUD Operations', () => {
     const testUserId = '00000000-0000-0000-0000-000000000001';
+    const testPersonaId = '00000000-0000-0000-0000-0000000000a1';
     const testDiscordId = '123456789012345678';
 
-    it('should create a user', async () => {
-      const user = await prisma.user.create({
-        data: {
-          id: testUserId,
-          discordId: testDiscordId,
-          username: 'testuser',
-        },
+    it('should create a user (with default persona, per Phase 5b)', async () => {
+      await seedUserWithPersona(prisma, {
+        userId: testUserId,
+        personaId: testPersonaId,
+        discordId: testDiscordId,
+        username: 'testuser',
+        personaName: 'testuser',
       });
 
-      expect(user.id).toBe(testUserId);
-      expect(user.username).toBe('testuser');
+      const user = await prisma.user.findUnique({ where: { id: testUserId } });
+      expect(user?.username).toBe('testuser');
+      expect(user?.defaultPersonaId).toBe(testPersonaId);
     });
 
     it('should read the created user', async () => {
@@ -95,7 +97,7 @@ describe('Database Infrastructure', () => {
       expect(user.username).toBe('updateduser');
     });
 
-    it('should delete the user', async () => {
+    it('should delete the user (cascades to owned personas)', async () => {
       await prisma.user.delete({
         where: { id: testUserId },
       });

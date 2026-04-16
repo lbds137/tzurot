@@ -129,7 +129,7 @@ describe('persona CRUD routes', () => {
 
       // Shell creation — api-gateway routes don't have username context.
       // See UserService.getOrCreateUserShell — creates a User-only record.
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
 
     it('should handle personas with null content and pronouns', async () => {
