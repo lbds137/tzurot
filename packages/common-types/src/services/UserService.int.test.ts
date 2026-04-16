@@ -251,7 +251,11 @@ describe('UserService', () => {
         where: { id: user!.defaultPersonaId! },
       });
       expect(persona?.name).toBe(testUsername);
-      expect(persona?.preferredName).toBe(testUsername);
+      // PR #818 review: preferredName follows `displayName ?? username`,
+      // matching the full-path create behavior. A shell-created user whose
+      // first bot-client interaction carries a distinct displayName should
+      // land on preferredName = displayName, not preferredName = username.
+      expect(persona?.preferredName).toBe(testDisplayName);
     });
 
     it('calling getOrCreateUser twice with the same real username is idempotent (no P2002)', async () => {

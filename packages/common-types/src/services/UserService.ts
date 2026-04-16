@@ -141,8 +141,15 @@ export class UserService {
       user ??= await this.createUserWithRaceProtection(discordId, username, displayName, bio);
 
       // Run maintenance tasks (superuser promotion, placeholder username
-      // upgrade) and get the authoritative `defaultPersonaId`.
-      const defaultPersonaId = await this.runMaintenanceTasks(user, discordId, username);
+      // upgrade) and get the authoritative `defaultPersonaId`. Pass
+      // `displayName` so the shell→full upgrade preserves it as
+      // `preferredName` (matches the full-path create behavior).
+      const defaultPersonaId = await this.runMaintenanceTasks(
+        user,
+        discordId,
+        username,
+        displayName
+      );
 
       const provisioned: ProvisionedUser = { userId: user.id, defaultPersonaId };
       this.userCache.set(discordId, provisioned);
@@ -389,7 +396,8 @@ export class UserService {
   private async runMaintenanceTasks(
     user: UserWithBackfillFields,
     discordId: string,
-    username: string
+    username: string,
+    displayName?: string
   ): Promise<string> {
     // Check if existing user should be promoted to superuser
     await this.promoteToSuperuserIfNeeded(user, discordId);
@@ -412,15 +420,22 @@ export class UserService {
     // no-ops. The unique `(ownerId, name)` constraint cannot fire here
     // because the placeholder name is unique per owner by construction, and
     // this is the first time the real username has arrived for this user.
+    //
+    // `preferredName` uses `displayName ?? username` to match the full-path
+    // behavior — a user who only appeared via shell-creation then first
+    // interacts via bot-client with a distinct displayName (e.g. username
+    // `lbds137`, displayName `LB`) should land with preferredName=`LB`, not
+    // `lbds137`. Same formula the deleted `backfillDefaultPersona` used.
     if (user.username === discordId && username !== discordId) {
       const placeholderPersonaName = buildShellPlaceholderPersonaName(discordId);
+      const preferredName = displayName ?? username;
       await this.prisma.user.update({
         where: { id: user.id },
         data: { username },
       });
       const renameResult = await this.prisma.persona.updateMany({
         where: { ownerId: user.id, name: placeholderPersonaName },
-        data: { name: username, preferredName: username },
+        data: { name: username, preferredName },
       });
       logger.info(
         {
