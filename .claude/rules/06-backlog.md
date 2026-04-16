@@ -54,7 +54,7 @@ Plan files produced in plan mode must include a "Backlog Additions Required" sec
 3. **Action**: concrete, specific steps to fix
 4. **Why out of scope**: one sentence on why it isn't being fixed now
 
-### Session-end gate
+### Session-end gate (additions)
 
 A session is NOT done until every promised backlog addition is actually written to `BACKLOG.md`. Before running session-end cleanup:
 
@@ -62,7 +62,16 @@ A session is NOT done until every promised backlog addition is actually written 
 - Verify each item exists in `BACKLOG.md` in the promised destination section
 - If any are missing, write them first — then close the session
 
-This rule pairs with the session-end workflow in the `/tzurot-docs` skill.
+### Session-end gate (removals)
+
+A session is ALSO not done until every item that shipped during the session is removed from `BACKLOG.md`. Additions without removals is what lets the backlog rot. Specifically:
+
+- List the PRs merged during the session
+- For each PR, grep `BACKLOG.md` for the item title/topic — if a matching entry exists, **remove it**
+- For any backlog entry annotated "PROMOTED to Current Focus" or similar, re-verify the underlying fix actually shipped; if yes, remove
+- Also remove any entry whose "Start" hints point to code that no longer needs fixing (grep the file to confirm)
+
+Both gates pair with the session-end workflow in the `/tzurot-docs` skill. Additions protect the "out of scope" commitment; removals protect against backlog bloat from items the repo no longer needs.
 
 ## Triage Rules
 
