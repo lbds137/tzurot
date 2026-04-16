@@ -155,7 +155,7 @@ Paired with PR #813 (db-sync user-preference FK deferral): `unprovisionedDefault
 Shipped in a single migration (`20260416164756_identity_epic_phase_5_db_invariants`):
 
 - **FK constraint `SetNull → Restrict`** on `User.defaultPersona`. Deleting a persona that's someone's default now fails loud at the DB level instead of silently nulling the reference. App-layer guard at `services/api-gateway/src/routes/user/persona/crud.ts:254` already blocks self-default-deletion — Restrict is the belt-and-suspenders safety net.
-- **Unique `(ownerId, name)` on Persona**. Two personas with the same name for the same owner becomes a constraint violation. Case-sensitive (matches Postgres default). Zero collisions in prod or dev at migration time.
+- **Unique `(ownerId, name)` on Persona**. Two personas with the same name for the same owner becomes a constraint violation. **Case-sensitive** (Postgres default) — `"Alice"` and `"alice"` for the same owner count as distinct. Intentional: zero collisions in prod, and no app-layer case-insensitive matching exists today. If a future UX need emerges for case-insensitive lookup/dedup, a functional index on `LOWER(name)` is a clean follow-up.
 - **CHECK constraint `personas_name_non_empty`**: `LENGTH(TRIM(name)) > 0`. Rejects empty or whitespace-only names at the DB level.
 - **CHECK constraint `personas_name_not_snowflake`**: `name !~ '^\d{17,19}$'`. DB-level tripwire for the Phase 1 bug class — if any future refactor accidentally wires `name = discordUserId`, the DB rejects it. Drift-ignore patterns added to `prisma/drift-ignore.json` so future `db:safe-migrate` runs don't try to drop the CHECKs.
 
