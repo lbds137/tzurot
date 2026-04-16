@@ -18,7 +18,14 @@ lastUpdated: '2026-02-07'
 
 1. Update `CURRENT.md` with progress
 2. If task incomplete, note blockers in Scratchpad
-3. Commit with `wip:` prefix if needed
+3. **Run both BACKLOG gates** (see `.claude/rules/06-backlog.md`):
+   - **Additions gate**: every promised backlog item from this session's
+     plans is actually written to `BACKLOG.md`
+   - **Removals gate**: every item that shipped in this session's merged
+     PRs is removed from `BACKLOG.md`. Grep the backlog against the
+     session's PR titles and scope terms; delete matches. This gate is
+     the one that most often gets skipped, producing backlog rot.
+4. Commit with `wip:` prefix if session ended with incomplete work
 
 ## Work Tracking Files
 
