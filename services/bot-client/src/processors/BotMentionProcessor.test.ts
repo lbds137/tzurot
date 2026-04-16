@@ -29,8 +29,7 @@ vi.mock('@tzurot/common-types', async () => {
 
 // Mock NSFW verification utilities
 vi.mock('../utils/nsfwVerification.js', () => ({
-  isNsfwChannel: vi.fn(),
-  verifyNsfwUser: vi.fn(),
+  handleNsfwVerification: vi.fn(),
   sendVerificationConfirmation: vi.fn(),
 }));
 
@@ -72,6 +71,12 @@ describe('BotMentionProcessor', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: verified user, not a new verification — the happy path for
+    // most tests. NSFW-specific tests override this mock.
+    vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+      allowed: true,
+      wasNewVerification: false,
+    });
     processor = new BotMentionProcessor();
   });
 
@@ -168,80 +173,61 @@ describe('BotMentionProcessor', () => {
     });
   });
 
-  describe('NSFW auto-verification', () => {
-    it('should auto-verify user when mentioned in NSFW channel', async () => {
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.verifyNsfwUser).mockResolvedValue({
-        nsfwVerified: true,
-        nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
-        alreadyVerified: false,
-      });
-
-      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
+  describe('NSFW verification gate', () => {
+    it('should call handleNsfwVerification before sending help', async () => {
+      const message = createMockMessage({ hasBotMention: true });
 
       await processor.process(message);
 
-      expect(nsfwVerification.isNsfwChannel).toHaveBeenCalledWith(message.channel);
-      expect(nsfwVerification.verifyNsfwUser).toHaveBeenCalledWith('111222333');
+      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalledWith(
+        message,
+        'BotMentionProcessor'
+      );
     });
 
-    it('should send confirmation on first-time verification', async () => {
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.verifyNsfwUser).mockResolvedValue({
-        nsfwVerified: true,
-        nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
-        alreadyVerified: false,
+    it('should block help and return true when verification denied (unverified non-NSFW / DM)', async () => {
+      // handleNsfwVerification sends the verification prompt itself and
+      // returns allowed: false. The processor must stop here — no help message.
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+        allowed: false,
+        wasNewVerification: false,
       });
-
-      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
-
-      await processor.process(message);
-
-      // Wait for the fire-and-forget promise to settle
-      await vi.waitFor(() => {
-        expect(nsfwVerification.sendVerificationConfirmation).toHaveBeenCalledWith(message.channel);
-      });
-    });
-
-    it('should not send confirmation when already verified', async () => {
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.verifyNsfwUser).mockResolvedValue({
-        nsfwVerified: true,
-        nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
-        alreadyVerified: true,
-      });
-
-      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
-
-      await processor.process(message);
-
-      // Wait a tick for promise to settle
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(nsfwVerification.sendVerificationConfirmation).not.toHaveBeenCalled();
-    });
-
-    it('should not auto-verify in non-NSFW channel', async () => {
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
 
       const message = createMockMessage({ hasBotMention: true, isNsfwChannel: false });
 
-      await processor.process(message);
+      const result = await processor.process(message);
 
-      expect(nsfwVerification.verifyNsfwUser).not.toHaveBeenCalled();
+      expect(result).toBe(true); // mention was handled (by the verification prompt)
+      expect(message.reply).not.toHaveBeenCalled(); // no welcome help sent
     });
 
-    it('should handle verification failure gracefully', async () => {
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.verifyNsfwUser).mockRejectedValue(new Error('API error'));
+    it('should send confirmation on first-time verification then continue to help', async () => {
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+        allowed: true,
+        wasNewVerification: true,
+      });
 
       const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
 
-      // Should not throw, still sends help message
       const result = await processor.process(message);
 
       expect(result).toBe(true);
-      expect(message.reply).toHaveBeenCalled();
+      expect(nsfwVerification.sendVerificationConfirmation).toHaveBeenCalledWith(message.channel);
+      expect(message.reply).toHaveBeenCalledTimes(1); // welcome help also sent
+    });
+
+    it('should not send confirmation when user was already verified', async () => {
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+        allowed: true,
+        wasNewVerification: false,
+      });
+
+      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
+
+      await processor.process(message);
+
+      expect(nsfwVerification.sendVerificationConfirmation).not.toHaveBeenCalled();
+      expect(message.reply).toHaveBeenCalledTimes(1); // just the welcome help
     });
   });
 });
