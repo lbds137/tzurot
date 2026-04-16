@@ -104,9 +104,8 @@ describe('Discord ID Validation', () => {
 // to bot-client's ExtendedContextPersonaResolver module; the common-types
 // exports were never used in production code outside that module and
 // lingered as a cross-package API that shouldn't exist. The internal
-// equivalent lives at
-// services/bot-client/src/services/contextBuilder/ExtendedContextPersonaResolver.ts
-// as `INTERNAL_DISCORD_ID_PREFIX`.
+// equivalent is `INTERNAL_DISCORD_ID_PREFIX` exported from
+// `ExtendedContextPersonaResolver` (in bot-client).
 
 describe('Bot Footer Text Constants', () => {
   describe('BOT_FOOTER_TEXT', () => {
