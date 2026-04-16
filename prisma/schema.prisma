@@ -37,7 +37,7 @@ model User {
   channelSettings       ChannelSettings[]
   adminSettingsUpdates  AdminSettings[]
   defaultLlmConfig      LlmConfig?                 @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
-  defaultPersona        Persona?                   @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: SetNull)
+  defaultPersona        Persona?                   @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: Restrict)
   ownedLlmConfigs       LlmConfig[]                @relation("LlmConfigOwner")
   ownedPersonalities    Personality[]              @relation("PersonalityOwner")
   personalityOwners     PersonalityOwner[]
@@ -128,6 +128,7 @@ model Persona {
   personalityConfigs          UserPersonalityConfig[]
   historyConfigs              UserPersonaHistoryConfig[] @relation("personaHistoryConfigs")
 
+  @@unique([ownerId, name])
   @@index([ownerId])
   @@map("personas")
 }

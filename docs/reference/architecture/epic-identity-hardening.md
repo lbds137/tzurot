@@ -3,8 +3,10 @@
 > **Status**: Active Epic. Phase 1 shipped 2026-04-14 (PR #803, beta.97).
 > Phase 2 shipped 2026-04-15 (PRs #807, #808 — provisioning choke point +
 > review follow-ups, in beta.98). Phase 3 shipped 2026-04-16 (PR #814 —
-> PersonaResolver now strictly read-only, unreleased on develop).
-> Phases 4-6 queued.
+> PersonaResolver now strictly read-only). Phase 4 shipped 2026-04-16
+> (PR #816 — killed the discord:XXXX dual-tier format). Phase 5 shipped
+> 2026-04-16 (this PR — DB-level invariants; NOT NULL deferred to 5b).
+> Phase 5b (NOT NULL + shell redesign) and Phase 6 (integration tests) queued.
 >
 > **Type**: Living document. Update after each phase with outcomes, design
 > decisions, and next-phase entry points. This is the source of truth for
@@ -148,12 +150,18 @@ Paired with PR #813 (db-sync user-preference FK deferral): `unprovisionedDefault
   carry a placeholder)
 - Remove `resolveToUuid`'s `discord:` branch after migration window
 
-### Phase 5 — DB-level invariants (~1 day + migration)
+### Phase 5 — DB-level invariants ✅ (shipped 2026-04-16)
 
-- FK constraint: `User.defaultPersonaId → Persona.id` (`ON DELETE RESTRICT`)
-- Unique index: `(ownerId, name)` on Persona table
-- Review and add `CHECK` constraints where appropriate (non-empty names,
-  name doesn't match snowflake pattern, etc.)
+Shipped in a single migration (`20260416164756_identity_epic_phase_5_db_invariants`):
+
+- **FK constraint `SetNull → Restrict`** on `User.defaultPersona`. Deleting a persona that's someone's default now fails loud at the DB level instead of silently nulling the reference. App-layer guard at `services/api-gateway/src/routes/user/persona/crud.ts:254` already blocks self-default-deletion — Restrict is the belt-and-suspenders safety net.
+- **Unique `(ownerId, name)` on Persona**. Two personas with the same name for the same owner becomes a constraint violation. Case-sensitive (matches Postgres default). Zero collisions in prod or dev at migration time.
+- **CHECK constraint `personas_name_non_empty`**: `LENGTH(TRIM(name)) > 0`. Rejects empty or whitespace-only names at the DB level.
+- **CHECK constraint `personas_name_not_snowflake`**: `name !~ '^\d{17,19}$'`. DB-level tripwire for the Phase 1 bug class — if any future refactor accidentally wires `name = discordUserId`, the DB rejects it. Drift-ignore patterns added to `prisma/drift-ignore.json` so future `db:safe-migrate` runs don't try to drop the CHECKs.
+
+Empirical pre-flight verified both envs clean across all three invariants (0 null defaults, 0 dangling refs, 0 duplicate names) across 227 users / 234 personas.
+
+**Deferred — NOT NULL on `User.defaultPersonaId`**: initial Phase 5 draft proposed this, but `getOrCreateUserShell` intentionally creates users with null default (persona backfills on first bot-client interaction). Making it NOT NULL requires redesigning shell creation atomically with a placeholder persona, plus extending `runMaintenanceTasks` to rename the placeholder when the real username arrives. That's its own ~150-250 LOC change — Phase 5b tracked in `BACKLOG.md` Inbox.
 
 ### Phase 6 — Integration test coverage for refactor class (~2 days)
 
