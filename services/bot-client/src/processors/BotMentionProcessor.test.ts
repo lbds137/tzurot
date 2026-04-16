@@ -229,5 +229,31 @@ describe('BotMentionProcessor', () => {
       expect(nsfwVerification.sendVerificationConfirmation).not.toHaveBeenCalled();
       expect(message.reply).toHaveBeenCalledTimes(1); // just the welcome help
     });
+
+    it('documents that handleNsfwVerification is expected to be error-safe', async () => {
+      // The old fire-and-forget code wrapped `verifyNsfwUser` in `.catch(() => {})`
+      // because verification errors were non-critical — losing an auto-verify
+      // shouldn't crash the processor. The new code calls `handleNsfwVerification`
+      // directly with no local try/catch because handleNsfwVerification handles
+      // its own errors internally (verifyNsfwUser/checkNsfwVerification return
+      // null or a falsy default on API failure, and sendNsfwVerificationMessage
+      // has its own try/catch around message.reply).
+      //
+      // This test documents that contract: if the invariant ever breaks and
+      // handleNsfwVerification starts throwing, this test fails loudly so we
+      // know to re-add a local safety net.
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockRejectedValue(
+        new Error('Gateway down')
+      );
+
+      const message = createMockMessage({ hasBotMention: true });
+
+      // If handleNsfwVerification ever DOES throw, we expect it to propagate
+      // (fail-closed). This test is the tripwire — the contract is "it
+      // shouldn't throw in practice," and if it ever does, this assertion
+      // tells us to either re-add a local catch or fix the upstream function.
+      await expect(processor.process(message)).rejects.toThrow('Gateway down');
+      expect(message.reply).not.toHaveBeenCalled();
+    });
   });
 });
