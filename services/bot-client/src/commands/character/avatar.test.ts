@@ -197,6 +197,27 @@ describe('Character Avatar Handler', () => {
       expect(api.updateCharacter).not.toHaveBeenCalled();
     });
 
+    it('should propagate non-AbortError fetch errors past the timeout catch', async () => {
+      // Covers the `throw error` branch in the non-AbortError fetch catch
+      // path. handleAvatar's outer try/catch catches the rethrown error and
+      // emits the generic "Failed to update avatar" message — we assert on
+      // that rather than on handleAvatar rejecting, because the function's
+      // contract is to always resolve and always editReply something.
+      const attachment = createMockAttachment();
+      const mockContext = createMockContext('my-char', attachment);
+      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
+      mockFetch.mockRejectedValue(new Error('Connection refused'));
+
+      await handleAvatar(mockContext, mockConfig);
+
+      // Not the timeout-specific message — must fall through to outer catch.
+      expect(mockContext.editReply).not.toHaveBeenCalledWith(expect.stringContaining('timed out'));
+      expect(mockContext.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to update avatar')
+      );
+      expect(api.updateCharacter).not.toHaveBeenCalled();
+    });
+
     it('should successfully update avatar', async () => {
       const attachment = createMockAttachment();
       const mockContext = createMockContext('my-char', attachment);
