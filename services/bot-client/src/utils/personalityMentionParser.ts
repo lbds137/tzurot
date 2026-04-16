@@ -21,13 +21,15 @@ const POSSESSIVE_SUFFIX = /'s$/i;
 
 /**
  * Strip trailing punctuation from a word — full-strip variant. Strips sentence
- * punctuation (".", "!", "?"), list punctuation (",", ";", ":"), quotes, and
- * Discord markdown chars (`*_~|`). Used when the trailing period is treated
- * as sentence-ending punctuation, not part of the name ("Hey @Lilith." →
- * "Lilith"). Also the regex passed to {@link extractPotentialMentions} for
- * cleaning the full matched text at the message-spanning level.
+ * punctuation (".", "!", "?"), list punctuation (",", ";", ":"), quotes,
+ * Discord markdown chars (`*_~|`), and the backtick used for Discord
+ * inline-code formatting (`` `@Lilith` `` / `` ```@Dr. Gregory House``` ``).
+ * Used when the trailing period is treated as sentence-ending punctuation,
+ * not part of the name ("Hey @Lilith." → "Lilith"). Also the regex passed
+ * to {@link extractPotentialMentions} for cleaning the full matched text
+ * at the message-spanning level.
  */
-const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|]+$/;
+const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|`]+$/;
 
 /**
  * Strip trailing punctuation from a word — period-preserving variant.
@@ -41,8 +43,11 @@ const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|]+$/;
  * Map simultaneously; whichever matches an actual personality name wins at
  * lookup time. Deduplication prevents candidate explosion for period-free
  * names (where both variants produce identical strings).
+ *
+ * Backtick is included so inline-code wrapping (`` `@Dr. Gregory House` ``)
+ * strips correctly while preserving the name's internal period.
  */
-const WORD_PUNCTUATION_STRIP_NON_PERIOD = /[,!?;:)"'*_~|]+$/;
+const WORD_PUNCTUATION_STRIP_NON_PERIOD = /[,!?;:)"'*_~|`]+$/;
 
 interface PersonalityMentionResult {
   personalityName: string;
@@ -176,9 +181,10 @@ export async function findPersonalityMention(
 
   // Step 5: Clean the content by removing the matched personality mention
   // Handle possessive suffix (@Lilith's → remove entirely, not just @Lilith)
-  // Include Discord markdown chars (*_~|) as valid word boundaries
+  // Include Discord markdown chars (*_~|) and backtick (inline-code wrapping)
+  // as valid word boundaries so `` `@Lilith` `` cleans to the empty string.
   const matchRegex = new RegExp(
-    `${escapedChar}${bestMatch.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:'s)?(?:[.,!?;:)"'*_~|]|\\s|$)`,
+    `${escapedChar}${bestMatch.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:'s)?(?:[.,!?;:)"'*_~|\`]|\\s|$)`,
     'gi' // Note: 'gi' flag removes ALL occurrences of the mention
   );
   const cleanContent = content.replace(matchRegex, '').trim();
@@ -305,10 +311,11 @@ function extractPotentialMentions(
   }
 
   // Extract single-word mentions (e.g., @Lilith, @Ha-Shem, @O'Reilly)
-  // Include Discord markdown chars (*_~|) as valid word boundaries.
+  // Include Discord markdown chars (*_~|) and backtick (inline-code
+  // wrapping like `` `@Lilith` ``) as valid word boundaries.
   // Apostrophe (') is allowed mid-word for names like O'Reilly;
   // trailing apostrophes are stripped by trailingPunctuationRegex.
-  const singleWordRegex = new RegExp(`${escapedChar}([\\w'-]+)(?:[.,!?;:)"*_~|]|\\s|$)`, 'gi');
+  const singleWordRegex = new RegExp(`${escapedChar}([\\w'-]+)(?:[.,!?;:)"*_~|\`]|\\s|$)`, 'gi');
   const singleWordMatches = content.match(singleWordRegex);
 
   if (singleWordMatches) {
