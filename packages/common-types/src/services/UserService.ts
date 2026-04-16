@@ -579,6 +579,11 @@ export class UserService {
               undefined, // bio
               user.isBot
             );
+            // Batch API returns `Map<string, string>` (discordId → userId);
+            // `defaultPersonaId` from ProvisionedUser is intentionally dropped
+            // here because batch callers only need the userId for foreign-key
+            // linking. If a caller ever needs the persona id, they should call
+            // `getOrCreateUser` directly rather than widening this batch API.
             return { discordId: user.discordId, userId: provisioned?.userId ?? null };
           } catch (error) {
             // Log but don't fail the entire batch for one user

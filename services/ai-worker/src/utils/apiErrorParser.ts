@@ -229,6 +229,15 @@ function detectSpecialCases(error: unknown): ApiErrorCategory | null {
     // matching to restrict to a single error-message span. This covers every
     // observed variant without matching loosely-related content across
     // different parts of a longer error message.
+    //
+    // Bound calibration: the widest observed gap between "received 404" and
+    // "fetching" in the four documented prod variants is `" status code when "`
+    // (~18 chars). The `{0,40}` bound gives ~2.2× headroom, and `{0,30}`
+    // between "fetching" and "url" covers `" image from "` (~12 chars) with
+    // ~2.5× headroom. If a future provider variant has wider filler text,
+    // tighten the bounds only after confirming the new max-gap; loosening
+    // beyond ~50 chars starts to risk false matches on compound error
+    // messages that mention both 404s and URLs in unrelated clauses.
     if (/received 404.{0,40}?fetching.{0,30}?url/i.test(messageToSearch)) {
       return ApiErrorCategory.MEDIA_NOT_FOUND;
     }
