@@ -431,6 +431,49 @@ describe('personalityMentionParser', () => {
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
     });
+
+    it('should handle single-backtick wrap (Discord inline-code formatting)', async () => {
+      const result = await findPersonalityMention(
+        '`@Lilith` is around here somewhere',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+    });
+
+    it('should handle backtick with period for abbreviation-style names', async () => {
+      // Regression guard combining the PR #811 periods-in-names fix with the
+      // new backtick support. User types `` `@Dr. Gregory House` `` — both
+      // the trailing backtick AND the period-preserving candidate must
+      // cooperate for this to match.
+      const result = await findPersonalityMention(
+        '`@Dr. Gregory House` is in the house',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Dr. Gregory House');
+    });
+
+    it('should handle triple-backtick wrap (Discord code-block formatting)', async () => {
+      // Council-flagged edge case: the multi-word regex starts matching at `@`,
+      // so leading backticks aren't part of the capture. The trailing `` ``` ``
+      // is stripped by WORD_PUNCTUATION_STRIP_ALL since it's a run of backticks.
+      const result = await findPersonalityMention(
+        '```@Lilith``` block formatting',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+    });
   });
 
   describe('Edge Cases', () => {
