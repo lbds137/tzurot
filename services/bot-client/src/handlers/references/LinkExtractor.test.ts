@@ -1054,6 +1054,14 @@ describe('LinkExtractor', () => {
     it('allows expansion when invoker is a DM participant (self-reference to own DM)', async () => {
       // The legitimate case: you're in a DM with the bot and you paste a link
       // to your own DM message in another conversation. You have access.
+      //
+      // Pre-filter context: `MessageLinkParser.MESSAGE_LINK_REGEX` requires
+      // `\d+` for the guild segment, so DM-format links (`/channels/@me/...`)
+      // don't normally reach `verifyInvokerCanAccessSource` through user
+      // input — they're filtered at parse time. This test exercises the DM
+      // branch via the `client.channels.fetch()` fallback path (when a DM
+      // channel ID is resolved from a guild-format link). The branch is
+      // defensive; this test guarantees the defense works when it fires.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
 
