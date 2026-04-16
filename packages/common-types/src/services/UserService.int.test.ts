@@ -60,9 +60,15 @@ describe('UserService', () => {
   }, 30000);
 
   beforeEach(async () => {
-    // Clear tables between tests (personas first due to FK)
-    await prisma.persona.deleteMany();
+    // Clear tables between tests. Post-Phase-5, personas referenced as a
+    // user's default can't be deleted directly (Restrict FK). Deleting the
+    // user first cascades to their personas (Persona.owner onDelete: Cascade),
+    // which Postgres orders correctly within the transaction.
     await prisma.user.deleteMany();
+    // Belt-and-suspenders: clean up any orphaned personas (unreachable
+    // post-Phase-5 owner cascade but preserves test isolation if anything
+    // slips through).
+    await prisma.persona.deleteMany();
 
     // Create fresh service instance to reset cache
     service = new UserService(prisma);
@@ -417,6 +423,97 @@ describe('UserService', () => {
       // Verify only 2 users total exist
       const allUsers = await prisma.user.findMany({ take: 100 });
       expect(allUsers).toHaveLength(2);
+    });
+  });
+
+  describe('Identity Epic Phase 5 — DB-level invariants', () => {
+    // These tests verify the constraints added in the Phase 5 migration at
+    // the DB level. The app layer has its own guards (e.g., crud.ts:254's
+    // "Cannot delete your default persona" validation error) — these tests
+    // exercise the structural safety net that fires if the app guard is
+    // bypassed or deleted.
+    //
+    // NOTE: CHECK constraints (personas_name_non_empty,
+    // personas_name_not_snowflake) can't be tested against PGLite because
+    // Prisma doesn't represent CHECK constraints in the schema, so they
+    // don't make it into the regenerated PGLite schema. They're exercised
+    // by the real-Postgres migration applies (local + Railway).
+
+    it('should reject deleting a persona that is still someone default (Restrict FK)', async () => {
+      // Pre-Phase-5: this delete would succeed and silently null the FK.
+      // Post-Phase-5: the FK is ON DELETE RESTRICT, so the delete fails at
+      // the DB level with P2003.
+      await service.getOrCreateUser(testDiscordId, testUsername);
+
+      const user = await prisma.user.findUnique({
+        where: { discordId: testDiscordId },
+        select: { defaultPersonaId: true },
+      });
+      expect(user?.defaultPersonaId).not.toBeNull();
+
+      const defaultPersonaId = user!.defaultPersonaId!;
+
+      await expect(
+        prisma.persona.delete({ where: { id: defaultPersonaId } })
+      ).rejects.toMatchObject({
+        code: 'P2003', // Prisma's FK constraint violation
+      });
+
+      // Persona still exists; default_persona_id still points to it
+      const personaStillExists = await prisma.persona.findUnique({
+        where: { id: defaultPersonaId },
+      });
+      expect(personaStillExists).not.toBeNull();
+    });
+
+    it('should reject two personas with the same (owner_id, name) (unique constraint)', async () => {
+      // Two personas per user is fine — they just can't share a name.
+      const provisioned = await service.getOrCreateUser(testDiscordId, testUsername);
+      expect(provisioned).not.toBeNull();
+      const userId = provisioned!.userId;
+
+      // First explicit persona named "Alice" — succeeds
+      await prisma.persona.create({
+        data: {
+          id: generatePersonaUuid('Alice', userId),
+          name: 'Alice',
+          content: 'First Alice',
+          ownerId: userId,
+        },
+      });
+
+      // Second persona with the same name for the SAME owner — fails with P2002
+      await expect(
+        prisma.persona.create({
+          data: {
+            // Different UUID seed but same (ownerId, name) pair
+            id: generatePersonaUuid('Alice-duplicate', userId),
+            name: 'Alice',
+            content: 'Second Alice',
+            ownerId: userId,
+          },
+        })
+      ).rejects.toMatchObject({
+        code: 'P2002', // Prisma's unique constraint violation
+      });
+
+      // A DIFFERENT user with name "Alice" still works — uniqueness is scoped to owner
+      const otherProvisioned = await service.getOrCreateUser('222222222222222222', 'other');
+      expect(otherProvisioned).not.toBeNull();
+      const otherUserId = otherProvisioned!.userId;
+
+      await prisma.persona.create({
+        data: {
+          id: generatePersonaUuid('Alice', otherUserId),
+          name: 'Alice',
+          content: 'Alice (owned by other user)',
+          ownerId: otherUserId,
+        },
+      });
+
+      // Two "Alice" personas total — one per owner
+      const alicePersonas = await prisma.persona.findMany({ where: { name: 'Alice' } });
+      expect(alicePersonas).toHaveLength(2);
     });
   });
 });
