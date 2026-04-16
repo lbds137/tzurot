@@ -46,6 +46,7 @@ function createMockPrisma() {
     llmConfig: mockLlmConfig,
     personalityDefaultConfig: mockPersonalityDefaultConfig,
     userPersonalityConfig: mockUserPersonalityConfig,
+    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
       const txMock = {
         llmConfig: mockLlmConfig,

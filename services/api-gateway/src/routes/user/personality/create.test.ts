@@ -216,7 +216,7 @@ describe('POST /user/personality (create)', () => {
 
     // Shell creation — api-gateway routes don't have username context.
     // See UserService.getOrCreateUserShell.
-    expect(mockPrisma.user.create).toHaveBeenCalled();
+    expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
   });
 

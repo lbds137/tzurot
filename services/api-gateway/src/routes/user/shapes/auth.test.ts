@@ -55,6 +55,7 @@ const mockPrisma = {
     findFirst: vi.fn().mockResolvedValue(null),
     delete: vi.fn().mockResolvedValue({}),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
     const mockTx = {
       user: {

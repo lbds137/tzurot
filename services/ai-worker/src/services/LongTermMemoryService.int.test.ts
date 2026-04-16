@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
@@ -91,19 +91,20 @@ describe('LongTermMemoryService', () => {
   }, 30000);
 
   beforeEach(async () => {
-    // Clear tables between tests
+    // Clear tables. Phase 5 Restrict FK means we delete users first — the
+    // Cascade on persona.owner_id removes personas in the same statement.
     await prisma.pendingMemory.deleteMany();
-    await prisma.persona.deleteMany();
     await prisma.personality.deleteMany();
     await prisma.user.deleteMany();
 
-    // Create test user
-    await prisma.user.create({
-      data: {
-        id: testUserId,
-        discordId: '111111111111111111',
-        username: 'testuser',
-      },
+    // Create test user + default persona atomically (Phase 5b NOT NULL).
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: testPersonaId,
+      discordId: '111111111111111111',
+      username: 'testuser',
+      personaName: 'TestPersona',
+      personaContent: 'Test persona content',
     });
 
     // Create test personality
@@ -115,16 +116,6 @@ describe('LongTermMemoryService', () => {
         ownerId: testUserId,
         characterInfo: 'A test personality',
         personalityTraits: 'Helpful',
-      },
-    });
-
-    // Create test persona
-    await prisma.persona.create({
-      data: {
-        id: testPersonaId,
-        name: 'TestPersona',
-        content: 'Test persona content',
-        ownerId: testUserId,
       },
     });
   });

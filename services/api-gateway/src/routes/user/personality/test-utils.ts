@@ -9,7 +9,7 @@ import {
   createMockUpdatedAt,
   createMockReqRes,
   getHandler,
-  createUserServiceTransactionMock,
+  createUserServiceExecuteRawMock,
   type RouteHandler,
 } from '../../../test/shared-route-test-utils.js';
 
@@ -45,7 +45,7 @@ export function createMockPrisma(): {
   systemPrompt: { findFirst: ReturnType<typeof vi.fn> };
   llmConfig: { findFirst: ReturnType<typeof vi.fn> };
   personalityDefaultConfig: { create: ReturnType<typeof vi.fn> };
-  $transaction: ReturnType<typeof vi.fn>;
+  $executeRaw: ReturnType<typeof vi.fn>;
 } {
   return {
     user: {
@@ -81,7 +81,7 @@ export function createMockPrisma(): {
     personalityDefaultConfig: {
       create: vi.fn(),
     },
-    $transaction: createUserServiceTransactionMock('test-user-uuid', 'test-persona-uuid'),
+    $executeRaw: createUserServiceExecuteRawMock(),
   };
 }
 

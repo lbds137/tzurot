@@ -24,7 +24,7 @@ model User {
   nsfwVerified          Boolean                    @default(false) @map("nsfw_verified")
   nsfwVerifiedAt        DateTime?                  @map("nsfw_verified_at")
   defaultLlmConfigId    String?                    @map("default_llm_config_id") @db.Uuid
-  defaultPersonaId      String?                    @map("default_persona_id") @db.Uuid
+  defaultPersonaId      String                     @map("default_persona_id") @db.Uuid
   /// JSONB config cascade defaults (user tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults        Json?                      @map("config_defaults")
   createdAt             DateTime                   @default(now()) @map("created_at")

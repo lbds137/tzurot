@@ -60,30 +60,18 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 const mockPrisma = {
   user: {
     findUnique: vi.fn().mockResolvedValue(null), // No existing user - triggers create
-    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     upsert: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
   },
   persona: {
-    create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
   },
   userApiKey: {
     upsert: vi.fn().mockResolvedValue({ id: 'key-uuid-123' }),
   },
-  $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-    const mockTx = {
-      user: {
-        create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
-        update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }), // For new user creation
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
-        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
-      },
-      persona: {
-        create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }),
-      },
-    };
-    await callback(mockTx);
-  }),
+  // Phase 5b: UserService creates user + default persona atomically via a
+  // single $executeRaw CTE. The mock just needs to resolve successfully.
+  $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
 import { createSetKeyRoute } from './setKey.js';
@@ -304,7 +292,7 @@ describe('POST /wallet/set', () => {
           where: { discordId: 'discord-user-123' },
         })
       );
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
 
     it('should encrypt and store API key', async () => {
@@ -397,7 +385,7 @@ describe('POST /wallet/set', () => {
 
       // User creation is now handled by UserService which uses direct user.create
       // Verify user was created by checking user.create was called
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
 
       // API key should be stored with the user ID returned by UserService
       expect(mockPrisma.userApiKey.upsert).toHaveBeenCalled();

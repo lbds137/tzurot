@@ -61,6 +61,7 @@ const createMockPrismaClient = () => {
     userPersonalityConfig: mockUserPersonalityConfig,
     user: mockUser,
     // Transaction mock - executes callback with all mock objects and returns result
+    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
       // Provide all models that might be used in transactions
       const txMock = {

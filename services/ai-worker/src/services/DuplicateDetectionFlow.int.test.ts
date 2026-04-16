@@ -30,7 +30,7 @@ import {
 } from '@tzurot/common-types';
 import { isRecentDuplicate } from '../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
 describe('Duplicate Detection Data Flow', () => {
   let pglite: PGlite;
@@ -55,14 +55,16 @@ describe('Duplicate Detection Data Flow', () => {
     prisma = new PrismaClient({ adapter }) as PrismaClient;
     conversationService = new ConversationHistoryService(prisma);
 
-    // Seed required foreign key records
-    // Create user first (required for persona ownership)
-    await prisma.user.create({
-      data: {
-        id: testUserId,
-        discordId: 'test-discord-12345',
-        username: 'test-duplicate-detection-user',
-      },
+    // Seed required FK records. Phase 5b: user + default persona must be
+    // created atomically because users.default_persona_id is NOT NULL.
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: testPersonaId,
+      discordId: 'test-discord-12345',
+      username: 'test-duplicate-detection-user',
+      personaName: 'TestUser',
+      personaPreferredName: 'Tester',
+      personaContent: 'Test persona for duplicate detection tests',
     });
 
     await prisma.systemPrompt.create({
@@ -83,16 +85,6 @@ describe('Duplicate Detection Data Flow', () => {
         ownerId: testUserId,
         characterInfo: 'Test character',
         personalityTraits: 'Helpful',
-      },
-    });
-
-    await prisma.persona.create({
-      data: {
-        id: testPersonaId,
-        name: 'TestUser',
-        preferredName: 'Tester',
-        content: 'Test persona for duplicate detection tests',
-        ownerId: testUserId,
       },
     });
   });
