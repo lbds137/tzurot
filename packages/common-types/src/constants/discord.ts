@@ -142,20 +142,6 @@ export const DISCORD_MENTIONS = {
 } as const;
 
 /**
- * Prefix used for unresolved Discord user IDs in personaId fields.
- *
- * Extended context uses 'discord:XXXX' format for users before persona
- * resolution. After resolution, these become actual persona UUIDs.
- *
- * @example
- * // Before resolution
- * personaId: 'discord:123456789012345678'
- * // After resolution
- * personaId: 'uuid-abc-123-def-456'
- */
-export const DISCORD_ID_PREFIX = 'discord:';
-
-/**
  * Discord Snowflake ID validation
  *
  * Discord IDs (snowflakes) are 64-bit integers represented as strings.
@@ -196,30 +182,6 @@ export function isValidDiscordId(id: string): boolean {
  */
 export function filterValidDiscordIds(ids: string[]): string[] {
   return ids.filter(isValidDiscordId);
-}
-
-/**
- * Build a personaId from a Discord user ID
- * @param discordId - The Discord snowflake ID
- * @returns personaId in format 'discord:123456789012345678'
- */
-export function buildDiscordPersonaId(discordId: string): string {
-  return `${DISCORD_ID_PREFIX}${discordId}`;
-}
-
-/**
- * Extract Discord ID from a personaId if it's a Discord-format persona
- * @param personaId - The personaId to extract from
- * @returns The Discord ID if valid format, undefined otherwise
- */
-export function extractDiscordId(personaId: string | undefined): string | undefined {
-  if (personaId === undefined) {
-    return undefined;
-  }
-  if (!personaId.startsWith(DISCORD_ID_PREFIX)) {
-    return undefined;
-  }
-  return personaId.slice(DISCORD_ID_PREFIX.length);
 }
 
 /**

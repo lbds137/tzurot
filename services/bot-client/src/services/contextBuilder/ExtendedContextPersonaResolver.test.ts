@@ -401,7 +401,12 @@ describe('ExtendedContextPersonaResolver', () => {
       expect(participantGuildInfo['discord:123']).toBeUndefined();
     });
 
-    it('should return zeros when userMap is empty', async () => {
+    it('should strip unresolved discord: placeholders when userMap is empty', async () => {
+      // Post-Phase-4 contract: the strip pass runs unconditionally. An empty
+      // userMap means zero users got provisioned — every discord: placeholder
+      // is unresolvable and must be stripped to '' so ai-worker never sees
+      // the format. messageCount/reactorCount count resolved entries (zero
+      // here), while strippedMessageCount captures the stripped tail.
       const messages: ConversationMessage[] = [
         createMessage({ role: MessageRole.User, content: 'Hello', personaId: 'discord:123' }),
       ];
@@ -417,7 +422,69 @@ describe('ExtendedContextPersonaResolver', () => {
       expect(result.messageCount).toBe(0);
       expect(result.reactorCount).toBe(0);
       expect(result.total).toBe(0);
-      expect(messages[0].personaId).toBe('discord:123'); // Unchanged
+      expect(result.strippedMessageCount).toBe(1);
+      expect(messages[0].personaId).toBe(''); // Stripped — unresolvable
+    });
+
+    it('should strip discord: placeholders for users in userMap but without a persona', async () => {
+      // Mixed case: one user IS in userMap and resolves to a UUID; another
+      // is ALSO in userMap (provisioning succeeded as a shell user) but has
+      // no owned persona, so the resolver returns an empty personaId → the
+      // message gets stripped. Also exercises a reactor in the same state.
+      const messages: ConversationMessage[] = [
+        createMessage({
+          role: MessageRole.User,
+          content: 'Hello from Alice',
+          personaId: 'discord:111',
+        }),
+        createMessage({
+          role: MessageRole.User,
+          content: 'Hello from the ghost',
+          personaId: 'discord:222',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '👋',
+                reactors: [
+                  { personaId: 'discord:111', displayName: 'Alice' },
+                  { personaId: 'discord:222', displayName: 'Ghost' },
+                ],
+              },
+            ],
+          },
+        }),
+      ];
+      const userMap = new Map([
+        ['111', 'user-111'],
+        ['222', 'user-222'],
+      ]);
+      const personaResolver = createMockPersonaResolver({
+        '111': { personaId: 'uuid-alice', preferredName: 'Alice' },
+        // '222' intentionally omitted — returns empty personaId
+      });
+
+      const result = await resolveExtendedContextPersonaIds(
+        messages,
+        userMap,
+        'personality-1',
+        personaResolver
+      );
+
+      // Alice's message resolves
+      expect(messages[0].personaId).toBe('uuid-alice');
+      // Ghost's message is stripped (unresolvable) — empty-string sentinel
+      expect(messages[1].personaId).toBe('');
+
+      // Reactor for Alice resolves; Ghost reactor is dropped
+      const reactors = messages[1].messageMetadata?.reactions?.[0].reactors ?? [];
+      expect(reactors).toHaveLength(1);
+      expect(reactors[0].personaId).toBe('uuid-alice');
+
+      // Stats reflect the split
+      expect(result.messageCount).toBe(1); // Alice resolved
+      expect(result.strippedMessageCount).toBe(1); // Ghost stripped
+      expect(result.reactorCount).toBe(1); // Alice reactor resolved
+      expect(result.strippedReactorCount).toBe(1); // Ghost reactor dropped
     });
 
     it('should return zeros when no discord: IDs exist', async () => {

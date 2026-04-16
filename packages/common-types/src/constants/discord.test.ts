@@ -5,11 +5,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   DISCORD_SNOWFLAKE,
-  DISCORD_ID_PREFIX,
   isValidDiscordId,
   filterValidDiscordIds,
-  buildDiscordPersonaId,
-  extractDiscordId,
   BOT_FOOTER_TEXT,
   BOT_FOOTER_PATTERNS,
   buildModelFooterText,
@@ -102,57 +99,14 @@ describe('Discord ID Validation', () => {
   });
 });
 
-describe('DISCORD_ID_PREFIX', () => {
-  it('should be the expected prefix string', () => {
-    expect(DISCORD_ID_PREFIX).toBe('discord:');
-  });
-
-  it('should be usable for building personaId strings', () => {
-    const discordId = '123456789012345678';
-    const personaId = `${DISCORD_ID_PREFIX}${discordId}`;
-    expect(personaId).toBe('discord:123456789012345678');
-  });
-
-  it('should be usable for extracting discordId from personaId', () => {
-    const personaId = 'discord:123456789012345678';
-    const discordId = personaId.replace(DISCORD_ID_PREFIX, '');
-    expect(discordId).toBe('123456789012345678');
-  });
-});
-
-describe('buildDiscordPersonaId', () => {
-  it('should build a personaId from a Discord ID', () => {
-    expect(buildDiscordPersonaId('123456789012345678')).toBe('discord:123456789012345678');
-  });
-
-  it('should work with any string (no validation)', () => {
-    // The function builds the string regardless of input validity
-    expect(buildDiscordPersonaId('invalid')).toBe('discord:invalid');
-  });
-});
-
-describe('extractDiscordId', () => {
-  it('should extract Discord ID from valid personaId', () => {
-    expect(extractDiscordId('discord:123456789012345678')).toBe('123456789012345678');
-  });
-
-  it('should return undefined for undefined input', () => {
-    expect(extractDiscordId(undefined)).toBeUndefined();
-  });
-
-  it('should return undefined for non-discord prefix', () => {
-    expect(extractDiscordId('uuid:abc-123')).toBeUndefined();
-    expect(extractDiscordId('abc-123-def-456')).toBeUndefined();
-  });
-
-  it('should return undefined for empty string', () => {
-    expect(extractDiscordId('')).toBeUndefined();
-  });
-
-  it('should handle edge case of just the prefix', () => {
-    expect(extractDiscordId('discord:')).toBe('');
-  });
-});
+// DISCORD_ID_PREFIX, buildDiscordPersonaId, and extractDiscordId were deleted
+// in Identity Epic Phase 4. The `discord:XXXX` format is now strictly internal
+// to bot-client's ExtendedContextPersonaResolver module; the common-types
+// exports were never used in production code outside that module and
+// lingered as a cross-package API that shouldn't exist. The internal
+// equivalent lives at
+// services/bot-client/src/services/contextBuilder/ExtendedContextPersonaResolver.ts
+// as `INTERNAL_DISCORD_ID_PREFIX`.
 
 describe('Bot Footer Text Constants', () => {
   describe('BOT_FOOTER_TEXT', () => {
