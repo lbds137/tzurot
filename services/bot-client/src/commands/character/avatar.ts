@@ -66,8 +66,25 @@ export async function handleAvatar(
       return;
     }
 
-    // Download the image
-    const imageResponse = await fetch(attachment.url);
+    // Download the image with a 30s timeout (pattern matches voice.ts).
+    // Without this, a stalled Discord CDN would hold the deferred
+    // interaction until Discord's 15-min cap.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    let imageResponse: Response;
+    try {
+      imageResponse = await fetch(attachment.url, { signal: controller.signal });
+    } catch (error) {
+      clearTimeout(timeout);
+      if (error instanceof Error && error.name === 'AbortError') {
+        await context.editReply(
+          '❌ Avatar download timed out. Discord may be slow — please try again.'
+        );
+        return;
+      }
+      throw error;
+    }
+    clearTimeout(timeout);
     if (!imageResponse.ok) {
       await context.editReply('❌ Failed to download the image. Please try again.');
       return;
