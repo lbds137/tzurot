@@ -50,12 +50,7 @@ interface TrackedJob {
   typingInterval: NodeJS.Timeout;
   startTime: number;
   context: PendingJobContext;
-  /**
-   * The "taking longer than expected" notification message, once sent.
-   * Stored so completeJob can delete it — without cleanup the notification
-   * lingers in the channel even after the real response arrives, which
-   * reads like a false signal that something went wrong.
-   */
+  /** Sent notification message, captured so completeJob can delete it on cleanup. */
   takingLongerMessage?: Message;
   /** Prevents re-sending the notification on every typing-interval tick. */
   notificationSent?: boolean;
@@ -96,6 +91,11 @@ export class JobTracker {
         // gave up before seeing it.
         const tracked = this.activeJobs.get(jobId);
         if (tracked && tracked.notificationSent !== true && age > TAKING_LONGER_NOTIFY_MS) {
+          // Set the flag BEFORE the await so concurrent interval ticks don't
+          // double-send. Trade-off: if the send below fails, we don't retry
+          // — user gets no notification in a degraded-channel scenario.
+          // That's the intentional default (don't spam on transient errors);
+          // do NOT move this flag after the await without understanding why.
           tracked.notificationSent = true;
           try {
             const notification = await channel.send(
@@ -110,7 +110,7 @@ export class JobTracker {
             if (this.activeJobs.get(jobId) === tracked) {
               tracked.takingLongerMessage = notification;
             } else {
-              notification.delete().catch(deleteErr => {
+              void notification.delete().catch(deleteErr => {
                 logger.debug(
                   { err: deleteErr, jobId },
                   '[JobTracker] Delete of orphaned taking-longer notification failed'
@@ -191,7 +191,7 @@ export class JobTracker {
     // delete failures — Discord can 404 (user deleted it) or 429 (rate
     // limited) and neither should throw out of completeJob.
     if (tracked.takingLongerMessage) {
-      tracked.takingLongerMessage.delete().catch(err => {
+      void tracked.takingLongerMessage.delete().catch(err => {
         logger.debug({ err, jobId }, '[JobTracker] Delete of taking-longer notification failed');
       });
     }
