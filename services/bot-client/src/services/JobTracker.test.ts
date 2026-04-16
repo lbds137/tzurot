@@ -249,6 +249,44 @@ describe('JobTracker', () => {
       jobTracker.completeJob('job-123');
       expect(mockChannel.send).not.toHaveBeenCalled();
     });
+
+    it('should delete the notification immediately if job completes during the send', async () => {
+      // Race-condition guard: between `tracked.notificationSent = true` and
+      // `tracked.takingLongerMessage = notification` there's an `await` on
+      // `channel.send()`. If completeJob fires during that window, the job
+      // is removed from activeJobs but takingLongerMessage is still
+      // undefined, so completeJob skips the delete. Without the race guard
+      // in trackJob, the notification would leak.
+      const deleteMock = vi.fn().mockResolvedValue(undefined);
+      let resolveSend: (msg: unknown) => void = () => {};
+      const pendingSend = new Promise(resolve => {
+        resolveSend = resolve;
+      });
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn().mockReturnValue(pendingSend),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+
+      // Advance past 5 min — notification send is fired but still pending.
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
+      expect(mockChannel.send).toHaveBeenCalledTimes(1);
+
+      // While the send is in flight, complete the job. completeJob reads
+      // takingLongerMessage === undefined and does not delete anything.
+      jobTracker.completeJob('job-123');
+      expect(deleteMock).not.toHaveBeenCalled();
+
+      // Now resolve the pending send. The interval callback detects that the
+      // job is no longer tracked and must delete the now-orphaned notification
+      // directly.
+      resolveSend({ id: 'notif-1', delete: deleteMock });
+      await vi.advanceTimersByTimeAsync(0); // flush microtasks
+
+      expect(deleteMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Typing indicator cutoff (10 min)', () => {
