@@ -42,6 +42,7 @@ describe('personality route helpers', () => {
     personalityOwner: {
       findUnique: vi.fn(),
     },
+    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
       const mockTx = {
         user: {

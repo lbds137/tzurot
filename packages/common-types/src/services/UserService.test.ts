@@ -26,18 +26,56 @@ describe('UserService', () => {
   let mockPrisma: {
     user: {
       findUnique: ReturnType<typeof vi.fn>;
-      create: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
     persona: {
       findUnique: ReturnType<typeof vi.fn>;
-      create: ReturnType<typeof vi.fn>;
+      updateMany: ReturnType<typeof vi.fn>;
     };
     userPersonalityConfig: {
       findUnique: ReturnType<typeof vi.fn>;
     };
-    $transaction: ReturnType<typeof vi.fn>;
+    $executeRaw: ReturnType<typeof vi.fn>;
   };
+
+  /**
+   * Helper: decode the values passed to a tagged-template $executeRaw call
+   * into an object matching the CTE column order. Phase 5b uses one CTE per
+   * path:
+   *
+   *   persona: (id, name, preferred_name, description, content, owner_id)
+   *   user:    (id, discord_id, username, is_superuser, default_persona_id)
+   *
+   * The values array the mock captures skips NOW() (which is SQL-literal in
+   * the template, not an interpolated value), so indices here are contiguous.
+   */
+  function decodeCreateUserCall(call: unknown[] | undefined): {
+    personaId: string;
+    personaName: string;
+    personaPreferredName: string;
+    personaDescription: string;
+    personaContent: string;
+    ownerId: string;
+    userId: string;
+    discordId: string;
+    username: string;
+    isSuperuser: boolean;
+  } | null {
+    if (!call || call.length < 12) return null;
+    const values = call.slice(1);
+    return {
+      personaId: values[0] as string,
+      personaName: values[1] as string,
+      personaPreferredName: values[2] as string,
+      personaDescription: values[3] as string,
+      personaContent: values[4] as string,
+      ownerId: values[5] as string,
+      userId: values[6] as string,
+      discordId: values[7] as string,
+      username: values[8] as string,
+      isSuperuser: values[9] as boolean,
+    };
+  }
 
   beforeEach(() => {
     // Set up deterministic UUID mock return values for each test
@@ -47,17 +85,19 @@ describe('UserService', () => {
     mockPrisma = {
       user: {
         findUnique: vi.fn(),
-        create: vi.fn(),
         update: vi.fn(),
       },
       persona: {
         findUnique: vi.fn(),
-        create: vi.fn(),
+        updateMany: vi.fn(),
       },
       userPersonalityConfig: {
         findUnique: vi.fn(),
       },
-      $transaction: vi.fn(),
+      // Phase 5b: user + default persona are created atomically via a single
+      // CTE. Default mock returns 1 (rows affected) so the happy path doesn't
+      // need to configure it per-test.
+      $executeRaw: vi.fn().mockResolvedValue(1),
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
     userService = new UserService(mockPrisma as any);
@@ -70,9 +110,9 @@ describe('UserService', () => {
 
   describe('getOrCreateUser', () => {
     it('should return cached user ID if available', async () => {
-      // First call to populate cache — mock must include defaultPersonaId so
-      // the backfill branch in runMaintenanceTasks doesn't trigger (which
-      // would call $transaction and fail without a mock).
+      // First call to populate cache. Phase 5b: defaultPersonaId is always
+      // non-null at the type level, so runMaintenanceTasks has no backfill
+      // branch — the mock just needs a valid defaultPersonaId to match reality.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'cached-user-id',
         isSuperuser: false,
@@ -104,11 +144,14 @@ describe('UserService', () => {
 
       expect(result?.userId).toBe('existing-user-id');
       expect(result?.defaultPersonaId).toBe('existing-persona-id');
-      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
 
-    it('should update placeholder username when real username is provided', async () => {
-      // User was created by api-gateway with discordId as placeholder username
+    it('should update placeholder username AND rename placeholder persona when real username is provided', async () => {
+      // User was created by api-gateway via getOrCreateUserShell with discordId
+      // as placeholder username AND persona name ("User {discordId}"). On first
+      // bot-client interaction with a real username, both get upgraded
+      // atomically by runMaintenanceTasks.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,
@@ -119,6 +162,7 @@ describe('UserService', () => {
         id: 'existing-user-id',
         username: 'realusername',
       });
+      mockPrisma.persona.updateMany.mockResolvedValueOnce({ count: 1 });
 
       const result = await userService.getOrCreateUser('123456', 'realusername');
 
@@ -126,6 +170,13 @@ describe('UserService', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'existing-user-id' },
         data: { username: 'realusername' },
+      });
+      // Placeholder persona renamed via idempotent updateMany (WHERE clause
+      // matches only rows with the exact placeholder name, so concurrent
+      // maintenance calls don't race — second one matches zero rows).
+      expect(mockPrisma.persona.updateMany).toHaveBeenCalledWith({
+        where: { ownerId: 'existing-user-id', name: 'User 123456' },
+        data: { name: 'realusername', preferredName: 'realusername' },
       });
     });
 
@@ -147,100 +198,37 @@ describe('UserService', () => {
     it('should create new user with isSuperuser=false for regular users', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      // Mock transaction to capture the create call
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-          };
-          await callback(mockTx);
-
-          // Verify isSuperuser was false
-          expect(mockTx.user.create).toHaveBeenCalledWith({
-            data: expect.objectContaining({
-              isSuperuser: false,
-            }),
-          });
-        }
-      );
-
       await userService.getOrCreateUser('123456', 'testuser');
+
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.isSuperuser).toBe(false);
     });
 
     it('should create new user with isSuperuser=true when discordId matches BOT_OWNER_ID', async () => {
-      // Set BOT_OWNER_ID environment variable
       process.env.BOT_OWNER_ID = '999888777';
-      resetConfig(); // Force config to reload
+      resetConfig();
 
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      // Mock transaction to capture the create call
-      let capturedUserData: { isSuperuser?: boolean } | undefined;
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockImplementation(({ data }) => {
-                capturedUserData = data;
-                return Promise.resolve({ id: 'test-user-uuid' });
-              }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-          };
-          await callback(mockTx);
-        }
-      );
-
       await userService.getOrCreateUser('999888777', 'botowner');
 
-      expect(capturedUserData?.isSuperuser).toBe(true);
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.isSuperuser).toBe(true);
 
-      // Cleanup
       delete process.env.BOT_OWNER_ID;
     });
 
     it('should NOT promote user when discordId does not match BOT_OWNER_ID', async () => {
-      // Set BOT_OWNER_ID environment variable
       process.env.BOT_OWNER_ID = '999888777';
-      resetConfig(); // Force config to reload
+      resetConfig();
 
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      // Mock transaction to capture the create call
-      let capturedUserData: { isSuperuser?: boolean } | undefined;
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockImplementation(({ data }) => {
-                capturedUserData = data;
-                return Promise.resolve({ id: 'test-user-uuid' });
-              }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-          };
-          await callback(mockTx);
-        }
-      );
-
-      // Different Discord ID
       await userService.getOrCreateUser('111222333', 'regularuser');
 
-      expect(capturedUserData?.isSuperuser).toBe(false);
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.isSuperuser).toBe(false);
 
-      // Cleanup
       delete process.env.BOT_OWNER_ID;
     });
 
@@ -298,21 +286,18 @@ describe('UserService', () => {
       delete process.env.BOT_OWNER_ID;
     });
 
-    it('should throw and log error when transaction fails', async () => {
+    it('should throw and log error when user-creation CTE fails', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.$transaction.mockRejectedValue(new Error('Transaction failed'));
+      mockPrisma.$executeRaw.mockRejectedValueOnce(new Error('CTE failed'));
 
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
-        'Transaction failed'
-      );
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow('CTE failed');
     });
 
     it('should handle race condition with P2002 error', async () => {
-      // First findUnique returns null (user doesn't exist)
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      // Transaction fails with P2002 (another request created the user)
-      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
-      // Second findUnique returns the user created by the other request
+      // Another request created the user between our findUnique and CTE
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002' });
+      // Recovery path — fetch the now-existing user
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-uuid',
         isSuperuser: false,
@@ -323,14 +308,12 @@ describe('UserService', () => {
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-uuid');
-      // Should have called findUnique twice (initial check + after P2002)
       expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
     });
 
     it('should throw error if user not found after P2002', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
-      // User somehow doesn't exist after P2002 (shouldn't happen in practice)
+      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002' });
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
@@ -349,224 +332,34 @@ describe('UserService', () => {
     it('should use display name for persona preferredName', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      let capturedPersonaData: { preferredName?: string } | undefined;
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockImplementation(({ data }) => {
-                capturedPersonaData = data;
-                return Promise.resolve({ id: 'test-persona-uuid' });
-              }),
-            },
-          };
-          await callback(mockTx);
-        }
-      );
-
       await userService.getOrCreateUser('123456', 'testuser', 'Test User Display');
 
-      expect(capturedPersonaData?.preferredName).toBe('Test User Display');
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.personaPreferredName).toBe('Test User Display');
     });
 
     it('should use bio for persona content', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      let capturedPersonaData: { content?: string } | undefined;
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockImplementation(({ data }) => {
-                capturedPersonaData = data;
-                return Promise.resolve({ id: 'test-persona-uuid' });
-              }),
-            },
-          };
-          await callback(mockTx);
-        }
-      );
-
       await userService.getOrCreateUser('123456', 'testuser', undefined, 'My bio text');
 
-      expect(capturedPersonaData?.content).toBe('My bio text');
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.personaContent).toBe('My bio text');
     });
 
-    it('should backfill default persona when user exists without one', async () => {
-      // User was created by api-gateway without a default persona
+    it('should NOT call $executeRaw when user already has one', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,
         username: 'testuser',
-        defaultPersonaId: null, // No default persona!
-      });
-
-      // Create mock functions to track calls
-      const mockPersonaCreate = vi.fn().mockResolvedValue({ id: 'test-persona-uuid' });
-      const mockUserUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
-
-      // IMPORTANT: $transaction mock must return callback result so backfill
-      // can propagate its effective personaId upward. Prior to Phase 2 the
-      // transaction was void-returning and the mock could ignore the result.
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<unknown>) => {
-          const mockTx = {
-            persona: { create: mockPersonaCreate },
-            user: {
-              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // Still needs backfill
-              updateMany: mockUserUpdateMany,
-            },
-          };
-          return await callback(mockTx);
-        }
-      );
-
-      const result = await userService.getOrCreateUser(
-        '123456',
-        'testuser',
-        'Test Display Name',
-        'User bio'
-      );
-
-      expect(result?.userId).toBe('existing-user-id');
-      expect(result?.defaultPersonaId).toBe('test-persona-uuid');
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
-      expect(mockPersonaCreate).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          preferredName: 'Test Display Name',
-          content: 'User bio',
-          name: 'testuser',
-          ownerId: 'existing-user-id',
-        }),
-      });
-      // Uses updateMany with idempotent where clause to prevent TOCTOU race
-      expect(mockUserUpdateMany).toHaveBeenCalledWith({
-        where: { id: 'existing-user-id', defaultPersonaId: null },
-        data: { defaultPersonaId: 'test-persona-uuid' },
-      });
-    });
-
-    it('should return concurrent-winner persona ID when inner transaction finds persona already linked', async () => {
-      // Race: we entered backfill because user.defaultPersonaId was null at the
-      // outer findUnique, but a concurrent request won and linked a persona
-      // before our transaction acquired its snapshot. The inner findUnique
-      // sees the linked persona and we return that ID without re-creating.
-      mockPrisma.user.findUnique.mockResolvedValueOnce({
-        id: 'existing-user-id',
-        isSuperuser: false,
-        username: 'testuser',
-        defaultPersonaId: null, // Outer check: no persona → enter backfill
-      });
-
-      const mockPersonaCreate = vi.fn();
-      const mockUserUpdateMany = vi.fn();
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<unknown>) => {
-          const mockTx = {
-            persona: { create: mockPersonaCreate },
-            user: {
-              // Inner check: concurrent request already linked a different persona
-              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: 'concurrent-persona-id' }),
-              updateMany: mockUserUpdateMany,
-            },
-          };
-          return await callback(mockTx);
-        }
-      );
-
-      const result = await userService.getOrCreateUser('123456', 'testuser');
-
-      expect(result?.defaultPersonaId).toBe('concurrent-persona-id');
-      // Must NOT attempt to create or re-link — another request already did the work
-      expect(mockPersonaCreate).not.toHaveBeenCalled();
-      expect(mockUserUpdateMany).not.toHaveBeenCalled();
-    });
-
-    it('should handle P2002 race on persona.create inside backfill transaction', async () => {
-      // Race: two requests enter the backfill transaction simultaneously, both
-      // pass the inner findUnique (defaultPersonaId === null), both try to
-      // persona.create with the same deterministic UUID. The second gets P2002,
-      // we swallow it and continue to updateMany (idempotent).
-      mockPrisma.user.findUnique.mockResolvedValueOnce({
-        id: 'existing-user-id',
-        isSuperuser: false,
-        username: 'testuser',
-        defaultPersonaId: null,
-      });
-
-      const mockPersonaCreate = vi.fn().mockRejectedValue({ code: 'P2002' });
-      const mockUserUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<unknown>) => {
-          const mockTx = {
-            persona: { create: mockPersonaCreate },
-            user: {
-              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
-              updateMany: mockUserUpdateMany,
-            },
-          };
-          return await callback(mockTx);
-        }
-      );
-
-      const result = await userService.getOrCreateUser('123456', 'testuser');
-
-      // Should succeed despite the P2002 — returns the deterministic persona ID
-      expect(result?.defaultPersonaId).toBe('test-persona-uuid');
-      expect(mockPersonaCreate).toHaveBeenCalled();
-      // updateMany still runs — it's idempotent (WHERE defaultPersonaId = null)
-      expect(mockUserUpdateMany).toHaveBeenCalled();
-    });
-
-    it('should rethrow non-P2002 errors from persona.create inside backfill transaction', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({
-        id: 'existing-user-id',
-        isSuperuser: false,
-        username: 'testuser',
-        defaultPersonaId: null,
-      });
-
-      const nonP2002Error = new Error('FK violation or something else');
-      const mockPersonaCreate = vi.fn().mockRejectedValue(nonP2002Error);
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<unknown>) => {
-          const mockTx = {
-            persona: { create: mockPersonaCreate },
-            user: {
-              findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
-              updateMany: vi.fn(),
-            },
-          };
-          return await callback(mockTx);
-        }
-      );
-
-      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
-        'FK violation or something else'
-      );
-    });
-
-    it('should NOT backfill persona when user already has one', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({
-        id: 'existing-user-id',
-        isSuperuser: false,
-        username: 'testuser',
-        defaultPersonaId: 'existing-persona-id', // Already has a persona
+        defaultPersonaId: 'existing-persona-id',
       });
 
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
       expect(result?.userId).toBe('existing-user-id');
-      // Should NOT call $transaction since persona already exists
-      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      // Must not run the create-user CTE when the user already exists
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
 
     it('should return null when isBot is true', async () => {
@@ -579,27 +372,12 @@ describe('UserService', () => {
       );
 
       expect(result).toBeNull();
-      // Should NOT call any database operations for bots
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
-      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
 
     it('should create user normally when isBot is false', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-          };
-          await callback(mockTx);
-        }
-      );
 
       const result = await userService.getOrCreateUser(
         '123456',
@@ -611,32 +389,17 @@ describe('UserService', () => {
 
       expect(result?.userId).toBe('test-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalled();
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
 
     it('should create user normally when isBot is undefined', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-            },
-          };
-          await callback(mockTx);
-        }
-      );
 
-      // Not passing isBot parameter at all (undefined)
       const result = await userService.getOrCreateUser('123456', 'testuser');
 
       expect(result?.userId).toBe('test-user-uuid');
       expect(mockPrisma.user.findUnique).toHaveBeenCalled();
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -647,35 +410,41 @@ describe('UserService', () => {
       const result = await userService.getOrCreateUserShell('discord-123');
 
       expect(result).toBe('existing-shell-user');
-      // Must NOT create a persona or open a transaction
-      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
-      expect(mockPrisma.persona.create).not.toHaveBeenCalled();
+      // Must NOT run the create-user CTE for an existing user
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
 
-    it('should create a shell user with discordId-as-username placeholder when user does not exist', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null); // user absent
-      mockPrisma.user.create.mockResolvedValueOnce({ id: 'test-user-uuid' });
+    it('should create a shell user + placeholder persona in a single CTE', async () => {
+      // Phase 5b: shell creation runs one $executeRaw CTE that inserts the
+      // persona and the user as a single statement. Placeholder persona name
+      // uses the `"User {discordId}"` prefix to pass the Phase 5
+      // personas_name_not_snowflake CHECK constraint.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const result = await userService.getOrCreateUserShell('discord-123');
 
       expect(result).toBe('test-user-uuid');
-      // Critical: no persona side effects on the shell path
-      expect(mockPrisma.persona.create).not.toHaveBeenCalled();
-      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
-      // The shell user is created with discordId as the placeholder username
-      expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          id: 'test-user-uuid',
-          discordId: 'discord-123',
-          username: 'discord-123', // placeholder, upgraded by runMaintenanceTasks later
-        }),
-      });
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.personaId).toBe('test-persona-uuid');
+      expect(call?.personaName).toBe('User discord-123');
+      expect(call?.personaPreferredName).toBe('User discord-123');
+      expect(call?.ownerId).toBe('test-user-uuid');
+      expect(call?.userId).toBe('test-user-uuid');
+      expect(call?.discordId).toBe('discord-123');
+      expect(call?.username).toBe('discord-123'); // placeholder
     });
 
-    it('should handle P2002 race condition and return the existing user', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null); // initial absent
-      mockPrisma.user.create.mockRejectedValueOnce({ code: 'P2002' }); // race
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'raced-user-id' }); // fetch after race
+    it('should handle P2002 race condition on users.discord_id and return the existing user', async () => {
+      // Race: two concurrent shell-creation calls for the same discordId.
+      // One wins, the other's CTE fails with P2002 on users.discord_id. The
+      // catch block matches that target specifically.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['discord_id'] },
+      });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'raced-user-id' });
 
       const result = await userService.getOrCreateUserShell('discord-123');
 
@@ -701,12 +470,27 @@ describe('UserService', () => {
 
     it('should rethrow non-P2002 errors from shell creation', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      const dbError = new Error('some other DB error');
-      mockPrisma.user.create.mockRejectedValueOnce(dbError);
+      mockPrisma.$executeRaw.mockRejectedValueOnce(new Error('some other DB error'));
 
       await expect(userService.getOrCreateUserShell('discord-123')).rejects.toThrow(
         'some other DB error'
       );
+    });
+
+    it('should rethrow P2002 errors from unexpected targets (e.g., persona constraint)', async () => {
+      // Defense-in-depth: if a P2002 fires from a constraint OTHER than
+      // users.discord_id (e.g., if a future schema change adds another
+      // unique constraint), the race-recovery path shouldn't mis-recover.
+      // The catch block's target filter rejects non-matching P2002s.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['owner_id', 'name'] },
+      });
+
+      await expect(userService.getOrCreateUserShell('discord-123')).rejects.toMatchObject({
+        code: 'P2002',
+      });
     });
 
     it('should rethrow and log when the initial findUnique itself fails', async () => {
@@ -718,8 +502,8 @@ describe('UserService', () => {
       await expect(userService.getOrCreateUserShell('discord-123')).rejects.toThrow(
         'DB connection lost mid-findUnique'
       );
-      // user.create should NOT have been attempted
-      expect(mockPrisma.user.create).not.toHaveBeenCalled();
+      // The create-user CTE should NOT have been attempted
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
     });
 
     it('should return cached userId when getOrCreateUser previously populated the cache', async () => {
@@ -747,21 +531,18 @@ describe('UserService', () => {
 
     it('should log superuser promotion when bot owner creates a shell user', async () => {
       // Shell-path equivalent of the full-path superuser promotion test.
-      // Covers the `shouldBeSuperuser` branch inside createShellUserWithRaceProtection.
+      // Covers the `shouldBeSuperuser` branch inside
+      // createShellUserWithRaceProtection (Phase 5b CTE form).
       process.env.BOT_OWNER_ID = '999888777';
       resetConfig();
 
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.user.create.mockImplementationOnce(({ data }) => {
-        // Verify the data written includes isSuperuser: true
-        expect((data as { isSuperuser: boolean }).isSuperuser).toBe(true);
-        return Promise.resolve({ id: 'test-user-uuid' });
-      });
 
       const result = await userService.getOrCreateUserShell('999888777');
 
       expect(result).toBe('test-user-uuid');
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.isSuperuser).toBe(true);
 
       delete process.env.BOT_OWNER_ID;
     });
@@ -928,32 +709,14 @@ describe('UserService', () => {
     it('should pass displayName to getOrCreateUser', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
-      let capturedPersonaData: { preferredName?: string } | undefined;
-      mockPrisma.$transaction.mockImplementation(
-        async (callback: (tx: unknown) => Promise<void>) => {
-          const mockTx = {
-            user: {
-              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-            },
-            persona: {
-              create: vi.fn().mockImplementation(({ data }) => {
-                capturedPersonaData = data;
-                return Promise.resolve({ id: 'test-persona-uuid' });
-              }),
-            },
-          };
-          await callback(mockTx);
-        }
-      );
-
       const users = [
         { discordId: 'user1', username: 'alice', displayName: 'Alice Display', isBot: false },
       ];
 
       await userService.getOrCreateUsersInBatch(users);
 
-      expect(capturedPersonaData?.preferredName).toBe('Alice Display');
+      const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
+      expect(call?.personaPreferredName).toBe('Alice Display');
     });
 
     it('should return empty map for empty input', async () => {

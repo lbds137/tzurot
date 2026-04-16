@@ -14,7 +14,7 @@ CREATE TABLE "users" (
     "nsfw_verified" BOOLEAN NOT NULL DEFAULT false,
     "nsfw_verified_at" TIMESTAMP(3),
     "default_llm_config_id" UUID,
-    "default_persona_id" UUID,
+    "default_persona_id" UUID NOT NULL,
     "config_defaults" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

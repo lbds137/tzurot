@@ -18,7 +18,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PersonalityService } from './PersonalityService.js';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
 describe('PersonalityService', () => {
   let prisma: PrismaClient;
@@ -50,14 +50,14 @@ describe('PersonalityService', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Seed test data
-    // Owner user
-    await prisma.user.create({
-      data: {
-        id: testOwnerId,
-        discordId: testOwnerDiscordId,
-        username: 'testowner',
-      },
+    // Seed test data — Phase 5b NOT NULL requires user + default persona
+    // to be created atomically.
+    await seedUserWithPersona(prisma, {
+      userId: testOwnerId,
+      personaId: '00000000-0000-0000-0000-0000000000a1',
+      discordId: testOwnerDiscordId,
+      username: 'testowner',
+      personaName: 'testowner',
     });
 
     // System prompt

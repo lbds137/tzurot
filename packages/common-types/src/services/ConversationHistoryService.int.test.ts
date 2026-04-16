@@ -15,7 +15,7 @@ import { PrismaClient } from './prisma.js';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
 import { MessageRole } from '../constants/index.js';
@@ -51,16 +51,17 @@ describe('ConversationHistoryService Component Test', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Seed test data (include updated_at since schema doesn't have DEFAULT for @updatedAt fields)
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO users (id, discord_id, username, updated_at)
-      VALUES ('${testUserId}', '111111111111111111', 'testuser', NOW())
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO personas (id, name, content, preferred_name, owner_id, updated_at)
-      VALUES ('${testPersonaId}', 'Test Persona', 'A test persona', 'Tester', '${testUserId}', NOW())
-    `);
+    // Seed test data. Phase 5b made users.default_persona_id NOT NULL, so
+    // the user + default persona must be created atomically (CTE helper).
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: testPersonaId,
+      discordId: '111111111111111111',
+      username: 'testuser',
+      personaName: 'Test Persona',
+      personaPreferredName: 'Tester',
+      personaContent: 'A test persona',
+    });
 
     const systemPromptId = '00000000-0000-0000-0000-000000000004';
     await prisma.$executeRawUnsafe(`

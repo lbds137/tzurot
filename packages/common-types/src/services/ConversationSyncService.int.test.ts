@@ -14,7 +14,7 @@ import { PrismaClient } from './prisma.js';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationSyncService } from './ConversationSyncService.js';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { MessageRole } from '../constants/index.js';
@@ -48,19 +48,20 @@ describe('ConversationSyncService Integration Test', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Seed test data (explicit timestamps required - Prisma @updatedAt doesn't add SQL DEFAULT)
+    // Seed test data. Phase 5b made users.default_persona_id NOT NULL, so
+    // we create the user + persona pair atomically via the CTE helper.
     const now = new Date().toISOString();
     const systemPromptId = '00000000-0000-0000-0000-000000000004';
 
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO users (id, discord_id, username, updated_at)
-      VALUES ('${testUserId}', '111111111111111111', 'testuser', '${now}')
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO personas (id, name, content, preferred_name, owner_id, updated_at)
-      VALUES ('${testPersonaId}', 'Test Persona', 'A test persona', 'Tester', '${testUserId}', '${now}')
-    `);
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: testPersonaId,
+      discordId: '111111111111111111',
+      username: 'testuser',
+      personaName: 'Test Persona',
+      personaPreferredName: 'Tester',
+      personaContent: 'A test persona',
+    });
 
     await prisma.$executeRawUnsafe(`
       INSERT INTO system_prompts (id, name, content, updated_at)

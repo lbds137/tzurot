@@ -17,12 +17,20 @@ import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUui
 import { isBotOwner } from '../utils/ownerMiddleware.js';
 import { UNKNOWN_USER_DISCORD_ID } from '../constants/message.js';
 
-/** User record with fields needed for backfill checks */
+/**
+ * User record with fields needed for post-read maintenance checks.
+ *
+ * Phase 5b note: `defaultPersonaId` is NOT NULL at both the DB and Prisma-type
+ * level, so there is no "null default" branch here. The legacy
+ * `backfillDefaultPersona` path existed for users created before the NOT NULL
+ * migration; that class of user no longer exists in either the schema or the
+ * data (verified zero in dev + prod pre-flight).
+ */
 interface UserWithBackfillFields {
   id: string;
   isSuperuser: boolean;
   username: string;
-  defaultPersonaId: string | null;
+  defaultPersonaId: string;
 }
 
 /**
@@ -46,6 +54,20 @@ const logger = createLogger('UserService');
 
 /** Default description for auto-created personas */
 const DEFAULT_PERSONA_DESCRIPTION = 'Default persona';
+
+/**
+ * Build the placeholder persona name used during shell-user creation (Identity
+ * Epic Phase 5b). Prefix `"User "` is intentional — the bare Discord snowflake
+ * ID would violate the `personas_name_not_snowflake` CHECK constraint added
+ * in Phase 5. This placeholder is replaced with the user's real Discord
+ * username by `runMaintenanceTasks` on their first bot-client interaction.
+ *
+ * Exported so tests and any direct callers share the same formula without
+ * duplicating the "User " prefix literal.
+ */
+export function buildShellPlaceholderPersonaName(discordId: string): string {
+  return `User ${discordId}`;
+}
 
 /** Cache TTL: 1 hour - users rarely change, but we want eventual consistency */
 const USER_CACHE_TTL_MS = 60 * 60 * 1000;
@@ -118,16 +140,9 @@ export class UserService {
       // Create if doesn't exist (with race condition handling)
       user ??= await this.createUserWithRaceProtection(discordId, username, displayName, bio);
 
-      // Run maintenance tasks (backfill, promotions, etc.) and get the effective
-      // defaultPersonaId. This may differ from user.defaultPersonaId if backfill
-      // just ran; we rely on runMaintenanceTasks to return the authoritative value.
-      const defaultPersonaId = await this.runMaintenanceTasks(
-        user,
-        discordId,
-        username,
-        displayName,
-        bio
-      );
+      // Run maintenance tasks (superuser promotion, placeholder username
+      // upgrade) and get the authoritative `defaultPersonaId`.
+      const defaultPersonaId = await this.runMaintenanceTasks(user, discordId, username);
 
       const provisioned: ProvisionedUser = { userId: user.id, defaultPersonaId };
       this.userCache.set(discordId, provisioned);
@@ -196,25 +211,66 @@ export class UserService {
   private async createShellUserWithRaceProtection(discordId: string): Promise<{ id: string }> {
     const userId = generateUserUuid(discordId);
     const shouldBeSuperuser = isBotOwner(discordId);
+    // Placeholder persona name — MUST be prefixed (not bare discordId) to
+    // pass the `personas_name_not_snowflake` CHECK constraint added in Phase 5.
+    // Upgraded to the real Discord username by runMaintenanceTasks on the
+    // user's first bot-client interaction.
+    const placeholderPersonaName = buildShellPlaceholderPersonaName(discordId);
+    const personaId = generatePersonaUuid(placeholderPersonaName, userId);
 
     try {
-      await this.prisma.user.create({
-        data: {
-          id: userId,
-          discordId,
-          // Placeholder — upgraded by runMaintenanceTasks when bot-client
-          // calls getOrCreateUser with a real username.
-          username: discordId,
-          isSuperuser: shouldBeSuperuser,
-        },
-      });
+      // Phase 5b: users.default_persona_id is NOT NULL and personas.owner_id
+      // FKs back to users.id — a circular reference that would break any
+      // sequence of standalone INSERTs (neither row can be the first one
+      // inserted with complete data). A single-statement CTE sidesteps the
+      // bootstrap: Postgres checks IMMEDIATE FK constraints at statement end,
+      // by which point both rows exist. NOT NULL on users.default_persona_id
+      // is satisfied at row-insert time because we pre-compute personaId from
+      // the deterministic UUID formula.
+      await this.prisma.$executeRaw`
+        WITH new_persona AS (
+          INSERT INTO personas (id, name, preferred_name, description, content, owner_id, updated_at)
+          VALUES (
+            ${personaId}::uuid,
+            ${placeholderPersonaName},
+            ${placeholderPersonaName},
+            ${DEFAULT_PERSONA_DESCRIPTION},
+            ${''},
+            ${userId}::uuid,
+            NOW()
+          )
+          RETURNING id
+        ),
+        new_user AS (
+          INSERT INTO users (id, discord_id, username, is_superuser, default_persona_id, updated_at)
+          VALUES (
+            ${userId}::uuid,
+            ${discordId},
+            ${discordId},
+            ${shouldBeSuperuser},
+            ${personaId}::uuid,
+            NOW()
+          )
+          RETURNING id
+        )
+        SELECT 1
+      `;
       if (shouldBeSuperuser) {
         logger.info({ userId, discordId }, 'Bot owner auto-promoted to superuser (shell creation)');
       }
-      logger.info({ userId, discordId }, 'Created shell user (no default persona)');
+      logger.info(
+        { userId, discordId, personaId },
+        'Created shell user with placeholder default persona'
+      );
       return { id: userId };
     } catch (error) {
-      if (this.isPrismaUniqueConstraintError(error)) {
+      // Post-Phase-5b: the transaction writes User + Persona. P2002 can in
+      // theory come from either constraint, though in practice only
+      // `users.discord_id` can fire here (persona UUIDs are deterministic
+      // from discordId and the placeholder name is unique per ownerId by
+      // construction). Match on `discord_id` explicitly so future schema
+      // changes that add more unique constraints don't silently mis-recover.
+      if (this.isPrismaUniqueConstraintError(error, 'discord_id')) {
         return this.fetchExistingUserAfterRace(discordId, { id: true }, error, 'shell');
       }
       throw error;
@@ -250,11 +306,46 @@ export class UserService {
   }
 
   /**
-   * Check if an error is a Prisma unique constraint violation (P2002)
-   * Uses duck typing to avoid instanceof issues in test environments
+   * Check if an error is a Prisma unique constraint violation (P2002).
+   * Uses duck typing to avoid instanceof issues in test environments.
+   *
+   * Optionally filter to a specific constraint via `target` — matches substrings
+   * in `error.meta.target` (Prisma includes the constraint name/columns there).
+   * Callers that just want "any P2002" pass no target. Callers that need to
+   * distinguish between multiple possible unique constraints on a transaction
+   * (e.g., shell creation now writes User + Persona, each with its own
+   * uniqueness) pass a target to match only the expected constraint.
+   *
+   * Identity Epic Phase 5b added the target parameter as defense-in-depth for
+   * the new shell-creation transaction. Future schema changes that add more
+   * unique constraints on User/Persona won't silently mis-recover.
    */
-  private isPrismaUniqueConstraintError(error: unknown): boolean {
-    return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
+  private isPrismaUniqueConstraintError(error: unknown, target?: string): boolean {
+    if (
+      error === null ||
+      typeof error !== 'object' ||
+      !('code' in error) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+    if (target === undefined) {
+      return true;
+    }
+    // Prisma P2002 errors include `meta.target` — either a string or array of
+    // constraint column names. We do a substring match for robustness across
+    // both shapes.
+    const meta = 'meta' in error ? (error as { meta?: unknown }).meta : undefined;
+    if (meta === null || typeof meta !== 'object' || !('target' in meta)) {
+      return false;
+    }
+    const metaTarget = (meta as { target: unknown }).target;
+    const serialized = Array.isArray(metaTarget)
+      ? metaTarget.join(',')
+      : typeof metaTarget === 'string'
+        ? metaTarget
+        : '';
+    return serialized.includes(target);
   }
 
   /**
@@ -287,41 +378,59 @@ export class UserService {
   }
 
   /**
-   * Run maintenance tasks for existing users
-   * Handles backfilling personas, promoting superusers, and updating placeholder usernames.
-   * These are "read-repair" operations that fix legacy data on access.
+   * Run maintenance tasks for existing users.
+   * Handles promoting the bot owner to superuser and upgrading placeholder
+   * usernames (shell-path) to real Discord usernames on first bot-client
+   * interaction. These are "read-repair" operations that fix pre-hardening
+   * data on access.
    *
-   * Returns the effective `defaultPersonaId` — either the existing one from
-   * `user.defaultPersonaId`, or the newly-backfilled one if it was null.
+   * Returns the effective `defaultPersonaId` — always non-null post-Phase-5b.
    */
   private async runMaintenanceTasks(
     user: UserWithBackfillFields,
     discordId: string,
-    username: string,
-    displayName?: string,
-    bio?: string
+    username: string
   ): Promise<string> {
     // Check if existing user should be promoted to superuser
     await this.promoteToSuperuserIfNeeded(user, discordId);
 
-    // Backfill default persona if missing
-    // (api-gateway creates users without personas via direct prisma calls)
-    const defaultPersonaId =
-      user.defaultPersonaId ??
-      (await this.backfillDefaultPersona(user.id, username, displayName, bio));
+    // Phase 5b: defaultPersonaId is structurally NOT NULL, so there is no
+    // backfill branch anymore. The legacy repair-on-read path that created
+    // personas for users missing a default persona has been removed along
+    // with the null column.
+    const defaultPersonaId = user.defaultPersonaId;
 
-    // Update placeholder username if we now have a real username
+    // Update placeholder username if we now have a real username.
     // Only updates usernames that exactly match discordId (placeholder pattern).
-    // This intentionally does NOT sync changed Discord usernames - we preserve
+    // This intentionally does NOT sync changed Discord usernames — we preserve
     // the username from first interaction to maintain historical consistency.
+    //
+    // Identity Epic Phase 5b: also rename the placeholder persona from
+    // `"User {discordId}"` to the real username. The rename uses `updateMany`
+    // with an idempotent WHERE predicate so concurrent maintenance calls for
+    // the same user don't race — the second call matches zero rows and
+    // no-ops. The unique `(ownerId, name)` constraint cannot fire here
+    // because the placeholder name is unique per owner by construction, and
+    // this is the first time the real username has arrived for this user.
     if (user.username === discordId && username !== discordId) {
+      const placeholderPersonaName = buildShellPlaceholderPersonaName(discordId);
       await this.prisma.user.update({
         where: { id: user.id },
         data: { username },
       });
+      const renameResult = await this.prisma.persona.updateMany({
+        where: { ownerId: user.id, name: placeholderPersonaName },
+        data: { name: username, preferredName: username },
+      });
       logger.info(
-        { userId: user.id, discordId, oldUsername: user.username, newUsername: username },
-        'Updated placeholder username'
+        {
+          userId: user.id,
+          discordId,
+          oldUsername: user.username,
+          newUsername: username,
+          personasRenamed: renameResult.count,
+        },
+        'Updated placeholder username and renamed shell placeholder persona'
       );
     }
 
@@ -346,99 +455,6 @@ export class UserService {
   }
 
   /**
-   * Backfill default persona for existing user who doesn't have one.
-   * This handles users created via api-gateway's direct prisma calls.
-   *
-   * Race condition handling: If two requests try to backfill simultaneously,
-   * both may pass the findUnique check before either commits. The second will
-   * get a P2002 error on persona.create (deterministic UUIDs = same persona ID).
-   * We catch this inside the transaction and continue to updateMany, which is
-   * idempotent and will link the existing persona if not already linked.
-   */
-  private async backfillDefaultPersona(
-    userId: string,
-    username: string,
-    displayName?: string,
-    bio?: string
-  ): Promise<string> {
-    const personaId = generatePersonaUuid(username, userId);
-    const personaDisplayName = displayName ?? username;
-    const personaContent = bio ?? '';
-
-    // Transaction returns a discriminator so the caller can log the
-    // backfill-we-did vs. backfill-already-happened paths differently.
-    // Prior to this split the info log fired on the no-op path too, making
-    // the two cases indistinguishable in production logs.
-    const result = await this.prisma.$transaction(
-      async (
-        tx: Prisma.TransactionClient
-      ): Promise<{ personaId: string; alreadyBackfilled: boolean }> => {
-        // Double-check inside transaction that persona is still needed
-        // (another request may have created it between our check and this transaction)
-        const user = await tx.user.findUnique({
-          where: { id: userId },
-          select: { defaultPersonaId: true },
-        });
-
-        if (user?.defaultPersonaId !== null && user?.defaultPersonaId !== undefined) {
-          // Another request already backfilled — return whatever they linked.
-          // Can differ from our deterministic `personaId` if the linked persona
-          // was user-selected later via UI (unlikely for a user that just had
-          // null defaultPersonaId, but we don't assume).
-          return { personaId: user.defaultPersonaId, alreadyBackfilled: true };
-        }
-
-        // Create default persona (with P2002 race handling)
-        // If two requests pass the findUnique check simultaneously, both will try
-        // to create the same persona (deterministic UUID). The second gets P2002.
-        try {
-          await tx.persona.create({
-            data: {
-              id: personaId,
-              name: username,
-              preferredName: personaDisplayName,
-              description: DEFAULT_PERSONA_DESCRIPTION,
-              content: personaContent,
-              ownerId: userId,
-            },
-          });
-        } catch (error) {
-          if (this.isPrismaUniqueConstraintError(error)) {
-            logger.debug(
-              { userId, personaId },
-              'Persona already created by concurrent request, continuing to link'
-            );
-            // Continue to updateMany - it's idempotent and will link the existing persona
-          } else {
-            throw error;
-          }
-        }
-
-        // Link persona as user's default (idempotent - only updates if still null)
-        await tx.user.updateMany({
-          where: { id: userId, defaultPersonaId: null },
-          data: { defaultPersonaId: personaId },
-        });
-
-        return { personaId, alreadyBackfilled: false };
-      }
-    );
-
-    if (result.alreadyBackfilled) {
-      logger.debug(
-        { userId, personaId: result.personaId },
-        'Persona already backfilled by concurrent request'
-      );
-    } else {
-      logger.info(
-        { userId, username, personaId: result.personaId },
-        'Backfilled default persona for existing user'
-      );
-    }
-    return result.personaId;
-  }
-
-  /**
    * Create a new user with their default persona in a transaction
    */
   private async createUserWithDefaultPersona(
@@ -453,34 +469,40 @@ export class UserService {
     const personaDisplayName = displayName ?? username;
     const personaContent = bio ?? '';
 
-    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Create user
-      await tx.user.create({
-        data: { id: userId, discordId, username, isSuperuser: shouldBeSuperuser },
-      });
-      if (shouldBeSuperuser) {
-        logger.info({ userId, discordId, username }, 'Bot owner auto-promoted to superuser');
-      }
+    // Phase 5b: circular-FK bootstrap via single-statement CTE. See the
+    // matching comment in createShellUserWithRaceProtection for the reasoning.
+    await this.prisma.$executeRaw`
+      WITH new_persona AS (
+        INSERT INTO personas (id, name, preferred_name, description, content, owner_id, updated_at)
+        VALUES (
+          ${personaId}::uuid,
+          ${username},
+          ${personaDisplayName},
+          ${DEFAULT_PERSONA_DESCRIPTION},
+          ${personaContent},
+          ${userId}::uuid,
+          NOW()
+        )
+        RETURNING id
+      ),
+      new_user AS (
+        INSERT INTO users (id, discord_id, username, is_superuser, default_persona_id, updated_at)
+        VALUES (
+          ${userId}::uuid,
+          ${discordId},
+          ${username},
+          ${shouldBeSuperuser},
+          ${personaId}::uuid,
+          NOW()
+        )
+        RETURNING id
+      )
+      SELECT 1
+    `;
 
-      // Create default persona
-      await tx.persona.create({
-        data: {
-          id: personaId,
-          name: username,
-          preferredName: personaDisplayName,
-          description: DEFAULT_PERSONA_DESCRIPTION,
-          content: personaContent,
-          ownerId: userId,
-        },
-      });
-
-      // Link persona as user's default
-      await tx.user.update({
-        where: { id: userId },
-        data: { defaultPersonaId: personaId },
-      });
-    });
-
+    if (shouldBeSuperuser) {
+      logger.info({ userId, discordId, username }, 'Bot owner auto-promoted to superuser');
+    }
     logger.info({ userId, discordId, username, personaId }, 'Created user with default persona');
 
     return {

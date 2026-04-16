@@ -206,91 +206,62 @@ describe('UserService', () => {
     });
   });
 
-  describe('backfillDefaultPersona', () => {
-    it('should backfill persona for user created without one', async () => {
-      // Manually create user without persona (simulates api-gateway direct creation)
-      const userId = '00000000-0000-0000-0000-000000000099';
-      await prisma.user.create({
-        data: {
-          id: userId,
-          discordId: testDiscordId,
-          username: testUsername,
-          defaultPersonaId: null,
-        },
+  describe('shell-flow creation and upgrade (Phase 5b)', () => {
+    // The legacy "backfill a null-default user" scenario is structurally
+    // impossible post-5b: users.default_persona_id is NOT NULL and both user
+    // paths atomically create a persona. These tests exercise the new
+    // contract — the shell path produces a valid user + placeholder persona,
+    // and the first real `getOrCreateUser` call upgrades both sides.
+
+    it('getOrCreateUserShell creates a user with a non-null default persona named "User {discordId}"', async () => {
+      const userId = await service.getOrCreateUserShell(testDiscordId);
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      expect(user).not.toBeNull();
+      expect(user?.username).toBe(testDiscordId); // Placeholder
+      expect(user?.defaultPersonaId).not.toBeNull();
+
+      const persona = await prisma.persona.findUnique({
+        where: { id: user!.defaultPersonaId! },
       });
+      expect(persona).not.toBeNull();
+      expect(persona?.name).toBe(`User ${testDiscordId}`);
+      expect(persona?.preferredName).toBe(`User ${testDiscordId}`);
+      expect(persona?.ownerId).toBe(userId);
+    });
 
-      // Use new service instance to avoid cache
+    it('first getOrCreateUser after a shell upgrades both username and placeholder persona name', async () => {
+      const userId = await service.getOrCreateUserShell(testDiscordId);
+
+      // Use a fresh service so the upgrade path actually runs (cache would
+      // otherwise short-circuit runMaintenanceTasks).
       const newService = new UserService(prisma);
-
-      // getOrCreateUser should trigger backfill
       const provisioned = await newService.getOrCreateUser(
         testDiscordId,
         testUsername,
         testDisplayName
       );
 
-      // Persona UUID is deterministic (generatePersonaUuid(username, userId)),
-      // so we can assert the exact expected value rather than a weaker
-      // .not.toBeNull() check.
-      const expectedPersonaId = generatePersonaUuid(testUsername, userId);
       expect(provisioned?.userId).toBe(userId);
-      expect(provisioned?.defaultPersonaId).toBe(expectedPersonaId);
 
-      // Verify persona was backfilled
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
-      expect(user?.defaultPersonaId).not.toBeNull();
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      expect(user?.username).toBe(testUsername);
 
       const persona = await prisma.persona.findUnique({
-        where: { id: user?.defaultPersonaId ?? '' },
+        where: { id: user!.defaultPersonaId! },
       });
-      expect(persona).not.toBeNull();
       expect(persona?.name).toBe(testUsername);
-      expect(persona?.preferredName).toBe(testDisplayName);
+      expect(persona?.preferredName).toBe(testUsername);
     });
 
-    it('should update placeholder username to real username', async () => {
-      // Create user with discordId as username (placeholder pattern)
-      const userId = '00000000-0000-0000-0000-000000000098';
-      const personaId = '00000000-0000-0000-0000-000000000097';
+    it('calling getOrCreateUser twice with the same real username is idempotent (no P2002)', async () => {
+      await service.getOrCreateUserShell(testDiscordId);
 
-      await prisma.user.create({
-        data: {
-          id: userId,
-          discordId: testDiscordId,
-          username: testDiscordId, // Placeholder
-          defaultPersonaId: null,
-        },
-      });
+      const first = await new UserService(prisma).getOrCreateUser(testDiscordId, testUsername);
+      const second = await new UserService(prisma).getOrCreateUser(testDiscordId, testUsername);
 
-      // Create a persona for this user
-      await prisma.persona.create({
-        data: {
-          id: personaId,
-          name: testDiscordId,
-          content: '',
-          ownerId: userId,
-        },
-      });
-
-      // Link persona
-      await prisma.user.update({
-        where: { id: userId },
-        data: { defaultPersonaId: personaId },
-      });
-
-      // Use new service to avoid cache
-      const newService = new UserService(prisma);
-
-      // Call with real username
-      await newService.getOrCreateUser(testDiscordId, testUsername);
-
-      // Verify username was updated
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
-      expect(user?.username).toBe(testUsername);
+      expect(first?.userId).toBe(second?.userId);
+      expect(first?.defaultPersonaId).toBe(second?.defaultPersonaId);
     });
   });
 

@@ -50,15 +50,17 @@ export function createMockPrisma(): {
     delete: ReturnType<typeof vi.fn>;
     updateMany: ReturnType<typeof vi.fn>;
   };
-  $transaction: ReturnType<typeof vi.fn>;
+  $executeRaw: ReturnType<typeof vi.fn>;
 } {
-  const mockPrisma = {
+  return {
     user: {
       findFirst: vi.fn(),
+      // Phase 5b: defaultPersonaId is NOT NULL at the type level, so the
+      // default findUnique result must supply one.
       findUnique: vi.fn().mockResolvedValue({
         id: MOCK_USER_UUID,
         username: 'test-user',
-        defaultPersonaId: null,
+        defaultPersonaId: 'test-persona-uuid',
         isSuperuser: false,
       }),
       create: vi.fn(),
@@ -83,32 +85,9 @@ export function createMockPrisma(): {
       delete: vi.fn(),
       updateMany: vi.fn(),
     },
-    $transaction: vi.fn(),
+    // UserService's create-user CTE; plain happy-path resolve by default.
+    $executeRaw: vi.fn().mockResolvedValue(1),
   };
-
-  // $transaction calls the callback with the same mock prisma as the tx client
-  // Also supports UserService transaction pattern
-  mockPrisma.$transaction.mockImplementation(
-    async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
-      // Create a tx-like object with UserService needs
-      const mockTx = {
-        ...mockPrisma,
-        user: {
-          ...mockPrisma.user,
-          create: vi.fn().mockResolvedValue({ id: MOCK_USER_UUID }),
-          update: vi.fn().mockResolvedValue({ id: MOCK_USER_UUID }), // For new user creation
-          updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
-          findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
-        },
-        persona: {
-          create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-        },
-      };
-      return callback(mockTx as unknown as typeof mockPrisma);
-    }
-  );
-
-  return mockPrisma;
 }
 
 // Base mock personality for tests

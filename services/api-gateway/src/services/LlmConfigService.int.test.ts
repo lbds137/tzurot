@@ -14,6 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   PrismaClient,
   generateUserUuid,
+  generatePersonaUuid,
   generateLlmConfigUuid,
   generatePersonalityUuid,
   generateUserPersonalityConfigUuid,
@@ -21,7 +22,12 @@ import {
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { setupTestEnvironment, loadPGliteSchema, type TestEnvironment } from '@tzurot/test-utils';
+import {
+  setupTestEnvironment,
+  loadPGliteSchema,
+  seedUserWithPersona,
+  type TestEnvironment,
+} from '@tzurot/test-utils';
 import { LlmConfigService, type LlmConfigScope } from './LlmConfigService.js';
 
 describe('LlmConfigService Integration', () => {
@@ -55,22 +61,34 @@ describe('LlmConfigService Integration', () => {
   });
 
   beforeEach(async () => {
-    // Clean up test data - order matters due to foreign keys
+    // Clean up test data - order matters due to foreign keys.
+    // Users must be deleted BEFORE personas because Phase 5 made
+    // users.default_persona_id FK Restrict (user cascade-deletes its own
+    // personas via the reverse owner FK).
     await prisma.userPersonalityConfig.deleteMany({});
     await prisma.personalityDefaultConfig.deleteMany({});
     await prisma.llmConfig.deleteMany({});
     await prisma.personality.deleteMany({});
     await prisma.user.deleteMany({});
 
-    // Create test users
+    // Create test users. Phase 5b made users.default_persona_id NOT NULL, so
+    // each user must be seeded with a matching persona via the CTE helper.
     testUserId = generateUserUuid(TEST_DISCORD_ID);
     adminUserId = generateUserUuid(ADMIN_DISCORD_ID);
 
-    await prisma.user.createMany({
-      data: [
-        { id: testUserId, discordId: TEST_DISCORD_ID, username: 'test-user' },
-        { id: adminUserId, discordId: ADMIN_DISCORD_ID, username: 'admin-user' },
-      ],
+    await seedUserWithPersona(prisma, {
+      userId: testUserId,
+      personaId: generatePersonaUuid('test-user', testUserId),
+      discordId: TEST_DISCORD_ID,
+      username: 'test-user',
+      personaName: 'test-user',
+    });
+    await seedUserWithPersona(prisma, {
+      userId: adminUserId,
+      personaId: generatePersonaUuid('admin-user', adminUserId),
+      discordId: ADMIN_DISCORD_ID,
+      username: 'admin-user',
+      personaName: 'admin-user',
     });
   });
 
@@ -208,8 +226,12 @@ describe('LlmConfigService Integration', () => {
     it('should not include other users configs in USER scope', async () => {
       // Create another user's config
       const otherUserId = generateUserUuid('other-user');
-      await prisma.user.create({
-        data: { id: otherUserId, discordId: 'other-discord-id', username: 'other' },
+      await seedUserWithPersona(prisma, {
+        userId: otherUserId,
+        personaId: generatePersonaUuid('other', otherUserId),
+        discordId: 'other-discord-id',
+        username: 'other',
+        personaName: 'other',
       });
       await prisma.llmConfig.create({
         data: {

@@ -8,3 +8,4 @@
  */
 
 export { loadPGliteSchema, setupTestEnvironment, type TestEnvironment } from './setup-pglite.js';
+export { seedUserWithPersona, type SeedUserWithPersonaOptions } from './seed.js';

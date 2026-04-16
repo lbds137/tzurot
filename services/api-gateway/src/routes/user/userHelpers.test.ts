@@ -17,6 +17,7 @@ describe('getOrCreateInternalUser', () => {
     persona: {
       create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
     },
+    $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
       const mockTx = {
         user: {
@@ -54,38 +55,22 @@ describe('getOrCreateInternalUser', () => {
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('should create shell user (no persona) if not found', async () => {
+  it('should create shell user with placeholder persona if not found', async () => {
+    // Phase 5b: shell creation now atomically creates the user + a
+    // placeholder persona via a single $executeRaw CTE. The follow-up
+    // findUnique returns the freshly-created row with its non-null
+    // default persona id.
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce(null) // UserService shell lookup
-      .mockResolvedValueOnce({ id: 'test-user-uuid', defaultPersonaId: null }); // Follow-up query — shell has null persona
-    mockPrisma.user.create.mockResolvedValueOnce({ id: 'test-user-uuid' });
+      .mockResolvedValueOnce(null) // UserService shell-path initial lookup
+      .mockResolvedValueOnce({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
     const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-456');
 
-    // Shell user — no persona created, no transaction opened
-    expect(result).toEqual({ id: 'test-user-uuid', defaultPersonaId: null });
-    expect(mockPrisma.user.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        discordId: 'discord-456',
-        username: 'discord-456', // placeholder until bot-client upgrades
-      }),
-    });
-    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
-    expect(mockPrisma.persona.create).not.toHaveBeenCalled();
-  });
-
-  it('should return user even when defaultPersonaId is null', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      id: 'bot-id',
-      username: 'bot-user',
-      defaultPersonaId: null,
-      isSuperuser: false,
-      isBot: true,
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
-    const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-bot');
-    expect(result).toEqual(expect.objectContaining({ id: 'bot-id', defaultPersonaId: null }));
+    expect(result).toEqual(
+      expect.objectContaining({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' })
+    );
+    // The create-user CTE must have run (single $executeRaw call).
+    expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 });

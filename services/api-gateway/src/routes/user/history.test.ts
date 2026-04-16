@@ -76,6 +76,7 @@ const mockPrisma = {
     deleteMany: vi.fn(),
   },
   // Transaction mock - executes callback with mockPrisma as transaction client
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn(async (callback: (tx: typeof mockPrisma) => Promise<unknown>) => {
     return callback(mockPrisma);
   }),

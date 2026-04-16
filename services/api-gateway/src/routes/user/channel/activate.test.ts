@@ -260,7 +260,7 @@ describe('POST /user/channel/activate', () => {
     // Shell creation — api-gateway routes don't have username context, so
     // UserService.getOrCreateUserShell creates a User-only record (no persona,
     // no transaction). Full provisioning happens later via the bot-client path.
-    expect(mockPrisma.user.create).toHaveBeenCalled();
+    expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
   });
 });

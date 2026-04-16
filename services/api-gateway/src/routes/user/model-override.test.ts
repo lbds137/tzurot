@@ -52,6 +52,7 @@ const mockPrisma = {
     upsert: vi.fn(),
     update: vi.fn(),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
     const mockTx = {
       user: {
@@ -324,7 +325,7 @@ describe('/user/model-override routes', () => {
       await handler(req, res);
 
       // getOrCreateUserShell creates users via direct user.create
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
@@ -579,7 +580,7 @@ describe('/user/model-override routes', () => {
       await handler(req, res);
 
       // getOrCreateUserShell creates users via direct user.create
-      expect(mockPrisma.user.create).toHaveBeenCalled();
+      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 

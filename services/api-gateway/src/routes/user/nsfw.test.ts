@@ -19,6 +19,7 @@ const mockPrisma = {
   persona: {
     create: vi.fn(),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
     const mockTx = {
       user: {
