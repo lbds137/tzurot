@@ -172,18 +172,11 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-### Identity & Provisioning Hardening Epic — Phase 3 (next session)
+### Identity & Provisioning Hardening Epic — Phase 4 (next session)
 
-Phase 1 + 2 shipped in beta.97 + beta.98. Phase 3 eliminates `PersonaResolver.setUserDefault`'s lazy mutation side effect — extracts `ensureDefaultPersona()` as an explicit method called at request boundary rather than mid-resolution. Estimated ~3 days.
+Phase 1 + 2 shipped in beta.97 + beta.98. Phase 3 shipped 2026-04-16 (PR #814) — `PersonaResolver.resolveFresh` is now strictly read-only; transient resolution warns + dangling/empty-personas cases error-log. Council pressure-test reframed scope from ~3 days to ~60 LOC (separation of resolution vs provisioning).
 
-**Entry point for next session**: council pressure-test the Phase 3 design BEFORE writing code (epic's cross-cutting principle). Start at `docs/reference/architecture/epic-identity-hardening.md § Phase 3`. Post-council, proceed to implementation across 1-2 sessions.
-
-### Post-deploy validation — beta.98
-
-Run at the start of next session. Two log queries ready in the v3.0.0-beta.98 release notes:
-
-- Cross-channel leak guard firing: `pnpm ops logs --service bot-client --env prod --filter "@level:info LinkExtractor Invoking user lacks access"`
-- MEDIA_NOT_FOUND classification rate up: `pnpm ops logs --service ai-worker --env prod --filter "@level:info errorCategory:media_not_found"`
+Next phase — Phase 4 — kills the `discord:XXXX` dual-tier personaId format: resolve extended-context participants to UUIDs at fetch time rather than carrying placeholder strings through memory data. Estimated ~3 days, but Phase 3's experience suggests council pressure-test will shrink it significantly. Entry point: `docs/reference/architecture/epic-identity-hardening.md § Phase 4`.
 
 ### Other in-flight
 
@@ -226,20 +219,19 @@ LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned 
 
 ## 🏗 Active Epic: Identity & Provisioning Hardening
 
-_Focus: eliminate the structural conditions that let the persona-snowflake bug ship undetected for 4 months. Six phases total, four remaining._
+_Focus: eliminate the structural conditions that let the persona-snowflake bug ship undetected for 4 months. Six phases total, three remaining._
 
-**Status**: Phase 1 shipped 2026-04-14 (PR #803, beta.97). Phase 2 shipped 2026-04-15 (PRs #807 + #808, beta.98). Phase 3 queued for council pressure-test.
+**Status**: Phase 1 shipped 2026-04-14 (PR #803, beta.97). Phase 2 shipped 2026-04-15 (PRs #807 + #808, beta.98). Phase 3 shipped 2026-04-16 (PR #814, unreleased on develop). Phase 4 queued for council pressure-test.
 
-**Full epic doc**: `docs/reference/architecture/epic-identity-hardening.md` — phase scopes, decision records (D1–D5), cross-cutting principles.
+**Full epic doc**: `docs/reference/architecture/epic-identity-hardening.md` — phase scopes, decision records (D1–D6), cross-cutting principles.
 
 **Remaining phases**:
 
-- **Phase 3**: eliminate `PersonaResolver.setUserDefault` lazy mutation side effect — extract `ensureDefaultPersona()` as explicit method called at request boundary. ~3 days.
 - **Phase 4**: kill `discord:XXXX` dual-tier personaId format — resolve extended-context participants to UUIDs at fetch time. ~3 days.
 - **Phase 5**: DB-level FK constraint `User.defaultPersonaId → Persona.id` (`ON DELETE RESTRICT`) + unique index `(ownerId, name)` on Persona. ~1 day + migration.
 - **Phase 6**: integration test coverage for the refactor-regression class (would have caught `c88ae5b7`). ~2 days.
 
-**Cross-cutting principle**: council pressure-test BEFORE each phase starts, not mid-implementation. ADR when an architectural choice is made.
+**Cross-cutting principle**: council pressure-test BEFORE each phase starts, not mid-implementation. ADR when an architectural choice is made. (Phase 3 validated this principle: initial scope ~3 days shrank to ~60 LOC after council reframed the problem.)
 
 ---
 

@@ -2,8 +2,9 @@
 
 > **Status**: Active Epic. Phase 1 shipped 2026-04-14 (PR #803, beta.97).
 > Phase 2 shipped 2026-04-15 (PRs #807, #808 — provisioning choke point +
-> review follow-ups, unreleased on develop).
-> Phases 3-6 queued.
+> review follow-ups, in beta.98). Phase 3 shipped 2026-04-16 (PR #814 —
+> PersonaResolver now strictly read-only, unreleased on develop).
+> Phases 4-6 queued.
 >
 > **Type**: Living document. Update after each phase with outcomes, design
 > decisions, and next-phase entry points. This is the source of truth for
@@ -119,14 +120,23 @@ surface. Council review (Gemini 3.1 Pro) right-sized the scope: structural
 type over branded, ESLint over dep-cruiser, tests exempted entirely.
 Actual shipped in ~2-3 hours.
 
-### Phase 3 — Eliminate `PersonaResolver.setUserDefault` side effect (~3 days)
+### Phase 3 — Eliminate `PersonaResolver.setUserDefault` side effect ✅ (PR #814, shipped 2026-04-16)
 
 **Goal**: Resolution is read-only. Side effects happen at request boundary.
 
-- Extract `ensureDefaultPersona()` as an explicit method
-- Call it at request-end (e.g., message handler wrap-up) rather than
-  mid-resolution
-- Failures become observable (logged/alerted) rather than swallowed
+Shipped:
+
+- `PersonaResolver.resolveFresh` is strictly read-only. The `await setUserDefault(...)` mid-resolution write is gone; transient resolution picks the first owned persona and returns it without persistence.
+- `setUserDefault` private method deleted (no remaining callers).
+- Three-tier observability added: `warn` on transient-first-owned, `error` on dangling `defaultPersonaId`, `error` on no-personas-at-all.
+- Top-of-file JSDoc rewritten around the read-only contract; stale "lazy initialization" claim removed.
+- Stale Phase-3 reference comment removed from `UserContextResolver.ts`.
+- Three new tests: transient-no-mutation, dangling-defaultPersonaId, no-personas-with-error-log. Obsolete "auto-default persistence error handling" describe block deleted.
+- `loadPersonalityOverride` helper extracted to keep `resolveFresh` under the 100-line ESLint limit.
+
+Scope: council pressure-test shrank the estimate from ~3 days to ~60 LOC. Original design (extract `ensureDefaultPersona()` as a new method on PersonaResolver) was rejected by council in favor of A-prime (delete the write entirely; UserService already owns provisioning). See D6 below.
+
+Paired with PR #813 (db-sync user-preference FK deferral): `unprovisionedDefault_hasOwnedPersonas` on dev went from 117 → 0 after sync, so the new `warn` log fires ~0 times in steady state.
 
 ### Phase 4 — Kill `discord:XXXX` dual-tier format (~3 days)
 
@@ -254,12 +264,49 @@ aliases of Prisma client substructures). The ESLint rule's inline
 comment in `eslint.config.js` documents this gap so grep-auditors
 don't assume it's comprehensive.
 
+### D6 (Phase 3) — Delete the write, don't extract a new method
+
+**Chose**: Remove the `setUserDefault` call from `resolveFresh` entirely
+and rely on `UserService.backfillDefaultPersona` (already existing) to
+heal the user on the next interaction. Did NOT extract a new
+`ensureDefaultPersona` method on `PersonaResolver`.
+
+**Rationale**: Council (Opus 4.6) called out a framing trap in the
+original proposal: treating "resolve a persona for a user" and "ensure
+a user's default persona is persisted" as the same operation. They
+should be separate — resolution is a read; provisioning is a
+lifecycle event that already has a home in UserService. Extracting
+`ensureDefaultPersona` would duplicate `backfillDefaultPersona` and
+preserve the wrong mental model ("resolution might need to write"),
+creating gravitational pull for future callers to opt in to "just in
+case" mutation.
+
+**Key empirical input**: pre-flight SQL survey showed 117/227 dev users
+and 1/227 prod users in the "owned personas but null defaultPersonaId"
+state — proving the Priority 3 branch was not dead code. But the warn
+log (read-only resolution) serves the need equally well; the persist
+was never the correctness-critical part. After PR #813 (db-sync
+user-preference FK deferral), dev dropped to 0/227, so the warn log
+fires ~0 times in steady state.
+
+**Also discovered during Phase 3 pre-flight**: `createUserWithDefaultPersona`
+is wrapped in a single Prisma `$transaction` (UserService.ts:456), so
+partial-failure gaps are already prevented at the provisioning layer.
+Phase 3 doesn't need defense-in-depth for that case.
+
+**Reference PR**: #814.
+
 ## Related backlog items
 
 See `BACKLOG.md` Icebox/Inbox for:
 
 - Singleton-hazard guard for `UserService` cache (if ever promoted to
   singleton, revisit the shell-path cache omission)
+- `ForeignKeyReconciler.reconcileFkColumn` cross-swap edge case when
+  `comparison === 'same' && devValue !== prodValue` — dormant before
+  PR #813, reactivated for `default_persona_id` / `default_llm_config_id`.
+  Low-likelihood but worth tracking before Phase 5 tightens the FK
+  (Inbox entry, 2026-04-16).
 - Post-Phase-6 ADR: "integration-test-coverage pattern for refactor
   regressions" — document the testing pattern that emerges from Phase 6
   so future refactors get the same safety net
