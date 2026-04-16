@@ -230,9 +230,12 @@ export class MemoryRetriever {
    *   - Active speaker: from activePersonaGuildInfo
    *   - Other participants: from participantGuildInfo (when extended context is enabled)
    *
-   * Handles both UUID personaIds (from DB history) and 'discord:XXXX' format
-   * (from extended context). Discord format IDs are resolved to actual persona
-   * UUIDs if the user is registered.
+   * Post-Phase-4 contract: `participant.personaId` is always either a valid
+   * UUID (DB history or resolved extended context) or the empty-string
+   * sentinel (unresolvable extended-context participant). The legacy
+   * `discord:XXXX` placeholder format is stripped by bot-client's
+   * `ExtendedContextPersonaResolver.resolveExtendedContextPersonaIds` before
+   * the job crosses the service boundary — ai-worker never sees it.
    *
    * @param context - Conversation context with participants
    * @param personalityId - Personality ID for resolving per-personality persona overrides
@@ -260,18 +263,25 @@ export class MemoryRetriever {
 
     // Fetch content for each participant
     for (const participant of context.participants) {
-      // Resolve personaId - handles both UUID and 'discord:XXXX' formats
-      // Extended context uses 'discord:XXXX', DB history uses UUIDs
+      // Post-Phase-4 contract: personaId is always a UUID (from DB history
+      // or resolved extended context) OR the empty string sentinel (for
+      // extended-context messages whose author couldn't be resolved to a
+      // registered persona). resolveToUuid is now a UUID-or-null guard —
+      // all cross-service identity resolution already happened upstream in
+      // bot-client's `ExtendedContextPersonaResolver.resolveExtendedContextPersonaIds`.
       const resolvedPersonaId = await this.personaResolver.resolveToUuid(
         participant.personaId,
         personalityId
       );
 
-      // If we couldn't resolve to a UUID, user is not registered (transient participant)
+      // Non-UUID personaId (including the '' sentinel) means we can't
+      // include this participant's persona content in the prompt. The
+      // message text itself stays in context with display-name attribution —
+      // we just don't inject persona content for this participant.
       if (resolvedPersonaId === null) {
         logger.debug(
           { personaId: participant.personaId, personaName: participant.personaName },
-          `[MemoryRetriever] Could not resolve personaId - user may not be registered`
+          `[MemoryRetriever] Participant has no resolvable persona — skipping`
         );
         continue;
       }
@@ -339,7 +349,8 @@ export class MemoryRetriever {
       // Include guild info:
       // - For active speaker: use activePersonaGuildInfo (from triggering message)
       // - For other participants: look up in participantGuildInfo (from extended context)
-      // Note: participantGuildInfo is keyed by original personaId (may be discord: format)
+      // Keys in participantGuildInfo are UUIDs post-Phase-4 (remapped by
+      // ExtendedContextPersonaResolver alongside the persona resolution pass).
       let guildInfo;
       if (participant.isActive) {
         guildInfo = context.activePersonaGuildInfo;

@@ -28,7 +28,6 @@
 
 import { createLogger } from '../../utils/logger.js';
 import { isValidUUID, UUID_REGEX } from '../../constants/service.js';
-import { DISCORD_ID_PREFIX, extractDiscordId } from '../../constants/discord.js';
 import type { PrismaClient } from '../prisma.js';
 import { BaseConfigResolver, type ResolutionResult } from './BaseConfigResolver.js';
 
@@ -415,46 +414,38 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   }
 
   /**
-   * Resolve a personaId that may be in 'discord:XXXX' format to an actual persona UUID.
+   * Validate a personaId is a UUID, returning it unchanged or null.
    *
-   * Extended context participants use 'discord:{discordUserId}' format instead of UUIDs.
-   * This method resolves them to actual persona UUIDs if the user is registered.
+   * **Post-Phase-4 contract**: callers must pass UUID personaIds. The
+   * legacy `discord:XXXX` placeholder format is stripped at the bot-client
+   * boundary by `ExtendedContextPersonaResolver.resolveExtendedContextPersonaIds`
+   * before any data leaves the service, so ai-worker never sees it.
    *
-   * @param personaId - Either a UUID or 'discord:XXXX' format ID
-   * @param personalityId - The personality context (needed for per-personality overrides)
-   * @returns The resolved UUID personaId, or null if user has no persona
+   * This method remains as a defensive checkpoint: if it ever receives a
+   * non-UUID input, a `warn` log fires as a tripwire signaling a regression
+   * (a caller somewhere is producing non-UUID personaIds that bypassed the
+   * resolution pass). The personaId parameter stays in the log for triage.
+   *
+   * The empty-string sentinel (used by `ExtendedContextPersonaResolver`'s
+   * strip pass to mark unresolved message authors) also returns null — it's
+   * not a UUID, but it's the documented "no persona" value and shouldn't
+   * warn. Callers handling extended-context messages should check for empty
+   * string before calling this.
+   *
+   * @param personaId - A UUID persona ID
+   * @param _personalityId - Kept for signature stability with existing callers
+   * @returns The UUID if valid, null otherwise
    */
-  async resolveToUuid(personaId: string, personalityId: string): Promise<string | null> {
-    // Already a valid UUID - return as-is
-    // Note: Use regex directly to avoid type guard narrowing personaId to 'never' in else branch
+  resolveToUuid(personaId: string, _personalityId: string): Promise<string | null> {
     if (UUID_REGEX.test(personaId)) {
-      return personaId;
+      return Promise.resolve(personaId);
     }
-
-    // Check for discord: prefix format
-    const discordUserId = extractDiscordId(personaId);
-    if (discordUserId !== undefined) {
-      // Resolve using the standard resolution flow
-      const result = await this.resolve(discordUserId, personalityId);
-
-      // If we got a system default (no persona), return null
-      if (result.source === SOURCE_SYSTEM_DEFAULT || result.config.personaId === '') {
-        return null;
-      }
-
-      logger.debug(
-        { originalId: personaId, resolvedId: result.config.personaId },
-        `Resolved ${DISCORD_ID_PREFIX} format personaId to UUID`
+    if (personaId !== '') {
+      logger.warn(
+        { personaId },
+        'Non-UUID personaId passed to resolveToUuid — check extended-context strip pass'
       );
-
-      return result.config.personaId;
     }
-
-    // Unknown format
-    logger.warn(
-      { personaId },
-      `Unknown personaId format - not UUID or ${DISCORD_ID_PREFIX} prefix`
-    );
-    return null;
+    return Promise.resolve(null);
   }
 }
