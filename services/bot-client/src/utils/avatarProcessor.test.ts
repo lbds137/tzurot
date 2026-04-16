@@ -131,7 +131,10 @@ describe('processAvatarAttachment', () => {
 
       const result = await processAvatarAttachment(attachment);
 
-      expect(mockFetch).toHaveBeenCalledWith(attachment.url);
+      expect(mockFetch).toHaveBeenCalledWith(
+        attachment.url,
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      );
       expect(result).toBe(imageData.toString('base64'));
     });
 
@@ -172,6 +175,24 @@ describe('processAvatarAttachment', () => {
       mockFetch.mockRejectedValue(new Error('Request timeout'));
 
       await expect(processAvatarAttachment(attachment)).rejects.toThrow(AvatarProcessingError);
+    });
+
+    it('should surface AbortError as a timeout-specific user message and code', async () => {
+      const attachment = createMockAttachment();
+      // Simulate the AbortController firing: fetch rejects with an Error whose
+      // name is 'AbortError' (matches Node/browser fetch behavior).
+      const abortError = new Error('The operation was aborted.');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValue(abortError);
+
+      try {
+        await processAvatarAttachment(attachment);
+        expect.fail('expected processAvatarAttachment to throw');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AvatarProcessingError);
+        expect((error as AvatarProcessingError).code).toBe('DOWNLOAD_TIMEOUT');
+        expect((error as Error).message).toContain('timed out');
+      }
     });
   });
 

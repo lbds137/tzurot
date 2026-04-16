@@ -183,6 +183,20 @@ describe('Character Avatar Handler', () => {
       );
     });
 
+    it('should surface AbortError from fetch as a timeout-specific message', async () => {
+      const attachment = createMockAttachment();
+      const mockContext = createMockContext('my-char', attachment);
+      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
+      const abortError = new Error('The operation was aborted.');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValue(abortError);
+
+      await handleAvatar(mockContext, mockConfig);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('timed out'));
+      expect(api.updateCharacter).not.toHaveBeenCalled();
+    });
+
     it('should successfully update avatar', async () => {
       const attachment = createMockAttachment();
       const mockContext = createMockContext('my-char', attachment);

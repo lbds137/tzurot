@@ -51,9 +51,18 @@ export async function processAvatarAttachment(
     throw new AvatarProcessingError('❌ Avatar file is too large (max 10MB)', 'FILE_TOO_LARGE');
   }
 
-  // Download and convert to base64
+  // Download and convert to base64, with 30s timeout to avoid a stalled
+  // Discord CDN holding the deferred interaction until Discord's 15-min cap.
+  // Pattern matches commands/character/voice.ts:109-117.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
-    const response = await fetch(attachment.url);
+    let response: Response;
+    try {
+      response = await fetch(attachment.url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -70,7 +79,14 @@ export async function processAvatarAttachment(
 
     return avatarBase64;
   } catch (error) {
-    logger.error({ err: error }, 'Failed to download avatar');
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    logger.error({ err: error, isTimeout }, 'Failed to download avatar');
+    if (isTimeout) {
+      throw new AvatarProcessingError(
+        '❌ Avatar download timed out. Discord may be slow — please try again.',
+        'DOWNLOAD_TIMEOUT'
+      );
+    }
     throw new AvatarProcessingError('❌ Failed to download avatar image', 'DOWNLOAD_FAILED');
   }
 }
