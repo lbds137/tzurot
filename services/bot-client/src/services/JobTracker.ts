@@ -13,8 +13,18 @@ import type { ResponseOrderingService } from './ResponseOrderingService.js';
 
 const logger = createLogger('JobTracker');
 
-// Maximum age for a job before auto-completing (prevents memory leaks)
-const MAX_JOB_AGE_MS = 10 * 60 * 1000; // 10 minutes
+// How long to keep sending the typing indicator before giving up. Typing
+// indicator is purely visual; after this point we stop refreshing so Discord
+// isn't showing a stale indicator forever. The job itself stays tracked so
+// the result still delivers when it arrives.
+const TYPING_INDICATOR_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+// When to surface a "this is taking longer than expected" notification to the
+// user. Decoupled from TYPING_INDICATOR_TIMEOUT_MS so we can tune each
+// independently — historical mistake was using one constant for both, which
+// meant the notification fired too late (users gave up by 10 min) because it
+// was bounded by the typing-indicator policy, not by UX desirability.
+const TAKING_LONGER_NOTIFY_MS = 5 * 60 * 1000; // 5 minutes
 
 // Discord typing lasts ~10s, refresh every 8s
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
@@ -40,6 +50,15 @@ interface TrackedJob {
   typingInterval: NodeJS.Timeout;
   startTime: number;
   context: PendingJobContext;
+  /**
+   * The "taking longer than expected" notification message, once sent.
+   * Stored so completeJob can delete it — without cleanup the notification
+   * lingers in the channel even after the real response arrives, which
+   * reads like a false signal that something went wrong.
+   */
+  takingLongerMessage?: Message;
+  /** Prevents re-sending the notification on every typing-interval tick. */
+  notificationSent?: boolean;
 }
 
 export class JobTracker {
@@ -72,27 +91,33 @@ export class JobTracker {
       void (async () => {
         const age = Date.now() - startTime;
 
+        // Send "taking longer" notification once at the 5 min mark. Previously
+        // this was bundled with the typing cutoff at 10 min — too late, users
+        // gave up before seeing it.
+        const tracked = this.activeJobs.get(jobId);
+        if (tracked && tracked.notificationSent !== true && age > TAKING_LONGER_NOTIFY_MS) {
+          tracked.notificationSent = true;
+          try {
+            const notification = await channel.send(
+              "⏱️ This is taking longer than expected. I'm still working on it - " +
+                "you'll get a response when it's ready!"
+            );
+            tracked.takingLongerMessage = notification;
+          } catch (err) {
+            logger.error(
+              { err, jobId },
+              '[JobTracker] Failed to send taking-longer notification to user'
+            );
+          }
+        }
+
         // Stop typing indicator after max age, but KEEP tracking the job
         // (result will still be delivered when it arrives)
-        if (age > MAX_JOB_AGE_MS) {
+        if (age > TYPING_INDICATOR_TIMEOUT_MS) {
           logger.warn(
             { jobId, ageMs: age },
             '[JobTracker] Job exceeded typing timeout - stopping indicator but keeping job tracked'
           );
-
-          // Notify user that it's taking longer than expected
-          try {
-            await channel.send(
-              "⏱️ This is taking longer than expected. I'm still working on it - " +
-                "you'll get a response when it's ready!"
-            );
-          } catch (err) {
-            logger.error(
-              { err, jobId },
-              '[JobTracker] Failed to send timeout notification to user'
-            );
-          }
-
           // Clear the typing interval to avoid rate limits, but DON'T remove the job
           // The job context must remain so we can deliver the result when it arrives
           clearInterval(typingInterval);
@@ -145,6 +170,17 @@ export class JobTracker {
 
     // Clear typing interval
     clearInterval(tracked.typingInterval);
+
+    // Clean up the "taking longer" notification if it was sent. The real
+    // response is about to arrive, so leaving the notification in the channel
+    // reads like a false signal that something's still wrong. Silent-swallow
+    // delete failures — Discord can 404 (user deleted it) or 429 (rate
+    // limited) and neither should throw out of completeJob.
+    if (tracked.takingLongerMessage) {
+      tracked.takingLongerMessage.delete().catch(err => {
+        logger.debug({ err, jobId }, '[JobTracker] Delete of taking-longer notification failed');
+      });
+    }
 
     const waitTime = Date.now() - tracked.startTime;
     logger.info(
