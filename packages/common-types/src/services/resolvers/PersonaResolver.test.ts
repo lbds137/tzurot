@@ -548,83 +548,38 @@ describe('PersonaResolver', () => {
       expect(mockPrismaClient.user.findUnique).not.toHaveBeenCalled();
     });
 
-    it('should resolve discord: format to actual persona UUID', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-uuid',
-        defaultPersonaId: 'resolved-persona-uuid',
-        defaultPersona: {
-          id: 'resolved-persona-uuid',
-          preferredName: 'Test User',
-          pronouns: null,
-          content: 'User content',
-        },
-        ownedPersonas: [],
-      });
-
+    it('should return null for discord: format with a warn log (post-Phase-4 tripwire)', async () => {
+      // Post-Phase-4, resolveToUuid is UUID-only. The `discord:XXXX`
+      // format should have been stripped at the bot-client boundary by
+      // ExtendedContextPersonaResolver. A non-UUID reaching here signals
+      // a regression, so we warn-log for visibility and return null.
+      // This test documents the contract — no DB calls should happen.
       const result = await resolver.resolveToUuid('discord:123456789', 'personality-123');
 
-      expect(result).toBe('resolved-persona-uuid');
-      expect(mockPrismaClient.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { discordId: '123456789' },
-        })
+      expect(result).toBeNull();
+      expect(mockPrismaClient.user.findUnique).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ personaId: 'discord:123456789' }),
+        expect.stringContaining('Non-UUID personaId')
       );
     });
 
-    it('should return null for discord: format when user not found', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue(null);
-
-      const result = await resolver.resolveToUuid('discord:999999999', 'personality-123');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null for discord: format when user has no persona', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-uuid',
-        defaultPersonaId: null,
-        defaultPersona: null,
-        ownedPersonas: [],
-      });
-
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
-
-      const result = await resolver.resolveToUuid('discord:123456789', 'personality-123');
+    it('should return null for empty string WITHOUT warning (expected sentinel)', async () => {
+      // Empty string is the documented "unresolved extended-context user"
+      // sentinel produced by the strip pass. It's the quiet no-op case —
+      // not a tripwire, not a warn.
+      const result = await resolver.resolveToUuid('', 'personality-123');
 
       expect(result).toBeNull();
+      expect(mockPrismaClient.user.findUnique).not.toHaveBeenCalled();
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
 
-    it('should return null for unknown format', async () => {
+    it('should return null for unknown format with a warn log', async () => {
       const result = await resolver.resolveToUuid('invalid-format', 'personality-123');
 
       expect(result).toBeNull();
-    });
-
-    it('should use per-personality override when available for discord: format', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-uuid',
-        defaultPersonaId: 'default-persona-uuid',
-        defaultPersona: {
-          id: 'default-persona-uuid',
-          preferredName: 'Default',
-          pronouns: null,
-          content: '',
-        },
-        ownedPersonas: [],
-      });
-
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue({
-        persona: {
-          id: 'override-persona-uuid',
-          preferredName: 'Override',
-          pronouns: null,
-          content: '',
-        },
-      });
-
-      const result = await resolver.resolveToUuid('discord:123456789', 'specific-personality');
-
-      expect(result).toBe('override-persona-uuid');
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
   });
 

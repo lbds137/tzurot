@@ -6,15 +6,11 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  MESSAGE_LIMITS,
-  DISCORD_ID_PREFIX,
-  type MessageReaction,
-} from '@tzurot/common-types';
+import { createLogger, MESSAGE_LIMITS, type MessageReaction } from '@tzurot/common-types';
 import type { ConversationMessage } from '@tzurot/common-types';
 import type { ExtendedContextUser } from './types.js';
 import { collectReactorUsers } from './ParticipantContextCollector.js';
+import { INTERNAL_DISCORD_ID_PREFIX } from '../contextBuilder/ExtendedContextPersonaResolver.js';
 
 const logger = createLogger('ReactionProcessor');
 
@@ -110,7 +106,7 @@ export async function extractReactions(msg: Message): Promise<MessageReaction[]>
       const reactors = users
         .filter(user => !user.bot) // Exclude bot reactions
         .map(user => ({
-          personaId: `${DISCORD_ID_PREFIX}${user.id}`,
+          personaId: `${INTERNAL_DISCORD_ID_PREFIX}${user.id}`,
           displayName: user.displayName ?? user.username,
         }));
 

@@ -10,9 +10,9 @@ import {
   createLogger,
   MessageRole,
   MESSAGE_LIMITS,
-  DISCORD_ID_PREFIX,
   ConversationSyncService,
 } from '@tzurot/common-types';
+import { INTERNAL_DISCORD_ID_PREFIX } from './contextBuilder/ExtendedContextPersonaResolver.js';
 import type {
   ConversationMessage,
   AttachmentMetadata,
@@ -401,7 +401,8 @@ export class DiscordChannelFetcher {
       role,
       content,
       createdAt: msg.createdAt,
-      personaId: role === MessageRole.User ? `${DISCORD_ID_PREFIX}${msg.author.id}` : 'assistant',
+      personaId:
+        role === MessageRole.User ? `${INTERNAL_DISCORD_ID_PREFIX}${msg.author.id}` : 'assistant',
       personaName: role === MessageRole.User ? authorName : undefined,
       discordUsername: msg.author.username,
       discordMessageId: [msg.id],
