@@ -476,6 +476,9 @@ CREATE UNIQUE INDEX "user_api_keys_user_id_provider_key" ON "user_api_keys"("use
 CREATE INDEX "personas_owner_id_idx" ON "personas"("owner_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "personas_owner_id_name_key" ON "personas"("owner_id", "name");
+
+-- CreateIndex
 CREATE INDEX "system_prompts_is_default_idx" ON "system_prompts"("is_default");
 
 -- CreateIndex
@@ -695,7 +698,7 @@ CREATE UNIQUE INDEX "export_jobs_user_id_source_slug_source_service_format_key" 
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "users" ADD CONSTRAINT "users_default_persona_id_fkey" FOREIGN KEY ("default_persona_id") REFERENCES "personas"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "users" ADD CONSTRAINT "users_default_persona_id_fkey" FOREIGN KEY ("default_persona_id") REFERENCES "personas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "usage_logs" ADD CONSTRAINT "usage_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

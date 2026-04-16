@@ -46,6 +46,16 @@
       "pattern": "DROP INDEX.*idx_memories_is_locked",
       "reason": "Partial index with WHERE clause cannot be represented in Prisma schema",
       "action": "remove"
+    },
+    {
+      "pattern": "ALTER TABLE.*personas.*DROP CONSTRAINT.*personas_name_non_empty",
+      "reason": "CHECK constraint added in Identity Epic Phase 5 — Prisma doesn't represent CHECK constraints so future migrate diffs try to drop it",
+      "action": "remove"
+    },
+    {
+      "pattern": "ALTER TABLE.*personas.*DROP CONSTRAINT.*personas_name_not_snowflake",
+      "reason": "CHECK constraint added in Identity Epic Phase 5 (snowflake-name tripwire) — Prisma doesn't represent CHECK constraints so future migrate diffs try to drop it",
+      "action": "remove"
     }
   ],
   "documentation": {
