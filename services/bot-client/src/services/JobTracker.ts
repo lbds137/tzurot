@@ -102,7 +102,21 @@ export class JobTracker {
               "⏱️ This is taking longer than expected. I'm still working on it - " +
                 "you'll get a response when it's ready!"
             );
-            tracked.takingLongerMessage = notification;
+            // Race guard: if completeJob fired during the send's round-trip,
+            // the tracked entry has been removed from activeJobs — completeJob
+            // saw `takingLongerMessage === undefined` and skipped the delete.
+            // Writing to the orphaned `tracked` object would leak the
+            // notification. Detect and delete immediately in that case.
+            if (this.activeJobs.get(jobId) === tracked) {
+              tracked.takingLongerMessage = notification;
+            } else {
+              notification.delete().catch(deleteErr => {
+                logger.debug(
+                  { err: deleteErr, jobId },
+                  '[JobTracker] Delete of orphaned taking-longer notification failed'
+                );
+              });
+            }
           } catch (err) {
             logger.error(
               { err, jobId },
