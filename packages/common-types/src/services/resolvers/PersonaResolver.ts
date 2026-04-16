@@ -4,14 +4,26 @@
  * Implements the "Switch" strategy: returns the entire persona object,
  * no field-level merging with defaults.
  *
+ * Resolution is strictly READ-ONLY. Provisioning is the exclusive responsibility
+ * of `UserService.getOrCreateUser` → `runMaintenanceTasks` → `backfillDefaultPersona`.
+ * This resolver never writes; it picks the best persona it can for the current
+ * request and returns it.
+ *
  * Resolution hierarchy:
  * 1. Per-personality override (UserPersonalityConfig.personaId)
- * 2. User's default persona (User.defaultPersonaId)
- * 3. Auto-default: First owned persona (lazy initialization - persists the default)
+ * 2. User's explicit default (User.defaultPersonaId)
+ * 3. Transient first-owned-persona fallback (warns, does NOT persist)
+ * 4. System default (errors, user has no personas at all)
  *
- * The auto-default feature ensures users always have a persona without
- * requiring explicit setup. On first resolution, if no default is set,
- * the user's first owned persona becomes their default.
+ * Prior to the Identity Epic Phase 3 (2026-04-16), the Priority 3 branch
+ * lazily persisted the first owned persona as the user's default. That lazy
+ * mutation was dropped because: (a) it made a "read" path mutate state,
+ * (b) errors were swallowed as "best-effort optimization" and became
+ * invisible, (c) UserService already provisions `defaultPersonaId` atomically
+ * at creation time (Phase 2), so the lazy-init code path is a transitional
+ * compatibility shim rather than load-bearing logic. Transient resolution
+ * warns loudly so persistent orphaned users are visible in logs; the next
+ * `getOrCreateUser` call heals them via `backfillDefaultPersona`.
  */
 
 import { createLogger } from '../../utils/logger.js';
@@ -196,37 +208,9 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     }
 
     // Priority 1: Per-personality override (separate query for cleaner typing)
-    if (personalityId !== undefined && personalityId !== '') {
-      const personaOverride = await this.prisma.userPersonalityConfig.findFirst({
-        where: {
-          userId: user.id,
-          personalityId,
-          personaId: { not: null },
-        },
-        select: {
-          persona: {
-            select: {
-              id: true,
-              name: true,
-              preferredName: true,
-              pronouns: true,
-              content: true,
-            },
-          },
-        },
-      });
-
-      if (personaOverride?.persona) {
-        logger.debug(
-          { discordUserId, personalityId, personaId: personaOverride.persona.id },
-          'Using personality-specific persona override'
-        );
-        return {
-          config: this.mapToResolvedPersona(personaOverride.persona),
-          source: 'context-override',
-          sourceName: `override:${personalityId}`,
-        };
-      }
+    const override = await this.loadPersonalityOverride(user.id, discordUserId, personalityId);
+    if (override !== null) {
+      return override;
     }
 
     // Priority 2: User's explicit default
@@ -238,46 +222,93 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       };
     }
 
-    // Priority 3: Auto-default - use first owned persona and persist it
+    // Data-integrity check: defaultPersonaId is set but the persona row is missing.
+    // Schema has onDelete: SetNull on User.defaultPersona, so this *shouldn't* happen —
+    // log an error as a precursor signal for Phase 5's NOT NULL FK upgrade. We still
+    // fall through to owned-persona resolution so the request succeeds.
+    if (user.defaultPersonaId !== null) {
+      logger.error(
+        { discordUserId, userId: user.id, defaultPersonaId: user.defaultPersonaId },
+        'Dangling defaultPersonaId — references a non-existent persona. Falling through to owned-persona resolution.'
+      );
+    }
+
+    // Priority 3: User has owned personas but no usable defaultPersona.
+    // Transient resolution — pick the first owned persona without persisting.
+    // Provisioning is UserService's job; the next getOrCreateUser call will
+    // run runMaintenanceTasks → backfillDefaultPersona and heal the user row.
     if (user.ownedPersonas.length > 0) {
       const firstPersona = user.ownedPersonas[0];
-
-      // Persist as default for future lookups (lazy initialization)
-      await this.setUserDefault(user.id, firstPersona.id);
-
-      logger.debug(
-        { discordUserId, personaId: firstPersona.id },
-        'Auto-defaulted to first owned persona'
+      logger.warn(
+        {
+          discordUserId,
+          userId: user.id,
+          selectedPersonaId: firstPersona.id,
+          ownedPersonaCount: user.ownedPersonas.length,
+        },
+        'Transient resolution — user has owned personas but no defaultPersonaId. Will be healed on next UserService.getOrCreateUser call.'
       );
-
       return {
         config: this.mapToResolvedPersona(firstPersona),
-        source: SOURCE_USER_DEFAULT, // Treat as user-default since we just set it
-        sourceName: 'auto-default',
+        source: SOURCE_USER_DEFAULT,
+        sourceName: 'transient-first-owned',
       };
     }
 
-    // No persona at all
-    logger.warn({ discordUserId }, 'User has no personas');
+    // No persona at all — genuine data-integrity violation post-Phase-2.
+    logger.error(
+      { discordUserId, userId: user.id },
+      'User has no personas — provisioning is incomplete. Check UserService.createUserWithDefaultPersona flow.'
+    );
     return { config: this.getSystemDefault(), source: SOURCE_SYSTEM_DEFAULT };
   }
 
   /**
-   * Set user's default persona (for auto-default and explicit setting)
+   * Look up the per-personality persona override. Returns null when the user
+   * has no override for this personality (or no personalityId was provided).
+   * Extracted to keep resolveFresh under the per-function line limit.
    */
-  private async setUserDefault(internalUserId: string, personaId: string): Promise<void> {
-    try {
-      await this.prisma.user.update({
-        where: { id: internalUserId },
-        data: { defaultPersonaId: personaId },
-      });
-    } catch (error) {
-      logger.error(
-        { err: error, userId: internalUserId, personaId },
-        'Failed to set default persona'
-      );
-      // Don't throw - this is a best-effort optimization
+  private async loadPersonalityOverride(
+    userId: string,
+    discordUserId: string,
+    personalityId: string | undefined
+  ): Promise<ResolutionResult<ResolvedPersona> | null> {
+    if (personalityId === undefined || personalityId === '') {
+      return null;
     }
+
+    const personaOverride = await this.prisma.userPersonalityConfig.findFirst({
+      where: {
+        userId,
+        personalityId,
+        personaId: { not: null },
+      },
+      select: {
+        persona: {
+          select: {
+            id: true,
+            name: true,
+            preferredName: true,
+            pronouns: true,
+            content: true,
+          },
+        },
+      },
+    });
+
+    if (!personaOverride?.persona) {
+      return null;
+    }
+
+    logger.debug(
+      { discordUserId, personalityId, personaId: personaOverride.persona.id },
+      'Using personality-specific persona override'
+    );
+    return {
+      config: this.mapToResolvedPersona(personaOverride.persona),
+      source: 'context-override',
+      sourceName: `override:${personalityId}`,
+    };
   }
 
   /**
