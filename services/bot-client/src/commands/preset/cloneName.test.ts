@@ -59,11 +59,9 @@ describe('generateClonedName', () => {
   });
 
   it('trims trailing whitespace on unsuffixed names before appending (Copy)', () => {
-    // Latent inconsistency before PR #824 R3 fix: the no-suffix branch
-    // didn't call .trim() on originalName, which produced "Preset    (Copy)"
-    // for a trailing-whitespace input. Preset names are gateway-validated
-    // so this never fired in practice, but the behavior is now consistent
-    // with the suffix-present branch.
+    // Parallels the trailing-whitespace handling in the suffix-present
+    // branch above — both paths should normalize whitespace before
+    // emitting the copy name.
     expect(generateClonedName('My Preset   ')).toBe('My Preset (Copy)');
   });
 });

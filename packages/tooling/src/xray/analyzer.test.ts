@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
 // ts-morph has a cold-start cost that can exceed vitest's 5s default on
-// slower CI runners. The cost compounds under v8 coverage instrumentation,
-// which hit 15s on CI even after the direct-parseFile refactor — observed
-// in PR #824 (job 71868453131). 30s leaves headroom without masking a
-// genuine regression that would be ~orders of magnitude slower.
+// slower CI runners, and the cost compounds under v8 coverage
+// instrumentation — pushing even direct `parseFile` calls past 15s on
+// GitHub Actions runners. 30s leaves headroom without masking a genuine
+// regression (which would be orders of magnitude slower).
 vi.setConfig({ testTimeout: 30_000 });
 
 vi.mock('chalk', () => ({
