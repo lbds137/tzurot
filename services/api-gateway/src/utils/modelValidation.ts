@@ -67,11 +67,14 @@ export async function validateModelAndContextWindow(
   if (contextWindowTokens !== undefined && contextWindowTokens > cap) {
     const contextK = Math.round(model.contextLength / 1000);
     const capK = Math.round(cap / 1000);
-    const limit = cap === model.contextLength ? "the model's full" : "50% of the model's";
+    // "full" when the cap equals contextLength (small model, no halving applied),
+    // "safe" when we're holding back 50% for generation room.
+    const scope = cap === model.contextLength ? 'full' : 'safe';
     return {
       error:
-        `contextWindowTokens (${contextWindowTokens}) exceeds ${limit} context window. ` +
-        `Model '${modelId}' supports ${contextK}K tokens; maximum allowed is ${capK}K (${cap} tokens).`,
+        `Context window setting (${contextWindowTokens} tokens) exceeds the ${scope} limit for '${modelId}'. ` +
+        `Model supports ${contextK}K tokens; maximum allowed for this preset is ${capK}K (${cap} tokens). ` +
+        `Reduce the Context Window value before saving.`,
       contextWindowCap: cap,
     };
   }

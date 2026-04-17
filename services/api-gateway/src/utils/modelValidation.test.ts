@@ -71,9 +71,10 @@ describe('validateModelAndContextWindow', () => {
     const model = createMockModel({ contextLength: 200000 });
     const cache = createMockModelCache(model);
     const result = await validateModelAndContextWindow(cache, 'anthropic/claude-sonnet-4', 150000);
-    expect(result.error).toContain("exceeds 50% of the model's");
+    expect(result.error).toContain("exceeds the safe limit for 'anthropic/claude-sonnet-4'");
     expect(result.error).toContain('200K');
     expect(result.error).toContain('100K');
+    expect(result.error).toContain('Reduce the Context Window value');
     expect(result.contextWindowCap).toBe(100000);
   });
 
@@ -112,7 +113,8 @@ describe('validateModelAndContextWindow', () => {
     const model = createMockModel({ contextLength: 32768 });
     const cache = createMockModelCache(model);
     const result = await validateModelAndContextWindow(cache, 'test/small-model', 40000);
-    expect(result.error).toContain("exceeds the model's full");
+    expect(result.error).toContain("exceeds the full limit for 'test/small-model'");
+    expect(result.error).toContain('Reduce the Context Window value');
     expect(result.contextWindowCap).toBe(32768);
   });
 
