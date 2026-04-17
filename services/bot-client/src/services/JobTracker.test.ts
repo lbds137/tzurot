@@ -312,6 +312,86 @@ describe('JobTracker', () => {
     });
   });
 
+  describe('Orphan sweep (grace period past typing cutoff)', () => {
+    it('should release the tracker if the result never arrives past grace period', async () => {
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi
+          .fn()
+          .mockResolvedValue({ id: 'notif-1', delete: vi.fn().mockResolvedValue(undefined) }),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+
+      // Advance just past the typing cutoff — orphan sweep is armed here.
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
+      expect(jobTracker.isTracking('job-123')).toBe(true);
+
+      // Advance another 29 min — still inside grace period, job still tracked.
+      await vi.advanceTimersByTimeAsync(29 * 60 * 1000);
+      expect(jobTracker.isTracking('job-123')).toBe(true);
+
+      // Advance past the 30-min grace period — sweep fires, tracker released.
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+      expect(jobTracker.isTracking('job-123')).toBe(false);
+    });
+
+    it('should not fire if the job completes normally before grace period', async () => {
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi
+          .fn()
+          .mockResolvedValue({ id: 'notif-1', delete: vi.fn().mockResolvedValue(undefined) }),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+
+      // Advance past typing cutoff so the sweep is armed.
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
+      expect(jobTracker.isTracking('job-123')).toBe(true);
+
+      // Result lands 15 min later (inside grace period).
+      await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+      const channel = jobTracker.completeJob('job-123');
+      expect(channel).toBe(mockChannel);
+      expect(jobTracker.isTracking('job-123')).toBe(false);
+
+      // Advance past when the sweep would have fired — must not re-invoke
+      // completeJob or warn. Re-completing an unknown job would return null,
+      // so this primarily guards against the sweep timer firing with stale
+      // closure state.
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+      expect(jobTracker.isTracking('job-123')).toBe(false);
+    });
+
+    it('should clear pending orphan sweeps on cleanup()', async () => {
+      const mockChannel = {
+        id: 'channel-123',
+        sendTyping: vi.fn().mockResolvedValue(undefined),
+        send: vi
+          .fn()
+          .mockResolvedValue({ id: 'notif-1', delete: vi.fn().mockResolvedValue(undefined) }),
+      } as any;
+
+      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+
+      // Arm the sweep by passing typing cutoff.
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
+      expect(jobTracker.isTracking('job-123')).toBe(true);
+
+      // Shutdown clears everything, including the pending sweep.
+      jobTracker.cleanup();
+      expect(jobTracker.isTracking('job-123')).toBe(false);
+
+      // Advancing past the sweep's scheduled fire time must not re-invoke
+      // any side effects — the timer was cleared.
+      await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+      expect(jobTracker.isTracking('job-123')).toBe(false);
+    });
+  });
+
   describe('isTracking', () => {
     it('should return true for tracked jobs', () => {
       const mockChannel = {
