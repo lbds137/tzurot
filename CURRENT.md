@@ -1,117 +1,103 @@
 # Current
 
-> **Session**: 2026-04-16 (ended)
-> **Version**: v3.0.0-beta.98 (released 2026-04-15) — develop has Phases 3–5b unreleased
+> **Session**: 2026-04-17 (ended, rolled over from 2026-04-16)
+> **Version**: v3.0.0-beta.99 (released 2026-04-17 — Identity Epic Phases 3–5b + UX polish + db-sync fix)
 
 ---
 
 ## Next Session Goal
 
-_Phase 5c (eliminate shell-creation path) → then Phase 6 integration tests → then prod release for the accumulated unreleased phases. Release explicitly deferred — not tonight._
+_Phase 5c (eliminate shell-creation path) → then Phase 6 integration tests. Release cadence is open; no specific deadline._
 
-1. **Phase 5c council pressure-test** (~45 min): before implementation, settle the API-contract question — where does "user must be provisioned" live? Options: bot-client pre-provisions via `getOrCreateUser` before any slash-command → HTTP call (preferred), OR api-gateway middleware that calls `getOrCreateUser` given the bot-client passes username/displayName/bio headers, OR auth-extension approach. Council should pressure-test all three and identify which slash-command handlers would need refactoring.
-2. **Phase 5c implementation**: delete `getOrCreateUserShell`, `createShellUserWithRaceProtection`, `buildShellPlaceholderPersonaName`, the placeholder-rename block in `runMaintenanceTasks`. Swap ~13 api-gateway HTTP routes from shell-path to `findUserByDiscordIdOrFail` (404 if not provisioned). Audit ~20 slash-command handlers for pre-provision. ~200–400 LOC net delete.
-3. **Phase 6**: integration test coverage for the refactor-regression class (c88ae5b7). End-to-end "HTTP route → Discord interaction → prompt correctness" test. ~2 days.
-4. **Release** after 5c or 6 lands — bundles Phases 3, 4, 5, 5b (and whichever of 5c/6 ships first) as beta.99. Not tonight.
+1. **Phase 5c council pressure-test** (~45 min): settle the API-contract question — where does "user must be provisioned" live? Options: bot-client pre-provisions via `getOrCreateUser` before any slash-command → HTTP call, OR api-gateway middleware that calls `getOrCreateUser` given the bot-client passes username/displayName/bio headers, OR auth-extension approach. Council should pressure-test all three.
+2. **Phase 5c implementation**: delete `getOrCreateUserShell`, `createShellUserWithRaceProtection`, `buildShellPlaceholderPersonaName`, the placeholder-rename block in `runMaintenanceTasks`. Swap ~13 api-gateway HTTP routes from shell-path to `findUserByDiscordIdOrFail` (404 if not provisioned). Audit ~20 slash-command handlers for pre-provision. **Folded-in cleanups**: tighten `User.defaultPersona` relation from `Persona?` → `Persona`; break the test-utils ↔ common-types Turbo build-DAG cycle and switch `seed.ts` to import `DEFAULT_PERSONA_DESCRIPTION` directly. Expected ~200–400 LOC net delete once the cutover lands.
+3. **Phase 6**: integration test coverage for the refactor-regression class (`c88ae5b7`). End-to-end "HTTP route → Discord interaction → prompt correctness" test. ~2 days.
 
 ## Active Task
 
-🏗 **Identity & Provisioning Hardening Epic — Phases 1–5b shipped. Phase 5c next, then Phase 6.**
+🏗 **Identity & Provisioning Hardening Epic — Phases 1–5b shipped to prod. Phase 5c next, then Phase 6.**
 
-Epic status (all on develop, unreleased):
+Epic status (all in prod as of beta.99):
 
 - ✅ Phase 1 (PR #803, beta.97): tactical heal for persona-snowflake bug. 14 users healed in prod.
 - ✅ Phase 2 (PRs #807, #808, beta.98): single choke point for user creation, `ProvisionedUser` return type, ESLint guard on direct `prisma.user/persona.create`.
-- ✅ Phase 3 (PR #814, unreleased): eliminated `PersonaResolver.setUserDefault` lazy mutation — read-only resolver, persistence moved to UserService.
-- ✅ Phase 4 (PR #816, unreleased): killed `discord:XXXX` dual-tier personaId format.
-- ✅ Phase 5 (PR #817, unreleased): DB-level invariants — Restrict FK on `user.default_persona_id`, unique `(owner_id, name)` on personas, CHECK constraints `personas_name_non_empty` and `personas_name_not_snowflake`.
-- ✅ Phase 5b (PR #818, unreleased): NOT NULL on `users.default_persona_id` via single-statement CTE bootstrap. Deleted `backfillDefaultPersona` (90 LOC dead-code). Added `seedUserWithPersona` helper to test-utils. Six rounds of review feedback addressed (R1–R6) plus one direct-to-develop follow-up for R6 polish.
-- 📋 **Phase 5c (next)**: eliminate shell-creation path entirely. Council pressure-test first — API-contract design question.
+- ✅ Phase 3 (PR #814, beta.99): eliminated `PersonaResolver.setUserDefault` lazy mutation — read-only resolver, persistence moved to UserService.
+- ✅ Phase 4 (PR #816, beta.99): killed `discord:XXXX` dual-tier personaId format.
+- ✅ Phase 5 (PR #817, beta.99): DB-level invariants — Restrict FK on `user.default_persona_id`, unique `(owner_id, name)` on personas, CHECK constraints `personas_name_non_empty` and `personas_name_not_snowflake`.
+- ✅ Phase 5b (PR #818, beta.99): NOT NULL on `users.default_persona_id` via single-statement CTE bootstrap. Deleted `backfillDefaultPersona` (90 LOC). Added `seedUserWithPersona` helper to test-utils.
+- 📋 **Phase 5c (next)**: eliminate shell-creation path entirely. Council pressure-test first.
 - 📋 Phase 6: integration test coverage for refactor-regression class.
 
 ---
 
-## Completed This Session (2026-04-16)
+## Completed This Session (2026-04-16 → 2026-04-17)
 
-Long session focused on Phase 5b. Originally planned as Phase 3 pressure-test + Quick Wins; reality shipped Phase 5b (which subsumed the original Phase 3/4/5 plans because those had already landed earlier on develop as PRs #814/#816/#817 earlier in the day, before this session).
+Very long session. Started as Phase 5b implementation; ended with beta.99 shipped to prod.
 
-### Phase 5b shipped (PR #818)
+### Phase 5b shipped (PR #818, six review rounds)
 
-- **Core fix**: `users.default_persona_id` is now NOT NULL at DB, Prisma, and TypeScript layers. Closes the Identity Epic's load-bearing structural invariant.
-- **CTE bootstrap**: circular-FK between `users` and `personas` solved via single-statement `WITH new_persona AS (...) new_user AS (...) SELECT 1`. Postgres checks IMMEDIATE FK constraints at statement end, so both FK directions resolve atomically without needing DEFERRABLE. Option chosen via council pressure-test — council recommended over deferred CHECK (keeps nullable types) or DEFERRABLE FK (introduces Prisma drift toil).
-- **Dead-code removal**: `backfillDefaultPersona` (90 LOC + 4 unit tests) deleted. The null-default scenario it repaired is structurally impossible post-5b. `UserWithBackfillFields` renamed to `UserWithMaintenanceFields`.
-- **test-utils**: new `seedUserWithPersona` helper encapsulates the CTE for integration tests. Replaced raw `$executeRawUnsafe` SQL duplication across 9 int test files. Colocated `seed.int.test.ts` verifies the helper end-to-end.
-- **Placeholder persona rename**: shell-created users' `"User {discordId}"` placeholder is renamed atomically when the real username arrives via bot-client. Idempotent `updateMany` handles concurrent maintenance calls.
-- **Six review rounds**: R1 (shell/upgrade + plan approval), R2 (displayName propagation + sentinel cross-check), R3 (stale comment, PR refs in comments, missing seed test), R4 (`UserWithMaintenanceFields` rename, docs refresh, warn on rename=0), R5 (shell-path P2002 race coverage, UUID-divergence docs, seed.ts mirror comment), R6 (post-merge: "atomically" comment word fix + schema-audit backlog entry).
-- **Council pressure-test before implementation**: 5b plan started as 3-write transaction ("option B" — DEFERRABLE FK), council flagged Prisma drift toil and recommended Option C (CTE). Saved an indefinite drift-ignore.json maintenance commitment.
+- **Core fix**: `users.default_persona_id` is now NOT NULL at DB, Prisma, and TypeScript layers.
+- **CTE bootstrap**: circular-FK between users and personas solved via single-statement `$executeRaw` CTE. Council pressure-tested: recommended over deferred CHECK (keeps nullable types) or DEFERRABLE FK (introduces Prisma drift toil).
+- **Dead-code removal**: `backfillDefaultPersona` (90 LOC + 4 unit tests) deleted. `UserWithBackfillFields` renamed to `UserWithMaintenanceFields`.
+- **test-utils**: new `seedUserWithPersona` helper + colocated `seed.int.test.ts`. Replaced raw SQL duplication across 9 int test files.
+- **Six review rounds**: R1 displayName propagation, R2 P2002 target filter symmetry, R3 stale comment + PR refs removal + seed test, R4 interface rename + logs, R5 shell-path P2002 coverage, R6 "atomically" comment word fix (direct-to-develop cherry-pick).
 
-### User-direction inputs that reshaped the epic
+### Beta.99 release shipped (PR #819, eleven review rounds)
 
-- "Phase 5 isn't done until 5b is done." → Phase 5b promoted from deferred-backlog to in-session active.
-- "I don't see the point of divergent paths for this." → Phase 5c scope defined mid-session (eliminate shell-creation path entirely, not just paper over it). Reviewer had flagged UUID divergence between shell/full paths as cosmetic; user correctly identified it as symptomatic of a missing abstraction.
-- "I worry we'll run into other stuff like this across the codebase." → Schema-audit backlog item added as its own mini-epic after Phase 6 (pattern: schema concessions that paper over missing abstractions tend to cluster; 3 found in 6 months of v3 suggests more).
-- "was it necessary to make a new branch?" → Working-style calibration: comment-only and BACKLOG-only changes now default to direct-on-develop, not PR. Cherry-picked R6 fix onto develop (commit `5ef871cab`), deleted throwaway branch.
+- **Bundle contents**: Phases 3/4/5/5b (Identity Epic), UX polish (age verify on direct-bot-ping, avatar timeout, backtick mentions, taking-longer decoupling — PR #815), db-sync deferred-FK fix (PR #813), hono/langsmith CVE bumps.
+- **Pre-flight**: re-verified 0 null default_persona_id + 0 duplicate (owner_id, name) + 0 empty/snowflake-pattern names against CURRENT dev + prod (not stale pre-flight from days ago).
+- **Release PR "conflicts" diagnosed**: develop had pre-rebase SHAs of beta.98-era commits, main had the rebased versions. Git auto-skipped via `--reapply-cherry-picks` detection. Rebased develop, force-pushed, conflicts gone.
+- **Eleven review rounds landed**: most were re-confirmations of already-tracked items; actionable fixes: PersonaResolver FK-comment stale `SetNull` → `Restrict`, `INTERNAL_DISCORD_ID_PREFIX` extracted to `services/bot-client/src/constants/personaId.ts` to break service → contextBuilder import, `ownedPersonaCount` misleading log field removed, `isPrismaUniqueConstraintError` tightened from substring to element-equality match, `DEFAULT_PERSONA_DESCRIPTION` extracted to common-types constants layer (partial — Turbo DAG blocks the test-utils side).
+- **Deployment**: prod deploy at 05:52 UTC, all three services clean, Phase 5 + 5b migrations applied post-deploy, zero error-level logs.
+- **Release artifacts**: tag `v3.0.0-beta.99` pushed, GitHub release published (prerelease per convention), develop rebased onto main (step 5 that got missed after beta.98 — not missing it this time).
 
-### Housekeeping
+### Process / design decisions surfaced this session
 
-- BACKLOG: added Phase 5c entry (Current Focus) + schema-audit mini-epic (Inbox). Removed stale Phase 5b Inbox entry via the session-end removal gate.
-- BACKLOG: Phase 5c description now also documents the `runMaintenanceTasks` two-write atomicity gap (user.update + persona.updateMany, no transaction) — fix is "delete the block" in 5c, not "add a transaction" in 5b.
-- Code standards reinforcement: removed 5 `PR #818 review` annotations from test comments (violated `.claude/rules/02-code-standards.md`).
+- **"Phase 5 isn't done until 5b is done"** — user framing promoted 5b from deferred-backlog to in-session active. Correct call; NOT NULL is the load-bearing invariant.
+- **"I don't see the point of divergent paths for this"** — user identified the shell path as a symptom of a missing abstraction, not a legitimate architectural split. Phase 5c scope redefined mid-session: eliminate the path entirely, not just paper over it.
+- **"I worry we'll run into other stuff like this"** — schema-audit mini-epic added for post-Phase-6 work (find nullable-that-isn't FK columns, default-that-never-applies patterns, etc.). v3 dev started 2025-10; three load-bearing workaround patterns found in 6 months suggests more hide.
+- **"was it necessary to make a new branch?"** — working-style calibration: doc-only / comment-only / BACKLOG-only changes default to direct-on-develop, not PR. Cherry-picked R6 fix onto develop.
+- **Release flow step 5 gap**: discovered why beta.99's release PR showed phantom conflicts — the "rebase develop onto main after merge" step was skipped after beta.98. Added backlog entry for `pnpm ops release:finalize` automation. Did the rebase this time.
 
 ---
 
 ## Scratchpad
 
-### Pre-release notes for when beta.99 ships
+### beta.99 post-deploy validation (done)
 
-Unreleased phases bundled for beta.99 (develop → main release):
+- ✅ api-gateway: "API Gateway is fully operational!" @ 05:52:57 UTC
+- ✅ ai-worker: "AI Worker is fully operational! 🚀" @ 05:52:58 UTC
+- ✅ bot-client: Presence restored @ 05:53:03 UTC
+- ✅ Phase 5 + 5b migrations applied to prod
+- ✅ Zero error-level logs post-migration across all services
+- ⏭️ User smoke-test skipped (no test user available)
 
-- **Phase 3** (PR #814): read-only PersonaResolver
-- **Phase 4** (PR #816): kill `discord:XXXX` dual-tier personaId format
-- **Phase 5** (PR #817): DB-level invariants (Restrict FK, unique constraint, CHECK constraints)
-- **Phase 5b** (PR #818): NOT NULL default_persona_id via CTE bootstrap + backfillDefaultPersona deletion
-
-All four include Prisma migrations. Post-deploy ops:
-
-```bash
-pnpm ops db:migrate --env dev   # Apply all four migrations to Railway dev
-pnpm ops db:migrate --env prod  # Same for prod
-```
-
-Release note categories likely to appear:
-
-- **Improvements**: Identity & Provisioning Hardening phases 3, 4, 5, 5b (structural invariants; no user-visible behavior change; bug-class prevention)
-- **Database Migrations**: four migrations — Phase 4's `discord:` format removal, Phase 5's Restrict FK + unique + 2 CHECK constraints, Phase 5b's NOT NULL `default_persona_id`
-
-### UUID divergence note (for Phase 5c reviewers)
-
-Shell-created personas have UUID derived from `"User {discordId}"` (the placeholder name), not the later-assigned real username. After the placeholder rename the row has `name = realUsername` but UUID that `generatePersonaUuid(realUsername, userId)` would NOT produce. Cosmetic only — no production code looks up personas via username-derived UUIDs. Phase 5c's removal of the shell path makes all future users conform to the full-path convention (UUID derived from real username).
-
-### Phase 5c council-question checklist
-
-Pressure-test these questions before writing code:
+### Phase 5c open questions for council pressure-test
 
 1. **Where does "user must be provisioned" live?** Middleware (per-route invariant) vs. per-handler call vs. auth-extension (session enrichment)? Each has different failure modes when the invariant is violated.
 2. **Does bot-client always have username/displayName at slash-command dispatch?** Discord interaction payload includes them, but need to verify for button/select-menu interactions where the original command's user context may have to be re-fetched.
 3. **What's the contract when api-gateway receives a request for a non-provisioned user?** 404? 412 Precondition Failed? Auto-provision with a synthetic placeholder (defeats the purpose)?
-4. **How does the cutover work?** Ship bot-client pre-provisioning first, wait a day to ensure all flows provision, THEN flip api-gateway routes to `findUserByDiscordIdOrFail`. Sequencing matters.
+4. **Cutover sequencing**: ship bot-client pre-provisioning first, wait a day to ensure all flows provision, THEN flip api-gateway routes to `findUserByDiscordIdOrFail`. Sequencing matters.
+5. **Folded-in cleanups**: after the main cutover, tighten `User.defaultPersona` relation (`Persona?` → `Persona`), which then unlocks PersonaResolver dead-code deletion (Priority 3 fallback + dangling-FK branches become unreachable by type). Separate commit.
+
+### Release-flow lessons learned
+
+- **Step 5 (rebase develop onto main) was missed after beta.98**, surfaced on this release as phantom conflicts in PR #819. Fix: either automate it (`pnpm ops release:finalize` — tracked in BACKLOG) or add a session-start guard.
+- **`pnpm ops run --env prod --` passthrough** requires the command directly, no `--` separator. `pnpm ops run --env prod --force tsx scripts/...` works; `pnpm ops run --env prod -- tsx ...` fails with "No command specified".
+- **One-off preflight scripts** should live in `scripts/analysis/` and be deleted after use per the `scripts/` rule. Did that for the migration pre-flight check.
 
 ---
 
-## Unreleased on Develop (since beta.98)
+## Unreleased on Develop (since beta.99)
 
-- **Phase 3** (PR #814): `PersonaResolver.setUserDefault` lazy mutation eliminated.
-- **Phase 4** (PR #816): `discord:XXXX` dual-tier personaId format killed.
-- **Phase 5** (PR #817): DB-level Restrict FK + unique constraint + 2 CHECK constraints on personas.
-- **Phase 5b** (PR #818): NOT NULL default_persona_id + CTE bootstrap + backfillDefaultPersona deletion + test-utils seed helper.
-- **docs**: post-release review observations from PR #812 (commit `8928204da`); Phase 5b R6 polish + schema-audit backlog entry (commit `5ef871cab`).
+_None yet — develop is clean at `602820788`, identical to main._
 
 ---
 
 ## Previous Sessions
 
-- **2026-04-16**: **Identity epic Phase 5b** — PR #818 (NOT NULL default_persona_id, CTE bootstrap, backfillDefaultPersona deletion, seedUserWithPersona helper). Six rounds of review feedback addressed.
-- **2026-04-15**: **Identity epic Phase 2 + beta.98 release bundle** — PRs #807, #808 (Phase 2), #809 (cross-channel security), #810 (MEDIA_NOT_FOUND regex), #811 (abbreviation periods in mentions), #812 (release).
+- **2026-04-17 (this session)**: **Phase 5b shipped + beta.99 release** — PR #818 (Phase 5b NOT NULL + CTE bootstrap), PR #819 (beta.99 bundling phases 3/4/5/5b/#813/#815 + CVE bumps). Prod migrated, tag + GitHub release published, develop rebased onto main.
+- **2026-04-15 / 2026-04-16**: **Identity epic phases 3/4/5 + beta.98 release bundle** — PRs #807, #808 (Phase 2), #809 (cross-channel security), #810 (MEDIA_NOT_FOUND regex), #811 (abbreviation periods), #812 (release), then unreleased phases 3/4/5 (PRs #814/#816/#817).
 - **2026-04-14**: **Identity epic Phase 1** + vision retry fix + TTS budget fix + release (PRs #802-#806), beta.97.
 - **2026-04-13**: Backlog shrinkage (PRs #794-800), deps update, preset UX, beta.96.
 - **2026-04-12**: Voice engine hardening (PR #785), Python hooks, release audit, beta.95.
@@ -120,10 +106,10 @@ Pressure-test these questions before writing code:
 
 ## Recent Releases
 
+- **v3.0.0-beta.99** (2026-04-17) — Identity Epic Phases 3-5b (read-only PersonaResolver + discord:XXXX format kill + DB-level invariants + NOT NULL default_persona_id), UX polish bundle (age verify on direct-bot-ping, avatar timeout, backtick mentions, taking-longer decoupling), db-sync deferred-FK fix, hono/langsmith CVE bumps. Two migrations (Phase 5 + 5b).
 - **v3.0.0-beta.98** (2026-04-15) — Cross-channel permission guard (security), MEDIA_NOT_FOUND regex fix, abbreviation-period mention matching, Phase 2 Identity Hardening (provisioning choke point + `ProvisionedUser` type + ESLint guard).
 - **v3.0.0-beta.97** (2026-04-14) — Identity & provisioning heal (14 users), vision retry classifier fix + telemetry, TTS budget unification, pytest security bump.
 - **v3.0.0-beta.96** (2026-04-13) — Mention parser fixes, forwarded messages, preset error surfacing, deps update, refactors.
-- **v3.0.0-beta.95** (2026-04-12) — Voice engine lazy loading, ElevenLabs abort fix, CPD Session 1, browse epic, doc audit.
 
 ---
 
