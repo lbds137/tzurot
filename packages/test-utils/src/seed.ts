@@ -63,6 +63,10 @@ export async function seedUserWithPersona(
     personaName = `User ${discordId}`,
     personaPreferredName,
     personaContent = '',
+    // Mirrors `DEFAULT_PERSONA_DESCRIPTION` in `common-types/services/UserService.ts`.
+    // Can't import it here because test-utils must stay off common-types to
+    // avoid a circular dep (common-types' own tests consume test-utils).
+    // Keep the two in sync if either changes.
     personaDescription = 'Default persona',
   } = options;
 
