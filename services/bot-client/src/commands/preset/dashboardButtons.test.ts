@@ -13,8 +13,8 @@ import {
   handleCancelDeleteButton,
   handleCloneButton,
   handleBackButton,
-  generateClonedName,
 } from './dashboardButtons.js';
+import { generateClonedName } from './cloneName.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import type { FlattenedPresetData } from './config.js';
