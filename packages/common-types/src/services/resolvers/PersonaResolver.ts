@@ -249,14 +249,17 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     // provisioning path (e.g., direct SQL from db-sync).
     if (user.ownedPersonas.length > 0) {
       const firstPersona = user.ownedPersonas[0];
+      // NOTE: the query above uses `take: 1`, so `user.ownedPersonas` holds
+      // at most one row — we can't log a meaningful total here. If ops ever
+      // needs a count, change the query to `count` alongside the `take: 1`
+      // fetch rather than reading `.length` (which would be misleading).
       logger.warn(
         {
           discordUserId,
           userId: user.id,
           selectedPersonaId: firstPersona.id,
-          ownedPersonaCount: user.ownedPersonas.length,
         },
-        'Transient resolution — user has owned personas but no defaultPersonaId. Will be healed on next UserService.getOrCreateUser call.'
+        'Transient resolution — user has owned personas but no defaultPersonaId. Post-5b this should be unreachable at the DB level; investigate how the row reached this state.'
       );
       return {
         config: this.mapToResolvedPersona(firstPersona),

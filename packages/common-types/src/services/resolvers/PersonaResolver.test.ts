@@ -161,7 +161,6 @@ describe('PersonaResolver', () => {
           discordUserId: 'discord-123',
           userId: 'user-uuid',
           selectedPersonaId: 'first-owned-persona',
-          ownedPersonaCount: 1,
         }),
         expect.stringContaining('Transient resolution')
       );
