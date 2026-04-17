@@ -9,14 +9,23 @@ import {
   updatePreset,
   updateGlobalPreset,
   extractApiErrorMessage,
+  createPreset,
 } from './api.js';
+import { GatewayApiError } from '../../utils/userGatewayClient.js';
 import type { PresetData } from './config.js';
 
-// Mock userGatewayClient
+// Mock userGatewayClient. importActual preserves GatewayApiError so the
+// createPreset error-path test can assert on `instanceof GatewayApiError`.
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock adminApiClient
 const mockAdminFetch = vi.fn();
@@ -290,5 +299,61 @@ describe('extractApiErrorMessage', () => {
     expect(result).not.toBeNull();
     expect(result!.length).toBeLessThanOrEqual(1801); // 1800 + ellipsis
     expect(result!.endsWith('…')).toBe(true);
+  });
+});
+
+describe('createPreset', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the created preset config on success', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: { config: mockPresetData },
+    });
+
+    const result = await createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1');
+
+    expect(result).toBe(mockPresetData);
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
+      method: 'POST',
+      userId: 'user-1',
+      body: { name: 'Foo', model: 'm', provider: 'p' },
+    });
+  });
+
+  it('throws GatewayApiError carrying status + errorCode on failure', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: false,
+      error: 'You already have a config named "Foo"',
+      status: 400,
+      errorCode: 'NAME_COLLISION',
+    });
+
+    await expect(
+      createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1')
+    ).rejects.toMatchObject({
+      status: 400,
+      code: 'NAME_COLLISION',
+    });
+    await expect(
+      createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1')
+    ).rejects.toBeInstanceOf(GatewayApiError);
+  });
+
+  it('throws GatewayApiError with undefined code when gateway sends no sub-code', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: false,
+      error: 'Some other failure',
+      status: 500,
+    });
+
+    await expect(
+      createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1')
+    ).rejects.toMatchObject({
+      status: 500,
+      code: undefined,
+    });
   });
 });
