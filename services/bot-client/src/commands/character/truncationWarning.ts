@@ -27,26 +27,14 @@ import type {
   StringSelectMenuInteraction,
   InteractionReplyOptions,
 } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  getConfig,
-  isBotOwner,
-  type EnvConfig,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, getConfig, type EnvConfig } from '@tzurot/common-types';
 import {
   buildDashboardCustomId,
   buildSectionModal,
-  fetchOrCreateSession,
   type SectionDefinition,
-  type DashboardContext,
 } from '../../utils/dashboard/index.js';
-import {
-  getCharacterDashboardConfig,
-  type CharacterData,
-  type CharacterSessionData,
-} from './config.js';
-import { fetchCharacter } from './api.js';
+import type { CharacterData } from './config.js';
+import { resolveCharacterSectionContext } from './sectionContext.js';
 
 const logger = createLogger('character-truncation-warning');
 
@@ -80,9 +68,13 @@ export function detectOverLengthFields(
 ): OverLengthField[] {
   const over: OverLengthField[] = [];
   for (const field of section.fields) {
-    if (field.maxLength === undefined) {continue;}
+    if (field.maxLength === undefined) {
+      continue;
+    }
     const raw = (data as Record<string, unknown>)[field.id];
-    if (typeof raw !== 'string') {continue;}
+    if (typeof raw !== 'string') {
+      continue;
+    }
     if (raw.length > field.maxLength) {
       over.push({
         fieldId: field.id,
@@ -191,38 +183,16 @@ export async function handleEditTruncatedButton(
   sectionId: string,
   config: EnvConfig = getConfig()
 ): Promise<void> {
-  const isAdmin = isBotOwner(interaction.user.id);
-  // hasVoiceReference=false is fine here — this config is only used for
-  // section field lookup, not action rendering (same pattern used in
-  // handleSectionModalSubmit in dashboard.ts).
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
-  const section = dashboardConfig.sections.find(s => s.id === sectionId);
-  if (!section) {
-    await interaction.reply({
-      content: '❌ Unknown section.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const ctx = await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
+  if (ctx === null) {return;}
 
-  const result = await fetchOrCreateSession<CharacterSessionData, CharacterData>({
-    userId: interaction.user.id,
-    entityType: 'character',
+  const modal = buildSectionModal(
+    ctx.dashboardConfig,
+    ctx.section,
     entityId,
-    fetchFn: () => fetchCharacter(entityId, config, interaction.user.id),
-    transformFn: (character: CharacterData) => ({ ...character, _isAdmin: isAdmin }),
-    interaction,
-  });
-  if (!result.success) {
-    await interaction.reply({
-      content: '❌ Character not found.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const context: DashboardContext = { isAdmin, userId: interaction.user.id };
-  const modal = buildSectionModal(dashboardConfig, section, entityId, result.data, context);
+    ctx.data,
+    ctx.context
+  );
   await interaction.showModal(modal);
 }
 
@@ -239,37 +209,10 @@ export async function handleViewFullButton(
   sectionId: string,
   config: EnvConfig = getConfig()
 ): Promise<void> {
-  const isAdmin = isBotOwner(interaction.user.id);
-  // hasVoiceReference=false is fine here — this config is only used for
-  // section field lookup, not action rendering (same pattern used in
-  // handleSectionModalSubmit in dashboard.ts).
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
-  const section = dashboardConfig.sections.find(s => s.id === sectionId);
-  if (!section) {
-    await interaction.reply({
-      content: '❌ Unknown section.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const ctx = await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
+  if (ctx === null) {return;}
 
-  const result = await fetchOrCreateSession<CharacterSessionData, CharacterData>({
-    userId: interaction.user.id,
-    entityType: 'character',
-    entityId,
-    fetchFn: () => fetchCharacter(entityId, config, interaction.user.id),
-    transformFn: (character: CharacterData) => ({ ...character, _isAdmin: isAdmin }),
-    interaction,
-  });
-  if (!result.success) {
-    await interaction.reply({
-      content: '❌ Character not found.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const overLength = detectOverLengthFields(section, result.data);
+  const overLength = detectOverLengthFields(ctx.section, ctx.data);
   if (overLength.length === 0) {
     // Edge case: data changed between warning and View Full click (e.g.,
     // a concurrent save trimmed fields). Let the user know there's
@@ -282,14 +225,14 @@ export async function handleViewFullButton(
   }
 
   const attachments = overLength.map(f => {
-    const content = (result.data as Record<string, unknown>)[f.fieldId];
+    const content = (ctx.data as Record<string, unknown>)[f.fieldId];
     const textContent = typeof content === 'string' ? content : '';
     return new AttachmentBuilder(Buffer.from(textContent, 'utf-8'), {
       name: `${f.fieldId}.txt`,
     });
   });
 
-  const plainLabel = section.label.replace(/^[^\w\s]+\s*/, '');
+  const plainLabel = ctx.section.label.replace(/^[^\w\s]+\s*/, '');
   const summary = overLength
     .map(f => `• \`${f.fieldId}.txt\` — ${f.current.toLocaleString()} chars`)
     .join('\n');

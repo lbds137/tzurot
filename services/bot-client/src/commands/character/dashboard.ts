@@ -21,20 +21,16 @@ import {
   buildSectionModal,
   extractAndMergeSectionValues,
   getSessionManager,
-  fetchOrCreateSession,
   parseDashboardCustomId,
   isDashboardInteraction,
-  type DashboardContext,
 } from '../../utils/dashboard/index.js';
-import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import {
   getCharacterDashboardConfig,
   buildCharacterDashboardOptions,
-  type CharacterData,
   type CharacterSessionData,
 } from './config.js';
-import { fetchCharacter, updateCharacter } from './api.js';
+import { updateCharacter } from './api.js';
 import { handleAction } from './dashboardActions.js';
 import { handleSeedModalSubmit } from './create.js';
 import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandlers.js';
@@ -48,6 +44,7 @@ import {
   handleViewFullButton,
   showTruncationWarning,
 } from './truncationWarning.js';
+import { resolveCharacterSectionContext } from './sectionContext.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -195,12 +192,11 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   const value = interaction.values[0];
   const entityId = parsed.entityId;
 
-  // Determine admin status for context-aware features.
-  // hasVoiceReference=false is fine here — config is only used for section
-  // lookup and modal building, not action rendering.
+  // isAdmin is needed for the admin-section security check below. The
+  // rest of the section context (dashboardConfig, data, DashboardContext)
+  // is resolved inside resolveCharacterSectionContext so the select-menu
+  // path shares its preamble with the truncation-warning button handlers.
   const isAdmin = isBotOwner(interaction.user.id);
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
-  const context: DashboardContext = { isAdmin, userId: interaction.user.id };
 
   // Handle section edit selection
   if (value.startsWith('edit-')) {
@@ -219,45 +215,31 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       return;
     }
 
-    const section = dashboardConfig.sections.find(s => s.id === sectionId);
-    if (!section) {
-      await interaction.reply({
-        content: '❌ Unknown section.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // Get current data from session or fetch from API
-    const result = await fetchOrCreateSession<CharacterSessionData, CharacterData>({
-      userId: interaction.user.id,
-      entityType: 'character',
-      entityId,
-      fetchFn: () => fetchCharacter(entityId, config, interaction.user.id),
-      transformFn: (character: CharacterData) => ({ ...character, _isAdmin: isAdmin }),
-      interaction,
-    });
-    if (!result.success) {
-      await interaction.reply({
-        content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
+    // Section lookup + data fetch are shared with the truncation-warning
+    // button handlers; see sectionContext.ts. Helper sends its own
+    // ephemeral error reply and returns null on failure.
+    const ctx = await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
+    if (ctx === null) {return;}
 
     // Gate the modal on an informed consent when any field in the section
     // currently holds a value longer than its modal maxLength. The silent
     // truncation would otherwise happen in ModalFactory without user
     // awareness — see BACKLOG Production Issue on character field
     // silent data loss.
-    const overLength = detectOverLengthFields(section, result.data);
+    const overLength = detectOverLengthFields(ctx.section, ctx.data);
     if (overLength.length > 0) {
-      await showTruncationWarning(interaction, section, entityId, overLength);
+      await showTruncationWarning(interaction, ctx.section, entityId, overLength);
       return;
     }
 
     // Build and show section modal (with context for field visibility)
-    const modal = buildSectionModal(dashboardConfig, section, entityId, result.data, context);
+    const modal = buildSectionModal(
+      ctx.dashboardConfig,
+      ctx.section,
+      entityId,
+      ctx.data,
+      ctx.context
+    );
     await interaction.showModal(modal);
     return;
   }
