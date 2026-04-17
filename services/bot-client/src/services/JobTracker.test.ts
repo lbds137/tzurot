@@ -325,6 +325,8 @@ describe('JobTracker', () => {
       jobTracker.trackJob('job-123', mockChannel, createMockContext());
 
       // Advance just past the typing cutoff — orphan sweep is armed here.
+      // +16s = 2 typing-interval (8s) ticks past the 10-min cutoff so the
+      // interval callback actually fires and runs the cutoff branch.
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
       expect(jobTracker.isTracking('job-123')).toBe(true);
 
