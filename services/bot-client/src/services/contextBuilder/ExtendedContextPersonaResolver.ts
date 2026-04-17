@@ -5,9 +5,13 @@
  * for messages fetched from extended context. Resolves BOTH message
  * authors AND reaction reactors in a single batch to minimize API calls.
  *
- * This module is the SOLE OWNER of the `discord:XXXX` placeholder format
- * (see INTERNAL_DISCORD_ID_PREFIX below). The format is a transient
- * internal representation used in the two-step fetch → resolve pipeline:
+ * This module is the sole consumer of the `discord:XXXX` placeholder format
+ * on the resolution side — writers (DiscordChannelFetcher, ReactionProcessor,
+ * ParticipantContextCollector) construct the format, and this module strips
+ * or resolves it. The shared prefix constant (`INTERNAL_DISCORD_ID_PREFIX`)
+ * lives in `bot-client/src/constants/personaId.ts` so neither side has to
+ * cross-import from the other. The format is a transient internal
+ * representation used in the two-step fetch → resolve pipeline:
  *
  *   1. DiscordChannelFetcher / ReactionProcessor create ConversationMessage /
  *      reactor records with personaId = `discord:{discordId}` before any
@@ -28,18 +32,11 @@ import {
   type ConversationMessage,
   type ReactionReactor,
 } from '@tzurot/common-types';
+import { INTERNAL_DISCORD_ID_PREFIX } from '../../constants/personaId.js';
 
-/**
- * Internal placeholder prefix for Discord user IDs before persona resolution.
- *
- * Used by DiscordChannelFetcher and ReactionProcessor when building
- * ConversationMessage / reactor records from Discord API data, before any
- * identity lookup. resolveExtendedContextPersonaIds() is the ONLY code path
- * that should process this format — it either resolves to a UUID (registered
- * user) or strips the placeholder (unregistered user). The format must not
- * cross the bot-client → ai-worker boundary.
- */
-export const INTERNAL_DISCORD_ID_PREFIX = 'discord:';
+// Re-exported for any legacy importer that still reaches here; new callers
+// should import directly from `constants/personaId.ts`.
+export { INTERNAL_DISCORD_ID_PREFIX };
 
 const logger = createLogger('ExtendedContextPersonaResolver');
 

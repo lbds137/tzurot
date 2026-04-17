@@ -227,12 +227,13 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     }
 
     // Execution reaches here only when Priority 2 didn't return — meaning
-    // `user.defaultPersona` is null. Two sub-cases: the user never had a
-    // default set (`defaultPersonaId === null`, normal case for legacy users),
-    // or the defaultPersonaId references a persona that no longer exists
-    // (dangling FK — shouldn't happen because schema has onDelete: SetNull,
-    // but we log loudly as a precursor signal for Phase 5's NOT NULL FK upgrade).
-    // Either way we fall through to owned-persona resolution so the request succeeds.
+    // `user.defaultPersona` is null. Post-Phase 5 this should be unreachable
+    // at the DB level: the FK is `onDelete: Restrict` (so a referenced persona
+    // can't be deleted) and Phase 5b made `defaultPersonaId` itself NOT NULL.
+    // We log loudly here as a tripwire — hitting this branch means either the
+    // DB drifted from its schema guarantees or db-sync imported a row in an
+    // inconsistent state. Either way we fall through to owned-persona
+    // resolution so the request still succeeds.
     if (user.defaultPersonaId !== null) {
       logger.error(
         { discordUserId, userId: user.id, defaultPersonaId: user.defaultPersonaId },
