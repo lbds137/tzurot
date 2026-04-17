@@ -5,9 +5,9 @@
  * no field-level merging with defaults.
  *
  * Resolution is strictly READ-ONLY. Provisioning is the exclusive responsibility
- * of `UserService.getOrCreateUser` → `runMaintenanceTasks` → `backfillDefaultPersona`.
- * This resolver never writes; it picks the best persona it can for the current
- * request and returns it.
+ * of `UserService.getOrCreateUser`, which creates the user + default persona
+ * atomically via a CTE. This resolver never writes; it picks the best persona
+ * it can for the current request and returns it.
  *
  * Resolution hierarchy:
  * 1. Per-personality override (UserPersonalityConfig.personaId)
@@ -21,9 +21,14 @@
  * (b) errors were swallowed as "best-effort optimization" and became
  * invisible, (c) UserService already provisions `defaultPersonaId` atomically
  * at creation time (Phase 2), so the lazy-init code path is a transitional
- * compatibility shim rather than load-bearing logic. Transient resolution
- * warns loudly so persistent orphaned users are visible in logs; the next
- * `getOrCreateUser` call heals them via `backfillDefaultPersona`.
+ * compatibility shim rather than load-bearing logic.
+ *
+ * Post-Phase 5b, the Priority 3 branch should be unreachable in practice —
+ * every user row has a non-null `defaultPersonaId` pointing to a real persona
+ * (DB-enforced NOT NULL + Restrict FK). It remains as defense-in-depth for
+ * any user row that somehow escapes the provisioning path (e.g., direct SQL
+ * imports during sync). Transient resolution warns loudly so such orphans
+ * are visible in logs.
  */
 
 import { createLogger } from '../../utils/logger.js';
@@ -237,8 +242,10 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
 
     // Priority 3: User has owned personas but no usable defaultPersona.
     // Transient resolution — pick the first owned persona without persisting.
-    // Provisioning is UserService's job; the next getOrCreateUser call will
-    // run runMaintenanceTasks → backfillDefaultPersona and heal the user row.
+    // Post-5b this branch should be unreachable in practice (NOT NULL +
+    // Restrict FK guarantee every user has a valid defaultPersonaId), but
+    // remains as defense-in-depth for any row that escapes UserService's
+    // provisioning path (e.g., direct SQL from db-sync).
     if (user.ownedPersonas.length > 0) {
       const firstPersona = user.ownedPersonas[0];
       logger.warn(

@@ -183,8 +183,7 @@ describe('UserService', () => {
       // sequentially in the same `runMaintenanceTasks` pass. The two writes
       // (user.update + persona.updateMany) are NOT wrapped in a transaction;
       // a mid-pass crash would leave the user upgraded but the persona stuck
-      // on the placeholder. Tracked in BACKLOG as part of Phase 5c's shell-
-      // path removal, which deletes this block entirely.
+      // on the placeholder name.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,

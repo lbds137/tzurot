@@ -158,7 +158,10 @@ export class JobTracker {
       channelId: channel.id,
       channel,
       typingInterval,
-      startTime: Date.now(),
+      // Reuse the same clock reading captured at line 81 so the interval
+      // closure's `age` calculation and any future caller inspecting
+      // `TrackedJob.startTime` share one source of truth.
+      startTime,
       context,
     });
 
