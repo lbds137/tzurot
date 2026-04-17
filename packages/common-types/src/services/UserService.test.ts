@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { UserService } from './UserService.js';
+import { UserService, buildShellPlaceholderPersonaName } from './UserService.js';
 import { resetConfig } from '../config/index.js';
 
 // Use vi.hoisted() to create mocks that persist across test resets
@@ -108,6 +108,27 @@ describe('UserService', () => {
     resetConfig();
   });
 
+  describe('decodeCreateUserCall helper', () => {
+    // Tests for the test-only decoder, added per PR #818 review so the
+    // null-return contract is exercised explicitly rather than implicit via
+    // downstream optional chaining.
+    it('returns null for undefined (no call captured)', () => {
+      expect(decodeCreateUserCall(undefined)).toBeNull();
+    });
+
+    it('returns null when the captured call has fewer than 12 entries', () => {
+      // Captured calls have shape [TemplateStringsArray, ...values]. The CTE
+      // interpolates 11 values so a valid capture is length 12; a shorter
+      // array indicates the CTE template changed shape and the decoder
+      // should fail loud instead of reading junk from the wrong slot.
+      expect(decodeCreateUserCall([])).toBeNull();
+      expect(decodeCreateUserCall(['template'])).toBeNull();
+      // Eleven-entry boundary (template + 10 values — one short of the
+      // 11-value CTE). The guard rejects exactly at this edge.
+      expect(decodeCreateUserCall(new Array(11).fill('x'))).toBeNull();
+    });
+  });
+
   describe('getOrCreateUser', () => {
     it('should return cached user ID if available', async () => {
       // First call to populate cache. Phase 5b: defaultPersonaId is always
@@ -174,8 +195,10 @@ describe('UserService', () => {
       // Placeholder persona renamed via idempotent updateMany (WHERE clause
       // matches only rows with the exact placeholder name, so concurrent
       // maintenance calls don't race — second one matches zero rows).
+      // Using `buildShellPlaceholderPersonaName` instead of the literal
+      // `'User 123456'` prevents silent drift if the prefix ever changes.
       expect(mockPrisma.persona.updateMany).toHaveBeenCalledWith({
-        where: { ownerId: 'existing-user-id', name: 'User 123456' },
+        where: { ownerId: 'existing-user-id', name: buildShellPlaceholderPersonaName('123456') },
         data: { name: 'realusername', preferredName: 'realusername' },
       });
     });
@@ -197,7 +220,7 @@ describe('UserService', () => {
       await userService.getOrCreateUser('123456', 'lbds137', 'LB');
 
       expect(mockPrisma.persona.updateMany).toHaveBeenCalledWith({
-        where: { ownerId: 'existing-user-id', name: 'User 123456' },
+        where: { ownerId: 'existing-user-id', name: buildShellPlaceholderPersonaName('123456') },
         data: { name: 'lbds137', preferredName: 'LB' },
       });
     });
@@ -323,8 +346,12 @@ describe('UserService', () => {
 
     it('should handle race condition with P2002 error', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      // Another request created the user between our findUnique and CTE
-      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002' });
+      // Another request created the user between our findUnique and CTE;
+      // P2002 fires from the users.discord_id unique constraint.
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['discord_id'] },
+      });
       // Recovery path — fetch the now-existing user
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-uuid',
@@ -341,12 +368,31 @@ describe('UserService', () => {
 
     it('should throw error if user not found after P2002', async () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
-      mockPrisma.$executeRaw.mockRejectedValueOnce({ code: 'P2002' });
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['discord_id'] },
+      });
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toThrow(
         'User not found after P2002 error'
       );
+    });
+
+    it('should rethrow P2002 errors from unexpected targets (defense-in-depth)', async () => {
+      // PR #818 R2 review: the full path now matches target='discord_id'
+      // like the shell path. A P2002 from the persona `(owner_id, name)`
+      // constraint — or any non-discord-id unique — should NOT be
+      // mis-classified as a race and recovered; it must propagate.
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.$executeRaw.mockRejectedValueOnce({
+        code: 'P2002',
+        meta: { target: ['owner_id', 'name'] },
+      });
+
+      await expect(userService.getOrCreateUser('123456', 'testuser')).rejects.toMatchObject({
+        code: 'P2002',
+      });
     });
 
     it('should throw and log error on database error', async () => {
@@ -455,8 +501,8 @@ describe('UserService', () => {
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       expect(call?.personaId).toBe('test-persona-uuid');
-      expect(call?.personaName).toBe('User discord-123');
-      expect(call?.personaPreferredName).toBe('User discord-123');
+      expect(call?.personaName).toBe(buildShellPlaceholderPersonaName('discord-123'));
+      expect(call?.personaPreferredName).toBe(buildShellPlaceholderPersonaName('discord-123'));
       expect(call?.ownerId).toBe('test-user-uuid');
       expect(call?.userId).toBe('test-user-uuid');
       expect(call?.discordId).toBe('discord-123');

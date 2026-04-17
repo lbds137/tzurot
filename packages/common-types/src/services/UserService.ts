@@ -298,9 +298,14 @@ export class UserService {
     try {
       return await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
     } catch (error) {
-      // P2002 is Prisma's unique constraint violation error
-      // Use duck typing to check for Prisma error (safer than instanceof in test environments)
-      if (this.isPrismaUniqueConstraintError(error)) {
+      // Phase 5b: the full path's CTE now writes User + Persona in a single
+      // statement, same as the shell path. Filter on `discord_id` explicitly
+      // so a P2002 from the persona `(owner_id, name)` unique constraint
+      // cannot be mis-classified as a "user already exists" race. In
+      // practice the persona UUID+name pair is deterministic per ownerId so
+      // this shouldn't fire, but the explicit filter is defense-in-depth
+      // and keeps symmetry with `createShellUserWithRaceProtection`.
+      if (this.isPrismaUniqueConstraintError(error, 'discord_id')) {
         return this.fetchExistingUserAfterRace(
           discordId,
           { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
@@ -426,6 +431,15 @@ export class UserService {
     // interacts via bot-client with a distinct displayName (e.g. username
     // `lbds137`, displayName `LB`) should land with preferredName=`LB`, not
     // `lbds137`. Same formula the deleted `backfillDefaultPersona` used.
+    //
+    // Intentional gap: `bio` / `content` is NOT propagated here, even when
+    // the caller supplies one. The deleted `backfillDefaultPersona`
+    // already behaved this way — its `alreadyBackfilled` branch returned
+    // without touching content. Discord bios change frequently and users
+    // may edit persona content via the web UI between shell-creation and
+    // first bot-client interaction; auto-overwriting that edit would be
+    // surprising. Content stays managed through explicit persona-edit
+    // commands.
     if (user.username === discordId && username !== discordId) {
       const placeholderPersonaName = buildShellPlaceholderPersonaName(discordId);
       const preferredName = displayName ?? username;
