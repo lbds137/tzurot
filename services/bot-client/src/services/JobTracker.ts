@@ -29,6 +29,13 @@ const TAKING_LONGER_NOTIFY_MS = 5 * 60 * 1000; // 5 minutes
 // Discord typing lasts ~10s, refresh every 8s
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
 
+// How long past TYPING_INDICATOR_TIMEOUT_MS to wait before force-releasing
+// the tracker slot if no result has arrived. Generous by design: legitimate
+// late results should still land, but a genuine orphan (worker crashed,
+// Redis partition never recovered, BullMQ lost the job) shouldn't sit in
+// memory forever. Total ceiling: 10 min typing + 30 min grace = 40 min.
+const ORPHAN_SWEEP_GRACE_MS = 30 * 60 * 1000;
+
 /**
  * Context needed to handle async job results
  * Stored here instead of in MessageHandler for statelessness
@@ -54,6 +61,12 @@ interface TrackedJob {
   takingLongerMessage?: Message;
   /** Prevents re-sending the notification on every typing-interval tick. */
   notificationSent?: boolean;
+  /**
+   * Grace-period sweep timer scheduled when the typing cutoff fires. If the
+   * real result arrives first, completeJob clears this. If it never arrives,
+   * the sweep releases the tracker slot so activeJobs doesn't leak.
+   */
+  orphanSweep?: NodeJS.Timeout;
 }
 
 export class JobTracker {
@@ -135,6 +148,9 @@ export class JobTracker {
           // Clear the typing interval to avoid rate limits, but DON'T remove the job
           // The job context must remain so we can deliver the result when it arrives
           clearInterval(typingInterval);
+          // Arm an orphan sweep: if the result never arrives within the
+          // grace period, release the tracker slot instead of leaking.
+          this.scheduleOrphanSweep(jobId, startTime);
           return;
         }
 
@@ -187,6 +203,12 @@ export class JobTracker {
 
     // Clear typing interval
     clearInterval(tracked.typingInterval);
+
+    // Clear the orphan sweep timer if one was armed (job completed before
+    // the grace period elapsed — the sweep is no longer needed).
+    if (tracked.orphanSweep) {
+      clearTimeout(tracked.orphanSweep);
+    }
 
     // Clean up the "taking longer" notification if it was sent. The real
     // response is about to arrive, so leaving the notification in the channel
@@ -256,8 +278,31 @@ export class JobTracker {
 
     for (const job of this.activeJobs.values()) {
       clearInterval(job.typingInterval);
+      if (job.orphanSweep) {
+        clearTimeout(job.orphanSweep);
+      }
     }
 
     this.activeJobs.clear();
+  }
+
+  /**
+   * Schedule a grace-period sweep that force-completes the job if the result
+   * never arrives. Called when the typing indicator cutoff fires. The sweep
+   * checks `activeJobs.has(jobId)` at fire time — if the real result landed
+   * first, the entry is already gone and the sweep is a no-op.
+   */
+  private scheduleOrphanSweep(jobId: string, startTime: number): void {
+    const tracked = this.activeJobs.get(jobId);
+    if (!tracked) {return;}
+    tracked.orphanSweep = setTimeout(() => {
+      if (this.activeJobs.has(jobId)) {
+        logger.warn(
+          { jobId, ageMs: Date.now() - startTime },
+          '[JobTracker] Orphan sweep — job never completed past grace period, releasing tracker'
+        );
+        this.completeJob(jobId);
+      }
+    }, ORPHAN_SWEEP_GRACE_MS);
   }
 }
