@@ -407,9 +407,9 @@ async function createClonedPreset(
       if (err instanceof Error && NAME_COLLISION_PATTERN.test(err.message)) {
         lastError = err;
         clonedName = generateClonedName(clonedName);
-        continue;
+      } else {
+        throw err;
       }
-      throw err;
     }
   }
 
