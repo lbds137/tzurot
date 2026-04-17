@@ -149,4 +149,36 @@ describe('resolveCharacterSectionContext', () => {
       })
     );
   });
+
+  it('routes error replies through followUp when the caller already deferred', async () => {
+    // Simulates `handleViewFullButton`, which `deferReply`s before calling
+    // this helper. The helper must detect `interaction.deferred` and use
+    // `followUp` — `reply()` on a deferred interaction throws.
+    mockFetchOrCreateSession.mockResolvedValue({ success: false });
+    const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+    const mockReply = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      deferred: true,
+      replied: false,
+      followUp: mockFollowUp,
+      reply: mockReply,
+    } as unknown as ButtonInteraction;
+
+    const result = await resolveCharacterSectionContext(
+      interaction,
+      'hero',
+      'identity',
+      {} as never
+    );
+
+    expect(result).toBeNull();
+    expect(mockReply).not.toHaveBeenCalled();
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('not found'),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
+  });
 });

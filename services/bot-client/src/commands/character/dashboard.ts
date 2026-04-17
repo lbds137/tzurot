@@ -219,7 +219,9 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     // button handlers; see sectionContext.ts. Helper sends its own
     // ephemeral error reply and returns null on failure.
     const ctx = await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
-    if (ctx === null) {return;}
+    if (ctx === null) {
+      return;
+    }
 
     // Gate the modal on an informed consent when any field in the section
     // currently holds a value longer than its modal maxLength. The silent
@@ -356,20 +358,25 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
   // Truncation-warning flow: three buttons rendered after the user picks
   // a section containing values longer than the modal maxLength. See
-  // truncationWarning.ts for the producer side.
+  // truncationWarning.ts for the producer side. Underscored action names
+  // match the existing `delete_confirm` / `delete_cancel` convention.
   const sectionId = parsed.sectionId;
-  if (action === 'edit-truncated' && sectionId !== undefined) {
+  if (action === 'edit_truncated' && sectionId !== undefined) {
     await handleEditTruncatedButton(interaction, entityId, sectionId, config);
     return;
   }
 
-  if (action === 'view-full' && sectionId !== undefined) {
+  if (action === 'view_full' && sectionId !== undefined) {
     await handleViewFullButton(interaction, entityId, sectionId, config);
     return;
   }
 
-  if (action === 'cancel-edit') {
+  if (action === 'cancel_edit') {
     await handleCancelEditButton(interaction);
+    // Matches the per-branch early-return pattern above; dropping the return
+    // would silently fall through when a future action is appended here.
+    // eslint-disable-next-line sonarjs/no-redundant-jump -- explained above
+    return;
   }
 }
 
@@ -383,9 +390,9 @@ const DASHBOARD_ACTIONS = new Set([
   'delete',
   'delete_confirm',
   'delete_cancel',
-  'edit-truncated',
-  'view-full',
-  'cancel-edit',
+  'edit_truncated',
+  'view_full',
+  'cancel_edit',
 ]);
 
 /**
