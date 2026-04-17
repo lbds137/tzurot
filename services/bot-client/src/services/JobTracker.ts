@@ -308,7 +308,7 @@ export class JobTracker {
       if (this.activeJobs.has(jobId)) {
         logger.warn(
           { jobId, ageMs: Date.now() - startTime },
-          'Orphan sweep — job never completed past grace period, releasing tracker'
+          '[JobTracker] Orphan sweep — job never completed past grace period, releasing tracker'
         );
         this.completeJob(jobId);
       }
