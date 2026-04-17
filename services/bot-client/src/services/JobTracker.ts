@@ -150,7 +150,7 @@ export class JobTracker {
           clearInterval(typingInterval);
           // Arm an orphan sweep: if the result never arrives within the
           // grace period, release the tracker slot instead of leaking.
-          this.scheduleOrphanSweep(jobId, startTime);
+          this.scheduleOrphanSweep(jobId);
           return;
         }
 
@@ -292,7 +292,7 @@ export class JobTracker {
    * checks `activeJobs.has(jobId)` at fire time — if the real result landed
    * first, the entry is already gone and the sweep is a no-op.
    */
-  private scheduleOrphanSweep(jobId: string, startTime: number): void {
+  private scheduleOrphanSweep(jobId: string): void {
     const tracked = this.activeJobs.get(jobId);
     if (!tracked) {
       return;
@@ -304,6 +304,7 @@ export class JobTracker {
     if (tracked.orphanSweep !== undefined) {
       return;
     }
+    const { startTime } = tracked;
     tracked.orphanSweep = setTimeout(() => {
       if (this.activeJobs.has(jobId)) {
         logger.warn(
