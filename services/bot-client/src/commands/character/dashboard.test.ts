@@ -13,6 +13,7 @@ import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import * as api from './api.js';
 import * as createModule from './create.js';
 import * as viewModule from './view.js';
+import * as truncationWarning from './truncationWarning.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
 import * as customIds from '../../utils/customIds.js';
 import type { EnvConfig } from '@tzurot/common-types';
@@ -44,6 +45,17 @@ vi.mock('./create.js', () => ({
 vi.mock('./view.js', () => ({
   handleViewPagination: vi.fn(),
   handleExpandField: vi.fn(),
+}));
+
+vi.mock('./truncationWarning.js', () => ({
+  handleEditTruncatedButton: vi.fn(),
+  handleViewFullButton: vi.fn(),
+  handleCancelEditButton: vi.fn(),
+  // These are only referenced via handleSelectMenu's overlap-detect +
+  // warning-display path; stubbing them keeps the button-routing tests
+  // isolated from that branch.
+  detectOverLengthFields: vi.fn().mockReturnValue([]),
+  showTruncationWarning: vi.fn(),
 }));
 
 vi.mock('../../utils/dashboard/index.js', async () => {
@@ -589,6 +601,94 @@ describe('Character Dashboard', () => {
         components: [],
       });
     });
+
+    // Truncation-warning button dispatch — verifies the router in
+    // `handleButton` maps the three underscore-delimited action names to
+    // the correct downstream handlers in truncationWarning.ts. A typo in
+    // any of these action strings would otherwise be invisible because
+    // the handlers are tested separately in truncationWarning.test.ts.
+    it('should route edit_truncated to handleEditTruncatedButton', async () => {
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'edit_truncated',
+        entityId: 'test-char',
+        sectionId: 'identity',
+      });
+
+      const mockInteraction = createMockButtonInteraction(
+        'character::edit_truncated::test-char::identity'
+      );
+
+      await handleButton(mockInteraction);
+
+      expect(truncationWarning.handleEditTruncatedButton).toHaveBeenCalledWith(
+        mockInteraction,
+        'test-char',
+        'identity',
+        expect.any(Object)
+      );
+    });
+
+    it('should route view_full to handleViewFullButton', async () => {
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'view_full',
+        entityId: 'test-char',
+        sectionId: 'identity',
+      });
+
+      const mockInteraction = createMockButtonInteraction(
+        'character::view_full::test-char::identity'
+      );
+
+      await handleButton(mockInteraction);
+
+      expect(truncationWarning.handleViewFullButton).toHaveBeenCalledWith(
+        mockInteraction,
+        'test-char',
+        'identity',
+        expect.any(Object)
+      );
+    });
+
+    it('should route cancel_edit to handleCancelEditButton', async () => {
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'cancel_edit',
+        entityId: 'test-char',
+        sectionId: 'identity',
+      });
+
+      const mockInteraction = createMockButtonInteraction(
+        'character::cancel_edit::test-char::identity'
+      );
+
+      await handleButton(mockInteraction);
+
+      expect(truncationWarning.handleCancelEditButton).toHaveBeenCalledWith(mockInteraction);
+    });
+
+    it('should NOT call edit_truncated handler when sectionId is missing', async () => {
+      // The router guards with `sectionId !== undefined`. Without a sectionId
+      // the handler would crash trying to build the modal, so the branch
+      // falls through silently.
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'edit_truncated',
+        entityId: 'test-char',
+        sectionId: undefined,
+      });
+
+      const mockInteraction = createMockButtonInteraction('character::edit_truncated::test-char');
+
+      await handleButton(mockInteraction);
+
+      expect(truncationWarning.handleEditTruncatedButton).not.toHaveBeenCalled();
+    });
   });
 
   describe('isCharacterDashboardInteraction', () => {
@@ -605,6 +705,9 @@ describe('Character Dashboard', () => {
         'delete',
         'delete_confirm',
         'delete_cancel',
+        'edit_truncated',
+        'view_full',
+        'cancel_edit',
       ];
 
       for (const action of dashboardActions) {
