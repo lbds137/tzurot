@@ -38,8 +38,10 @@ interface GatewayError {
    * Machine-readable error sub-code when the gateway sets one, e.g.
    * 'NAME_COLLISION'. Callers should branch on this instead of regex-
    * matching {@link GatewayError.error} whenever the sub-code exists.
+   * Same name as {@link GatewayApiError.code} so renaming through the
+   * error-propagation chain is unnecessary.
    */
-  errorCode?: ApiErrorSubcode;
+  code?: ApiErrorSubcode;
 }
 
 type GatewayResult<T> = GatewayResponse<T> | GatewayError;
@@ -179,7 +181,7 @@ export async function callGatewayApi<T>(
         ok: false,
         error: parsed.message,
         status: response.status,
-        errorCode: parsed.code,
+        code: parsed.code,
       };
     }
 

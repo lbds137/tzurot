@@ -234,7 +234,7 @@ describe('userGatewayClient', () => {
       }
     });
 
-    it('should propagate errorCode sub-classifier from gateway response body', async () => {
+    it('should propagate code sub-classifier from gateway response body', async () => {
       // Closes the parseErrorResponse → callGatewayApi → GatewayError
       // chain. Without this test the middle link could silently drop
       // the `code` field and only be caught at runtime.
@@ -254,11 +254,11 @@ describe('userGatewayClient', () => {
       if (!result.ok) {
         expect(result.error).toBe('You already have a config named "Foo"');
         expect(result.status).toBe(400);
-        expect(result.errorCode).toBe('NAME_COLLISION');
+        expect(result.code).toBe('NAME_COLLISION');
       }
     });
 
-    it('should leave errorCode undefined when the gateway response has no sub-code', async () => {
+    it('should leave code undefined when the gateway response has no sub-code', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 500,
@@ -269,7 +269,7 @@ describe('userGatewayClient', () => {
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.errorCode).toBeUndefined();
+        expect(result.code).toBeUndefined();
       }
     });
 
