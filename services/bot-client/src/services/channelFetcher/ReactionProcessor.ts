@@ -10,7 +10,7 @@ import { createLogger, MESSAGE_LIMITS, type MessageReaction } from '@tzurot/comm
 import type { ConversationMessage } from '@tzurot/common-types';
 import type { ExtendedContextUser } from './types.js';
 import { collectReactorUsers } from './ParticipantContextCollector.js';
-import { INTERNAL_DISCORD_ID_PREFIX } from '../contextBuilder/ExtendedContextPersonaResolver.js';
+import { INTERNAL_DISCORD_ID_PREFIX } from '../../constants/personaId.js';
 
 const logger = createLogger('ReactionProcessor');
 

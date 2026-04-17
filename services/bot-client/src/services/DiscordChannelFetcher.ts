@@ -12,7 +12,7 @@ import {
   MESSAGE_LIMITS,
   ConversationSyncService,
 } from '@tzurot/common-types';
-import { INTERNAL_DISCORD_ID_PREFIX } from './contextBuilder/ExtendedContextPersonaResolver.js';
+import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
 import type {
   ConversationMessage,
   AttachmentMetadata,
