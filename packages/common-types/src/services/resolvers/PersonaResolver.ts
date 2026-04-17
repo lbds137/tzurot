@@ -137,20 +137,12 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
    */
   private async getFocusModeStatus(discordUserId: string, personalityId: string): Promise<boolean> {
     try {
-      // Get user's internal ID
-      const user = await this.prisma.user.findUnique({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      if (user === null) {
-        return false; // Default to disabled if user not found
-      }
-
-      // Check UserPersonalityConfig for focus mode (stored in configOverrides JSONB)
+      // findFirst (not findUnique) because Prisma doesn't allow nested
+      // relation filters (`user: { discordId }`) on findUnique — even though
+      // (userId, personalityId) is composite-unique, findFirst is required here.
       const config = await this.prisma.userPersonalityConfig.findFirst({
         where: {
-          userId: user.id,
+          user: { discordId: discordUserId },
           personalityId,
         },
         select: { configOverrides: true },
