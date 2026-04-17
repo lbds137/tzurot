@@ -420,6 +420,12 @@ async function createClonedPreset(
     }
   }
 
+  // `lastError` is always set when we reach here: the loop can only exit
+  // via this `throw` (vs. the `return` inside the try) if at least one
+  // iteration caught a collision and assigned `lastError`. The `??`
+  // fallback is unreachable unless `MAX_CLONE_NAME_RETRIES` is set to 0,
+  // in which case the loop body never runs — keeping the fallback defends
+  // against that degenerate config.
   throw lastError ?? new Error('Failed to generate a unique clone name');
 }
 
