@@ -20,14 +20,17 @@ vi.mock('./api.js', () => ({
 const { generateClonedName, createClonedPreset, MAX_CLONE_NAME_RETRIES } =
   await import('./cloneName.js');
 
-const sourceData: FlattenedPresetData = {
+// Cast: `createClonedPreset` only reads name / model / provider / description /
+// visionModel off the source, but FlattenedPresetData requires ~20 fields. The
+// rest are irrelevant to this test file and would add noise.
+const sourceData = {
   id: 'preset-123',
   name: 'My Preset',
   model: 'anthropic/claude-sonnet-4',
   provider: 'openrouter',
   isGlobal: false,
   isOwned: true,
-};
+} as unknown as FlattenedPresetData;
 
 beforeEach(() => {
   mockCreatePreset.mockReset();
