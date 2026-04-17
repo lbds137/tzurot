@@ -57,6 +57,13 @@ const MAX_CLONE_NAME_RETRIES = 10;
  * from `ErrorResponses.validationError` in `user/llm-config.ts` and reaches
  * bot-client wrapped as `Failed to create preset: 400 - You already have a
  * config named "..."` via `createPreset`.
+ *
+ * **Coupling risk**: this regex matches the gateway's natural-language
+ * message text. If the wording in `user/llm-config.ts` ever changes
+ * (localization, copy editing, restructure), the retry loop silently
+ * degrades to single-attempt. Hardening tracked in BACKLOG as a typed
+ * error-code refactor ("Harden preset clone collision detection against
+ * error-message drift").
  */
 const NAME_COLLISION_PATTERN = /already have a config named/i;
 
