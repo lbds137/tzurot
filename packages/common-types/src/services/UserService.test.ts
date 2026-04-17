@@ -48,6 +48,14 @@ describe('UserService', () => {
    *
    * The values array the mock captures skips NOW() (which is SQL-literal in
    * the template, not an interpolated value), so indices here are contiguous.
+   *
+   * CAVEAT: the `call.length < 12` guard below catches column count changes
+   * but NOT reorders. If the CTE VALUES-clause order shifts (or a new
+   * interpolated value is added earlier), this decoder returns wrong values
+   * silently. The `isSuperuser=false` test asserts discordId + username as
+   * sentinels so a reorder shows up there, but other-slot reorders won't
+   * fail loud until each field is asserted. Update this decoder together
+   * with any CTE template change in UserService.ts.
    */
   function decodeCreateUserCall(call: unknown[] | undefined): {
     personaId: string;
