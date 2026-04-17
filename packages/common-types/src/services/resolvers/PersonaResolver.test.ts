@@ -309,20 +309,17 @@ describe('PersonaResolver', () => {
 
   describe('resolveForMemory', () => {
     it('should return lightweight memory info when persona exists', async () => {
-      mockPrismaClient.user.findUnique
-        .mockResolvedValueOnce({
-          id: 'user-uuid',
-          defaultPersonaId: 'persona-123',
-          defaultPersona: {
-            id: 'persona-123',
-            preferredName: 'Name',
-            pronouns: 'they/them',
-            content: 'Content',
-          },
-          ownedPersonas: [],
-        })
-        // Second call for focus mode check
-        .mockResolvedValueOnce({ id: 'user-uuid' });
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        id: 'user-uuid',
+        defaultPersonaId: 'persona-123',
+        defaultPersona: {
+          id: 'persona-123',
+          preferredName: 'Name',
+          pronouns: 'they/them',
+          content: 'Content',
+        },
+        ownedPersonas: [],
+      });
 
       mockPrismaClient.userPersonalityConfig.findFirst
         .mockResolvedValueOnce(null) // persona override check
@@ -337,19 +334,17 @@ describe('PersonaResolver', () => {
     });
 
     it('should return focusModeEnabled true when focus mode is enabled', async () => {
-      mockPrismaClient.user.findUnique
-        .mockResolvedValueOnce({
-          id: 'user-uuid',
-          defaultPersonaId: 'persona-123',
-          defaultPersona: {
-            id: 'persona-123',
-            preferredName: 'Name',
-            pronouns: 'they/them',
-            content: 'Content',
-          },
-          ownedPersonas: [],
-        })
-        .mockResolvedValueOnce({ id: 'user-uuid' });
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        id: 'user-uuid',
+        defaultPersonaId: 'persona-123',
+        defaultPersona: {
+          id: 'persona-123',
+          preferredName: 'Name',
+          pronouns: 'they/them',
+          content: 'Content',
+        },
+        ownedPersonas: [],
+      });
 
       mockPrismaClient.userPersonalityConfig.findFirst
         .mockResolvedValueOnce(null) // persona override
@@ -364,45 +359,21 @@ describe('PersonaResolver', () => {
     });
 
     it('should default focusModeEnabled to false when no config exists', async () => {
-      mockPrismaClient.user.findUnique
-        .mockResolvedValueOnce({
-          id: 'user-uuid',
-          defaultPersonaId: 'persona-123',
-          defaultPersona: {
-            id: 'persona-123',
-            preferredName: 'Name',
-            pronouns: null,
-            content: 'Content',
-          },
-          ownedPersonas: [],
-        })
-        .mockResolvedValueOnce({ id: 'user-uuid' });
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        id: 'user-uuid',
+        defaultPersonaId: 'persona-123',
+        defaultPersona: {
+          id: 'persona-123',
+          preferredName: 'Name',
+          pronouns: null,
+          content: 'Content',
+        },
+        ownedPersonas: [],
+      });
 
       mockPrismaClient.userPersonalityConfig.findFirst
         .mockResolvedValueOnce(null) // persona override
-        .mockResolvedValueOnce(null); // no config for focus mode
-
-      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
-
-      expect(result?.focusModeEnabled).toBe(false);
-    });
-
-    it('should default focusModeEnabled to false when user not found in focus mode check', async () => {
-      mockPrismaClient.user.findUnique
-        .mockResolvedValueOnce({
-          id: 'user-uuid',
-          defaultPersonaId: 'persona-123',
-          defaultPersona: {
-            id: 'persona-123',
-            preferredName: 'Name',
-            pronouns: null,
-            content: 'Content',
-          },
-          ownedPersonas: [],
-        })
-        .mockResolvedValueOnce(null); // user not found in focus mode check
-
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValueOnce(null);
+        .mockResolvedValueOnce(null); // no config for focus mode (covers both "user missing" and "user exists but no config" — single JOIN query)
 
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 
@@ -433,21 +404,21 @@ describe('PersonaResolver', () => {
     });
 
     it('should handle focus mode check errors gracefully', async () => {
-      mockPrismaClient.user.findUnique
-        .mockResolvedValueOnce({
-          id: 'user-uuid',
-          defaultPersonaId: 'persona-123',
-          defaultPersona: {
-            id: 'persona-123',
-            preferredName: 'Name',
-            pronouns: null,
-            content: 'Content',
-          },
-          ownedPersonas: [],
-        })
-        .mockRejectedValueOnce(new Error('DB error')); // focus mode check fails
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        id: 'user-uuid',
+        defaultPersonaId: 'persona-123',
+        defaultPersona: {
+          id: 'persona-123',
+          preferredName: 'Name',
+          pronouns: null,
+          content: 'Content',
+        },
+        ownedPersonas: [],
+      });
 
-      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValueOnce(null);
+      mockPrismaClient.userPersonalityConfig.findFirst
+        .mockResolvedValueOnce(null) // persona override
+        .mockRejectedValueOnce(new Error('DB error')); // focus mode check fails
 
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 
