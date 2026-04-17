@@ -294,12 +294,14 @@ export class JobTracker {
    */
   private scheduleOrphanSweep(jobId: string, startTime: number): void {
     const tracked = this.activeJobs.get(jobId);
-    if (!tracked) {return;}
+    if (!tracked) {
+      return;
+    }
     tracked.orphanSweep = setTimeout(() => {
       if (this.activeJobs.has(jobId)) {
         logger.warn(
           { jobId, ageMs: Date.now() - startTime },
-          '[JobTracker] Orphan sweep — job never completed past grace period, releasing tracker'
+          'Orphan sweep — job never completed past grace period, releasing tracker'
         );
         this.completeJob(jobId);
       }
