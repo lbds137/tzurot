@@ -22,11 +22,7 @@ import {
   AttachmentBuilder,
   MessageFlags,
 } from 'discord.js';
-import type {
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  InteractionReplyOptions,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, getConfig, type EnvConfig } from '@tzurot/common-types';
 import {
   buildDashboardCustomId,
@@ -37,6 +33,17 @@ import type { CharacterData } from './config.js';
 import { resolveCharacterSectionContext } from './sectionContext.js';
 
 const logger = createLogger('character-truncation-warning');
+
+/**
+ * Strip a leading emoji + whitespace from a section label so modal titles
+ * / embed titles / attachment copy read cleanly. Mirrors the inline regex
+ * in `ModalFactory.ts:51` (modal title derivation) — kept in sync by
+ * convention until a section-label shortener becomes a third consumer
+ * that warrants a shared helper.
+ */
+function stripLeadingEmoji(label: string): string {
+  return label.replace(/^[^\w\s]+\s*/, '');
+}
 
 /**
  * A field whose current value exceeds its modal maxLength.
@@ -95,9 +102,7 @@ export function buildTruncationWarningEmbed(
   overLength: OverLengthField[],
   sectionLabel: string
 ): EmbedBuilder {
-  // Strip a leading emoji + whitespace from the section label the same
-  // way ModalFactory does for modal titles.
-  const plainLabel = sectionLabel.replace(/^[^\w\s]+\s*/, '');
+  const plainLabel = stripLeadingEmoji(sectionLabel);
 
   const fieldLines = overLength
     .map(f => {
@@ -139,17 +144,17 @@ export function buildTruncationButtons(
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'edit-truncated', entityId, sectionId))
+      .setCustomId(buildDashboardCustomId('character', 'edit_truncated', entityId, sectionId))
       .setLabel('Edit with Truncation')
       .setEmoji('✂️')
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'view-full', entityId, sectionId))
+      .setCustomId(buildDashboardCustomId('character', 'view_full', entityId, sectionId))
       .setLabel('View Full')
       .setEmoji('📖')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'cancel-edit', entityId, sectionId))
+      .setCustomId(buildDashboardCustomId('character', 'cancel_edit', entityId, sectionId))
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Secondary)
   );
@@ -176,6 +181,14 @@ export async function showTruncationWarning(
  * "Edit with Truncation" handler — user has acknowledged the warning
  * and wants to proceed. Fetch fresh data, resolve the section, and show
  * the modal. The actual truncation happens inside ModalFactory.
+ *
+ * No `deferReply`/`deferUpdate` before the async work here: Discord
+ * requires `showModal` to be the first response to the interaction
+ * (you can't defer then modal). In practice the session is almost always
+ * cached from the preceding select-menu interaction, so the async work
+ * is a cheap Redis hit that fits inside the 3-second window. If a cache
+ * miss is observed in production the right fix is a different UX shape
+ * (e.g. instruct the user to retry), not deferring here.
  */
 export async function handleEditTruncatedButton(
   interaction: ButtonInteraction,
@@ -184,7 +197,9 @@ export async function handleEditTruncatedButton(
   config: EnvConfig = getConfig()
 ): Promise<void> {
   const ctx = await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
-  if (ctx === null) {return;}
+  if (ctx === null) {
+    return;
+  }
 
   const modal = buildSectionModal(
     ctx.dashboardConfig,
@@ -209,17 +224,25 @@ export async function handleViewFullButton(
   sectionId: string,
   config: EnvConfig = getConfig()
 ): Promise<void> {
+  // Ack within 3 seconds before any async work — `resolveCharacterSectionContext`
+  // hits Redis (and may fall through to a gateway API call on session miss),
+  // which could blow the 3-second window under load. `deferReply({ ephemeral })`
+  // establishes the response now; `editReply` / `followUp` fill it in later.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ctx = await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
-  if (ctx === null) {return;}
+  if (ctx === null) {
+    // sectionContext already `followUp`-ed the error (it detects the defer).
+    return;
+  }
 
   const overLength = detectOverLengthFields(ctx.section, ctx.data);
   if (overLength.length === 0) {
     // Edge case: data changed between warning and View Full click (e.g.,
     // a concurrent save trimmed fields). Let the user know there's
     // nothing to view specially.
-    await interaction.reply({
+    await interaction.editReply({
       content: '✅ No fields in this section exceed the edit limit. Nothing to display.',
-      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -232,21 +255,18 @@ export async function handleViewFullButton(
     });
   });
 
-  const plainLabel = ctx.section.label.replace(/^[^\w\s]+\s*/, '');
+  const plainLabel = stripLeadingEmoji(ctx.section.label);
   const summary = overLength
     .map(f => `• \`${f.fieldId}.txt\` — ${f.current.toLocaleString()} chars`)
     .join('\n');
 
-  const payload: InteractionReplyOptions = {
+  await interaction.editReply({
     content:
       `**Full content for "${plainLabel}"** (read-only):\n${summary}\n\n` +
       `These files hold the current, untruncated values. Editing this section ` +
       `via the dashboard would cut each field to its modal cap.`,
     files: attachments,
-    flags: MessageFlags.Ephemeral,
-  };
-
-  await interaction.reply(payload);
+  });
   logger.info(
     { userId: interaction.user.id, entityId, sectionId, fields: overLength.length },
     'View Full served over-length field content'
