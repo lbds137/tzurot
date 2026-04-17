@@ -41,6 +41,13 @@ import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandler
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
 import { handleBackButton, handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
+import {
+  detectOverLengthFields,
+  handleCancelEditButton,
+  handleEditTruncatedButton,
+  handleViewFullButton,
+  showTruncationWarning,
+} from './truncationWarning.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -238,6 +245,17 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       return;
     }
 
+    // Gate the modal on an informed consent when any field in the section
+    // currently holds a value longer than its modal maxLength. The silent
+    // truncation would otherwise happen in ModalFactory without user
+    // awareness — see BACKLOG Production Issue on character field
+    // silent data loss.
+    const overLength = detectOverLengthFields(section, result.data);
+    if (overLength.length > 0) {
+      await showTruncationWarning(interaction, section, entityId, overLength);
+      return;
+    }
+
     // Build and show section modal (with context for field visibility)
     const modal = buildSectionModal(dashboardConfig, section, entityId, result.data, context);
     await interaction.showModal(modal);
@@ -351,6 +369,25 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
   if (action === 'delete') {
     await handleDeleteAction(interaction, entityId, config);
+    return;
+  }
+
+  // Truncation-warning flow: three buttons rendered after the user picks
+  // a section containing values longer than the modal maxLength. See
+  // truncationWarning.ts for the producer side.
+  const sectionId = parsed.sectionId;
+  if (action === 'edit-truncated' && sectionId !== undefined) {
+    await handleEditTruncatedButton(interaction, entityId, sectionId, config);
+    return;
+  }
+
+  if (action === 'view-full' && sectionId !== undefined) {
+    await handleViewFullButton(interaction, entityId, sectionId, config);
+    return;
+  }
+
+  if (action === 'cancel-edit') {
+    await handleCancelEditButton(interaction);
   }
 }
 
@@ -364,6 +401,9 @@ const DASHBOARD_ACTIONS = new Set([
   'delete',
   'delete_confirm',
   'delete_cancel',
+  'edit-truncated',
+  'view-full',
+  'cancel-edit',
 ]);
 
 /**
