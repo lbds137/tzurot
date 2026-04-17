@@ -1058,5 +1058,54 @@ describe('handleButton', () => {
         flags: MessageFlags.Ephemeral,
       });
     });
+
+    it('should auto-number past a first-attempt name collision', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+
+      const clonedPreset = { ...mockPresetData, id: 'preset-456', name: 'Test Preset (Copy 2)' };
+      // First attempt collides (user already has "Test Preset (Copy)"); second
+      // attempt with the bumped name succeeds.
+      mockCreatePreset
+        .mockRejectedValueOnce(
+          new Error(
+            'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"'
+          )
+        )
+        .mockResolvedValueOnce(clonedPreset);
+      mockFetchPreset.mockResolvedValue(clonedPreset);
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      expect(mockCreatePreset).toHaveBeenCalledTimes(2);
+      // First attempt used the plain "(Copy)" suffix
+      expect(mockCreatePreset).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ name: 'Test Preset (Copy)' }),
+        'user-456'
+      );
+      // Retry bumped the suffix to "(Copy 2)" and succeeded
+      expect(mockCreatePreset).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ name: 'Test Preset (Copy 2)' }),
+        'user-456'
+      );
+      // User sees the success path, not an error
+      expect(mockFollowUp).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalled();
+    });
   });
 });

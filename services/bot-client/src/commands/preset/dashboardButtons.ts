@@ -37,6 +37,7 @@ import {
   createPreset,
   extractApiErrorMessage,
 } from './api.js';
+import type { PresetData } from './types.js';
 import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 
 // Re-export for backward compatibility
@@ -46,6 +47,18 @@ const logger = createLogger('preset-dashboard-buttons');
 
 /** Recovery command shown in expired session messages */
 const PRESET_RECOVERY_CMD = '/preset browse';
+
+/** Max retry attempts when a generated clone name collides with an existing preset. */
+const MAX_CLONE_NAME_RETRIES = 10;
+
+/**
+ * Detect the api-gateway's "name already used" validation error so the clone
+ * flow can bump the suffix and retry instead of giving up. The message comes
+ * from `ErrorResponses.validationError` in `user/llm-config.ts` and reaches
+ * bot-client wrapped as `Failed to create preset: 400 - You already have a
+ * config named "..."` via `createPreset`.
+ */
+const NAME_COLLISION_PATTERN = /already have a config named/i;
 
 /**
  * Pattern to match a trailing (Copy) or (Copy N) suffix.
@@ -359,6 +372,51 @@ export async function handleCancelDeleteButton(
 }
 
 /**
+ * Create a cloned preset with auto-numbered naming. If the initial candidate
+ * collides with an existing preset, feed the candidate back through
+ * `generateClonedName` to bump the suffix and retry. Any non-collision error
+ * propagates immediately. After `MAX_CLONE_NAME_RETRIES` attempts the last
+ * collision error is rethrown so the user sees the actual collision name.
+ */
+async function createClonedPreset(
+  sourceData: FlattenedPresetData,
+  userId: string
+): Promise<PresetData> {
+  let clonedName = generateClonedName(sourceData.name);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_CLONE_NAME_RETRIES; attempt++) {
+    try {
+      return await createPreset(
+        {
+          name: clonedName,
+          model: sourceData.model,
+          provider: sourceData.provider,
+          description:
+            sourceData.description !== undefined && sourceData.description.length > 0
+              ? sourceData.description
+              : undefined,
+          visionModel:
+            sourceData.visionModel !== undefined && sourceData.visionModel.length > 0
+              ? sourceData.visionModel
+              : undefined,
+        },
+        userId
+      );
+    } catch (err) {
+      if (err instanceof Error && NAME_COLLISION_PATTERN.test(err.message)) {
+        lastError = err;
+        clonedName = generateClonedName(clonedName);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError ?? new Error('Failed to generate a unique clone name');
+}
+
+/**
  * Handle clone button - create a copy of the preset owned by the user.
  */
 export async function handleCloneButton(
@@ -379,25 +437,12 @@ export async function handleCloneButton(
     const sourceData = session.data;
     const sessionManager = getSessionManager();
 
-    const clonedName = generateClonedName(sourceData.name);
-
-    // Create the cloned preset with basic fields
-    const newPreset = await createPreset(
-      {
-        name: clonedName,
-        model: sourceData.model,
-        provider: sourceData.provider,
-        description:
-          sourceData.description !== undefined && sourceData.description.length > 0
-            ? sourceData.description
-            : undefined,
-        visionModel:
-          sourceData.visionModel !== undefined && sourceData.visionModel.length > 0
-            ? sourceData.visionModel
-            : undefined,
-      },
-      interaction.user.id
-    );
+    // Auto-number past any existing collisions. generateClonedName picks a
+    // candidate based on the source name alone — it can't know what already
+    // exists in the user's library, so cloning the original twice produces
+    // the same "(Copy)" candidate both times. Retry with a bumped suffix on
+    // the gateway's name-collision validation error; surface anything else.
+    const newPreset = await createClonedPreset(sourceData, interaction.user.id);
 
     // Build update payload with all non-basic fields from source
     const updatePayload = unflattenPresetData(sourceData);
