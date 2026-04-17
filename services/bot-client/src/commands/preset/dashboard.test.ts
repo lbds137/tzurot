@@ -1107,5 +1107,79 @@ describe('handleButton', () => {
       expect(mockFollowUp).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalled();
     });
+
+    it('should pass non-collision errors through immediately without retrying', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          model: 'nonexistent/model',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+
+      // A 400 that is NOT a name collision (e.g., invalid model) must not
+      // trigger the retry loop — we want the first attempt's error to
+      // reach the user immediately.
+      mockCreatePreset.mockRejectedValue(
+        new Error(
+          "Failed to create preset: 400 - Model 'nonexistent/model' not found in the available models list."
+        )
+      );
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      // Called exactly once — no retry
+      expect(mockCreatePreset).toHaveBeenCalledTimes(1);
+      // User sees the underlying API error, not the generic "Failed to clone"
+      expect(mockFollowUp).toHaveBeenCalledWith({
+        content: expect.stringContaining("Model 'nonexistent/model' not found"),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should rethrow the last collision error after exhausting retries', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+
+      // Every attempt collides — the retry loop reaches MAX_CLONE_NAME_RETRIES
+      // (10) and rethrows the last collision error so the user sees which
+      // name finally couldn't be placed.
+      mockCreatePreset.mockRejectedValue(
+        new Error(
+          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy 10)"'
+        )
+      );
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      // Attempted the max number of times
+      expect(mockCreatePreset).toHaveBeenCalledTimes(10);
+      // Final user-visible error surfaces the collision
+      expect(mockFollowUp).toHaveBeenCalledWith({
+        content: expect.stringContaining('You already have a config named'),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
   });
 });
