@@ -57,6 +57,7 @@ const {
   handleViewFullButton,
   handleCancelEditButton,
 } = await import('./truncationWarning.js');
+const { SectionStatus } = await import('../../utils/dashboard/index.js');
 
 // A realistic character-identity section stub with two fields that have
 // explicit maxLength values.
@@ -74,7 +75,7 @@ const identitySectionStub = {
       style: 'paragraph' as const,
     },
   ],
-  getStatus: () => 0,
+  getStatus: () => SectionStatus.DEFAULT,
   getPreview: () => '',
 };
 
