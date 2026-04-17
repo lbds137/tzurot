@@ -153,7 +153,23 @@ describe('buildTruncationWarningEmbed', () => {
     expect(json.description).toContain('1,500');
     // Footer lists total truncation across all fields: (150-100)+(1500-1000)=550
     expect(json.footer?.text).toContain('550');
-    expect(json.footer?.text).toContain('2 field');
+    // Plural form — two fields should read "2 fields", never "2 field(s)"
+    expect(json.footer?.text).toContain('2 fields');
+    expect(json.footer?.text).not.toContain('field(s)');
+  });
+
+  it('uses singular "field" in the footer when only one field is over-length', () => {
+    // Guards against the "1 field(s)" pluralization regression flagged in PR
+    // review. The single-field path is the common case for short legacy
+    // fields (e.g. a stray overgrown "Age" value) and needs to read cleanly.
+    const embed = buildTruncationWarningEmbed(
+      [{ fieldId: 'personalityAge', label: 'Age', current: 150, max: 100 }],
+      '🏷️ Identity & Basics'
+    );
+    const json = embed.toJSON();
+    expect(json.footer?.text).toContain('1 field');
+    expect(json.footer?.text).not.toContain('1 fields');
+    expect(json.footer?.text).not.toContain('field(s)');
   });
 });
 
