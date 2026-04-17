@@ -5,6 +5,7 @@
  * Eliminates duplicate error response code and provides type-safe error handling.
  */
 
+import { API_ERROR_SUBCODE } from '@tzurot/common-types';
 import { ErrorCode, type ErrorResponse } from '../types.js';
 
 // Re-export for consumers that import from this module
@@ -85,6 +86,17 @@ export function createErrorFromException(
 export const ErrorResponses = {
   validationError: (message: string, requestId?: string) =>
     createErrorResponse(ErrorCode.VALIDATION_ERROR, message, requestId),
+
+  /**
+   * Validation error emitted when a create/rename hits a name-uniqueness
+   * conflict. Carries a stable `code: 'NAME_COLLISION'` alongside the
+   * human-readable message so bot-client (and future clients) can branch
+   * on the sub-code rather than regex-matching the wording.
+   */
+  nameCollision: (message: string, requestId?: string): ErrorResponse => ({
+    ...createErrorResponse(ErrorCode.VALIDATION_ERROR, message, requestId),
+    code: API_ERROR_SUBCODE.NAME_COLLISION,
+  }),
 
   unauthorized: (
     message = 'This endpoint is only available to the bot owner',

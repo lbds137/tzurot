@@ -63,6 +63,14 @@ export interface HealthResponse {
 export interface ErrorResponse {
   error: ErrorCode;
   message: string;
+  /**
+   * Optional machine-readable sub-code for cases where callers need to
+   * branch on a specific error kind without regex-matching the message
+   * text. Typed as `ApiErrorSubcode` from `@tzurot/common-types` when set
+   * by the purpose-built helpers in `errorResponses.ts` (e.g. `nameCollision`).
+   * Absent on most responses.
+   */
+  code?: string;
   requestId?: string;
   timestamp: string;
 }

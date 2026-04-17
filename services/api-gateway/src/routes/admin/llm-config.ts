@@ -101,7 +101,7 @@ function createCreateConfigHandler(
     if (nameCheck.exists) {
       return sendError(
         res,
-        ErrorResponses.validationError(`A global config named "${body.name}" already exists`)
+        ErrorResponses.nameCollision(`A global config named "${body.name}" already exists`)
       );
     }
 
@@ -161,7 +161,7 @@ function createEditConfigHandler(
       if (nameCheck.exists) {
         return sendError(
           res,
-          ErrorResponses.validationError(`A global config named "${body.name}" already exists`)
+          ErrorResponses.nameCollision(`A global config named "${body.name}" already exists`)
         );
       }
     }

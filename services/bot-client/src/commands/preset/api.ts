@@ -5,7 +5,7 @@
  * Uses callGatewayApi for user endpoints and adminFetch for admin endpoints.
  */
 
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GatewayApiError } from '../../utils/userGatewayClient.js';
 import { adminFetch, adminPutJson } from '../../utils/adminApiClient.js';
 import type { PresetData, PresetResponse } from './types.js';
 
@@ -162,7 +162,13 @@ export async function createPreset(
   });
 
   if (!result.ok) {
-    throw new Error(`Failed to create preset: ${result.status} - ${result.error ?? 'Unknown'}`);
+    // Use GatewayApiError so retry/branching logic can match on `code`
+    // (e.g. 'NAME_COLLISION') instead of regex-matching the message.
+    throw new GatewayApiError(
+      `Failed to create preset: ${result.status} - ${result.error ?? 'Unknown'}`,
+      result.status,
+      result.errorCode
+    );
   }
 
   return result.data.config;
