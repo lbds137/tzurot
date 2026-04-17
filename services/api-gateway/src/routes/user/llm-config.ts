@@ -154,7 +154,7 @@ function createCreateHandler(
     if (nameCheck.exists) {
       return sendError(
         res,
-        ErrorResponses.validationError(`You already have a config named "${body.name}"`)
+        ErrorResponses.nameCollision(`You already have a config named "${body.name}"`)
       );
     }
 
@@ -245,7 +245,7 @@ function createUpdateHandler(
       if (nameCheck.exists) {
         return sendError(
           res,
-          ErrorResponses.validationError(`You already have a config named "${body.name}"`)
+          ErrorResponses.nameCollision(`You already have a config named "${body.name}"`)
         );
       }
     }

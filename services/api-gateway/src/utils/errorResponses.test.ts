@@ -205,6 +205,32 @@ describe('errorResponses', () => {
 
         expect(response.requestId).toBe('req-123');
       });
+
+      it('should not set the code sub-classifier', () => {
+        const response = ErrorResponses.validationError('Invalid');
+
+        expect(response.code).toBeUndefined();
+      });
+    });
+
+    describe('nameCollision', () => {
+      it('should emit VALIDATION_ERROR with the NAME_COLLISION sub-code', () => {
+        const response = ErrorResponses.nameCollision('You already have a config named "Foo"');
+
+        expect(response).toEqual({
+          error: 'VALIDATION_ERROR',
+          message: 'You already have a config named "Foo"',
+          code: 'NAME_COLLISION',
+          timestamp: '2025-11-02T12:00:00.000Z',
+        });
+      });
+
+      it('should include requestId when provided', () => {
+        const response = ErrorResponses.nameCollision('...', 'req-123');
+
+        expect(response.requestId).toBe('req-123');
+        expect(response.code).toBe('NAME_COLLISION');
+      });
     });
 
     describe('unauthorized', () => {

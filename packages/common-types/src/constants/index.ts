@@ -69,6 +69,8 @@ export {
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
   stripErrorSpoiler,
+  API_ERROR_SUBCODE,
+  type ApiErrorSubcode,
 } from './error.js';
 
 // Media constants
