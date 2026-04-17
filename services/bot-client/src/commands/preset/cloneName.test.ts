@@ -96,12 +96,13 @@ describe('createClonedPreset', () => {
     );
   });
 
-  it('propagates non-collision GatewayApiErrors immediately', async () => {
-    mockCreatePreset.mockRejectedValueOnce(
-      new GatewayApiError('Model not found', 400, 'SOME_OTHER_CODE')
-    );
+  it('propagates GatewayApiErrors with no sub-code immediately', async () => {
+    // Unknown gateway error path: GatewayApiError is constructed without a
+    // code argument (e.g. the response body didn't include one). Must
+    // propagate — don't retry.
+    mockCreatePreset.mockRejectedValueOnce(new GatewayApiError('Bad request', 400));
 
-    await expect(createClonedPreset(sourceData, 'user-1')).rejects.toThrow('Model not found');
+    await expect(createClonedPreset(sourceData, 'user-1')).rejects.toThrow('Bad request');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 

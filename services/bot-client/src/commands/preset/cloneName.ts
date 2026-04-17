@@ -1,10 +1,10 @@
 /**
  * Preset Clone Name Utilities
  *
- * Extracted from dashboardButtons.ts to keep that file under 400 lines.
- * Pure functions + the retry-on-name-collision driver that wraps
- * `createPreset` — no Discord.js references here, so this is also the
- * natural home for any unit tests of the naming / retry behavior.
+ * Pure name-generation (`generateClonedName`) and the retry-on-collision
+ * driver (`createClonedPreset`) that wraps `createPreset` with suffix
+ * bumping. No Discord.js references — so this is also the natural home
+ * for direct unit tests of the naming / retry behavior.
  */
 
 import { API_ERROR_SUBCODE } from '@tzurot/common-types';

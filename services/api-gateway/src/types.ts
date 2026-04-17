@@ -6,7 +6,7 @@
  */
 
 import type { Request } from 'express';
-import type { HealthStatus } from '@tzurot/common-types';
+import type { ApiErrorSubcode, HealthStatus } from '@tzurot/common-types';
 
 // Re-export shared API types from common-types
 export type { GenerateRequest, GenerateResponse } from '@tzurot/common-types';
@@ -66,11 +66,10 @@ export interface ErrorResponse {
   /**
    * Optional machine-readable sub-code for cases where callers need to
    * branch on a specific error kind without regex-matching the message
-   * text. Typed as `ApiErrorSubcode` from `@tzurot/common-types` when set
-   * by the purpose-built helpers in `errorResponses.ts` (e.g. `nameCollision`).
-   * Absent on most responses.
+   * text. Set by the purpose-built helpers in `errorResponses.ts`
+   * (e.g. `nameCollision`). Absent on most responses.
    */
-  code?: string;
+  code?: ApiErrorSubcode;
   requestId?: string;
   timestamp: string;
 }

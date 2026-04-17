@@ -9,7 +9,13 @@
  * - Gateway URL validation
  */
 
-import { getConfig, createLogger, CONTENT_TYPES, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
+import {
+  getConfig,
+  createLogger,
+  CONTENT_TYPES,
+  GATEWAY_TIMEOUTS,
+  type ApiErrorSubcode,
+} from '@tzurot/common-types';
 
 const logger = createLogger('gateway-client');
 
@@ -33,7 +39,7 @@ interface GatewayError {
    * 'NAME_COLLISION'. Callers should branch on this instead of regex-
    * matching {@link GatewayError.error} whenever the sub-code exists.
    */
-  errorCode?: string;
+  errorCode?: ApiErrorSubcode;
 }
 
 type GatewayResult<T> = GatewayResponse<T> | GatewayError;
@@ -46,9 +52,9 @@ type GatewayResult<T> = GatewayResponse<T> | GatewayError;
  */
 export class GatewayApiError extends Error {
   public readonly status: number;
-  public readonly code?: string;
+  public readonly code?: ApiErrorSubcode;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: ApiErrorSubcode) {
     super(message);
     this.name = 'GatewayApiError';
     this.status = status;
@@ -105,24 +111,29 @@ export function isGatewayConfigured(): boolean {
  */
 export interface ParsedErrorResponse {
   message: string;
-  code?: string;
+  code?: ApiErrorSubcode;
 }
 
 /**
  * Parse error from API response. Returns both the human-readable message
  * and the optional machine-readable sub-code. Falls back to `HTTP <status>`
  * for the message when the body isn't JSON.
+ *
+ * The gateway only emits `code` values from the `ApiErrorSubcode` union.
+ * Unrecognized strings on the wire would type-widen to `string`, but in
+ * practice both sides compile against the same `@tzurot/common-types`
+ * version so the cast is safe.
  */
 export async function parseErrorResponse(response: Response): Promise<ParsedErrorResponse> {
   try {
     const data = (await response.json()) as {
       error?: string;
       message?: string;
-      code?: string;
+      code?: ApiErrorSubcode;
     };
     // Prefer message (human-readable) over error (code like "VALIDATION_ERROR")
     const message = data.message ?? data.error ?? `HTTP ${response.status}`;
-    return data.code !== undefined ? { message, code: data.code } : { message };
+    return { message, code: data.code };
   } catch {
     return { message: `HTTP ${response.status}` };
   }
@@ -168,7 +179,7 @@ export async function callGatewayApi<T>(
         ok: false,
         error: parsed.message,
         status: response.status,
-        ...(parsed.code !== undefined && { errorCode: parsed.code }),
+        errorCode: parsed.code,
       };
     }
 
