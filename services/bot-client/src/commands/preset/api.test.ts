@@ -323,12 +323,12 @@ describe('createPreset', () => {
     });
   });
 
-  it('throws GatewayApiError carrying status + errorCode on failure', async () => {
+  it('throws GatewayApiError carrying status + code on failure', async () => {
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: false,
       error: 'You already have a config named "Foo"',
       status: 400,
-      errorCode: 'NAME_COLLISION',
+      code: 'NAME_COLLISION',
     });
 
     // Catch the rejection once so we can inspect class + shape without
