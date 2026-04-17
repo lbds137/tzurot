@@ -128,7 +128,7 @@ export function buildTruncationWarningEmbed(
         `Choose **Edit with Truncation** only if you're OK losing the trailing text.`
     )
     .setFooter({
-      text: `${totalLoss.toLocaleString()} total characters would be truncated across ${overLength.length} field(s)`,
+      text: `${totalLoss.toLocaleString()} total characters would be truncated across ${overLength.length} field${overLength.length === 1 ? '' : 's'}`,
     });
 }
 
