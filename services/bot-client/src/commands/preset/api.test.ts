@@ -331,15 +331,14 @@ describe('createPreset', () => {
       errorCode: 'NAME_COLLISION',
     });
 
-    await expect(
-      createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1')
-    ).rejects.toMatchObject({
+    // Capture the rejected promise once so both matchers assert against
+    // the same invocation (avoids consuming the one-shot mock twice).
+    const rejection = createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1');
+    await expect(rejection).rejects.toMatchObject({
       status: 400,
       code: 'NAME_COLLISION',
     });
-    await expect(
-      createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1')
-    ).rejects.toBeInstanceOf(GatewayApiError);
+    await expect(rejection).rejects.toBeInstanceOf(GatewayApiError);
   });
 
   it('throws GatewayApiError with undefined code when gateway sends no sub-code', async () => {

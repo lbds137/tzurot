@@ -56,7 +56,9 @@ export function generateClonedName(originalName: string): string {
   baseName = baseName.trim();
 
   if (!hadSuffix) {
-    return `${originalName} (Copy)`;
+    // Trim the original too so trailing whitespace doesn't leak into the
+    // output — matches the suffix-present branch's `.trim()` above.
+    return `${originalName.trim()} (Copy)`;
   }
 
   return `${baseName} (Copy ${maxNum + 1})`;
