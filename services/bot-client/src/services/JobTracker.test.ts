@@ -314,12 +314,16 @@ describe('JobTracker', () => {
 
   describe('Orphan sweep (grace period past typing cutoff)', () => {
     it('should release the tracker if the result never arrives past grace period', async () => {
+      // Capture the notification-delete mock so we can assert that the full
+      // cleanup chain fires when the orphan sweep closes the tracker:
+      // 5 min → taking-longer notification sent
+      // 10 min + 16s → typing cutoff, orphan sweep armed
+      // 40 min + 16s → sweep fires → completeJob → notification.delete()
+      const deleteMock = vi.fn().mockResolvedValue(undefined);
       const mockChannel = {
         id: 'channel-123',
         sendTyping: vi.fn().mockResolvedValue(undefined),
-        send: vi
-          .fn()
-          .mockResolvedValue({ id: 'notif-1', delete: vi.fn().mockResolvedValue(undefined) }),
+        send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: deleteMock }),
       } as any;
 
       jobTracker.trackJob('job-123', mockChannel, createMockContext());
@@ -329,14 +333,18 @@ describe('JobTracker', () => {
       // interval callback actually fires and runs the cutoff branch.
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
       expect(jobTracker.isTracking('job-123')).toBe(true);
+      // Taking-longer notification sent at the 5-min tick (before cutoff)
+      expect(mockChannel.send).toHaveBeenCalledTimes(1);
 
       // Advance another 29 min — still inside grace period, job still tracked.
       await vi.advanceTimersByTimeAsync(29 * 60 * 1000);
       expect(jobTracker.isTracking('job-123')).toBe(true);
 
-      // Advance past the 30-min grace period — sweep fires, tracker released.
+      // Advance past the 30-min grace period — sweep fires, tracker released,
+      // and the taking-longer notification is cleaned up as part of completeJob.
       await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
       expect(jobTracker.isTracking('job-123')).toBe(false);
+      expect(deleteMock).toHaveBeenCalledTimes(1);
     });
 
     it('should not fire if the job completes normally before grace period', async () => {
