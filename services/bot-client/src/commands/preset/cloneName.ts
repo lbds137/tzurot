@@ -87,7 +87,11 @@ export async function createClonedPreset(
   userId: string
 ): Promise<PresetData> {
   let clonedName = generateClonedName(sourceData.name);
-  let lastError: Error | null = null;
+  // Tightened from `Error | null` to `GatewayApiError | null`: the only
+  // assignment site is guarded by `isNameCollisionError`, which narrows
+  // to `GatewayApiError`. The final `throw lastError` therefore carries
+  // the full `{ status, code }` shape, not just a bare Error.
+  let lastError: GatewayApiError | null = null;
 
   for (let attempt = 0; attempt < MAX_CLONE_NAME_RETRIES; attempt++) {
     try {
