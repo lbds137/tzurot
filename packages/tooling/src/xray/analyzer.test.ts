@@ -116,7 +116,7 @@ describe('analyzeMonorepo', () => {
     expect(file.imports).toHaveLength(0);
   });
 
-  it('should count suppressions in package health', () => {
+  it('should count suppressions in package health and propagate to FileInfo', () => {
     setupMockPackage('test-pkg', 'packages', {
       'index.ts': `// eslint-disable-next-line no-console\nconsole.log('hi');\nexport const x = 1;\n`,
     });
