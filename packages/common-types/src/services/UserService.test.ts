@@ -180,7 +180,11 @@ describe('UserService', () => {
       // User was created by api-gateway via getOrCreateUserShell with discordId
       // as placeholder username AND persona name ("User {discordId}"). On first
       // bot-client interaction with a real username, both get upgraded
-      // atomically by runMaintenanceTasks.
+      // sequentially in the same `runMaintenanceTasks` pass. The two writes
+      // (user.update + persona.updateMany) are NOT wrapped in a transaction;
+      // a mid-pass crash would leave the user upgraded but the persona stuck
+      // on the placeholder. Tracked in BACKLOG as part of Phase 5c's shell-
+      // path removal, which deletes this block entirely.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,
