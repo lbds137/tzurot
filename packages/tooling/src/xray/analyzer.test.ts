@@ -126,6 +126,11 @@ describe('analyzeMonorepo', () => {
     const health = report.summary.byPackage['test-pkg']?.health;
     expect(health?.totalSuppressions).toBe(1);
     expect(report.summary.totalSuppressions).toBe(1);
+    // Belt-and-suspenders: confirm suppressions also reach the per-file
+    // FileInfo through the full pipeline, not just the aggregated health
+    // summary. Catches a hypothetical regression where FileInfo gets cloned
+    // without spreading `suppressions`.
+    expect(report.packages[0].files[0].suppressions.length).toBe(1);
   });
 
   it('should report zero suppressions for clean code', () => {
@@ -190,9 +195,9 @@ describe('analyzeMonorepo', () => {
   it('should include suppressions in file data', () => {
     const content = `// @ts-expect-error -- test\nexport const x = 1;\n// eslint-disable-next-line no-unused-vars\nconst y = 2;\n`;
 
-    const file = parseFile('/root/packages/test-pkg/src/index.ts', content, {
-      includePrivate: true,
-    });
+    // No `includePrivate: true` — suppression extraction is independent of
+    // declaration visibility, so the option is incidental noise here.
+    const file = parseFile('/root/packages/test-pkg/src/index.ts', content);
 
     expect(file.suppressions).toHaveLength(2);
     expect(file.suppressions[0].kind).toBe('ts-expect-error');
