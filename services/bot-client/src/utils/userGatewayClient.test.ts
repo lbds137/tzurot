@@ -234,6 +234,45 @@ describe('userGatewayClient', () => {
       }
     });
 
+    it('should propagate errorCode sub-classifier from gateway response body', async () => {
+      // Closes the parseErrorResponse → callGatewayApi → GatewayError
+      // chain. Without this test the middle link could silently drop
+      // the `code` field and only be caught at runtime.
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: vi.fn().mockResolvedValue({
+          error: 'VALIDATION_ERROR',
+          message: 'You already have a config named "Foo"',
+          code: 'NAME_COLLISION',
+        }),
+      });
+
+      const result = await callGatewayApi('/test', { userId: 'user-123' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBe('You already have a config named "Foo"');
+        expect(result.status).toBe(400);
+        expect(result.errorCode).toBe('NAME_COLLISION');
+      }
+    });
+
+    it('should leave errorCode undefined when the gateway response has no sub-code', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: vi.fn().mockResolvedValue({ error: 'Internal error' }),
+      });
+
+      const result = await callGatewayApi('/test', { userId: 'user-123' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errorCode).toBeUndefined();
+      }
+    });
+
     it('should handle fetch errors', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 

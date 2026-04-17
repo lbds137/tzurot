@@ -331,14 +331,15 @@ describe('createPreset', () => {
       errorCode: 'NAME_COLLISION',
     });
 
-    // Capture the rejected promise once so both matchers assert against
-    // the same invocation (avoids consuming the one-shot mock twice).
-    const rejection = createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1');
-    await expect(rejection).rejects.toMatchObject({
-      status: 400,
-      code: 'NAME_COLLISION',
-    });
-    await expect(rejection).rejects.toBeInstanceOf(GatewayApiError);
+    // Catch the rejection once so we can inspect class + shape without
+    // re-invoking createPreset (which would re-consume the one-shot mock).
+    const err = await createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1').catch(
+      e => e
+    );
+
+    expect(err).toBeInstanceOf(GatewayApiError);
+    expect(err.status).toBe(400);
+    expect(err.code).toBe('NAME_COLLISION');
   });
 
   it('throws GatewayApiError with undefined code when gateway sends no sub-code', async () => {
