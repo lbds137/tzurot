@@ -417,8 +417,8 @@ describe('PersonaResolver', () => {
       });
 
       mockPrismaClient.userPersonalityConfig.findFirst
-        .mockResolvedValueOnce(null) // persona override
-        .mockRejectedValueOnce(new Error('DB error')); // focus mode check fails
+        .mockResolvedValueOnce(null) // persona override lookup
+        .mockRejectedValueOnce(new Error('DB error')); // focus mode findFirst fails
 
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 
