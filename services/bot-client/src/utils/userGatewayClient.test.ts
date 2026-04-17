@@ -100,9 +100,10 @@ describe('userGatewayClient', () => {
         status: 400,
       } as unknown as Response;
 
-      const error = await parseErrorResponse(mockResponse);
+      const result = await parseErrorResponse(mockResponse);
 
-      expect(error).toBe('Test error');
+      expect(result.message).toBe('Test error');
+      expect(result.code).toBeUndefined();
     });
 
     it('should extract message from JSON response', async () => {
@@ -111,9 +112,10 @@ describe('userGatewayClient', () => {
         status: 400,
       } as unknown as Response;
 
-      const error = await parseErrorResponse(mockResponse);
+      const result = await parseErrorResponse(mockResponse);
 
-      expect(error).toBe('Test message');
+      expect(result.message).toBe('Test message');
+      expect(result.code).toBeUndefined();
     });
 
     it('should prefer message over error code when both present', async () => {
@@ -127,9 +129,10 @@ describe('userGatewayClient', () => {
         status: 400,
       } as unknown as Response;
 
-      const error = await parseErrorResponse(mockResponse);
+      const result = await parseErrorResponse(mockResponse);
 
-      expect(error).toBe('No default config set');
+      expect(result.message).toBe('No default config set');
+      expect(result.code).toBeUndefined();
     });
 
     it('should return HTTP status when JSON parsing fails', async () => {
@@ -138,9 +141,26 @@ describe('userGatewayClient', () => {
         status: 500,
       } as unknown as Response;
 
-      const error = await parseErrorResponse(mockResponse);
+      const result = await parseErrorResponse(mockResponse);
 
-      expect(error).toBe('HTTP 500');
+      expect(result.message).toBe('HTTP 500');
+      expect(result.code).toBeUndefined();
+    });
+
+    it('should surface the machine-readable sub-code when the response body carries one', async () => {
+      const mockResponse = {
+        json: vi.fn().mockResolvedValue({
+          error: 'VALIDATION_ERROR',
+          message: 'You already have a config named "Foo (Copy)"',
+          code: 'NAME_COLLISION',
+        }),
+        status: 400,
+      } as unknown as Response;
+
+      const result = await parseErrorResponse(mockResponse);
+
+      expect(result.message).toBe('You already have a config named "Foo (Copy)"');
+      expect(result.code).toBe('NAME_COLLISION');
     });
   });
 

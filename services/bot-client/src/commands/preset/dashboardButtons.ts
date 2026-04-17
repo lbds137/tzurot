@@ -30,14 +30,8 @@ import {
   unflattenPresetData,
   buildPresetDashboardOptions,
 } from './config.js';
-import {
-  fetchPreset,
-  updatePreset,
-  fetchGlobalPreset,
-  createPreset,
-  extractApiErrorMessage,
-} from './api.js';
-import type { PresetData } from './types.js';
+import { fetchPreset, updatePreset, fetchGlobalPreset, extractApiErrorMessage } from './api.js';
+import { createClonedPreset } from './cloneName.js';
 import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 
 // Re-export for backward compatibility
@@ -48,70 +42,10 @@ const logger = createLogger('preset-dashboard-buttons');
 /** Recovery command shown in expired session messages */
 const PRESET_RECOVERY_CMD = '/preset browse';
 
-/** Max retry attempts when a generated clone name collides with an existing preset. */
-const MAX_CLONE_NAME_RETRIES = 10;
-
-/**
- * Detect the api-gateway's "name already used" validation error so the clone
- * flow can bump the suffix and retry instead of giving up. The message comes
- * from `ErrorResponses.validationError` in `user/llm-config.ts` and reaches
- * bot-client wrapped as `Failed to create preset: 400 - You already have a
- * config named "..."` via `createPreset`.
- *
- * **Coupling risk**: this regex matches the gateway's natural-language
- * message text. If the wording in `user/llm-config.ts` ever changes
- * (localization, copy editing, restructure), the retry loop silently
- * degrades to single-attempt. Hardening tracked in BACKLOG as a typed
- * error-code refactor ("Harden preset clone collision detection against
- * error-message drift").
- */
-const NAME_COLLISION_PATTERN = /already have a config named/i;
-
-/**
- * Pattern to match a trailing (Copy) or (Copy N) suffix.
- * Defined at module scope to avoid regex recompilation on each call.
- * Group 1 captures the optional number for extraction.
- */
-const COPY_SUFFIX_PATTERN = /\s*\(Copy(?:\s+(\d+))?\)\s*$/i;
-
-/**
- * Generate a cloned name by stripping all (Copy N) suffixes and adding a new one.
- * Finds the maximum copy number among all suffixes and increments it.
- *
- * Examples:
- * - "Preset" → "Preset (Copy)"
- * - "Preset (Copy)" → "Preset (Copy 2)"
- * - "Preset (Copy 2)" → "Preset (Copy 3)"
- * - "Preset (Copy) (Copy)" → "Preset (Copy 2)" (max of 1,1 is 1, so next is 2)
- * - "Preset (Copy 5) (Copy)" → "Preset (Copy 6)" (max of 5,1 is 5, so next is 6)
- *
- * @param originalName - The original preset name
- * @returns A new name with appropriate (Copy N) suffix
- */
-export function generateClonedName(originalName: string): string {
-  // Iteratively strip (Copy N) suffixes and track the highest number
-  let baseName = originalName;
-  let maxNum = 0;
-  let hadSuffix = false;
-
-  let match: RegExpExecArray | null;
-  while ((match = COPY_SUFFIX_PATTERN.exec(baseName)) !== null) {
-    hadSuffix = true;
-    // match[1] is the capture group for the number (undefined if just "(Copy)")
-    const num = match[1] !== undefined ? parseInt(match[1], 10) : 1;
-    maxNum = Math.max(maxNum, num);
-    // Strip this suffix
-    baseName = baseName.slice(0, match.index);
-  }
-
-  baseName = baseName.trim();
-
-  if (!hadSuffix) {
-    return `${originalName} (Copy)`;
-  }
-
-  return `${baseName} (Copy ${maxNum + 1})`;
-}
+// Re-export generateClonedName so existing callers/tests that imported it
+// from this module keep working. The implementation lives in cloneName.ts
+// alongside the retry driver and the collision predicate.
+export { generateClonedName } from './cloneName.js';
 
 /**
  * Handle close button using shared handler
@@ -376,57 +310,6 @@ export async function handleCancelDeleteButton(
     dashboardConfig: PRESET_DASHBOARD_CONFIG,
     buildOptions: buildPresetDashboardOptions,
   });
-}
-
-/**
- * Create a cloned preset with auto-numbered naming. If the initial candidate
- * collides with an existing preset, feed the candidate back through
- * `generateClonedName` to bump the suffix and retry. Any non-collision error
- * propagates immediately. After `MAX_CLONE_NAME_RETRIES` attempts the last
- * collision error is rethrown so the user sees the actual collision name.
- */
-async function createClonedPreset(
-  sourceData: FlattenedPresetData,
-  userId: string
-): Promise<PresetData> {
-  let clonedName = generateClonedName(sourceData.name);
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt < MAX_CLONE_NAME_RETRIES; attempt++) {
-    try {
-      return await createPreset(
-        {
-          name: clonedName,
-          model: sourceData.model,
-          provider: sourceData.provider,
-          description:
-            sourceData.description !== undefined && sourceData.description.length > 0
-              ? sourceData.description
-              : undefined,
-          visionModel:
-            sourceData.visionModel !== undefined && sourceData.visionModel.length > 0
-              ? sourceData.visionModel
-              : undefined,
-        },
-        userId
-      );
-    } catch (err) {
-      if (err instanceof Error && NAME_COLLISION_PATTERN.test(err.message)) {
-        lastError = err;
-        clonedName = generateClonedName(clonedName);
-      } else {
-        throw err;
-      }
-    }
-  }
-
-  // `lastError` is always set when we reach here: the loop can only exit
-  // via this `throw` (vs. the `return` inside the try) if at least one
-  // iteration caught a collision and assigned `lastError`. The `??`
-  // fallback is unreachable unless `MAX_CLONE_NAME_RETRIES` is set to 0,
-  // in which case the loop body never runs — keeping the fallback defends
-  // against that degenerate config.
-  throw lastError ?? new Error('Failed to generate a unique clone name');
 }
 
 /**

@@ -341,3 +341,24 @@ export function stripErrorSpoiler(message: string): string {
   // Remove the error spoiler pattern and trim whitespace
   return message.replace(ERROR_SPOILER_PATTERN, '').trim();
 }
+
+/**
+ * Machine-readable sub-codes for api-gateway error responses.
+ *
+ * Set on `ErrorResponse.code` by purpose-built helpers in
+ * `services/api-gateway/src/utils/errorResponses.ts` (e.g. `nameCollision`),
+ * and consumed by bot-client when it needs to branch on a specific error
+ * kind without regex-matching the natural-language message text.
+ *
+ * The primary `error` field still carries the top-level `ErrorCode`
+ * (e.g. `VALIDATION_ERROR`); sub-codes are finer-grained classifiers
+ * layered on top of it. Add entries here as new branching needs arise;
+ * keep each value stable — these are part of the inter-service contract.
+ */
+export const API_ERROR_SUBCODE = {
+  /** User/admin tried to create a resource whose name is already taken. */
+  NAME_COLLISION: 'NAME_COLLISION',
+} as const;
+
+/** Union of all defined sub-code values, for typing `ErrorResponse.code`. */
+export type ApiErrorSubcode = (typeof API_ERROR_SUBCODE)[keyof typeof API_ERROR_SUBCODE];

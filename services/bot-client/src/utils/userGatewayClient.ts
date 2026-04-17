@@ -28,9 +28,33 @@ interface GatewayError {
   ok: false;
   error: string;
   status: number;
+  /**
+   * Machine-readable error sub-code when the gateway sets one, e.g.
+   * 'NAME_COLLISION'. Callers should branch on this instead of regex-
+   * matching {@link GatewayError.error} whenever the sub-code exists.
+   */
+  errorCode?: string;
 }
 
 type GatewayResult<T> = GatewayResponse<T> | GatewayError;
+
+/**
+ * Error thrown by higher-level API client functions (e.g. `createPreset`)
+ * when a gateway call returns a non-ok response. Carries the HTTP `status`
+ * and, when the gateway set one, the machine-readable `code` sub-classifier
+ * so retry/branching logic can match on the code instead of the message.
+ */
+export class GatewayApiError extends Error {
+  public readonly status: number;
+  public readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'GatewayApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
 
 /**
  * Options for gateway API calls
@@ -74,15 +98,33 @@ export function isGatewayConfigured(): boolean {
 }
 
 /**
- * Parse error from API response
+ * Parsed shape of a gateway error response body.
+ * `message` is human-readable; `code` is the optional machine-readable
+ * sub-code (see {@link GatewayApiError.code} and `ApiErrorSubcode` in
+ * common-types).
  */
-export async function parseErrorResponse(response: Response): Promise<string> {
+export interface ParsedErrorResponse {
+  message: string;
+  code?: string;
+}
+
+/**
+ * Parse error from API response. Returns both the human-readable message
+ * and the optional machine-readable sub-code. Falls back to `HTTP <status>`
+ * for the message when the body isn't JSON.
+ */
+export async function parseErrorResponse(response: Response): Promise<ParsedErrorResponse> {
   try {
-    const data = (await response.json()) as { error?: string; message?: string };
+    const data = (await response.json()) as {
+      error?: string;
+      message?: string;
+      code?: string;
+    };
     // Prefer message (human-readable) over error (code like "VALIDATION_ERROR")
-    return data.message ?? data.error ?? `HTTP ${response.status}`;
+    const message = data.message ?? data.error ?? `HTTP ${response.status}`;
+    return data.code !== undefined ? { message, code: data.code } : { message };
   } catch {
-    return `HTTP ${response.status}`;
+    return { message: `HTTP ${response.status}` };
   }
 }
 
@@ -120,9 +162,14 @@ export async function callGatewayApi<T>(
     });
 
     if (!response.ok) {
-      const error = await parseErrorResponse(response);
+      const parsed = await parseErrorResponse(response);
       logger.warn({ path, method, status: response.status, userId }, '[Gateway] Request failed');
-      return { ok: false, error, status: response.status };
+      return {
+        ok: false,
+        error: parsed.message,
+        status: response.status,
+        ...(parsed.code !== undefined && { errorCode: parsed.code }),
+      };
     }
 
     const data = (await response.json()) as T;

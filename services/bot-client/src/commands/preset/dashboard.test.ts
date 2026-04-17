@@ -12,6 +12,7 @@ import {
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import type { PresetData } from './config.js';
+import { GatewayApiError } from '../../utils/userGatewayClient.js';
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -1046,8 +1047,10 @@ describe('handleButton', () => {
         },
       });
       mockCreatePreset.mockRejectedValue(
-        new Error(
-          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"'
+        new GatewayApiError(
+          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"',
+          400,
+          'NAME_COLLISION'
         )
       );
 
@@ -1081,8 +1084,10 @@ describe('handleButton', () => {
       // attempt with the bumped name succeeds.
       mockCreatePreset
         .mockRejectedValueOnce(
-          new Error(
-            'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"'
+          new GatewayApiError(
+            'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"',
+            400,
+            'NAME_COLLISION'
           )
         )
         .mockResolvedValueOnce(clonedPreset);
@@ -1166,8 +1171,10 @@ describe('handleButton', () => {
       // (10) and rethrows the last collision error so the user sees which
       // name finally couldn't be placed.
       mockCreatePreset.mockRejectedValue(
-        new Error(
-          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy 10)"'
+        new GatewayApiError(
+          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy 10)"',
+          400,
+          'NAME_COLLISION'
         )
       );
 
