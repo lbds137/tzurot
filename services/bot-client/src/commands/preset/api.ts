@@ -167,7 +167,7 @@ export async function createPreset(
     throw new GatewayApiError(
       `Failed to create preset: ${result.status} - ${result.error ?? 'Unknown'}`,
       result.status,
-      result.errorCode
+      result.code
     );
   }
 
