@@ -42,11 +42,6 @@ const logger = createLogger('preset-dashboard-buttons');
 /** Recovery command shown in expired session messages */
 const PRESET_RECOVERY_CMD = '/preset browse';
 
-// Re-export generateClonedName so existing callers/tests that imported it
-// from this module keep working. The implementation lives in cloneName.ts
-// alongside the retry driver and the collision predicate.
-export { generateClonedName } from './cloneName.js';
-
 /**
  * Handle close button using shared handler
  */
