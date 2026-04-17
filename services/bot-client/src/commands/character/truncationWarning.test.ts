@@ -164,9 +164,9 @@ describe('buildTruncationButtons', () => {
     expect(json.components).toHaveLength(3);
     const customIds = json.components.map(c => (c as { custom_id: string }).custom_id);
     expect(customIds).toEqual([
-      'character::edit-truncated::char-1::identity',
-      'character::view-full::char-1::identity',
-      'character::cancel-edit::char-1::identity',
+      'character::edit_truncated::char-1::identity',
+      'character::view_full::char-1::identity',
+      'character::cancel_edit::char-1::identity',
     ]);
   });
 });
@@ -254,66 +254,109 @@ describe('handleViewFullButton', () => {
     mockFetchOrCreateSession.mockReset();
   });
 
-  it('replies with txt attachments for each over-length field', async () => {
+  /**
+   * Build an interaction stub that models the deferReply → editReply
+   * lifecycle: once deferReply is called, `deferred` flips true so
+   * sectionContext's replyError predicate correctly routes errors to
+   * followUp instead of reply.
+   */
+  function makeDeferrableInteraction(): {
+    interaction: ButtonInteraction;
+    deferReply: ReturnType<typeof vi.fn>;
+    editReply: ReturnType<typeof vi.fn>;
+    followUp: ReturnType<typeof vi.fn>;
+    reply: ReturnType<typeof vi.fn>;
+  } {
+    const state = { deferred: false, replied: false };
+    const deferReply = vi.fn().mockImplementation(async () => {
+      state.deferred = true;
+    });
+    const editReply = vi.fn().mockResolvedValue(undefined);
+    const followUp = vi.fn().mockResolvedValue(undefined);
+    const reply = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      deferReply,
+      editReply,
+      followUp,
+      reply,
+      get deferred() {
+        return state.deferred;
+      },
+      get replied() {
+        return state.replied;
+      },
+    } as unknown as ButtonInteraction;
+    return { interaction, deferReply, editReply, followUp, reply };
+  }
+
+  it('defers within the 3-second window before any async work', async () => {
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { personalityAge: 'x'.repeat(150), _isAdmin: false },
+    });
+    const { interaction, deferReply } = makeDeferrableInteraction();
+
+    await handleViewFullButton(interaction, 'char-1', 'identity');
+
+    expect(deferReply).toHaveBeenCalledWith(
+      expect.objectContaining({ flags: MessageFlags.Ephemeral })
+    );
+    // deferReply must fire before fetchOrCreateSession (the async work)
+    expect(deferReply.mock.invocationCallOrder[0]).toBeLessThan(
+      mockFetchOrCreateSession.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('editReplies with txt attachments for each over-length field', async () => {
     const longValue = 'x'.repeat(150);
     mockFetchOrCreateSession.mockResolvedValue({
       success: true,
       data: { personalityAge: longValue, _isAdmin: false },
     });
-    const mockReply = vi.fn().mockResolvedValue(undefined);
-    const interaction = {
-      user: { id: 'user-1' },
-      reply: mockReply,
-    } as unknown as ButtonInteraction;
+    const { interaction, editReply, reply } = makeDeferrableInteraction();
 
     await handleViewFullButton(interaction, 'char-1', 'identity');
 
-    expect(mockReply).toHaveBeenCalledWith(
+    // Must use editReply, never reply — the interaction was deferred
+    expect(reply).not.toHaveBeenCalled();
+    expect(editReply).toHaveBeenCalledWith(
       expect.objectContaining({
-        flags: MessageFlags.Ephemeral,
         files: expect.arrayContaining([expect.any(Object)]),
         content: expect.stringContaining('Full content'),
       })
     );
-    const callArg = mockReply.mock.calls[0][0] as { files: unknown[] };
+    const callArg = editReply.mock.calls[0][0] as { files: unknown[] };
     expect(callArg.files).toHaveLength(1);
   });
 
-  it('reports no-op when content no longer exceeds cap', async () => {
+  it('reports no-op via editReply when content no longer exceeds cap', async () => {
     mockFetchOrCreateSession.mockResolvedValue({
       success: true,
       data: { personalityAge: 'short', _isAdmin: false },
     });
-    const mockReply = vi.fn().mockResolvedValue(undefined);
-    const interaction = {
-      user: { id: 'user-1' },
-      reply: mockReply,
-    } as unknown as ButtonInteraction;
+    const { interaction, editReply } = makeDeferrableInteraction();
 
     await handleViewFullButton(interaction, 'char-1', 'identity');
 
-    expect(mockReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining('No fields'),
-        flags: MessageFlags.Ephemeral,
-      })
+    expect(editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('No fields') })
     );
-    expect(mockReply.mock.calls[0][0].files).toBeUndefined();
+    expect(editReply.mock.calls[0][0].files).toBeUndefined();
   });
 
-  it('replies with an error when the character cannot be fetched', async () => {
+  it('surfaces fetch-failure via followUp (sectionContext detects defer)', async () => {
     mockFetchOrCreateSession.mockResolvedValue({ success: false });
-    const mockReply = vi.fn().mockResolvedValue(undefined);
-    const interaction = {
-      user: { id: 'user-1' },
-      reply: mockReply,
-    } as unknown as ButtonInteraction;
+    const { interaction, followUp, reply } = makeDeferrableInteraction();
 
     await handleViewFullButton(interaction, 'char-1', 'identity');
 
-    expect(mockReply).toHaveBeenCalledWith(
+    // After deferReply, sectionContext must use followUp, not reply
+    expect(reply).not.toHaveBeenCalled();
+    expect(followUp).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('Character not found'),
+        content: expect.stringContaining('not found'),
+        flags: MessageFlags.Ephemeral,
       })
     );
   });

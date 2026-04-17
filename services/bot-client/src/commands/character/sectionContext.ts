@@ -73,10 +73,7 @@ export async function resolveCharacterSectionContext(
   const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
   const section = dashboardConfig.sections.find(s => s.id === sectionId);
   if (!section) {
-    await interaction.reply({
-      content: '❌ Unknown section.',
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyError(interaction, '❌ Unknown section.');
     return null;
   }
 
@@ -89,13 +86,28 @@ export async function resolveCharacterSectionContext(
     interaction,
   });
   if (!result.success) {
-    await interaction.reply({
-      content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
-      flags: MessageFlags.Ephemeral,
-    });
+    await replyError(interaction, DASHBOARD_MESSAGES.NOT_FOUND('Character'));
     return null;
   }
 
   const context: DashboardContext = { isAdmin, userId: interaction.user.id };
   return { isAdmin, dashboardConfig, section, data: result.data, context };
+}
+
+/**
+ * Reply with an ephemeral error, adapting to whether the caller has
+ * already acked the interaction. Callers that `deferReply`-ed before
+ * invoking this helper need `followUp`; fresh callers need `reply`.
+ * Checking `interaction.deferred || interaction.replied` lets the helper
+ * work transparently under both call shapes.
+ */
+async function replyError(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  content: string
+): Promise<void> {
+  if (interaction.deferred || interaction.replied) {
+    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+  } else {
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  }
 }
