@@ -73,7 +73,7 @@ export async function validateModelAndContextWindow(
     return {
       error:
         `Context window setting (${contextWindowTokens} tokens) exceeds the ${scope} limit for '${modelId}'. ` +
-        `Model supports ${contextK}K tokens; maximum allowed for this preset is ${capK}K (${cap} tokens). ` +
+        `Model supports ${contextK}K tokens; maximum allowed for this model is ${capK}K (${cap} tokens). ` +
         `Reduce the Context Window value before saving.`,
       contextWindowCap: cap,
     };
