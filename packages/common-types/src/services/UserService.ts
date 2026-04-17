@@ -3,10 +3,13 @@
  * Manages User records - creates users on first interaction
  *
  * Key behaviors:
- * - Creates users with default personas atomically via transactions
+ * - Creates users with default personas atomically via a single-statement
+ *   CTE (circular-FK bootstrap; see Phase 5b notes inline)
  * - Handles race conditions when multiple requests arrive for same user
- * - Backfills default personas for legacy users created without them
- * - Updates placeholder usernames (discordId) to real usernames
+ *   (P2002 recovery filtered to users.discord_id)
+ * - Upgrades placeholder usernames (shell-created = discordId) to real
+ *   Discord usernames on first bot-client interaction, renaming the
+ *   placeholder persona in the same maintenance pass
  */
 
 import type { PrismaClient } from './prisma.js';
@@ -18,15 +21,16 @@ import { isBotOwner } from '../utils/ownerMiddleware.js';
 import { UNKNOWN_USER_DISCORD_ID } from '../constants/message.js';
 
 /**
- * User record with fields needed for post-read maintenance checks.
+ * User record with fields needed for post-read maintenance checks (superuser
+ * promotion, placeholder-username upgrade).
  *
- * Phase 5b note: `defaultPersonaId` is NOT NULL at both the DB and Prisma-type
- * level, so there is no "null default" branch here. The legacy
- * `backfillDefaultPersona` path existed for users created before the NOT NULL
- * migration; that class of user no longer exists in either the schema or the
- * data (verified zero in dev + prod pre-flight).
+ * `defaultPersonaId` is NOT NULL at both the DB and Prisma-type level; there
+ * is no "null default" branch. The earlier `backfillDefaultPersona` path
+ * existed to repair users created without a default persona, a class of
+ * user that no longer exists in either the schema or the data (verified
+ * zero in dev + prod pre-flight before the NOT NULL migration).
  */
-interface UserWithBackfillFields {
+interface UserWithMaintenanceFields {
   id: string;
   isSuperuser: boolean;
   username: string;
@@ -132,7 +136,7 @@ export class UserService {
 
     try {
       // Try to find existing user
-      let user: UserWithBackfillFields | null = await this.prisma.user.findUnique({
+      let user: UserWithMaintenanceFields | null = await this.prisma.user.findUnique({
         where: { discordId },
         select: { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
       });
@@ -161,23 +165,33 @@ export class UserService {
   }
 
   /**
-   * Get or create a user by Discord ID WITHOUT a default persona.
+   * Get or create a user by Discord ID when only the discordId is known.
    *
-   * Use this from code paths that don't have a real Discord username available
-   * (e.g., api-gateway HTTP routes where auth middleware only passes the
-   * discordId). Persona creation is deferred until the user interacts via the
-   * bot-client path, which has the real username and can populate a proper
-   * Persona via backfillDefaultPersona.
+   * Used from code paths that don't have Discord username/displayName context
+   * (currently: api-gateway HTTP routes where auth middleware only exposes
+   * `discordId` on the request). Creates the user atomically with a
+   * placeholder persona named `"User {discordId}"`; the placeholder is
+   * replaced with the real Discord username by `runMaintenanceTasks` on
+   * the user's first bot-client interaction.
    *
-   * This exists because prior to this method, such callers passed the discordId
-   * as both the Discord ID AND the username parameter, which baked the raw
-   * snowflake into Persona.name and Persona.preferredName — later rendering
-   * that snowflake as the user's identity in system prompts instead of their
-   * real Discord username. See docs/incidents/ for the full write-up.
+   * Callers that DO have username context should use {@link getOrCreateUser}
+   * instead — the shell path is a temporary accommodation, not the
+   * preferred entry point. The Identity Epic's Phase 5c is queued to
+   * eliminate it by moving user provisioning into bot-client before any
+   * HTTP call.
    *
    * No bot-filtering is done here (unlike {@link getOrCreateUser}) because
    * HTTP routes authenticate via session/discordId — bots don't hit these
    * endpoints in practice.
+   *
+   * Note on UUID divergence: shell-created personas have their deterministic
+   * UUID derived from `"User {discordId}"`, not the later-assigned real
+   * username. After the placeholder rename the row has the correct `name`
+   * but a UUID that `generatePersonaUuid(realUsername, userId)` would NOT
+   * produce. This is cosmetic — no production code looks up personas by
+   * the username-derived formula — but it's worth flagging because the
+   * full path's UUID convention does match `generatePersonaUuid(username,
+   * userId)`. Phase 5c removes the divergence by removing the shell path.
    *
    * @param discordId Discord user ID
    * @returns The user's UUID
@@ -294,7 +308,7 @@ export class UserService {
     username: string,
     displayName?: string,
     bio?: string
-  ): Promise<UserWithBackfillFields> {
+  ): Promise<UserWithMaintenanceFields> {
     try {
       return await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
     } catch (error) {
@@ -399,7 +413,7 @@ export class UserService {
    * Returns the effective `defaultPersonaId` — always non-null post-Phase-5b.
    */
   private async runMaintenanceTasks(
-    user: UserWithBackfillFields,
+    user: UserWithMaintenanceFields,
     discordId: string,
     username: string,
     displayName?: string
@@ -451,7 +465,14 @@ export class UserService {
         where: { ownerId: user.id, name: placeholderPersonaName },
         data: { name: username, preferredName },
       });
-      logger.info(
+      // `count === 0` is unusual but expected in two cases: a concurrent
+      // maintenance call for the same user already renamed the placeholder
+      // (the idempotent race), or the user manually renamed the placeholder
+      // persona via the API between shell-creation and first bot-client
+      // interaction. Log at warn so ops notices if a third cause ever
+      // appears (e.g. placeholder prefix drift breaking the WHERE match).
+      const logLevel: 'info' | 'warn' = renameResult.count === 0 ? 'warn' : 'info';
+      logger[logLevel](
         {
           userId: user.id,
           discordId,
@@ -471,7 +492,7 @@ export class UserService {
    * Handles the case where BOT_OWNER_ID is set after user was created
    */
   private async promoteToSuperuserIfNeeded(
-    user: UserWithBackfillFields | null,
+    user: UserWithMaintenanceFields | null,
     discordId: string
   ): Promise<void> {
     if (user && !user.isSuperuser && isBotOwner(discordId)) {
@@ -491,7 +512,7 @@ export class UserService {
     username: string,
     displayName?: string,
     bio?: string
-  ): Promise<UserWithBackfillFields> {
+  ): Promise<UserWithMaintenanceFields> {
     const userId = generateUserUuid(discordId);
     const personaId = generatePersonaUuid(username, userId);
     const shouldBeSuperuser = isBotOwner(discordId);
