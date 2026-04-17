@@ -14,8 +14,13 @@
  * `generatePersonaUuid(personaName, userId)` so the seed is reproducible.
  */
 
-// Structural typing so this package can stay off `@tzurot/common-types` and
-// avoid a circular dependency (common-types' own tests import test-utils).
+// Structural typing so this package can stay off `@tzurot/common-types` as a
+// runtime dependency. The cycle is subtle: common-types is a PRODUCTION peer,
+// but its own `.int.test.ts` files consume this package, so common-types
+// listing test-utils as a devDependency creates a Turbo build-DAG cycle the
+// moment test-utils starts depending on common-types at any level. Breaking
+// it cleanly requires either extracting shared constants to a third package
+// or dropping test-utils out of common-types's devDeps — both are 5c scope.
 interface PrismaExecuteRaw {
   $executeRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<number>;
 }
@@ -63,10 +68,10 @@ export async function seedUserWithPersona(
     personaName = `User ${discordId}`,
     personaPreferredName,
     personaContent = '',
-    // Mirrors `DEFAULT_PERSONA_DESCRIPTION` in `common-types/services/UserService.ts`.
-    // Can't import it here because test-utils must stay off common-types to
-    // avoid a circular dep (common-types' own tests consume test-utils).
-    // Keep the two in sync if either changes.
+    // Mirrors `DEFAULT_PERSONA_DESCRIPTION` in
+    // `common-types/src/constants/persona.ts`. Can't import the constant
+    // directly — see the comment at the top of this file for why. Keep the
+    // two values in sync until Phase 5c breaks the Turbo build-DAG cycle.
     personaDescription = 'Default persona',
   } = options;
 

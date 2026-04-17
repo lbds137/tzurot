@@ -19,6 +19,7 @@ import { TTLCache } from '../utils/TTLCache.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
 import { isBotOwner } from '../utils/ownerMiddleware.js';
 import { UNKNOWN_USER_DISCORD_ID } from '../constants/message.js';
+import { DEFAULT_PERSONA_DESCRIPTION } from '../constants/persona.js';
 
 /**
  * User record with fields needed for post-read maintenance checks (superuser
@@ -55,9 +56,6 @@ export interface ProvisionedUser {
 }
 
 const logger = createLogger('UserService');
-
-/** Default description for auto-created personas */
-const DEFAULT_PERSONA_DESCRIPTION = 'Default persona';
 
 /**
  * Build the placeholder persona name used during shell-user creation (Identity
