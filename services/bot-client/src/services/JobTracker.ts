@@ -297,6 +297,13 @@ export class JobTracker {
     if (!tracked) {
       return;
     }
+    // Guard against double-arming. The cutoff branch clearInterval()s
+    // synchronously before calling this, so a second fire is unreachable
+    // today — but if that ordering ever changes, overwriting `orphanSweep`
+    // would leak the first timer. Cheap invariant to hold explicit.
+    if (tracked.orphanSweep !== undefined) {
+      return;
+    }
     tracked.orphanSweep = setTimeout(() => {
       if (this.activeJobs.has(jobId)) {
         logger.warn(
