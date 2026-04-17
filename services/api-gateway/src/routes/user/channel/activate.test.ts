@@ -258,8 +258,10 @@ describe('POST /user/channel/activate', () => {
     await handler(req, res);
 
     // Shell creation — api-gateway routes don't have username context, so
-    // UserService.getOrCreateUserShell creates a User-only record (no persona,
-    // no transaction). Full provisioning happens later via the bot-client path.
+    // UserService.getOrCreateUserShell runs a single $executeRaw CTE that
+    // atomically creates the user plus a placeholder persona named
+    // `"User {discordId}"`. The placeholder is renamed to the real
+    // username on the first bot-client interaction.
     expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
   });

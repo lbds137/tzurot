@@ -109,9 +109,9 @@ describe('UserService', () => {
   });
 
   describe('decodeCreateUserCall helper', () => {
-    // Tests for the test-only decoder, added per PR #818 review so the
-    // null-return contract is exercised explicitly rather than implicit via
-    // downstream optional chaining.
+    // Explicit contract for the test-only decoder so the null-return path is
+    // exercised directly rather than only implicit via downstream optional
+    // chaining.
     it('returns null for undefined (no call captured)', () => {
       expect(decodeCreateUserCall(undefined)).toBeNull();
     });
@@ -204,10 +204,10 @@ describe('UserService', () => {
     });
 
     it('should use displayName for persona preferredName on placeholder upgrade', async () => {
-      // PR #818 review fix: the shell→full upgrade must propagate displayName
-      // into preferredName, matching the full-path create behavior. Without
-      // this, a user who shell-created via HTTP and then first interacts via
-      // bot-client with a distinct displayName would lose it on the rename.
+      // The shell→full upgrade must propagate `displayName` into
+      // `preferredName` to match the full-path create behavior — a user who
+      // shell-created via HTTP and then first interacts via bot-client with
+      // a distinct displayName would otherwise lose it on the rename.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         id: 'existing-user-id',
         isSuperuser: false,
@@ -248,8 +248,7 @@ describe('UserService', () => {
       const call = decodeCreateUserCall(mockPrisma.$executeRaw.mock.calls[0]);
       // Cross-check that the decoded positional values landed on the right
       // slots — if the CTE template ever reorders columns or adds a new one,
-      // these sentinels fail loud rather than silently pass with wrong data
-      // (PR #818 review).
+      // these sentinels fail loud rather than silently pass with wrong data.
       expect(call?.discordId).toBe('123456');
       expect(call?.username).toBe('testuser');
       expect(call?.isSuperuser).toBe(false);
@@ -380,10 +379,10 @@ describe('UserService', () => {
     });
 
     it('should rethrow P2002 errors from unexpected targets (defense-in-depth)', async () => {
-      // PR #818 R2 review: the full path now matches target='discord_id'
-      // like the shell path. A P2002 from the persona `(owner_id, name)`
-      // constraint — or any non-discord-id unique — should NOT be
-      // mis-classified as a race and recovered; it must propagate.
+      // The full path matches target='discord_id' just like the shell path.
+      // A P2002 from the persona `(owner_id, name)` constraint — or any
+      // non-discord-id unique — must propagate, not be mis-classified as a
+      // "user already exists" race and recovered.
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
       mockPrisma.$executeRaw.mockRejectedValueOnce({
         code: 'P2002',
