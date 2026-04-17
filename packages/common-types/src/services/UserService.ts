@@ -333,16 +333,19 @@ export class UserService {
    * Check if an error is a Prisma unique constraint violation (P2002).
    * Uses duck typing to avoid instanceof issues in test environments.
    *
-   * Optionally filter to a specific constraint via `target` — matches substrings
-   * in `error.meta.target` (Prisma includes the constraint name/columns there).
+   * Optionally filter to a specific constraint column via `target`. Matches
+   * `error.meta.target` at element granularity: if Prisma gives an array
+   * (`['owner_id', 'name']`), we check whether the caller's target equals
+   * any element; if Prisma gives a string, we check exact equality.
    * Callers that just want "any P2002" pass no target. Callers that need to
    * distinguish between multiple possible unique constraints on a transaction
    * (e.g., shell creation now writes User + Persona, each with its own
    * uniqueness) pass a target to match only the expected constraint.
    *
    * Identity Epic Phase 5b added the target parameter as defense-in-depth for
-   * the new shell-creation transaction. Future schema changes that add more
-   * unique constraints on User/Persona won't silently mis-recover.
+   * the new shell-creation transaction. Element-equality (not substring)
+   * matching means a future caller passing a short target like `'id'` can't
+   * silently false-positive against a longer column name like `'discord_id'`.
    */
   private isPrismaUniqueConstraintError(error: unknown, target?: string): boolean {
     if (
@@ -356,20 +359,21 @@ export class UserService {
     if (target === undefined) {
       return true;
     }
-    // Prisma P2002 errors include `meta.target` — either a string or array of
-    // constraint column names. We do a substring match for robustness across
-    // both shapes.
+    // Prisma P2002 errors include `meta.target` — either a string or array
+    // of constraint column names. Compare at element granularity so a short
+    // target can't substring-match a longer column name.
     const meta = 'meta' in error ? (error as { meta?: unknown }).meta : undefined;
     if (meta === null || typeof meta !== 'object' || !('target' in meta)) {
       return false;
     }
     const metaTarget = (meta as { target: unknown }).target;
-    const serialized = Array.isArray(metaTarget)
-      ? metaTarget.join(',')
-      : typeof metaTarget === 'string'
-        ? metaTarget
-        : '';
-    return serialized.includes(target);
+    if (Array.isArray(metaTarget)) {
+      return metaTarget.some(t => t === target);
+    }
+    if (typeof metaTarget === 'string') {
+      return metaTarget === target;
+    }
+    return false;
   }
 
   /**
