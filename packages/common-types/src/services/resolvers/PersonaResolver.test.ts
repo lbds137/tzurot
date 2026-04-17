@@ -358,7 +358,7 @@ describe('PersonaResolver', () => {
       });
     });
 
-    it('should default focusModeEnabled to false when no config exists', async () => {
+    it('should default focusModeEnabled to false when no config exists (or user missing)', async () => {
       mockPrismaClient.user.findUnique.mockResolvedValueOnce({
         id: 'user-uuid',
         defaultPersonaId: 'persona-123',
