@@ -13,6 +13,55 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
+- 🐛 `[FIX]` **🚫 BETA.100 BLOCKER — `/admin db-sync` fails with NOT NULL violation on `users.default_persona_id`** — Observed 2026-04-17 19:52 UTC by bot owner. Command fails with HTTP 500:
+
+  ```
+  INTERNAL_ERROR: Invalid `prisma.$executeRawUnsafe()` invocation:
+  Raw query failed. Code: `23502`. Message: `null value in column "default_persona_id"
+  of relation "users" violates not-null constraint`
+  ```
+
+  **Root cause — schema/sync drift**: migration `20260416215546_identity_epic_phase_5b_default_persona_not_null` (applied 2026-04-16) made `users.default_persona_id` NOT NULL. `prisma/schema.prisma:27` declares it `defaultPersonaId String` (non-nullable). But `services/api-gateway/src/services/sync/config/syncTables.ts:104` lists `default_persona_id` in `deferredFkColumns`, which means pass 1 of the two-pass sync inserts users with this column NULL (to break the users↔personas circular FK), and pass 2 backfills from prod after personas sync. Pass 1 now violates the constraint and the whole sync aborts.
+
+  **Fix options**:
+  - **(a)** Remove `default_persona_id` from `deferredFkColumns` and reorder the sync so personas sync before users. Requires untangling the circular FK (users.default_persona_id → personas.id and personas.owner_id → users.id) in a different direction.
+  - **(b)** Sync personas for the user first, insert users with a real `default_persona_id` (e.g., synthesize a provisional persona per synced user if one doesn't exist yet, then overwrite in pass 2). Keeps the two-pass shape but breaks the circular insert.
+  - **(c)** Do the sync inside a session where `SET CONSTRAINTS ALL DEFERRED` is active and the FK is `DEFERRABLE INITIALLY DEFERRED`. Requires a migration to mark the FK deferrable. Preserves current logic with minimal code churn.
+
+  Option (c) is likely the smallest change but is a separate migration. Option (b) is the most correct long-term. Blocker because dev→prod syncing is a common dev-loop need.
+
+  **Start**:
+  - Error site: `services/api-gateway/src/services/sync/` — `DatabaseSyncService.ts` entry point
+  - Sync config: `services/api-gateway/src/services/sync/config/syncTables.ts:104` (`deferredFkColumns`)
+  - Schema state: `prisma/schema.prisma:27` (defaultPersonaId NOT NULL)
+  - Migration that introduced the mismatch: `prisma/migrations/20260416215546_identity_epic_phase_5b_default_persona_not_null/migration.sql`
+  - Related sync-order documentation: `syncTables.ts:213-218` (dependency graph)
+
+- 🐛 `[FIX]` **🚫 BETA.100 BLOCKER — `/settings preset default` rejects valid-looking configId as "Invalid configId format"** — Observed 2026-04-17 19:54 UTC by bot owner. Command fails with user-visible: `❌ Failed to set default: configId: Invalid configId format`. This is produced by `SetDefaultConfigSchema` in `packages/common-types/src/schemas/api/model-override.ts:103` — `z.string().uuid(...)`.
+
+  **Investigation pointers — what is and isn't known**:
+  - Command flow: bot-client `settings/preset/default.ts` → reads `options.preset()` → `PUT /user/model-override/default { configId }` → api-gateway validates with `SetDefaultConfigSchema` → rejects non-UUID.
+  - Autocomplete at `settings/preset/autocomplete.ts:140` sets `value: c.id`, where `c.id` comes from `/user/llm-config` → `LlmConfigSummarySchema.id = z.string()` (NOT `.uuid()`). The response schema is wider than the input schema — if any config has a non-UUID id, autocomplete would accept it and the downstream write would reject it.
+  - Prisma schema declares `LlmConfig.id` as `@db.Uuid`, so all database-backed configs have UUID ids. But this means either (a) a newly-provisioned config is slipping in with a non-UUID id via some code path, or (b) the user manually typed a value instead of picking from autocomplete (which Discord allows for string-option inputs).
+
+  **First investigation step**: have the user confirm whether they picked from autocomplete or typed. If typed, this is a UX gap (need to tighten the bot-side validation before calling the API, or switch to a choice-only option). If picked, something is wrong with autocomplete's value population or the configs list includes a non-UUID id.
+
+  **Fix options** (pending triage):
+  - **(a)** Tighten `LlmConfigSummarySchema.id` to `z.string().uuid()` — forces the gateway to reject non-UUID configs from its own response, catches the class of bug at the response boundary.
+  - **(b)** Bot-side pre-validation: `settings/preset/default.ts` checks the configId is a UUID before calling the API and shows a friendlier error if it's not.
+  - **(c)** Switch the `preset` option from free-text string to `addChoices` (if the config count is reasonable) so users cannot type arbitrary strings.
+  - Probably want both (a) and either (b) or (c).
+
+  Blocker because `/settings preset default` is a core user flow and the error message is opaque ("Invalid configId format" looks like a dev error, not a user-actionable one).
+
+  **Start**:
+  - User-visible error assembly: `services/bot-client/src/commands/settings/preset/default.ts:48` (echoes `result.error` verbatim)
+  - Schema that rejects: `packages/common-types/src/schemas/api/model-override.ts:103` (`SetDefaultConfigSchema`)
+  - Schema that over-permits: `packages/common-types/src/schemas/api/llm-config.ts:204` (`LlmConfigSummarySchema.id` — should tighten to `.uuid()`)
+  - Autocomplete value source: `services/bot-client/src/commands/settings/preset/autocomplete.ts:140`
+  - Gateway handler: `services/api-gateway/src/routes/user/model-override.ts` (PUT `/user/model-override/default`)
+  - Underlying service: `services/api-gateway/src/services/LlmConfigService.ts:333` (`setDefault`)
+
 - 🐛 `[FIX]` **Character field length caps cause silent data loss in dashboard edit + block API updates** — `PersonalityCharacterFieldsSchema` enforces length caps (1000/100/4000 chars per field, matching Discord modal input limits) at the Zod validation layer. Characters with legacy fields exceeding those caps (likely from shapes.inc imports or pre-cap data) exhibit two failure modes:
 
   **1. Silent data loss via dashboard edit** (CRITICAL): When a user clicks a character dashboard section that contains an over-long field (e.g., Biography → Appearance), `ModalFactory.buildSectionModal` silently truncates the pre-fill to `maxLength` chars at `services/bot-client/src/utils/dashboard/ModalFactory.ts:108` (`currentValue.slice(0, maxLength)`). The user sees no warning. If they submit, the trailing content is irrecoverably lost. The truncation is justified at line 107 as "Discord modals require value to be within length constraints" — a genuine API constraint — but the destructive behavior is hidden from the user.
@@ -63,6 +112,24 @@ _Active bugs observed in production. Fix before new features._
 ## 📥 Inbox
 
 _New items go here. Triage to appropriate section weekly._
+
+- 🐛 `[FIX]` **Deleting from dashboard-after-browse loses the browse context — no back-to-browse affordance** — When a user browses to a character/persona/preset via `/... browse` and then clicks Delete in the resulting dashboard, the post-delete screen is just an `editReply` with "✅ Character has been deleted." + stats. There's no button to return to the browse list they came from, even though the session has `browseContext` populated when the dashboard was opened from browse. User has to re-run the browse command to keep going through their collection. Surfaced in conversation 2026-04-17.
+
+  **Scope — affects multiple commands**: `browseContext` is used by `character`, `deny`, `persona`, and `preset` dashboards. All four share the same pattern: dashboard sessions carry a `browseContext: { source: 'browse', page, filter, sort? | query? }` field; back-from-edit preserves it via `handleBackButton`; **delete discards it**. So this is a cross-cutting UX gap, not a single-command bug.
+
+  **Proposed fix** (shape; each command implements independently since their browse flows are not shared yet):
+  - On successful delete, if `session.data.browseContext !== undefined`, render the post-delete confirmation with a "Back to Browse" button whose `customId` encodes the original browse-context (page, filter, sort/query).
+  - The button's handler is already wired — each command's `handleBackButton` consumes the same shape and re-renders the browse list.
+  - If no `browseContext` exists (dashboard opened via direct slash command), render today's post-delete state unchanged.
+  - Tests: one per command asserting that post-delete components include the back-button when browseContext was present, and omit it when absent.
+
+  **Known complication**: the entity no longer exists after delete, so the session lookup by entity slug will be stale by the time the Back-to-Browse button is clicked. The browse list handler needs to re-query the list from scratch (it already does). Just don't try to re-hydrate the session for the deleted entity.
+
+  **Start**:
+  - Delete handlers (per command): `services/bot-client/src/commands/character/dashboardDeleteHandlers.ts`, `services/bot-client/src/commands/preset/dashboardButtons.ts` (`handleDeleteButton`), equivalents in `persona/`, `deny/`
+  - Existing back handler that consumes browseContext: `services/bot-client/src/commands/character/dashboardButtons.ts` `handleBackButton` and equivalents
+  - Session shape: each command's `types.ts` — look for `browseContext?: BrowseContext`
+  - Cross-cut candidate: the pattern may be shared-utility worthy once 3+ commands implement it; follow rule-of-three (do it in the first command, confirm shape with the second, extract on the third).
 
 - 🧹 `[CHORE]` **Normalize logger-message prefixes across bot-client (Pino convention)** — Most log calls in `services/bot-client/src/services/JobTracker.ts` (and likely other bot-client modules) hardcode a module-name prefix into the message string, e.g. `logger.warn({ jobId }, '[JobTracker] Completed job after Xs')`. Per Pino conventions, the `createLogger('JobTracker')` call already tags every message with the module name in the serialized output — the prefix string is redundant and couples the message to the module name (rename → search/replace hazard). Surfaced during PR #820 round 5: I stripped the prefix from one new log in round 2 thinking it was cleaner, then R5 reviewer correctly flagged that leaving 1 without + 10+ with creates ambiguity for future authors. Restored the prefix in that PR to preserve consistency; this backlog item is to do the broader normalization as a dedicated pass. **Fix shape**: grep for `'\[\w+\]` in log-message strings across `services/bot-client/src/`, remove them, verify logs still carry the module name via the `createLogger` tag, update any regex-based log grep/dashboard queries that depend on the bracket prefix. Low risk; touches many lines but no behavior change. **Start**: `grep -rn "'\[" services/bot-client/src/ | grep logger` to enumerate, then tackle one module at a time. Possibly extend scope to api-gateway/ai-worker once bot-client is clean.
 - 🐛 `[FIX]` **Voice generation intermittently fails — investigate** — User has observed TTS/voice-generation failures "every now and again" on 2026-04-17, not yet reproduced deterministically or correlated to a specific cause. Unknown whether the failures originate at ElevenLabs (rate limit / 429, quota, transient network), the voice-engine fallback (cold start timeout, ONNX model load, Pocket TTS failure), the handoff between them, or somewhere further upstream (job failure, audio attachment validation). Existing TTS-adjacent backlog items (ElevenLabs timeout reduction, voice-engine warmup parallelism, STT+voice-engine retry-count audit) cover _known_ tuning opportunities; this item covers the open question of which failure modes are actually occurring in production.
