@@ -13,30 +13,6 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-- 🐛 `[FIX]` **🚫 BETA.100 BLOCKER — `/admin db-sync` fails with NOT NULL violation on `users.default_persona_id`** — Observed 2026-04-17 19:52 UTC by bot owner. Command fails with HTTP 500:
-
-  ```
-  INTERNAL_ERROR: Invalid `prisma.$executeRawUnsafe()` invocation:
-  Raw query failed. Code: `23502`. Message: `null value in column "default_persona_id"
-  of relation "users" violates not-null constraint`
-  ```
-
-  **Root cause — schema/sync drift**: migration `20260416215546_identity_epic_phase_5b_default_persona_not_null` (applied 2026-04-16) made `users.default_persona_id` NOT NULL. `prisma/schema.prisma:27` declares it `defaultPersonaId String` (non-nullable). But `services/api-gateway/src/services/sync/config/syncTables.ts:104` lists `default_persona_id` in `deferredFkColumns`, which means pass 1 of the two-pass sync inserts users with this column NULL (to break the users↔personas circular FK), and pass 2 backfills from prod after personas sync. Pass 1 now violates the constraint and the whole sync aborts.
-
-  **Fix options**:
-  - **(a)** Remove `default_persona_id` from `deferredFkColumns` and reorder the sync so personas sync before users. Requires untangling the circular FK (users.default_persona_id → personas.id and personas.owner_id → users.id) in a different direction.
-  - **(b)** Sync personas for the user first, insert users with a real `default_persona_id` (e.g., synthesize a provisional persona per synced user if one doesn't exist yet, then overwrite in pass 2). Keeps the two-pass shape but breaks the circular insert.
-  - **(c)** Do the sync inside a session where `SET CONSTRAINTS ALL DEFERRED` is active and the FK is `DEFERRABLE INITIALLY DEFERRED`. Requires a migration to mark the FK deferrable. Preserves current logic with minimal code churn.
-
-  Option (c) is likely the smallest change but is a separate migration. Option (b) is the most correct long-term. Blocker because dev→prod syncing is a common dev-loop need.
-
-  **Start**:
-  - Error site: `services/api-gateway/src/services/sync/` — `DatabaseSyncService.ts` entry point
-  - Sync config: `services/api-gateway/src/services/sync/config/syncTables.ts:104` (`deferredFkColumns`)
-  - Schema state: `prisma/schema.prisma:27` (defaultPersonaId NOT NULL)
-  - Migration that introduced the mismatch: `prisma/migrations/20260416215546_identity_epic_phase_5b_default_persona_not_null/migration.sql`
-  - Related sync-order documentation: `syncTables.ts:213-218` (dependency graph)
-
 - 🐛 `[FIX]` **🚫 BETA.100 BLOCKER — preset-option autocomplete produces configIds that the gateway rejects as "Invalid configId format"** — First observed via `/settings preset default` on 2026-04-17 19:54 UTC by bot owner, who confirmed the value was **picked from autocomplete** (not typed manually). Failing request produced: `❌ Failed to set default: configId: Invalid configId format`, from `SetDefaultConfigSchema.configId = z.string().uuid(...)` at `packages/common-types/src/schemas/api/model-override.ts:103`.
 
   **Scope — this is a cross-command pattern, not a single-command bug**: every command that feeds preset-autocomplete values into a gateway endpoint with a `.uuid()` configId schema is on the same failure path. Enumerated consumers (grep for autocomplete files + `.uuid()` schemas):
