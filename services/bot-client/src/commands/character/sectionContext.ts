@@ -27,12 +27,12 @@ import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { isBotOwner, type EnvConfig } from '@tzurot/common-types';
 import {
-  fetchOrCreateSession,
-  DASHBOARD_MESSAGES,
   type DashboardConfig,
   type DashboardContext,
   type SectionDefinition,
-} from '../../utils/dashboard/index.js';
+} from '../../utils/dashboard/types.js';
+import { fetchOrCreateSession } from '../../utils/dashboard/sessionHelpers.js';
+import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import {
   getCharacterDashboardConfig,
   type CharacterData,
