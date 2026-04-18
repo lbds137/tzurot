@@ -46,7 +46,8 @@ vi.mock('../../utils/dashboard/sessionHelpers.js', async importOriginal => {
   };
 });
 
-const { resolveCharacterSectionContext } = await import('./sectionContext.js');
+const { resolveCharacterSectionContext, findCharacterSection, loadCharacterSectionData } =
+  await import('./sectionContext.js');
 
 describe('resolveCharacterSectionContext', () => {
   beforeEach(() => {
@@ -182,6 +183,88 @@ describe('resolveCharacterSectionContext', () => {
         content: expect.stringContaining('not found'),
         flags: MessageFlags.Ephemeral,
       })
+    );
+  });
+});
+
+describe('findCharacterSection (sync helper)', () => {
+  beforeEach(() => {
+    mockIsBotOwner.mockReturnValue(false);
+  });
+
+  it('returns the full sync bundle for a known section', () => {
+    const result = findCharacterSection('identity', 'user-1');
+    expect(result).not.toBeNull();
+    expect(result?.section.id).toBe('identity');
+    expect(result?.isAdmin).toBe(false);
+    expect(result?.context).toEqual({ isAdmin: false, userId: 'user-1' });
+  });
+
+  it('returns null for unknown section id (no side effects)', () => {
+    // Sync helper must not touch the interaction — callers decide what
+    // to do about the null. This is what lets step 1 of the edit flow
+    // call it pre-update without blowing the 3-sec budget on an
+    // error reply.
+    const result = findCharacterSection('nonexistent-section', 'user-1');
+    expect(result).toBeNull();
+  });
+
+  it('propagates admin status from isBotOwner', () => {
+    mockIsBotOwner.mockReturnValue(true);
+    const result = findCharacterSection('identity', 'admin-1');
+    expect(result?.isAdmin).toBe(true);
+    expect(result?.context.isAdmin).toBe(true);
+  });
+});
+
+describe('loadCharacterSectionData (async helper with pre-resolved sync bundle)', () => {
+  beforeEach(() => {
+    mockFetchOrCreateSession.mockReset();
+    mockIsBotOwner.mockReturnValue(false);
+  });
+
+  it('fetches data and returns the full context bundle on success', async () => {
+    // Regression pin for PR #825 R9: the split exists to let callers
+    // do the sync resolution once and reuse it, avoiding a second
+    // getCharacterDashboardConfig build. This test confirms the async
+    // path accepts a pre-built sync bundle and returns the merged
+    // context without re-deriving the config.
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { slug: 'hero', name: 'Hero', _isAdmin: false },
+    });
+    const sync = findCharacterSection('identity', 'user-1');
+    expect(sync).not.toBeNull();
+    if (sync === null) return;
+
+    const interaction = {
+      user: { id: 'user-1' },
+      reply: vi.fn(),
+    } as unknown as ButtonInteraction;
+
+    const result = await loadCharacterSectionData(interaction, 'hero', {} as never, sync);
+    expect(result).not.toBeNull();
+    expect(result?.data.name).toBe('Hero');
+    // Same bundle fields — no second dashboardConfig build.
+    expect(result?.dashboardConfig).toBe(sync.dashboardConfig);
+    expect(result?.section).toBe(sync.section);
+  });
+
+  it('sends "Character not found" on fetch failure and returns null', async () => {
+    mockFetchOrCreateSession.mockResolvedValue({ success: false });
+    const sync = findCharacterSection('identity', 'user-1');
+    if (sync === null) throw new Error('sync resolution should not fail');
+
+    const mockReply = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      reply: mockReply,
+    } as unknown as ButtonInteraction;
+
+    const result = await loadCharacterSectionData(interaction, 'hero', {} as never, sync);
+    expect(result).toBeNull();
+    expect(mockReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('not found') })
     );
   });
 });

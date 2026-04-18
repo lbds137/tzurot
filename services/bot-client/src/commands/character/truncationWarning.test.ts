@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags } from 'discord.js';
+import { ButtonStyle, MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
 // Mock common-types — logger, DISCORD_COLORS, isBotOwner, getConfig.
@@ -193,11 +193,23 @@ describe('buildTruncationButtons', () => {
     const json = row.toJSON();
     expect(json.components).toHaveLength(3);
     const customIds = json.components.map(c => (c as { custom_id: string }).custom_id);
+    // Ordered per `04-discord.md` Standard Button Order: Primary (View Full)
+    // first, Secondary (Cancel) middle, Destructive (Edit with Truncation)
+    // last. A regression that reverts to destructive-first would break
+    // consistency with delete-confirmation dialogs across the codebase.
     expect(customIds).toEqual([
-      'character::edit_truncated::char-1::identity',
       'character::view_full::char-1::identity',
       'character::cancel_edit::char-1::identity',
+      'character::edit_truncated::char-1::identity',
     ]);
+  });
+
+  it('places the Danger-styled button last per destructive-last rule', () => {
+    const row = buildTruncationButtons('char-1', 'identity');
+    const json = row.toJSON();
+    const styles = json.components.map(c => (c as { style: number }).style);
+    // ButtonStyle.Danger = 4; verify it's the last button's style.
+    expect(styles[styles.length - 1]).toBe(ButtonStyle.Danger);
   });
 
   it('sets an emoji on every button per 04-discord.md consistency rule', () => {

@@ -24,17 +24,15 @@ import {
   MessageFlags,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  getConfig,
-  isBotOwner,
-  type EnvConfig,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, getConfig, type EnvConfig } from '@tzurot/common-types';
 import { buildDashboardCustomId, type SectionDefinition } from '../../utils/dashboard/types.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
-import { getCharacterDashboardConfig, type CharacterData } from './config.js';
-import { resolveCharacterSectionContext } from './sectionContext.js';
+import { type CharacterData } from './config.js';
+import {
+  findCharacterSection,
+  loadCharacterSectionData,
+  resolveCharacterSectionContext,
+} from './sectionContext.js';
 
 const logger = createLogger('character-truncation-warning');
 
@@ -151,21 +149,21 @@ export function buildTruncationWarningEmbed(
 }
 
 /**
- * Build the three-button row for the warning:
- * - Edit with Truncation (danger, opt-in to destructive edit)
+ * Build the three-button row for the warning, ordered per `04-discord.md`
+ * Standard Button Order (Primary first, Destructive last):
  * - View Full (primary, safe read-only inspection)
  * - Cancel (secondary, dismiss)
+ * - Edit with Truncation (danger, opt-in to destructive edit)
+ *
+ * The destructive-last convention matches the memory detail flow and the
+ * delete-confirmation dialogs across the codebase; consistency outranks
+ * the "lead with the warning" instinct for this UX.
  */
 export function buildTruncationButtons(
   entityId: string,
   sectionId: string
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'edit_truncated', entityId, sectionId))
-      .setLabel('Edit with Truncation')
-      .setEmoji('✂️')
-      .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(buildDashboardCustomId('character', 'view_full', entityId, sectionId))
       .setLabel('View Full')
@@ -175,7 +173,12 @@ export function buildTruncationButtons(
       .setCustomId(buildDashboardCustomId('character', 'cancel_edit', entityId, sectionId))
       .setLabel('Cancel')
       .setEmoji('✖️')
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(buildDashboardCustomId('character', 'edit_truncated', entityId, sectionId))
+      .setLabel('Edit with Truncation')
+      .setEmoji('✂️')
+      .setStyle(ButtonStyle.Danger)
   );
 }
 
@@ -258,9 +261,13 @@ export async function handleEditTruncatedButton(
   sectionId: string,
   config: EnvConfig = getConfig()
 ): Promise<void> {
-  // Resolve the section label for the embed copy — this is a sync lookup
-  // on the dashboard config (no Redis, no gateway), safe before `update`.
-  const sectionLabel = getSectionLabelSync(sectionId, interaction.user.id);
+  // Sync-resolve the section ONCE — label for the embed copy plus the
+  // dashboard bundle we reuse in step 2's warm. This avoids the double
+  // getCharacterDashboardConfig call that the naive shape (label-sync +
+  // full resolveCharacterSectionContext) would perform. Surfaced in PR
+  // #825 R9 review.
+  const sync = findCharacterSection(sectionId, interaction.user.id);
+  const sectionLabel = sync?.section.label ?? sectionId;
 
   // Step 1 — ack within the 3-sec budget via `update`. No async before this.
   await interaction.update({
@@ -269,36 +276,25 @@ export async function handleEditTruncatedButton(
   });
 
   // Step 2 — warm the session so the Open Editor click gets a hot cache
-  // hit. If this fails we swallow the error: the Open Editor handler has
-  // its own resolveContext + 10062 fallback, so a failed warm here just
-  // means it retries there. Logged for visibility into cache-miss rates.
-  //
-  // Subtle contract note: on a `null` (non-throwing) return from
-  // resolveCharacterSectionContext, sectionContext's replyError helper
-  // has already `followUp`-ed an error like "❌ Unknown section." — which
-  // would visually collide with our just-sent "Ready to edit" embed. We
-  // accept this collision because null returns are unreachable in
-  // practice here: the section lookup is a sync walk of a static dashboard
-  // config (no Redis, no gateway), and the customId we're acting on was
-  // emitted from that same config in step 0, so the section always exists.
-  // The character-not-found branch is the only realistic null path, and
-  // even then the "Ready to edit" embed + "Character not found" followUp
-  // is a strict improvement over the pre-option-(b) silent 10062.
-  try {
-    const warmResult = await resolveCharacterSectionContext(
-      interaction,
-      entityId,
-      sectionId,
-      config
+  // hit. If the sync section lookup failed (unknown sectionId), we
+  // can't warm and there's nothing to do — the open_editor click will
+  // hit its own resolveContext + error path. Swallow quietly.
+  if (sync === null) {
+    logger.warn(
+      { userId: interaction.user.id, entityId, sectionId },
+      'Unknown sectionId in edit_truncated opt-in; open_editor click will surface the error'
     );
+    return;
+  }
+
+  // If the data fetch fails (character-deleted race between warning and
+  // opt-in click), loadCharacterSectionData already sent a followUp via
+  // replyError. The user now sees "Ready to edit" + error followUp —
+  // strictly better than pre-option-(b) silent 10062; log so the
+  // frequency is trackable.
+  try {
+    const warmResult = await loadCharacterSectionData(interaction, entityId, config, sync);
     if (warmResult === null) {
-      // sectionContext already sent a followUp via replyError — the user
-      // now sees the "Ready to edit" embed + an error followUp. Per the
-      // comment above this is strictly better than the pre-option-(b)
-      // silent 10062, but we log it so the frequency is trackable. A
-      // null here is realistically only the character-deleted race
-      // (warning → opt-in click gap); the unknown-section path is dead
-      // per the static-config argument.
       logger.warn(
         { userId: interaction.user.id, entityId, sectionId },
         'Session warm returned null after edit_truncated opt-in (likely character-deleted race); user saw Ready-to-Edit + followUp error'
@@ -310,19 +306,6 @@ export async function handleEditTruncatedButton(
       'Session warm failed after edit_truncated opt-in; open_editor will retry'
     );
   }
-}
-
-/**
- * Sync lookup of a section's display label for use in the "Ready to edit"
- * embed. Walks the statically-built dashboard config — no Redis, no gateway,
- * safe to call before the 3-sec `interaction.update` ack. Falls back to
- * the raw sectionId on unknown sections so the embed still renders.
- */
-function getSectionLabelSync(sectionId: string, userId: string): string {
-  const isAdmin = isBotOwner(userId);
-  const config = getCharacterDashboardConfig(isAdmin, false);
-  const section = config.sections.find(s => s.id === sectionId);
-  return section?.label ?? sectionId;
 }
 
 /**
