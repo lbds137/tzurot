@@ -27,6 +27,7 @@ import {
   formatSessionExpiredMessage,
 } from '../../utils/dashboard/index.js';
 import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   type FlattenedPersonaData,
@@ -105,7 +106,11 @@ async function handleSectionModalSubmit(
     const updatePayload = unflattenPersonaData(extracted.merged);
 
     // Update persona via API
-    const updatedPersona = await updatePersona(entityId, updatePayload, interaction.user.id);
+    const updatedPersona = await updatePersona(
+      entityId,
+      updatePayload,
+      toGatewayUser(interaction.user)
+    );
 
     if (!updatedPersona) {
       await interaction.followUp({
@@ -160,7 +165,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   await handleDashboardSectionSelect<FlattenedPersonaData, PersonaDetails>(interaction, {
     entityType: 'persona',
     dashboardConfig: PERSONA_DASHBOARD_CONFIG,
-    fetchFn: (entityId, userId) => fetchPersona(entityId, userId),
+    fetchFn: (entityId, user) => fetchPersona(entityId, user),
     transformFn: flattenPersonaData,
     entityName: 'Persona',
   });
@@ -195,7 +200,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
   }
 
   // Check if this is the default persona
-  const isDefault = await isDefaultPersona(entityId, interaction.user.id);
+  const isDefault = await isDefaultPersona(entityId, toGatewayUser(interaction.user));
   if (isDefault) {
     await interaction.reply({
       content:
@@ -236,7 +241,7 @@ async function handleConfirmDeleteButton(
 
   const personaName = session?.data.name ?? 'Persona';
 
-  const result = await deletePersona(entityId, interaction.user.id);
+  const result = await deletePersona(entityId, toGatewayUser(interaction.user));
 
   if (!result.success) {
     await interaction.editReply({
@@ -370,7 +375,7 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
 
   try {
     const result = await buildBrowseResponse(
-      interaction.user.id,
+      toGatewayUser(interaction.user),
       browseContext.page,
       browseContext.sort as PersonaBrowseSortType
     );

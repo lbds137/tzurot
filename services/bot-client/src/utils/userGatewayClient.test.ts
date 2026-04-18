@@ -38,8 +38,15 @@ import {
   isGatewayConfigured,
   parseErrorResponse,
   callGatewayApi,
+  toGatewayUser,
   GATEWAY_TIMEOUTS,
+  type GatewayUser,
 } from './userGatewayClient.js';
+import type { User as DiscordUser } from 'discord.js';
+
+function mkUser(discordId = 'user-123'): GatewayUser {
+  return { discordId, username: 'test-user', displayName: 'Test User' };
+}
 
 // Helper to create mock config with defaults
 function createMockConfig(overrides: Record<string, unknown> = {}) {
@@ -172,7 +179,7 @@ describe('userGatewayClient', () => {
       });
 
       const result = await callGatewayApi<{ data: string }>('/test', {
-        userId: 'user-123',
+        user: mkUser(),
       });
 
       expect(result.ok).toBe(true);
@@ -187,6 +194,8 @@ describe('userGatewayClient', () => {
           headers: {
             'X-Service-Auth': 'test-service-secret',
             'X-User-Id': 'user-123',
+            'X-User-Username': 'test-user',
+            'X-User-DisplayName': 'Test%20User',
           },
         })
       );
@@ -200,7 +209,7 @@ describe('userGatewayClient', () => {
 
       await callGatewayApi('/test', {
         method: 'POST',
-        userId: 'user-123',
+        user: mkUser(),
         body: { key: 'value' },
       });
 
@@ -211,6 +220,8 @@ describe('userGatewayClient', () => {
           headers: {
             'X-Service-Auth': 'test-service-secret',
             'X-User-Id': 'user-123',
+            'X-User-Username': 'test-user',
+            'X-User-DisplayName': 'Test%20User',
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ key: 'value' }),
@@ -225,7 +236,7 @@ describe('userGatewayClient', () => {
         json: vi.fn().mockResolvedValue({ error: 'Not found' }),
       });
 
-      const result = await callGatewayApi('/test', { userId: 'user-123' });
+      const result = await callGatewayApi('/test', { user: mkUser() });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -248,7 +259,7 @@ describe('userGatewayClient', () => {
         }),
       });
 
-      const result = await callGatewayApi('/test', { userId: 'user-123' });
+      const result = await callGatewayApi('/test', { user: mkUser() });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -265,7 +276,7 @@ describe('userGatewayClient', () => {
         json: vi.fn().mockResolvedValue({ error: 'Internal error' }),
       });
 
-      const result = await callGatewayApi('/test', { userId: 'user-123' });
+      const result = await callGatewayApi('/test', { user: mkUser() });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -276,7 +287,7 @@ describe('userGatewayClient', () => {
     it('should handle fetch errors', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
-      const result = await callGatewayApi('/test', { userId: 'user-123' });
+      const result = await callGatewayApi('/test', { user: mkUser() });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -291,7 +302,7 @@ describe('userGatewayClient', () => {
         json: vi.fn().mockResolvedValue({ data: 'test' }),
       });
 
-      await callGatewayApi('/test', { userId: 'user-123' });
+      await callGatewayApi('/test', { user: mkUser() });
 
       // Verify AbortSignal.timeout was called with default (2500ms)
       expect(mockFetch).toHaveBeenCalledWith(
@@ -309,7 +320,7 @@ describe('userGatewayClient', () => {
       });
 
       await callGatewayApi('/test', {
-        userId: 'user-123',
+        user: mkUser(),
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       });
 
@@ -326,13 +337,71 @@ describe('userGatewayClient', () => {
       const timeoutError = new DOMException('Signal timed out', 'TimeoutError');
       mockFetch.mockRejectedValue(timeoutError);
 
-      const result = await callGatewayApi('/test', { userId: 'user-123' });
+      const result = await callGatewayApi('/test', { user: mkUser() });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error).toBe('Request timeout (gateway slow or unavailable)');
         expect(result.status).toBe(0);
       }
+    });
+
+    it('should URI-encode username and displayName for non-Latin-1 values', async () => {
+      // Node fetch rejects non-Latin-1 chars (emoji) in header values with a
+      // synchronous throw. Encoding on the way out is the only safe path;
+      // PR B's gateway middleware decodes on arrival.
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await callGatewayApi('/test', {
+        user: {
+          discordId: 'user-123',
+          username: 'alice_🌸',
+          displayName: '👋 Alice',
+        },
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-User-Username': encodeURIComponent('alice_🌸'),
+            'X-User-DisplayName': encodeURIComponent('👋 Alice'),
+          }),
+        })
+      );
+    });
+  });
+
+  describe('toGatewayUser', () => {
+    it('should use globalName as displayName when present', () => {
+      const user = {
+        id: 'user-123',
+        username: 'alice',
+        globalName: 'Alice Cooper',
+      } as DiscordUser;
+
+      expect(toGatewayUser(user)).toEqual({
+        discordId: 'user-123',
+        username: 'alice',
+        displayName: 'Alice Cooper',
+      });
+    });
+
+    it('should fall back to username when globalName is null', () => {
+      const user = {
+        id: 'user-123',
+        username: 'alice',
+        globalName: null,
+      } as DiscordUser;
+
+      expect(toGatewayUser(user)).toEqual({
+        discordId: 'user-123',
+        username: 'alice',
+        displayName: 'alice',
+      });
     });
   });
 

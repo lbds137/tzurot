@@ -9,7 +9,7 @@
 
 import { createLogger, personaOverrideClearOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-override-clear');
 
@@ -37,7 +37,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
     const result = await callGatewayApi<ClearOverrideResponse>(
       `/user/persona/override/${personalitySlug}`,
       {
-        userId: discordId,
+        user: toGatewayUser(context.user),
         method: 'DELETE',
       }
     );

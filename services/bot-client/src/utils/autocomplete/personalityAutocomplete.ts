@@ -18,6 +18,7 @@ import {
   formatAutocompleteOption,
 } from '@tzurot/common-types';
 import { getCachedPersonalities } from './autocompleteCache.js';
+import { toGatewayUser } from '../userGatewayClient.js';
 
 const logger = createLogger('personality-autocomplete');
 
@@ -74,7 +75,7 @@ export async function handlePersonalityAutocomplete(
 
   try {
     // Use cached data to avoid HTTP requests on every keystroke
-    const personalities = await getCachedPersonalities(userId);
+    const personalities = await getCachedPersonalities(toGatewayUser(interaction.user));
 
     if (personalities.length === 0) {
       await interaction.respond([]);

@@ -16,6 +16,7 @@ import {
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, formatDateTimeCompact } from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 
 import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
 import type { MemoryItem } from './detailApi.js';
@@ -210,12 +211,11 @@ export function buildDeleteConfirmButtons(memoryId: string): ActionRowBuilder<Bu
  * parameter.)
  */
 export async function handleMemorySelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  const userId = interaction.user.id;
   const memoryId = interaction.values[0];
 
   await interaction.deferUpdate();
 
-  const memory = await fetchMemory(userId, memoryId);
+  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
   if (memory === null) {
     await interaction.followUp({
       content: '❌ Failed to load memory details. It may have been deleted.',
@@ -244,7 +244,7 @@ export async function handleLockButton(
 
   await interaction.deferUpdate();
 
-  const updatedMemory = await toggleMemoryLock(userId, memoryId);
+  const updatedMemory = await toggleMemoryLock(toGatewayUser(interaction.user), memoryId);
   if (updatedMemory === null) {
     await interaction.followUp({
       content: '❌ Failed to update lock status. Please try again.',
@@ -272,11 +272,9 @@ export async function handleDeleteButton(
   interaction: ButtonInteraction,
   memoryId: string
 ): Promise<void> {
-  const userId = interaction.user.id;
-
   await interaction.deferUpdate();
 
-  const memory = await fetchMemory(userId, memoryId);
+  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
   if (memory === null) {
     await interaction.followUp({
       content: '❌ Failed to load memory. It may have already been deleted.',
@@ -321,7 +319,7 @@ export async function handleDeleteConfirm(
     await interaction.deferUpdate();
   }
 
-  const success = await deleteMemory(userId, memoryId);
+  const success = await deleteMemory(toGatewayUser(interaction.user), memoryId);
   if (!success) {
     await interaction.followUp({
       content: '❌ Failed to delete memory. Please try again.',
@@ -345,7 +343,7 @@ export async function handleViewFullButton(
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const memory = await fetchMemory(userId, memoryId);
+  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
   if (memory === null) {
     await interaction.editReply({
       content: '❌ Failed to load memory. It may have been deleted.',

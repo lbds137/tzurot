@@ -115,7 +115,12 @@ describe('Dashboard Actions', () => {
       await handleAction(mockInteraction, 'test-char', 'visibility', mockConfig);
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(api.toggleVisibility).toHaveBeenCalledWith('test-char', true, 'user-123', mockConfig);
+      expect(api.toggleVisibility).toHaveBeenCalledWith(
+        'test-char',
+        true,
+        expect.objectContaining({ discordId: 'user-123' }),
+        mockConfig
+      );
       expect(mockInteraction.editReply).toHaveBeenCalled();
     });
 
@@ -182,7 +187,7 @@ describe('Dashboard Actions', () => {
       expect(api.updateCharacter).toHaveBeenCalledWith(
         'test-char',
         { voiceEnabled: false },
-        'user-123',
+        expect.objectContaining({ discordId: 'user-123' }),
         expect.any(Object)
       );
       expect(mockInteraction.editReply).toHaveBeenCalled();

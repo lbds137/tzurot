@@ -11,7 +11,12 @@
 import { EmbedBuilder, ActionRowBuilder, type ButtonBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+  type GatewayUser,
+} from '../../utils/userGatewayClient.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
@@ -148,10 +153,10 @@ export function buildBrowsePage(
  * Exported for reuse by interactionHandlers (stateless pagination)
  */
 export async function fetchShapesList(
-  userId: string
+  user: GatewayUser
 ): Promise<{ ok: true; shapes: ShapeItem[] } | { ok: false; status: number; error: string }> {
   const result = await callGatewayApi<ShapesListResponse>('/user/shapes/list', {
-    userId,
+    user,
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
@@ -171,7 +176,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
 
   try {
-    const result = await fetchShapesList(userId);
+    const result = await fetchShapesList(toGatewayUser(context.user));
 
     if (!result.ok) {
       if (result.status === 401) {

@@ -30,6 +30,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock commandHelpers
@@ -65,7 +70,7 @@ describe('handlePurge', () => {
 
   function createMockContext(personality = 'lilith') {
     return {
-      user: { id: 'user-123' },
+      user: { id: 'user-123', username: 'testuser', globalName: 'testuser' },
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
@@ -149,7 +154,10 @@ describe('handlePurge', () => {
       const context = createMockContext('lilith');
       await handlePurge(context);
 
-      expect(mockResolvePersonalityId).toHaveBeenCalledWith('user-123', 'lilith');
+      expect(mockResolvePersonalityId).toHaveBeenCalledWith(
+        { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
+        'lilith'
+      );
     });
   });
 

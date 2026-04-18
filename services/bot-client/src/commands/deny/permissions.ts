@@ -10,7 +10,7 @@
 import { isBotOwner, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 
 interface PermissionResult {
   allowed: boolean;
@@ -91,7 +91,7 @@ async function checkPersonalityPermission(
 
   const result = await callGatewayApi<{ personality: { id: string }; canEdit: boolean }>(
     `/user/personality/${encodeURIComponent(personalitySlug)}`,
-    { userId: context.user.id, timeout: GATEWAY_TIMEOUTS.DEFERRED }
+    { user: toGatewayUser(context.user), timeout: GATEWAY_TIMEOUTS.DEFERRED }
   );
 
   if (!result.ok) {

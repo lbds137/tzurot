@@ -22,7 +22,7 @@ import type { ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
 const logger = createLogger('persona-view');
@@ -108,7 +108,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
 
   try {
     const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
-      userId: discordId,
+      user: toGatewayUser(context.user),
     });
 
     if (!result.ok) {
@@ -131,7 +131,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
 
     const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
       `/user/persona/${persona.id}`,
-      { userId: discordId }
+      { user: toGatewayUser(context.user) }
     );
 
     if (!detailsResult.ok) {
@@ -171,7 +171,7 @@ export async function handleExpandContent(
   try {
     // Fetch persona details via gateway (also verifies ownership)
     const result = await callGatewayApi<{ persona: PersonaDetails }>(`/user/persona/${personaId}`, {
-      userId: discordId,
+      user: toGatewayUser(interaction.user),
     });
 
     if (!result.ok) {

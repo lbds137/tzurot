@@ -8,7 +8,7 @@
  */
 
 import { API_ERROR_SUBCODE } from '@tzurot/common-types';
-import { GatewayApiError } from '../../utils/userGatewayClient.js';
+import { GatewayApiError, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { createPreset } from './api.js';
 import type { FlattenedPresetData } from './config.js';
 import type { PresetData } from './types.js';
@@ -84,7 +84,7 @@ function isNameCollisionError(err: unknown): err is GatewayApiError {
  */
 export async function createClonedPreset(
   sourceData: FlattenedPresetData,
-  userId: string
+  user: GatewayUser
 ): Promise<PresetData> {
   let clonedName = generateClonedName(sourceData.name);
   // Tightened from `Error | null` to `GatewayApiError | null`: the only
@@ -109,7 +109,7 @@ export async function createClonedPreset(
               ? sourceData.visionModel
               : undefined,
         },
-        userId
+        user
       );
     } catch (err) {
       if (isNameCollisionError(err)) {

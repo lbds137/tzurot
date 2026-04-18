@@ -5,7 +5,11 @@
 
 import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+} from '../../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../../utils/commandHelpers.js';
 import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
 
@@ -19,7 +23,7 @@ export async function handleTimezoneGet(context: DeferredCommandContext): Promis
 
   try {
     const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {
-      userId,
+      user: toGatewayUser(context.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 

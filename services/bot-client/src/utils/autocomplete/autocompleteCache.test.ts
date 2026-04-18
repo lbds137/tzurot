@@ -19,6 +19,11 @@ import type { PersonaSummary, ShapesSummary } from './autocompleteCache.js';
 const mockCallGatewayApi = vi.fn();
 vi.mock('../userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -36,6 +41,15 @@ vi.mock('@tzurot/common-types', async () => {
 
 describe('autocompleteCache', () => {
   const testUserId = 'user-123';
+  const testUser = {
+    discordId: 'user-123',
+    username: 'testuser',
+    displayName: 'testuser',
+  } as const;
+
+  function mkUser(id: string) {
+    return { discordId: id, username: 'testuser', displayName: 'testuser' } as const;
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -78,9 +92,9 @@ describe('autocompleteCache', () => {
         data: { personalities: mockPersonalities },
       });
 
-      const result = await getCachedPersonalities(testUserId);
+      const result = await getCachedPersonalities(testUser);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality', { userId: testUserId });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality', { user: testUser });
       expect(result).toEqual(mockPersonalities);
     });
 
@@ -91,11 +105,11 @@ describe('autocompleteCache', () => {
       });
 
       // First call - cache miss
-      await getCachedPersonalities(testUserId);
+      await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
       // Second call - cache hit
-      const result = await getCachedPersonalities(testUserId);
+      const result = await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call
       expect(result).toEqual(mockPersonalities);
     });
@@ -107,11 +121,11 @@ describe('autocompleteCache', () => {
       });
 
       // First call - cache miss
-      await getCachedPersonalities(testUserId);
+      await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
       // Second call - should be cache hit even with empty list
-      const result = await getCachedPersonalities(testUserId);
+      const result = await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call
       expect(result).toEqual([]);
     });
@@ -122,7 +136,7 @@ describe('autocompleteCache', () => {
         error: 'Gateway error',
       });
 
-      const result = await getCachedPersonalities(testUserId);
+      const result = await getCachedPersonalities(testUser);
 
       expect(result).toEqual([]);
     });
@@ -130,7 +144,7 @@ describe('autocompleteCache', () => {
     it('should return empty array on exception', async () => {
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      const result = await getCachedPersonalities(testUserId);
+      const result = await getCachedPersonalities(testUser);
 
       expect(result).toEqual([]);
     });
@@ -141,8 +155,8 @@ describe('autocompleteCache', () => {
         data: { personalities: mockPersonalities },
       });
 
-      await getCachedPersonalities('user-1');
-      await getCachedPersonalities('user-2');
+      await getCachedPersonalities(mkUser('user-1'));
+      await getCachedPersonalities(mkUser('user-2'));
 
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
       expect(_getCacheSizeForTesting()).toBe(2);
@@ -171,9 +185,9 @@ describe('autocompleteCache', () => {
         data: { personas: mockPersonas },
       });
 
-      const result = await getCachedPersonas(testUserId);
+      const result = await getCachedPersonas(testUser);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', { userId: testUserId });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', { user: testUser });
       expect(result).toEqual(mockPersonas);
     });
 
@@ -184,11 +198,11 @@ describe('autocompleteCache', () => {
       });
 
       // First call - cache miss
-      await getCachedPersonas(testUserId);
+      await getCachedPersonas(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
       // Second call - cache hit
-      const result = await getCachedPersonas(testUserId);
+      const result = await getCachedPersonas(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call
       expect(result).toEqual(mockPersonas);
     });
@@ -205,11 +219,11 @@ describe('autocompleteCache', () => {
       });
 
       // First call - cache miss
-      await getCachedPersonas(testUserId);
+      await getCachedPersonas(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
       // Second call - should be cache hit even with empty list
-      const result = await getCachedPersonas(testUserId);
+      const result = await getCachedPersonas(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call!
       expect(result).toEqual([]);
     });
@@ -220,7 +234,7 @@ describe('autocompleteCache', () => {
         error: 'Gateway error',
       });
 
-      const result = await getCachedPersonas(testUserId);
+      const result = await getCachedPersonas(testUser);
 
       expect(result).toEqual([]);
     });
@@ -228,7 +242,7 @@ describe('autocompleteCache', () => {
     it('should return empty array on exception', async () => {
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      const result = await getCachedPersonas(testUserId);
+      const result = await getCachedPersonas(testUser);
 
       expect(result).toEqual([]);
     });
@@ -246,10 +260,10 @@ describe('autocompleteCache', () => {
         data: { shapes: mockShapes },
       });
 
-      const result = await getCachedShapes(testUserId);
+      const result = await getCachedShapes(testUser);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/shapes/list', {
-        userId: testUserId,
+        user: testUser,
       });
       expect(result).toEqual(mockShapes);
     });
@@ -260,10 +274,10 @@ describe('autocompleteCache', () => {
         data: { shapes: mockShapes },
       });
 
-      await getCachedShapes(testUserId);
+      await getCachedShapes(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
-      const result = await getCachedShapes(testUserId);
+      const result = await getCachedShapes(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockShapes);
     });
@@ -274,10 +288,10 @@ describe('autocompleteCache', () => {
         data: { shapes: [] },
       });
 
-      await getCachedShapes(testUserId);
+      await getCachedShapes(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
-      const result = await getCachedShapes(testUserId);
+      const result = await getCachedShapes(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
       expect(result).toEqual([]);
     });
@@ -288,7 +302,7 @@ describe('autocompleteCache', () => {
         error: 'Gateway error',
       });
 
-      const result = await getCachedShapes(testUserId);
+      const result = await getCachedShapes(testUser);
 
       expect(result).toEqual([]);
     });
@@ -296,7 +310,7 @@ describe('autocompleteCache', () => {
     it('should return empty array on exception', async () => {
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      const result = await getCachedShapes(testUserId);
+      const result = await getCachedShapes(testUser);
 
       expect(result).toEqual([]);
     });
@@ -310,7 +324,7 @@ describe('autocompleteCache', () => {
       });
 
       // Populate cache
-      await getCachedPersonalities(testUserId);
+      await getCachedPersonalities(testUser);
       expect(_getCacheSizeForTesting()).toBe(1);
 
       // Invalidate
@@ -325,14 +339,14 @@ describe('autocompleteCache', () => {
       });
 
       // First call - cache miss
-      await getCachedPersonalities(testUserId);
+      await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
       // Invalidate
       invalidateUserCache(testUserId);
 
       // Next call - cache miss again
-      await getCachedPersonalities(testUserId);
+      await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
     });
   });
@@ -361,19 +375,19 @@ describe('autocompleteCache', () => {
         ok: true,
         data: { personalities: mockPersonalities },
       });
-      await getCachedPersonalities(testUserId);
+      await getCachedPersonalities(testUser);
 
       // Then fetch personas (should preserve personalities)
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: { personas: mockPersonas },
       });
-      await getCachedPersonas(testUserId);
+      await getCachedPersonas(testUser);
 
       // Verify both are cached
       mockCallGatewayApi.mockClear();
-      const personalities = await getCachedPersonalities(testUserId);
-      const personas = await getCachedPersonas(testUserId);
+      const personalities = await getCachedPersonalities(testUser);
+      const personas = await getCachedPersonas(testUser);
 
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
       expect(personalities).toEqual(mockPersonalities);
@@ -401,19 +415,19 @@ describe('autocompleteCache', () => {
         ok: true,
         data: { personalities: mockPersonalities },
       });
-      await getCachedPersonalities(testUserId);
+      await getCachedPersonalities(testUser);
 
       // Then fetch shapes (should preserve personalities)
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: { shapes: mockShapes },
       });
-      await getCachedShapes(testUserId);
+      await getCachedShapes(testUser);
 
       // Verify both are cached
       mockCallGatewayApi.mockClear();
-      const personalities = await getCachedPersonalities(testUserId);
-      const shapes = await getCachedShapes(testUserId);
+      const personalities = await getCachedPersonalities(testUser);
+      const shapes = await getCachedShapes(testUser);
 
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
       expect(personalities).toEqual(mockPersonalities);

@@ -25,6 +25,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 describe('handleDeleteVoice', () => {
@@ -70,7 +75,7 @@ describe('handleDeleteVoice', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/voices/voice-1',
-      expect.objectContaining({ method: 'DELETE', userId: 'user-123' })
+      expect.objectContaining({ method: 'DELETE', user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' } })
     );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [

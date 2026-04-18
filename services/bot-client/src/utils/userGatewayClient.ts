@@ -4,11 +4,12 @@
  *
  * Provides:
  * - Service-to-service authentication (X-Service-Auth header)
- * - User identification (X-User-Id header)
+ * - User identification context (X-User-Id, X-User-Username, X-User-DisplayName)
  * - Standardized error handling
  * - Gateway URL validation
  */
 
+import type { User as DiscordUser } from 'discord.js';
 import {
   getConfig,
   createLogger,
@@ -65,11 +66,38 @@ export class GatewayApiError extends Error {
 }
 
 /**
+ * Discord user context passed to every gateway API call.
+ *
+ * Identity Epic Phase 5c: the gateway middleware uses `username` +
+ * `displayName` to provision users with real Discord context instead of
+ * the placeholder shell path. `discordId` matches `interaction.user.id`
+ * (the Discord snowflake), NOT the internal UUID.
+ */
+export interface GatewayUser {
+  discordId: string;
+  username: string;
+  displayName: string;
+}
+
+/**
+ * Build a `GatewayUser` from a Discord.js `User` object. Centralizes the
+ * `globalName ?? username` fallback — callers never decide locally.
+ * Works for both `interaction.user` and `message.author` (both are `User`).
+ */
+export function toGatewayUser(user: DiscordUser): GatewayUser {
+  return {
+    discordId: user.id,
+    username: user.username,
+    displayName: user.globalName ?? user.username,
+  };
+}
+
+/**
  * Options for gateway API calls
  */
 interface GatewayCallOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  userId: string;
+  user: GatewayUser;
   body?: unknown;
   /**
    * Request timeout in milliseconds.
@@ -145,22 +173,28 @@ export async function parseErrorResponse(response: Response): Promise<ParsedErro
  * Call the gateway API with consistent auth and error handling
  *
  * @param path - API path (e.g., '/user/llm-config')
- * @param options - Request options including userId for auth
+ * @param options - Request options including `user` context for auth + provisioning
  * @returns GatewayResult with typed data or error
  */
 export async function callGatewayApi<T>(
   path: string,
   options: GatewayCallOptions
 ): Promise<GatewayResult<T>> {
-  const { method = 'GET', userId, body, timeout = GATEWAY_TIMEOUTS.AUTOCOMPLETE } = options;
+  const { method = 'GET', user, body, timeout = GATEWAY_TIMEOUTS.AUTOCOMPLETE } = options;
 
   try {
     const gatewayUrl = getGatewayUrl();
     const config = getConfig();
 
+    // URI-encode `username` and `displayName` because Node's `fetch` encodes
+    // HTTP header values as Latin-1; any non-Latin-1 char (emoji in display
+    // names are very common) throws synchronously. Gateway middleware in
+    // PR B decodes these on arrival.
     const headers: Record<string, string> = {
       'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-      'X-User-Id': userId,
+      'X-User-Id': user.discordId,
+      'X-User-Username': encodeURIComponent(user.username),
+      'X-User-DisplayName': encodeURIComponent(user.displayName),
     };
 
     if (body !== undefined) {
@@ -176,7 +210,10 @@ export async function callGatewayApi<T>(
 
     if (!response.ok) {
       const parsed = await parseErrorResponse(response);
-      logger.warn({ path, method, status: response.status, userId }, '[Gateway] Request failed');
+      logger.warn(
+        { path, method, status: response.status, userId: user.discordId },
+        '[Gateway] Request failed'
+      );
       return {
         ok: false,
         error: parsed.message,
@@ -197,7 +234,7 @@ export async function callGatewayApi<T>(
         : 'Unknown error';
 
     logger.warn(
-      { path, method, userId, errorMessage, isTimeout: isAbortError },
+      { path, method, userId: user.discordId, errorMessage, isTimeout: isAbortError },
       '[Gateway] Request error'
     );
     return { ok: false, error: errorMessage, status: 0 };

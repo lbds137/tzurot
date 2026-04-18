@@ -8,6 +8,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBrowse, buildBrowsePage, fetchShapesList, type ShapeItem } from './browse.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import type { GatewayUser } from '../../utils/userGatewayClient.js';
+
+function mkUser(discordId = 'user-123'): GatewayUser {
+  return { discordId, username: 'test-user', displayName: 'Test User' };
+}
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -28,6 +33,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { DEFERRED: 15000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 function makeShape(i: number): ShapeItem {
@@ -78,7 +88,9 @@ describe('handleBrowse', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/shapes/list',
-      expect.objectContaining({ userId: '123456789' })
+      expect.objectContaining({
+        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+      })
     );
   });
 
@@ -234,7 +246,7 @@ describe('fetchShapesList', () => {
       data: { shapes: mockShapes, total: 1 },
     });
 
-    const result = await fetchShapesList('user-123');
+    const result = await fetchShapesList(mkUser());
 
     expect(result).toEqual({ ok: true, shapes: mockShapes });
   });
@@ -246,7 +258,7 @@ describe('fetchShapesList', () => {
       error: 'No credentials',
     });
 
-    const result = await fetchShapesList('user-123');
+    const result = await fetchShapesList(mkUser());
 
     expect(result).toEqual({ ok: false, status: 401, error: 'No credentials' });
   });

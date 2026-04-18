@@ -230,7 +230,7 @@ describe('Character Avatar Handler', () => {
       expect(api.updateCharacter).toHaveBeenCalledWith(
         'my-char',
         { avatarData: expect.any(String) },
-        'user-123',
+        expect.objectContaining({ discordId: 'user-123' }),
         mockConfig
       );
       expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('Avatar updated'));

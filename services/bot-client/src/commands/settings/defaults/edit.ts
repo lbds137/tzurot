@@ -19,7 +19,11 @@ import type {
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { createLogger, DISCORD_COLORS, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  toGatewayUser,
+  type GatewayUser,
+} from '../../../utils/userGatewayClient.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -76,7 +80,7 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
   logger.debug({ userId }, '[User Defaults] Opening dashboard');
 
   try {
-    const data = await fetchAndConvertSettingsData(userId);
+    const data = await fetchAndConvertSettingsData(toGatewayUser(context.user));
 
     await createSettingsDashboard(context.interaction, {
       config: USER_DEFAULTS_CONFIG,
@@ -144,10 +148,10 @@ export function isUserDefaultsInteraction(customId: string): boolean {
 /**
  * Fetch resolved config from API and convert to dashboard SettingsData format.
  */
-async function fetchAndConvertSettingsData(userId: string): Promise<SettingsData> {
+async function fetchAndConvertSettingsData(user: GatewayUser): Promise<SettingsData> {
   const result = await callGatewayApi<ResolveDefaultsResponse>(
     '/user/config-overrides/resolve-defaults',
-    { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
+    { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
   );
 
   if (!result.ok) {
@@ -180,10 +184,11 @@ async function handleSettingUpdate(
       return { success: false, error: 'Unknown setting' };
     }
 
+    const user = toGatewayUser(interaction.user);
     const result = await callGatewayApi('/user/config-overrides/defaults', {
       method: 'PATCH',
       body,
-      userId,
+      user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
@@ -193,7 +198,7 @@ async function handleSettingUpdate(
     }
 
     // Re-fetch resolved data to get updated effective values and sources
-    const newData = await fetchAndConvertSettingsData(userId);
+    const newData = await fetchAndConvertSettingsData(user);
 
     logger.info({ settingId, newValue, userId }, '[User Defaults] Setting updated');
 

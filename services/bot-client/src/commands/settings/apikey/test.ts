@@ -15,7 +15,7 @@ import {
   settingsApikeyTestOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 
 const logger = createLogger('settings-apikey-test');
@@ -43,7 +43,7 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
   try {
     const result = await callGatewayApi<WalletTestResponse>('/wallet/test', {
       method: 'POST',
-      userId,
+      user: toGatewayUser(context.user),
       body: { provider },
     });
 

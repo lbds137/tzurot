@@ -12,7 +12,7 @@
 import { EmbedBuilder, type MessageComponentInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 import { buildBackToBrowseRow } from './errorRecovery.js';
 
@@ -58,7 +58,7 @@ export async function startExport(
 
   const result = await callGatewayApi<ExportJobResponse>('/user/shapes/export', {
     method: 'POST',
-    userId,
+    user: toGatewayUser(interaction.user),
     body: { slug, format },
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
@@ -97,7 +97,7 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
   try {
     const result = await callGatewayApi<ExportJobResponse>('/user/shapes/export', {
       method: 'POST',
-      userId,
+      user: toGatewayUser(context.user),
       body: { slug, format },
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });

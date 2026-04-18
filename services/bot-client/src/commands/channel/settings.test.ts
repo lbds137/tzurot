@@ -37,6 +37,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock GatewayClient - use vi.hoisted() for proper mock hoisting
@@ -387,7 +392,11 @@ describe('Channel Settings Dashboard', () => {
 
       mockSessionManager.get.mockReturnValue({
         data: {
-          userId: 'user-456',
+          user: {
+            discordId: 'user-456',
+            username: 'testuser',
+            displayName: 'testuser',
+          },
           entityId: 'channel-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },
@@ -426,7 +435,11 @@ describe('Channel Settings Dashboard', () => {
 
     const createSessionWithSetting = (settingId: string) => ({
       data: {
-        userId: 'user-456',
+        user: {
+          discordId: 'user-456',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         entityId: 'channel-123',
         data: {
           maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },

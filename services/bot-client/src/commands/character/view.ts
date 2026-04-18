@@ -24,7 +24,7 @@ import {
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './config.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
 import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
@@ -340,9 +340,9 @@ function buildViewComponents(
 /**
  * Fetch a character by slug
  */
-async function fetchCharacter(slug: string, userId: string): Promise<CharacterData | null> {
+async function fetchCharacter(slug: string, user: GatewayUser): Promise<CharacterData | null> {
   const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slug}`, {
-    userId,
+    user,
   });
 
   if (!result.ok) {
@@ -368,10 +368,9 @@ export async function handleView(
 ): Promise<void> {
   const options = characterViewOptions(context.interaction);
   const slug = options.character();
-  const userId = context.user.id;
 
   try {
-    const character = await fetchCharacter(slug, userId);
+    const character = await fetchCharacter(slug, toGatewayUser(context.user));
     if (!character) {
       await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
       return;
@@ -400,7 +399,7 @@ export async function handleViewPagination(
   await interaction.deferUpdate();
 
   try {
-    const character = await fetchCharacter(slug, interaction.user.id);
+    const character = await fetchCharacter(slug, toGatewayUser(interaction.user));
     if (!character) {
       await interaction.editReply({
         content: '❌ Character not found.',
@@ -433,7 +432,7 @@ export async function handleExpandField(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    const character = await fetchCharacter(slug, interaction.user.id);
+    const character = await fetchCharacter(slug, toGatewayUser(interaction.user));
     if (!character) {
       await interaction.editReply('❌ Character not found.');
       return;

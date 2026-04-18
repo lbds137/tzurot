@@ -8,7 +8,11 @@
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  type GatewayUser,
+} from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import {
@@ -28,15 +32,15 @@ interface JobStatus {
 }
 
 /** Fetch the latest import and export job for a specific slug (server-side filtered). */
-async function fetchJobStatusForSlug(userId: string, slug: string): Promise<JobStatus> {
+async function fetchJobStatusForSlug(user: GatewayUser, slug: string): Promise<JobStatus> {
   const slugParam = encodeURIComponent(slug);
   const [importResult, exportResult] = await Promise.all([
     callGatewayApi<ImportJobsResponse>(`/user/shapes/import/jobs?slug=${slugParam}`, {
-      userId,
+      user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
     callGatewayApi<ExportJobsResponse>(`/user/shapes/export/jobs?slug=${slugParam}`, {
-      userId,
+      user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
   ]);
@@ -107,15 +111,18 @@ function buildDetailButtons(): ActionRowBuilder<ButtonBuilder>[] {
  * @returns Embed and component rows ready for interaction.update() or editReply()
  */
 export async function buildShapeDetailEmbed(
-  userId: string,
+  user: GatewayUser,
   slug: string,
   sort: BrowseSortType = 'name'
 ): Promise<{ embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] }> {
   let jobStatus: JobStatus;
   try {
-    jobStatus = await fetchJobStatusForSlug(userId, slug);
+    jobStatus = await fetchJobStatusForSlug(user, slug);
   } catch (error) {
-    logger.error({ err: error, userId, slug }, '[Shapes] Failed to fetch job status');
+    logger.error(
+      { err: error, userId: user.discordId, slug },
+      '[Shapes] Failed to fetch job status'
+    );
     jobStatus = { latestImport: null, latestExport: null };
   }
 

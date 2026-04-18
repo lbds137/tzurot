@@ -7,6 +7,7 @@
 
 import { createLogger, type EnvConfig, characterAvatarOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter, updateCharacter } from './api.js';
 import {
   VALID_IMAGE_TYPES,
@@ -51,7 +52,7 @@ export async function handleAvatar(
 
   try {
     // Check if user can edit this character
-    const character = await fetchCharacter(slug, config, userId);
+    const character = await fetchCharacter(slug, config, toGatewayUser(context.user));
     if (!character) {
       await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
       return;
@@ -102,7 +103,7 @@ export async function handleAvatar(
     const base64Image = result.buffer.toString('base64');
 
     // Update character with new avatar
-    await updateCharacter(slug, { avatarData: base64Image }, userId, config);
+    await updateCharacter(slug, { avatarData: base64Image }, toGatewayUser(context.user), config);
 
     await context.editReply(
       `✅ Avatar updated for **${character.displayName ?? character.name}**!`

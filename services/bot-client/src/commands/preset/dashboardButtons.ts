@@ -11,7 +11,7 @@
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import {
   buildDeleteConfirmation,
   handleDashboardClose,
@@ -79,7 +79,7 @@ export async function handleRefreshButton(
   const existingBrowseContext = existingSession?.data.browseContext;
 
   // Try user endpoint first (works for owned presets AND accessible global presets)
-  let preset = await fetchPreset(entityId, interaction.user.id);
+  let preset = await fetchPreset(entityId, toGatewayUser(interaction.user));
 
   // Fallback: if null and session indicated global, try admin endpoint
   // This handles edge case where preset is still global but user endpoint failed
@@ -151,7 +151,7 @@ export async function handleToggleGlobalButton(
 
   try {
     // Fetch fresh data to prevent race condition with stale session.data.isGlobal
-    const freshPreset = await fetchPreset(entityId, interaction.user.id);
+    const freshPreset = await fetchPreset(entityId, toGatewayUser(interaction.user));
     if (freshPreset === null) {
       await interaction.followUp({
         content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
@@ -164,7 +164,7 @@ export async function handleToggleGlobalButton(
     const updatedPreset = await updatePreset(
       entityId,
       { isGlobal: newIsGlobal },
-      interaction.user.id
+      toGatewayUser(interaction.user)
     );
 
     const flattenedData = flattenPresetData(updatedPreset);
@@ -246,7 +246,7 @@ export async function handleConfirmDeleteButton(
   try {
     const result = await callGatewayApi<void>(`/user/llm-config/${entityId}`, {
       method: 'DELETE',
-      userId: interaction.user.id,
+      user: toGatewayUser(interaction.user),
     });
 
     if (!result.ok) {
@@ -333,7 +333,7 @@ export async function handleCloneButton(
     // exists in the user's library, so cloning the original twice produces
     // the same "(Copy)" candidate both times. Retry with a bumped suffix on
     // the gateway's name-collision validation error; surface anything else.
-    const newPreset = await createClonedPreset(sourceData, interaction.user.id);
+    const newPreset = await createClonedPreset(sourceData, toGatewayUser(interaction.user));
 
     // Build update payload with all non-basic fields from source
     const updatePayload = unflattenPresetData(sourceData);
@@ -352,11 +352,11 @@ export async function handleCloneButton(
 
     // Apply updates if needed
     if (Object.keys(updatePayload).length > 0) {
-      await updatePreset(newPreset.id, updatePayload, interaction.user.id);
+      await updatePreset(newPreset.id, updatePayload, toGatewayUser(interaction.user));
     }
 
     // Fetch the complete cloned preset to get all fields
-    const clonedPreset = await fetchPreset(newPreset.id, interaction.user.id);
+    const clonedPreset = await fetchPreset(newPreset.id, toGatewayUser(interaction.user));
     if (clonedPreset === null) {
       throw new Error('Failed to fetch cloned preset');
     }
@@ -428,7 +428,7 @@ export async function handleBackButton(
   }
 
   try {
-    const result = await buildBrowseResponse(interaction.user.id, {
+    const result = await buildBrowseResponse(toGatewayUser(interaction.user), {
       page: browseContext.page,
       filter: browseContext.filter as PresetBrowseFilter,
       query: browseContext.query ?? null,

@@ -30,6 +30,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Import mocked modules
@@ -600,7 +605,11 @@ describe('handleImport', () => {
       await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalledWith('/user/personality', {
-        userId: 'owner-123',
+        user: {
+          discordId: 'owner-123',
+          username: 'testowner',
+          displayName: 'testowner',
+        },
         method: 'POST',
         body: expect.objectContaining({
           name: 'Test Character',
@@ -623,7 +632,11 @@ describe('handleImport', () => {
       expect(callGatewayApi).toHaveBeenCalledWith(
         '/user/personality',
         expect.objectContaining({
-          userId: 'user-789',
+          user: {
+            discordId: 'user-789',
+            username: 'testowner',
+            displayName: 'testowner',
+          },
         })
       );
     });
@@ -850,7 +863,9 @@ describe('handleImport', () => {
       expect(callGatewayApi).toHaveBeenCalledWith(
         '/user/personality',
         expect.objectContaining({
-          userId: 'regular-user-456',
+          user: expect.objectContaining({
+            discordId: 'regular-user-456',
+          }),
           method: 'POST',
           body: expect.objectContaining({
             slug: 'test-character-cooluser', // Username appended
@@ -932,13 +947,21 @@ describe('handleImport', () => {
 
       // First call should be GET to check existence
       expect(callGatewayApi).toHaveBeenNthCalledWith(1, '/user/personality/test-character', {
-        userId: 'owner-123',
+        user: {
+          discordId: 'owner-123',
+          username: 'testowner',
+          displayName: 'testowner',
+        },
         method: 'GET',
       });
 
       // Second call should be PUT to update
       expect(callGatewayApi).toHaveBeenNthCalledWith(2, '/user/personality/test-character', {
-        userId: 'owner-123',
+        user: {
+          discordId: 'owner-123',
+          username: 'testowner',
+          displayName: 'testowner',
+        },
         method: 'PUT',
         body: expect.objectContaining({
           name: 'Test Character',

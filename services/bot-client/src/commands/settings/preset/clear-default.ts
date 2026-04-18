@@ -7,7 +7,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('settings-preset-clear-default');
 
@@ -20,7 +20,7 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
   try {
     const result = await callGatewayApi<{ deleted: boolean }>('/user/model-override/default', {
       method: 'DELETE',
-      userId,
+      user: toGatewayUser(context.user),
     });
 
     if (!result.ok) {

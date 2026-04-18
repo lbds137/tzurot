@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, type GatewayUser } from '../../utils/userGatewayClient.js';
 
 /**
  * Memory item structure from API
@@ -28,14 +28,17 @@ interface SingleMemoryResponse {
 /**
  * Fetch a single memory by ID
  */
-export async function fetchMemory(userId: string, memoryId: string): Promise<MemoryItem | null> {
+export async function fetchMemory(user: GatewayUser, memoryId: string): Promise<MemoryItem | null> {
   const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}`, {
-    userId,
+    user,
     method: 'GET',
   });
 
   if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to fetch memory');
+    logger.warn(
+      { userId: user.discordId, memoryId, error: result.error },
+      '[Memory] Failed to fetch memory'
+    );
     return null;
   }
 
@@ -46,18 +49,21 @@ export async function fetchMemory(userId: string, memoryId: string): Promise<Mem
  * Update memory content
  */
 export async function updateMemory(
-  userId: string,
+  user: GatewayUser,
   memoryId: string,
   content: string
 ): Promise<MemoryItem | null> {
   const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}`, {
-    userId,
+    user,
     method: 'PATCH',
     body: { content },
   });
 
   if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to update memory');
+    logger.warn(
+      { userId: user.discordId, memoryId, error: result.error },
+      '[Memory] Failed to update memory'
+    );
     return null;
   }
 
@@ -68,16 +74,19 @@ export async function updateMemory(
  * Toggle memory lock status
  */
 export async function toggleMemoryLock(
-  userId: string,
+  user: GatewayUser,
   memoryId: string
 ): Promise<MemoryItem | null> {
   const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}/lock`, {
-    userId,
+    user,
     method: 'POST',
   });
 
   if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to toggle lock');
+    logger.warn(
+      { userId: user.discordId, memoryId, error: result.error },
+      '[Memory] Failed to toggle lock'
+    );
     return null;
   }
 
@@ -87,14 +96,17 @@ export async function toggleMemoryLock(
 /**
  * Delete a memory
  */
-export async function deleteMemory(userId: string, memoryId: string): Promise<boolean> {
+export async function deleteMemory(user: GatewayUser, memoryId: string): Promise<boolean> {
   const result = await callGatewayApi<{ success: boolean }>(`/user/memory/${memoryId}`, {
-    userId,
+    user,
     method: 'DELETE',
   });
 
   if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to delete memory');
+    logger.warn(
+      { userId: user.discordId, memoryId, error: result.error },
+      '[Memory] Failed to delete memory'
+    );
     return false;
   }
 

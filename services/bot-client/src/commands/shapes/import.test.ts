@@ -29,6 +29,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { DEFERRED: 15000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 describe('handleImport', () => {
@@ -77,7 +82,9 @@ describe('handleImport', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/shapes/auth/status',
-      expect.objectContaining({ userId: '123456789' })
+      expect.objectContaining({
+        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+      })
     );
   });
 
@@ -205,7 +212,11 @@ describe('startImport', () => {
       '/user/shapes/import',
       expect.objectContaining({
         method: 'POST',
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         body: { sourceSlug: 'test-shape', importType: 'full' },
       })
     );

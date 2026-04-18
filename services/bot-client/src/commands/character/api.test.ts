@@ -24,6 +24,11 @@ import type { EnvConfig } from '@tzurot/common-types';
 // Mock the gateway client
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 describe('Character API Client', () => {
@@ -31,7 +36,7 @@ describe('Character API Client', () => {
     GATEWAY_URL: 'http://localhost:3000',
   } as EnvConfig;
 
-  const mockUserId = 'discord-user-123';
+  const mockUser = { discordId: 'discord-user-123', username: 'testuser', displayName: 'testuser' };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,11 +65,11 @@ describe('Character API Client', () => {
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
 
-      const result = await fetchCharacter('test-character', mockConfig, mockUserId);
+      const result = await fetchCharacter('test-character', mockConfig, mockUser);
 
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
         '/user/personality/test-character',
-        { userId: mockUserId }
+        { user: mockUser }
       );
 
       expect(result).not.toBeNull();
@@ -89,7 +94,7 @@ describe('Character API Client', () => {
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
 
-      const result = await fetchCharacter('other-character', mockConfig, mockUserId);
+      const result = await fetchCharacter('other-character', mockConfig, mockUser);
 
       expect(result!.canEdit).toBe(false);
     });
@@ -101,7 +106,7 @@ describe('Character API Client', () => {
         error: 'Not found',
       });
 
-      const result = await fetchCharacter('nonexistent', mockConfig, mockUserId);
+      const result = await fetchCharacter('nonexistent', mockConfig, mockUser);
 
       expect(result).toBeNull();
     });
@@ -113,7 +118,7 @@ describe('Character API Client', () => {
         error: 'Forbidden',
       });
 
-      const result = await fetchCharacter('private-char', mockConfig, mockUserId);
+      const result = await fetchCharacter('private-char', mockConfig, mockUser);
 
       expect(result).toBeNull();
     });
@@ -125,7 +130,7 @@ describe('Character API Client', () => {
         error: 'Internal server error',
       });
 
-      await expect(fetchCharacter('test', mockConfig, mockUserId)).rejects.toThrow(
+      await expect(fetchCharacter('test', mockConfig, mockUser)).rejects.toThrow(
         'Failed to fetch character: 500'
       );
     });
@@ -163,7 +168,7 @@ describe('Character API Client', () => {
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
 
-      const result = await fetchAllCharacters(mockUserId, mockConfig);
+      const result = await fetchAllCharacters(mockUser, mockConfig);
 
       expect(result.owned).toHaveLength(1);
       expect(result.owned[0].slug).toBe('my-char');
@@ -179,7 +184,7 @@ describe('Character API Client', () => {
         error: 'Server error',
       });
 
-      await expect(fetchAllCharacters(mockUserId, mockConfig)).rejects.toThrow(
+      await expect(fetchAllCharacters(mockUser, mockConfig)).rejects.toThrow(
         'Failed to fetch characters: 500'
       );
     });
@@ -217,7 +222,7 @@ describe('Character API Client', () => {
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
 
-      const result = await fetchUserCharacters(mockUserId, mockConfig);
+      const result = await fetchUserCharacters(mockUser, mockConfig);
 
       expect(result).toHaveLength(1);
       expect(result[0].slug).toBe('my-char');
@@ -256,7 +261,7 @@ describe('Character API Client', () => {
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
 
-      const result = await fetchPublicCharacters(mockUserId, mockConfig);
+      const result = await fetchPublicCharacters(mockUser, mockConfig);
 
       expect(result).toHaveLength(1);
       expect(result[0].slug).toBe('other-char');
@@ -289,13 +294,13 @@ describe('Character API Client', () => {
           characterInfo: 'Info',
           personalityTraits: 'Traits',
         },
-        mockUserId,
+        mockUser,
         mockConfig
       );
 
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/personality', {
         method: 'POST',
-        userId: mockUserId,
+        user: mockUser,
         body: {
           name: 'New Character',
           slug: 'new-character',
@@ -322,7 +327,7 @@ describe('Character API Client', () => {
             characterInfo: 'Info',
             personalityTraits: 'Traits',
           },
-          mockUserId,
+          mockUser,
           mockConfig
         )
       ).rejects.toThrow('Failed to create character: 409 - Slug already exists');
@@ -348,13 +353,13 @@ describe('Character API Client', () => {
       const result = await updateCharacter(
         'test-char',
         { name: 'Updated Name' },
-        mockUserId,
+        mockUser,
         mockConfig
       );
 
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'PUT',
-        userId: mockUserId,
+        user: mockUser,
         body: { name: 'Updated Name' },
       });
 
@@ -369,7 +374,7 @@ describe('Character API Client', () => {
       });
 
       await expect(
-        updateCharacter('test-char', { name: 'New Name' }, mockUserId, mockConfig)
+        updateCharacter('test-char', { name: 'New Name' }, mockUser, mockConfig)
       ).rejects.toThrow('Failed to update character: 403 - Not authorized');
     });
   });
@@ -390,13 +395,13 @@ describe('Character API Client', () => {
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue(mockResponse);
 
-      const result = await toggleVisibility('test-char', true, mockUserId, mockConfig);
+      const result = await toggleVisibility('test-char', true, mockUser, mockConfig);
 
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
         '/user/personality/test-char/visibility',
         {
           method: 'PATCH',
-          userId: mockUserId,
+          user: mockUser,
           body: { isPublic: true },
         }
       );

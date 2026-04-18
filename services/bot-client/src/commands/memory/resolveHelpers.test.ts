@@ -5,6 +5,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveOptionalPersonality, resolveRequiredPersonality } from './resolveHelpers.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import type { GatewayUser } from '../../utils/userGatewayClient.js';
+
+function mkUser(discordId = 'user-123'): GatewayUser {
+  return { discordId, username: 'test-user', displayName: 'Test User' };
+}
 
 // Mock the autocomplete module
 vi.mock('./autocomplete.js', () => ({
@@ -36,13 +41,13 @@ describe('resolveOptionalPersonality', () => {
   });
 
   it('should return undefined when personalityInput is null', async () => {
-    const result = await resolveOptionalPersonality(context, 'user-123', null);
+    const result = await resolveOptionalPersonality(context, mkUser(), null);
     expect(result).toBeUndefined();
     expect(mockResolvePersonalityId).not.toHaveBeenCalled();
   });
 
   it('should return undefined when personalityInput is empty string', async () => {
-    const result = await resolveOptionalPersonality(context, 'user-123', '');
+    const result = await resolveOptionalPersonality(context, mkUser(), '');
     expect(result).toBeUndefined();
     expect(mockResolvePersonalityId).not.toHaveBeenCalled();
   });
@@ -50,15 +55,16 @@ describe('resolveOptionalPersonality', () => {
   it('should return resolved ID when personality is found', async () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid');
 
-    const result = await resolveOptionalPersonality(context, 'user-123', 'my-persona');
+    const user = mkUser();
+    const result = await resolveOptionalPersonality(context, user, 'my-persona');
     expect(result).toBe('personality-uuid');
-    expect(mockResolvePersonalityId).toHaveBeenCalledWith('user-123', 'my-persona');
+    expect(mockResolvePersonalityId).toHaveBeenCalledWith(user, 'my-persona');
   });
 
   it('should return null and send error reply when personality is not found', async () => {
     mockResolvePersonalityId.mockResolvedValue(null);
 
-    const result = await resolveOptionalPersonality(context, 'user-123', 'unknown');
+    const result = await resolveOptionalPersonality(context, mkUser(), 'unknown');
     expect(result).toBeNull();
     expect(mockEditReply).toHaveBeenCalledWith({
       content:
@@ -82,15 +88,16 @@ describe('resolveRequiredPersonality', () => {
   it('should return resolved ID when personality is found', async () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid');
 
-    const result = await resolveRequiredPersonality(context, 'user-123', 'my-persona');
+    const user = mkUser();
+    const result = await resolveRequiredPersonality(context, user, 'my-persona');
     expect(result).toBe('personality-uuid');
-    expect(mockResolvePersonalityId).toHaveBeenCalledWith('user-123', 'my-persona');
+    expect(mockResolvePersonalityId).toHaveBeenCalledWith(user, 'my-persona');
   });
 
   it('should return null and send error reply when personality is not found', async () => {
     mockResolvePersonalityId.mockResolvedValue(null);
 
-    const result = await resolveRequiredPersonality(context, 'user-123', 'unknown');
+    const result = await resolveRequiredPersonality(context, mkUser(), 'unknown');
     expect(result).toBeNull();
     expect(mockEditReply).toHaveBeenCalledWith({
       content:
@@ -101,7 +108,7 @@ describe('resolveRequiredPersonality', () => {
   it('should not send error reply on success', async () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid');
 
-    await resolveRequiredPersonality(context, 'user-123', 'my-persona');
+    await resolveRequiredPersonality(context, mkUser(), 'my-persona');
     expect(mockEditReply).not.toHaveBeenCalled();
   });
 });

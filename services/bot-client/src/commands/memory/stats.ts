@@ -6,7 +6,7 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, memoryStatsOptions, formatDateTimeCompact } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 
@@ -33,12 +33,13 @@ function formatDateOrNA(dateStr: string | null): string {
  */
 export async function handleStats(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memoryStatsOptions(context.interaction);
   const personalityInput = options.personality();
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolveRequiredPersonality(context, userId, personalityInput);
+    const personalityId = await resolveRequiredPersonality(context, user, personalityInput);
     if (personalityId === null) {
       return;
     }
@@ -46,7 +47,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     const result = await callGatewayApi<StatsResponse>(
       `/user/memory/stats?personalityId=${personalityId}`,
       {
-        userId,
+        user,
         method: 'GET',
       }
     );

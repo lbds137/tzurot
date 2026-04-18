@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi } from '../userGatewayClient.js';
+import { callGatewayApi, type GatewayUser } from '../userGatewayClient.js';
 
 /**
  * Result type that matches callGatewayApi return
@@ -40,19 +40,22 @@ interface FetcherOptions<TResponse, TResult> {
  *   actionName: 'fetch persona',
  * });
  *
- * const persona = await fetchPersona('/user/persona', personaId, userId);
+ * const persona = await fetchPersona('/user/persona', personaId, user);
  * ```
  */
 export function createEntityFetcher<TResponse, TResult>(
   options: FetcherOptions<TResponse, TResult>
-): (endpoint: string, entityId: string, userId: string) => Promise<TResult | null> {
+): (endpoint: string, entityId: string, user: GatewayUser) => Promise<TResult | null> {
   const logger = createLogger(options.loggerName);
 
-  return async (endpoint: string, entityId: string, userId: string): Promise<TResult | null> => {
-    const result = await callGatewayApi<TResponse>(`${endpoint}/${entityId}`, { userId });
+  return async (endpoint: string, entityId: string, user: GatewayUser): Promise<TResult | null> => {
+    const result = await callGatewayApi<TResponse>(`${endpoint}/${entityId}`, { user });
 
     if (!result.ok) {
-      logger.warn({ userId, entityId, error: result.error }, `Failed to ${options.actionName}`);
+      logger.warn(
+        { userId: user.discordId, entityId, error: result.error },
+        `Failed to ${options.actionName}`
+      );
       return null;
     }
 
@@ -87,7 +90,7 @@ interface UpdaterOptions<TResponse, TResult> {
  *   actionName: 'update persona',
  * });
  *
- * const updated = await updatePersona('/user/persona', personaId, data, userId);
+ * const updated = await updatePersona('/user/persona', personaId, data, user);
  * ```
  */
 export function createEntityUpdater<TResponse, TResult>(
@@ -96,7 +99,7 @@ export function createEntityUpdater<TResponse, TResult>(
   endpoint: string,
   entityId: string,
   data: Record<string, unknown>,
-  userId: string
+  user: GatewayUser
 ) => Promise<TResult | null> {
   const logger = createLogger(options.loggerName);
 
@@ -104,16 +107,19 @@ export function createEntityUpdater<TResponse, TResult>(
     endpoint: string,
     entityId: string,
     data: Record<string, unknown>,
-    userId: string
+    user: GatewayUser
   ): Promise<TResult | null> => {
     const result = await callGatewayApi<TResponse>(`${endpoint}/${entityId}`, {
       method: 'PUT',
-      userId,
+      user,
       body: data,
     });
 
     if (!result.ok) {
-      logger.warn({ userId, entityId, error: result.error }, `Failed to ${options.actionName}`);
+      logger.warn(
+        { userId: user.discordId, entityId, error: result.error },
+        `Failed to ${options.actionName}`
+      );
       if (options.throwOnError === true) {
         throw new Error(`Failed to ${options.actionName}: ${result.status} - ${result.error}`);
       }
@@ -154,7 +160,7 @@ interface DeleterOptions {
  *   actionName: 'delete persona',
  * });
  *
- * const result = await deletePersona('/user/persona', personaId, userId);
+ * const result = await deletePersona('/user/persona', personaId, user);
  * if (!result.success) {
  *   console.log('Failed:', result.error);
  * }
@@ -162,17 +168,20 @@ interface DeleterOptions {
  */
 export function createEntityDeleter(
   options: DeleterOptions
-): (endpoint: string, entityId: string, userId: string) => Promise<DeleteResult> {
+): (endpoint: string, entityId: string, user: GatewayUser) => Promise<DeleteResult> {
   const logger = createLogger(options.loggerName);
 
-  return async (endpoint: string, entityId: string, userId: string): Promise<DeleteResult> => {
+  return async (endpoint: string, entityId: string, user: GatewayUser): Promise<DeleteResult> => {
     const result = await callGatewayApi<{ message: string }>(`${endpoint}/${entityId}`, {
       method: 'DELETE',
-      userId,
+      user,
     });
 
     if (!result.ok) {
-      logger.warn({ userId, entityId, error: result.error }, `Failed to ${options.actionName}`);
+      logger.warn(
+        { userId: user.discordId, entityId, error: result.error },
+        `Failed to ${options.actionName}`
+      );
       return { success: false, error: result.error };
     }
 
@@ -205,19 +214,22 @@ interface ListFetcherOptions<TResponse, TResult> {
  *   actionName: 'list personas',
  * });
  *
- * const personas = await listPersonas('/user/persona', userId);
+ * const personas = await listPersonas('/user/persona', user);
  * ```
  */
 export function createListFetcher<TResponse, TResult>(
   options: ListFetcherOptions<TResponse, TResult>
-): (endpoint: string, userId: string) => Promise<TResult[] | null> {
+): (endpoint: string, user: GatewayUser) => Promise<TResult[] | null> {
   const logger = createLogger(options.loggerName);
 
-  return async (endpoint: string, userId: string): Promise<TResult[] | null> => {
-    const result = await callGatewayApi<TResponse>(endpoint, { userId });
+  return async (endpoint: string, user: GatewayUser): Promise<TResult[] | null> => {
+    const result = await callGatewayApi<TResponse>(endpoint, { user });
 
     if (!result.ok) {
-      logger.warn({ userId, error: result.error }, `Failed to ${options.actionName}`);
+      logger.warn(
+        { userId: user.discordId, error: result.error },
+        `Failed to ${options.actionName}`
+      );
       return null;
     }
 
@@ -234,7 +246,7 @@ export function createListFetcher<TResponse, TResult>(
  *
  * @example
  * ```typescript
- * const result = await callGatewayApi<Response>('/user/preset/123', { userId });
+ * const result = await callGatewayApi<Response>('/user/preset/123', { user });
  * const data = unwrapOrThrow(result, 'preset');
  * // Returns data on success, throws NotFoundError for 404, throws Error otherwise
  * ```

@@ -35,7 +35,7 @@ import {
   createHardDeleteConfig,
   type DestructiveOperationResult,
 } from '../../utils/destructiveConfirmation.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-command');
@@ -70,7 +70,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
  * Build the hard-delete execution callback for modal submission
  */
 function buildHardDeleteOperation(
-  userId: string,
+  user: GatewayUser,
   personalitySlug: string,
   channelId: string
 ): () => Promise<DestructiveOperationResult> {
@@ -82,14 +82,14 @@ function buildHardDeleteOperation(
     }
 
     const result = await callGatewayApi<HardDeleteResponse>('/user/history/hard-delete', {
-      userId,
+      user,
       method: 'DELETE',
       body: { personalitySlug, channelId },
     });
 
     if (!result.ok) {
       logger.error(
-        { userId, personalitySlug, channelId, error: result.error },
+        { userId: user.discordId, personalitySlug, channelId, error: result.error },
         '[History] Hard-delete API failed'
       );
       return {
@@ -104,7 +104,7 @@ function buildHardDeleteOperation(
     const { deletedCount } = result.data;
 
     logger.info(
-      { userId, personalitySlug, channelId, deletedCount },
+      { userId: user.discordId, personalitySlug, channelId, deletedCount },
       '[History] Hard-delete completed'
     );
 
@@ -147,7 +147,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 
       const { personalitySlug, channelId } = entityInfo;
       const executeOperation = buildHardDeleteOperation(
-        interaction.user.id,
+        toGatewayUser(interaction.user),
         personalitySlug,
         channelId
       );

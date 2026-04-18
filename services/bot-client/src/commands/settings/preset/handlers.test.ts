@@ -44,6 +44,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock commandHelpers (only used by reset for createSuccessEmbed/createInfoEmbed)
@@ -92,7 +97,9 @@ describe('Preset Command Handlers', () => {
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/model-override',
-        expect.objectContaining({ userId: '123456789' })
+        expect.objectContaining({
+          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+        })
       );
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
@@ -192,7 +199,11 @@ describe('Preset Command Handlers', () => {
         '/user/model-override',
         expect.objectContaining({
           method: 'PUT',
-          userId: '123456789',
+          user: {
+            discordId: '123456789',
+            username: 'testuser',
+            displayName: 'testuser',
+          },
           body: { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
         })
       );
@@ -250,7 +261,11 @@ describe('Preset Command Handlers', () => {
         `/user/model-override/${PERSONALITY_ID_1}`,
         expect.objectContaining({
           method: 'DELETE',
-          userId: '123456789',
+          user: {
+            discordId: '123456789',
+            username: 'testuser',
+            displayName: 'testuser',
+          },
         })
       );
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(

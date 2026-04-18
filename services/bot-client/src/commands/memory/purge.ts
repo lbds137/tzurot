@@ -18,7 +18,7 @@ import {
 } from 'discord.js';
 import { createLogger, memoryPurgeOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createDangerEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolveRequiredPersonality } from './resolveHelpers.js';
 
@@ -63,12 +63,13 @@ function getConfirmationPhrase(personalityName: string): string {
 // eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with multi-step confirmation flow
 export async function handlePurge(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memoryPurgeOptions(context.interaction);
   const personalityInput = options.personality();
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolveRequiredPersonality(context, userId, personalityInput);
+    const personalityId = await resolveRequiredPersonality(context, user, personalityInput);
     if (personalityId === null) {
       return;
     }
@@ -77,7 +78,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
     const statsResult = await callGatewayApi<StatsResponse>(
       `/user/memory/stats?personalityId=${personalityId}`,
       {
-        userId,
+        user,
         method: 'GET',
       }
     );
@@ -222,7 +223,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
     await modalInteraction.deferUpdate();
 
     const purgeResult = await callGatewayApi<PurgeResponse>('/user/memory/purge', {
-      userId,
+      user,
       method: 'POST',
       body: {
         personalityId,

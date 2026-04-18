@@ -10,7 +10,7 @@
  */
 
 import { createLogger, TTLCache, type PersonalitySummary } from '@tzurot/common-types';
-import { callGatewayApi } from '../userGatewayClient.js';
+import { callGatewayApi, type GatewayUser } from '../userGatewayClient.js';
 
 const logger = createLogger('autocomplete-cache');
 
@@ -67,7 +67,8 @@ const userCache = new TTLCache<UserAutocompleteData>({
  * @param userId - Discord user ID
  * @returns Array of personality summaries, or empty array on error
  */
-export async function getCachedPersonalities(userId: string): Promise<PersonalitySummary[]> {
+export async function getCachedPersonalities(user: GatewayUser): Promise<PersonalitySummary[]> {
+  const userId = user.discordId;
   // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
   if (cached?.personalities !== undefined) {
@@ -81,7 +82,7 @@ export async function getCachedPersonalities(userId: string): Promise<Personalit
   try {
     const result = await callGatewayApi<{ personalities: PersonalitySummary[] }>(
       '/user/personality',
-      { userId }
+      { user }
     );
 
     if (!result.ok) {
@@ -120,7 +121,8 @@ export async function getCachedPersonalities(userId: string): Promise<Personalit
  * @param userId - Discord user ID
  * @returns Array of persona summaries, or empty array on error
  */
-export async function getCachedPersonas(userId: string): Promise<PersonaSummary[]> {
+export async function getCachedPersonas(user: GatewayUser): Promise<PersonaSummary[]> {
+  const userId = user.discordId;
   // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
   if (cached?.personas !== undefined) {
@@ -133,7 +135,7 @@ export async function getCachedPersonas(userId: string): Promise<PersonaSummary[
 
   try {
     const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
-      userId,
+      user,
     });
 
     if (!result.ok) {
@@ -169,7 +171,8 @@ export async function getCachedPersonas(userId: string): Promise<PersonaSummary[
  * @param userId - Discord user ID
  * @returns Array of shape summaries, or empty array on error
  */
-export async function getCachedShapes(userId: string): Promise<ShapesSummary[]> {
+export async function getCachedShapes(user: GatewayUser): Promise<ShapesSummary[]> {
+  const userId = user.discordId;
   // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
   if (cached?.shapes !== undefined) {
@@ -182,7 +185,7 @@ export async function getCachedShapes(userId: string): Promise<ShapesSummary[]> 
 
   try {
     const result = await callGatewayApi<{ shapes: ShapesSummary[] }>('/user/shapes/list', {
-      userId,
+      user,
       // Explicit: default is AUTOCOMPLETE (2500ms), fits Discord's 3s autocomplete window
     });
 

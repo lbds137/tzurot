@@ -7,6 +7,7 @@
 import type { AutocompleteInteraction } from 'discord.js';
 import { handlePersonalityAutocomplete as sharedPersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
 import { getCachedPersonalities } from '../../utils/autocomplete/autocompleteCache.js';
+import { type GatewayUser } from '../../utils/userGatewayClient.js';
 
 /**
  * Handle personality autocomplete for memory commands
@@ -32,10 +33,10 @@ export async function handlePersonalityAutocomplete(
  * @returns Personality UUID or null if not found
  */
 export async function resolvePersonalityId(
-  userId: string,
+  user: GatewayUser,
   slugOrId: string
 ): Promise<string | null> {
-  const personalities = await getCachedPersonalities(userId);
+  const personalities = await getCachedPersonalities(user);
 
   // Try to find by slug first (most common case from autocomplete)
   const bySlug = personalities.find(p => p.slug === slugOrId);
@@ -66,10 +67,10 @@ export async function resolvePersonalityId(
  * @returns Personality display name or null if not found
  */
 export async function getPersonalityName(
-  userId: string,
+  user: GatewayUser,
   personalityId: string
 ): Promise<string | null> {
-  const personalities = await getCachedPersonalities(userId);
+  const personalities = await getCachedPersonalities(user);
 
   const personality = personalities.find(p => p.id === personalityId);
   if (personality === undefined) {

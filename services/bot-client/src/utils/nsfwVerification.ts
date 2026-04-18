@@ -14,7 +14,7 @@ import {
   type SendableChannels,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { callGatewayApi } from './userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from './userGatewayClient.js';
 import { redis } from '../redis.js';
 import { storePendingVerificationMessage } from './pendingVerificationMessages.js';
 import { cleanupVerificationMessagesForUser } from '../services/VerificationCleanupService.js';
@@ -36,14 +36,17 @@ interface NsfwVerifyResponse {
 /**
  * Check if a user is NSFW verified
  */
-export async function checkNsfwVerification(userId: string): Promise<NsfwStatus> {
+export async function checkNsfwVerification(user: GatewayUser): Promise<NsfwStatus> {
   const result = await callGatewayApi<NsfwStatus>('/user/nsfw', {
     method: 'GET',
-    userId,
+    user,
   });
 
   if (!result.ok) {
-    logger.warn({ userId, error: result.error }, '[NSFW] Failed to check verification status');
+    logger.warn(
+      { userId: user.discordId, error: result.error },
+      '[NSFW] Failed to check verification status'
+    );
     return { nsfwVerified: false, nsfwVerifiedAt: null };
   }
 
@@ -54,12 +57,13 @@ export async function checkNsfwVerification(userId: string): Promise<NsfwStatus>
  * Mark a user as NSFW verified
  * Called when user interacts with the bot in an NSFW Discord channel
  */
-export async function verifyNsfwUser(userId: string): Promise<NsfwVerifyResponse | null> {
+export async function verifyNsfwUser(user: GatewayUser): Promise<NsfwVerifyResponse | null> {
   const result = await callGatewayApi<NsfwVerifyResponse>('/user/nsfw/verify', {
     method: 'POST',
-    userId,
+    user,
   });
 
+  const userId = user.discordId;
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, '[NSFW] Failed to verify user');
     return null;
@@ -220,18 +224,19 @@ export async function handleNsfwVerification(
   logPrefix: string
 ): Promise<NsfwVerificationResult> {
   const userId = message.author.id;
+  const user = toGatewayUser(message.author);
   const { channel } = message;
 
   // If in NSFW channel, auto-verify and continue
   if (isNsfwChannel(channel)) {
-    const verifyResult = await verifyNsfwUser(userId);
+    const verifyResult = await verifyNsfwUser(user);
     // wasNewVerification is true if verify succeeded AND user wasn't already verified
     const wasNewVerification = verifyResult !== null && !verifyResult.alreadyVerified;
     return { allowed: true, wasNewVerification };
   }
 
   // For all other channels (DMs and non-NSFW guild channels), check verification
-  const nsfwStatus = await checkNsfwVerification(userId);
+  const nsfwStatus = await checkNsfwVerification(user);
   if (!nsfwStatus.nsfwVerified) {
     logger.info(
       { userId, channelType: channel.type },

@@ -29,6 +29,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 /** Generate N voice entries for pagination tests */
@@ -90,7 +95,7 @@ describe('handleBrowseVoices', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/voices',
-      expect.objectContaining({ userId: 'user-123' })
+      expect.objectContaining({ user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' } })
     );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
