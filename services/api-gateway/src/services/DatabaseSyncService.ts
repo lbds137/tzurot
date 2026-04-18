@@ -190,8 +190,10 @@ export class DatabaseSyncService {
         }
       }
 
-      // Flush phase — one transaction per direction, with SET CONSTRAINTS
-      // ALL DEFERRED so circular NOT NULL FKs can insert atomically.
+      // Flush phase — one transaction per direction, with the four
+      // named circular-FK constraints deferred (see flushWrites for the
+      // rationale on naming them explicitly) so circular NOT NULL FKs
+      // can insert atomically.
       if (!options.dryRun) {
         await this.flushWrites(this.devClient, devBoundWrites, 'dev');
         await this.flushWrites(this.prodClient, prodBoundWrites, 'prod');

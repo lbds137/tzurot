@@ -34,7 +34,7 @@
  * - We spin up TWO PGLite instances — one acts as "dev", one as "prod".
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
@@ -60,19 +60,49 @@ const __dirname = dirname(__filename);
  * --to-schema`) emits from `schema.prisma` and can't express DEFERRABLE,
  * so we apply this migration manually on top of `loadPGliteSchema()`.
  */
-function loadDeferrableFkMigration(): string {
+/** Repo-root-relative path to `prisma/migrations/`. */
+function migrationsDir(): string {
   // Resolve relative to this test file. Service lives at
   // services/api-gateway/src/services/DatabaseSyncService.int.test.ts;
   // repo root is four `..` up (services/api-gateway/src/services/ → repo).
   const repoRoot = join(__dirname, '..', '..', '..', '..');
+  return join(repoRoot, 'prisma', 'migrations');
+}
+
+function loadDeferrableFkMigration(): string {
   const migrationPath = join(
-    repoRoot,
-    'prisma',
-    'migrations',
+    migrationsDir(),
     '20260418010642_make_circular_fks_deferrable',
     'migration.sql'
   );
   return readFileSync(migrationPath, 'utf-8');
+}
+
+/**
+ * Return the lexicographically-latest migration directory name (which is
+ * also chronologically latest because migrations are prefixed with
+ * `YYYYMMDDhhmmss`). Used to seed `_prisma_migrations` so
+ * `checkSchemaVersions` sees the *current* schema tip on both DBs —
+ * independent of which migration actually landed last. Previously the
+ * seed row hardcoded `20260418010642_…`, which would start failing this
+ * suite with a schema-version-mismatch error the moment any new
+ * migration shipped. (PR #826 R4 #3.)
+ */
+function getLatestMigrationName(): string {
+  const entries = readdirSync(migrationsDir());
+  const dirs = entries
+    .filter(name => {
+      if (!/^\d{14}_/.test(name)) {
+        return false;
+      }
+      return statSync(join(migrationsDir(), name)).isDirectory();
+    })
+    .sort();
+  const latest = dirs[dirs.length - 1];
+  if (latest === undefined) {
+    throw new Error('No migrations found — expected at least one timestamped directory');
+  }
+  return latest;
 }
 
 /**
@@ -96,10 +126,24 @@ const SETUP_PRISMA_MIGRATIONS_TABLE = `
   );
 `;
 
-const SEED_MIGRATION_ROW = `
-  INSERT INTO "_prisma_migrations" (id, checksum, migration_name, finished_at, applied_steps_count)
-  VALUES (gen_random_uuid(), 'test-checksum', '20260418010642_make_circular_fks_deferrable', NOW(), 1);
-`;
+/**
+ * Build the seed SQL for `_prisma_migrations` using the current latest
+ * migration name. Dynamic so future-added migrations don't break the
+ * schema-version check in this suite. (PR #826 R4 #3.)
+ */
+function buildSeedMigrationRow(): string {
+  const latest = getLatestMigrationName();
+  // Defense-in-depth: the pattern check in getLatestMigrationName() already
+  // restricts `latest` to `^\d{14}_…`, but we sanity-check again before
+  // string-interpolating into SQL.
+  if (!/^[\w-]+$/.test(latest)) {
+    throw new Error(`Unexpected characters in migration name: ${latest}`);
+  }
+  return `
+    INSERT INTO "_prisma_migrations" (id, checksum, migration_name, finished_at, applied_steps_count)
+    VALUES (gen_random_uuid(), 'test-checksum', '${latest}', NOW(), 1);
+  `;
+}
 
 describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
   let devPglite: PGlite;
@@ -159,7 +203,7 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
         await tx.$executeRawUnsafe(`DELETE FROM "users"`);
         await tx.$executeRawUnsafe(`DELETE FROM "personas"`);
         await tx.$executeRawUnsafe(`DELETE FROM "_prisma_migrations"`);
-        await tx.$executeRawUnsafe(SEED_MIGRATION_ROW);
+        await tx.$executeRawUnsafe(buildSeedMigrationRow());
       });
     }
   });
