@@ -1,114 +1,130 @@
 # Current
 
-> **Session**: 2026-04-17 (ended, rolled over from 2026-04-16)
-> **Version**: v3.0.0-beta.99 (released 2026-04-17 — Identity Epic Phases 3–5b + UX polish + db-sync fix)
+> **Session**: 2026-04-18 (ended)
+> **Version**: v3.0.0-beta.100 (released 2026-04-17 — PR A + PR B on develop, unreleased)
 
 ---
 
 ## Next Session Goal
 
-_Phase 5c (eliminate shell-creation path) → then Phase 6 integration tests. Release cadence is open; no specific deadline._
+_Start Phase 6 (integration tests). PR C is blocked on prod canary verification — which can't happen until PR A + PR B ship to prod. Phase 6 is the unblocked Release 1 work._
 
-1. **Phase 5c council pressure-test** (~45 min): settle the API-contract question — where does "user must be provisioned" live? Options: bot-client pre-provisions via `getOrCreateUser` before any slash-command → HTTP call, OR api-gateway middleware that calls `getOrCreateUser` given the bot-client passes username/displayName/bio headers, OR auth-extension approach. Council should pressure-test all three.
-2. **Phase 5c implementation**: delete `getOrCreateUserShell`, `createShellUserWithRaceProtection`, `buildShellPlaceholderPersonaName`, the placeholder-rename block in `runMaintenanceTasks`. Swap ~13 api-gateway HTTP routes from shell-path to `findUserByDiscordIdOrFail` (404 if not provisioned). Audit ~20 slash-command handlers for pre-provision. **Folded-in cleanups**: tighten `User.defaultPersona` relation from `Persona?` → `Persona`; break the test-utils ↔ common-types Turbo build-DAG cycle and switch `seed.ts` to import `DEFAULT_PERSONA_DESCRIPTION` directly. Expected ~200–400 LOC net delete once the cutover lands.
-3. **Phase 6**: integration test coverage for the refactor-regression class (`c88ae5b7`). End-to-end "HTTP route → Discord interaction → prompt correctness" test. ~2 days.
+1. **Phase 6 — integration test coverage for the refactor-regression class (~2 days).** Goal: the `c88ae5b7` class of regression fails loudly in tests. End-to-end test exercising "user hits HTTP route → later Discord interaction → system prompt correctness assertion." Path-agnostic so tests survive PR C's deletion of the shell path. Entry point: `docs/reference/architecture/epic-identity-hardening.md § Phase 6`.
+2. **Or**: wait for dev Railway deploy + observe PR B's `[Identity] Shell path executed` canary log before starting Phase 6. The canary observation is the empirical input for PR C. Deploying unreleased develop to dev Railway is one `pnpm ops deploy` away.
+3. **Or**: cut Release 1 early (PR A + PR B + Phase 6 once ready) to get prod canary data sooner. Trade-off: releases are an event each, so bundling all three is the documented plan — but Phase 6 is the only remaining bundled item.
 
 ## Active Task
 
-🏗 **Identity & Provisioning Hardening Epic — Phases 1–5b shipped to prod. Phase 5c next, then Phase 6.**
+🏗 **Identity & Provisioning Hardening Epic — Phase 5c in-flight (2 of 3 sub-PRs shipped to develop).**
 
-Epic status (all in prod as of beta.99):
+Epic status:
 
 - ✅ Phase 1 (PR #803, beta.97): tactical heal for persona-snowflake bug. 14 users healed in prod.
 - ✅ Phase 2 (PRs #807, #808, beta.98): single choke point for user creation, `ProvisionedUser` return type, ESLint guard on direct `prisma.user/persona.create`.
 - ✅ Phase 3 (PR #814, beta.99): eliminated `PersonaResolver.setUserDefault` lazy mutation — read-only resolver, persistence moved to UserService.
 - ✅ Phase 4 (PR #816, beta.99): killed `discord:XXXX` dual-tier personaId format.
-- ✅ Phase 5 (PR #817, beta.99): DB-level invariants — Restrict FK on `user.default_persona_id`, unique `(owner_id, name)` on personas, CHECK constraints `personas_name_non_empty` and `personas_name_not_snowflake`.
-- ✅ Phase 5b (PR #818, beta.99): NOT NULL on `users.default_persona_id` via single-statement CTE bootstrap. Deleted `backfillDefaultPersona` (90 LOC). Added `seedUserWithPersona` helper to test-utils.
-- 📋 **Phase 5c (next)**: eliminate shell-creation path entirely. Council pressure-test first.
-- 📋 Phase 6: integration test coverage for refactor-regression class.
+- ✅ Phase 5 (PR #817, beta.99): DB-level invariants — Restrict FK on `user.default_persona_id`, unique `(owner_id, name)` on personas, CHECK constraints.
+- ✅ Phase 5b (PR #818, beta.99): NOT NULL on `users.default_persona_id` via single-statement CTE bootstrap.
+- ✅ **Phase 5c PR A (PR #829, develop)**: bot-client sends `X-User-Username` + `X-User-DisplayName` headers. `GatewayUser` type in common-types. 187 files, 3 review rounds.
+- ✅ **Phase 5c PR B (PR #830, develop)**: gateway-side `requireProvisionedUser(prisma)` middleware + shell-path canary. 76 files, 3 review rounds. Includes WeakMap UserService cache optimization from R2 review.
+- 📋 **Phase 5c PR C (blocked on canary)**: swap handlers to `req.provisionedUserId`, delete shell path. See Active Epic section of BACKLOG for the expanded sub-scope (double-UserService cleanup, isBot tightening, drift-sync, relation tightening, test-utils package-graph cleanup).
+- 📋 **Phase 6 (unblocked)**: integration test coverage for refactor-regression class.
 
 ---
 
-## Completed This Session (2026-04-16 → 2026-04-17)
+## Completed This Session (2026-04-18)
 
-Very long session. Started as Phase 5b implementation; ended with beta.99 shipped to prod.
+Very long session. Started as "take inventory and plan today," ended with two sub-PRs of Phase 5c shipped to develop, a detailed PR C plan in BACKLOG, and the Monitor permission config added.
 
-### Phase 5b shipped (PR #818, six review rounds)
+### Backlog hygiene pass
 
-- **Core fix**: `users.default_persona_id` is now NOT NULL at DB, Prisma, and TypeScript layers.
-- **CTE bootstrap**: circular-FK between users and personas solved via single-statement `$executeRaw` CTE. Council pressure-tested: recommended over deferred CHECK (keeps nullable types) or DEFERRABLE FK (introduces Prisma drift toil).
-- **Dead-code removal**: `backfillDefaultPersona` (90 LOC + 4 unit tests) deleted. `UserWithBackfillFields` renamed to `UserWithMaintenanceFields`.
-- **test-utils**: new `seedUserWithPersona` helper + colocated `seed.int.test.ts`. Replaced raw SQL duplication across 9 int test files.
-- **Six review rounds**: R1 displayName propagation, R2 P2002 target filter symmetry, R3 stale comment + PR refs removal + seed test, R4 interface rename + logs, R5 shell-path P2002 coverage, R6 "atomically" comment word fix (direct-to-develop cherry-pick).
+- Removed 5 stale items already shipped in beta.99 / beta.100 (character field silent-truncation, PersonaResolver focus-mode query collapse, preset clone auto-numbering, flaky xray analyzer test, preset save errors opaque). Each verified shipped by grepping the actual code/commits before deletion.
+- Bumped `BACKLOG.md` header dates + version.
+- Updated "Standardize over-long field handling" entry from 1-consumer (memory) to 2-consumer (memory + character), tagged as rule-of-three watch.
+- Net: -95/+6 lines.
 
-### Beta.99 release shipped (PR #819, eleven review rounds)
+### Phase 5c council consultation (Gemini 3.1 Pro Preview)
 
-- **Bundle contents**: Phases 3/4/5/5b (Identity Epic), UX polish (age verify on direct-bot-ping, avatar timeout, backtick mentions, taking-longer decoupling — PR #815), db-sync deferred-FK fix (PR #813), hono/langsmith CVE bumps.
-- **Pre-flight**: re-verified 0 null default_persona_id + 0 duplicate (owner_id, name) + 0 empty/snowflake-pattern names against CURRENT dev + prod (not stale pre-flight from days ago).
-- **Release PR "conflicts" diagnosed**: develop had pre-rebase SHAs of beta.98-era commits, main had the rebased versions. Git auto-skipped via `--reapply-cherry-picks` detection. Rebased develop, force-pushed, conflicts gone.
-- **Eleven review rounds landed**: most were re-confirmations of already-tracked items; actionable fixes: PersonaResolver FK-comment stale `SetNull` → `Restrict`, `INTERNAL_DISCORD_ID_PREFIX` extracted to `services/bot-client/src/constants/personaId.ts` to break service → contextBuilder import, `ownedPersonaCount` misleading log field removed, `isPrismaUniqueConstraintError` tightened from substring to element-equality match, `DEFAULT_PERSONA_DESCRIPTION` extracted to common-types constants layer (partial — Turbo DAG blocks the test-utils side).
-- **Deployment**: prod deploy at 05:52 UTC, all three services clean, Phase 5 + 5b migrations applied post-deploy, zero error-level logs.
-- **Release artifacts**: tag `v3.0.0-beta.99` pushed, GitHub release published (prerelease per convention), develop rebased onto main (step 5 that got missed after beta.98 — not missing it this time).
+- Pressure-tested three API-contract options for "where does 'user must be provisioned' live": (A) gateway middleware, (B) per-handler call, (C) auth-extension with bot-client sending context headers.
+- Council landed on **Option C (read-through provisioning middleware)**. Bio dropped from contract (already unused on updates). URI-encoding mandatory for non-Latin-1 chars. Shadow-mode cutover with canary telemetry inside `getOrCreateUserShell` itself (not in the new middleware — avoids false negatives from missed mounts).
+- DB verification: **0 dormant shell users on dev**. Collapsed the "dormant shell user migration" from its own sub-phase into a conditional check at cutover time.
 
-### Process / design decisions surfaced this session
+### PR A shipped (PR #829, merged)
 
-- **"Phase 5 isn't done until 5b is done"** — user framing promoted 5b from deferred-backlog to in-session active. Correct call; NOT NULL is the load-bearing invariant.
-- **"I don't see the point of divergent paths for this"** — user identified the shell path as a symptom of a missing abstraction, not a legitimate architectural split. Phase 5c scope redefined mid-session: eliminate the path entirely, not just paper over it.
-- **"I worry we'll run into other stuff like this"** — schema-audit mini-epic added for post-Phase-6 work (find nullable-that-isn't FK columns, default-that-never-applies patterns, etc.). v3 dev started 2025-10; three load-bearing workaround patterns found in 6 months suggests more hide.
-- **"was it necessary to make a new branch?"** — working-style calibration: doc-only / comment-only / BACKLOG-only changes default to direct-on-develop, not PR. Cherry-picked R6 fix onto develop.
-- **Release flow step 5 gap**: discovered why beta.99's release PR showed phantom conflicts — the "rebase develop onto main after merge" step was skipped after beta.98. Added backlog entry for `pnpm ops release:finalize` automation. Did the rebase this time.
+- bot-client threads `GatewayUser` through its HTTP stack. `toGatewayUser(user: DiscordUser): GatewayUser` helper centralizes the `globalName ?? username` fallback. Two new headers URI-encoded.
+- 187 files changed — almost entirely mechanical signature propagation. Delegated Tier 4 (command handler callsites) + Tier 5 (test updates) + spec-only typecheck errors to three general-purpose agents in sequence. Over-match regressions caught and fixed.
+- 3 review rounds. R1 surfaced the mock-duplication problem — migrated 73 test files to `vi.importActual` pattern in one pass. Moved `GatewayUser` interface to `common-types` for PR B's benefit.
+
+### PR B shipped (PR #830, merged)
+
+- `requireProvisionedUser(prisma)` middleware in AuthMiddleware.ts with full graceful-degradation: missing headers → warn + next, malformed URI → warn + next, getOrCreateUser throws → warn + next, null return (bot) → warn + next. Never 4xx.
+- Mounted on 33 user-scoped routes. 37 test files updated with pass-through mock.
+- Canary `logger.warn('[Identity] Shell path executed', { discordId, stack })` inside `UserService.getOrCreateUserShell` — top 6 frames only (R2 perf optimization).
+- **WeakMap UserService cache** (R2 fix): `userServiceByPrisma` caches UserService by PrismaClient reference so multiple factory calls with the same client share ONE UserService + cache. Fixes the 12-cache-instances problem in multi-endpoint route files like `memory.ts`.
+- `.claude/rules/01-architecture.md` updated with "Request Enrichment" section documenting `req.userId` vs `req.provisionedUserId`.
+- 3 review rounds. Final verdict: "No blocking issues."
+
+### Operational / harness
+
+- Added `"Monitor"` to allow list in both `.claude/settings.json` (tracked) and `~/.claude/settings.json` (global). Eliminates permission prompts for polling/wait operations. Since Bash was already unscoped-allowed, zero incremental trust.
+
+### Backlog updates
+
+- PR C sub-scope expanded in the Active Epic section with concrete bullets: double-`UserService` cleanup (wallet/setKey + llm-config), isBot tightening, graceful-degradation → strict 400, username drift-sync, `User.defaultPersona` relation tightening, test-utils package-graph cleanup.
+- Epic status line updated to reflect PR A/B shipped to develop.
 
 ---
 
 ## Scratchpad
 
-### beta.99 post-deploy validation (done)
+### PR B canary verification recipe (for next session or whenever prod deploy happens)
 
-- ✅ api-gateway: "API Gateway is fully operational!" @ 05:52:57 UTC
-- ✅ ai-worker: "AI Worker is fully operational! 🚀" @ 05:52:58 UTC
-- ✅ bot-client: Presence restored @ 05:53:03 UTC
-- ✅ Phase 5 + 5b migrations applied to prod
-- ✅ Zero error-level logs post-migration across all services
-- ⏭️ User smoke-test skipped (no test user available)
+- After PR A + PR B ship to prod, tail api-gateway logs for `'[Identity] Shell path executed'`.
+- Expected: non-zero initially (deploy-transition window with old bot-client instances). Should trend to zero as bot-client cycles through.
+- Zero hits for 48-72h → PR C is unblocked.
+- If the canary stays non-zero after bot-client rollout, the top-6-frames stack trace in each log line identifies the route that still reaches the shell path (either a handler that short-circuits around the middleware, or a route that forgot the mount).
+- Dev Railway check: `pnpm ops logs --env dev --filter "@api-gateway" | grep "Shell path executed"`.
 
-### Phase 5c open questions for council pressure-test
+### Open PR C design questions (to pressure-test when PR C starts)
 
-1. **Where does "user must be provisioned" live?** Middleware (per-route invariant) vs. per-handler call vs. auth-extension (session enrichment)? Each has different failure modes when the invariant is violated.
-2. **Does bot-client always have username/displayName at slash-command dispatch?** Discord interaction payload includes them, but need to verify for button/select-menu interactions where the original command's user context may have to be re-fetched.
-3. **What's the contract when api-gateway receives a request for a non-provisioned user?** 404? 412 Precondition Failed? Auto-provision with a synthetic placeholder (defeats the purpose)?
-4. **Cutover sequencing**: ship bot-client pre-provisioning first, wait a day to ensure all flows provision, THEN flip api-gateway routes to `findUserByDiscordIdOrFail`. Sequencing matters.
-5. **Folded-in cleanups**: after the main cutover, tighten `User.defaultPersona` relation (`Persona?` → `Persona`), which then unlocks PersonaResolver dead-code deletion (Priority 3 fallback + dangling-FK branches become unreachable by type). Separate commit.
+1. **Where does the cutover order go?** 33 routes need `getOrCreateUserShell(req.userId)` → `req.provisionedUserId`. Do all at once, or by file? The provisioning middleware already attaches `req.provisionedUserId` so each route can switch independently.
+2. **How to handle the 400-rejection tightening gracefully?** Right now middleware falls through on missing headers. Switching to 400 means OLD bot-client versions that haven't updated to PR A would break. Should be safe after prod observation confirms all traffic carries the new headers.
+3. **Username drift-sync scope**: fire-and-forget in middleware vs. a BullMQ repeatable job? Council favored async fire-and-forget; worth revisiting.
+4. **adminFetch/requireOwnerAuth path**: admin routes use a separate auth middleware and have bot-owner-only semantics. Do we need a sibling `requireProvisionedOwner` middleware? Or do admin endpoints just trust the existing auth without provisioning?
+5. **Dormant shell user policy** (prod): zero on dev, but prod may have non-zero. Check with the count script at PR C-start time; if > 0, decide migrate-via-Discord-API vs. accept-garbage-names.
 
-### Release-flow lessons learned
+### Release 1 bundling plan (unchanged)
 
-- **Step 5 (rebase develop onto main) was missed after beta.98**, surfaced on this release as phantom conflicts in PR #819. Fix: either automate it (`pnpm ops release:finalize` — tracked in BACKLOG) or add a session-start guard.
-- **`pnpm ops run --env prod --` passthrough** requires the command directly, no `--` separator. `pnpm ops run --env prod --force tsx scripts/...` works; `pnpm ops run --env prod -- tsx ...` fails with "No command specified".
-- **One-off preflight scripts** should live in `scripts/analysis/` and be deleted after use per the `scripts/` rule. Did that for the migration pre-flight check.
+Release 1 = PR A (shipped to develop) + PR B (shipped to develop) + Phase 6 (not started). Hold prod deploy until all three land, OR decide to cut early for canary-observation purposes. User preference last time: hold for full bundle.
 
 ---
 
 ## Unreleased on Develop (since beta.100)
 
-_One polish commit on top of main (`ad1d9348d` — PR #828 review items that didn't make the merge: deleted the one-off repair script, dropped stale PR-ref from `LlmConfigSummarySchema` JSDoc, removed unreachable branch in `classifyAndQueueRow`)._
+- `650ac12d4` — chore: allow Monitor tool in project permissions
+- `4c98c9220` — feat(api-gateway): shadow-mode provisioning middleware + shell-path canary (PR B)
+- `5bebadd52` — chore(api-gateway): replace time-bound comment in removeKey.test.ts (PR B R1 polish)
+- `862506ee2` — refactor(api-gateway,common-types): address PR #830 R2 perf review (PR B R2 polish)
+- `e51cf2dc7` — chore(repo): backlog update — Phase 5c PR A + PR B on develop, PR C scope expanded
+- Plus PR A's 3 commits (merged earlier today) and 2 from PR #828's review polish rollover (carried from yesterday).
 
 ---
 
 ## Previous Sessions
 
-- **2026-04-17 (this session)**: **Phase 5b shipped + beta.99 release** — PR #818 (Phase 5b NOT NULL + CTE bootstrap), PR #819 (beta.99 bundling phases 3/4/5/5b/#813/#815 + CVE bumps). Prod migrated, tag + GitHub release published, develop rebased onto main.
-- **2026-04-15 / 2026-04-16**: **Identity epic phases 3/4/5 + beta.98 release bundle** — PRs #807, #808 (Phase 2), #809 (cross-channel security), #810 (MEDIA_NOT_FOUND regex), #811 (abbreviation periods), #812 (release), then unreleased phases 3/4/5 (PRs #814/#816/#817).
-- **2026-04-14**: **Identity epic Phase 1** + vision retry fix + TTS budget fix + release (PRs #802-#806), beta.97.
+- **2026-04-18 (this session)**: **Phase 5c PR A + PR B shipped to develop** — PR #829 (bot-client user-context headers, `GatewayUser` in common-types, URI-encoding), PR #830 (gateway shadow-mode middleware + canary, WeakMap UserService cache, route mounts on 33 files). Council pressure-test landed Option C. Backlog hygiene sweep. Monitor permission config. 6 review rounds total across both PRs — every substantive item addressed.
+- **2026-04-17**: **Phase 5b shipped + beta.99 release** — PR #818 (Phase 5b NOT NULL + CTE bootstrap), PR #819 (beta.99 bundling phases 3/4/5/5b/#813/#815 + CVE bumps). Prod migrated, tag + GitHub release published.
+- **2026-04-15 / 2026-04-16**: Identity epic phases 3/4/5 + beta.98 release bundle.
+- **2026-04-14**: Identity epic Phase 1 + vision retry fix + TTS budget fix + release (PRs #802-#806), beta.97.
 - **2026-04-13**: Backlog shrinkage (PRs #794-800), deps update, preset UX, beta.96.
 - **2026-04-12**: Voice engine hardening (PR #785), Python hooks, release audit, beta.95.
 - **2026-04-11**: CPD Session 1 (PRs #778-780), channel rename (#781), doc audit (#782-784).
-- **2026-04-10**: Browse Step 8 (PR #776), CPD 137→126.
 
 ## Recent Releases
 
-- **v3.0.0-beta.100** (2026-04-18) — Two prod blockers fixed (`/admin db-sync` Ouroboros Insert refactor + `/settings preset default` RFC-4122 UUID repair), character field silent-truncation warning flow (PR #825, two-click opt-in), PersonaResolver focus-mode query collapse, typed `NAME_COLLISION` sub-code, preset clone auto-numbering, protobufjs CVE. Migration: circular FKs made DEFERRABLE. New PGLite int test for db-sync class-of-bug. New 00-critical.md rule: "Don't Present Speculation as Fact".
-- **v3.0.0-beta.99** (2026-04-17) — Identity Epic Phases 3-5b (read-only PersonaResolver + discord:XXXX format kill + DB-level invariants + NOT NULL default_persona_id), UX polish bundle (age verify on direct-bot-ping, avatar timeout, backtick mentions, taking-longer decoupling), db-sync deferred-FK fix, hono/langsmith CVE bumps. Two migrations (Phase 5 + 5b).
-- **v3.0.0-beta.98** (2026-04-15) — Cross-channel permission guard (security), MEDIA_NOT_FOUND regex fix, abbreviation-period mention matching, Phase 2 Identity Hardening (provisioning choke point + `ProvisionedUser` type + ESLint guard).
+- **v3.0.0-beta.100** (2026-04-17) — Two prod blockers fixed (`/admin db-sync` Ouroboros Insert refactor + `/settings preset default` RFC-4122 UUID repair), character field silent-truncation warning flow (PR #825, two-click opt-in), PersonaResolver focus-mode query collapse, typed `NAME_COLLISION` sub-code, preset clone auto-numbering, protobufjs CVE. Migration: circular FKs made DEFERRABLE. New PGLite int test for db-sync class-of-bug. New 00-critical.md rule: "Don't Present Speculation as Fact".
+- **v3.0.0-beta.99** (2026-04-17) — Identity Epic Phases 3-5b, UX polish bundle, db-sync deferred-FK fix, hono/langsmith CVE bumps.
+- **v3.0.0-beta.98** (2026-04-15) — Cross-channel permission guard (security), MEDIA_NOT_FOUND regex fix, abbreviation-period mention matching, Phase 2 Identity Hardening.
 - **v3.0.0-beta.97** (2026-04-14) — Identity & provisioning heal (14 users), vision retry classifier fix + telemetry, TTS budget unification, pytest security bump.
 - **v3.0.0-beta.96** (2026-04-13) — Mention parser fixes, forwarded messages, preset error surfacing, deps update, refactors.
 
