@@ -211,11 +211,29 @@ function readEncodedHeader(req: Request, headerName: string): string | undefined
  * @param prisma - PrismaClient used to construct a cached UserService
  * @returns Express middleware function
  */
+// Cache UserService instances by PrismaClient reference so multiple factory
+// calls with the same client share ONE UserService (and its TTLCache). Each
+// route file mounts `requireProvisionedUser(prisma)` per-endpoint, so
+// `memory.ts` (12 endpoints) would otherwise create 12 independent
+// UserServices with 12 independent caches — cache hits would never carry
+// across endpoints for the same user. WeakMap lets the instance be GC'd
+// if/when the PrismaClient it was built against is released (not expected
+// in prod, but correct for test fixtures that spin up short-lived clients).
+const userServiceByPrisma = new WeakMap<PrismaClient, UserService>();
+
+function getOrCreateUserService(prisma: PrismaClient): UserService {
+  let service = userServiceByPrisma.get(prisma);
+  if (service === undefined) {
+    service = new UserService(prisma);
+    userServiceByPrisma.set(prisma, service);
+  }
+  return service;
+}
+
 export function requireProvisionedUser(prisma: PrismaClient) {
-  // Construct UserService once per factory call (typically app-startup).
-  // UserService just stores the prisma reference — cheap to reuse across
-  // every request that hits this router mount.
-  const userService = new UserService(prisma);
+  // Shared UserService across all factory calls with the same prisma
+  // reference — see `userServiceByPrisma` comment above for why.
+  const userService = getOrCreateUserService(prisma);
 
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     const discordId = (req as AuthenticatedRequest).userId;
