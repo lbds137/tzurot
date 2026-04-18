@@ -198,10 +198,18 @@ export const LLM_CONFIG_DEFAULTS = {
 // ============================================================================
 
 /**
- * Summary of an LLM configuration
+ * Summary of an LLM configuration.
+ *
+ * `id` is validated as an RFC 4122 UUID (not just any string) so that
+ * non-RFC values — like the 4 configs that caused the beta.100 preset
+ * blocker — are rejected at the gateway's response boundary rather than
+ * propagating to autocomplete and then failing opaquely at the
+ * SetDefaultConfigSchema write boundary. See PR #827 for the incident
+ * and the data-repair script at `scripts/migrations/repair-llm-config-
+ * rfc-uuids.ts`.
  */
 export const LlmConfigSummarySchema = z.object({
-  id: z.string(),
+  id: z.string().uuid(),
   name: z.string(),
   description: z.string().nullable(),
   provider: z.string(),

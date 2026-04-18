@@ -19,7 +19,9 @@ import {
 describe('LLM Config API Contract Tests', () => {
   describe('LlmConfigSummarySchema', () => {
     const validConfig = {
-      id: 'config-123',
+      // Fixed RFC-4122-valid UUID: the schema rejects non-UUID ids at the
+      // response boundary (added in PR #827 follow-up). Previously 'config-123'.
+      id: '00000000-0000-4000-8000-000000000001',
       name: 'Default Config',
       description: 'A test configuration',
       provider: 'openrouter',
@@ -100,6 +102,22 @@ describe('LLM Config API Contract Tests', () => {
       const result = LlmConfigSummarySchema.safeParse(invalidConfig);
       expect(result.success).toBe(false);
     });
+
+    it('should reject a non-RFC-4122 UUID id (beta.100 preset blocker)', () => {
+      // The 4 production configs that caused the preset blocker had ids
+      // where the 13th hex digit (variant nibble) was outside 8/9/a/b.
+      // Postgres's `uuid` type accepted them; Zod's `.uuid()` rejects
+      // them. This schema is now strict so the gateway refuses to serve
+      // such configs rather than letting them reach autocomplete and
+      // fail opaquely at the SetDefaultConfigSchema write boundary.
+      const nonRfcConfig = {
+        ...validConfig,
+        id: '2cf9a6ea-7b1d-2fc3-f4de-0a9c2f3b7e1f', // variant='f' — invalid RFC 4122
+      };
+
+      const result = LlmConfigSummarySchema.safeParse(nonRfcConfig);
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('ListLlmConfigsResponseSchema', () => {
@@ -114,7 +132,7 @@ describe('LLM Config API Contract Tests', () => {
       const response = {
         configs: [
           {
-            id: 'global-1',
+            id: '00000000-0000-4000-8000-000000000002',
             name: 'Default Preset',
             description: 'System default',
             provider: 'openrouter',
@@ -126,7 +144,7 @@ describe('LLM Config API Contract Tests', () => {
             permissions: { canEdit: false, canDelete: false },
           },
           {
-            id: 'user-1',
+            id: '00000000-0000-4000-8000-000000000003',
             name: 'My Custom Preset',
             description: null,
             provider: 'openrouter',
@@ -156,7 +174,7 @@ describe('LLM Config API Contract Tests', () => {
     it('should validate successful create response', () => {
       const response = {
         config: {
-          id: 'new-config-123',
+          id: '00000000-0000-4000-8000-000000000004',
           name: 'My New Preset',
           description: 'A custom preset',
           provider: 'openrouter',

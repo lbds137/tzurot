@@ -118,7 +118,7 @@ describe('handleBrowse', () => {
   it('should browse presets with default settings (no filter, no query)', async () => {
     mockPresetApis([
       {
-        id: '1',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
         model: 'anthropic/claude-sonnet-4',
         isGlobal: true,
@@ -126,7 +126,7 @@ describe('handleBrowse', () => {
         isOwned: false,
       },
       {
-        id: '2',
+        id: '00000000-0000-4000-8000-000000000002',
         name: 'MyPreset',
         model: 'anthropic/claude-opus-4',
         isGlobal: false,
@@ -163,14 +163,14 @@ describe('handleBrowse', () => {
   it('should filter by global presets', async () => {
     mockPresetApis([
       {
-        id: '1',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
         model: 'anthropic/claude-sonnet-4',
         isGlobal: true,
         isOwned: false,
       },
       {
-        id: '2',
+        id: '00000000-0000-4000-8000-000000000002',
         name: 'MyPreset',
         model: 'anthropic/claude-opus-4',
         isGlobal: false,
@@ -190,14 +190,14 @@ describe('handleBrowse', () => {
   it('should filter by owned presets', async () => {
     mockPresetApis([
       {
-        id: '1',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Default',
         model: 'anthropic/claude-sonnet-4',
         isGlobal: true,
         isOwned: false,
       },
       {
-        id: '2',
+        id: '00000000-0000-4000-8000-000000000002',
         name: 'MyPreset',
         model: 'anthropic/claude-opus-4',
         isGlobal: false,
@@ -217,14 +217,14 @@ describe('handleBrowse', () => {
   it('should filter by free presets', async () => {
     mockPresetApis([
       {
-        id: '1',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Paid Model',
         model: 'anthropic/claude-sonnet-4',
         isGlobal: true,
         isOwned: false,
       },
       {
-        id: '2',
+        id: '00000000-0000-4000-8000-000000000002',
         name: 'Free Model',
         model: 'x-ai/grok-4.1-fast:free',
         isGlobal: true,
@@ -244,14 +244,14 @@ describe('handleBrowse', () => {
   it('should search by query', async () => {
     mockPresetApis([
       {
-        id: '1',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Claude Default',
         model: 'anthropic/claude-sonnet-4',
         isGlobal: true,
         isOwned: false,
       },
       {
-        id: '2',
+        id: '00000000-0000-4000-8000-000000000002',
         name: 'GPT Config',
         model: 'openai/gpt-4o',
         isGlobal: true,
@@ -273,7 +273,7 @@ describe('handleBrowse', () => {
     mockPresetApis(
       [
         {
-          id: '1',
+          id: '00000000-0000-4000-8000-000000000001',
           name: 'Default',
           model: 'anthropic/claude-sonnet-4',
           isGlobal: true,
@@ -293,7 +293,7 @@ describe('handleBrowse', () => {
   it('should show no results message when filter produces empty results', async () => {
     mockPresetApis([
       {
-        id: '1',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Global Only',
         model: 'anthropic/claude-sonnet-4',
         isGlobal: true,
@@ -383,7 +383,12 @@ describe('handleBrowsePagination', () => {
 
   it('should defer update on pagination', async () => {
     mockPresetApis([
-      { id: '1', name: 'Default', model: 'anthropic/claude-sonnet-4', isGlobal: true },
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        name: 'Default',
+        model: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+      },
     ]);
 
     const mockInteraction = createMockButtonInteraction('preset::browse::1::all::');
@@ -394,7 +399,12 @@ describe('handleBrowsePagination', () => {
 
   it('should refresh data and update reply', async () => {
     mockPresetApis([
-      { id: '1', name: 'Default', model: 'anthropic/claude-sonnet-4', isGlobal: true },
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        name: 'Default',
+        model: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+      },
     ]);
 
     const mockInteraction = createMockButtonInteraction('preset::browse::0::all::');
@@ -413,13 +423,19 @@ describe('handleBrowsePagination', () => {
   it('should apply filter from custom ID', async () => {
     mockPresetApis([
       {
-        id: '1',
+        id: '00000000-0000-4000-8000-000000000001',
         name: 'Global',
         model: 'anthropic/claude-sonnet-4',
         isGlobal: true,
         isOwned: false,
       },
-      { id: '2', name: 'Mine', model: 'anthropic/claude-opus-4', isGlobal: false, isOwned: true },
+      {
+        id: '00000000-0000-4000-8000-000000000002',
+        name: 'Mine',
+        model: 'anthropic/claude-opus-4',
+        isGlobal: false,
+        isOwned: true,
+      },
     ]);
 
     const mockInteraction = createMockButtonInteraction('preset::browse::0::mine::');
@@ -432,8 +448,18 @@ describe('handleBrowsePagination', () => {
 
   it('should apply query from custom ID', async () => {
     mockPresetApis([
-      { id: '1', name: 'Claude Config', model: 'anthropic/claude-sonnet-4', isGlobal: true },
-      { id: '2', name: 'GPT Config', model: 'openai/gpt-4o', isGlobal: true },
+      {
+        id: '00000000-0000-4000-8000-000000000001',
+        name: 'Claude Config',
+        model: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000002',
+        name: 'GPT Config',
+        model: 'openai/gpt-4o',
+        isGlobal: true,
+      },
     ]);
 
     const mockInteraction = createMockButtonInteraction('preset::browse::0::all::claude');
