@@ -20,16 +20,23 @@ import {
   ButtonStyle,
   ActionRowBuilder,
   AttachmentBuilder,
+  DiscordAPIError,
   MessageFlags,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, getConfig, type EnvConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  getConfig,
+  isBotOwner,
+  type EnvConfig,
+} from '@tzurot/common-types';
 import {
   buildDashboardCustomId,
   buildSectionModal,
   type SectionDefinition,
 } from '../../utils/dashboard/index.js';
-import type { CharacterData } from './config.js';
+import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import { resolveCharacterSectionContext } from './sectionContext.js';
 
 const logger = createLogger('character-truncation-warning');
@@ -178,19 +185,116 @@ export async function showTruncationWarning(
 }
 
 /**
- * "Edit with Truncation" handler — user has acknowledged the warning
- * and wants to proceed. Fetch fresh data, resolve the section, and show
- * the modal. The actual truncation happens inside ModalFactory.
+ * Build the "Open Editor" button shown after the user opts into the
+ * truncating edit. Splitting the opt-in confirmation from the modal-open
+ * click lets us satisfy Discord's "showModal must be the first response"
+ * constraint without doing any async work before the showModal call.
+ */
+export function buildOpenEditorButtonRow(
+  entityId: string,
+  sectionId: string
+): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(buildDashboardCustomId('character', 'open_editor', entityId, sectionId))
+      .setLabel('Open Editor')
+      .setEmoji('✏️')
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+/**
+ * Build the embed shown between the Edit-with-Truncation opt-in and the
+ * actual modal. It reassures the user that their consent was recorded
+ * and directs them to the single click that opens the modal.
+ */
+export function buildReadyToEditEmbed(sectionLabel: string): EmbedBuilder {
+  const plainLabel = stripLeadingEmoji(sectionLabel);
+  return new EmbedBuilder()
+    .setTitle(`✅ Ready to edit "${plainLabel}"`)
+    .setColor(DISCORD_COLORS.SUCCESS)
+    .setDescription(
+      `Your opt-in to truncate over-length fields has been recorded. ` +
+        `Click **Open Editor** below to open the edit modal. ` +
+        `The modal will open with the current values truncated to the edit limit.`
+    );
+}
+
+/**
+ * "Edit with Truncation" handler — step 1 of a two-click flow.
  *
- * No `deferReply`/`deferUpdate` before the async work here: Discord
- * requires `showModal` to be the first response to the interaction
- * (you can't defer then modal). In practice the session is almost always
- * cached from the preceding select-menu interaction, so the async work
- * is a cheap Redis hit that fits inside the 3-second window. If a cache
- * miss is observed in production the right fix is a different UX shape
- * (e.g. instruct the user to retry), not deferring here.
+ * Why two clicks instead of one showModal:
+ * Discord requires `showModal` to be the first response to an interaction
+ * (you can't `deferReply`/`deferUpdate` then `showModal`). That made the
+ * single-click flow vulnerable to 10062 Unknown interaction if any async
+ * work (session resolution, gateway fallback) ate the 3-second response
+ * budget. See PR #825 R4 — the reviewer's option (b).
+ *
+ * New flow:
+ * - Step 1 (this handler): `interaction.update` immediately to morph the
+ *   warning embed into a "Ready to edit" state with a single Open Editor
+ *   button. The update call has no async work before it, so the 3-second
+ *   budget is never at risk. After the update we warm the session in the
+ *   background so the Open Editor click hits a hot cache.
+ * - Step 2 (`handleOpenEditorButton`): shows the modal with no pre-work
+ *   beyond a Redis-hot session read. Residual risk is logged + surfaced
+ *   if 10062 still fires.
  */
 export async function handleEditTruncatedButton(
+  interaction: ButtonInteraction,
+  entityId: string,
+  sectionId: string,
+  config: EnvConfig = getConfig()
+): Promise<void> {
+  // Resolve the section label for the embed copy — this is a sync lookup
+  // on the dashboard config (no Redis, no gateway), safe before `update`.
+  const sectionLabel = getSectionLabelSync(sectionId, interaction.user.id);
+
+  // Step 1 — ack within the 3-sec budget via `update`. No async before this.
+  await interaction.update({
+    embeds: [buildReadyToEditEmbed(sectionLabel)],
+    components: [buildOpenEditorButtonRow(entityId, sectionId)],
+  });
+
+  // Step 2 — warm the session so the Open Editor click gets a hot cache
+  // hit. If this fails we swallow the error: the Open Editor handler has
+  // its own resolveContext + 10062 fallback, so a failed warm here just
+  // means it retries there. Logged for visibility into cache-miss rates.
+  try {
+    await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
+  } catch (error) {
+    logger.warn(
+      { err: error, userId: interaction.user.id, entityId, sectionId },
+      'Session warm failed after edit_truncated opt-in; open_editor will retry'
+    );
+  }
+}
+
+/**
+ * Sync lookup of a section's display label for use in the "Ready to edit"
+ * embed. Walks the statically-built dashboard config — no Redis, no gateway,
+ * safe to call before the 3-sec `interaction.update` ack. Falls back to
+ * the raw sectionId on unknown sections so the embed still renders.
+ */
+function getSectionLabelSync(sectionId: string, userId: string): string {
+  const isAdmin = isBotOwner(userId);
+  const config = getCharacterDashboardConfig(isAdmin, false);
+  const section = config.sections.find(s => s.id === sectionId);
+  return section?.label ?? sectionId;
+}
+
+/**
+ * "Open Editor" handler — step 2 of the two-click flow. Shows the section
+ * edit modal.
+ *
+ * Discord requires `showModal` as the first response — we call it with
+ * minimum pre-work: one Redis-hot session read (warmed by the preceding
+ * edit_truncated click). On the narrow residual failure where the 3-sec
+ * window still blows (e.g., Redis latency spike), we catch 10062 and
+ * surface an explicit retry message via `followUp` instead of silently
+ * dying in the CommandHandler catch chain.
+ */
+export async function handleOpenEditorButton(
   interaction: ButtonInteraction,
   entityId: string,
   sectionId: string,
@@ -208,7 +312,33 @@ export async function handleEditTruncatedButton(
     ctx.data,
     ctx.context
   );
-  await interaction.showModal(modal);
+  try {
+    await interaction.showModal(modal);
+  } catch (error) {
+    if (error instanceof DiscordAPIError && error.code === 10062) {
+      // 3-sec window blew despite the session warm (e.g., Redis latency
+      // spike). Log with enough context to track frequency. The interaction
+      // token is dead so followUp also fails — we try once anyway for the
+      // rare race where Discord still accepts it, and swallow the inner
+      // failure so the outer CommandHandler catch doesn't log twice.
+      logger.warn(
+        { userId: interaction.user.id, entityId, sectionId },
+        'Open Editor showModal exceeded 3-second window (10062)'
+      );
+      try {
+        await interaction.followUp({
+          content:
+            '⏰ Took too long to open the editor. Please click **Open Editor** again, ' +
+            'or re-open the dashboard if the button is gone.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch {
+        // Expected on a fully-dead interaction token. Nothing else to do.
+      }
+      return;
+    }
+    throw error;
+  }
 }
 
 /**

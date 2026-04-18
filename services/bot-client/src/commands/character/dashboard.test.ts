@@ -49,6 +49,7 @@ vi.mock('./view.js', () => ({
 
 vi.mock('./truncationWarning.js', () => ({
   handleEditTruncatedButton: vi.fn(),
+  handleOpenEditorButton: vi.fn(),
   handleViewFullButton: vi.fn(),
   handleCancelEditButton: vi.fn(),
   // These are only referenced via handleSelectMenu's overlap-detect +
@@ -653,6 +654,33 @@ describe('Character Dashboard', () => {
       );
     });
 
+    it('should route open_editor to handleOpenEditorButton', async () => {
+      // Step 2 of the two-click Edit-with-Truncation flow. The button's
+      // customId carries entity + section so the handler can build the
+      // modal with zero preamble — session is warmed by the preceding
+      // edit_truncated click.
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'open_editor',
+        entityId: 'test-char',
+        sectionId: 'identity',
+      });
+
+      const mockInteraction = createMockButtonInteraction(
+        'character::open_editor::test-char::identity'
+      );
+
+      await handleButton(mockInteraction);
+
+      expect(truncationWarning.handleOpenEditorButton).toHaveBeenCalledWith(
+        mockInteraction,
+        'test-char',
+        'identity',
+        expect.any(Object)
+      );
+    });
+
     it('should route cancel_edit to handleCancelEditButton', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
       vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
@@ -707,6 +735,7 @@ describe('Character Dashboard', () => {
         'delete_cancel',
         'edit_truncated',
         'view_full',
+        'open_editor',
         'cancel_edit',
       ];
 

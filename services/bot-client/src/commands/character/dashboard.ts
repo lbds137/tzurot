@@ -41,6 +41,7 @@ import {
   detectOverLengthFields,
   handleCancelEditButton,
   handleEditTruncatedButton,
+  handleOpenEditorButton,
   handleViewFullButton,
   showTruncationWarning,
 } from './truncationWarning.js';
@@ -371,6 +372,14 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     return;
   }
 
+  // `open_editor` is step 2 of the Edit-with-Truncation two-click flow.
+  // The customId carries entity + section so the handler can build the
+  // modal with zero pre-work (session warmed by step 1's handler).
+  if (action === 'open_editor' && sectionId !== undefined) {
+    await handleOpenEditorButton(interaction, entityId, sectionId, config);
+    return;
+  }
+
   if (action === 'cancel_edit') {
     await handleCancelEditButton(interaction);
     // eslint-disable-next-line sonarjs/no-redundant-jump -- future-proofing: keeps the per-branch early-return pattern so appending a new action below this block can't silently fall through into the wrong handler
@@ -390,6 +399,7 @@ const DASHBOARD_ACTIONS = new Set([
   'delete_cancel',
   'edit_truncated',
   'view_full',
+  'open_editor',
   'cancel_edit',
 ]);
 
