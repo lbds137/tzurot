@@ -56,6 +56,26 @@
       "pattern": "ALTER TABLE.*personas.*DROP CONSTRAINT.*personas_name_not_snowflake",
       "reason": "CHECK constraint added in Identity Epic Phase 5 (snowflake-name tripwire) — Prisma doesn't represent CHECK constraints so future migrate diffs try to drop it",
       "action": "remove"
+    },
+    {
+      "pattern": "ALTER TABLE.*users.*ALTER CONSTRAINT.*users_default_persona_id_fkey.*NOT DEFERRABLE",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 so db-sync can atomically insert both sides of the users↔personas circular NOT NULL FK pair in one transaction. Prisma schema can't express DEFERRABLE so future diffs try to strip it.",
+      "action": "remove"
+    },
+    {
+      "pattern": "ALTER TABLE.*users.*ALTER CONSTRAINT.*users_default_llm_config_id_fkey.*NOT DEFERRABLE",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users↔llm_configs circular pair. Prisma schema can't express DEFERRABLE.",
+      "action": "remove"
+    },
+    {
+      "pattern": "ALTER TABLE.*personas.*ALTER CONSTRAINT.*personas_owner_id_fkey.*NOT DEFERRABLE",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users↔personas circular pair. Prisma schema can't express DEFERRABLE.",
+      "action": "remove"
+    },
+    {
+      "pattern": "ALTER TABLE.*llm_configs.*ALTER CONSTRAINT.*llm_configs_owner_id_fkey.*NOT DEFERRABLE",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users↔llm_configs circular pair. Prisma schema can't express DEFERRABLE.",
+      "action": "remove"
     }
   ],
   "documentation": {
