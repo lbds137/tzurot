@@ -34,9 +34,12 @@ vi.mock('./api.js', () => ({
   fetchCharacter: (...args: unknown[]) => mockFetchCharacter(...args),
 }));
 
+// Mock path is the SOURCE module, not the index re-export — vitest mocks
+// the exact module path, and sectionContext.ts imports directly from
+// sessionHelpers.js (per 02-code-standards.md on "no index-import indirection").
 const mockFetchOrCreateSession = vi.fn();
-vi.mock('../../utils/dashboard/index.js', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../utils/dashboard/index.js')>();
+vi.mock('../../utils/dashboard/sessionHelpers.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/dashboard/sessionHelpers.js')>();
   return {
     ...actual,
     fetchOrCreateSession: (...args: unknown[]) => mockFetchOrCreateSession(...args),

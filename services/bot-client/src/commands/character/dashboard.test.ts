@@ -717,6 +717,46 @@ describe('Character Dashboard', () => {
 
       expect(truncationWarning.handleEditTruncatedButton).not.toHaveBeenCalled();
     });
+
+    it('should NOT call view_full handler when sectionId is missing', async () => {
+      // Parallel guard: same `sectionId !== undefined` check as edit_truncated.
+      // A typo that drops the guard or rewrites the action key would pass CI
+      // without this test because the downstream handler tolerates missing
+      // section context via sectionContext's ephemeral error path.
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'view_full',
+        entityId: 'test-char',
+        sectionId: undefined,
+      });
+
+      const mockInteraction = createMockButtonInteraction('character::view_full::test-char');
+
+      await handleButton(mockInteraction);
+
+      expect(truncationWarning.handleViewFullButton).not.toHaveBeenCalled();
+    });
+
+    it('should NOT call open_editor handler when sectionId is missing', async () => {
+      // Parallel guard for the two-click flow's step 2. Missing sectionId
+      // here means the button customId was malformed, which the router
+      // handles by falling through silently rather than invoking showModal
+      // on undefined section context (which would throw).
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'open_editor',
+        entityId: 'test-char',
+        sectionId: undefined,
+      });
+
+      const mockInteraction = createMockButtonInteraction('character::open_editor::test-char');
+
+      await handleButton(mockInteraction);
+
+      expect(truncationWarning.handleOpenEditorButton).not.toHaveBeenCalled();
+    });
   });
 
   describe('isCharacterDashboardInteraction', () => {

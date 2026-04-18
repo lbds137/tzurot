@@ -31,11 +31,8 @@ import {
   isBotOwner,
   type EnvConfig,
 } from '@tzurot/common-types';
-import {
-  buildDashboardCustomId,
-  buildSectionModal,
-  type SectionDefinition,
-} from '../../utils/dashboard/index.js';
+import { buildDashboardCustomId, type SectionDefinition } from '../../utils/dashboard/types.js';
+import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import { resolveCharacterSectionContext } from './sectionContext.js';
 
