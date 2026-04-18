@@ -340,9 +340,8 @@ function classifyAndQueueRow(args: {
     totals.devToProd += 1;
     return;
   }
-  if (devRow === undefined || prodRow === undefined) {
-    return;
-  }
+  // No "both undefined" guard: allKeys is built from union of both row
+  // maps' keys, so at least one side is always defined per iteration.
 
   const comparison = compareTimestamps(devRow, prodRow, config);
   if (comparison === 'dev-newer') {
