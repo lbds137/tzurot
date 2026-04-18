@@ -106,9 +106,11 @@ export class DatabaseSyncService {
    * No writes occur in this phase.
    *
    * Phase 2 (flush): per target direction, open a transaction, issue
-   * `SET CONSTRAINTS ALL DEFERRED`, apply all pending writes, COMMIT.
-   * Postgres validates all deferred FKs at COMMIT; either every write
-   * commits or none do (per transaction).
+   * `SET CONSTRAINTS <four-named-circular-FKs> DEFERRED`, apply all
+   * pending writes, COMMIT. Postgres validates the named deferred FKs
+   * at COMMIT; either every write commits or none do (per transaction).
+   * Named constraints rather than `ALL DEFERRED` so future migrations
+   * adding unrelated deferrable constraints don't get silently softened.
    *
    * Not transactional across both databases (cross-DB transactions would
    * require 2-phase commit). Interrupted runs are safe to re-run — the
