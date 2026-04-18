@@ -32,6 +32,9 @@ vi.mock('../../../services/AuthMiddleware.js', () => ({
   requireServiceAuth: vi.fn(() =>
     vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
   ),
+  requireProvisionedUser: vi.fn(() =>
+    vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
+  ),
 }));
 
 vi.mock('../../../utils/asyncHandler.js', () => ({

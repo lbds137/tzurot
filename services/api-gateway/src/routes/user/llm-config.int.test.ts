@@ -43,6 +43,9 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
     (req as Request & { userId: string }).userId = TEST_DISCORD_ID;
     next();
   }),
+  requireProvisionedUser: vi.fn(
+    () => (_req: Request, _res: Response, next: NextFunction) => next()
+  ),
 }));
 
 // Import after mocking

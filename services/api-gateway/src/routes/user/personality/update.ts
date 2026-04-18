@@ -15,7 +15,7 @@ import {
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
 import { Prisma } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
@@ -281,5 +281,9 @@ export function createUpdateHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
-  return [requireUserAuth(), asyncHandler(createHandler(prisma, cacheInvalidationService))];
+  return [
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createHandler(prisma, cacheInvalidationService)),
+  ];
 }

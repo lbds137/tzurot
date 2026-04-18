@@ -24,6 +24,9 @@ vi.mock('@tzurot/common-types', async () => {
 
 vi.mock('../../services/AuthMiddleware.js', () => ({
   requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
+  requireProvisionedUser: vi.fn(() =>
+    vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
+  ),
 }));
 
 vi.mock('../../utils/asyncHandler.js', () => ({
@@ -66,8 +69,10 @@ async function callHandler(
   res: Response
 ): Promise<void> {
   const handlers = createRemoveKeyRoute(prisma as PrismaClient);
-  // handlers[0] is auth middleware, handlers[1] is the actual handler
-  const handler = handlers[1] as (req: Request, res: Response) => Promise<void>;
+  // handlers[0] is requireUserAuth, handlers[1] is requireProvisionedUser,
+  // handlers[2] is the actual handler (Phase 5c PR B added the provisioning
+  // middleware in position 1).
+  const handler = handlers[2] as (req: Request, res: Response) => Promise<void>;
   await handler(req, res);
 }
 
@@ -85,19 +90,25 @@ describe('DELETE /wallet/:provider', () => {
 
       expect(handlers).toBeDefined();
       expect(Array.isArray(handlers)).toBe(true);
-      expect(handlers.length).toBe(2); // [auth middleware, handler]
+      expect(handlers.length).toBe(3); // [requireUserAuth, requireProvisionedUser, handler]
     });
 
-    it('should have auth middleware as first handler', () => {
+    it('should have requireUserAuth as first handler', () => {
       const handlers = createRemoveKeyRoute(mockPrisma as unknown as PrismaClient);
 
       expect(typeof handlers[0]).toBe('function');
     });
 
-    it('should have request handler as second handler', () => {
+    it('should have requireProvisionedUser as second handler', () => {
       const handlers = createRemoveKeyRoute(mockPrisma as unknown as PrismaClient);
 
       expect(typeof handlers[1]).toBe('function');
+    });
+
+    it('should have request handler as third handler', () => {
+      const handlers = createRemoveKeyRoute(mockPrisma as unknown as PrismaClient);
+
+      expect(typeof handlers[2]).toBe('function');
     });
   });
 

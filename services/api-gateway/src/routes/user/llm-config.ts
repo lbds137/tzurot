@@ -25,7 +25,7 @@ import {
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -339,28 +339,42 @@ export function createLlmConfigRoutes(
   const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
   const userService = new UserService(prisma);
 
-  router.get('/', requireUserAuth(), asyncHandler(createListHandler(service, prisma)));
+  router.get(
+    '/',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createListHandler(service, prisma))
+  );
   router.get(
     '/:id',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(createGetHandler(service, prisma, modelCache))
   );
   router.post(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(createCreateHandler(service, userService, modelCache))
   );
   router.post(
     '/resolve',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(createResolveHandler(prisma, cascadeResolver))
   );
   router.put(
     '/:id',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(createUpdateHandler(service, prisma, modelCache))
   );
-  router.delete('/:id', requireUserAuth(), asyncHandler(createDeleteHandler(service, prisma)));
+  router.delete(
+    '/:id',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createDeleteHandler(service, prisma))
+  );
 
   return router;
 }

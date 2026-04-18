@@ -11,7 +11,7 @@ import {
   type UsagePeriod,
   type UsageStats,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -60,6 +60,7 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
   router.get(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
       const period = (req.query.period as UsagePeriod) ?? 'month';

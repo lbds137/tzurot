@@ -12,6 +12,7 @@ import {
   requireOwnerAuth,
   extractUserId,
   requireUserAuth,
+  requireProvisionedUser,
   extractServiceSecret,
   isValidServiceSecret,
   requireServiceAuth,
@@ -22,12 +23,20 @@ import * as commonTypes from '@tzurot/common-types';
 
 // Mock getConfig and isBotOwner
 const mockIsBotOwnerFn = vi.fn();
+const mockGetOrCreateUser = vi.fn();
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
     getConfig: vi.fn(),
     isBotOwner: (userId: string) => mockIsBotOwnerFn(userId),
+    // UserService used by requireProvisionedUser. Class shape just needs
+    // `getOrCreateUser`; the middleware never calls other methods.
+    // Using a class (not an arrow-function mockImplementation) so `new
+    // UserService(...)` is a valid constructor call.
+    UserService: class MockUserService {
+      getOrCreateUser = mockGetOrCreateUser;
+    },
   };
 });
 
@@ -442,6 +451,158 @@ describe('authMiddleware', () => {
           timestamp: expect.any(String),
         })
       );
+    });
+  });
+
+  describe('requireProvisionedUser middleware', () => {
+    // Cast to `any` for test fixtures — PrismaClient is never actually used
+    // because UserService is mocked at the module level.
+    const fakePrisma = {} as never;
+
+    // Each test gets a fresh mock response + next + req. The middleware
+    // never calls res.* in the graceful-degradation paths; tests confirm
+    // that by asserting res.status / res.json were NOT called.
+    let mockReq: Partial<Request> & { userId?: string };
+    let mockRes: Partial<Response>;
+    let mockNext: NextFunction;
+
+    beforeEach(() => {
+      mockGetOrCreateUser.mockReset();
+      mockReq = {
+        // requireUserAuth already ran and set this — the new middleware
+        // reads req.userId as the Discord snowflake.
+        userId: '123456789012345678',
+        path: '/user/test',
+        method: 'GET',
+        headers: {
+          'x-user-username': 'alice',
+          'x-user-displayname': 'Alice%20Cooper',
+        },
+      };
+      mockRes = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis(),
+      };
+      mockNext = vi.fn();
+    });
+
+    it('should attach provisioned fields on the happy path', async () => {
+      mockGetOrCreateUser.mockResolvedValue({
+        userId: 'internal-uuid-123',
+        defaultPersonaId: 'persona-uuid-456',
+      });
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockGetOrCreateUser).toHaveBeenCalledWith(
+        '123456789012345678',
+        'alice',
+        'Alice Cooper' // decoded from 'Alice%20Cooper'
+      );
+      expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBe(
+        'internal-uuid-123'
+      );
+      expect(
+        (mockReq as { provisionedDefaultPersonaId?: string }).provisionedDefaultPersonaId
+      ).toBe('persona-uuid-456');
+      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext).toHaveBeenCalledWith(); // no error argument
+      expect(mockRes.status).not.toHaveBeenCalled();
+    });
+
+    it('should URI-decode non-Latin-1 values (emoji in displayName)', async () => {
+      mockReq.headers = {
+        'x-user-username': 'alice_%F0%9F%8C%B8', // 🌸
+        'x-user-displayname': '%F0%9F%91%8B%20Alice', // 👋 Alice
+      };
+      mockGetOrCreateUser.mockResolvedValue({
+        userId: 'internal-uuid-123',
+        defaultPersonaId: 'persona-uuid-456',
+      });
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockGetOrCreateUser).toHaveBeenCalledWith(
+        '123456789012345678',
+        'alice_🌸',
+        '👋 Alice'
+      );
+      expect(mockNext).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fall through without attaching when X-User-Username is missing', async () => {
+      mockReq.headers = { 'x-user-displayname': 'Alice' };
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockGetOrCreateUser).not.toHaveBeenCalled();
+      expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
+      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext).toHaveBeenCalledWith();
+      expect(mockRes.status).not.toHaveBeenCalled();
+    });
+
+    it('should fall through without attaching when X-User-DisplayName is missing', async () => {
+      mockReq.headers = { 'x-user-username': 'alice' };
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockGetOrCreateUser).not.toHaveBeenCalled();
+      expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
+      expect(mockNext).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fall through on malformed URI encoding (invalid % sequence)', async () => {
+      mockReq.headers = {
+        'x-user-username': '%ZZ', // invalid hex after %
+        'x-user-displayname': 'Alice',
+      };
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockGetOrCreateUser).not.toHaveBeenCalled();
+      expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
+      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockRes.status).not.toHaveBeenCalled();
+    });
+
+    it('should fall through when getOrCreateUser throws', async () => {
+      mockGetOrCreateUser.mockRejectedValue(new Error('DB down'));
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockGetOrCreateUser).toHaveBeenCalled();
+      expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
+      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext).toHaveBeenCalledWith(); // no error argument — graceful degradation
+    });
+
+    it('should fall through when getOrCreateUser returns null (bot user case)', async () => {
+      mockGetOrCreateUser.mockResolvedValue(null);
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
+      expect(mockNext).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fall through when req.userId is missing (defense in depth)', async () => {
+      // In practice requireUserAuth runs first and 401s on missing userId —
+      // this test just guards against a future refactor removing that chain.
+      mockReq.userId = undefined;
+
+      const middleware = requireProvisionedUser(fakePrisma);
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockGetOrCreateUser).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalledTimes(1);
     });
   });
 

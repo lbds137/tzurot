@@ -11,7 +11,7 @@ import {
   type CacheInvalidationService,
   DeletePersonalityResponseSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -135,5 +135,9 @@ export function createDeleteHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
-  return [requireUserAuth(), asyncHandler(createHandler(prisma, cacheInvalidationService))];
+  return [
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createHandler(prisma, cacheInvalidationService)),
+  ];
 }

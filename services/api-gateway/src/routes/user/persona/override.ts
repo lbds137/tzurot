@@ -13,7 +13,7 @@ import {
   type PrismaClient,
   SetPersonaOverrideSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -229,8 +229,28 @@ function createClearHandler(prisma: PrismaClient) {
 const OVERRIDE_BY_SLUG = '/override/:personalitySlug';
 
 export function addOverrideRoutes(router: Router, prisma: PrismaClient): void {
-  router.get('/override', requireUserAuth(), asyncHandler(createListHandler(prisma)));
-  router.get(OVERRIDE_BY_SLUG, requireUserAuth(), asyncHandler(createGetHandler(prisma)));
-  router.put(OVERRIDE_BY_SLUG, requireUserAuth(), asyncHandler(createSetHandler(prisma)));
-  router.delete(OVERRIDE_BY_SLUG, requireUserAuth(), asyncHandler(createClearHandler(prisma)));
+  router.get(
+    '/override',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createListHandler(prisma))
+  );
+  router.get(
+    OVERRIDE_BY_SLUG,
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createGetHandler(prisma))
+  );
+  router.put(
+    OVERRIDE_BY_SLUG,
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createSetHandler(prisma))
+  );
+  router.delete(
+    OVERRIDE_BY_SLUG,
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createClearHandler(prisma))
+  );
 }

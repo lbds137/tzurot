@@ -23,7 +23,7 @@ import {
   HardDeleteHistorySchema,
   HistoryStatsQuerySchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -364,16 +364,26 @@ export function createHistoryRoutes(prisma: PrismaClient): Router {
   };
 
   // POST /user/history/clear - Set context epoch (soft reset)
-  router.post('/clear', requireUserAuth(), createClearHandler(deps));
+  router.post(
+    '/clear',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    createClearHandler(deps)
+  );
 
   // POST /user/history/undo - Restore previous epoch
-  router.post('/undo', requireUserAuth(), createUndoHandler(deps));
+  router.post('/undo', requireUserAuth(), requireProvisionedUser(prisma), createUndoHandler(deps));
 
   // GET /user/history/stats - Get history statistics
-  router.get('/stats', requireUserAuth(), createStatsHandler(deps));
+  router.get('/stats', requireUserAuth(), requireProvisionedUser(prisma), createStatsHandler(deps));
 
   // DELETE /user/history/hard-delete - Permanently delete history
-  router.delete('/hard-delete', requireUserAuth(), createHardDeleteHandler(deps));
+  router.delete(
+    '/hard-delete',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    createHardDeleteHandler(deps)
+  );
 
   return router;
 }

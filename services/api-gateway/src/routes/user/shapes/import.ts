@@ -18,7 +18,7 @@ import {
   JOB_PREFIXES,
   type ShapesImportJobData,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -231,9 +231,15 @@ export function createShapesImportRoutes(prisma: PrismaClient, queue: Queue): Ro
   router.post(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(createImportHandler(prisma, queue, userService))
   );
-  router.get('/jobs', requireUserAuth(), asyncHandler(createListImportJobsHandler(prisma)));
+  router.get(
+    '/jobs',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createListImportJobsHandler(prisma))
+  );
 
   return router;
 }

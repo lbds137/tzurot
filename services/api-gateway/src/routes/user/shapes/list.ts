@@ -17,7 +17,7 @@ import {
   SHAPES_BASE_URL,
   SHAPES_USER_AGENT,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -148,7 +148,12 @@ function createListHandler(prisma: PrismaClient) {
 export function createShapesListRoutes(prisma: PrismaClient): Router {
   const router = Router();
 
-  router.get('/', requireUserAuth(), asyncHandler(createListHandler(prisma)));
+  router.get(
+    '/',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createListHandler(prisma))
+  );
 
   return router;
 }

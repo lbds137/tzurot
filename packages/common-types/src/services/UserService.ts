@@ -195,6 +195,18 @@ export class UserService {
    * @returns The user's UUID
    */
   async getOrCreateUserShell(discordId: string): Promise<string> {
+    // Phase 5c PR B shadow-mode canary. Any call here means a route bypassed
+    // the provisioning middleware — either the middleware isn't mounted on
+    // that route, or bot-client didn't send the X-User-Username/-DisplayName
+    // headers (deploy transition). The stack trace identifies the offending
+    // caller. Target: zero hits in prod for 48-72h, which unlocks PR C's
+    // shell-path deletion. Kept at warn level so a misconfigured route shows
+    // up in normal log-search without spamming debug noise.
+    logger.warn(
+      { discordId, stack: new Error().stack },
+      '[Identity] Shell path executed — PR B shadow-mode canary (should trend to zero before PR C)'
+    );
+
     const cached = this.userCache.get(discordId);
     if (cached !== null) {
       return cached.userId;

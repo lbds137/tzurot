@@ -29,7 +29,7 @@ import {
   type ConfigCascadeCacheInvalidationService,
   type ConfigOverrideSource,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -71,6 +71,7 @@ export function createConfigOverrideRoutes(
 
   // All routes require authentication
   router.use(requireUserAuth());
+  router.use(requireProvisionedUser(prisma));
 
   /**
    * GET /user/config-overrides/resolve-defaults
