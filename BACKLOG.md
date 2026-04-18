@@ -152,6 +152,22 @@ _New items go here. Triage to appropriate section weekly._
 
   **Start**: `pnpm ops logs --env prod --filter "@tzurot/ai-worker" --since 48h | grep -iE "tts|voice|elevenlabs"` to enumerate recent failures; `services/ai-worker/src/jobs/handlers/pipeline/steps/TTSStep.ts` `performElevenLabsTTSWithFallback` for the current fallback sequencing; the existing `ElevenLabsClient` + `VoiceEngineClient` error classifiers as the natural differentiation points.
 
+- 🐛 `[FIX]` **Character `Open Editor` can still blow the 3-second window on cold cache + slow gateway** — The two-click Edit-with-Truncation flow (PR #825 option b) materially narrowed but did not fully eliminate the 3-second risk. `handleOpenEditorButton` in `services/bot-client/src/commands/character/truncationWarning.ts` still calls `resolveCharacterSectionContext` before `interaction.showModal` — because Discord requires `showModal` to be the first response to an interaction, we can't `deferReply` before the resolve. In the common case the session is hot from step 1's warm and this is a sub-ms Redis hit. But a cold-cache fallthrough (Redis eviction, pod cold start, TTL past the step-1 warm window) routes through the gateway's `fetchCharacter`, which can take hundreds of ms to multi-seconds under load. When that blows the window, the handler's 10062 catch surfaces a visible retry message — not silent, but the user is already one click deep into a consent flow and the retry ask is confusing. Surfaced by PR #825 R8 (2026-04-17).
+
+  **Why tracked now (low priority)**: the 10062 fallback is user-actionable (clicks "Open Editor" again, fresh 3-sec window, very likely succeeds on second try), so the bug is not silent. But the retry UX could be improved.
+
+  **Fix options** (none urgent):
+  - **(a)** Pre-resolve the full `CharacterSectionContext` during step 1's warm and stash it in an in-memory cache keyed by the `open_editor` button's customId. Step 2 retrieves synchronously, builds modal, `showModal` with zero async work. Works for single-replica bot-client; breaks on multi-replica unless the cache is Redis-backed (which reintroduces the async). Tzurot is currently single-replica for bot-client (Discord gateway requirement).
+  - **(b)** Pre-build the modal (not just the context) during step 1 and stash the modal JSON. Same trade-offs as (a).
+  - **(c)** Just raise the gateway timeout on `fetchCharacter` when called from the session-helpers path so the cold-cache fetch reliably fits in 3 sec. Smallest change but doesn't defend against the raw Redis latency spike.
+  - Do nothing: the 10062 retry path is user-actionable. Accept the residual and rely on the warn log for frequency monitoring.
+
+  **Start**:
+  - Handler with the residual race: `services/bot-client/src/commands/character/truncationWarning.ts` `handleOpenEditorButton`
+  - 10062 catch: same file, immediately after `await interaction.showModal(modal)`
+  - Session-warm origin: same file, `handleEditTruncatedButton` step 2
+  - Session layer with the gateway fallback: `services/bot-client/src/utils/dashboard/sessionHelpers.ts` `fetchOrCreateSession`
+
 - 🧹 `[CHORE]` **Add lint/test assertion that dashboard section fields declare `maxLength`** — `detectOverLengthFields` in `services/bot-client/src/commands/character/truncationWarning.ts` (and by extension the character field silent-truncation warning) intentionally skips fields where `field.maxLength === undefined`, because `ModalFactory` applies default caps only at modal-show time and we don't want to warn about defaults users can't configure. The tradeoff: if a new section field is ever added to `services/bot-client/src/commands/character/config.ts` without an explicit `maxLength`, the silent-truncate path for that field silently re-opens and users lose data with no warning — same bug the PR #825 fix was designed to prevent, just scoped to new fields. Currently nothing enforces `maxLength` presence; the protection is "discipline + code review." Flagged in PR #825 R3 (2026-04-17).
 
   **Fix options**:
