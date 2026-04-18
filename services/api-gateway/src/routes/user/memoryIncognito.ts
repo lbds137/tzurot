@@ -19,7 +19,7 @@ import {
   DisableIncognitoRequestSchema,
   IncognitoForgetRequestSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -317,6 +317,7 @@ export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Route
   router.get(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetStatus(manager, req, res))
   );
 
@@ -324,6 +325,7 @@ export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Route
   router.post(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) =>
       handleEnable(prisma, manager, req, res)
     )
@@ -333,6 +335,7 @@ export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Route
   router.delete(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) =>
       handleDisable(prisma, manager, req, res)
     )
@@ -342,6 +345,7 @@ export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Route
   router.post(
     '/forget',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleForget(prisma, req, res))
   );
 

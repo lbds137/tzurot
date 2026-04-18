@@ -20,6 +20,9 @@ vi.mock('../../../services/AuthMiddleware.js', () => ({
     req.userId = 'service';
     next();
   },
+  requireProvisionedUser: () => (_req: unknown, _res: unknown, next: () => void) => {
+    next();
+  },
 }));
 
 // Mock isBotOwner

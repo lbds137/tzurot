@@ -21,7 +21,7 @@ import {
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -163,9 +163,24 @@ export function createShapesAuthRoutes(prisma: PrismaClient): Router {
   const router = Router();
   const userService = new UserService(prisma);
 
-  router.post('/', requireUserAuth(), asyncHandler(createStoreHandler(prisma, userService)));
-  router.delete('/', requireUserAuth(), asyncHandler(createDeleteHandler(prisma)));
-  router.get('/status', requireUserAuth(), asyncHandler(createStatusHandler(prisma)));
+  router.post(
+    '/',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createStoreHandler(prisma, userService))
+  );
+  router.delete(
+    '/',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createDeleteHandler(prisma))
+  );
+  router.get(
+    '/status',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createStatusHandler(prisma))
+  );
 
   return router;
 }

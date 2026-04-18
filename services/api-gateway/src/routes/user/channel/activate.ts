@@ -15,7 +15,7 @@ import {
   ActivateChannelRequestSchema,
   ActivateChannelResponseSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -165,5 +165,5 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
     sendCustomSuccess(res, buildActivationResponse(settings, wasReplaced), StatusCodes.CREATED);
   });
 
-  return [requireUserAuth(), handler];
+  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
 }

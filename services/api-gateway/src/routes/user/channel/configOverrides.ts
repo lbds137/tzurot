@@ -25,7 +25,7 @@ import {
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -54,6 +54,7 @@ function validateChannelId(channelId: string, res: Response): boolean {
 export function createGetConfigOverridesHandler(prisma: PrismaClient): RequestHandler[] {
   return [
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const channelId = getRequiredParam(req.params.channelId, 'channelId');
       if (!validateChannelId(channelId, res)) {
@@ -87,6 +88,7 @@ export function createPatchConfigOverridesHandler(
 ): RequestHandler[] {
   return [
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const channelId = getRequiredParam(req.params.channelId, 'channelId');
       if (!validateChannelId(channelId, res)) {
@@ -144,6 +146,7 @@ export function createDeleteConfigOverridesHandler(
 ): RequestHandler[] {
   return [
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const channelId = getRequiredParam(req.params.channelId, 'channelId');
       if (!validateChannelId(channelId, res)) {

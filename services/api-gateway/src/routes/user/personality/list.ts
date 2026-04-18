@@ -13,7 +13,7 @@ import {
   computePersonalityPermissions,
   PERSONALITY_LIST_SELECT,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
@@ -161,5 +161,5 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
     sendCustomSuccess(res, { personalities }, StatusCodes.OK);
   });
 
-  return [requireUserAuth(), handler];
+  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
 }

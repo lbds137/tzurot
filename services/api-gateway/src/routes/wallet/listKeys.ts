@@ -9,7 +9,7 @@
 
 import { Router, type Response } from 'express';
 import { createLogger, type PrismaClient } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
@@ -22,6 +22,7 @@ export function createListKeysRoute(prisma: PrismaClient): Router {
   router.get(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
 

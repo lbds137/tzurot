@@ -32,7 +32,7 @@ import {
   generateUserPersonalityConfigUuid,
   FocusModeSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -276,30 +276,35 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
   router.get(
     '/stats',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetStats(prisma, req, res))
   );
 
   router.get(
     '/list',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleList(prisma, req, res))
   );
 
   router.get(
     '/focus',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetFocus(prisma, req, res))
   );
 
   router.post(
     '/focus',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleSetFocus(prisma, req, res))
   );
 
   router.post(
     '/search',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleSearch(prisma, req, res))
   );
 
@@ -307,6 +312,7 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
   router.get(
     '/delete/preview',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) =>
       handleBatchDeletePreview(prisma, req, res)
     )
@@ -315,12 +321,14 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
   router.post(
     '/delete',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleBatchDelete(prisma, req, res))
   );
 
   router.post(
     '/purge',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handlePurge(prisma, req, res))
   );
 
@@ -328,24 +336,28 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
   router.get(
     '/:id',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetMemory(prisma, req, res))
   );
 
   router.patch(
     '/:id',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleUpdateMemory(prisma, req, res))
   );
 
   router.delete(
     '/:id',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleDeleteMemory(prisma, req, res))
   );
 
   router.post(
     '/:id/lock',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleToggleLock(prisma, req, res))
   );
 

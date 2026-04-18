@@ -20,7 +20,7 @@ import {
   type PrismaClient,
 } from '@tzurot/common-types';
 import type { ErrorResponse } from '../../utils/errorResponses.js';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -325,6 +325,7 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
   router.get(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
       await handleListVoices(prisma, req, res);
     })
@@ -334,6 +335,7 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
   router.get(
     '/models',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
       await handleListModels(prisma, req, res);
     })
@@ -343,6 +345,7 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
   router.post(
     '/clear',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
       await handleClearVoices(prisma, req, res);
     })
@@ -351,6 +354,7 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
   router.delete(
     '/:voiceId',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
       await handleDeleteVoice(prisma, req, res);
     })

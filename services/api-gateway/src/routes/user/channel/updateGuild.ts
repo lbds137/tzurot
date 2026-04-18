@@ -14,7 +14,7 @@ import {
   UpdateChannelGuildRequestSchema,
   UpdateChannelGuildResponseSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
@@ -64,5 +64,5 @@ export function createUpdateGuildHandler(prisma: PrismaClient): RequestHandler[]
     sendCustomSuccess(res, response, StatusCodes.OK);
   });
 
-  return [requireUserAuth(), handler];
+  return [requireUserAuth(), requireProvisionedUser(prisma), handler];
 }

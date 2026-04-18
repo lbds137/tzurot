@@ -6,9 +6,15 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { getConfig, createLogger, isBotOwner } from '@tzurot/common-types';
+import {
+  getConfig,
+  createLogger,
+  isBotOwner,
+  UserService,
+  type PrismaClient,
+} from '@tzurot/common-types';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
-import type { AuthenticatedRequest } from '../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../types.js';
 
 const logger = createLogger('auth-middleware');
 
@@ -150,6 +156,132 @@ export function requireUserAuth(customMessage?: string) {
 
     // Attach userId to request for downstream handlers
     (req as AuthenticatedRequest).userId = userId;
+
+    next();
+  };
+}
+
+/**
+ * Safely read + URI-decode a header value. Returns `undefined` when the
+ * header is missing/empty and `null` when present-but-malformed (i.e.
+ * `decodeURIComponent` threw on an invalid `%` sequence). Callers
+ * distinguish these cases because missing is normal during deploy
+ * transition whereas malformed is a bot-client bug worth surfacing.
+ */
+function readEncodedHeader(req: Request, headerName: string): string | undefined | null {
+  const raw = req.headers[headerName];
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return undefined;
+  }
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Express middleware to provision the authenticated user via the full
+ * context path (Phase 5c PR B shadow mode).
+ *
+ * Runs AFTER `requireUserAuth()`. Reads the `X-User-Username` and
+ * `X-User-DisplayName` headers set by bot-client in PR A, URI-decodes
+ * them, and calls `UserService.getOrCreateUser(discordId, username,
+ * displayName)` — the full provisioning path that avoids the
+ * placeholder-name shell-user class of bug. Attaches
+ * `req.provisionedUserId` + `req.provisionedDefaultPersonaId` on success.
+ *
+ * **Shadow mode**: degrades gracefully on every failure mode. Missing
+ * headers, malformed URI encoding, or a thrown `getOrCreateUser` all
+ * log at warn and call `next()` without attaching the provisioned
+ * fields — the existing handler's shell-path call still runs. PR C
+ * tightens this to 400 Bad Request once every prod bot-client is on
+ * the new code path and the canary log in `getOrCreateUserShell` has
+ * trended to zero.
+ *
+ * Usage:
+ * ```ts
+ * router.get('/override',
+ *   requireUserAuth(),
+ *   requireProvisionedUser(prisma),
+ *   asyncHandler(handler)
+ * );
+ * ```
+ *
+ * @param prisma - PrismaClient used to construct a cached UserService
+ * @returns Express middleware function
+ */
+export function requireProvisionedUser(prisma: PrismaClient) {
+  // Construct UserService once per factory call (typically app-startup).
+  // UserService just stores the prisma reference — cheap to reuse across
+  // every request that hits this router mount.
+  const userService = new UserService(prisma);
+
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    const discordId = (req as AuthenticatedRequest).userId;
+    // Shouldn't happen — requireUserAuth runs first and would 401 on
+    // missing userId — but defense in depth.
+    if (discordId === undefined || discordId.length === 0) {
+      next();
+      return;
+    }
+
+    const username = readEncodedHeader(req, 'x-user-username');
+    const displayName = readEncodedHeader(req, 'x-user-displayname');
+
+    // Missing either header → deploy-transition case, warn and fall through.
+    if (username === undefined || displayName === undefined) {
+      logger.warn(
+        {
+          discordId,
+          path: req.path,
+          method: req.method,
+          hasUsername: username !== undefined,
+          hasDisplayName: displayName !== undefined,
+        },
+        '[Identity] Missing user-context headers — shadow middleware falling through'
+      );
+      next();
+      return;
+    }
+
+    // Malformed URI → bot-client bug, warn louder and fall through.
+    if (username === null || displayName === null) {
+      logger.warn(
+        {
+          discordId,
+          path: req.path,
+          usernameMalformed: username === null,
+          displayNameMalformed: displayName === null,
+        },
+        '[Identity] Malformed URI in user-context header — shadow middleware falling through'
+      );
+      next();
+      return;
+    }
+
+    // Full provisioning path. getOrCreateUser handles P2002 races internally.
+    try {
+      const provisioned = await userService.getOrCreateUser(discordId, username, displayName);
+      if (provisioned === null) {
+        // getOrCreateUser returns null for bot accounts; HTTP routes
+        // shouldn't receive bot traffic in practice, but if it happens
+        // we fall through rather than block the request.
+        logger.warn(
+          { discordId, path: req.path },
+          '[Identity] getOrCreateUser returned null (bot user?) — shadow middleware falling through'
+        );
+        next();
+        return;
+      }
+      (req as ProvisionedRequest).provisionedUserId = provisioned.userId;
+      (req as ProvisionedRequest).provisionedDefaultPersonaId = provisioned.defaultPersonaId;
+    } catch (err) {
+      logger.warn(
+        { err, discordId, path: req.path },
+        '[Identity] getOrCreateUser threw — shadow middleware falling through'
+      );
+    }
 
     next();
   };
