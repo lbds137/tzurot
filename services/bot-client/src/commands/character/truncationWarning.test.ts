@@ -35,14 +35,25 @@ vi.mock('./api.js', () => ({
 }));
 
 // Mock fetchOrCreateSession so the handlers see a stable data fixture.
+// Mocks target the SOURCE modules, not the index re-export — vitest mocks
+// the exact module path, and the source files import directly from their
+// sources (per 02-code-standards.md on "no index-import indirection"),
+// so mocking the index here would silently miss.
 const mockFetchOrCreateSession = vi.fn();
-vi.mock('../../utils/dashboard/index.js', async importOriginal => {
-  const actual = await importOriginal<typeof import('../../utils/dashboard/index.js')>();
+vi.mock('../../utils/dashboard/sessionHelpers.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/dashboard/sessionHelpers.js')>();
   return {
     ...actual,
     fetchOrCreateSession: (...args: unknown[]) => mockFetchOrCreateSession(...args),
-    // The real buildSectionModal returns a ModalBuilder; stub it so the
-    // handler tests don't depend on Discord.js modal internals.
+  };
+});
+
+// The real buildSectionModal returns a ModalBuilder; stub it so the
+// handler tests don't depend on Discord.js modal internals.
+vi.mock('../../utils/dashboard/ModalFactory.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../utils/dashboard/ModalFactory.js')>();
+  return {
+    ...actual,
     buildSectionModal: vi.fn().mockReturnValue({ __modal: true }),
   };
 });
