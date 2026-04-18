@@ -32,6 +32,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock the session manager
@@ -144,13 +149,21 @@ describe('Character Settings Dashboard', () => {
       // First call: fetch personality
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
         method: 'GET',
-        userId: 'user-456',
+        user: {
+          discordId: 'user-456',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         timeout: 10000,
       });
       // Second call: resolve 3-tier cascade (hardcoded → admin → personality)
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/config-overrides/resolve-personality/personality-123',
-        { method: 'GET', userId: 'user-456', timeout: 10000 }
+        {
+          method: 'GET',
+          user: { discordId: 'user-456', username: 'testuser', displayName: 'testuser' },
+          timeout: 10000,
+        }
       );
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({

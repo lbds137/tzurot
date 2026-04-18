@@ -36,6 +36,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock the session manager
@@ -176,7 +181,11 @@ describe('User Default Settings Dashboard', () => {
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/resolve-defaults', {
         method: 'GET',
-        userId: 'user-456',
+        user: {
+          discordId: 'user-456',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         timeout: 10000,
       });
       expect(context.editReply).toHaveBeenCalledWith(
@@ -457,7 +466,11 @@ describe('User Default Settings Dashboard', () => {
 
     const createSessionWithSetting = (settingId: string) => ({
       data: {
-        userId: 'user-456',
+        user: {
+          discordId: 'user-456',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         entityId: 'user-456',
         data: {
           maxMessages: { localValue: 50, effectiveValue: 50, source: 'hardcoded' },
@@ -496,7 +509,11 @@ describe('User Default Settings Dashboard', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/defaults', {
         method: 'PATCH',
         body: { maxMessages: 30 },
-        userId: 'user-456',
+        user: {
+          discordId: 'user-456',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         timeout: 10000,
       });
     });
@@ -517,7 +534,11 @@ describe('User Default Settings Dashboard', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/defaults', {
         method: 'PATCH',
         body: { maxAge: 7200 },
-        userId: 'user-456',
+        user: {
+          discordId: 'user-456',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         timeout: 10000,
       });
     });
@@ -538,7 +559,11 @@ describe('User Default Settings Dashboard', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/defaults', {
         method: 'PATCH',
         body: { maxMessages: null },
-        userId: 'user-456',
+        user: {
+          discordId: 'user-456',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         timeout: 10000,
       });
     });

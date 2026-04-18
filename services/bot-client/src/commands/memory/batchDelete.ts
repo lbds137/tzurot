@@ -19,7 +19,7 @@ import {
   memoryDeleteOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
 
@@ -69,13 +69,14 @@ function formatTimeframe(timeframe: string | null): string {
 // eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with sequential UI flow
 export async function handleBatchDelete(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memoryDeleteOptions(context.interaction);
   const personalityInput = options.personality();
   const timeframe = options.timeframe();
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolvePersonalityId(userId, personalityInput);
+    const personalityId = await resolvePersonalityId(user, personalityInput);
 
     if (personalityId === null) {
       await context.editReply({
@@ -93,7 +94,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
     const previewResult = await callGatewayApi<PreviewResponse>(
       `/user/memory/delete/preview?${queryParams.toString()}`,
       {
-        userId,
+        user,
         method: 'GET',
       }
     );
@@ -180,7 +181,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       await buttonInteraction.deferUpdate();
 
       const deleteResult = await callGatewayApi<DeleteResponse>('/user/memory/delete', {
-        userId,
+        user,
         method: 'POST',
         body: {
           personalityId,

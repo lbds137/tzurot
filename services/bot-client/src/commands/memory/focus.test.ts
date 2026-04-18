@@ -23,6 +23,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock commandHelpers
@@ -81,7 +86,11 @@ describe('Memory Focus Handlers', () => {
       await handleFocusEnable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/focus', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'POST',
         body: { personalityId: 'personality-uuid-123', enabled: true },
       });
@@ -148,7 +157,11 @@ describe('Memory Focus Handlers', () => {
       await handleFocusDisable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/focus', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'POST',
         body: { personalityId: 'personality-uuid-123', enabled: false },
       });
@@ -188,7 +201,10 @@ describe('Memory Focus Handlers', () => {
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/memory/focus?personalityId=personality-uuid-123',
-        { userId: '123456789', method: 'GET' }
+        {
+          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+          method: 'GET',
+        }
       );
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'Focus Mode Status',

@@ -36,6 +36,7 @@ import {
   characterSeedFields,
   buildCharacterDashboardOptions,
 } from './config.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createCharacter } from './api.js';
 
 const logger = createLogger('character-create');
@@ -107,7 +108,7 @@ export async function handleSeedModalSubmit(
         personalityTraits: values.personalityTraits,
         isPublic: false, // Default to private
       },
-      interaction.user.id,
+      toGatewayUser(interaction.user),
       config
     );
 

@@ -6,6 +6,7 @@
  */
 
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { type GatewayUser } from '../../utils/userGatewayClient.js';
 import { resolvePersonalityId } from './autocomplete.js';
 
 /**
@@ -28,14 +29,14 @@ import { resolvePersonalityId } from './autocomplete.js';
  */
 export async function resolveOptionalPersonality(
   context: DeferredCommandContext,
-  userId: string,
+  user: GatewayUser,
   personalityInput: string | null
 ): Promise<string | undefined | null> {
   if (personalityInput === null || personalityInput.length === 0) {
     return undefined;
   }
 
-  const resolved = await resolvePersonalityId(userId, personalityInput);
+  const resolved = await resolvePersonalityId(user, personalityInput);
   if (resolved === null) {
     await context.editReply({
       content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
@@ -59,10 +60,10 @@ export async function resolveOptionalPersonality(
  */
 export async function resolveRequiredPersonality(
   context: DeferredCommandContext,
-  userId: string,
+  user: GatewayUser,
   personalityInput: string
 ): Promise<string | null> {
-  const resolved = await resolvePersonalityId(userId, personalityInput);
+  const resolved = await resolvePersonalityId(user, personalityInput);
   if (resolved === null) {
     await context.editReply({
       content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,

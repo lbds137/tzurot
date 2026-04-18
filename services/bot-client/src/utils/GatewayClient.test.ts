@@ -133,7 +133,11 @@ describe('GatewayClient', () => {
       const personality = { name: 'test-personality', model: 'gpt-4' };
       const context = {
         messageContent: 'Hello world',
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         conversationHistory: [{ role: 'user', content: 'Previous' }],
       };
 

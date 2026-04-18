@@ -24,7 +24,7 @@ import {
   formatDateShort,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
@@ -184,7 +184,7 @@ function buildBrowseComponents(
  * Fetch memories from API
  */
 async function fetchMemories(
-  userId: string,
+  user: GatewayUser,
   personalityId: string | undefined,
   offset: number,
   limit: number
@@ -202,7 +202,7 @@ async function fetchMemories(
   const result = await callGatewayApi<BrowseResponse>(
     `/user/memory/list?${queryParams.toString()}`,
     {
-      userId,
+      user,
       method: 'GET',
     }
   );
@@ -219,6 +219,7 @@ async function fetchMemories(
  */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memoryBrowseOptions(context.interaction);
   const personalityInput = options.personality();
 
@@ -226,13 +227,13 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     // Resolve personality if provided. Contract: null means the helper
     // already sent an error reply via editReply, so we must return early
     // without sending another reply (Discord would reject the double-reply).
-    const personalityId = await resolveOptionalPersonality(context, userId, personalityInput);
+    const personalityId = await resolveOptionalPersonality(context, user, personalityInput);
     if (personalityId === null) {
       return;
     }
 
     // Fetch first page
-    const data = await fetchMemories(userId, personalityId, 0, MEMORIES_PER_PAGE);
+    const data = await fetchMemories(user, personalityId, 0, MEMORIES_PER_PAGE);
 
     if (data === null) {
       logger.warn({ userId }, '[Memory] Browse failed');
@@ -322,7 +323,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   const newPage = parsed.page;
 
   const data = await fetchMemories(
-    userId,
+    toGatewayUser(interaction.user),
     personalityId,
     newPage * MEMORIES_PER_PAGE,
     MEMORIES_PER_PAGE
@@ -386,12 +387,13 @@ export async function refreshBrowseList(interaction: ButtonInteraction): Promise
   }
 
   const userId = interaction.user.id;
+  const user = toGatewayUser(interaction.user);
   const { personalityId } = session.data;
 
   const result = await fetchPageWithEmptyFallback({
     currentPage: session.data.currentPage,
     fetchPage: page =>
-      fetchMemories(userId, personalityId, page * MEMORIES_PER_PAGE, MEMORIES_PER_PAGE),
+      fetchMemories(user, personalityId, page * MEMORIES_PER_PAGE, MEMORIES_PER_PAGE),
     isEmpty: d => d.memories.length === 0,
   });
   if (result === null) {

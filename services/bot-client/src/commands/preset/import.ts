@@ -6,7 +6,7 @@
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { createLogger, DISCORD_COLORS, presetImportOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { validateAndParseJsonFile } from '../../utils/jsonFileUtils.js';
 import {
   getImportedFieldsList,
@@ -173,12 +173,12 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
  * Create preset via API
  */
 async function createPresetFromImport(
-  userId: string,
+  user: GatewayUser,
   payload: Record<string, unknown>
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   // Create preset with all fields - API supports all fields in create endpoint
   const createResult = await callGatewayApi<{ id: string }>('/user/llm-config', {
-    userId,
+    user,
     method: 'POST',
     body: {
       name: payload.name,
@@ -248,7 +248,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     const payload = buildImportPayload(parseResult.data);
 
     // Step 4: Create preset
-    const createResult = await createPresetFromImport(userId, payload);
+    const createResult = await createPresetFromImport(toGatewayUser(context.user), payload);
     if (!createResult.ok) {
       await context.editReply(
         `❌ Failed to import preset:\n\`\`\`\n${createResult.error.slice(0, 1500)}\n\`\`\``

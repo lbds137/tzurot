@@ -24,6 +24,7 @@ import {
   sendNsfwVerificationMessage,
   checkNsfwVerification,
 } from '../utils/nsfwVerification.js';
+import { toGatewayUser } from '../utils/userGatewayClient.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 
@@ -65,7 +66,7 @@ export class DMSessionProcessor implements IMessageProcessor {
     logger.debug({ userId }, '[DMSessionProcessor] Processing DM message');
 
     // 2. Check NSFW verification first (higher priority than help message)
-    const nsfwStatus = await checkNsfwVerification(userId);
+    const nsfwStatus = await checkNsfwVerification(toGatewayUser(message.author));
     if (!nsfwStatus.nsfwVerified) {
       logger.info({ userId }, '[DMSessionProcessor] DM blocked - user not NSFW verified');
       await sendNsfwVerificationMessage(message, 'DMSessionProcessor');

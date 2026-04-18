@@ -24,6 +24,7 @@ import {
   type CharacterData,
   type CharacterSessionData,
 } from './config.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter, updateCharacter, toggleVisibility } from './api.js';
 
 const logger = createLogger('character-dashboard-actions');
@@ -88,7 +89,7 @@ export async function handleAction(
     // the general update endpoint, since visibility changes may have additional side effects.
     await interaction.deferUpdate();
 
-    const character = await fetchCharacter(entityId, config, interaction.user.id);
+    const character = await fetchCharacter(entityId, config, toGatewayUser(interaction.user));
     if (!character) {
       return;
     }
@@ -96,7 +97,7 @@ export async function handleAction(
     const result = await toggleVisibility(
       entityId,
       !character.isPublic,
-      interaction.user.id,
+      toGatewayUser(interaction.user),
       config
     );
 
@@ -139,7 +140,7 @@ export async function handleAction(
     // just click again if the state looks wrong.
     await interaction.deferUpdate();
 
-    const character = await fetchCharacter(entityId, config, interaction.user.id);
+    const character = await fetchCharacter(entityId, config, toGatewayUser(interaction.user));
     if (!character) {
       return;
     }
@@ -156,7 +157,7 @@ export async function handleAction(
     const updated = await updateCharacter(
       entityId,
       { voiceEnabled: newVoiceEnabled },
-      interaction.user.id,
+      toGatewayUser(interaction.user),
       config
     );
 

@@ -51,7 +51,7 @@ describe('handlePersonaAutocomplete', () => {
 
   function createMockInteraction(focusedName: string, focusedValue: string) {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser', globalName: 'Test User' },
       options: {
         getFocused: vi.fn().mockReturnValue({
           name: focusedName,
@@ -112,7 +112,11 @@ describe('handlePersonaAutocomplete', () => {
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
 
-      expect(mockGetCachedPersonas).toHaveBeenCalledWith('123456789');
+      expect(mockGetCachedPersonas).toHaveBeenCalledWith({
+        discordId: '123456789',
+        username: 'testuser',
+        displayName: 'Test User',
+      });
     });
 
     it('should return empty array when cache returns empty', async () => {

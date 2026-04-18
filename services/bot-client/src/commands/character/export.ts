@@ -13,7 +13,7 @@ import {
   characterExportOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './config.js';
 
 const logger = createLogger('character-export');
@@ -132,7 +132,7 @@ export async function handleExport(
   try {
     // Fetch character data
     const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slug}`, {
-      userId,
+      user: toGatewayUser(context.user),
     });
 
     if (!result.ok) {

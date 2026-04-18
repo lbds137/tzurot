@@ -13,7 +13,7 @@ import type { ModalSubmitInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 import { getProviderDisplayName } from '../../../utils/providers.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { ApikeyCustomIds } from '../../../utils/customIds.js';
 
 const logger = createLogger('settings-apikey-modal');
@@ -74,7 +74,7 @@ async function handleSetKeySubmit(
     // Send to api-gateway for validation and storage
     const result = await callGatewayApi<{ success: boolean }>('/wallet/set', {
       method: 'POST',
-      userId: interaction.user.id,
+      user: toGatewayUser(interaction.user),
       body: { provider, apiKey },
     });
 

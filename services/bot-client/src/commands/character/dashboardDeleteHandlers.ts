@@ -17,7 +17,7 @@ import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmatio
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { fetchCharacter } from './api.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -30,7 +30,7 @@ export async function handleDeleteAction(
   config: EnvConfig
 ): Promise<void> {
   // Re-fetch to verify current state and permissions
-  const character = await fetchCharacter(slug, config, interaction.user.id);
+  const character = await fetchCharacter(slug, config, toGatewayUser(interaction.user));
   if (!character) {
     await interaction.reply({
       content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
@@ -100,7 +100,7 @@ export async function handleDeleteButton(
   // Call the DELETE API
   const result = await callGatewayApi<unknown>(`/user/personality/${slug}`, {
     method: 'DELETE',
-    userId: interaction.user.id,
+    user: toGatewayUser(interaction.user),
   });
 
   if (!result.ok) {

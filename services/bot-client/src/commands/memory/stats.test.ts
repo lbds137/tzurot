@@ -23,6 +23,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock commandHelpers
@@ -49,7 +54,7 @@ describe('handleStats', () => {
 
   function createMockContext(personalitySlug: string = 'lilith') {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser', globalName: 'testuser' },
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
@@ -81,10 +86,16 @@ describe('handleStats', () => {
     const context = createMockContext();
     await handleStats(context);
 
-    expect(mockResolvePersonalityId).toHaveBeenCalledWith('123456789', 'lilith');
+    expect(mockResolvePersonalityId).toHaveBeenCalledWith(
+      { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+      'lilith'
+    );
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/memory/stats?personalityId=personality-uuid-123',
-      { userId: '123456789', method: 'GET' }
+      {
+        user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+        method: 'GET',
+      }
     );
     expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
       'Memory Statistics',

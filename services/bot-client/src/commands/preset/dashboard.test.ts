@@ -14,6 +14,12 @@ import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import type { PresetData } from './config.js';
 import { GatewayApiError } from '../../utils/userGatewayClient.js';
 
+const TEST_USER = {
+  discordId: 'user-456',
+  username: 'testuser',
+  displayName: 'testuser',
+} as const;
+
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -326,7 +332,7 @@ describe('handleModalSubmit', () => {
   function createMockModalInteraction(customId: string) {
     return {
       customId,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser', globalName: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
       reply: mockReply,
@@ -353,7 +359,7 @@ describe('handleModalSubmit', () => {
     await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', expect.any(Object), 'user-456');
+    expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', expect.any(Object), TEST_USER);
     expect(mockSessionManagerUpdate).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [{ title: 'Test Embed' }],
@@ -471,7 +477,7 @@ describe('handleSelectMenu', () => {
     return {
       customId,
       values: [value],
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser', globalName: 'testuser' },
       channelId: 'channel-999',
       message: { id: 'message-789' },
       showModal: mockShowModal,
@@ -514,7 +520,7 @@ describe('handleSelectMenu', () => {
       createMockSelectInteraction('preset::select::preset-123', 'edit-identity')
     );
 
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
     expect(mockSessionManagerSet).toHaveBeenCalled();
     expect(mockShowModal).toHaveBeenCalled();
   });
@@ -601,7 +607,7 @@ describe('handleButton', () => {
   function createMockButtonInteraction(customId: string) {
     return {
       customId,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser', globalName: 'testuser' },
       channelId: 'channel-999',
       message: { id: 'message-789' },
       update: mockUpdate,
@@ -642,7 +648,7 @@ describe('handleButton', () => {
     await handleButton(createMockButtonInteraction('preset::refresh::preset-123'));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
     expect(mockSessionManagerSet).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [{ title: 'Test Embed' }],
@@ -665,7 +671,7 @@ describe('handleButton', () => {
     await handleButton(createMockButtonInteraction('preset::refresh::preset-123'));
 
     // Should try user endpoint first (works for accessible global presets)
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
     // Should not need to fall back to global endpoint
     expect(mockFetchGlobalPreset).not.toHaveBeenCalled();
   });
@@ -686,7 +692,7 @@ describe('handleButton', () => {
 
     await handleButton(createMockButtonInteraction('preset::refresh::preset-123'));
 
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
     expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123');
   });
 
@@ -726,7 +732,7 @@ describe('handleButton', () => {
     function createToggleButtonInteraction(customId: string) {
       return {
         customId,
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser', globalName: 'testuser' },
         channelId: 'channel-999',
         message: { id: 'message-789' },
         update: mockUpdate,
@@ -758,7 +764,7 @@ describe('handleButton', () => {
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
 
       expect(mockDeferUpdate).toHaveBeenCalled();
-      expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', { isGlobal: true }, 'user-456');
+      expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', { isGlobal: true }, TEST_USER);
       expect(mockSessionManagerUpdate).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalled();
     });
@@ -778,7 +784,7 @@ describe('handleButton', () => {
 
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
 
-      expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', { isGlobal: false }, 'user-456');
+      expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', { isGlobal: false }, TEST_USER);
     });
 
     it('should show error when session expired', async () => {
@@ -867,7 +873,7 @@ describe('handleButton', () => {
     function createCloneButtonInteraction(customId: string) {
       return {
         customId,
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser', globalName: 'testuser' },
         channelId: 'channel-999',
         message: { id: 'message-789' },
         update: mockUpdate,
@@ -914,7 +920,7 @@ describe('handleButton', () => {
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
         }),
-        'user-456'
+        TEST_USER
       );
       expect(mockSessionManagerSet).toHaveBeenCalled();
       expect(mockSessionManagerDelete).toHaveBeenCalledWith('user-456', 'preset', 'preset-123');
@@ -948,7 +954,7 @@ describe('handleButton', () => {
         expect.objectContaining({
           name: 'Test Preset (Copy 2)',
         }),
-        'user-456'
+        TEST_USER
       );
     });
 
@@ -986,7 +992,7 @@ describe('handleButton', () => {
             top_p: 0.9,
           }),
         }),
-        'user-456'
+        TEST_USER
       );
     });
 
@@ -1100,13 +1106,13 @@ describe('handleButton', () => {
       expect(mockCreatePreset).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({ name: 'Test Preset (Copy)' }),
-        'user-456'
+        TEST_USER
       );
       // Retry bumped the suffix to "(Copy 2)" and succeeded
       expect(mockCreatePreset).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({ name: 'Test Preset (Copy 2)' }),
-        'user-456'
+        TEST_USER
       );
       // User sees the success path, not an error
       expect(mockFollowUp).not.toHaveBeenCalled();

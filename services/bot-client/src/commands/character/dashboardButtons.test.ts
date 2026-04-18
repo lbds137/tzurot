@@ -243,7 +243,7 @@ describe('Character Dashboard Buttons', () => {
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
       expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        'user-123',
+        expect.objectContaining({ discordId: 'user-123' }),
         expect.anything(),
         expect.anything(),
         {
@@ -329,7 +329,7 @@ describe('Character Dashboard Buttons', () => {
       await handleBackButton(mockInteraction, 'test-character');
 
       expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        'user-123',
+        expect.objectContaining({ discordId: 'user-123' }),
         expect.anything(),
         expect.anything(),
         {
@@ -361,7 +361,7 @@ describe('Character Dashboard Buttons', () => {
       await handleBackButton(mockInteraction, 'test-character');
 
       expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        'user-123',
+        expect.objectContaining({ discordId: 'user-123' }),
         expect.anything(),
         expect.anything(),
         expect.objectContaining({

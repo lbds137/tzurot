@@ -5,7 +5,11 @@
  * Uses callGatewayApi for user endpoints and adminFetch for admin endpoints.
  */
 
-import { callGatewayApi, GatewayApiError } from '../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GatewayApiError,
+  type GatewayUser,
+} from '../../utils/userGatewayClient.js';
 import { adminFetch, adminPutJson } from '../../utils/adminApiClient.js';
 import type { PresetData, PresetResponse } from './types.js';
 
@@ -35,9 +39,9 @@ export function extractApiErrorMessage(error: unknown): string | null {
 /**
  * Fetch a preset by ID (user endpoint)
  */
-export async function fetchPreset(presetId: string, userId: string): Promise<PresetData | null> {
+export async function fetchPreset(presetId: string, user: GatewayUser): Promise<PresetData | null> {
   const result = await callGatewayApi<PresetResponse>(`/user/llm-config/${presetId}`, {
-    userId,
+    user,
   });
 
   if (!result.ok) {
@@ -87,11 +91,11 @@ export async function fetchGlobalPreset(presetId: string): Promise<PresetData | 
 export async function updatePreset(
   presetId: string,
   data: Record<string, unknown>,
-  userId: string
+  user: GatewayUser
 ): Promise<PresetData> {
   const result = await callGatewayApi<PresetResponse>(`/user/llm-config/${presetId}`, {
     method: 'PUT',
-    userId,
+    user,
     body: data,
   });
 
@@ -153,11 +157,11 @@ export async function createPreset(
     description?: string;
     visionModel?: string;
   },
-  userId: string
+  user: GatewayUser
 ): Promise<PresetData> {
   const result = await callGatewayApi<PresetResponse>('/user/llm-config', {
     method: 'POST',
-    userId,
+    user,
     body: data,
   });
 

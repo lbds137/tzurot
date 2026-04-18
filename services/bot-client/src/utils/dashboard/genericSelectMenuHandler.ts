@@ -15,6 +15,7 @@
 
 import type { StringSelectMenuInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
+import { toGatewayUser, type GatewayUser } from '../userGatewayClient.js';
 import { parseDashboardCustomId, type DashboardConfig } from './types.js';
 import { fetchOrCreateSession } from './sessionHelpers.js';
 import { buildSectionModal } from './ModalFactory.js';
@@ -27,7 +28,7 @@ export interface GenericSelectMenuConfig<TFlat extends Record<string, unknown>, 
   /** Dashboard config defining the sections and modal fields */
   dashboardConfig: DashboardConfig<TFlat>;
   /** Fetch the raw entity data from the API */
-  fetchFn: (entityId: string, userId: string) => Promise<TRaw | null>;
+  fetchFn: (entityId: string, user: GatewayUser) => Promise<TRaw | null>;
   /** Transform raw API data to the flattened session format */
   transformFn: (raw: TRaw) => TFlat;
   /** Entity name used in user-facing error messages (e.g., 'Persona', 'Preset') */
@@ -78,7 +79,7 @@ export async function handleDashboardSectionSelect<TFlat extends Record<string, 
     userId: interaction.user.id,
     entityType: config.entityType,
     entityId,
-    fetchFn: () => config.fetchFn(entityId, interaction.user.id),
+    fetchFn: () => config.fetchFn(entityId, toGatewayUser(interaction.user)),
     transformFn: config.transformFn,
     interaction,
   });

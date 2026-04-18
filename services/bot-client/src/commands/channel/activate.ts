@@ -15,7 +15,7 @@ import {
   channelActivateOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
@@ -59,7 +59,7 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
 
   try {
     const result = await callGatewayApi<ActivateChannelResponse>('/user/channel/activate', {
-      userId: context.user.id,
+      user: toGatewayUser(context.user),
       method: 'POST',
       body: {
         channelId,

@@ -5,7 +5,11 @@
  */
 
 import { createLogger, type ListPersonasResponse } from '@tzurot/common-types';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  type GatewayUser,
+} from '../../utils/userGatewayClient.js';
 import type { PersonaDetails, PersonaSummary, SavePersonaResponse } from './types.js';
 
 const logger = createLogger('persona-api');
@@ -15,15 +19,18 @@ const logger = createLogger('persona-api');
  */
 export async function fetchPersona(
   personaId: string,
-  userId: string
+  user: GatewayUser
 ): Promise<PersonaDetails | null> {
   const result = await callGatewayApi<{ persona: PersonaDetails }>(`/user/persona/${personaId}`, {
-    userId,
+    user,
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
   if (!result.ok) {
-    logger.warn({ userId, personaId, error: result.error }, 'Failed to fetch persona');
+    logger.warn(
+      { userId: user.discordId, personaId, error: result.error },
+      'Failed to fetch persona'
+    );
     return null;
   }
 
@@ -33,11 +40,17 @@ export async function fetchPersona(
 /**
  * Fetch the user's default persona
  */
-export async function fetchDefaultPersona(userId: string): Promise<PersonaDetails | null> {
-  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED });
+export async function fetchDefaultPersona(user: GatewayUser): Promise<PersonaDetails | null> {
+  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', {
+    user,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
+  });
 
   if (!listResult.ok) {
-    logger.warn({ userId, error: listResult.error }, 'Failed to fetch persona list');
+    logger.warn(
+      { userId: user.discordId, error: listResult.error },
+      'Failed to fetch persona list'
+    );
     return null;
   }
 
@@ -46,7 +59,7 @@ export async function fetchDefaultPersona(userId: string): Promise<PersonaDetail
     return null;
   }
 
-  return fetchPersona(defaultPersona.id, userId);
+  return fetchPersona(defaultPersona.id, user);
 }
 
 /**
@@ -55,17 +68,20 @@ export async function fetchDefaultPersona(userId: string): Promise<PersonaDetail
 export async function updatePersona(
   personaId: string,
   data: Record<string, unknown>,
-  userId: string
+  user: GatewayUser
 ): Promise<PersonaDetails | null> {
   const result = await callGatewayApi<SavePersonaResponse>(`/user/persona/${personaId}`, {
     method: 'PUT',
-    userId,
+    user,
     body: data,
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
   if (!result.ok) {
-    logger.warn({ userId, personaId, error: result.error }, 'Failed to update persona');
+    logger.warn(
+      { userId: user.discordId, personaId, error: result.error },
+      'Failed to update persona'
+    );
     return null;
   }
 
@@ -77,16 +93,19 @@ export async function updatePersona(
  */
 export async function deletePersona(
   personaId: string,
-  userId: string
+  user: GatewayUser
 ): Promise<{ success: boolean; error?: string }> {
   const result = await callGatewayApi<{ message: string }>(`/user/persona/${personaId}`, {
     method: 'DELETE',
-    userId,
+    user,
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
   if (!result.ok) {
-    logger.warn({ userId, personaId, error: result.error }, 'Failed to delete persona');
+    logger.warn(
+      { userId: user.discordId, personaId, error: result.error },
+      'Failed to delete persona'
+    );
     return { success: false, error: result.error };
   }
 
@@ -96,8 +115,11 @@ export async function deletePersona(
 /**
  * Check if a persona is the default persona
  */
-export async function isDefaultPersona(personaId: string, userId: string): Promise<boolean> {
-  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED });
+export async function isDefaultPersona(personaId: string, user: GatewayUser): Promise<boolean> {
+  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', {
+    user,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
+  });
 
   if (!listResult.ok) {
     return false;

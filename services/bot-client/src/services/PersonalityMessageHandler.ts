@@ -14,7 +14,12 @@ import type {
 } from '@tzurot/common-types';
 import { createLogger, isBotOwner, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+  type GatewayUser,
+} from '../utils/userGatewayClient.js';
 import { JobTracker } from './JobTracker.js';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { ConversationPersistence } from './ConversationPersistence.js';
@@ -59,13 +64,13 @@ export class PersonalityMessageHandler {
    * Falls back to personality defaults on error.
    */
   private async resolveConfig(
-    userId: string,
+    user: GatewayUser,
     personality: LoadedPersonality,
     channelId?: string
   ): Promise<ConfigResolutionResult> {
     const result = await callGatewayApi<ConfigResolutionResult>('/user/llm-config/resolve', {
       method: 'POST',
-      userId,
+      user,
       body: {
         personalityId: personality.id,
         personalityConfig: personality,
@@ -76,7 +81,7 @@ export class PersonalityMessageHandler {
 
     if (!result.ok) {
       logger.warn(
-        { userId, personalityId: personality.id, error: result.error },
+        { userId: user.discordId, personalityId: personality.id, error: result.error },
         '[PersonalityMessageHandler] Failed to resolve config, using personality defaults'
       );
       // Fall back to personality defaults with hardcoded fallbacks for safety
@@ -188,7 +193,7 @@ export class PersonalityMessageHandler {
 
       // Resolve LLM config from gateway (applies user overrides for context settings)
       const resolvedConfig = await this.resolveConfig(
-        message.author.id,
+        toGatewayUser(message.author),
         personality,
         message.channel.id
       );

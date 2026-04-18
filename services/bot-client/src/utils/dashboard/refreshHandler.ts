@@ -6,6 +6,7 @@
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import { toGatewayUser, type GatewayUser } from '../userGatewayClient.js';
 import { getSessionManager } from './SessionManager.js';
 import {
   buildDashboardEmbed,
@@ -26,7 +27,7 @@ interface RefreshHandlerOptions<TData, TRaw = TData> {
   /** Dashboard configuration */
   dashboardConfig: DashboardConfig<TData>;
   /** Function to fetch fresh data */
-  fetchFn: (entityId: string, userId: string) => Promise<TRaw | null>;
+  fetchFn: (entityId: string, user: GatewayUser) => Promise<TRaw | null>;
   /** Function to transform raw data to dashboard format (optional if same) */
   transformFn?: (raw: TRaw) => TData;
   /** Function to build action button options from data (optional) */
@@ -69,7 +70,7 @@ export function createRefreshHandler<TData, TRaw = TData>(
   return async (interaction: ButtonInteraction, entityId: string): Promise<void> => {
     await interaction.deferUpdate();
 
-    const rawData = await fetchFn(entityId, interaction.user.id);
+    const rawData = await fetchFn(entityId, toGatewayUser(interaction.user));
 
     if (rawData === null) {
       await interaction.editReply({

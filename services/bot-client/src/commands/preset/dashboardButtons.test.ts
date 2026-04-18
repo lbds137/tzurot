@@ -19,6 +19,12 @@ import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import type { FlattenedPresetData } from './config.js';
 
+const TEST_USER = {
+  discordId: 'user-123',
+  username: 'testuser',
+  displayName: 'testuser',
+} as const;
+
 // Mock dependencies
 const mockFetchPreset = vi.fn();
 const mockFetchGlobalPreset = vi.fn();
@@ -40,6 +46,11 @@ vi.mock('./browse.js', () => ({
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 const mockSessionManager = {
@@ -232,7 +243,7 @@ describe('Preset Dashboard Buttons', () => {
   const createMockButtonInteraction = (customId: string) =>
     ({
       customId,
-      user: { id: 'user-123' },
+      user: { id: 'user-123', username: 'testuser', globalName: 'testuser' },
       message: { id: 'msg-123' },
       channelId: 'channel-123',
       update: vi.fn(),
@@ -339,7 +350,7 @@ describe('Preset Dashboard Buttons', () => {
       await handleRefreshButton(mockInteraction, 'preset-123');
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-123');
+      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
       expect(mockSessionManager.set).toHaveBeenCalled();
     });
 
@@ -361,7 +372,7 @@ describe('Preset Dashboard Buttons', () => {
       await handleRefreshButton(mockInteraction, 'preset-123');
 
       // Should try user endpoint first (works for accessible global presets)
-      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-123');
+      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
       // Should not need to fall back to global endpoint
       expect(mockFetchGlobalPreset).not.toHaveBeenCalled();
     });
@@ -386,7 +397,7 @@ describe('Preset Dashboard Buttons', () => {
       await handleRefreshButton(mockInteraction, 'preset-123');
 
       // Should try user endpoint first
-      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-123');
+      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', TEST_USER);
       // Should fall back to global endpoint
       expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123');
     });
@@ -689,7 +700,7 @@ describe('Preset Dashboard Buttons', () => {
             temperature: 0.8,
           }),
         }),
-        'user-123'
+        TEST_USER
       );
     });
 
@@ -725,11 +736,14 @@ describe('Preset Dashboard Buttons', () => {
       await handleBackButton(mockInteraction, 'preset-123');
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(mockBuildBrowseResponse).toHaveBeenCalledWith('user-123', {
-        page: 1,
-        filter: 'owned',
-        query: null,
-      });
+      expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ discordId: 'user-123' }),
+        {
+          page: 1,
+          filter: 'owned',
+          query: null,
+        }
+      );
       expect(mockSessionManager.delete).toHaveBeenCalledWith('user-123', 'preset', 'preset-123');
     });
 
@@ -800,11 +814,14 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleBackButton(mockInteraction, 'preset-123');
 
-      expect(mockBuildBrowseResponse).toHaveBeenCalledWith('user-123', {
-        page: 0,
-        filter: 'all',
-        query: 'gpt',
-      });
+      expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ discordId: 'user-123' }),
+        {
+          page: 0,
+          filter: 'all',
+          query: 'gpt',
+        }
+      );
     });
   });
 });

@@ -44,6 +44,11 @@ vi.mock('@tzurot/common-types', async () => {
 
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('./resolveHelpers.js', () => ({
@@ -187,7 +192,10 @@ describe('handleBrowse', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       expect.stringContaining('/user/memory/list'),
-      expect.objectContaining({ method: 'GET', userId: TEST_USER_ID })
+      expect.objectContaining({
+        method: 'GET',
+        user: expect.objectContaining({ discordId: TEST_USER_ID }),
+      })
     );
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })

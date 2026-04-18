@@ -17,6 +17,7 @@ import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const OTHER_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 const TEST_USER_ID = '123456789';
+const TEST_USER = { discordId: TEST_USER_ID, username: 'testuser', displayName: 'testuser' };
 
 // Mock gateway client
 // Note: Tests use objectContaining for API call assertions to focus on the essential
@@ -25,6 +26,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -53,11 +59,11 @@ describe('fetchPersona', () => {
       }),
     });
 
-    const result = await fetchPersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await fetchPersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       `/user/persona/${TEST_PERSONA_ID}`,
-      expect.objectContaining({ userId: TEST_USER_ID })
+      expect.objectContaining({ user: expect.objectContaining({ discordId: TEST_USER_ID }) })
     );
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Test Persona');
@@ -69,7 +75,7 @@ describe('fetchPersona', () => {
       error: 'Persona not found',
     });
 
-    const result = await fetchPersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await fetchPersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(result).toBeNull();
   });
@@ -97,11 +103,11 @@ describe('fetchDefaultPersona', () => {
       }),
     });
 
-    const result = await fetchDefaultPersona(TEST_USER_ID);
+    const result = await fetchDefaultPersona(TEST_USER);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/persona',
-      expect.objectContaining({ userId: TEST_USER_ID })
+      expect.objectContaining({ user: expect.objectContaining({ discordId: TEST_USER_ID }) })
     );
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Default');
@@ -113,7 +119,7 @@ describe('fetchDefaultPersona', () => {
       data: mockListPersonasResponse([{ id: TEST_PERSONA_ID, name: 'Test', isDefault: false }]),
     });
 
-    const result = await fetchDefaultPersona(TEST_USER_ID);
+    const result = await fetchDefaultPersona(TEST_USER);
 
     expect(result).toBeNull();
   });
@@ -124,7 +130,7 @@ describe('fetchDefaultPersona', () => {
       error: 'Failed to fetch',
     });
 
-    const result = await fetchDefaultPersona(TEST_USER_ID);
+    const result = await fetchDefaultPersona(TEST_USER);
 
     expect(result).toBeNull();
   });
@@ -154,14 +160,14 @@ describe('updatePersona', () => {
     const result = await updatePersona(
       TEST_PERSONA_ID,
       { name: 'Updated Name', preferredName: 'Tester' },
-      TEST_USER_ID
+      TEST_USER
     );
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       `/user/persona/${TEST_PERSONA_ID}`,
       expect.objectContaining({
         method: 'PUT',
-        userId: TEST_USER_ID,
+        user: expect.objectContaining({ discordId: TEST_USER_ID }),
         body: { name: 'Updated Name', preferredName: 'Tester' },
       })
     );
@@ -175,7 +181,7 @@ describe('updatePersona', () => {
       error: 'Update failed',
     });
 
-    const result = await updatePersona(TEST_PERSONA_ID, { name: 'Test' }, TEST_USER_ID);
+    const result = await updatePersona(TEST_PERSONA_ID, { name: 'Test' }, TEST_USER);
 
     expect(result).toBeNull();
   });
@@ -192,13 +198,13 @@ describe('deletePersona', () => {
       data: { message: 'Persona deleted' },
     });
 
-    const result = await deletePersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await deletePersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       `/user/persona/${TEST_PERSONA_ID}`,
       expect.objectContaining({
         method: 'DELETE',
-        userId: TEST_USER_ID,
+        user: expect.objectContaining({ discordId: TEST_USER_ID }),
       })
     );
     expect(result.success).toBe(true);
@@ -211,7 +217,7 @@ describe('deletePersona', () => {
       error: 'Cannot delete default persona',
     });
 
-    const result = await deletePersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await deletePersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Cannot delete default persona');
@@ -232,7 +238,7 @@ describe('isDefaultPersona', () => {
       ]),
     });
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(result).toBe(true);
   });
@@ -243,7 +249,7 @@ describe('isDefaultPersona', () => {
       data: mockListPersonasResponse([{ id: TEST_PERSONA_ID, name: 'Test', isDefault: false }]),
     });
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(result).toBe(false);
   });
@@ -254,7 +260,7 @@ describe('isDefaultPersona', () => {
       data: mockListPersonasResponse([{ id: OTHER_PERSONA_ID, name: 'Other', isDefault: true }]),
     });
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(result).toBe(false);
   });
@@ -265,7 +271,7 @@ describe('isDefaultPersona', () => {
       error: 'Failed',
     });
 
-    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER_ID);
+    const result = await isDefaultPersona(TEST_PERSONA_ID, TEST_USER);
 
     expect(result).toBe(false);
   });

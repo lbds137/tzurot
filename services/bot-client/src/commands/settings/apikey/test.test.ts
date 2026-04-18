@@ -26,6 +26,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock providers
@@ -92,7 +97,11 @@ describe('handleTestKey', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/test', {
       method: 'POST',
-      userId: '123456789',
+      user: {
+        discordId: '123456789',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       body: { provider: 'openrouter' },
     });
     expect(mockEditReply).toHaveBeenCalledWith({
