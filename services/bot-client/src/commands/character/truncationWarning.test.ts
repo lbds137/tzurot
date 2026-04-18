@@ -52,8 +52,11 @@ const {
   detectOverLengthFields,
   buildTruncationWarningEmbed,
   buildTruncationButtons,
+  buildOpenEditorButtonRow,
+  buildReadyToEditEmbed,
   showTruncationWarning,
   handleEditTruncatedButton,
+  handleOpenEditorButton,
   handleViewFullButton,
   handleCancelEditButton,
 } = await import('./truncationWarning.js');
@@ -206,12 +209,103 @@ describe('showTruncationWarning', () => {
   });
 });
 
+describe('buildReadyToEditEmbed', () => {
+  it('strips the leading emoji and names the section in the title', () => {
+    const embed = buildReadyToEditEmbed('🏷️ Identity & Basics');
+    const json = embed.toJSON();
+    expect(json.title).toContain('Identity & Basics');
+    expect(json.title).not.toContain('🏷️');
+  });
+});
+
+describe('buildOpenEditorButtonRow', () => {
+  it('emits a single Open Editor button with the expected customId shape', () => {
+    const row = buildOpenEditorButtonRow('char-1', 'identity');
+    const json = row.toJSON();
+    expect(json.components).toHaveLength(1);
+    const button = json.components[0] as { custom_id: string; label?: string };
+    expect(button.custom_id).toBe('character::open_editor::char-1::identity');
+    expect(button.label).toBe('Open Editor');
+  });
+});
+
 describe('handleEditTruncatedButton', () => {
   beforeEach(() => {
     mockFetchOrCreateSession.mockReset();
   });
 
-  it('fetches the character and shows the section modal', async () => {
+  it('updates the interaction to the Ready-to-Edit state with an Open Editor button', async () => {
+    // Step 1 of the two-click flow must `update` first (no showModal) so
+    // the 3-second budget is never blown by the subsequent session warm.
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { name: 'Hero', _isAdmin: false },
+    });
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockShowModal = vi.fn();
+    const interaction = {
+      user: { id: 'user-1' },
+      update: mockUpdate,
+      showModal: mockShowModal,
+    } as unknown as ButtonInteraction;
+
+    await handleEditTruncatedButton(interaction, 'char-1', 'identity');
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockShowModal).not.toHaveBeenCalled();
+    const updateArgs = mockUpdate.mock.calls[0][0];
+    expect(updateArgs.embeds).toHaveLength(1);
+    expect(updateArgs.components).toHaveLength(1);
+  });
+
+  it('warms the session AFTER the update ack, not before', async () => {
+    // The update must precede the async resolveContext work. If this order
+    // flips, we're back to the PR #825 R1 3-sec bug.
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { name: 'Hero', _isAdmin: false },
+    });
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      update: mockUpdate,
+      showModal: vi.fn(),
+    } as unknown as ButtonInteraction;
+
+    await handleEditTruncatedButton(interaction, 'char-1', 'identity');
+
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockFetchOrCreateSession).toHaveBeenCalled();
+    const updateOrder = mockUpdate.mock.invocationCallOrder[0];
+    const fetchOrder = mockFetchOrCreateSession.mock.invocationCallOrder[0];
+    expect(updateOrder).toBeLessThan(fetchOrder);
+  });
+
+  it('swallows session-warm failures so the open_editor click can retry', async () => {
+    // A failed warm shouldn't propagate to the user — step 2 has its own
+    // resolveContext + 10062 fallback. Swallowing also prevents the
+    // CommandHandler catch from surfacing a scary error on a successful update.
+    mockFetchOrCreateSession.mockRejectedValue(new Error('Redis connection refused'));
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      update: mockUpdate,
+      showModal: vi.fn(),
+    } as unknown as ButtonInteraction;
+
+    await expect(
+      handleEditTruncatedButton(interaction, 'char-1', 'identity')
+    ).resolves.toBeUndefined();
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+});
+
+describe('handleOpenEditorButton', () => {
+  beforeEach(() => {
+    mockFetchOrCreateSession.mockReset();
+  });
+
+  it('fetches the character and shows the section modal on success', async () => {
     mockFetchOrCreateSession.mockResolvedValue({
       success: true,
       data: { name: 'Hero', _isAdmin: false },
@@ -222,7 +316,7 @@ describe('handleEditTruncatedButton', () => {
       showModal: mockShowModal,
     } as unknown as ButtonInteraction;
 
-    await handleEditTruncatedButton(interaction, 'char-1', 'identity');
+    await handleOpenEditorButton(interaction, 'char-1', 'identity');
 
     expect(mockShowModal).toHaveBeenCalledWith({ __modal: true });
   });
@@ -237,31 +331,97 @@ describe('handleEditTruncatedButton', () => {
       showModal: mockShowModal,
     } as unknown as ButtonInteraction;
 
-    await handleEditTruncatedButton(interaction, 'char-1', 'identity');
+    await handleOpenEditorButton(interaction, 'char-1', 'identity');
 
     expect(mockShowModal).not.toHaveBeenCalled();
     expect(mockReply).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.stringContaining('Character not found'),
+      })
+    );
+  });
+
+  it('catches 10062 and surfaces a retry-visible followUp when the 3-sec window blows', async () => {
+    // Residual failure mode: session warmed but Redis latency spike pushes
+    // the open_editor ack past 3 sec. Discord returns 10062. The handler
+    // must not silently die — it must attempt a user-visible followUp.
+    const { DiscordAPIError } = await import('discord.js');
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { name: 'Hero', _isAdmin: false },
+    });
+    const timeoutError = new DiscordAPIError(
+      { code: 10062, message: 'Unknown interaction' },
+      10062,
+      404,
+      'POST',
+      '/interactions/x/y/callback',
+      {}
+    );
+    const mockShowModal = vi.fn().mockRejectedValue(timeoutError);
+    const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      showModal: mockShowModal,
+      followUp: mockFollowUp,
+    } as unknown as ButtonInteraction;
+
+    await handleOpenEditorButton(interaction, 'char-1', 'identity');
+
+    expect(mockShowModal).toHaveBeenCalled();
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Took too long'),
         flags: MessageFlags.Ephemeral,
       })
     );
   });
 
-  it('replies with an error when the section id is unknown', async () => {
-    const mockReply = vi.fn().mockResolvedValue(undefined);
+  it('rethrows non-10062 showModal errors so the global catch can handle them', async () => {
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { name: 'Hero', _isAdmin: false },
+    });
+    const unexpected = new Error('boom');
+    const mockShowModal = vi.fn().mockRejectedValue(unexpected);
     const interaction = {
       user: { id: 'user-1' },
-      reply: mockReply,
+      showModal: mockShowModal,
+      followUp: vi.fn(),
     } as unknown as ButtonInteraction;
 
-    await handleEditTruncatedButton(interaction, 'char-1', 'nonexistent-section');
+    await expect(handleOpenEditorButton(interaction, 'char-1', 'identity')).rejects.toThrow('boom');
+  });
 
-    expect(mockReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: expect.stringContaining('Unknown section'),
-      })
+  it('swallows secondary followUp failures after a 10062', async () => {
+    // On a fully-dead interaction token, followUp also throws 10062. The
+    // handler must not propagate that secondary failure to the outer
+    // CommandHandler catch (which would re-log and re-attempt a send).
+    const { DiscordAPIError } = await import('discord.js');
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { name: 'Hero', _isAdmin: false },
+    });
+    const timeoutError = new DiscordAPIError(
+      { code: 10062, message: 'Unknown interaction' },
+      10062,
+      404,
+      'POST',
+      '/interactions/x/y/callback',
+      {}
     );
+    const mockShowModal = vi.fn().mockRejectedValue(timeoutError);
+    const mockFollowUp = vi.fn().mockRejectedValue(timeoutError);
+    const interaction = {
+      user: { id: 'user-1' },
+      showModal: mockShowModal,
+      followUp: mockFollowUp,
+    } as unknown as ButtonInteraction;
+
+    await expect(
+      handleOpenEditorButton(interaction, 'char-1', 'identity')
+    ).resolves.toBeUndefined();
+    expect(mockFollowUp).toHaveBeenCalled();
   });
 });
 

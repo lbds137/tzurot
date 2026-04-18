@@ -144,20 +144,6 @@ _New items go here. Triage to appropriate section weekly._
 
   **Start**: `pnpm ops logs --env prod --filter "@tzurot/ai-worker" --since 48h | grep -iE "tts|voice|elevenlabs"` to enumerate recent failures; `services/ai-worker/src/jobs/handlers/pipeline/steps/TTSStep.ts` `performElevenLabsTTSWithFallback` for the current fallback sequencing; the existing `ElevenLabsClient` + `VoiceEngineClient` error classifiers as the natural differentiation points.
 
-- 🐛 `[FIX]` **Character truncation warning → Edit button silent-failure when interaction times out** — `handleEditTruncatedButton` in `services/bot-client/src/commands/character/truncationWarning.ts` cannot `deferUpdate` before the async work because Discord requires `showModal` to be the _first_ response to the interaction (deferring poisons the modal path). The handler therefore calls `resolveCharacterSectionContext` — which hits Redis and may fall through to a gateway `fetchCharacter` call — _before_ the ack. In the common case the session is Redis-cached from the preceding select-menu interaction and the async work fits inside Discord's 3-second window. But users can leave the warning embed on screen indefinitely, and a session TTL expiry + slow gateway response can blow the budget. When `showModal` then throws `10062 Unknown interaction`, `CommandHandler.handleComponentInteraction:350` catches the throw and calls `sendErrorReply`, but `reply()` on a dead interaction also throws 10062 — the inner try/catch at line 358 logs to debug and the user sees a silent no-op. Surfaced during PR #825 R3 review (2026-04-17).
-
-  **Fix options** (not yet chosen — need UX + engineering input):
-  - **(a)** Pre-fetch + session-warm on the select-menu interaction so the cache miss path is effectively dead (wastes work when the user picks View Full or Cancel).
-  - **(b)** Swap the Edit-with-Truncation flow to use `update` + a follow-up "click here to open the editor" link, moving the modal behind a second interaction where a defer _is_ legal. Extra click, but eliminates the 3-second risk entirely.
-  - **(c)** Replace the warning with a fresh interaction on click (Discord returns a new token), re-resolving context via `deferReply`. Simplest but slowest — user waits through the defer ack twice.
-
-  **Why it's latent**: the 3-second window is only blown on cache miss + slow gateway. In the common case users click within seconds and the session is hot. Not reproduced in production yet, but the failure mode is known.
-
-  **Start**:
-  - Timeout site: `services/bot-client/src/commands/character/truncationWarning.ts` `handleEditTruncatedButton`
-  - Error-handling chain that swallows the 10062: `services/bot-client/src/handlers/CommandHandler.ts:350-360`
-  - sendErrorReply (the swallower): `services/bot-client/src/handlers/CommandHandler.ts:53-66`
-
 - 🧹 `[CHORE]` **Add lint/test assertion that dashboard section fields declare `maxLength`** — `detectOverLengthFields` in `services/bot-client/src/commands/character/truncationWarning.ts` (and by extension the character field silent-truncation warning) intentionally skips fields where `field.maxLength === undefined`, because `ModalFactory` applies default caps only at modal-show time and we don't want to warn about defaults users can't configure. The tradeoff: if a new section field is ever added to `services/bot-client/src/commands/character/config.ts` without an explicit `maxLength`, the silent-truncate path for that field silently re-opens and users lose data with no warning — same bug the PR #825 fix was designed to prevent, just scoped to new fields. Currently nothing enforces `maxLength` presence; the protection is "discipline + code review." Flagged in PR #825 R3 (2026-04-17).
 
   **Fix options**:
