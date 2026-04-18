@@ -40,6 +40,7 @@
       "WebSearch",
       "Skill(*)",
       "Bash",
+      "Monitor",
       "mcp__ide__getDiagnostics",
       "mcp__council__*",
       "WebFetch(domain:blog.platformatic.dev)",
