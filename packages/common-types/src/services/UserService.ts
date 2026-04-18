@@ -202,8 +202,16 @@ export class UserService {
     // caller. Target: zero hits in prod for 48-72h, which unlocks PR C's
     // shell-path deletion. Kept at warn level so a misconfigured route shows
     // up in normal log-search without spamming debug noise.
+    //
+    // Stack is capped to the top 6 frames: enough to see the caller chain
+    // (middleware / handler / route-helper) without paying for a full 30+
+    // frame string allocation on every shell-path hit during the deploy-
+    // transition window.
     logger.warn(
-      { discordId, stack: new Error().stack },
+      {
+        discordId,
+        stack: new Error().stack?.split('\n').slice(0, 6).join('\n'),
+      },
       '[Identity] Shell path executed — PR B shadow-mode canary (should trend to zero before PR C)'
     );
 
