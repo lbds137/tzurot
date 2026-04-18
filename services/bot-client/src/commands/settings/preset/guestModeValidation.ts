@@ -15,7 +15,11 @@ import {
   type LlmConfigSummary,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  type GatewayUser,
+} from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('settings-preset-guest-mode');
@@ -77,15 +81,15 @@ export interface GuestModeCheckResult {
 export async function checkGuestModePremiumAccess(
   context: DeferredCommandContext,
   configId: string,
-  userId: string
+  user: GatewayUser
 ): Promise<GuestModeCheckResult & { blocked: boolean }> {
   const [walletResult, configsResult] = await Promise.all([
     callGatewayApi<WalletListResponse>('/wallet/list', {
-      userId,
+      user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
     callGatewayApi<ConfigListResponse>('/user/llm-config', {
-      userId,
+      user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
   ]);
@@ -109,7 +113,7 @@ export async function checkGuestModePremiumAccess(
 
       await context.editReply({ embeds: [embed] });
       logger.info(
-        { userId, configId, configName: selectedConfig.name, isGuestMode },
+        { userId: user.discordId, configId, configName: selectedConfig.name, isGuestMode },
         '[Me/Preset] Guest mode user tried to select premium model'
       );
       return { isGuestMode, blocked: true };

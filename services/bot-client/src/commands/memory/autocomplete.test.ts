@@ -9,6 +9,11 @@ import {
   getPersonalityName,
 } from './autocomplete.js';
 import type { AutocompleteInteraction } from 'discord.js';
+import type { GatewayUser } from '../../utils/userGatewayClient.js';
+
+function mkUser(discordId = 'user-123'): GatewayUser {
+  return { discordId, username: 'test-user', displayName: 'Test User' };
+}
 
 // Mock shared autocomplete utility
 const mockSharedAutocomplete = vi.fn();
@@ -54,26 +59,27 @@ describe('Memory Autocomplete', () => {
     });
 
     it('should resolve personality by slug', async () => {
-      const result = await resolvePersonalityId('user-123', 'lilith');
+      const user = mkUser();
+      const result = await resolvePersonalityId(user, 'lilith');
 
       expect(result).toBe('uuid-1');
-      expect(mockGetCachedPersonalities).toHaveBeenCalledWith('user-123');
+      expect(mockGetCachedPersonalities).toHaveBeenCalledWith(user);
     });
 
     it('should resolve personality by ID', async () => {
-      const result = await resolvePersonalityId('user-123', 'uuid-2');
+      const result = await resolvePersonalityId(mkUser(), 'uuid-2');
 
       expect(result).toBe('uuid-2');
     });
 
     it('should resolve personality by name (case-insensitive)', async () => {
-      const result = await resolvePersonalityId('user-123', 'ZEPHYR');
+      const result = await resolvePersonalityId(mkUser(), 'ZEPHYR');
 
       expect(result).toBe('uuid-3');
     });
 
     it('should return null for unknown personality', async () => {
-      const result = await resolvePersonalityId('user-123', 'unknown');
+      const result = await resolvePersonalityId(mkUser(), 'unknown');
 
       expect(result).toBeNull();
     });
@@ -86,7 +92,7 @@ describe('Memory Autocomplete', () => {
       ]);
 
       // First match by slug wins
-      const result = await resolvePersonalityId('user-123', 'aria');
+      const result = await resolvePersonalityId(mkUser(), 'aria');
 
       // Should find the original 'aria' by slug first
       expect(result).toBe('uuid-2');
@@ -105,26 +111,27 @@ describe('Memory Autocomplete', () => {
     });
 
     it('should return displayName when available', async () => {
-      const result = await getPersonalityName('user-123', 'uuid-1');
+      const user = mkUser();
+      const result = await getPersonalityName(user, 'uuid-1');
 
       expect(result).toBe('Lilith the Dark');
-      expect(mockGetCachedPersonalities).toHaveBeenCalledWith('user-123');
+      expect(mockGetCachedPersonalities).toHaveBeenCalledWith(user);
     });
 
     it('should return name when displayName is null', async () => {
-      const result = await getPersonalityName('user-123', 'uuid-2');
+      const result = await getPersonalityName(mkUser(), 'uuid-2');
 
       expect(result).toBe('Aria');
     });
 
     it('should return name when displayName is undefined', async () => {
-      const result = await getPersonalityName('user-123', 'uuid-3');
+      const result = await getPersonalityName(mkUser(), 'uuid-3');
 
       expect(result).toBe('Zephyr');
     });
 
     it('should return null for unknown personality', async () => {
-      const result = await getPersonalityName('user-123', 'unknown-uuid');
+      const result = await getPersonalityName(mkUser(), 'unknown-uuid');
 
       expect(result).toBeNull();
     });

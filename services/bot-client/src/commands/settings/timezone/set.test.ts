@@ -27,6 +27,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Create mock EmbedBuilder-like objects
@@ -95,7 +100,11 @@ describe('handleTimezoneSet', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/timezone', {
       method: 'PUT',
-      userId: '123456789',
+      user: {
+        discordId: '123456789',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       body: { timezone: 'America/New_York' },
     });
     expect(mockEditReply).toHaveBeenCalledWith({

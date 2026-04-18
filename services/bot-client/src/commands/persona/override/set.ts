@@ -24,7 +24,7 @@ import type { ModalCommandContext } from '../../../utils/commandContext/types.js
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { buildPersonaModalFields } from '../utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../../utils/customIds.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-override-set');
 
@@ -95,7 +95,7 @@ async function showCreateOverrideModal(
 ): Promise<void> {
   const infoResult = await callGatewayApi<OverrideInfoResponse>(
     `/user/persona/override/${personalitySlug}`,
-    { userId: discordId }
+    { user: toGatewayUser(context.user) }
   );
 
   if (!infoResult.ok) {
@@ -141,7 +141,7 @@ async function setExistingOverride(
 ): Promise<void> {
   const result = await callGatewayApi<SetOverrideResponse>(
     `/user/persona/override/${personalitySlug}`,
-    { userId: discordId, method: 'PUT', body: { personaId } }
+    { user: toGatewayUser(context.user), method: 'PUT', body: { personaId } }
   );
 
   if (!result.ok) {
@@ -231,7 +231,7 @@ export async function handleOverrideCreateModalSubmit(
     const result = await callGatewayApi<CreateOverrideResponse>(
       `/user/persona/override/by-id/${personalityId}`,
       {
-        userId: discordId,
+        user: toGatewayUser(interaction.user),
         method: 'POST',
         body: {
           name: personaName,

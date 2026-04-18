@@ -36,6 +36,11 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
     AUTOCOMPLETE: 2500,
     DEFERRED: 10000,
   },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock dashboard utilities
@@ -139,7 +144,11 @@ describe('handleBrowse', () => {
     await handleBrowse(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-      userId: '123456789',
+      user: {
+        discordId: '123456789',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       timeout: 10000,
     });
     expect(mockEditReply).toHaveBeenCalledWith({
@@ -411,7 +420,11 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(mockInteraction);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-      userId: '123456789',
+      user: {
+        discordId: '123456789',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       timeout: 10000,
     });
     expect(mockEditReply).toHaveBeenCalledWith({
@@ -552,7 +565,11 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(mockInteraction);
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', '123456789');
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', {
+      discordId: '123456789',
+      username: 'testuser',
+      displayName: 'testuser',
+    });
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     expect(mockBuildDashboardComponents).toHaveBeenCalled();
     expect(mockEditReply).toHaveBeenCalled();

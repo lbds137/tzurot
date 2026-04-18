@@ -15,7 +15,7 @@ import {
 } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 import { buildBackToBrowseRow } from './errorRecovery.js';
@@ -64,7 +64,7 @@ export async function startImport(
 
   const importResult = await callGatewayApi<ImportResponse>('/user/shapes/import', {
     method: 'POST',
-    userId,
+    user: toGatewayUser(buttonInteraction.user),
     body: { sourceSlug: slug, importType },
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
@@ -128,7 +128,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
   try {
     // 1. Check credentials exist
     const authResult = await callGatewayApi<AuthStatusResponse>('/user/shapes/auth/status', {
-      userId,
+      user: toGatewayUser(context.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 

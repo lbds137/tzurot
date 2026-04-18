@@ -26,7 +26,7 @@ import {
   formatDateShort,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons as buildSharedBrowseButtons,
@@ -224,7 +224,7 @@ function buildSearchView(opts: {
 }
 
 interface FetchSearchOptions {
-  userId: string;
+  user: GatewayUser;
   query: string;
   personalityId?: string;
   offset: number;
@@ -237,7 +237,7 @@ interface FetchSearchOptions {
  * Fetch search results from API
  */
 async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchResponse | null> {
-  const { userId, query, personalityId, offset, limit, preferTextSearch } = options;
+  const { user, query, personalityId, offset, limit, preferTextSearch } = options;
 
   const requestBody: Record<string, unknown> = {
     query,
@@ -255,7 +255,7 @@ async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchRe
   }
 
   const result = await callGatewayApi<SearchResponse>('/user/memory/search', {
-    userId,
+    user,
     method: 'POST',
     body: requestBody,
   });
@@ -272,6 +272,7 @@ async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchRe
  */
 export async function handleSearch(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memorySearchOptions(context.interaction);
   const query = options.query();
   const personalityInput = options.personality();
@@ -284,14 +285,14 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
     // Resolve personality if provided. Contract: null means the helper
     // already sent an error reply via editReply, so we must return early
     // without sending another reply (Discord would reject the double-reply).
-    const personalityId = await resolveOptionalPersonality(context, userId, personalityInput);
+    const personalityId = await resolveOptionalPersonality(context, user, personalityInput);
     if (personalityId === null) {
       return;
     }
 
     // Fetch first page
     const data = await fetchSearchResults({
-      userId,
+      user,
       query,
       personalityId,
       offset: 0,
@@ -399,7 +400,7 @@ export async function handleSearchPagination(interaction: ButtonInteraction): Pr
   const newPage = parsed.page;
 
   const data = await fetchSearchResults({
-    userId,
+    user: toGatewayUser(interaction.user),
     query: searchQuery,
     personalityId,
     offset: newPage * pageSize,
@@ -471,12 +472,13 @@ export async function refreshSearchList(interaction: ButtonInteraction): Promise
   const { personalityId, searchQuery, pageSize, searchType } = session.data;
 
   const userId = interaction.user.id;
+  const user = toGatewayUser(interaction.user);
 
   const result = await fetchPageWithEmptyFallback({
     currentPage: session.data.currentPage,
     fetchPage: page =>
       fetchSearchResults({
-        userId,
+        user,
         query: searchQuery,
         personalityId,
         offset: page * pageSize,

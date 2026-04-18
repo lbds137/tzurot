@@ -6,7 +6,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, settingsPresetSetOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 
 const logger = createLogger('settings-preset-set');
@@ -34,14 +34,15 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   }
 
   try {
-    const { isGuestMode, blocked } = await checkGuestModePremiumAccess(context, configId, userId);
+    const user = toGatewayUser(context.user);
+    const { isGuestMode, blocked } = await checkGuestModePremiumAccess(context, configId, user);
     if (blocked) {
       return;
     }
 
     const result = await callGatewayApi<SetResponse>('/user/model-override', {
       method: 'PUT',
-      userId,
+      user,
       body: { personalityId, configId },
     });
 

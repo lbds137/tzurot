@@ -33,6 +33,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock commandHelpers - embeds return empty objects for test simplicity
@@ -93,7 +98,11 @@ describe('Memory Incognito Handlers', () => {
         ok: true,
         data: {
           session: {
-            userId: '123456789',
+            user: {
+              discordId: '123456789',
+              username: 'testuser',
+              displayName: 'testuser',
+            },
             personalityId: 'personality-uuid-123',
             enabledAt: '2026-01-15T12:00:00Z',
             expiresAt: '2026-01-15T13:00:00Z',
@@ -109,7 +118,11 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoEnable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'POST',
         body: { personalityId: 'personality-uuid-123', duration: '1h' },
       });
@@ -126,7 +139,11 @@ describe('Memory Incognito Handlers', () => {
         ok: true,
         data: {
           session: {
-            userId: '123456789',
+            user: {
+              discordId: '123456789',
+              username: 'testuser',
+              displayName: 'testuser',
+            },
             personalityId: 'all',
             enabledAt: '2026-01-15T12:00:00Z',
             expiresAt: null,
@@ -143,7 +160,11 @@ describe('Memory Incognito Handlers', () => {
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'POST',
         body: { personalityId: 'all', duration: 'forever' },
       });
@@ -157,7 +178,11 @@ describe('Memory Incognito Handlers', () => {
         ok: true,
         data: {
           session: {
-            userId: '123456789',
+            user: {
+              discordId: '123456789',
+              username: 'testuser',
+              displayName: 'testuser',
+            },
             personalityId: 'personality-uuid-123',
             enabledAt: '2026-01-15T11:00:00Z',
             expiresAt: '2026-01-15T12:00:00Z',
@@ -236,7 +261,11 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoDisable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'DELETE',
         body: { personalityId: 'personality-uuid-123' },
       });
@@ -260,7 +289,11 @@ describe('Memory Incognito Handlers', () => {
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'DELETE',
         body: { personalityId: 'all' },
       });
@@ -353,7 +386,11 @@ describe('Memory Incognito Handlers', () => {
           active: true,
           sessions: [
             {
-              userId: '123456789',
+              user: {
+                discordId: '123456789',
+                username: 'testuser',
+                displayName: 'testuser',
+              },
               personalityId: 'personality-uuid-123',
               enabledAt: '2026-01-15T11:00:00Z',
               expiresAt: '2026-01-15T13:00:00Z',
@@ -381,7 +418,11 @@ describe('Memory Incognito Handlers', () => {
           active: true,
           sessions: [
             {
-              userId: '123456789',
+              user: {
+                discordId: '123456789',
+                username: 'testuser',
+                displayName: 'testuser',
+              },
               personalityId: 'personality-uuid-1',
               enabledAt: '2026-01-15T11:00:00Z',
               expiresAt: '2026-01-15T13:00:00Z',
@@ -389,7 +430,11 @@ describe('Memory Incognito Handlers', () => {
               timeRemaining: '1h remaining',
             },
             {
-              userId: '123456789',
+              user: {
+                discordId: '123456789',
+                username: 'testuser',
+                displayName: 'testuser',
+              },
               personalityId: 'personality-uuid-2',
               enabledAt: '2026-01-15T11:30:00Z',
               expiresAt: '2026-01-15T15:30:00Z',
@@ -414,7 +459,11 @@ describe('Memory Incognito Handlers', () => {
           active: true,
           sessions: [
             {
-              userId: '123456789',
+              user: {
+                discordId: '123456789',
+                username: 'testuser',
+                displayName: 'testuser',
+              },
               personalityId: 'all',
               enabledAt: '2026-01-15T11:00:00Z',
               expiresAt: null,
@@ -481,7 +530,11 @@ describe('Memory Incognito Handlers', () => {
       await handleIncognitoForget(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito/forget', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'POST',
         body: { personalityId: 'personality-uuid-123', timeframe: '15m' },
       });
@@ -506,7 +559,11 @@ describe('Memory Incognito Handlers', () => {
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito/forget', {
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'POST',
         body: { personalityId: 'all', timeframe: '1h' },
       });

@@ -24,7 +24,18 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
+
+const TEST_USER = {
+  discordId: 'user-123',
+  username: 'testuser',
+  displayName: 'testuser',
+} as const;
 
 describe('Memory Detail API', () => {
   beforeEach(() => {
@@ -50,11 +61,15 @@ describe('Memory Detail API', () => {
         data: { memory },
       });
 
-      const result = await fetchMemory('user-123', 'memory-123');
+      const result = await fetchMemory(TEST_USER, 'memory-123');
 
       expect(result).toEqual(memory);
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'GET',
       });
     });
@@ -65,7 +80,7 @@ describe('Memory Detail API', () => {
         error: 'Not found',
       });
 
-      const result = await fetchMemory('user-123', 'memory-123');
+      const result = await fetchMemory(TEST_USER, 'memory-123');
 
       expect(result).toBeNull();
     });
@@ -79,11 +94,15 @@ describe('Memory Detail API', () => {
         data: { memory },
       });
 
-      const result = await updateMemory('user-123', 'memory-123', 'Updated content');
+      const result = await updateMemory(TEST_USER, 'memory-123', 'Updated content');
 
       expect(result).toEqual(memory);
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'PATCH',
         body: { content: 'Updated content' },
       });
@@ -95,7 +114,7 @@ describe('Memory Detail API', () => {
         error: 'Update failed',
       });
 
-      const result = await updateMemory('user-123', 'memory-123', 'New content');
+      const result = await updateMemory(TEST_USER, 'memory-123', 'New content');
 
       expect(result).toBeNull();
     });
@@ -109,11 +128,15 @@ describe('Memory Detail API', () => {
         data: { memory },
       });
 
-      const result = await toggleMemoryLock('user-123', 'memory-123');
+      const result = await toggleMemoryLock(TEST_USER, 'memory-123');
 
       expect(result).toEqual(memory);
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123/lock', {
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'POST',
       });
     });
@@ -124,7 +147,7 @@ describe('Memory Detail API', () => {
         error: 'Lock failed',
       });
 
-      const result = await toggleMemoryLock('user-123', 'memory-123');
+      const result = await toggleMemoryLock(TEST_USER, 'memory-123');
 
       expect(result).toBeNull();
     });
@@ -137,11 +160,15 @@ describe('Memory Detail API', () => {
         data: { success: true },
       });
 
-      const result = await deleteMemory('user-123', 'memory-123');
+      const result = await deleteMemory(TEST_USER, 'memory-123');
 
       expect(result).toBe(true);
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         method: 'DELETE',
       });
     });
@@ -152,7 +179,7 @@ describe('Memory Detail API', () => {
         error: 'Delete failed',
       });
 
-      const result = await deleteMemory('user-123', 'memory-123');
+      const result = await deleteMemory(TEST_USER, 'memory-123');
 
       expect(result).toBe(false);
     });

@@ -21,6 +21,7 @@ import {
   buildCharacterDashboardOptions,
   type CharacterSessionData,
 } from './config.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter } from './api.js';
 
 const logger = createLogger('character-edit');
@@ -38,7 +39,7 @@ export async function handleEdit(
 
   try {
     // Fetch character data from API
-    const character = await fetchCharacter(slug, config, userId);
+    const character = await fetchCharacter(slug, config, toGatewayUser(context.user));
     if (!character) {
       await context.editReply({ content: `❌ Character \`${slug}\` not found or not accessible.` });
       return;

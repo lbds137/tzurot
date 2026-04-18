@@ -45,7 +45,7 @@ function createMockContext(
       },
       guildId: 'guild-123',
     },
-    user: { id: 'user-123' },
+    user: { id: 'user-123', username: 'testuser', globalName: 'testuser' },
     editReply: vi.fn(),
   } as unknown as DeferredCommandContext;
 }
@@ -147,7 +147,7 @@ describe('handleVoice', () => {
           voiceReferenceData: expect.stringContaining('data:audio/wav;base64,'),
           voiceEnabled: true,
         },
-        'user-123',
+        { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
         mockConfig
       );
       expect(context.editReply).toHaveBeenCalledWith(
@@ -266,7 +266,7 @@ describe('handleVoice', () => {
       expect(updateCharacter).toHaveBeenCalledWith(
         'test-char',
         { voiceReferenceData: null, voiceEnabled: false },
-        'user-123',
+        { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
         mockConfig
       );
       expect(context.editReply).toHaveBeenCalledWith(

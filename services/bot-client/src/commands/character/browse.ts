@@ -18,6 +18,7 @@ import {
   characterBrowseOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import {
   fetchUserCharacters,
   fetchPublicCharacters,
@@ -232,6 +233,7 @@ export async function handleBrowse(
   config: EnvConfig
 ): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = characterBrowseOptions(context.interaction);
   const query = options.query();
   const filter = (options.filter() ?? 'all') as CharacterBrowseFilter;
@@ -239,8 +241,8 @@ export async function handleBrowse(
   try {
     // Fetch user's own characters and all public characters
     const [ownCharacters, publicCharacters] = await Promise.all([
-      fetchUserCharacters(userId, config),
-      fetchPublicCharacters(userId, config),
+      fetchUserCharacters(user, config),
+      fetchPublicCharacters(user, config),
     ]);
 
     // Apply filter and query
@@ -286,7 +288,7 @@ export async function handleBrowse(
  * Reusable for pagination and back-from-dashboard navigation
  */
 export async function buildBrowseResponse(
-  userId: string,
+  user: GatewayUser,
   client: ButtonInteraction['client'],
   config: EnvConfig,
   browseContext: {
@@ -300,12 +302,18 @@ export async function buildBrowseResponse(
 
   // Re-fetch character data
   const [ownCharacters, publicCharacters] = await Promise.all([
-    fetchUserCharacters(userId, config),
-    fetchPublicCharacters(userId, config),
+    fetchUserCharacters(user, config),
+    fetchPublicCharacters(user, config),
   ]);
 
   // Apply filter and query
-  const { own, others } = filterCharacters(ownCharacters, publicCharacters, userId, filter, query);
+  const { own, others } = filterCharacters(
+    ownCharacters,
+    publicCharacters,
+    user.discordId,
+    filter,
+    query
+  );
 
   // Fetch creator usernames
   const creatorIds = [...new Set(others.map(c => c.ownerId).filter(Boolean))] as string[];
@@ -344,7 +352,7 @@ export async function handleBrowsePagination(
 
   try {
     const { embed, components } = await buildBrowseResponse(
-      interaction.user.id,
+      toGatewayUser(interaction.user),
       interaction.client,
       config,
       parsed
@@ -377,7 +385,7 @@ export async function handleBrowseSelect(
 
   try {
     // Fetch the character with full data
-    const character = await fetchCharacter(slug, config, userId);
+    const character = await fetchCharacter(slug, config, toGatewayUser(interaction.user));
 
     if (!character) {
       await interaction.editReply({

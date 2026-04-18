@@ -60,7 +60,7 @@ describe('refreshHandler', () => {
       });
 
       const interaction = {
-        user: { id: 'user-123' },
+        user: { id: 'user-123', username: 'testuser', globalName: 'Test User' },
         message: { id: 'msg-456' },
         channelId: 'channel-789',
         deferUpdate: vi.fn(),
@@ -70,7 +70,11 @@ describe('refreshHandler', () => {
       await handler(interaction, 'entity-abc');
 
       expect(interaction.deferUpdate).toHaveBeenCalled();
-      expect(fetchFn).toHaveBeenCalledWith('entity-abc', 'user-123');
+      expect(fetchFn).toHaveBeenCalledWith('entity-abc', {
+        discordId: 'user-123',
+        username: 'testuser',
+        displayName: 'Test User',
+      });
       expect(transformFn).toHaveBeenCalledWith(rawData);
       expect(mockSessionManager.set).toHaveBeenCalledWith({
         userId: 'user-123',

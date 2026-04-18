@@ -25,6 +25,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { DEFERRED: 15000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 describe('handleShapesModalSubmit', () => {
@@ -100,7 +105,11 @@ describe('handleShapesModalSubmit', () => {
         '/user/shapes/auth',
         expect.objectContaining({
           method: 'POST',
-          userId: '123456789',
+          user: {
+            discordId: '123456789',
+            username: 'testuser',
+            displayName: 'testuser',
+          },
           body: {
             sessionCookie: 'appSession.0=part0-value; appSession.1=part1-value',
           },

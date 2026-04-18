@@ -13,7 +13,7 @@
 import type { ModalSubmitInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('shapes-modal');
@@ -65,7 +65,7 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
   try {
     const result = await callGatewayApi<{ success: boolean }>('/user/shapes/auth', {
       method: 'POST',
-      userId: interaction.user.id,
+      user: toGatewayUser(interaction.user),
       body: { sessionCookie },
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });

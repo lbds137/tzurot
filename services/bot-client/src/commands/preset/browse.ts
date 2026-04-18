@@ -19,7 +19,12 @@ import {
   type AIProvider,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+  type GatewayUser,
+} from '../../utils/userGatewayClient.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -319,13 +324,14 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   try {
     // Fetch presets and wallet status in parallel
     // Use longer timeout since this is a deferred operation
+    const user = toGatewayUser(context.user);
     const [presetResult, walletResult] = await Promise.all([
       callGatewayApi<ListResponse>('/user/llm-config', {
-        userId,
+        user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
       callGatewayApi<WalletListResponse>('/wallet/list', {
-        userId,
+        user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
     ]);
@@ -372,7 +378,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
  * Reusable for pagination and back-from-dashboard navigation
  */
 export async function buildBrowseResponse(
-  userId: string,
+  user: GatewayUser,
   browseContext: {
     page: number;
     filter: PresetBrowseFilter;
@@ -384,11 +390,11 @@ export async function buildBrowseResponse(
   // Re-fetch data (use longer timeout since this is a deferred operation)
   const [presetResult, walletResult] = await Promise.all([
     callGatewayApi<ListResponse>('/user/llm-config', {
-      userId,
+      user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
     callGatewayApi<WalletListResponse>('/wallet/list', {
-      userId,
+      user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
   ]);
@@ -416,7 +422,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   await interaction.deferUpdate();
 
   try {
-    const result = await buildBrowseResponse(interaction.user.id, parsed);
+    const result = await buildBrowseResponse(toGatewayUser(interaction.user), parsed);
 
     if (result === null) {
       logger.warn(
@@ -450,7 +456,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
 
   try {
     // Fetch the preset
-    const preset = await fetchPreset(presetId, userId);
+    const preset = await fetchPreset(presetId, toGatewayUser(interaction.user));
 
     if (!preset) {
       await interaction.editReply({

@@ -2,10 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as gatewayClient from '../../../utils/userGatewayClient.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import type { GatewayUser } from '../../../utils/userGatewayClient.js';
+
+function mkUser(discordId = 'user-1'): GatewayUser {
+  return { discordId, username: 'test-user', displayName: 'Test User' };
+}
 
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
   GATEWAY_TIMEOUTS: { DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('./autocomplete.js', () => ({
@@ -67,7 +77,7 @@ describe('guestModeValidation', () => {
         } as never)
         .mockResolvedValueOnce({ ok: true, data: { configs: [] } } as never);
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', 'user-1');
+      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
       expect(result.isGuestMode).toBe(false);
       expect(result.blocked).toBe(false);
     });
@@ -80,7 +90,7 @@ describe('guestModeValidation', () => {
           data: { configs: [{ id: 'config-1', name: 'Free Config', model: 'free-gpt' }] },
         } as never);
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', 'user-1');
+      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
       expect(result.isGuestMode).toBe(true);
       expect(result.blocked).toBe(false);
     });
@@ -95,7 +105,7 @@ describe('guestModeValidation', () => {
           },
         } as never);
 
-      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', 'user-1');
+      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
       expect(result.isGuestMode).toBe(true);
       expect(result.blocked).toBe(true);
       expect(mockEditReply).toHaveBeenCalled();
@@ -112,7 +122,7 @@ describe('guestModeValidation', () => {
       const result = await checkGuestModePremiumAccess(
         createMockContext(),
         'config-not-found',
-        'user-1'
+        mkUser()
       );
       expect(result.isGuestMode).toBe(true);
       expect(result.blocked).toBe(false);

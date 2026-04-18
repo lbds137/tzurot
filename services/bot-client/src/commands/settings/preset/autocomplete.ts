@@ -14,7 +14,7 @@ import {
   type AIProvider,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
 
 /**
@@ -80,9 +80,10 @@ async function handlePresetAutocomplete(
   userId: string
 ): Promise<void> {
   // Fetch configs and wallet status in parallel
+  const user = toGatewayUser(interaction.user);
   const [configResult, walletResult] = await Promise.all([
-    callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', { userId }),
-    callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
+    callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', { user }),
+    callGatewayApi<WalletListResponse>('/wallet/list', { user }),
   ]);
 
   if (!configResult.ok) {

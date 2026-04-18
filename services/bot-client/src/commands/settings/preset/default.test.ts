@@ -31,6 +31,11 @@ vi.mock('@tzurot/common-types', async () => {
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
@@ -91,7 +96,11 @@ describe('handleDefault', () => {
 
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'PUT',
-      userId: 'user-123',
+      user: {
+        discordId: 'user-123',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       body: { configId: '00000000-0000-4000-8000-000000000456' },
     });
   });
@@ -243,7 +252,11 @@ describe('handleDefault', () => {
     // Should call the set-default API
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'PUT',
-      userId: 'user-123',
+      user: {
+        discordId: 'user-123',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       body: { configId: '00000000-0000-4000-8000-000000000f00' },
     });
 

@@ -21,7 +21,7 @@ import {
   type IncognitoDuration,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import {
   createSuccessEmbed,
   createInfoEmbed,
@@ -76,19 +76,19 @@ function formatSessionInfo(session: SessionWithTime, personalityName?: string): 
  * @returns { id: personality UUID or 'all', name: display name or null }
  */
 async function resolvePersonalityOrAll(
-  userId: string,
+  user: GatewayUser,
   personalityInput: string
 ): Promise<{ id: string; name: string | null } | null> {
   if (personalityInput.toLowerCase() === 'all') {
     return { id: 'all', name: ALL_PERSONALITIES_LABEL };
   }
 
-  const personalityId = await resolvePersonalityId(userId, personalityInput);
+  const personalityId = await resolvePersonalityId(user, personalityInput);
   if (personalityId === null) {
     return null;
   }
 
-  const name = await getPersonalityName(userId, personalityId);
+  const name = await getPersonalityName(user, personalityId);
   return { id: personalityId, name };
 }
 
@@ -97,12 +97,13 @@ async function resolvePersonalityOrAll(
  */
 export async function handleIncognitoEnable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memoryIncognitoEnableOptions(context.interaction);
   const personalityInput = options.personality();
   const duration = options.duration() as IncognitoDuration;
 
   try {
-    const resolved = await resolvePersonalityOrAll(userId, personalityInput);
+    const resolved = await resolvePersonalityOrAll(user, personalityInput);
 
     if (resolved === null) {
       await context.editReply({
@@ -112,7 +113,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
     }
 
     const result = await callGatewayApi<IncognitoEnableResponse>(INCOGNITO_API_PATH, {
-      userId,
+      user,
       method: 'POST',
       body: { personalityId: resolved.id, duration },
     });
@@ -155,11 +156,12 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
  */
 export async function handleIncognitoDisable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memoryIncognitoDisableOptions(context.interaction);
   const personalityInput = options.personality();
 
   try {
-    const resolved = await resolvePersonalityOrAll(userId, personalityInput);
+    const resolved = await resolvePersonalityOrAll(user, personalityInput);
 
     if (resolved === null) {
       await context.editReply({
@@ -169,7 +171,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
     }
 
     const result = await callGatewayApi<IncognitoDisableResponse>(INCOGNITO_API_PATH, {
-      userId,
+      user,
       method: 'DELETE',
       body: { personalityId: resolved.id },
     });
@@ -214,10 +216,11 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
  */
 export async function handleIncognitoStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
 
   try {
     const result = await callGatewayApi<IncognitoStatusResponse>(INCOGNITO_API_PATH, {
-      userId,
+      user,
       method: 'GET',
     });
 
@@ -246,7 +249,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
         if (session.personalityId === 'all') {
           return formatSessionInfo(session, ALL_PERSONALITIES_LABEL);
         }
-        const name = await getPersonalityName(userId, session.personalityId);
+        const name = await getPersonalityName(user, session.personalityId);
         return formatSessionInfo(session, name ?? session.personalityId);
       })
     );
@@ -273,12 +276,13 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
  */
 export async function handleIncognitoForget(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
+  const user = toGatewayUser(context.user);
   const options = memoryIncognitoForgetOptions(context.interaction);
   const personalityInput = options.personality();
   const timeframe = options.timeframe();
 
   try {
-    const resolved = await resolvePersonalityOrAll(userId, personalityInput);
+    const resolved = await resolvePersonalityOrAll(user, personalityInput);
 
     if (resolved === null) {
       await context.editReply({
@@ -288,7 +292,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
     }
 
     const result = await callGatewayApi<IncognitoForgetResponse>('/user/memory/incognito/forget', {
-      userId,
+      user,
       method: 'POST',
       body: { personalityId: resolved.id, timeframe },
     });

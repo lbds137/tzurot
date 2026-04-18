@@ -17,6 +17,11 @@ vi.mock('./api.js', () => ({
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
@@ -179,7 +184,11 @@ describe('dashboardDeleteHandlers', () => {
       });
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'DELETE',
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
       });
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('deleted'),

@@ -20,6 +20,7 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { ButtonBuilder, ActionRowBuilder } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { ShapesCustomIds } from '../../utils/customIds.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { buildBrowsePage, fetchShapesList, shapesBrowseIds } from './browse.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { buildAuthModal } from './auth.js';
@@ -204,8 +205,7 @@ async function handleBrowsePage(
   page: number,
   sort: BrowseSortType
 ): Promise<void> {
-  const userId = interaction.user.id;
-  const result = await fetchShapesList(userId);
+  const result = await fetchShapesList(toGatewayUser(interaction.user));
 
   if (!result.ok) {
     await interaction.update({

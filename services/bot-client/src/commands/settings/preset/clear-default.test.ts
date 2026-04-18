@@ -12,6 +12,11 @@ import { mockClearDefaultConfigResponse } from '@tzurot/common-types';
 // Mock userGatewayClient
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
@@ -55,7 +60,11 @@ describe('handleClearDefault', () => {
 
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'DELETE',
-      userId: '123456789',
+      user: {
+        discordId: '123456789',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
     });
   });
 

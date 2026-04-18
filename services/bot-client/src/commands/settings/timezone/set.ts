@@ -9,7 +9,7 @@ import {
   settingsTimezoneSetOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed } from '../../../utils/commandHelpers.js';
 import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
 
@@ -26,7 +26,7 @@ export async function handleTimezoneSet(context: DeferredCommandContext): Promis
   try {
     const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {
       method: 'PUT',
-      userId,
+      user: toGatewayUser(context.user),
       body: { timezone },
     });
 

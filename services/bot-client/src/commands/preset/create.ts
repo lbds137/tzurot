@@ -31,6 +31,7 @@ import {
   presetSeedFields,
   buildPresetDashboardOptions,
 } from './config.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createPreset, extractApiErrorMessage } from './api.js';
 
 const logger = createLogger('preset-create');
@@ -92,7 +93,7 @@ export async function handleSeedModalSubmit(interaction: ModalSubmitInteraction)
         model: values.model.trim(),
         provider: 'openrouter', // Default provider
       },
-      interaction.user.id
+      toGatewayUser(interaction.user)
     );
 
     // Flatten the data for dashboard display

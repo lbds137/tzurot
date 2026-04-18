@@ -5,7 +5,7 @@
 
 import { createLogger, settingsPresetResetOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('settings-preset-reset');
@@ -26,7 +26,7 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
   try {
     const result = await callGatewayApi<ResetResponse>(`/user/model-override/${personalityId}`, {
       method: 'DELETE',
-      userId,
+      user: toGatewayUser(context.user),
     });
 
     if (!result.ok) {

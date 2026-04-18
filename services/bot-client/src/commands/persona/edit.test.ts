@@ -20,6 +20,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock dashboard utilities
@@ -85,7 +90,9 @@ describe('handleEditPersona', () => {
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         `/user/persona/${TEST_PERSONA_ID}`,
-        expect.objectContaining({ userId: '123456789' })
+        expect.objectContaining({
+          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+        })
       );
       expect(mockBuildDashboardEmbed).toHaveBeenCalled();
       expect(mockBuildDashboardComponents).toHaveBeenCalled();
@@ -140,7 +147,9 @@ describe('handleEditPersona', () => {
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/persona',
-        expect.objectContaining({ userId: '123456789' })
+        expect.objectContaining({
+          user: { discordId: '123456789', username: 'testuser', displayName: 'testuser' },
+        })
       );
       expect(mockBuildDashboardEmbed).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalled();

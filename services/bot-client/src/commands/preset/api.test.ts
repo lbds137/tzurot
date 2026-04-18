@@ -63,10 +63,18 @@ describe('fetchPreset', () => {
       data: { config: mockPresetData },
     });
 
-    const result = await fetchPreset('preset-123', 'user-456');
+    const result = await fetchPreset('preset-123', {
+      discordId: 'user-456',
+      username: 'testuser',
+      displayName: 'testuser',
+    });
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config/preset-123', {
-      userId: 'user-456',
+      user: {
+        discordId: 'user-456',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
     });
     expect(result).toEqual(mockPresetData);
   });
@@ -77,7 +85,11 @@ describe('fetchPreset', () => {
       status: 404,
     });
 
-    const result = await fetchPreset('nonexistent', 'user-456');
+    const result = await fetchPreset('missing', {
+      discordId: 'user-456',
+      username: 'testuser',
+      displayName: 'testuser',
+    });
 
     expect(result).toBeNull();
   });
@@ -88,9 +100,13 @@ describe('fetchPreset', () => {
       status: 500,
     });
 
-    await expect(fetchPreset('preset-123', 'user-456')).rejects.toThrow(
-      'Failed to fetch preset: 500'
-    );
+    await expect(
+      fetchPreset('preset-123', {
+        discordId: 'user-456',
+        username: 'testuser',
+        displayName: 'testuser',
+      })
+    ).rejects.toThrow('Failed to fetch preset: 500');
   });
 });
 
@@ -159,11 +175,19 @@ describe('updatePreset', () => {
     });
 
     const updateData = { name: 'Updated Name' };
-    const result = await updatePreset('preset-123', updateData, 'user-456');
+    const result = await updatePreset('preset-123', updateData, {
+      discordId: 'user-456',
+      username: 'testuser',
+      displayName: 'testuser',
+    });
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config/preset-123', {
       method: 'PUT',
-      userId: 'user-456',
+      user: {
+        discordId: 'user-456',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       body: updateData,
     });
     expect(result).toEqual(mockPresetData);
@@ -176,9 +200,13 @@ describe('updatePreset', () => {
       error: 'Invalid data',
     });
 
-    await expect(updatePreset('preset-123', {}, 'user-456')).rejects.toThrow(
-      'Failed to update preset: 400 - Invalid data'
-    );
+    await expect(
+      updatePreset(
+        'preset-123',
+        {},
+        { discordId: 'user-456', username: 'testuser', displayName: 'testuser' }
+      )
+    ).rejects.toThrow('Failed to update preset: 400 - Invalid data');
   });
 
   it('should throw on error without message', async () => {
@@ -187,9 +215,13 @@ describe('updatePreset', () => {
       status: 500,
     });
 
-    await expect(updatePreset('preset-123', {}, 'user-456')).rejects.toThrow(
-      'Failed to update preset: 500 - Unknown'
-    );
+    await expect(
+      updatePreset(
+        'preset-123',
+        {},
+        { discordId: 'user-456', username: 'testuser', displayName: 'testuser' }
+      )
+    ).rejects.toThrow('Failed to update preset: 500 - Unknown');
   });
 });
 
@@ -313,12 +345,19 @@ describe('createPreset', () => {
       data: { config: mockPresetData },
     });
 
-    const result = await createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1');
+    const result = await createPreset(
+      { name: 'Foo', model: 'm', provider: 'p' },
+      { discordId: 'user-1', username: 'testuser', displayName: 'testuser' }
+    );
 
     expect(result).toBe(mockPresetData);
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
       method: 'POST',
-      userId: 'user-1',
+      user: {
+        discordId: 'user-1',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       body: { name: 'Foo', model: 'm', provider: 'p' },
     });
   });
@@ -333,9 +372,10 @@ describe('createPreset', () => {
 
     // Catch the rejection once so we can inspect class + shape without
     // re-invoking createPreset (which would re-consume the one-shot mock).
-    const err = await createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1').catch(
-      e => e
-    );
+    const err = await createPreset(
+      { name: 'Foo', model: 'm', provider: 'p' },
+      { discordId: 'user-1', username: 'testuser', displayName: 'testuser' }
+    ).catch(e => e);
 
     expect(err).toBeInstanceOf(GatewayApiError);
     expect(err.status).toBe(400);
@@ -350,7 +390,10 @@ describe('createPreset', () => {
     });
 
     await expect(
-      createPreset({ name: 'Foo', model: 'm', provider: 'p' }, 'user-1')
+      createPreset(
+        { name: 'Foo', model: 'm', provider: 'p' },
+        { discordId: 'user-1', username: 'testuser', displayName: 'testuser' }
+      )
     ).rejects.toMatchObject({
       status: 500,
       code: undefined,

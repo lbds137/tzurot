@@ -7,6 +7,11 @@ const { mockCallGatewayApi, mockMapSettingToApiUpdate } = vi.hoisted(() => ({
 
 vi.mock('../../userGatewayClient.js', () => ({
   callGatewayApi: mockCallGatewayApi,
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('./settingsUpdate.js', () => ({

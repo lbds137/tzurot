@@ -13,6 +13,11 @@ import { EmbedBuilder } from 'discord.js';
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {

@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, type GatewayUser } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './config.js';
 
 /**
@@ -53,10 +53,10 @@ interface PersonalityListResponse {
 export async function fetchCharacter(
   slugOrId: string,
   _config: EnvConfig,
-  userId: string
+  user: GatewayUser
 ): Promise<FetchedCharacter | null> {
   const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slugOrId}`, {
-    userId,
+    user,
   });
 
   if (!result.ok) {
@@ -78,11 +78,11 @@ export async function fetchCharacter(
  * Returns two arrays: user's owned characters and public characters from others
  */
 export async function fetchAllCharacters(
-  userId: string,
+  user: GatewayUser,
   _config: EnvConfig
 ): Promise<{ owned: CharacterData[]; publicOthers: CharacterData[] }> {
   const result = await callGatewayApi<PersonalityListResponse>('/user/personality', {
-    userId,
+    user,
   });
 
   if (!result.ok) {
@@ -142,10 +142,10 @@ export async function fetchAllCharacters(
  * Fetch characters owned by user (wrapper for fetchAllCharacters)
  */
 export async function fetchUserCharacters(
-  userId: string,
+  user: GatewayUser,
   config: EnvConfig
 ): Promise<CharacterData[]> {
-  const { owned } = await fetchAllCharacters(userId, config);
+  const { owned } = await fetchAllCharacters(user, config);
   return owned;
 }
 
@@ -153,10 +153,10 @@ export async function fetchUserCharacters(
  * Fetch public characters from others (wrapper for fetchAllCharacters)
  */
 export async function fetchPublicCharacters(
-  userId: string,
+  user: GatewayUser,
   config: EnvConfig
 ): Promise<CharacterData[]> {
-  const { publicOthers } = await fetchAllCharacters(userId, config);
+  const { publicOthers } = await fetchAllCharacters(user, config);
   return publicOthers;
 }
 
@@ -193,14 +193,14 @@ export async function createCharacter(
     characterInfo: string;
     personalityTraits: string;
   },
-  userId: string,
+  user: GatewayUser,
   _config: EnvConfig
 ): Promise<CharacterData> {
   const result = await callGatewayApi<{ success: boolean; personality: CharacterData }>(
     '/user/personality',
     {
       method: 'POST',
-      userId,
+      user,
       body: data,
     }
   );
@@ -218,14 +218,14 @@ export async function createCharacter(
 export async function updateCharacter(
   slug: string,
   data: Partial<CharacterData>,
-  userId: string,
+  user: GatewayUser,
   _config: EnvConfig
 ): Promise<CharacterData> {
   const result = await callGatewayApi<{ success: boolean; personality: CharacterData }>(
     `/user/personality/${slug}`,
     {
       method: 'PUT',
-      userId,
+      user,
       body: data,
     }
   );
@@ -243,7 +243,7 @@ export async function updateCharacter(
 export async function toggleVisibility(
   slug: string,
   isPublic: boolean,
-  userId: string,
+  user: GatewayUser,
   _config: EnvConfig
 ): Promise<{ id: string; slug: string; isPublic: boolean }> {
   const result = await callGatewayApi<{
@@ -251,7 +251,7 @@ export async function toggleVisibility(
     personality: { id: string; slug: string; isPublic: boolean };
   }>(`/user/personality/${slug}/visibility`, {
     method: 'PATCH',
-    userId,
+    user,
     body: { isPublic },
   });
 

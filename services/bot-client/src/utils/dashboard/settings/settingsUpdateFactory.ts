@@ -21,7 +21,7 @@ import {
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
-import { callGatewayApi } from '../../userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../userGatewayClient.js';
 import type {
   SettingsData,
   SettingsDashboardSession,
@@ -86,6 +86,7 @@ export function createSettingsUpdateHandler(
     newValue: unknown
   ): Promise<SettingUpdateResult> => {
     const userId = interaction.user.id;
+    const user = toGatewayUser(interaction.user);
 
     logger.debug(
       { settingId, newValue, entityId, userId },
@@ -103,7 +104,7 @@ export function createSettingsUpdateHandler(
       const result = await callGatewayApi(config.patchEndpoint(entityId), {
         method: 'PATCH',
         body,
-        userId,
+        user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       });
 
@@ -118,7 +119,7 @@ export function createSettingsUpdateHandler(
       // Re-resolve cascade to get updated effective values
       const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
         config.resolveEndpoint(entityId),
-        { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
+        { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
       );
 
       if (!cascadeResult.ok) {

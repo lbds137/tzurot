@@ -270,7 +270,7 @@ describe('Character Create', () => {
           personalityTraits: 'Personality traits',
           isPublic: false,
         },
-        'user-123',
+        expect.objectContaining({ discordId: 'user-123' }),
         mockConfig
       );
     });

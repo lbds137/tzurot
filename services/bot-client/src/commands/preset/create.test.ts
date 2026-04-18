@@ -198,7 +198,7 @@ describe('Preset Create', () => {
           model: 'anthropic/claude-sonnet-4',
           provider: 'openrouter',
         },
-        'user-123'
+        expect.objectContaining({ discordId: 'user-123' })
       );
 
       // Dashboard should be built

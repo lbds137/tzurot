@@ -16,6 +16,11 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 // Mock dependencies
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -279,7 +284,7 @@ describe('Preset Export', () => {
 
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
         '/user/llm-config/test-preset-id',
-        { userId: 'user-123' }
+        { user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' } }
       );
     });
 

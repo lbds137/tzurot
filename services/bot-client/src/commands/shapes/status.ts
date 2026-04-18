@@ -7,7 +7,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
 import {
   formatImportJobStatus,
   formatExportJobStatus,
@@ -33,17 +33,18 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
 
   try {
     // Fetch auth status, import history, and export history in parallel
+    const user = toGatewayUser(context.user);
     const [authResult, importJobsResult, exportJobsResult] = await Promise.all([
       callGatewayApi<AuthStatusResponse>('/user/shapes/auth/status', {
-        userId,
+        user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
       callGatewayApi<ImportJobsResponse>('/user/shapes/import/jobs', {
-        userId,
+        user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
       callGatewayApi<ExportJobsResponse>('/user/shapes/export/jobs', {
-        userId,
+        user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
     ]);

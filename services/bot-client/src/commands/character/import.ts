@@ -13,7 +13,7 @@ import {
   PersonalityCreateSchema,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
 import {
   VALID_IMAGE_TYPES,
@@ -296,13 +296,13 @@ function buildImportPayload(
  */
 async function checkExistingCharacter(
   slug: string,
-  userId: string
+  user: GatewayUser
 ): Promise<{ exists: false } | { exists: true; canEdit: boolean }> {
   const result = await callGatewayApi<{
     personality: { id: string };
     canEdit: boolean;
   }>(`/user/personality/${slug}`, {
-    userId,
+    user,
     method: 'GET',
   });
 
@@ -317,14 +317,14 @@ async function checkExistingCharacter(
  */
 async function saveCharacter(
   slug: string,
-  userId: string,
+  user: GatewayUser,
   payload: Record<string, unknown>,
   isUpdate: boolean
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await callGatewayApi<{ id: string }>(
     isUpdate ? `/user/personality/${slug}` : '/user/personality',
     {
-      userId,
+      user,
       method: isUpdate ? 'PUT' : 'POST',
       body: payload,
     }
@@ -418,7 +418,7 @@ export async function handleImport(
     }
 
     // Step 6: Check if character already exists
-    const existingCheck = await checkExistingCharacter(slug, userId);
+    const existingCheck = await checkExistingCharacter(slug, toGatewayUser(context.user));
     if (existingCheck.exists && !existingCheck.canEdit) {
       await context.editReply(
         `❌ A character with the slug \`${slug}\` already exists and you don't own it.\n` +
@@ -428,7 +428,12 @@ export async function handleImport(
     }
 
     // Step 7: Create or update character
-    const saveResult = await saveCharacter(slug, userId, payload, existingCheck.exists);
+    const saveResult = await saveCharacter(
+      slug,
+      toGatewayUser(context.user),
+      payload,
+      existingCheck.exists
+    );
     if (!saveResult.ok) {
       await context.editReply(
         `❌ Failed to ${existingCheck.exists ? 'update' : 'import'} character:\n` +
