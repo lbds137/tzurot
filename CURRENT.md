@@ -88,9 +88,9 @@ Very long session. Started as Phase 5b implementation; ended with beta.99 shippe
 
 ---
 
-## Unreleased on Develop (since beta.99)
+## Unreleased on Develop (since beta.100)
 
-_None yet — develop is clean at `602820788`, identical to main._
+_One polish commit on top of main (`ad1d9348d` — PR #828 review items that didn't make the merge: deleted the one-off repair script, dropped stale PR-ref from `LlmConfigSummarySchema` JSDoc, removed unreachable branch in `classifyAndQueueRow`)._
 
 ---
 
@@ -106,6 +106,7 @@ _None yet — develop is clean at `602820788`, identical to main._
 
 ## Recent Releases
 
+- **v3.0.0-beta.100** (2026-04-18) — Two prod blockers fixed (`/admin db-sync` Ouroboros Insert refactor + `/settings preset default` RFC-4122 UUID repair), character field silent-truncation warning flow (PR #825, two-click opt-in), PersonaResolver focus-mode query collapse, typed `NAME_COLLISION` sub-code, preset clone auto-numbering, protobufjs CVE. Migration: circular FKs made DEFERRABLE. New PGLite int test for db-sync class-of-bug. New 00-critical.md rule: "Don't Present Speculation as Fact".
 - **v3.0.0-beta.99** (2026-04-17) — Identity Epic Phases 3-5b (read-only PersonaResolver + discord:XXXX format kill + DB-level invariants + NOT NULL default_persona_id), UX polish bundle (age verify on direct-bot-ping, avatar timeout, backtick mentions, taking-longer decoupling), db-sync deferred-FK fix, hono/langsmith CVE bumps. Two migrations (Phase 5 + 5b).
 - **v3.0.0-beta.98** (2026-04-15) — Cross-channel permission guard (security), MEDIA_NOT_FOUND regex fix, abbreviation-period mention matching, Phase 2 Identity Hardening (provisioning choke point + `ProvisionedUser` type + ESLint guard).
 - **v3.0.0-beta.97** (2026-04-14) — Identity & provisioning heal (14 users), vision retry classifier fix + telemetry, TTS budget unification, pytest security bump.
