@@ -19,9 +19,12 @@
  *   2. This service collects all pending writes per direction (dev-bound,
  *      prod-bound) without executing them during the table scan loop.
  *   3. Writes are flushed inside per-direction transactions that start
- *      with `SET CONSTRAINTS ALL DEFERRED`. Real FK values go in from
- *      the start; Postgres validates all deferred FKs at COMMIT when
- *      every referenced row exists.
+ *      by naming the four circular FKs in a `SET CONSTRAINTS ... DEFERRED`
+ *      statement (explicit names rather than `ALL DEFERRED` so future
+ *      migrations adding unrelated deferrable constraints don't get
+ *      silently softened inside the sync). Real FK values go in from the
+ *      start; Postgres validates the named FKs at COMMIT when every
+ *      referenced row exists.
  *
  * Previously this used a "two-pass" pattern (pass 1 insert with
  * default_persona_id=NULL; pass 2 UPDATE to backfill). That broke when
