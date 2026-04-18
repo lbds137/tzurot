@@ -132,32 +132,28 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
   });
 
   beforeEach(async () => {
-    // Clean up — order matters due to FK dependencies, but the ordering
-    // is subtle enough to call out explicitly (PR #826 R1 #5):
-    //
-    // - user_personality_configs, personality_default_configs → reference
-    //   personalities + users + (optionally) llm_configs + personas. Go first.
-    // - llm_configs BEFORE users: only safe because `users.default_llm_config_id`
-    //   is NULLABLE AND `seedUserWithPersona` doesn't populate it. If that
-    //   helper is ever extended to seed an llm_config reference, move
-    //   llm_configs to AFTER the users delete (users' FK would still
-    //   cascade-nullify cleanly, or a `SET CONSTRAINTS` dance mirrors
-    //   the sync flow itself).
-    // - personalities: references users (owner_id NOT NULL) + system_prompts
-    // - users BEFORE personas: users.default_persona_id is Restrict, so
-    //   the user must go before the persona it references.
-    //
-    // We use raw SQL to bypass Prisma's ORM for the circular case; this is
-    // the same pattern the sync itself uses.
+    // Clean up inside a transaction with SET CONSTRAINTS ALL DEFERRED so
+    // the circular FK pair doesn't make us care about table order. This
+    // mirrors the Ouroboros pattern of the service under test and removes
+    // a pre-existing ordering fragility (PR #826 R2 #1): `personas.owner_id`
+    // ON DELETE CASCADE + `users.default_persona_id` ON DELETE RESTRICT
+    // gives Postgres conflicting directives when deleting both sides, and
+    // the delete ordering that "works" depends on which row gets cascade-
+    // deleted first during the DELETE statement. Wrapping the cleanup in
+    // deferred constraints means FK checks fire at COMMIT when everything
+    // is already gone — no order dependency.
     for (const prisma of [devPrisma, prodPrisma]) {
-      await prisma.$executeRawUnsafe(`DELETE FROM "user_personality_configs"`);
-      await prisma.$executeRawUnsafe(`DELETE FROM "personality_default_configs"`);
-      await prisma.$executeRawUnsafe(`DELETE FROM "llm_configs"`);
-      await prisma.$executeRawUnsafe(`DELETE FROM "personalities"`);
-      await prisma.$executeRawUnsafe(`DELETE FROM "users"`);
-      await prisma.$executeRawUnsafe(`DELETE FROM "personas"`);
-      await prisma.$executeRawUnsafe(`DELETE FROM "_prisma_migrations"`);
-      await prisma.$executeRawUnsafe(SEED_MIGRATION_ROW);
+      await prisma.$transaction(async tx => {
+        await tx.$executeRawUnsafe('SET CONSTRAINTS ALL DEFERRED');
+        await tx.$executeRawUnsafe(`DELETE FROM "user_personality_configs"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "personality_default_configs"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "personalities"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "llm_configs"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "users"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "personas"`);
+        await tx.$executeRawUnsafe(`DELETE FROM "_prisma_migrations"`);
+        await tx.$executeRawUnsafe(SEED_MIGRATION_ROW);
+      });
     }
   });
 
