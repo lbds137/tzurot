@@ -17,13 +17,21 @@ import type { SYNC_CONFIG } from './config/syncTables.js';
 const logger = createLogger('db-sync');
 
 /**
- * Minimal shape of a Prisma raw-query executor. Accepts either a full
- * PrismaClient or a transaction-scoped client from `$transaction(cb)`.
- * Widened from `PrismaClient` as part of the Ouroboros refactor — upserts
- * now happen inside transactions with SET CONSTRAINTS ALL DEFERRED, so
- * the caller passes the transaction's `tx` handle here.
+ * Minimal structural shape of a Prisma raw-query executor. Accepts either
+ * a full `PrismaClient` or a transaction-scoped client from
+ * `$transaction(cb)` — both satisfy this interface. We intentionally use
+ * an explicit interface rather than `Pick<PrismaClient, ...>` because
+ * Prisma's transaction-client type (`Prisma.TransactionClient`) omits
+ * methods like `$transaction` / `$connect` from its type, and
+ * `Pick<PrismaClient, 'X' | 'Y'>` cannot be assigned from an object
+ * missing other fields even if those fields aren't referenced. The
+ * structural interface avoids that and eliminates the double-cast
+ * callers would otherwise need. (See PR #826 R1.)
  */
-export type SyncExecutor = Pick<PrismaClient, '$executeRawUnsafe' | '$queryRawUnsafe'>;
+export interface SyncExecutor {
+  $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<number>;
+  $queryRawUnsafe: <T = unknown>(query: string, ...values: unknown[]) => Promise<T>;
+}
 
 /**
  * Options for upserting a row during sync
