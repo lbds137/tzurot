@@ -1226,16 +1226,25 @@ describe('DatabaseSyncService', () => {
 
       await service.sync({ dryRun: false });
 
-      // The first $executeRawUnsafe inside the prod transaction must be
-      // `SET CONSTRAINTS ALL DEFERRED` — without it the circular-FK insert
-      // would violate the FK constraint at INSERT time.
-      const setConstraints = executedQueries.find(({ query }) =>
-        query.includes('SET CONSTRAINTS ALL DEFERRED')
+      // The first $executeRawUnsafe inside the prod transaction must be a
+      // named `SET CONSTRAINTS ... DEFERRED` for the four circular FKs —
+      // without it the circular-FK insert would violate at INSERT time.
+      // We name them explicitly (rather than `ALL DEFERRED`) so future
+      // migrations adding unrelated deferrable constraints don't get
+      // silently softened inside the sync transaction (PR #826 R1 #4).
+      const setConstraints = executedQueries.find(
+        ({ query }) => query.includes('SET CONSTRAINTS') && query.includes('DEFERRED')
       );
       expect(
         setConstraints,
-        'expected SET CONSTRAINTS ALL DEFERRED inside prod transaction'
+        'expected SET CONSTRAINTS DEFERRED inside prod transaction'
       ).toBeDefined();
+      if (setConstraints) {
+        expect(setConstraints.query).toContain('users_default_persona_id_fkey');
+        expect(setConstraints.query).toContain('users_default_llm_config_id_fkey');
+        expect(setConstraints.query).toContain('personas_owner_id_fkey');
+        expect(setConstraints.query).toContain('llm_configs_owner_id_fkey');
+      }
 
       // The users INSERT must carry the REAL default_persona_id value —
       // not NULL. Both circular-FK columns appear in both the INSERT column

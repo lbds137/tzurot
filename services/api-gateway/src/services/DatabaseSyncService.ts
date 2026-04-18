@@ -51,7 +51,6 @@ import {
   buildRowMap,
   compareTimestamps,
   upsertRow,
-  type SyncExecutor,
 } from './sync/SyncUpsertBuilder.js';
 
 const logger = createLogger('db-sync');
@@ -132,6 +131,18 @@ export class DatabaseSyncService {
       const tombstoneIds = await loadTombstoneIds(this.devClient, this.prodClient);
 
       // Scan phase — collect pending writes without executing them.
+      //
+      // Memory tradeoff vs. the old eager-write two-pass pattern: every
+      // row that needs syncing lives in memory until the flush. For the
+      // current dev-loop usage (single user, modest row counts per table)
+      // peak RSS is negligible. If this service is ever driven against a
+      // large prod snapshot with tens of thousands of rows, the right
+      // fix is to flush per-table inside each transaction rather than
+      // accumulating across all tables — but that requires rethinking
+      // the cross-table FK order, since partial flushes lose the "every
+      // referenced row exists at COMMIT" guarantee that the Ouroboros
+      // pattern relies on. Keep it one-shot until the memory pressure
+      // is observed. (PR #826 R1 #3.)
       const devBoundWrites: PendingWrite[] = [];
       const prodBoundWrites: PendingWrite[] = [];
 
@@ -212,15 +223,25 @@ export class DatabaseSyncService {
     logger.info({ label, count: writes.length }, '[Sync] Phase 2: Flushing writes');
     await client.$transaction(
       async tx => {
-        // `SET CONSTRAINTS ALL DEFERRED` requires every affected FK to
-        // have been declared DEFERRABLE. Migration 20260418010642 did
-        // this for the four circular FKs. Other FKs in the schema stay
-        // non-deferrable and continue to enforce immediately, which is
-        // what we want for guardrails against genuinely broken data.
-        await tx.$executeRawUnsafe('SET CONSTRAINTS ALL DEFERRED');
+        // Defer exactly the four circular FKs, not ALL deferrable constraints
+        // in the transaction — future migrations might add unrelated
+        // deferrable constraints (e.g., deferred uniqueness) and we don't
+        // want to silently soften those inside the sync. The four names
+        // here must stay in sync with migration 20260418010642.
+        await tx.$executeRawUnsafe(
+          `SET CONSTRAINTS
+            "users_default_persona_id_fkey",
+            "users_default_llm_config_id_fkey",
+            "personas_owner_id_fkey",
+            "llm_configs_owner_id_fkey"
+          DEFERRED`
+        );
         for (const w of writes) {
+          // `tx` structurally satisfies `SyncExecutor` — both the full
+          // PrismaClient and Prisma's transaction client expose
+          // `$executeRawUnsafe` / `$queryRawUnsafe` with compatible shapes.
           await upsertRow({
-            client: tx as unknown as SyncExecutor,
+            client: tx,
             tableName: w.tableName,
             row: w.row,
             pkField: w.pkField,
