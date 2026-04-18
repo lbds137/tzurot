@@ -28,6 +28,9 @@
  * - We spin up TWO PGLite instances — one acts as "dev", one as "prod".
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PrismaClient, generateUserUuid, generatePersonaUuid } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
@@ -36,18 +39,34 @@ import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { DatabaseSyncService } from './DatabaseSyncService.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /**
- * Mirror of migration 20260418010642_make_circular_fks_deferrable. Applied
- * on top of `loadPGliteSchema()` because the PGLite schema generator uses
- * `prisma migrate diff --from-empty --to-schema` which cannot express
- * DEFERRABLE. If this migration file changes, update this constant.
+ * Load the real DEFERRABLE migration SQL at test startup instead of
+ * hand-maintaining a copy in this file (PR #826 R1 #2). If the migration
+ * is ever edited, PGLite environment stays in sync with production's
+ * constraint shape automatically — which is the exact invariant this
+ * test suite is designed to protect.
+ *
+ * The PGLite schema generator (`prisma migrate diff --from-empty
+ * --to-schema`) emits from `schema.prisma` and can't express DEFERRABLE,
+ * so we apply this migration manually on top of `loadPGliteSchema()`.
  */
-const DEFERRABLE_FK_MIGRATION = `
-  ALTER TABLE "users" ALTER CONSTRAINT "users_default_persona_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
-  ALTER TABLE "users" ALTER CONSTRAINT "users_default_llm_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
-  ALTER TABLE "personas" ALTER CONSTRAINT "personas_owner_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
-  ALTER TABLE "llm_configs" ALTER CONSTRAINT "llm_configs_owner_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
-`;
+function loadDeferrableFkMigration(): string {
+  // Resolve relative to this test file. Service lives at
+  // services/api-gateway/src/services/DatabaseSyncService.int.test.ts;
+  // repo root is four `..` up (services/api-gateway/src/services/ → repo).
+  const repoRoot = join(__dirname, '..', '..', '..', '..');
+  const migrationPath = join(
+    repoRoot,
+    'prisma',
+    'migrations',
+    '20260418010642_make_circular_fks_deferrable',
+    'migration.sql'
+  );
+  return readFileSync(migrationPath, 'utf-8');
+}
 
 /**
  * Create Prisma's migration-tracking table and seed one row so
@@ -84,6 +103,7 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
 
   beforeAll(async () => {
     const schema = loadPGliteSchema();
+    const deferrableFkMigration = loadDeferrableFkMigration();
 
     devPglite = new PGlite({ extensions: { vector } });
     prodPglite = new PGlite({ extensions: { vector } });
@@ -92,8 +112,8 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     // Apply the DEFERRABLE migration manually since the PGLite schema
     // generator can't express it. Matches what production's migrated
     // schema actually has in place post-20260418010642.
-    await devPglite.exec(DEFERRABLE_FK_MIGRATION);
-    await prodPglite.exec(DEFERRABLE_FK_MIGRATION);
+    await devPglite.exec(deferrableFkMigration);
+    await prodPglite.exec(deferrableFkMigration);
     // Create _prisma_migrations so checkSchemaVersions has a row to find.
     await devPglite.exec(SETUP_PRISMA_MIGRATIONS_TABLE);
     await prodPglite.exec(SETUP_PRISMA_MIGRATIONS_TABLE);
@@ -112,10 +132,23 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
   });
 
   beforeEach(async () => {
-    // Clean up — order matters: user owned rows first, then users + personas
-    // (users.default_persona_id is a Restrict FK, so user must go before
-    // the persona it references). We use raw SQL to bypass Prisma's ORM
-    // for the circular case; this is the pattern the sync itself uses.
+    // Clean up — order matters due to FK dependencies, but the ordering
+    // is subtle enough to call out explicitly (PR #826 R1 #5):
+    //
+    // - user_personality_configs, personality_default_configs → reference
+    //   personalities + users + (optionally) llm_configs + personas. Go first.
+    // - llm_configs BEFORE users: only safe because `users.default_llm_config_id`
+    //   is NULLABLE AND `seedUserWithPersona` doesn't populate it. If that
+    //   helper is ever extended to seed an llm_config reference, move
+    //   llm_configs to AFTER the users delete (users' FK would still
+    //   cascade-nullify cleanly, or a `SET CONSTRAINTS` dance mirrors
+    //   the sync flow itself).
+    // - personalities: references users (owner_id NOT NULL) + system_prompts
+    // - users BEFORE personas: users.default_persona_id is Restrict, so
+    //   the user must go before the persona it references.
+    //
+    // We use raw SQL to bypass Prisma's ORM for the circular case; this is
+    // the same pattern the sync itself uses.
     for (const prisma of [devPrisma, prodPrisma]) {
       await prisma.$executeRawUnsafe(`DELETE FROM "user_personality_configs"`);
       await prisma.$executeRawUnsafe(`DELETE FROM "personality_default_configs"`);
