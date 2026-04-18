@@ -53,6 +53,20 @@ function stripLeadingEmoji(label: string): string {
 }
 
 /**
+ * Convert a user-facing field label into a safe filename slug. Lowercased,
+ * whitespace collapsed to underscores, non-alphanumeric chars removed so
+ * the resulting name works across OSes. Used for View Full attachments so
+ * the user sees `age.txt` instead of the internal `personalityAge.txt`.
+ */
+function toSafeFilename(label: string): string {
+  return label
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+}
+
+/**
  * A field whose current value exceeds its modal maxLength.
  */
 export interface OverLengthField {
@@ -163,6 +177,7 @@ export function buildTruncationButtons(
     new ButtonBuilder()
       .setCustomId(buildDashboardCustomId('character', 'cancel_edit', entityId, sectionId))
       .setLabel('Cancel')
+      .setEmoji('✖️')
       .setStyle(ButtonStyle.Secondary)
   );
 }
@@ -260,6 +275,18 @@ export async function handleEditTruncatedButton(
   // hit. If this fails we swallow the error: the Open Editor handler has
   // its own resolveContext + 10062 fallback, so a failed warm here just
   // means it retries there. Logged for visibility into cache-miss rates.
+  //
+  // Subtle contract note: on a `null` (non-throwing) return from
+  // resolveCharacterSectionContext, sectionContext's replyError helper
+  // has already `followUp`-ed an error like "❌ Unknown section." — which
+  // would visually collide with our just-sent "Ready to edit" embed. We
+  // accept this collision because null returns are unreachable in
+  // practice here: the section lookup is a sync walk of a static dashboard
+  // config (no Redis, no gateway), and the customId we're acting on was
+  // emitted from that same config in step 0, so the section always exists.
+  // The character-not-found branch is the only realistic null path, and
+  // even then the "Ready to edit" embed + "Character not found" followUp
+  // is a strict improvement over the pre-option-(b) silent 10062.
   try {
     await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
   } catch (error) {
@@ -288,11 +315,20 @@ function getSectionLabelSync(sectionId: string, userId: string): string {
  * edit modal.
  *
  * Discord requires `showModal` as the first response — we call it with
- * minimum pre-work: one Redis-hot session read (warmed by the preceding
- * edit_truncated click). On the narrow residual failure where the 3-sec
- * window still blows (e.g., Redis latency spike), we catch 10062 and
+ * minimum pre-work: one `resolveCharacterSectionContext` call. In the
+ * common case (session warmed by step 1), that's a Redis hit in the low
+ * single-digit ms. But `fetchOrCreateSession` has a gateway API fallback
+ * for the cold-cache case (Redis eviction, pod cold start, TTL past the
+ * step-1 warm window). That fallback routes through the gateway's
+ * fetchCharacter — typically 100-300ms locally, potentially multi-second
+ * under load. This is the residual 3-second-budget risk that option (b)
+ * narrowed but did not eliminate.
+ *
+ * On the narrow residual failure where the 3-sec window still blows
+ * (cold cache + slow gateway), we catch `10062 Unknown interaction` and
  * surface an explicit retry message via `followUp` instead of silently
- * dying in the CommandHandler catch chain.
+ * dying in the CommandHandler catch chain. The BACKLOG doesn't track
+ * this residual since the visible error path is user-actionable.
  */
 export async function handleOpenEditorButton(
   interaction: ButtonInteraction,
@@ -381,13 +417,13 @@ export async function handleViewFullButton(
     const content = (ctx.data as Record<string, unknown>)[f.fieldId];
     const textContent = typeof content === 'string' ? content : '';
     return new AttachmentBuilder(Buffer.from(textContent, 'utf-8'), {
-      name: `${f.fieldId}.txt`,
+      name: `${toSafeFilename(f.label)}.txt`,
     });
   });
 
   const plainLabel = stripLeadingEmoji(ctx.section.label);
   const summary = overLength
-    .map(f => `• \`${f.fieldId}.txt\` — ${f.current.toLocaleString()} chars`)
+    .map(f => `• \`${toSafeFilename(f.label)}.txt\` — ${f.current.toLocaleString()} chars`)
     .join('\n');
 
   await interaction.editReply({
