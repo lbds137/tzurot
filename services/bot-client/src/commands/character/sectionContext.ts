@@ -41,15 +41,84 @@ import {
 import { fetchCharacter } from './api.js';
 
 /**
- * Bundle returned by {@link resolveCharacterSectionContext} on success.
- * Holds everything a downstream section handler typically needs.
+ * Pure-sync portion of the section resolution. Split out so callers that
+ * need the section label _before_ they can await (e.g., the two-click
+ * Edit-with-Truncation flow's step 1, which must `interaction.update`
+ * within the 3-second budget) can get the section without paying for a
+ * redundant dashboard-config build later.
  */
-export interface CharacterSectionContext {
+export interface CharacterSectionSync {
   isAdmin: boolean;
   dashboardConfig: DashboardConfig<CharacterData>;
   section: SectionDefinition<CharacterData>;
-  data: CharacterData;
   context: DashboardContext;
+}
+
+/**
+ * Bundle returned by {@link resolveCharacterSectionContext} on success.
+ * Holds everything a downstream section handler typically needs.
+ */
+export interface CharacterSectionContext extends CharacterSectionSync {
+  data: CharacterData;
+}
+
+/**
+ * Sync helper: resolve `isAdmin` + dashboard config + section lookup from
+ * static inputs. No Redis, no gateway — safe to call before any
+ * `interaction.update` / `deferReply` ack.
+ *
+ * Returns `null` if the section id is unknown. Callers are expected to
+ * handle the null case themselves (send an ephemeral error, etc.) — this
+ * helper does not touch the interaction so it can be called in contexts
+ * that are post-ack and post-response.
+ *
+ * `hasVoiceReference` is pinned to `false` because the output is used
+ * for section field lookup / modal building, never for voice-gated
+ * action rendering. See the matching note in `dashboard.ts`
+ * `handleSelectMenu`.
+ */
+export function findCharacterSection(
+  sectionId: string,
+  userId: string
+): CharacterSectionSync | null {
+  const isAdmin = isBotOwner(userId);
+  const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
+  const section = dashboardConfig.sections.find(s => s.id === sectionId);
+  if (!section) {
+    return null;
+  }
+  const context: DashboardContext = { isAdmin, userId };
+  return { isAdmin, dashboardConfig, section, context };
+}
+
+/**
+ * Given an already-resolved sync bundle, fetch the character data (Redis
+ * session cache → gateway fallback) and assemble the full context.
+ *
+ * Extracted so callers that already did the sync resolution (to render a
+ * label before an `update` ack) can avoid rebuilding the dashboard config
+ * when they later need the data. On character-fetch miss, sends an
+ * ephemeral error and returns `null`.
+ */
+export async function loadCharacterSectionData(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  entityId: string,
+  config: EnvConfig,
+  sync: CharacterSectionSync
+): Promise<CharacterSectionContext | null> {
+  const result = await fetchOrCreateSession<CharacterSessionData, CharacterData>({
+    userId: interaction.user.id,
+    entityType: 'character',
+    entityId,
+    fetchFn: () => fetchCharacter(entityId, config, interaction.user.id),
+    transformFn: (character: CharacterData) => ({ ...character, _isAdmin: sync.isAdmin }),
+    interaction,
+  });
+  if (!result.success) {
+    await replyError(interaction, DASHBOARD_MESSAGES.NOT_FOUND('Character'));
+    return null;
+  }
+  return { ...sync, data: result.data };
 }
 
 /**
@@ -58,10 +127,10 @@ export interface CharacterSectionContext {
  * On failure (unknown section / missing character), sends an ephemeral
  * error reply to `interaction` and returns `null` — caller should return.
  *
- * `hasVoiceReference` is pinned to `false` because this helper's output
- * is used for section field lookup and modal building, never for the
- * voice-gated dashboard action rendering. See the matching note in
- * `dashboard.ts` `handleSelectMenu`.
+ * This is the combined-path helper most callers want. Callers that need
+ * the section label _before_ an async ack (two-click edit flow, step 1)
+ * should call {@link findCharacterSection} + {@link loadCharacterSectionData}
+ * separately so the dashboard-config build happens only once per request.
  */
 export async function resolveCharacterSectionContext(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
@@ -69,29 +138,12 @@ export async function resolveCharacterSectionContext(
   sectionId: string,
   config: EnvConfig
 ): Promise<CharacterSectionContext | null> {
-  const isAdmin = isBotOwner(interaction.user.id);
-  const dashboardConfig = getCharacterDashboardConfig(isAdmin, false);
-  const section = dashboardConfig.sections.find(s => s.id === sectionId);
-  if (!section) {
+  const sync = findCharacterSection(sectionId, interaction.user.id);
+  if (sync === null) {
     await replyError(interaction, '❌ Unknown section.');
     return null;
   }
-
-  const result = await fetchOrCreateSession<CharacterSessionData, CharacterData>({
-    userId: interaction.user.id,
-    entityType: 'character',
-    entityId,
-    fetchFn: () => fetchCharacter(entityId, config, interaction.user.id),
-    transformFn: (character: CharacterData) => ({ ...character, _isAdmin: isAdmin }),
-    interaction,
-  });
-  if (!result.success) {
-    await replyError(interaction, DASHBOARD_MESSAGES.NOT_FOUND('Character'));
-    return null;
-  }
-
-  const context: DashboardContext = { isAdmin, userId: interaction.user.id };
-  return { isAdmin, dashboardConfig, section, data: result.data, context };
+  return loadCharacterSectionData(interaction, entityId, config, sync);
 }
 
 /**
