@@ -200,13 +200,14 @@ export const LLM_CONFIG_DEFAULTS = {
 /**
  * Summary of an LLM configuration.
  *
- * `id` is validated as an RFC 4122 UUID (not just any string) so that
- * non-RFC values — like the 4 configs that caused the beta.100 preset
- * blocker — are rejected at the gateway's response boundary rather than
- * propagating to autocomplete and then failing opaquely at the
- * SetDefaultConfigSchema write boundary. See PR #827 for the incident
- * and the data-repair script at `scripts/migrations/repair-llm-config-
- * rfc-uuids.ts`.
+ * `id` is validated as an RFC 4122 UUID at the gateway's response
+ * boundary so non-RFC values are rejected here rather than propagating
+ * to autocomplete and failing opaquely at write time against
+ * `SetDefaultConfigSchema`. Postgres's `uuid` type accepts any
+ * hex-formatted 36-char string (including non-RFC variant bits); Zod's
+ * `.uuid()` is stricter. Keeping the two contracts aligned at this
+ * boundary prevents the "DB accepts, gateway rejects, user stuck"
+ * failure class.
  */
 export const LlmConfigSummarySchema = z.object({
   id: z.string().uuid(),
