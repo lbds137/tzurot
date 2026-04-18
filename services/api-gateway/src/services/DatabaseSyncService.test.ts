@@ -9,27 +9,53 @@ import { SYNC_TABLE_ORDER } from './sync/config/syncTables.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock Prisma clients
-const createMockPrismaClient = () => ({
-  $connect: vi.fn().mockResolvedValue(undefined),
-  $disconnect: vi.fn().mockResolvedValue(undefined),
-  $queryRaw: vi.fn().mockResolvedValue([]), // Default: return empty array
-  $queryRawUnsafe: vi.fn().mockResolvedValue([]),
-  $executeRaw: vi.fn().mockResolvedValue(0),
-  $executeRawUnsafe: vi.fn().mockResolvedValue(0),
-  // Typed Prisma methods for tombstone operations
-  conversationHistoryTombstone: {
-    findMany: vi.fn().mockResolvedValue([]),
-  },
-  conversationHistory: {
-    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
-  },
-  // Typed Prisma methods for llm_config singleton flags
-  llmConfig: {
-    findMany: vi.fn().mockResolvedValue([]),
-    findUnique: vi.fn().mockResolvedValue(null),
-    update: vi.fn().mockResolvedValue({}),
-  },
-});
+const createMockPrismaClient = () => {
+  const mock: {
+    $connect: ReturnType<typeof vi.fn>;
+    $disconnect: ReturnType<typeof vi.fn>;
+    $queryRaw: ReturnType<typeof vi.fn>;
+    $queryRawUnsafe: ReturnType<typeof vi.fn>;
+    $executeRaw: ReturnType<typeof vi.fn>;
+    $executeRawUnsafe: ReturnType<typeof vi.fn>;
+    // Mock $transaction the way the Ouroboros refactor uses it: pass `this`
+    // (the mock itself) as the `tx` handle so upserts inside the callback
+    // route to the same $executeRawUnsafe the rest of the test asserts on.
+    $transaction: ReturnType<typeof vi.fn>;
+    conversationHistoryTombstone: { findMany: ReturnType<typeof vi.fn> };
+    conversationHistory: { deleteMany: ReturnType<typeof vi.fn> };
+    llmConfig: {
+      findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+  } = {
+    $connect: vi.fn().mockResolvedValue(undefined),
+    $disconnect: vi.fn().mockResolvedValue(undefined),
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    $queryRawUnsafe: vi.fn().mockResolvedValue([]),
+    $executeRaw: vi.fn().mockResolvedValue(0),
+    $executeRawUnsafe: vi.fn().mockResolvedValue(0),
+    $transaction: vi.fn(),
+    conversationHistoryTombstone: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    conversationHistory: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    llmConfig: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn().mockResolvedValue({}),
+    },
+  };
+  // Simulate Prisma's interactive $transaction(cb) by invoking the callback
+  // with the mock itself. All $executeRawUnsafe calls made inside the cb
+  // still land on the same mock, so existing assertions keep working.
+  mock.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+    return cb(mock);
+  });
+  return mock;
+};
 
 describe('DatabaseSyncService', () => {
   let devClient: ReturnType<typeof createMockPrismaClient>;
@@ -1154,22 +1180,22 @@ describe('DatabaseSyncService', () => {
       ).toBeLessThan(personasIndex);
     });
 
-    it('should defer user preference FK columns via two-pass sync (not exclude them)', async () => {
-      // Regression guard: these columns were previously blanket-excluded, which
-      // orphaned mirrored users on dev (the referenced persona synced, but the
-      // FK on the user row was wiped). They must now appear in the INSERT column
-      // list (as NULL in pass 1) and be OMITTED from ON CONFLICT DO UPDATE SET
-      // (to avoid clobbering during pass 1). Pass 2 issues a separate UPDATE.
+    it('should carry real values for circular-FK columns through the single-pass insert (Ouroboros)', async () => {
+      // Inverse of the old two-pass regression guard. Under the Ouroboros
+      // Insert pattern (see DatabaseSyncService docstring and migration
+      // 20260418010642), users.default_persona_id and default_llm_config_id
+      // pass through with the source environment's real values in a single
+      // pass. Postgres validates the circular FKs at COMMIT thanks to
+      // `SET CONSTRAINTS ALL DEFERRED` inside the sync transaction — which
+      // `flushWrites` issues as the transaction's first statement.
       //
-      // Scope: this test covers pass-1 behavior only. Pass-2 FK reconciliation
-      // (the actual UPDATE that fills these columns with real values from prod)
-      // is covered by `ForeignKeyReconciler.test.ts` — not re-tested here to
-      // avoid duplicating that suite's fixtures.
+      // If a future refactor restores the NULL-strip or adds a second
+      // UPDATE pass, this test fails and the author should read the
+      // Ouroboros rationale before "fixing" it.
       const executedQueries: Array<{ query: string; params: unknown[] }> = [];
       const userId = '00000000-0000-5000-a000-000000000001';
       const personaId = '00000000-0000-5000-a000-000000000002';
 
-      // Dev client returns one user with default_persona_id set.
       devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
         if (queryStr.includes('FROM "users"') && !queryStr.includes('UPDATE')) {
@@ -1191,7 +1217,6 @@ describe('DatabaseSyncService', () => {
       });
       prodClient.$queryRawUnsafe.mockResolvedValue([]);
 
-      // Capture every INSERT/UPDATE issued on prod.
       prodClient.$executeRawUnsafe.mockImplementation(
         async (query: unknown, ...params: unknown[]) => {
           executedQueries.push({ query: String(query), params });
@@ -1201,37 +1226,44 @@ describe('DatabaseSyncService', () => {
 
       await service.sync({ dryRun: false });
 
-      // Pass 1: the users INSERT must include both deferred columns in the
-      // column list (so they're set to NULL during the initial write), but
-      // must OMIT them from the DO UPDATE SET clause (so they aren't clobbered
-      // back to NULL on re-runs after pass 2 has filled them in).
+      // The first $executeRawUnsafe inside the prod transaction must be
+      // `SET CONSTRAINTS ALL DEFERRED` — without it the circular-FK insert
+      // would violate the FK constraint at INSERT time.
+      const setConstraints = executedQueries.find(({ query }) =>
+        query.includes('SET CONSTRAINTS ALL DEFERRED')
+      );
+      expect(
+        setConstraints,
+        'expected SET CONSTRAINTS ALL DEFERRED inside prod transaction'
+      ).toBeDefined();
+
+      // The users INSERT must carry the REAL default_persona_id value —
+      // not NULL. Both circular-FK columns appear in both the INSERT column
+      // list AND the DO UPDATE SET clause (conflict resolution updates them
+      // rather than skipping them, which is correct now that the constraint
+      // is deferred).
       const usersInsert = executedQueries.find(
         ({ query }) => query.includes('INSERT INTO "users"') && query.includes('ON CONFLICT')
       );
-      expect(usersInsert, 'expected users upsert in pass 1').toBeDefined();
+      expect(usersInsert, 'expected users upsert').toBeDefined();
       if (usersInsert) {
         const [columnListSection, updateSetSection] = usersInsert.query.split('DO UPDATE SET');
         expect(columnListSection).toContain('"default_persona_id"');
         expect(columnListSection).toContain('"default_llm_config_id"');
-        expect(updateSetSection).toBeDefined();
-        expect(updateSetSection).not.toContain('default_persona_id');
-        expect(updateSetSection).not.toContain('default_llm_config_id');
+        // Now INCLUDES the FK columns in the conflict update — previously
+        // they were stripped, which caused stale values to persist. The
+        // Ouroboros refactor fixes that.
+        expect(updateSetSection).toContain('default_persona_id');
+        expect(updateSetSection).toContain('default_llm_config_id');
 
-        // Verify deferred columns were passed as NULL values (not the real
-        // dev value) in pass 1. This assertion couples to an internal invariant
-        // of SyncUpsertBuilder: placeholders are generated by `columns.map((_, i) => '$' + (i+1))`
-        // and values by `columns.map(col => ...)` in the same iteration, so
-        // `params[i]` aligns with `cols[i]` by column position. If that builder
-        // is ever refactored to reorder params (e.g., type-grouping for casting),
-        // this assertion needs to use a name-indexed lookup instead.
+        // Values align with columns by position (SyncUpsertBuilder invariant).
         const columnOrder = /\(([^)]+)\)/.exec(columnListSection);
         expect(columnOrder).not.toBeNull();
         if (columnOrder) {
           const cols = columnOrder[1].split(',').map(c => c.trim().replace(/"/g, ''));
           const personaIdx = cols.indexOf('default_persona_id');
-          const llmIdx = cols.indexOf('default_llm_config_id');
-          expect(usersInsert.params[personaIdx]).toBeNull();
-          expect(usersInsert.params[llmIdx]).toBeNull();
+          // Real value flows through, no NULL strip.
+          expect(usersInsert.params[personaIdx]).toBe(personaId);
         }
       }
     });
