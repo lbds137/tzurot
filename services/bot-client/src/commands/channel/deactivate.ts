@@ -11,7 +11,7 @@
 
 import { createLogger, type DeactivateChannelResponse } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
@@ -33,7 +33,7 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
 
   try {
     const result = await callGatewayApi<DeactivateChannelResponse>('/user/channel/deactivate', {
-      userId: context.user.id,
+      user: toGatewayUser(context.user),
       method: 'DELETE',
       body: {
         channelId,

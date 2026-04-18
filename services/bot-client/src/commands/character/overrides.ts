@@ -20,7 +20,7 @@ import {
   characterSettingsOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import {
   type SettingsData,
   type SettingsDashboardConfig,
@@ -81,7 +81,7 @@ export async function handleOverrides(
     // Fetch current character data from API gateway
     const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${characterSlug}`, {
       method: 'GET',
-      userId,
+      user: toGatewayUser(context.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
@@ -104,7 +104,7 @@ export async function handleOverrides(
     // Resolve full cascade overrides for this user+personality
     const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
       `/user/config-overrides/resolve/${encodeURIComponent(personality.id)}`,
-      { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
+      { method: 'GET', user: toGatewayUser(context.user), timeout: GATEWAY_TIMEOUTS.DEFERRED }
     );
 
     if (!cascadeResult.ok) {

@@ -24,6 +24,7 @@ import {
   type CharacterBrowseFilter,
   type CharacterBrowseSortType,
 } from './config.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter } from './api.js';
 import { buildBrowseResponse } from './browse.js';
 
@@ -63,7 +64,7 @@ export async function handleBackButton(
 
   try {
     const { embed, components } = await buildBrowseResponse(
-      interaction.user.id,
+      toGatewayUser(interaction.user),
       interaction.client,
       config,
       {
@@ -112,7 +113,7 @@ export async function handleRefreshButton(
   );
   const existingBrowseContext = existingSession?.data.browseContext;
 
-  const character = await fetchCharacter(entityId, config, interaction.user.id);
+  const character = await fetchCharacter(entityId, config, toGatewayUser(interaction.user));
   if (!character) {
     await interaction.editReply({
       content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),

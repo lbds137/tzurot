@@ -10,6 +10,7 @@
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { getCachedShapes } from '../../utils/autocomplete/autocompleteCache.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
 
 const logger = createLogger('shapes-autocomplete');
@@ -27,7 +28,7 @@ export async function handleShapesSlugAutocomplete(
   const userId = interaction.user.id;
 
   try {
-    const shapes = await getCachedShapes(userId);
+    const shapes = await getCachedShapes(toGatewayUser(interaction.user));
 
     const filtered = shapes
       .filter(s => s.name.toLowerCase().includes(query) || s.username.toLowerCase().includes(query))

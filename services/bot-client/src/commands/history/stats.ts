@@ -9,7 +9,7 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, historyStatsOptions, formatDateTimeCompact } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-stats');
@@ -65,7 +65,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     }
 
     const result = await callGatewayApi<StatsResponse>(`/user/history/stats?${params.toString()}`, {
-      userId,
+      user: toGatewayUser(context.user),
       method: 'GET',
     });
 

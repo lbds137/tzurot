@@ -24,6 +24,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 // Mock the gateway client
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -84,7 +89,9 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: 'user-123' });
+      expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
+        user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
+      });
       // Should only return owned presets
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: 'My Preset · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },

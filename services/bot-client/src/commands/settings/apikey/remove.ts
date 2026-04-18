@@ -15,7 +15,7 @@ import {
   settingsApikeyRemoveOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 
 const logger = createLogger('settings-apikey-remove');
@@ -35,7 +35,7 @@ export async function handleRemoveKey(context: DeferredCommandContext): Promise<
   try {
     const result = await callGatewayApi<void>(`/wallet/${provider}`, {
       method: 'DELETE',
-      userId,
+      user: toGatewayUser(context.user),
     });
 
     if (!result.ok) {

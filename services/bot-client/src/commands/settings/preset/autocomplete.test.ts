@@ -24,6 +24,11 @@ vi.mock('@tzurot/common-types', async () => {
 // Mock the gateway client
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock the autocomplete cache
@@ -81,6 +86,8 @@ describe('handleAutocomplete', () => {
 
     mockUser = {
       id: 'user-123',
+      username: 'testuser',
+      globalName: 'testuser',
     } as User;
 
     mockInteraction = {
@@ -127,7 +134,11 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(mockGetCachedPersonalities).toHaveBeenCalledWith('user-123');
+      expect(mockGetCachedPersonalities).toHaveBeenCalledWith({
+        discordId: 'user-123',
+        username: 'testuser',
+        displayName: 'testuser',
+      });
       // 🔒 = owned + private, includes slug in parentheses, value is id (model override API expects ID)
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         { name: '🔒 Test Bot (testbot)', value: 'p1' },
@@ -281,7 +292,9 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: 'user-123' });
+      expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
+        user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
+      });
       expect(mockInteraction.respond).toHaveBeenCalledWith([
         {
           name: '🌐⭐ Claude Config · claude-sonnet-4',

@@ -6,7 +6,7 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, isBotOwner, presetExportOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createJsonAttachment } from '../../utils/jsonFileUtils.js';
 import type { PresetData, PresetResponse } from './types.js';
 
@@ -125,7 +125,7 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
   try {
     // Fetch preset data
     const result = await callGatewayApi<PresetResponse>(`/user/llm-config/${presetId}`, {
-      userId,
+      user: toGatewayUser(context.user),
     });
 
     if (!result.ok) {

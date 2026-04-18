@@ -19,6 +19,11 @@ import * as userGatewayClient from './userGatewayClient.js';
 // Mock the gateway client
 vi.mock('./userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 describe('NSFW Verification Utilities', () => {
@@ -40,7 +45,11 @@ describe('NSFW Verification Utilities', () => {
         },
       });
 
-      const result = await checkNsfwVerification('user123');
+      const result = await checkNsfwVerification({
+        discordId: 'user123',
+        username: 'testuser',
+        displayName: 'testuser',
+      });
 
       expect(result).toEqual({
         nsfwVerified: true,
@@ -48,7 +57,11 @@ describe('NSFW Verification Utilities', () => {
       });
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw', {
         method: 'GET',
-        userId: 'user123',
+        user: {
+          discordId: 'user123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
       });
     });
 
@@ -59,7 +72,11 @@ describe('NSFW Verification Utilities', () => {
         status: 500,
       });
 
-      const result = await checkNsfwVerification('user123');
+      const result = await checkNsfwVerification({
+        discordId: 'user123',
+        username: 'testuser',
+        displayName: 'testuser',
+      });
 
       expect(result).toEqual({
         nsfwVerified: false,
@@ -79,7 +96,11 @@ describe('NSFW Verification Utilities', () => {
         },
       });
 
-      const result = await verifyNsfwUser('user123');
+      const result = await verifyNsfwUser({
+        discordId: 'user123',
+        username: 'testuser',
+        displayName: 'testuser',
+      });
 
       expect(result).toEqual({
         nsfwVerified: true,
@@ -88,7 +109,11 @@ describe('NSFW Verification Utilities', () => {
       });
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw/verify', {
         method: 'POST',
-        userId: 'user123',
+        user: {
+          discordId: 'user123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
       });
     });
 
@@ -99,7 +124,11 @@ describe('NSFW Verification Utilities', () => {
         status: 500,
       });
 
-      const result = await verifyNsfwUser('user123');
+      const result = await verifyNsfwUser({
+        discordId: 'user123',
+        username: 'testuser',
+        displayName: 'testuser',
+      });
 
       expect(result).toBeNull();
     });
@@ -384,7 +413,11 @@ describe('NSFW Verification Utilities', () => {
       expect(result).toEqual({ allowed: true, wasNewVerification: true });
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw/verify', {
         method: 'POST',
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
       });
     });
 
@@ -435,7 +468,11 @@ describe('NSFW Verification Utilities', () => {
       expect(result).toEqual({ allowed: true, wasNewVerification: false });
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw', {
         method: 'GET',
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
       });
     });
 

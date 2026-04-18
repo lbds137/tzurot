@@ -11,6 +11,7 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, type EnvConfig, VOICE_REFERENCE_LIMITS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
 
 const logger = createLogger('character-voice');
@@ -34,10 +35,10 @@ const DISCORD_CDN_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
 async function fetchEditableCharacter(
   slug: string,
   config: EnvConfig,
-  userId: string,
+  user: GatewayUser,
   context: DeferredCommandContext
 ): Promise<FetchedCharacter | null> {
-  const character = await fetchCharacter(slug, config, userId);
+  const character = await fetchCharacter(slug, config, user);
   if (!character) {
     await context.editReply(
       `❌ Character \`${escapeMarkdown(slug)}\` not found or not accessible.`
@@ -101,7 +102,12 @@ async function handleVoiceUpload(
 
   try {
     // Check permissions
-    const character = await fetchEditableCharacter(slug, config, userId, context);
+    const character = await fetchEditableCharacter(
+      slug,
+      config,
+      toGatewayUser(context.user),
+      context
+    );
     if (!character) {
       return;
     }
@@ -127,7 +133,7 @@ async function handleVoiceUpload(
     await updateCharacter(
       slug,
       { voiceReferenceData: base64Audio, voiceEnabled: true },
-      userId,
+      toGatewayUser(context.user),
       config
     );
 
@@ -155,13 +161,23 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
 
   try {
     // Check permissions
-    const character = await fetchEditableCharacter(slug, config, userId, context);
+    const character = await fetchEditableCharacter(
+      slug,
+      config,
+      toGatewayUser(context.user),
+      context
+    );
     if (!character) {
       return;
     }
 
     // Clear voice reference and disable voice
-    await updateCharacter(slug, { voiceReferenceData: null, voiceEnabled: false }, userId, config);
+    await updateCharacter(
+      slug,
+      { voiceReferenceData: null, voiceEnabled: false },
+      toGatewayUser(context.user),
+      config
+    );
 
     await context.editReply(
       `✅ Voice reference removed for **${character.displayName ?? character.name}**. Voice is now disabled.`

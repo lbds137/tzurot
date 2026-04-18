@@ -38,6 +38,7 @@ import {
   type CharacterData,
   type CharacterSessionData,
 } from './config.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter } from './api.js';
 
 /**
@@ -110,7 +111,7 @@ export async function loadCharacterSectionData(
     userId: interaction.user.id,
     entityType: 'character',
     entityId,
-    fetchFn: () => fetchCharacter(entityId, config, interaction.user.id),
+    fetchFn: () => fetchCharacter(entityId, config, toGatewayUser(interaction.user)),
     transformFn: (character: CharacterData) => ({ ...character, _isAdmin: sync.isAdmin }),
     interaction,
   });

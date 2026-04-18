@@ -15,7 +15,7 @@ import {
   type LlmConfigSummary,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import {
   fetchTextModels,
@@ -159,7 +159,7 @@ async function handlePresetAutocomplete(
   const subcommand = interaction.options.getSubcommand(false);
 
   const result = await callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', {
-    userId,
+    user: toGatewayUser(interaction.user),
   });
 
   if (!result.ok) {

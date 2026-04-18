@@ -22,7 +22,7 @@ import {
   type ResolvedConfigOverrides,
   type ConfigOverrides,
 } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import {
   type SettingsDashboardConfig,
@@ -95,7 +95,11 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
     const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
 
     // Fetch resolved config with channel tier
-    const data = await fetchAndConvertSettingsData(userId, personalityId, channelId);
+    const data = await fetchAndConvertSettingsData(
+      toGatewayUser(context.user),
+      personalityId,
+      channelId
+    );
 
     // When no personality is activated, resolve-defaults is used as fallback,
     // so admin and user-default overrides are visible. Only personality-tier is missing.
@@ -165,7 +169,7 @@ export const isChannelSettingsInteraction = channelSettingsHandlers.isInteractio
  * admin → user-default) so admin overrides are still visible.
  */
 async function fetchAndConvertSettingsData(
-  userId: string,
+  user: GatewayUser,
   personalityId: string | undefined,
   channelId: string
 ): Promise<SettingsData> {
@@ -175,18 +179,18 @@ async function fetchAndConvertSettingsData(
     personalityId !== undefined
       ? callGatewayApi<ResolvedConfigOverrides>(
           `/user/config-overrides/resolve/${encodeURIComponent(personalityId)}?channelId=${encodeURIComponent(channelId)}`,
-          { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
+          { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
         )
       : callGatewayApi<ResolveDefaultsResponse>('/user/config-overrides/resolve-defaults', {
           method: 'GET',
-          userId,
+          user,
           timeout: GATEWAY_TIMEOUTS.DEFERRED,
         });
 
   const [channelOverridesResult, resolvedResult] = await Promise.all([
     callGatewayApi<{ configOverrides: Record<string, unknown> | null }>(
       `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
-      { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
+      { method: 'GET', user, timeout: GATEWAY_TIMEOUTS.DEFERRED }
     ),
     resolvePromise,
   ]);
@@ -239,7 +243,12 @@ async function handleSettingUpdate(
     // Send update to channel config-overrides endpoint
     const result = await callGatewayApi(
       `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
-      { method: 'PATCH', body, userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
+      {
+        method: 'PATCH',
+        body,
+        user: toGatewayUser(interaction.user),
+        timeout: GATEWAY_TIMEOUTS.DEFERRED,
+      }
     );
 
     if (!result.ok) {
@@ -257,7 +266,11 @@ async function handleSettingUpdate(
     const gatewayClient = new GatewayClient();
     const channelSettings = await gatewayClient.getChannelSettings(channelId);
     const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
-    const newData = await fetchAndConvertSettingsData(userId, personalityId, channelId);
+    const newData = await fetchAndConvertSettingsData(
+      toGatewayUser(interaction.user),
+      personalityId,
+      channelId
+    );
 
     logger.info({ settingId, newValue, channelId, userId }, '[Channel Settings] Setting updated');
 

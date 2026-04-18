@@ -64,7 +64,7 @@ describe('handleEdit', () => {
 
   function createMockContext(presetId = 'preset-123') {
     return {
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser', globalName: 'testuser' },
       channelId: 'channel-999',
       interaction: {
         options: {
@@ -90,7 +90,11 @@ describe('handleEdit', () => {
     await handleEdit(createMockContext());
 
     // Note: deferReply is now called at the framework level, not in the handler
-    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', {
+      discordId: 'user-456',
+      username: 'testuser',
+      displayName: 'testuser',
+    });
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     // Uses buildPresetDashboardOptions for consistent button configuration
     expect(mockBuildDashboardComponents).toHaveBeenCalledWith(

@@ -134,8 +134,14 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context, mockConfig);
 
-    expect(api.fetchUserCharacters).toHaveBeenCalledWith('123456789', mockConfig);
-    expect(api.fetchPublicCharacters).toHaveBeenCalledWith('123456789', mockConfig);
+    expect(api.fetchUserCharacters).toHaveBeenCalledWith(
+      expect.objectContaining({ discordId: '123456789' }),
+      mockConfig
+    );
+    expect(api.fetchPublicCharacters).toHaveBeenCalledWith(
+      expect.objectContaining({ discordId: '123456789' }),
+      mockConfig
+    );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -565,8 +571,14 @@ describe('handleBrowsePagination', () => {
     const mockInteraction = createMockButtonInteraction('character::browse::1::all::date::');
     await handleBrowsePagination(mockInteraction, mockConfig);
 
-    expect(api.fetchUserCharacters).toHaveBeenCalledWith('123456789', mockConfig);
-    expect(api.fetchPublicCharacters).toHaveBeenCalledWith('123456789', mockConfig);
+    expect(api.fetchUserCharacters).toHaveBeenCalledWith(
+      expect.objectContaining({ discordId: '123456789' }),
+      mockConfig
+    );
+    expect(api.fetchPublicCharacters).toHaveBeenCalledWith(
+      expect.objectContaining({ discordId: '123456789' }),
+      mockConfig
+    );
   });
 
   it('should handle errors gracefully without crashing', async () => {
@@ -825,7 +837,11 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(interaction, mockConfig);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
-    expect(api.fetchCharacter).toHaveBeenCalledWith('luna', mockConfig, '123456789');
+    expect(api.fetchCharacter).toHaveBeenCalledWith(
+      'luna',
+      mockConfig,
+      expect.objectContaining({ discordId: '123456789' })
+    );
   });
 
   it('should open dashboard when character is found', async () => {

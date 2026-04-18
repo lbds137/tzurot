@@ -24,6 +24,7 @@ import {
 } from '../../utils/dashboard/index.js';
 import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
@@ -148,7 +149,7 @@ async function handleSectionModalSubmit(
     // Update preset via appropriate API
     const updatedPreset = isGlobal
       ? await updateGlobalPreset(entityId, updatePayload)
-      : await updatePreset(entityId, updatePayload, interaction.user.id);
+      : await updatePreset(entityId, updatePayload, toGatewayUser(interaction.user));
 
     // Flatten the response for dashboard display
     const flattenedData = flattenPresetData(updatedPreset);
@@ -207,7 +208,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   await handleDashboardSectionSelect<FlattenedPresetData, PresetData>(interaction, {
     entityType: 'preset',
     dashboardConfig: PRESET_DASHBOARD_CONFIG,
-    fetchFn: (entityId, userId) => fetchPreset(entityId, userId),
+    fetchFn: (entityId, user) => fetchPreset(entityId, user),
     transformFn: flattenPresetData,
     entityName: 'Preset',
     canEdit: data => data.canEdit === true,

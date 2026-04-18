@@ -14,6 +14,11 @@ import { mockSetDefaultPersonaResponse } from '@tzurot/common-types';
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -66,7 +71,11 @@ describe('handleSetDefaultPersona', () => {
     await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123/default', {
-      userId: '123456789',
+      user: {
+        discordId: '123456789',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       method: 'PATCH',
     });
     expect(mockEditReply).toHaveBeenCalledWith({

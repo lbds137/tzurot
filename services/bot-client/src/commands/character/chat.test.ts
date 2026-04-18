@@ -216,7 +216,11 @@ describe('Character Chat Handler', () => {
     } = {}
   ) => ({
     context: {
-      userId: 'user-123',
+      user: {
+        discordId: 'user-123',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       userInternalId: 'internal-user-123',
       userName: 'TestUser',
       discordUsername: 'TestUser',
@@ -232,7 +236,11 @@ describe('Character Chat Handler', () => {
         channel: { id: 'channel-123', name: 'test-channel', type: 'text' },
       },
     },
-    userId: 'internal-user-123',
+    user: {
+      discordId: 'internal-user-123',
+      username: 'testuser',
+      displayName: 'testuser',
+    },
     personaId: 'persona-123',
     personaName: overrides.personaName ?? null,
     messageContent: 'Hello!',
@@ -370,7 +378,11 @@ describe('Character Chat Handler', () => {
         personality,
         expect.objectContaining({
           messageContent: 'Hello!',
-          userId: 'user-123',
+          user: {
+            discordId: 'user-123',
+            username: 'testuser',
+            displayName: 'testuser',
+          },
           userName: 'TestUser',
         })
       );

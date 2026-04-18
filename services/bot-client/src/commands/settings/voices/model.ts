@@ -9,7 +9,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('settings-voices-model');
 
@@ -36,7 +36,7 @@ export async function handleModelSet(context: DeferredCommandContext): Promise<v
       '/user/config-overrides/defaults',
       {
         method: 'PATCH',
-        userId,
+        user: toGatewayUser(context.user),
         body: { elevenlabsTtsModel: modelId },
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }
@@ -73,7 +73,7 @@ export async function handleModelAutocomplete(interaction: AutocompleteInteracti
 
   try {
     const result = await callGatewayApi<ModelsListResponse>('/user/voices/models', {
-      userId,
+      user: toGatewayUser(interaction.user),
       timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
     });
 

@@ -8,7 +8,7 @@
 
 import { createLogger, historyClearOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-clear');
@@ -38,7 +38,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
     }
 
     const result = await callGatewayApi<ClearResponse>('/user/history/clear', {
-      userId,
+      user: toGatewayUser(context.user),
       method: 'POST',
       body,
     });

@@ -13,6 +13,11 @@ import { EmbedBuilder } from 'discord.js';
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -97,7 +102,11 @@ describe('Me Preset Set Handler', () => {
       // Verify set override API call
       expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override', {
         method: 'PUT',
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         body: { personalityId: 'personality-1', configId: 'config-1' },
       });
 
@@ -174,7 +183,11 @@ describe('Me Preset Set Handler', () => {
       // Should call the set override API
       expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override', {
         method: 'PUT',
-        userId: 'user-123',
+        user: {
+          discordId: 'user-123',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
         body: { personalityId: 'personality-1', configId: 'free-config' },
       });
     });

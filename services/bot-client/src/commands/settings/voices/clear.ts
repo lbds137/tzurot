@@ -7,7 +7,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import {
   buildDestructiveWarning,
   createHardDeleteConfig,
@@ -40,7 +40,7 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
 
   try {
     const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-      userId,
+      user: toGatewayUser(context.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
@@ -103,7 +103,7 @@ export async function handleVoiceClearModalSubmit(
   await handleDestructiveModalSubmit(interaction, 'DELETE', async () => {
     const result = await callGatewayApi<VoiceClearResponse>('/user/voices/clear', {
       method: 'POST',
-      userId,
+      user: toGatewayUser(interaction.user),
       timeout: GATEWAY_TIMEOUTS.BULK_OPERATION,
     });
 

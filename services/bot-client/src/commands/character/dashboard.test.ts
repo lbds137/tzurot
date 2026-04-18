@@ -34,6 +34,11 @@ vi.mock('./api.js', () => ({
 // Mock userGatewayClient (transitive dep via dashboardDeleteHandlers)
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 vi.mock('./create.js', () => ({
@@ -337,7 +342,12 @@ describe('Character Dashboard', () => {
 
       await handleSelectMenu(mockInteraction);
 
-      expect(api.toggleVisibility).toHaveBeenCalledWith('test-char', true, 'user-123', mockConfig);
+      expect(api.toggleVisibility).toHaveBeenCalledWith(
+        'test-char',
+        true,
+        expect.objectContaining({ discordId: 'user-123' }),
+        mockConfig
+      );
     });
 
     it('should handle action-voice selection with prompt', async () => {
@@ -436,7 +446,7 @@ describe('Character Dashboard', () => {
       expect(api.updateCharacter).toHaveBeenCalledWith(
         'test-char',
         { voiceEnabled: false },
-        'user-123',
+        expect.objectContaining({ discordId: 'user-123' }),
         expect.any(Object)
       );
       // Dashboard should be rebuilt with updated state
@@ -578,7 +588,11 @@ describe('Character Dashboard', () => {
       await handleButton(mockInteraction);
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(api.fetchCharacter).toHaveBeenCalledWith('test-char', expect.any(Object), 'user-123');
+      expect(api.fetchCharacter).toHaveBeenCalledWith(
+        'test-char',
+        expect.any(Object),
+        expect.objectContaining({ discordId: 'user-123' })
+      );
       expect(mockInteraction.editReply).toHaveBeenCalled();
     });
 

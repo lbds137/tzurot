@@ -15,6 +15,7 @@ import { ShapesCustomIds } from '../../utils/customIds.js';
 import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { startImport } from './import.js';
 import { startExport } from './export.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { buildShapeDetailEmbed } from './detail.js';
 
 const logger = createLogger('shapes-detail-handlers');
@@ -62,8 +63,11 @@ export async function showDetailView(
   slug: string,
   sort: BrowseSortType = 'name'
 ): Promise<void> {
-  const userId = interaction.user.id;
-  const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
+  const { embed, components } = await buildShapeDetailEmbed(
+    toGatewayUser(interaction.user),
+    slug,
+    sort
+  );
   await interaction.update({
     content: '',
     embeds: [embed],
@@ -153,7 +157,11 @@ export async function handleDetailExport(
   if (success) {
     // Show detail view with updated job status
     try {
-      const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
+      const { embed, components } = await buildShapeDetailEmbed(
+        toGatewayUser(interaction.user),
+        slug,
+        sort
+      );
       await interaction.editReply({
         embeds: [embed],
         components,
@@ -232,7 +240,11 @@ export async function handleImportConfirm(
   // If triggered from detail view and import succeeded, show detail view with job status
   if (isFromDetail && success) {
     try {
-      const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
+      const { embed, components } = await buildShapeDetailEmbed(
+        toGatewayUser(interaction.user),
+        slug,
+        sort
+      );
       await interaction.editReply({
         embeds: [embed],
         components,

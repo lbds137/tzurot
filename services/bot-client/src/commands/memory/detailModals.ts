@@ -16,6 +16,7 @@ import {
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { buildMemoryActionId, buildDetailEmbed, buildDetailButtons } from './detail.js';
+import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
 import type { MemoryItem } from './detailApi.js';
 
@@ -98,9 +99,7 @@ export async function handleEditButton(
   interaction: ButtonInteraction,
   memoryId: string
 ): Promise<void> {
-  const userId = interaction.user.id;
-
-  const memory = await fetchMemory(userId, memoryId);
+  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
   if (memory === null) {
     await interaction.reply({
       content: '❌ Failed to load memory. It may have been deleted.',
@@ -135,9 +134,7 @@ export async function handleEditTruncatedButton(
   interaction: ButtonInteraction,
   memoryId: string
 ): Promise<void> {
-  const userId = interaction.user.id;
-
-  const memory = await fetchMemory(userId, memoryId);
+  const memory = await fetchMemory(toGatewayUser(interaction.user), memoryId);
   if (memory === null) {
     await interaction.update({
       content: '❌ Failed to load memory. It may have been deleted.',
@@ -195,7 +192,7 @@ export async function handleEditModalSubmit(
     return;
   }
 
-  const updatedMemory = await updateMemory(userId, memoryId, newContent);
+  const updatedMemory = await updateMemory(toGatewayUser(interaction.user), memoryId, newContent);
   if (updatedMemory === null) {
     await interaction.followUp({
       content: '❌ Failed to update memory. Please try again.',

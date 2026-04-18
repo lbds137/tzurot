@@ -9,7 +9,12 @@ import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ListPersonasResponse } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+  type GatewayUser,
+} from '../../utils/userGatewayClient.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -196,7 +201,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   try {
     // Fetch user's personas via gateway API
     const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
-      userId,
+      user: toGatewayUser(context.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
@@ -238,7 +243,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
     // Fetch fresh data
     const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
-      userId,
+      user: toGatewayUser(interaction.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
@@ -277,7 +282,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
 
   try {
     // Fetch the persona with full data
-    const persona = await fetchPersona(personaId, userId);
+    const persona = await fetchPersona(personaId, toGatewayUser(interaction.user));
 
     if (!persona) {
       await interaction.editReply({
@@ -355,18 +360,18 @@ export function isPersonaBrowseSelectInteraction(customId: string): boolean {
  * Fetches personas and builds the embed/components for a given page/sort
  */
 export async function buildBrowseResponse(
-  userId: string,
+  user: GatewayUser,
   page: number,
   sort: BrowseSortType
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
-    userId,
+    user,
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
   if (!result.ok) {
     logger.warn(
-      { userId, error: result.error },
+      { userId: user.discordId, error: result.error },
       '[Persona] Failed to fetch personas for back navigation'
     );
     return null;

@@ -17,7 +17,18 @@ import * as userGatewayClientModule from '../userGatewayClient.js';
 // Mock the gateway client
 vi.mock('../userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
+
+const TEST_USER = {
+  discordId: 'user-456',
+  username: 'testuser',
+  displayName: 'testuser',
+} as const;
 
 describe('gatewayFetcher', () => {
   beforeEach(() => {
@@ -46,11 +57,11 @@ describe('gatewayFetcher', () => {
         data: { entity: mockEntity },
       });
 
-      const result = await fetcher('/user/entity', '123', 'user-456');
+      const result = await fetcher('/user/entity', '123', TEST_USER);
 
       expect(result).toEqual(mockEntity);
       expect(userGatewayClientModule.callGatewayApi).toHaveBeenCalledWith('/user/entity/123', {
-        userId: 'user-456',
+        user: TEST_USER,
       });
     });
 
@@ -61,7 +72,7 @@ describe('gatewayFetcher', () => {
         status: 404,
       });
 
-      const result = await fetcher('/user/entity', '123', 'user-456');
+      const result = await fetcher('/user/entity', '123', TEST_USER);
 
       expect(result).toBeNull();
     });
@@ -89,12 +100,12 @@ describe('gatewayFetcher', () => {
         data: { entity: mockEntity },
       });
 
-      const result = await updater('/user/entity', '123', { name: 'Updated' }, 'user-456');
+      const result = await updater('/user/entity', '123', { name: 'Updated' }, TEST_USER);
 
       expect(result).toEqual(mockEntity);
       expect(userGatewayClientModule.callGatewayApi).toHaveBeenCalledWith('/user/entity/123', {
         method: 'PUT',
-        userId: 'user-456',
+        user: TEST_USER,
         body: { name: 'Updated' },
       });
     });
@@ -112,7 +123,7 @@ describe('gatewayFetcher', () => {
         status: 500,
       });
 
-      const result = await updater('/user/entity', '123', {}, 'user-456');
+      const result = await updater('/user/entity', '123', {}, TEST_USER);
 
       expect(result).toBeNull();
     });
@@ -131,7 +142,7 @@ describe('gatewayFetcher', () => {
         status: 500,
       });
 
-      await expect(updater('/user/entity', '123', {}, 'user-456')).rejects.toThrow(
+      await expect(updater('/user/entity', '123', {}, TEST_USER)).rejects.toThrow(
         'Failed to update entity: 500 - Server error'
       );
     });
@@ -149,12 +160,12 @@ describe('gatewayFetcher', () => {
         data: { message: 'Deleted' },
       });
 
-      const result = await deleter('/user/entity', '123', 'user-456');
+      const result = await deleter('/user/entity', '123', TEST_USER);
 
       expect(result).toEqual({ success: true });
       expect(userGatewayClientModule.callGatewayApi).toHaveBeenCalledWith('/user/entity/123', {
         method: 'DELETE',
-        userId: 'user-456',
+        user: TEST_USER,
       });
     });
 
@@ -165,7 +176,7 @@ describe('gatewayFetcher', () => {
         status: 403,
       });
 
-      const result = await deleter('/user/entity', '123', 'user-456');
+      const result = await deleter('/user/entity', '123', TEST_USER);
 
       expect(result).toEqual({ success: false, error: 'Cannot delete' });
     });
@@ -189,11 +200,11 @@ describe('gatewayFetcher', () => {
         data: { items },
       });
 
-      const result = await fetcher('/user/items', 'user-456');
+      const result = await fetcher('/user/items', TEST_USER);
 
       expect(result).toEqual(items);
       expect(userGatewayClientModule.callGatewayApi).toHaveBeenCalledWith('/user/items', {
-        userId: 'user-456',
+        user: TEST_USER,
       });
     });
 
@@ -204,7 +215,7 @@ describe('gatewayFetcher', () => {
         status: 500,
       });
 
-      const result = await fetcher('/user/items', 'user-456');
+      const result = await fetcher('/user/items', TEST_USER);
 
       expect(result).toBeNull();
     });

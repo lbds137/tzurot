@@ -9,7 +9,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GatewayApiError } from '../../utils/userGatewayClient.js';
+import type { GatewayUser } from '../../utils/userGatewayClient.js';
 import type { FlattenedPresetData } from './config.js';
+
+function mkUser(discordId = 'user-1'): GatewayUser {
+  return { discordId, username: 'test-user', displayName: 'Test User' };
+}
 
 const mockCreatePreset = vi.fn();
 vi.mock('./api.js', () => ({
@@ -71,13 +76,14 @@ describe('createClonedPreset', () => {
     const resultPreset = { id: 'new-id', name: 'My Preset (Copy)' };
     mockCreatePreset.mockResolvedValueOnce(resultPreset);
 
-    const result = await createClonedPreset(sourceData, 'user-1');
+    const user = mkUser();
+    const result = await createClonedPreset(sourceData, user);
 
     expect(result).toBe(resultPreset);
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
     expect(mockCreatePreset).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'My Preset (Copy)' }),
-      'user-1'
+      user
     );
   });
 
@@ -87,19 +93,20 @@ describe('createClonedPreset', () => {
       .mockRejectedValueOnce(new GatewayApiError('collision', 400, 'NAME_COLLISION'))
       .mockResolvedValueOnce(resultPreset);
 
-    const result = await createClonedPreset(sourceData, 'user-1');
+    const user = mkUser();
+    const result = await createClonedPreset(sourceData, user);
 
     expect(result).toBe(resultPreset);
     expect(mockCreatePreset).toHaveBeenCalledTimes(2);
     expect(mockCreatePreset).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ name: 'My Preset (Copy)' }),
-      'user-1'
+      user
     );
     expect(mockCreatePreset).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ name: 'My Preset (Copy 2)' }),
-      'user-1'
+      user
     );
   });
 
@@ -109,14 +116,14 @@ describe('createClonedPreset', () => {
     // propagate — don't retry.
     mockCreatePreset.mockRejectedValueOnce(new GatewayApiError('Bad request', 400));
 
-    await expect(createClonedPreset(sourceData, 'user-1')).rejects.toThrow('Bad request');
+    await expect(createClonedPreset(sourceData, mkUser())).rejects.toThrow('Bad request');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 
   it('propagates plain Errors immediately (not GatewayApiError)', async () => {
     mockCreatePreset.mockRejectedValueOnce(new Error('network blip'));
 
-    await expect(createClonedPreset(sourceData, 'user-1')).rejects.toThrow('network blip');
+    await expect(createClonedPreset(sourceData, mkUser())).rejects.toThrow('network blip');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 
@@ -124,7 +131,7 @@ describe('createClonedPreset', () => {
     const collision = new GatewayApiError('still colliding', 400, 'NAME_COLLISION');
     mockCreatePreset.mockRejectedValue(collision);
 
-    await expect(createClonedPreset(sourceData, 'user-1')).rejects.toBe(collision);
+    await expect(createClonedPreset(sourceData, mkUser())).rejects.toBe(collision);
     expect(mockCreatePreset).toHaveBeenCalledTimes(MAX_CLONE_NAME_RETRIES);
   });
 });

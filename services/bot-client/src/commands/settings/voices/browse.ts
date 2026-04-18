@@ -7,7 +7,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,
@@ -115,7 +115,7 @@ export async function handleBrowseVoices(context: DeferredCommandContext): Promi
 
   try {
     const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-      userId,
+      user: toGatewayUser(context.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
@@ -153,7 +153,7 @@ export async function handleVoiceBrowsePagination(interaction: ButtonInteraction
 
   try {
     const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-      userId,
+      user: toGatewayUser(interaction.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 

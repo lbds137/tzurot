@@ -14,6 +14,11 @@ import { handleDeactivate } from './deactivate.js';
 // Mock gateway client
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock GatewayClient for cache invalidation
@@ -113,7 +118,11 @@ describe('/channel deactivate', () => {
     await handleDeactivate(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/deactivate', {
-      userId: 'user-123',
+      user: {
+        discordId: 'user-123',
+        username: 'testuser',
+        displayName: 'testuser',
+      },
       method: 'DELETE',
       body: {
         channelId: '123456789012345678',

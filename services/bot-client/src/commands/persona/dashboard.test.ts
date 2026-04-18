@@ -23,6 +23,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 // Mock dashboard utilities
@@ -300,7 +305,11 @@ describe('handleModalSubmit', () => {
       `/user/persona/${TEST_PERSONA_ID}`,
       expect.objectContaining({
         method: 'PUT',
-        userId: '123456789',
+        user: {
+          discordId: '123456789',
+          username: 'testuser',
+          displayName: 'testuser',
+        },
       })
     );
   });

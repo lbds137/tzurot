@@ -7,7 +7,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { AutocompleteInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import type { VoicesListResponse } from './types.js';
 import { getCachedVoices, setCachedVoices, invalidateVoiceCache } from './voiceCache.js';
 
@@ -33,7 +33,7 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
       `/user/voices/${encodeURIComponent(voiceId)}`,
       {
         method: 'DELETE',
-        userId,
+        user: toGatewayUser(context.user),
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }
     );
@@ -75,7 +75,7 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
 
     if (voices === null) {
       const result = await callGatewayApi<VoicesListResponse>('/user/voices', {
-        userId,
+        user: toGatewayUser(interaction.user),
         timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE,
       });
 

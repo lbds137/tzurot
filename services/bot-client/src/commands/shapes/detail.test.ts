@@ -4,6 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { buildShapeDetailEmbed } from './detail.js';
+import type { GatewayUser } from '../../utils/userGatewayClient.js';
+
+function mkUser(discordId = 'user-123'): GatewayUser {
+  return { discordId, username: 'test-user', displayName: 'Test User' };
+}
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -24,6 +29,11 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
   GATEWAY_TIMEOUTS: { DEFERRED: 15000 },
+  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
+    discordId: user.id ?? 'test-user-id',
+    username: user.username ?? 'testuser',
+    displayName: user.globalName ?? user.username ?? 'testuser',
+  }),
 }));
 
 describe('buildShapeDetailEmbed', () => {
@@ -34,7 +44,7 @@ describe('buildShapeDetailEmbed', () => {
   it('should show slug in title and footer', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
 
-    const { embed } = await buildShapeDetailEmbed('user-123', 'my-shape');
+    const { embed } = await buildShapeDetailEmbed(mkUser(), 'my-shape');
 
     expect(embed.data.title).toContain('my-shape');
     expect(embed.data.footer?.text).toBe('slug:my-shape|sort:name');
@@ -43,7 +53,7 @@ describe('buildShapeDetailEmbed', () => {
   it('should show "No imports yet" when no import jobs exist', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
 
-    const { embed } = await buildShapeDetailEmbed('user-123', 'my-shape');
+    const { embed } = await buildShapeDetailEmbed(mkUser(), 'my-shape');
 
     expect(embed.data.description).toContain('No imports yet');
   });
@@ -51,7 +61,7 @@ describe('buildShapeDetailEmbed', () => {
   it('should show "No exports yet" when no export jobs exist', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
 
-    const { embed } = await buildShapeDetailEmbed('user-123', 'my-shape');
+    const { embed } = await buildShapeDetailEmbed(mkUser(), 'my-shape');
 
     expect(embed.data.description).toContain('No exports yet');
   });
@@ -79,7 +89,7 @@ describe('buildShapeDetailEmbed', () => {
       })
       .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
 
-    const { embed } = await buildShapeDetailEmbed('user-123', 'my-shape');
+    const { embed } = await buildShapeDetailEmbed(mkUser(), 'my-shape');
 
     expect(embed.data.description).toContain('42 memories imported');
   });
@@ -87,7 +97,7 @@ describe('buildShapeDetailEmbed', () => {
   it('should pass slug query param to gateway for server-side filtering', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
 
-    await buildShapeDetailEmbed('user-123', 'my-shape');
+    await buildShapeDetailEmbed(mkUser(), 'my-shape');
 
     // Verify slug is passed as query parameter (server-side filtering)
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -103,7 +113,7 @@ describe('buildShapeDetailEmbed', () => {
   it('should include action buttons in two rows', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
 
-    const { components } = await buildShapeDetailEmbed('user-123', 'my-shape');
+    const { components } = await buildShapeDetailEmbed(mkUser(), 'my-shape');
 
     expect(components).toHaveLength(2);
 
@@ -125,7 +135,7 @@ describe('buildShapeDetailEmbed', () => {
   it('should handle API errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    const { embed } = await buildShapeDetailEmbed('user-123', 'my-shape');
+    const { embed } = await buildShapeDetailEmbed(mkUser(), 'my-shape');
 
     // Should still build the embed with "no jobs" status
     expect(embed.data.title).toContain('my-shape');

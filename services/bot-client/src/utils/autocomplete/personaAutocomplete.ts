@@ -13,6 +13,7 @@ import {
   formatAutocompleteOption,
 } from '@tzurot/common-types';
 import { getCachedPersonas } from './autocompleteCache.js';
+import { toGatewayUser } from '../userGatewayClient.js';
 
 const logger = createLogger('persona-autocomplete');
 
@@ -60,7 +61,7 @@ export async function handlePersonaAutocomplete(
 
   try {
     // Use cached data to avoid HTTP requests on every keystroke
-    const personas = await getCachedPersonas(userId);
+    const personas = await getCachedPersonas(toGatewayUser(interaction.user));
 
     // Filter by query
     const filtered = personas

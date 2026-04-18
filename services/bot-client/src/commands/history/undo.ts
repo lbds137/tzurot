@@ -8,7 +8,7 @@
 
 import { createLogger, historyUndoOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-undo');
@@ -37,7 +37,7 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
     }
 
     const result = await callGatewayApi<UndoResponse>('/user/history/undo', {
-      userId,
+      user: toGatewayUser(context.user),
       method: 'POST',
       body,
     });

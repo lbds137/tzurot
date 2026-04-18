@@ -30,7 +30,7 @@ import {
   formatDateShort,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { createListComparator, type ListSortType } from '../../utils/listSorting.js';
 import { CHANNELS_PER_PAGE, CHANNELS_PER_PAGE_ALL_SERVERS, type GuildPage } from './listTypes.js';
@@ -351,7 +351,7 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
 async function backfillMissingGuildIds(
   activations: ChannelSettings[],
   client: Client,
-  userId: string
+  user: GatewayUser
 ): Promise<void> {
   const needsBackfill = activations.filter(a => a.guildId === null);
 
@@ -372,7 +372,7 @@ async function backfillMissingGuildIds(
       }
       if ('guild' in channel && channel.guild !== null) {
         await callGatewayApi('/user/channel/update-guild', {
-          userId,
+          user,
           method: 'PATCH',
           body: {
             channelId: activation.channelId,
@@ -417,7 +417,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       filter === 'all' ? '/user/channel/list' : `/user/channel/list?guildId=${context.guildId}`;
 
     const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
-      userId: context.user.id,
+      user: toGatewayUser(context.user),
       method: 'GET',
     });
 
@@ -433,7 +433,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     let { settings } = result.data;
 
     // Lazy backfill missing guildIds
-    await backfillMissingGuildIds(settings, interaction.client, context.user.id);
+    await backfillMissingGuildIds(settings, interaction.client, toGatewayUser(context.user));
 
     // For current server view, filter again after backfill
     if (filter === 'current' && context.guildId !== null) {
@@ -500,7 +500,7 @@ export async function handleBrowsePagination(
       filter === 'all' ? '/user/channel/list' : `/user/channel/list?guildId=${guildId}`;
 
     const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
-      userId,
+      user: toGatewayUser(interaction.user),
       method: 'GET',
     });
 

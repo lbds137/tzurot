@@ -9,7 +9,7 @@
 
 import { createLogger, personaDefaultOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-default');
 
@@ -35,7 +35,7 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
   try {
     // Set default via gateway API
     const result = await callGatewayApi<SetDefaultResponse>(`/user/persona/${personaId}/default`, {
-      userId: discordId,
+      user: toGatewayUser(context.user),
       method: 'PATCH',
     });
 
