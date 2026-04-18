@@ -66,14 +66,14 @@ describe('handleAutocomplete', () => {
         ok: true,
         data: mockListLlmConfigsResponse([
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'My Preset',
             model: 'anthropic/claude-sonnet-4',
             isGlobal: false,
             isOwned: true,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'Global Preset',
             model: 'openai/gpt-4',
             isGlobal: true,
@@ -87,7 +87,7 @@ describe('handleAutocomplete', () => {
       expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: 'user-123' });
       // Should only return owned presets
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'My Preset · claude-sonnet-4', value: 'c1' },
+        { name: 'My Preset · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },
       ]);
     });
 
@@ -100,14 +100,14 @@ describe('handleAutocomplete', () => {
         ok: true,
         data: mockListLlmConfigsResponse([
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Fast Preset',
             model: 'anthropic/claude-sonnet-4',
             isGlobal: false,
             isOwned: true,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'Slow Preset',
             model: 'openai/gpt-4',
             isGlobal: false,
@@ -119,7 +119,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Fast Preset · claude-sonnet-4', value: 'c1' },
+        { name: 'Fast Preset · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },
       ]);
     });
 
@@ -132,14 +132,14 @@ describe('handleAutocomplete', () => {
         ok: true,
         data: mockListLlmConfigsResponse([
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Claude Preset',
             model: 'anthropic/claude-sonnet-4',
             isGlobal: false,
             isOwned: true,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'GPT Preset',
             model: 'openai/gpt-4',
             isGlobal: false,
@@ -151,7 +151,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'GPT Preset · gpt-4', value: 'c2' },
+        { name: 'GPT Preset · gpt-4', value: '00000000-0000-4000-8000-0000000000c2' },
       ]);
     });
 
@@ -164,7 +164,7 @@ describe('handleAutocomplete', () => {
         ok: true,
         data: mockListLlmConfigsResponse([
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Preset A',
             description: 'Fast and cheap',
             model: 'anthropic/claude-sonnet-4',
@@ -172,7 +172,7 @@ describe('handleAutocomplete', () => {
             isOwned: true,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'Preset B',
             description: 'Expensive but good',
             model: 'openai/gpt-4',
@@ -185,7 +185,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Preset A · claude-sonnet-4', value: 'c1' },
+        { name: 'Preset A · claude-sonnet-4', value: '00000000-0000-4000-8000-0000000000c1' },
       ]);
     });
 
@@ -212,7 +212,8 @@ describe('handleAutocomplete', () => {
       } as unknown as string);
       const manyPresets = Array.from({ length: 30 }, (_, i) =>
         mockLlmConfigSummary({
-          id: `c${i}`,
+          // RFC-4122-valid UUID derived from the index (variant=8, version=4)
+          id: `00000000-0000-4000-8000-${i.toString(16).padStart(12, '0')}`,
           name: `Preset${i}`,
           model: `provider/model${i}`,
           isGlobal: false,

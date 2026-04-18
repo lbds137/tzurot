@@ -31,8 +31,15 @@ import { type DeepPartial } from './factoryUtils.js';
 // Shared Defaults
 // ============================================================================
 
+// Fixed RFC-4122-valid UUID used as the factory default. The response-schema
+// tightening added in the same PR as this factory rejects non-UUID ids at
+// `LlmConfigSummarySchema.parse()`, so `'config-123'` no longer works. A
+// hardcoded shape (version=4, variant=8) keeps the factory deterministic
+// without pulling in a generator dependency for test fixtures.
+const MOCK_DEFAULT_ID = '00000000-0000-4000-8000-000000000000';
+
 const defaultLlmConfigSummary: LlmConfigSummary = {
-  id: 'config-123',
+  id: MOCK_DEFAULT_ID,
   name: 'Default Config',
   description: null,
   provider: 'openrouter',
@@ -91,7 +98,10 @@ export function mockListLlmConfigsResponse(
   const response: ListLlmConfigsResponse = {
     configs: configs.map((c, i) =>
       mockLlmConfigSummary({
-        id: `config-${i}`,
+        // Stable per-index RFC-4122-valid UUID (variant=8, version=4,
+        // last 12 hex digits derived from the index). Keeps list
+        // fixtures deterministic across runs and unique per entry.
+        id: `00000000-0000-4000-8000-${i.toString(16).padStart(12, '0')}`,
         ...c,
       })
     ),

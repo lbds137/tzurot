@@ -262,14 +262,14 @@ describe('handleAutocomplete', () => {
       mockConfigApis(
         [
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Claude Config',
             model: 'anthropic/claude-sonnet-4',
             isGlobal: true,
             isOwned: false,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'GPT Config',
             model: 'openai/gpt-4',
             isGlobal: true,
@@ -283,7 +283,10 @@ describe('handleAutocomplete', () => {
 
       expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: 'user-123' });
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: '🌐⭐ Claude Config · claude-sonnet-4', value: 'c1' },
+        {
+          name: '🌐⭐ Claude Config · claude-sonnet-4',
+          value: '00000000-0000-4000-8000-0000000000c1',
+        },
       ]);
     });
 
@@ -295,14 +298,14 @@ describe('handleAutocomplete', () => {
       mockConfigApis(
         [
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Claude Config',
             model: 'anthropic/claude-sonnet-4',
             isGlobal: true,
             isOwned: false,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'GPT Config',
             model: 'openai/gpt-4',
             isGlobal: true,
@@ -315,7 +318,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: '🌐⭐ GPT Config · gpt-4', value: 'c2' },
+        { name: '🌐⭐ GPT Config · gpt-4', value: '00000000-0000-4000-8000-0000000000c2' },
       ]);
     });
 
@@ -327,7 +330,7 @@ describe('handleAutocomplete', () => {
       mockConfigApis(
         [
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Claude Config',
             description: 'Fast and cheap',
             model: 'anthropic/claude-sonnet-4',
@@ -335,7 +338,7 @@ describe('handleAutocomplete', () => {
             isOwned: false,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'GPT Config',
             description: 'Slow but accurate',
             model: 'openai/gpt-4',
@@ -349,7 +352,10 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: '🌐⭐ Claude Config · claude-sonnet-4', value: 'c1' },
+        {
+          name: '🌐⭐ Claude Config · claude-sonnet-4',
+          value: '00000000-0000-4000-8000-0000000000c1',
+        },
       ]);
     });
 
@@ -379,14 +385,14 @@ describe('handleAutocomplete', () => {
       mockConfigApis(
         [
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Claude Pro',
             model: 'anthropic/claude-sonnet-4',
             isGlobal: true,
             isOwned: false,
           }),
           mockLlmConfigSummary({
-            id: 'c2',
+            id: '00000000-0000-4000-8000-0000000000c2',
             name: 'Grok Free',
             model: 'x-ai/grok-4.1-fast:free',
             isGlobal: true,
@@ -406,7 +412,10 @@ describe('handleAutocomplete', () => {
       expect(choices).toHaveLength(2);
       // New standardized format: [scopeBadge][statusBadges] name · metadata
       // Factory defaults isDefault to true, so we get the ⭐ badge
-      expect(choices[0]).toEqual({ name: '🌐🆓⭐ Grok Free · grok-4.1-fast:free', value: 'c2' });
+      expect(choices[0]).toEqual({
+        name: '🌐🆓⭐ Grok Free · grok-4.1-fast:free',
+        value: '00000000-0000-4000-8000-0000000000c2',
+      });
       expect(choices[1]).toEqual({ name: '✨ Unlock All Models...', value: UNLOCK_MODELS_VALUE });
     });
 
@@ -418,7 +427,7 @@ describe('handleAutocomplete', () => {
       mockConfigApis(
         [
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Free Config',
             model: 'some-model:free',
             isGlobal: true,
@@ -448,7 +457,7 @@ describe('handleAutocomplete', () => {
       mockConfigApis(
         [
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Free Config',
             model: 'some-model:free',
             isGlobal: true,
@@ -475,7 +484,7 @@ describe('handleAutocomplete', () => {
       mockConfigApis(
         [
           mockLlmConfigSummary({
-            id: 'c1',
+            id: '00000000-0000-4000-8000-0000000000c1',
             name: 'Free Config',
             model: 'some-model:free',
             isGlobal: true,

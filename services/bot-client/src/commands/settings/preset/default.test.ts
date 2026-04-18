@@ -85,21 +85,21 @@ describe('handleDefault', () => {
   }
 
   it('should call API with correct parameters', async () => {
-    mockNonGuestUserApis('config-456', 'Test Config');
+    mockNonGuestUserApis('00000000-0000-4000-8000-000000000456', 'Test Config');
 
-    await handleDefault(createMockContext('config-456'));
+    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000456'));
 
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'PUT',
       userId: 'user-123',
-      body: { configId: 'config-456' },
+      body: { configId: '00000000-0000-4000-8000-000000000456' },
     });
   });
 
   it('should display success embed on successful update', async () => {
-    mockNonGuestUserApis('config-123', 'My Default Config');
+    mockNonGuestUserApis('00000000-0000-4000-8000-000000000123', 'My Default Config');
 
-    await handleDefault(createMockContext('config-123'));
+    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -124,7 +124,11 @@ describe('handleDefault', () => {
         return Promise.resolve({
           ok: true as const,
           data: mockListLlmConfigsResponse([
-            { id: 'config-123', name: 'Test', model: 'openai/gpt-4o-mini' },
+            {
+              id: '00000000-0000-4000-8000-000000000123',
+              name: 'Test',
+              model: 'openai/gpt-4o-mini',
+            },
           ]),
         });
       }
@@ -138,7 +142,7 @@ describe('handleDefault', () => {
       return Promise.resolve({ ok: false as const, error: 'Unknown path' });
     }) as never);
 
-    await handleDefault(createMockContext('config-123'));
+    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ Failed to set default: Config not found',
@@ -148,7 +152,7 @@ describe('handleDefault', () => {
   it('should handle network errors', async () => {
     vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-    await handleDefault(createMockContext('config-123'));
+    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ An error occurred. Please try again later.',
@@ -168,14 +172,18 @@ describe('handleDefault', () => {
         return Promise.resolve({
           ok: true as const,
           data: mockListLlmConfigsResponse([
-            { id: 'premium-config', name: 'Premium Config', model: 'openai/gpt-4o' },
+            {
+              id: '00000000-0000-4000-8000-000000000100',
+              name: 'Premium Config',
+              model: 'openai/gpt-4o',
+            },
           ]),
         });
       }
       return Promise.resolve({ ok: false as const, error: 'Should not be called' });
     }) as never);
 
-    await handleDefault(createMockContext('premium-config'));
+    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000100'));
 
     // Should NOT call the set-default API
     expect(callGatewayApi).not.toHaveBeenCalledWith(
@@ -209,7 +217,7 @@ describe('handleDefault', () => {
           ok: true as const,
           data: mockListLlmConfigsResponse([
             {
-              id: 'free-config',
+              id: '00000000-0000-4000-8000-000000000f00',
               name: 'Free Config',
               model: 'meta-llama/llama-3.3-70b-instruct:free',
             },
@@ -220,20 +228,23 @@ describe('handleDefault', () => {
         return Promise.resolve({
           ok: true as const,
           data: mockSetDefaultConfigResponse({
-            default: { configId: 'free-config', configName: 'Free Config' },
+            default: {
+              configId: '00000000-0000-4000-8000-000000000f00',
+              configName: 'Free Config',
+            },
           }),
         });
       }
       return Promise.resolve({ ok: false as const, error: 'Unknown path' });
     }) as never);
 
-    await handleDefault(createMockContext('free-config'));
+    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000f00'));
 
     // Should call the set-default API
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'PUT',
       userId: 'user-123',
-      body: { configId: 'free-config' },
+      body: { configId: '00000000-0000-4000-8000-000000000f00' },
     });
 
     // Should show success embed

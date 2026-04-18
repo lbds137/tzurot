@@ -43,8 +43,8 @@
 
 import { generateLlmConfigUuid, getPrismaClient } from '@tzurot/common-types';
 
-// RFC 4122 variant bits: the 17th hex digit (index 19 in the dashed form)
-// must be 8, 9, a, or b. Anything else is non-RFC.
+// RFC 4122 variant nibble: the 13th hex digit (character index 19 when
+// dashes are counted). Must be 8, 9, a, or b — anything else is non-RFC.
 const RFC_VARIANT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface Mapping {
@@ -60,95 +60,108 @@ async function main(): Promise<void> {
   const dryRun = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';
   const prisma = getPrismaClient();
 
-  console.log(`\n🚀 Repairing non-RFC-4122 llm_configs ids${dryRun ? ' (DRY RUN)' : ''}\n`);
+  // Single try/finally so the Prisma connection is released on every exit
+  // path — including `process.exit(1)` from the collision branch and any
+  // throw from the `$transaction` callback. For a one-shot script the
+  // process-exit-free-all story covers this, but it's cheap guardrail.
+  try {
+    console.log(`\n🚀 Repairing non-RFC-4122 llm_configs ids${dryRun ? ' (DRY RUN)' : ''}\n`);
 
-  // Find offenders. Uses the same variant-bit heuristic as the Zod schema
-  // they were failing against.
-  const all = await prisma.llmConfig.findMany({
-    select: { id: true, name: true },
-  });
-  const offenders = all.filter(c => !RFC_VARIANT_RE.test(c.id));
-  console.log(`📊 Scanned ${all.length} configs; ${offenders.length} offenders\n`);
+    // Find offenders. Uses the same variant-bit heuristic as the Zod schema
+    // they were failing against. No `take` limit: this migration must see
+    // ALL rows to compute the complete diff — the 03-database.md bounded-
+    // query rule is a general guardrail; migrations and repair scripts
+    // that inherently need full-table scans are the exception.
+    const all = await prisma.llmConfig.findMany({
+      select: { id: true, name: true },
+    });
+    const offenders = all.filter(c => !RFC_VARIANT_RE.test(c.id));
+    console.log(`📊 Scanned ${all.length} configs; ${offenders.length} offenders\n`);
 
-  if (offenders.length === 0) {
-    console.log('✅ Nothing to repair.');
-    await prisma.$disconnect();
-    return;
-  }
-
-  // Compute the canonical id for each. Check for collision: if a DIFFERENT
-  // existing row already has the canonical id, we cannot repair this one
-  // without further data work (it would imply two rows with the same name).
-  // Expected: no collisions, because the offenders are the only rows with
-  // these names.
-  const existingIds = new Set(all.map(c => c.id));
-  const mappings: Mapping[] = offenders.map(c => {
-    const newId = generateLlmConfigUuid(c.name);
-    return {
-      oldId: c.id,
-      newId,
-      name: c.name,
-      // Collision is only real if the canonical id exists on a *different*
-      // row. If the offender somehow already has the canonical id (can't
-      // happen here — they'd have RFC variant bits then — but defense in
-      // depth), skip it.
-      collision: existingIds.has(newId) && newId !== c.id,
-    };
-  });
-
-  console.log('📝 Planned repairs:\n');
-  for (const m of mappings) {
-    const marker = m.collision ? '⚠️  COLLISION' : '  ';
-    console.log(`${marker}  ${m.name}`);
-    console.log(`      old: ${m.oldId}`);
-    console.log(`      new: ${m.newId}`);
-  }
-  console.log('');
-
-  const collisions = mappings.filter(m => m.collision);
-  if (collisions.length > 0) {
-    console.error(
-      `❌ ${collisions.length} collision(s) detected. Aborting. ` +
-        `Another row already holds the canonical id for these names. ` +
-        `This probably means two configs share a name — resolve by hand first.`
-    );
-    await prisma.$disconnect();
-    process.exit(1);
-  }
-
-  if (dryRun) {
-    console.log('🔍 Dry run — no changes made. Re-run without DRY_RUN to apply.');
-    await prisma.$disconnect();
-    return;
-  }
-
-  // Apply in one transaction so all 4 updates commit atomically (or none do).
-  // The users.default_llm_config_id FK has ON UPDATE CASCADE, so Postgres
-  // propagates the new id to dependent rows within the same transaction.
-  console.log('✏️  Applying...\n');
-  await prisma.$transaction(async tx => {
-    for (const m of mappings) {
-      await tx.$executeRawUnsafe(
-        `UPDATE "llm_configs" SET "id" = $1::uuid WHERE "id" = $2::uuid`,
-        m.newId,
-        m.oldId
-      );
-      console.log(`  ✓ ${m.name}`);
+    if (offenders.length === 0) {
+      console.log('✅ Nothing to repair.');
+      return;
     }
-  });
 
-  // Verify post-repair.
-  const after = await prisma.llmConfig.findMany({ select: { id: true } });
-  const stillBad = after.filter(c => !RFC_VARIANT_RE.test(c.id));
-  console.log(`\n🔎 Post-repair audit: ${after.length} configs, ${stillBad.length} offenders`);
-  if (stillBad.length > 0) {
-    console.error(`❌ Repair incomplete — ${stillBad.length} offenders remain.`);
-    process.exitCode = 1;
-  } else {
-    console.log('✅ All llm_configs ids are now RFC 4122 compliant.');
+    // Compute the canonical id for each. Check for collision: if a DIFFERENT
+    // existing row already has the canonical id, we cannot repair this one
+    // without further data work (it would imply two rows with the same name).
+    // Expected: no collisions, because the offenders are the only rows with
+    // these names.
+    const existingIds = new Set(all.map(c => c.id));
+    const mappings: Mapping[] = offenders.map(c => {
+      const newId = generateLlmConfigUuid(c.name);
+      return {
+        oldId: c.id,
+        newId,
+        name: c.name,
+        // Collision is only real if the canonical id exists on a *different*
+        // row. If the offender somehow already has the canonical id (can't
+        // happen here — they'd have RFC variant bits then — but defense in
+        // depth), skip it.
+        collision: existingIds.has(newId) && newId !== c.id,
+      };
+    });
+
+    console.log('📝 Planned repairs:\n');
+    for (const m of mappings) {
+      const marker = m.collision ? '⚠️  COLLISION' : '  ';
+      console.log(`${marker}  ${m.name}`);
+      console.log(`      old: ${m.oldId}`);
+      console.log(`      new: ${m.newId}`);
+    }
+    console.log('');
+
+    const collisions = mappings.filter(m => m.collision);
+    if (collisions.length > 0) {
+      console.error(
+        `❌ ${collisions.length} collision(s) detected. Aborting. ` +
+          `Another row already holds the canonical id for these names. ` +
+          `This probably means two configs share a name — resolve by hand first.`
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    if (dryRun) {
+      console.log('🔍 Dry run — no changes made. Re-run without DRY_RUN to apply.');
+      return;
+    }
+
+    // Apply in one transaction so all 4 updates commit atomically (or none do).
+    // The users.default_llm_config_id FK has ON UPDATE CASCADE, so Postgres
+    // propagates the new id to dependent rows within the same transaction.
+    //
+    // `$executeRawUnsafe` is safe here: values flow through positional
+    // parameters ($1/$2), never string-interpolated into the SQL. We can't
+    // use `$executeRaw` (tagged template) because Prisma strips the
+    // `::uuid` casts, and Postgres requires explicit casts when binding
+    // strings to uuid columns via the raw protocol.
+    console.log('✏️  Applying...\n');
+    await prisma.$transaction(async tx => {
+      for (const m of mappings) {
+        await tx.$executeRawUnsafe(
+          `UPDATE "llm_configs" SET "id" = $1::uuid WHERE "id" = $2::uuid`,
+          m.newId,
+          m.oldId
+        );
+        console.log(`  ✓ ${m.name}`);
+      }
+    });
+
+    // Verify post-repair. Same full-table-scan rationale as the pre-scan.
+    const after = await prisma.llmConfig.findMany({ select: { id: true } });
+    const stillBad = after.filter(c => !RFC_VARIANT_RE.test(c.id));
+    console.log(`\n🔎 Post-repair audit: ${after.length} configs, ${stillBad.length} offenders`);
+    if (stillBad.length > 0) {
+      console.error(`❌ Repair incomplete — ${stillBad.length} offenders remain.`);
+      process.exitCode = 1;
+    } else {
+      console.log('✅ All llm_configs ids are now RFC 4122 compliant.');
+    }
+  } finally {
+    await prisma.$disconnect();
   }
-
-  await prisma.$disconnect();
 }
 
 main().catch(e => {

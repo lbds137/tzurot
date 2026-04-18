@@ -265,10 +265,15 @@ describe('llm-config factories', () => {
     });
 
     it('should assign unique IDs to configs', () => {
+      // IDs are derived from the index as stable RFC-4122-valid UUIDs
+      // (variant=8, version=4, last 12 hex digits = index as hex). The
+      // response-schema tightening added in PR #827 follow-up requires
+      // real UUIDs here — previously `config-${i}`.
       const response = mockListLlmConfigsResponse([{ name: 'Config 1' }, { name: 'Config 2' }]);
 
-      expect(response.configs[0].id).toBe('config-0');
-      expect(response.configs[1].id).toBe('config-1');
+      expect(response.configs[0].id).toBe('00000000-0000-4000-8000-000000000000');
+      expect(response.configs[1].id).toBe('00000000-0000-4000-8000-000000000001');
+      expect(response.configs[0].id).not.toBe(response.configs[1].id);
     });
   });
 
