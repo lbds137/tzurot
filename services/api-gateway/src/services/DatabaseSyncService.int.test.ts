@@ -17,8 +17,14 @@
  *    that column NOT NULL.
  * 2. The conflict resolution case — both sides have data, last-write-wins
  *    still picks the right winner without losing the circular FK values.
- * 3. The rollback case — a mid-sync constraint violation aborts the
- *    transaction cleanly; dev remains untouched.
+ * 3. The DEFERRABLE precondition check — confirms the four circular FKs
+ *    on both test DBs are in fact deferrable, so the Ouroboros pattern
+ *    has something to defer. If the migration is ever reverted without
+ *    updating this suite, this test fails first and the author knows
+ *    before the pattern silently degrades.
+ * 4. The rollback case — a mid-flush throw aborts the transaction
+ *    cleanly; dev remains untouched. Load-bearing for the Ouroboros
+ *    pattern since deferred FKs only validate at COMMIT.
  *
  * Setup notes:
  * - `loadPGliteSchema()` returns SQL generated from `schema.prisma`, which
@@ -31,8 +37,9 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PrismaClient, generateUserUuid, generatePersonaUuid } from '@tzurot/common-types';
+import * as syncUpsertBuilder from './sync/SyncUpsertBuilder.js';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
@@ -264,4 +271,58 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
       }
     }
   });
+
+  /**
+   * Rollback invariant: if anything throws mid-flush, the target DB must
+   * be in its pre-sync state — `flushWrites` wraps everything in a single
+   * `$transaction`, so Postgres discards all staged INSERTs on an error.
+   * This is load-bearing for the Ouroboros pattern: deferred FKs only
+   * validate at COMMIT, so an abort before COMMIT means we can't leave
+   * orphaned half-inserted rows behind. PR #826 R3 #2.
+   *
+   * We spy on `upsertRow` to force a throw after a single write. If
+   * `$transaction` doesn't roll back, dev would end up with a partial
+   * sync (some rows inserted, some not) — violating the atomicity
+   * guarantee the rest of the suite implicitly relies on.
+   */
+  it('rolls back dev changes when a write throws mid-flush', async () => {
+    const discordId = '11111111111111111111';
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid('rollback-victim', userId);
+
+    await seedUserWithPersona(prodPrisma, {
+      userId,
+      personaId,
+      discordId,
+      username: 'rollback-victim',
+      personaName: 'rollback-victim',
+    });
+
+    // Throw after the first upsert so a partial state would be observable
+    // if rollback wasn't working. The spy wraps the real upsertRow so the
+    // first call executes against the test DB (leaving a staged row
+    // inside the open transaction), then subsequent calls throw.
+    const realUpsert = syncUpsertBuilder.upsertRow;
+    let callCount = 0;
+    const spy = vi.spyOn(syncUpsertBuilder, 'upsertRow').mockImplementation(async opts => {
+      callCount += 1;
+      if (callCount >= 2) {
+        throw new Error('simulated mid-flush failure');
+      }
+      return realUpsert(opts);
+    });
+
+    try {
+      await expect(service.sync({ dryRun: false })).rejects.toThrow('simulated mid-flush failure');
+    } finally {
+      spy.mockRestore();
+    }
+
+    // Dev must remain empty — the first staged upsert was inside the
+    // transaction that aborted, so the row never became visible.
+    const devUser = await devPrisma.user.findUnique({ where: { id: userId } });
+    expect(devUser).toBeNull();
+    const devPersona = await devPrisma.persona.findUnique({ where: { id: personaId } });
+    expect(devPersona).toBeNull();
+  }, 30000);
 });
