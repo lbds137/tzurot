@@ -69,9 +69,7 @@ async function callHandler(
   res: Response
 ): Promise<void> {
   const handlers = createRemoveKeyRoute(prisma as PrismaClient);
-  // handlers[0] is requireUserAuth, handlers[1] is requireProvisionedUser,
-  // handlers[2] is the actual handler (Phase 5c PR B added the provisioning
-  // middleware in position 1).
+  // handlers layout: [auth, provision, handler]
   const handler = handlers[2] as (req: Request, res: Response) => Promise<void>;
   await handler(req, res);
 }
