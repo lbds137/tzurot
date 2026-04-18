@@ -30,14 +30,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock the session manager
 const mockSessionManager = {
@@ -117,7 +118,7 @@ describe('Character Overrides Dashboard', () => {
         replied: false,
         editReply: mockEditReply,
       },
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleOverrides>[0] & {
       editReply: ReturnType<typeof vi.fn>;
@@ -308,7 +309,7 @@ describe('Character Overrides Dashboard', () => {
     it('should update setting via user-personality cascade endpoint', async () => {
       const interaction = {
         customId: 'character-overrides::set::personality-123::crossChannelHistoryEnabled:true',
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -358,7 +359,7 @@ describe('Character Overrides Dashboard', () => {
   describe('handleCharacterOverridesModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       fields: {
         getTextInputValue: vi.fn().mockReturnValue(inputValue),
       },

@@ -5,14 +5,15 @@ const { mockCallGatewayApi, mockMapSettingToApiUpdate } = vi.hoisted(() => ({
   mockMapSettingToApiUpdate: vi.fn(),
 }));
 
-vi.mock('../../userGatewayClient.js', () => ({
-  callGatewayApi: mockCallGatewayApi,
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../userGatewayClient.js')>(
+    '../../userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: mockCallGatewayApi,
+  };
+});
 
 vi.mock('./settingsUpdate.js', () => ({
   mapSettingToApiUpdate: mockMapSettingToApiUpdate,

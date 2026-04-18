@@ -23,15 +23,15 @@ const TEST_USER = { discordId: TEST_USER_ID, username: 'testuser', displayName: 
 // Note: Tests use objectContaining for API call assertions to focus on the essential
 // userId parameter while ignoring implementation details like timeout values.
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');

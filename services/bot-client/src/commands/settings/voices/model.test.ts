@@ -21,15 +21,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
+    '../../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 describe('handleModelSet', () => {
   const mockEditReply = vi.fn();
@@ -44,7 +44,7 @@ describe('handleModelSet', () => {
 
   function createMockContext(modelId = 'eleven_turbo_v2_5'): DeferredCommandContext {
     const mockInteraction = {
-      user: { id: 'user-123' },
+      user: { id: 'user-123' , username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as ChatInputCommandInteraction;
 
@@ -135,7 +135,7 @@ describe('handleModelAutocomplete', () => {
 
   function createMockAutocomplete(query = ''): AutocompleteInteraction {
     return {
-      user: { id: 'user-123' },
+      user: { id: 'user-123' , username: 'testuser' },
       options: {
         getFocused: vi.fn().mockReturnValue(query),
         getSubcommandGroup: vi.fn().mockReturnValue('voices'),

@@ -20,15 +20,15 @@ const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn();
@@ -271,7 +271,7 @@ describe('handleModalSubmit', () => {
   function createMockModalInteraction(customId: string, fields: Record<string, string> = {}) {
     return {
       customId,
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       fields: {
         getTextInputValue: (name: string) => fields[name] ?? '',
       },
@@ -371,7 +371,7 @@ describe('handleSelectMenu', () => {
     return {
       customId,
       values: [value],
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       message: { id: 'message-123' },
       channelId: 'channel-123',
       showModal: mockShowModal,
@@ -456,7 +456,7 @@ describe('handleButton', () => {
   function createMockButtonInteraction(customId: string) {
     return {
       customId,
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       message: { id: 'message-123' },
       channelId: 'channel-123',
       update: mockUpdate,

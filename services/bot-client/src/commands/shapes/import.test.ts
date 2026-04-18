@@ -26,15 +26,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { DEFERRED: 15000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 describe('handleImport', () => {
   const mockEditReply = vi.fn();
@@ -52,7 +52,7 @@ describe('handleImport', () => {
 
   function createMockContext(): DeferredCommandContext {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       editReply: mockEditReply,
       guild: null,
       member: null,
@@ -190,7 +190,7 @@ describe('startImport', () => {
 
   function createMockButtonInteraction() {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       update: mockUpdate,
       editReply: mockEditReply,
     } as unknown as MessageComponentInteraction;

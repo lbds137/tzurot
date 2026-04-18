@@ -8,15 +8,15 @@ function mkUser(discordId = 'user-1'): GatewayUser {
   return { discordId, username: 'test-user', displayName: 'Test User' };
 }
 
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  GATEWAY_TIMEOUTS: { DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
+    '../../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 vi.mock('./autocomplete.js', () => ({
   UNLOCK_MODELS_VALUE: '__UNLOCK_ALL_MODELS__',

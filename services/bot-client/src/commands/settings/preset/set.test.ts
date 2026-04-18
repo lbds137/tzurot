@@ -10,15 +10,15 @@ import { handleSet } from './set.js';
 import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
+    '../../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -44,7 +44,7 @@ describe('Me Preset Set Handler', () => {
 
   function createMockContext(personalityId: string, presetId: string) {
     return {
-      user: { id: 'user-123' },
+      user: { id: 'user-123', username: 'testuser' },
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {

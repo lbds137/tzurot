@@ -16,12 +16,18 @@ import {
   CONTENT_TYPES,
   GATEWAY_TIMEOUTS,
   type ApiErrorSubcode,
+  type GatewayUser,
 } from '@tzurot/common-types';
 
 const logger = createLogger('gateway-client');
 
 // Re-export GATEWAY_TIMEOUTS for existing consumers
 export { GATEWAY_TIMEOUTS };
+
+// Re-export GatewayUser so bot-client callers have a single import site.
+// The interface itself lives in common-types — PR B's gateway middleware
+// will import from the same source, giving both sides one contract.
+export type { GatewayUser };
 
 /**
  * Gateway API response wrapper
@@ -63,20 +69,6 @@ export class GatewayApiError extends Error {
     this.status = status;
     this.code = code;
   }
-}
-
-/**
- * Discord user context passed to every gateway API call.
- *
- * Identity Epic Phase 5c: the gateway middleware uses `username` +
- * `displayName` to provision users with real Discord context instead of
- * the placeholder shell path. `discordId` matches `interaction.user.id`
- * (the Discord snowflake), NOT the internal UUID.
- */
-export interface GatewayUser {
-  discordId: string;
-  username: string;
-  displayName: string;
 }
 
 /**
@@ -189,7 +181,8 @@ export async function callGatewayApi<T>(
     // URI-encode `username` and `displayName` because Node's `fetch` encodes
     // HTTP header values as Latin-1; any non-Latin-1 char (emoji in display
     // names are very common) throws synchronously. Gateway middleware in
-    // PR B decodes these on arrival.
+    // PR B decodes these on arrival. `X-User-Id` is safe raw: Discord
+    // snowflakes are digits only, always Latin-1.
     const headers: Record<string, string> = {
       'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
       'X-User-Id': user.discordId,

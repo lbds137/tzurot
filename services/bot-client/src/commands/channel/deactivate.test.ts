@@ -12,14 +12,15 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { handleDeactivate } from './deactivate.js';
 
 // Mock gateway client
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 // Mock GatewayClient for cache invalidation
 vi.mock('../../utils/GatewayClient.js', () => ({
@@ -83,7 +84,7 @@ describe('/channel deactivate', () => {
 
     return {
       interaction: { editReply: mockEditReply },
-      user: { id: 'user-123' },
+      user: { id: 'user-123', username: 'testuser' },
       guild: guildId !== null ? { id: guildId } : null,
       member: guildId !== null ? mockMember : null,
       channel: null,

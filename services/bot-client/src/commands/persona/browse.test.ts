@@ -22,15 +22,15 @@ const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 // Note: Tests use objectContaining for API call assertions to focus on the essential
 // userId parameter while ignoring implementation details like timeout values.
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn();
@@ -71,7 +71,7 @@ describe('handleBrowse', () => {
 
   function createMockContext() {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleBrowse>[0];
   }
@@ -146,7 +146,7 @@ describe('handleBrowsePagination', () => {
   function createMockButtonInteraction(customId: string) {
     return {
       customId,
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleBrowsePagination>[0];
@@ -195,7 +195,7 @@ describe('handleBrowseSelect', () => {
     return {
       customId: 'persona::browse-select::0::all::name::',
       values: [personaId],
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       channelId: 'channel-123',
       message: { id: 'message-123' },
       deferUpdate: mockDeferUpdate,

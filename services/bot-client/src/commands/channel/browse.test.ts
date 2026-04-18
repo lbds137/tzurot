@@ -23,14 +23,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 // Mock userGatewayClient
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock permissions
 const mockRequireManageMessagesContext = vi.fn().mockResolvedValue(true);
@@ -74,7 +75,7 @@ describe('handleBrowse', () => {
 
   function createMockContext(query: string | null = null, filter: string | null = null) {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       guildId: 'guild-123',
       interaction: {
         client: {
@@ -294,7 +295,7 @@ describe('handleBrowsePagination', () => {
   function createMockButtonInteraction(customId: string) {
     return {
       customId,
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       client: {
         channels: { cache: new Map() },
         guilds: { cache: new Map() },
@@ -490,7 +491,7 @@ describe('backfillMissingGuildIds', () => {
 
   function createMockContextWithFetch(channelFetchFn: typeof mockChannelsFetch) {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       guildId: 'guild-123',
       interaction: {
         client: {
@@ -665,7 +666,7 @@ describe('buildGuildPages (all-servers view)', () => {
 
   function createMockContext(filter: string | null = 'all') {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       guildId: 'guild-123',
       interaction: {
         client: {
