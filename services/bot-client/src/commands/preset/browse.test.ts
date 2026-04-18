@@ -30,18 +30,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 // Mock userGatewayClient
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: {
-    AUTOCOMPLETE: 2500,
-    DEFERRED: 10000,
-  },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn(() => ({ toJSON: () => ({ title: 'Dashboard' }) }));
@@ -85,7 +82,7 @@ describe('handleBrowse', () => {
 
   function createMockContext(query: string | null = null, filter: string | null = null) {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       interaction: {
         options: {
           getString: vi.fn((name: string) => {
@@ -355,7 +352,7 @@ describe('handleBrowsePagination', () => {
   function createMockButtonInteraction(customId: string) {
     return {
       customId,
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
     } as unknown as ButtonInteraction;
@@ -544,7 +541,7 @@ describe('handleBrowseSelect', () => {
     return {
       customId: 'preset::browse-select',
       values: [presetId],
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
       message: { id: 'message-123' },

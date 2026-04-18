@@ -17,15 +17,15 @@ const DEFAULT_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 // Note: Tests use objectContaining for API call assertions to focus on the essential
 // userId parameter while ignoring implementation details like timeout values.
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn();
@@ -64,7 +64,7 @@ describe('handleEditPersona', () => {
 
   function createMockContext() {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       channelId: 'channel-123',
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleEditPersona>[0];

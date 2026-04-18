@@ -25,15 +25,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { DEFERRED: 15000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock error sanitization
 vi.mock('../../utils/errorSanitization.js', () => ({
@@ -52,7 +52,7 @@ describe('handleShapesButton', () => {
   function createMockButtonInteraction(customId: string, embedFooter?: string): ButtonInteraction {
     return {
       customId,
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       update: mockUpdate,
       editReply: mockEditReply,
       showModal: mockShowModal,
@@ -461,7 +461,7 @@ describe('handleShapesSelectMenu', () => {
     return {
       customId,
       values,
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       update: mockUpdate,
     } as unknown as StringSelectMenuInteraction;
   }

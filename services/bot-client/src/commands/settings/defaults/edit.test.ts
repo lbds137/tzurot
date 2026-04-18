@@ -33,15 +33,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
+    '../../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock the session manager
 const mockSessionManager = {
@@ -100,7 +100,7 @@ describe('User Default Settings Dashboard', () => {
 
     return {
       interaction: mockInteraction,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       guild: null,
       member: null,
       channel: null,
@@ -130,7 +130,7 @@ describe('User Default Settings Dashboard', () => {
   } => {
     return {
       customId,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
       message: { id: 'message-123' },
@@ -152,7 +152,7 @@ describe('User Default Settings Dashboard', () => {
   } => {
     return {
       customId,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
       message: { id: 'message-123' },
@@ -372,7 +372,7 @@ describe('User Default Settings Dashboard', () => {
     it('should handle API failure gracefully', async () => {
       const interaction = {
         customId: 'user-defaults-settings::set::user-456::maxMessages:auto',
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -410,7 +410,7 @@ describe('User Default Settings Dashboard', () => {
     it('should handle unknown setting ID', async () => {
       const interaction = {
         customId: 'user-defaults-settings::set::user-456::unknownSetting:value',
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -454,7 +454,7 @@ describe('User Default Settings Dashboard', () => {
   describe('handleUserDefaultsModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       fields: {
         getTextInputValue: vi.fn().mockReturnValue(inputValue),
       },

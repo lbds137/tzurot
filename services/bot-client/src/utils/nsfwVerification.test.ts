@@ -17,14 +17,14 @@ import {
 import * as userGatewayClient from './userGatewayClient.js';
 
 // Mock the gateway client
-vi.mock('./userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('./userGatewayClient.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('./userGatewayClient.js')>('./userGatewayClient.js');
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 describe('NSFW Verification Utilities', () => {
   beforeEach(() => {
@@ -365,7 +365,7 @@ describe('NSFW Verification Utilities', () => {
       const mockReply = { id: 'reply-123', channelId: 'channel-456' };
       const mockMessage = {
         id: 'msg-789',
-        author: { id: 'user-123' },
+        author: { id: 'user-123', username: 'testuser' },
         reply: vi.fn().mockResolvedValue(mockReply),
       } as any;
 
@@ -377,7 +377,7 @@ describe('NSFW Verification Utilities', () => {
     it('should handle reply failure gracefully', async () => {
       const mockMessage = {
         id: 'msg-789',
-        author: { id: 'user-123' },
+        author: { id: 'user-123', username: 'testuser' },
         reply: vi.fn().mockRejectedValue(new Error('Cannot send message')),
       } as any;
 
@@ -400,7 +400,7 @@ describe('NSFW Verification Utilities', () => {
       });
 
       const mockMessage = {
-        author: { id: 'user-123' },
+        author: { id: 'user-123', username: 'testuser' },
         channel: {
           type: ChannelType.GuildText,
           nsfw: true,
@@ -432,7 +432,7 @@ describe('NSFW Verification Utilities', () => {
       });
 
       const mockMessage = {
-        author: { id: 'user-123' },
+        author: { id: 'user-123', username: 'testuser' },
         channel: {
           type: ChannelType.GuildText,
           nsfw: true,
@@ -455,7 +455,7 @@ describe('NSFW Verification Utilities', () => {
       });
 
       const mockMessage = {
-        author: { id: 'user-123' },
+        author: { id: 'user-123', username: 'testuser' },
         channel: {
           type: ChannelType.GuildText,
           nsfw: false,
@@ -488,7 +488,7 @@ describe('NSFW Verification Utilities', () => {
       const mockReply = { id: 'reply-123', channelId: 'channel-456' };
       const mockMessage = {
         id: 'msg-789',
-        author: { id: 'user-123' },
+        author: { id: 'user-123', username: 'testuser' },
         channel: {
           type: ChannelType.DM,
         },
@@ -512,7 +512,7 @@ describe('NSFW Verification Utilities', () => {
       });
 
       const mockMessage = {
-        author: { id: 'user-123' },
+        author: { id: 'user-123', username: 'testuser' },
         channel: {
           type: ChannelType.PublicThread,
           parent: {

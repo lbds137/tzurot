@@ -30,14 +30,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock the session manager
 const mockSessionManager = {
@@ -117,7 +118,7 @@ describe('Character Settings Dashboard', () => {
         replied: false,
         editReply: mockEditReply,
       },
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleSettings>[0] & {
       editReply: ReturnType<typeof vi.fn>;
@@ -334,7 +335,7 @@ describe('Character Settings Dashboard', () => {
     it('should update crossChannelHistoryEnabled via set button', async () => {
       const interaction = {
         customId: 'character-settings::set::personality-123::crossChannelHistoryEnabled:true',
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -382,7 +383,7 @@ describe('Character Settings Dashboard', () => {
     it('should update shareLtmAcrossPersonalities via set button', async () => {
       const interaction = {
         customId: 'character-settings::set::personality-123::shareLtmAcrossPersonalities:true',
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -431,7 +432,7 @@ describe('Character Settings Dashboard', () => {
       // Entity ID now uses slug::personalityId format
       const interaction = {
         customId: 'character-settings::set::personality-123::maxMessages:auto',
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -470,7 +471,7 @@ describe('Character Settings Dashboard', () => {
     it('should handle character not found (404) response', async () => {
       const interaction = {
         customId: 'character-settings::set::personality-123::maxMessages:auto',
-        user: { id: 'user-456' },
+        user: { id: 'user-456', username: 'testuser' },
         reply: vi.fn(),
         update: vi.fn(),
         showModal: vi.fn(),
@@ -510,7 +511,7 @@ describe('Character Settings Dashboard', () => {
   describe('handleCharacterSettingsModal', () => {
     const createMockModalInteraction = (customId: string, inputValue: string) => ({
       customId,
-      user: { id: 'user-456' },
+      user: { id: 'user-456', username: 'testuser' },
       fields: {
         getTextInputValue: vi.fn().mockReturnValue(inputValue),
       },

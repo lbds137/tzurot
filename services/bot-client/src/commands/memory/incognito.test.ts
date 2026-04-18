@@ -31,14 +31,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 // Mock userGatewayClient
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 // Mock commandHelpers - embeds return empty objects for test simplicity
 const mockCreateSuccessEmbed = vi.fn(() => ({ type: 'success' }));
@@ -75,7 +76,7 @@ describe('Memory Incognito Handlers', () => {
     timeframe?: string;
   }) {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {

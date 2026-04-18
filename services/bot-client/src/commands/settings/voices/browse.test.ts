@@ -26,15 +26,15 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 const mockCallGatewayApi = vi.fn();
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
+    '../../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  };
+});
 
 /** Generate N voice entries for pagination tests */
 function generateVoices(count: number): VoiceEntry[] {
@@ -54,7 +54,7 @@ describe('handleBrowseVoices', () => {
 
   function createMockContext(): DeferredCommandContext {
     const mockInteraction = {
-      user: { id: 'user-123' },
+      user: { id: 'user-123' , username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as ChatInputCommandInteraction;
 
@@ -241,7 +241,7 @@ describe('handleVoiceBrowsePagination', () => {
   function createMockButtonInteraction(customId: string): ButtonInteraction {
     return {
       customId,
-      user: { id: 'user-123' },
+      user: { id: 'user-123' , username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
     } as unknown as ButtonInteraction;

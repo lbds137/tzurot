@@ -10,14 +10,15 @@ import { handleClearDefault } from './clear-default.js';
 import { mockClearDefaultConfigResponse } from '@tzurot/common-types';
 
 // Mock userGatewayClient
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
+    '../../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
@@ -45,7 +46,7 @@ describe('handleClearDefault', () => {
 
   function createMockContext() {
     return {
-      user: { id: '123456789' },
+      user: { id: '123456789', username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleClearDefault>[0];
   }
