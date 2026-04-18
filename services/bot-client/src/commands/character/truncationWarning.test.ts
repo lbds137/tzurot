@@ -321,6 +321,38 @@ describe('handleEditTruncatedButton', () => {
     ).resolves.toBeUndefined();
     expect(mockUpdate).toHaveBeenCalled();
   });
+
+  it('handles session-warm null returns without propagating (character-deleted race)', async () => {
+    // Regression pin for PR #825 R8 #3: when resolveCharacterSectionContext
+    // returns null (non-throwing failure path, e.g., character-deleted
+    // between warning display and opt-in click), the handler must neither
+    // throw, propagate the null, nor double-send a followUp. The "Ready
+    // to edit" embed + sectionContext's internal followUp error is the
+    // acceptable UX (strictly better than a silent 10062).
+    mockFetchOrCreateSession.mockResolvedValue({ success: false });
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      update: mockUpdate,
+      showModal: vi.fn(),
+      followUp: mockFollowUp,
+      get deferred() {
+        return false;
+      },
+      get replied() {
+        return true; // interaction.update sets replied=true
+      },
+    } as unknown as ButtonInteraction;
+
+    await expect(
+      handleEditTruncatedButton(interaction, 'char-1', 'identity')
+    ).resolves.toBeUndefined();
+    expect(mockUpdate).toHaveBeenCalled();
+    // sectionContext's replyError sends the followUp; we don't double-send
+    // from handleEditTruncatedButton's own logic.
+    expect(mockFollowUp).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('handleOpenEditorButton', () => {

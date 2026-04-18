@@ -285,7 +285,25 @@ export async function handleEditTruncatedButton(
   // even then the "Ready to edit" embed + "Character not found" followUp
   // is a strict improvement over the pre-option-(b) silent 10062.
   try {
-    await resolveCharacterSectionContext(interaction, entityId, sectionId, config);
+    const warmResult = await resolveCharacterSectionContext(
+      interaction,
+      entityId,
+      sectionId,
+      config
+    );
+    if (warmResult === null) {
+      // sectionContext already sent a followUp via replyError — the user
+      // now sees the "Ready to edit" embed + an error followUp. Per the
+      // comment above this is strictly better than the pre-option-(b)
+      // silent 10062, but we log it so the frequency is trackable. A
+      // null here is realistically only the character-deleted race
+      // (warning → opt-in click gap); the unknown-section path is dead
+      // per the static-config argument.
+      logger.warn(
+        { userId: interaction.user.id, entityId, sectionId },
+        'Session warm returned null after edit_truncated opt-in (likely character-deleted race); user saw Ready-to-Edit + followUp error'
+      );
+    }
   } catch (error) {
     logger.warn(
       { err: error, userId: interaction.user.id, entityId, sectionId },
@@ -324,8 +342,11 @@ function getSectionLabelSync(sectionId: string, userId: string): string {
  * On the narrow residual failure where the 3-sec window still blows
  * (cold cache + slow gateway), we catch `10062 Unknown interaction` and
  * surface an explicit retry message via `followUp` instead of silently
- * dying in the CommandHandler catch chain. The BACKLOG doesn't track
- * this residual since the visible error path is user-actionable.
+ * dying in the CommandHandler catch chain. The residual is tracked in
+ * BACKLOG ("Character Open Editor can still blow the 3-second window")
+ * for future UX improvement — the retry message is user-actionable but
+ * mid-flow retries are confusing, and the eventual fix is stashing
+ * either the resolved context or pre-built modal during step 1.
  */
 export async function handleOpenEditorButton(
   interaction: ButtonInteraction,
