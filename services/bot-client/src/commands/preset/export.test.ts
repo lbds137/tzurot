@@ -14,14 +14,15 @@ import * as userGatewayClient from '../../utils/userGatewayClient.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock dependencies
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -49,7 +50,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 describe('Preset Export', () => {
   const createMockContext = (userId = 'user-123') =>
     ({
-      user: { id: userId },
+      user: { id: userId, username: 'testuser' },
       interaction: {
         options: {
           getString: vi.fn().mockReturnValue('test-preset-id'),

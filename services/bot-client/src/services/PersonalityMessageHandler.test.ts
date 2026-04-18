@@ -29,26 +29,26 @@ vi.mock('../utils/nsfwVerification.js', () => ({
 
 // Mock gateway client for config resolution
 // Default returns LlmConfig defaults (no personality overrides)
-vi.mock('../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn().mockResolvedValue({
-    ok: true,
-    data: {
-      config: {
-        model: 'test-model',
-        maxMessages: 50,
-        maxAge: null,
-        maxImages: 10,
+vi.mock('../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../utils/userGatewayClient.js')>(
+    '../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        config: {
+          model: 'test-model',
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 10,
+        },
+        source: 'personality',
       },
-      source: 'personality',
-    },
-  }),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+    }),
+  };
+});
 
 // Import for per-test mock manipulation
 import { callGatewayApi } from '../utils/userGatewayClient.js';
@@ -518,6 +518,46 @@ describe('PersonalityMessageHandler', () => {
       );
     });
 
+    it('should pass full Discord user context (discordId + username + displayName) on the message-event path', async () => {
+      // Guards the message-event provisioning path (PR A of Phase 5c). A
+      // regression in toGatewayUser(message.author) — e.g. dropping
+      // displayName, swapping message.author for interaction.user, or losing
+      // the globalName fallback — would pass typecheck but break real users
+      // whose prompts depend on their Discord username in <participants>.
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      const mockBuildResult = {
+        context: {
+          userMessage: 'hi',
+          conversationHistory: [],
+          attachments: [],
+          referencedMessages: [],
+          environment: {},
+        },
+        personaId: 'persona-123',
+        messageContent: 'hi',
+        referencedMessages: [],
+        conversationHistory: [],
+      };
+
+      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'hi');
+
+      expect(callGatewayApi).toHaveBeenCalledWith(
+        '/user/llm-config/resolve',
+        expect.objectContaining({
+          user: {
+            discordId: 'user-123',
+            username: 'testuser',
+            displayName: 'Test User',
+          },
+        })
+      );
+    });
+
     it('should handle voice transcript content', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
@@ -845,6 +885,8 @@ function createMockMessage(): Message {
     id: 'message-123',
     author: {
       id: 'user-123',
+      username: 'testuser',
+      globalName: 'Test User',
       bot: false,
     },
     channel: {

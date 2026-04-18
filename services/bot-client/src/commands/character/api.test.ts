@@ -22,14 +22,15 @@ import * as userGatewayClient from '../../utils/userGatewayClient.js';
 import type { EnvConfig } from '@tzurot/common-types';
 
 // Mock the gateway client
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/userGatewayClient.js')>(
+    '../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 describe('Character API Client', () => {
   const mockConfig = {

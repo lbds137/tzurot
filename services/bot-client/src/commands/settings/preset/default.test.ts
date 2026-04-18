@@ -28,15 +28,15 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 // Mock the gateway client
-vi.mock('../../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: vi.fn(),
-  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
-  toGatewayUser: (user: { id?: string; username?: string; globalName?: string | null }) => ({
-    discordId: user.id ?? 'test-user-id',
-    username: user.username ?? 'testuser',
-    displayName: user.globalName ?? user.username ?? 'testuser',
-  }),
-}));
+vi.mock('../../../utils/userGatewayClient.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../utils/userGatewayClient.js')>(
+    '../../../utils/userGatewayClient.js'
+  );
+  return {
+    ...actual,
+    callGatewayApi: vi.fn(),
+  };
+});
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
@@ -50,7 +50,7 @@ describe('handleDefault', () => {
 
   function createMockContext(configId: string) {
     return {
-      user: { id: 'user-123' },
+      user: { id: 'user-123', username: 'testuser' },
       interaction: {
         options: {
           getString: (_name: string, _required?: boolean) => configId,
