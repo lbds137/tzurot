@@ -382,8 +382,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
   if (action === 'cancel_edit') {
     await handleCancelEditButton(interaction);
-    // eslint-disable-next-line sonarjs/no-redundant-jump -- future-proofing: keeps the per-branch early-return pattern so appending a new action below this block can't silently fall through into the wrong handler
-    return;
   }
 }
 
