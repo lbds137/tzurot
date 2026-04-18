@@ -58,12 +58,12 @@ export async function checkNsfwVerification(user: GatewayUser): Promise<NsfwStat
  * Called when user interacts with the bot in an NSFW Discord channel
  */
 export async function verifyNsfwUser(user: GatewayUser): Promise<NsfwVerifyResponse | null> {
+  const userId = user.discordId;
   const result = await callGatewayApi<NsfwVerifyResponse>('/user/nsfw/verify', {
     method: 'POST',
     user,
   });
 
-  const userId = user.discordId;
   if (!result.ok) {
     logger.warn({ userId, error: result.error }, '[NSFW] Failed to verify user');
     return null;
