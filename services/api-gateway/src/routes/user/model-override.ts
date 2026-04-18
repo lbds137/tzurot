@@ -24,7 +24,7 @@ import {
   SetModelOverrideSchema,
   SetDefaultConfigSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -68,6 +68,7 @@ export function createModelOverrideRoutes(
   router.get(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
 
@@ -116,6 +117,7 @@ export function createModelOverrideRoutes(
   router.put(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
 
@@ -205,6 +207,7 @@ export function createModelOverrideRoutes(
   router.get(
     '/default',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
 
@@ -237,6 +240,7 @@ export function createModelOverrideRoutes(
   router.put(
     '/default',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
 
@@ -292,6 +296,7 @@ export function createModelOverrideRoutes(
   router.delete(
     '/default',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
 
@@ -345,6 +350,7 @@ export function createModelOverrideRoutes(
   router.delete(
     '/:personalityId',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
       const personalityId = getParam(req.params.personalityId);

@@ -16,7 +16,7 @@ import {
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -38,6 +38,7 @@ export function createPersonalityConfigOverrideRoutes(
   const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
   router.use(requireUserAuth());
+  router.use(requireProvisionedUser(prisma));
 
   /**
    * GET /resolve-personality/:personalityId

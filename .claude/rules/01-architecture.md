@@ -40,6 +40,21 @@ Discord User → bot-client (Discord.js) → api-gateway (Express + BullMQ) → 
 | api-gateway | Clean JSON, NO emojis | `{ "error": "NOT_FOUND", "message": "Persona not found" }` |
 | bot-client  | ADD emojis for users  | `'❌ Profile not found.'`                                  |
 
+## Request Enrichment (api-gateway middleware)
+
+User-scoped routes run two auth-adjacent middlewares. Handlers read from `req` depending on which field they need:
+
+| Middleware                 | Attaches                                                   | Field type               | When to use                                             |
+| -------------------------- | ---------------------------------------------------------- | ------------------------ | ------------------------------------------------------- |
+| `requireUserAuth()`        | `req.userId`                                               | Discord snowflake string | When you need the Discord ID (e.g., for `isBotOwner()`) |
+| `requireProvisionedUser()` | `req.provisionedUserId`, `req.provisionedDefaultPersonaId` | Internal UUIDs           | When you need the internal user row (Phase 5c PR B on)  |
+
+Mount order matters: `requireProvisionedUser` runs AFTER `requireUserAuth` and reads the Discord ID set by the first middleware. Both attach fields via local casting (`(req as ProvisionedRequest).provisionedUserId = ...`) — no global Express augmentation.
+
+During the shadow-mode window (PR B → PR C), `provisionedUserId` is **optional** on the request type because the middleware degrades gracefully on missing headers or malformed URI encoding. PR C tightens the invariant once bot-client has been fully rolled out.
+
+Handlers that need the internal UUID should prefer `req.provisionedUserId` over calling `getOrCreateUserShell(req.userId)` going forward.
+
 ## Design Principles
 
 1. **Simple, clean classes** - No DDD over-engineering

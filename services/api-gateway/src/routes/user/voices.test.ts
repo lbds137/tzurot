@@ -29,6 +29,9 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
     req.userId = 'discord-user-123';
     next();
   },
+  requireProvisionedUser: () => (_req: any, _res: any, next: any) => {
+    next();
+  },
 }));
 
 // Mock fetch

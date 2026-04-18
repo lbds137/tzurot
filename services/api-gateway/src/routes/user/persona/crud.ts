@@ -19,7 +19,7 @@ import {
   type PersonaSummary,
   type PersonaDetails,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -270,9 +270,34 @@ function createDeleteHandler(prisma: PrismaClient) {
 // --- Main Route Setup ---
 
 export function addCrudRoutes(router: Router, prisma: PrismaClient): void {
-  router.get('/', requireUserAuth(), asyncHandler(createListHandler(prisma)));
-  router.get('/:id', requireUserAuth(), asyncHandler(createGetHandler(prisma)));
-  router.post('/', requireUserAuth(), asyncHandler(createCreateHandler(prisma)));
-  router.put('/:id', requireUserAuth(), asyncHandler(createUpdateHandler(prisma)));
-  router.delete('/:id', requireUserAuth(), asyncHandler(createDeleteHandler(prisma)));
+  router.get(
+    '/',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createListHandler(prisma))
+  );
+  router.get(
+    '/:id',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createGetHandler(prisma))
+  );
+  router.post(
+    '/',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createCreateHandler(prisma))
+  );
+  router.put(
+    '/:id',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createUpdateHandler(prisma))
+  );
+  router.delete(
+    '/:id',
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createDeleteHandler(prisma))
+  );
 }

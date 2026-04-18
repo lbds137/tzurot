@@ -11,7 +11,7 @@ import {
   isBotOwner,
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -98,5 +98,5 @@ function createHandler(prisma: PrismaClient) {
 // --- Route Factory ---
 
 export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
-  return [requireUserAuth(), asyncHandler(createHandler(prisma))];
+  return [requireUserAuth(), requireProvisionedUser(prisma), asyncHandler(createHandler(prisma))];
 }

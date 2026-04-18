@@ -25,7 +25,7 @@ import {
   getConfig,
   Prisma,
 } from '@tzurot/common-types';
-import { requireUserAuth } from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -286,11 +286,13 @@ export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Ro
   router.post(
     '/',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(createExportHandler(prisma, queue, userService, baseUrl))
   );
   router.get(
     '/jobs',
     requireUserAuth(),
+    requireProvisionedUser(prisma),
     asyncHandler(createListExportJobsHandler(prisma, baseUrl))
   );
 
