@@ -168,6 +168,21 @@ _New items go here. Triage to appropriate section weekly._
   - Session-warm origin: same file, `handleEditTruncatedButton` step 2
   - Session layer with the gateway fallback: `services/bot-client/src/utils/dashboard/sessionHelpers.ts` `fetchOrCreateSession`
 
+- 🐛 `[FIX]` **Stale "Open Editor" button after step-1 session-warm failure in character truncation flow** — Sibling to the 3-sec residual entry above. When `handleEditTruncatedButton`'s session warm fails (character-deleted race between warning display and opt-in click), the handler already sent `interaction.update` with the "Ready to edit" embed + Open Editor button; `loadCharacterSectionData` then sent a followUp error; but the Open Editor button is still visible. If the user clicks it, `resolveCharacterSectionContext` fails again and sends a second redundant followUp. User sees two back-to-back "Character not found" messages with a stale button between them. Flagged by PR #825 R10 (2026-04-17).
+
+  **Not a data-safety issue**: the second failure is just UX noise. The user can close the warning and re-open the dashboard; no data is lost or corrupted. That's why this is tracked separately from the 3-sec residual rather than bundled in as a blocker.
+
+  **Fix options**:
+  - **(a)** On warm-null return, send a **second** `interaction.editMessage` to disable the Open Editor button (set `.setDisabled(true)`) so clicking it is impossible. Cleanest UX; requires tracking the original message id since the interaction is acked.
+  - **(b)** On warm-null return, replace the "Ready to edit" embed entirely with the error state via `interaction.editReply` (in place of the followUp). Removes the stale button by replacing its container. UX is clearer (one message, one state) but requires rework of the `loadCharacterSectionData` error-reply path since it currently sends a followUp, not an editReply.
+  - **(c)** Accept the double-error UX. The underlying state (character deleted) is rare enough that the edge case doesn't warrant the complexity. Log-only fix + documentation comment.
+
+  Option (c) is what the code currently does. (a) or (b) are the UX improvements.
+
+  **Start**:
+  - Warm-failure branch: `services/bot-client/src/commands/character/truncationWarning.ts` `handleEditTruncatedButton` — the `if (warmResult === null)` block
+  - Followup sender (the stale message producer): `services/bot-client/src/commands/character/sectionContext.ts` `replyError` + `loadCharacterSectionData`
+
 - 🧹 `[CHORE]` **Add lint/test assertion that dashboard section fields declare `maxLength`** — `detectOverLengthFields` in `services/bot-client/src/commands/character/truncationWarning.ts` (and by extension the character field silent-truncation warning) intentionally skips fields where `field.maxLength === undefined`, because `ModalFactory` applies default caps only at modal-show time and we don't want to warn about defaults users can't configure. The tradeoff: if a new section field is ever added to `services/bot-client/src/commands/character/config.ts` without an explicit `maxLength`, the silent-truncate path for that field silently re-opens and users lose data with no warning — same bug the PR #825 fix was designed to prevent, just scoped to new fields. Currently nothing enforces `maxLength` presence; the protection is "discipline + code review." Flagged in PR #825 R3 (2026-04-17).
 
   **Fix options**:
