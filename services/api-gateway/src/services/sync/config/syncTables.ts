@@ -45,15 +45,6 @@ export interface TableSyncConfig {
   uuidColumns: string[]; // Columns that contain UUIDs (for validation)
   timestampColumns: string[]; // Columns that contain timestamps (for validation)
   /**
-   * FK columns that participate in circular dependencies.
-   * These columns are set to NULL during initial sync, then updated in a second pass
-   * after all referenced tables have been synced.
-   *
-   * Example: users.default_persona_id creates a circular dependency with personas.owner_id
-   * Solution: Sync users with default_persona_id=NULL first, then update after personas sync
-   */
-  deferredFkColumns?: string[];
-  /**
    * Columns to completely exclude from sync.
    * These columns are not copied between environments, allowing dev and prod to have
    * different values. Useful for environment-specific settings like default flags.
@@ -61,6 +52,11 @@ export interface TableSyncConfig {
    * Example: llm_configs.is_default should be different in dev vs prod
    */
   excludeColumns?: string[];
+  // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
+  // Circular NOT NULL FKs (users↔personas, users↔llm_configs) are now
+  // handled via `SET CONSTRAINTS ALL DEFERRED` at the DatabaseSyncService
+  // transaction boundary. Real FK values insert from the start; Postgres
+  // validates them at COMMIT when all circular rows exist.
 }
 
 export type SyncTableName =
@@ -91,17 +87,12 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // Deferred FK columns — circular dependencies resolved via two-pass sync.
-    // - default_persona_id: FK to personas.id (circular with personas.owner_id → users.id)
-    // - default_llm_config_id: FK to llm_configs.id (circular with llm_configs.owner_id → users.id)
-    // Pass 1 inserts users with these columns NULL; pass 2 updates them after
-    // personas and llm_configs are synced. Previously these were blanket-excluded,
-    // which orphaned mirrored users on dev (their prod default_persona_id was dropped
-    // even though the referenced persona was synced). Syncing them keeps the invariant
-    // that "user with owned personas has a default persona" intact across environments.
-    // Trade-off: the dev user's own preferences now bleed between envs via last-write-wins
-    // on users.updated_at. Solo dev accepts this; document for future readers.
-    deferredFkColumns: ['default_llm_config_id', 'default_persona_id'],
+    // Circular NOT NULL FKs (default_persona_id → personas.id, and
+    // default_llm_config_id → llm_configs.id) are handled via DEFERRABLE
+    // constraints + SET CONSTRAINTS ALL DEFERRED at the sync transaction
+    // boundary. See migration 20260418010642 and DatabaseSyncService.
+    // Both columns sync with real values from the source environment;
+    // last-write-wins on users.updated_at resolves cross-env conflicts.
   },
   personas: {
     pk: 'id',
@@ -213,10 +204,12 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  *
  * Dependencies:
  * - system_prompts: no FK deps
- * - users: default_persona_id and default_llm_config_id are DEFERRED FKs (pass 2 fills them
- *   after personas/llm_configs are synced, breaking the circular dependency)
- * - llm_configs: owner_id → users (NOT NULL)
- * - personas: owner_id → users (NOT NULL)
+ * - users: default_persona_id → personas.id AND default_llm_config_id → llm_configs.id
+ *   (both circular NOT NULL). The enclosing sync transaction uses DEFERRABLE
+ *   constraints + SET CONSTRAINTS ALL DEFERRED (see migration 20260418010642)
+ *   so users inserts can carry real FK values; Postgres validates at COMMIT.
+ * - llm_configs: owner_id → users (NOT NULL, also circular; same deferred handling)
+ * - personas: owner_id → users (NOT NULL, also circular; same deferred handling)
  * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)
  * - personality_owners: personality_id → personalities, user_id → users
  * - personality_aliases: personality_id → personalities

@@ -17,11 +17,20 @@ import type { SYNC_CONFIG } from './config/syncTables.js';
 const logger = createLogger('db-sync');
 
 /**
+ * Minimal shape of a Prisma raw-query executor. Accepts either a full
+ * PrismaClient or a transaction-scoped client from `$transaction(cb)`.
+ * Widened from `PrismaClient` as part of the Ouroboros refactor — upserts
+ * now happen inside transactions with SET CONSTRAINTS ALL DEFERRED, so
+ * the caller passes the transaction's `tx` handle here.
+ */
+export type SyncExecutor = Pick<PrismaClient, '$executeRawUnsafe' | '$queryRawUnsafe'>;
+
+/**
  * Options for upserting a row during sync
  */
 export interface UpsertRowOptions {
-  /** Prisma client to use */
-  client: PrismaClient;
+  /** Prisma client or transaction client to use */
+  client: SyncExecutor;
   /** Table name */
   tableName: string;
   /** Row data to upsert */
@@ -33,15 +42,16 @@ export interface UpsertRowOptions {
   /** Columns that are timestamp type (need ::timestamptz cast) */
   timestampColumns?: readonly string[];
   /**
-   * FK columns to defer to pass 2 (set to NULL in pass 1).
-   * Use for circular foreign keys that reference rows not yet inserted.
-   */
-  deferredFkColumns?: readonly string[];
-  /**
    * Columns to completely exclude from sync.
    * These columns are not copied, allowing different values per environment.
    */
   excludeColumns?: readonly string[];
+  // NOTE: `deferredFkColumns` was removed in the Ouroboros Insert refactor.
+  // The previous two-pass approach (insert NULL, backfill in pass 2) is
+  // replaced by single-pass insert with SET CONSTRAINTS ALL DEFERRED at
+  // the transaction level. Real FK values go in from the start; Postgres
+  // validates them at COMMIT when all circular rows exist. See the
+  // DatabaseSyncService docstring for the full rationale.
 }
 
 /**
@@ -152,7 +162,6 @@ export async function upsertRow(options: UpsertRowOptions): Promise<void> {
     pkField,
     uuidColumns = [],
     timestampColumns = [],
-    deferredFkColumns = [],
     excludeColumns = [],
   } = options;
 
@@ -173,13 +182,12 @@ export async function upsertRow(options: UpsertRowOptions): Promise<void> {
     assertValidColumnName(col);
   }
 
-  // Build values from filtered columns
+  // Build values from filtered columns. FK columns (including circular
+  // ones previously stripped to NULL in the two-pass pattern) now pass
+  // through as-is — the enclosing transaction has SET CONSTRAINTS ALL
+  // DEFERRED, so FK checks fire at COMMIT when all circular rows exist.
   const values = columns.map(col => {
     const val = rowObj[col];
-    // Set deferred FK columns to NULL (will be updated in pass 2)
-    if (deferredFkColumns.includes(col)) {
-      return null;
-    }
     // Convert Date objects to ISO strings for timestamp columns
     if (timestampColumns.includes(col) && val instanceof Date) {
       return val.toISOString();
@@ -205,9 +213,9 @@ export async function upsertRow(options: UpsertRowOptions): Promise<void> {
     .join(', ');
   const columnList = columns.map(c => `"${c}"`).join(', ');
 
-  // Build UPDATE SET clause for conflict resolution
-  const updateColumns = columns.filter(c => !deferredFkColumns.includes(c));
-  const updateSet = updateColumns.map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
+  // Build UPDATE SET clause for conflict resolution — all columns
+  // participate now that deferred-FK NULL-stripping is gone.
+  const updateSet = columns.map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
 
   // Determine conflict columns (primary key only)
   const pkColumns = typeof pkField === 'string' ? [pkField] : Array.from(pkField);
