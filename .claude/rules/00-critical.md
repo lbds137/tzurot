@@ -179,6 +179,22 @@ The only exception: if fixing the issue would significantly expand the scope of 
 
 Automated reviewers can be wrong. Check schema/source/tests before implementing suggestions.
 
+### Don't Present Speculation as Fact
+
+When making claims about causation, origin, intent, or history, distinguish between what you **observed** (tool output, file contents, git log, schema, test results) and what you **infer** (guesses about how something got that way, who did it, or why). Only state claims as fact when you have direct evidence. Otherwise:
+
+- Name it as a hypothesis ("one possibility is..." / "without more data I can't tell whether X or Y")
+- Better: say "I don't know" and propose concrete verification steps
+
+**Triggers that deserve extra skepticism:**
+
+- Words like "probably", "likely", "almost certainly", "must have been" without evidence
+- Claims about what a human was doing, thinking, or intending
+- Root-cause statements issued before verification has exhausted its scope
+- Dismissals like "just user error" or "just a typo" without proof
+
+**Why this matters:** Users rely on assertions to decide what to do next. Speculation-as-fact produces wasted work when the real cause turns out to be different, and erodes trust when the pattern repeats. Prefer "the evidence shows X; the remaining candidates for why Y are A / B / C — here's how to narrow it" over "it was Z."
+
 ### Mandatory Global Discovery ("Grep Rule")
 
 Before modifying config/infrastructure: Search ALL instances → List affected files → Justify exclusions.
