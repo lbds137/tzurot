@@ -188,6 +188,18 @@ describe('buildTruncationButtons', () => {
       'character::cancel_edit::char-1::identity',
     ]);
   });
+
+  it('sets an emoji on every button per 04-discord.md consistency rule', () => {
+    // The rule (`.claude/rules/04-discord.md`) requires `.setEmoji()` on
+    // every button for visual sizing consistency. All three warning
+    // buttons must have an emoji set.
+    const row = buildTruncationButtons('char-1', 'identity');
+    const json = row.toJSON();
+    for (const component of json.components) {
+      const button = component as { emoji?: { name: string } };
+      expect(button.emoji?.name, `button ${JSON.stringify(component)} missing emoji`).toBeDefined();
+    }
+  });
 });
 
 describe('showTruncationWarning', () => {
@@ -504,6 +516,31 @@ describe('handleViewFullButton', () => {
     );
     const callArg = editReply.mock.calls[0][0] as { files: unknown[] };
     expect(callArg.files).toHaveLength(1);
+  });
+
+  it('names attachments from user-facing labels, not internal field ids', async () => {
+    // Regression guard for PR #825 R5 #2: filenames were exposing internal
+    // field ids like `personalityAge.txt` to users. The safe-filename
+    // conversion should produce `age.txt` from the "Age" label, and the
+    // summary content should reference the same filename so users can
+    // cross-reference the embed bullet list with the downloaded file.
+    const longValue = 'x'.repeat(150);
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { personalityAge: longValue, _isAdmin: false },
+    });
+    const { interaction, editReply } = makeDeferrableInteraction();
+
+    await handleViewFullButton(interaction, 'char-1', 'identity');
+
+    const callArg = editReply.mock.calls[0][0] as {
+      files: { name: string }[];
+      content: string;
+    };
+    expect(callArg.files[0].name).toBe('age.txt');
+    expect(callArg.files[0].name).not.toContain('personalityAge');
+    // Summary text must reference the same filename
+    expect(callArg.content).toContain('age.txt');
   });
 
   it('reports no-op via editReply when content no longer exceeds cap', async () => {
