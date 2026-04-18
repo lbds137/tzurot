@@ -13,39 +13,6 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-- 🐛 `[FIX]` **🚫 BETA.100 BLOCKER — preset-option autocomplete produces configIds that the gateway rejects as "Invalid configId format"** — First observed via `/settings preset default` on 2026-04-17 19:54 UTC by bot owner, who confirmed the value was **picked from autocomplete** (not typed manually). Failing request produced: `❌ Failed to set default: configId: Invalid configId format`, from `SetDefaultConfigSchema.configId = z.string().uuid(...)` at `packages/common-types/src/schemas/api/model-override.ts:103`.
-
-  **Scope — this is a cross-command pattern, not a single-command bug**: every command that feeds preset-autocomplete values into a gateway endpoint with a `.uuid()` configId schema is on the same failure path. Enumerated consumers (grep for autocomplete files + `.uuid()` schemas):
-  - `/settings preset default` — `settings/preset/default.ts` → PUT `/user/model-override/default` → `SetDefaultConfigSchema`
-  - `/settings preset set` — `settings/preset/set.ts` (if it exists) → PUT `/user/model-override` → `SetModelOverrideSchema` (configId + personalityId, both `.uuid()`)
-  - `/preset edit <preset>` — top-level `/preset` autocomplete in `services/bot-client/src/commands/preset/autocomplete.ts` — same `c.id` shape, hits `LlmConfigService` detail/update endpoints
-  - Any other command whose autocomplete uses the `value: c.id` pattern and whose downstream API validates with `.uuid()`. Grep target when fixing: `grep -rn "value: c\.id" services/bot-client/src/commands/` + cross-reference against `packages/common-types/src/schemas/api/` for matching `.uuid()` schemas.
-  - **Personality autocomplete may share the class**: `handlePersonalityAutocomplete` with `valueField: 'id'` feeds `personalityId: z.string().uuid()` in several schemas. Same failure mode is possible if a non-UUID personality id ever reaches the list response.
-
-  **Investigation pointers — what is and isn't known**:
-  - Bot owner picked from autocomplete, so the user-typed hypothesis is ruled out.
-  - Autocomplete at `settings/preset/autocomplete.ts:140` sets `value: c.id`, where `c.id` comes from `/user/llm-config` → `LlmConfigSummarySchema.id = z.string()` (NOT `.uuid()`). The response schema is wider than the input schema — if any config has a non-UUID id, autocomplete accepts it and the downstream write rejects it.
-  - Prisma schema declares `LlmConfig.id` as `@db.Uuid`, so DB-backed configs should all have UUID ids. So either (a) a code path is creating/surfacing a config with a non-UUID id (bug), or (b) autocomplete is submitting something subtly different from what was selected (encoding/race condition), or (c) the list response is picking up a synthesized-but-non-UUID id somewhere (e.g., a virtual "free default" or upsell-style entry that wasn't fully caught).
-  - `UNLOCK_MODELS_VALUE = '__unlock_all_models__'` is handled upstream by `handleUnlockModelsUpsell`, so that's not the culprit.
-
-  **First investigation step**: add temporary log at `settings/preset/default.ts:28` capturing the raw `configId` that came off the interaction, then reproduce. Compare against the `/user/llm-config` response to see whether a specific config entry has a malformed id or whether the autocomplete mechanism is mangling the value.
-
-  **Fix options** (pending triage + root-cause confirmation):
-  - **(a)** Tighten `LlmConfigSummarySchema.id` to `z.string().uuid()` — forces the gateway to reject non-UUID configs at the response boundary. Does nothing about the pre-existing data that might already be broken, but it catches the next recurrence at the source.
-  - **(b)** Bot-side pre-validation in every preset consumer: check the configId is a UUID before calling the API; show a friendlier error ("This preset can't be used — please pick another, or report this to the admin if it keeps happening").
-  - **(c)** Audit database for any LlmConfig rows with non-UUID ids: `SELECT id FROM llm_configs WHERE id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';` If found, either migrate or delete.
-  - Probably want all three, and the fix should sweep every preset-consuming command as a single pass.
-
-  Blocker because preset configuration is a core user flow; the error is opaque ("Invalid configId format" looks like a dev error, not user-actionable); and failing silently across multiple commands is worse than failing noisily in one.
-
-  **Start** (cast wide):
-  - Enumerate all preset consumers: `grep -rn "autocomplete\|preset" services/bot-client/src/commands/ | grep -v test`
-  - Enumerate all schemas with `configId: z.string().uuid(...)`: `grep -rn "configId.*uuid" packages/common-types/src/schemas/`
-  - Check the response schema: `packages/common-types/src/schemas/api/llm-config.ts:204` (`LlmConfigSummarySchema.id` — tighten to `.uuid()`)
-  - Initial observed failure: `services/bot-client/src/commands/settings/preset/default.ts:48` (echoes `result.error` verbatim)
-  - Top-level preset command autocomplete (second likely victim): `services/bot-client/src/commands/preset/autocomplete.ts`
-  - Prod DB audit query (see fix option c above) run via `pnpm ops run --env prod psql` or equivalent
-
 - 🐛 `[FIX]` **Character field length caps cause silent data loss in dashboard edit + block API updates** — `PersonalityCharacterFieldsSchema` enforces length caps (1000/100/4000 chars per field, matching Discord modal input limits) at the Zod validation layer. Characters with legacy fields exceeding those caps (likely from shapes.inc imports or pre-cap data) exhibit two failure modes:
 
   **1. Silent data loss via dashboard edit** (CRITICAL): When a user clicks a character dashboard section that contains an over-long field (e.g., Biography → Appearance), `ModalFactory.buildSectionModal` silently truncates the pre-fill to `maxLength` chars at `services/bot-client/src/utils/dashboard/ModalFactory.ts:108` (`currentValue.slice(0, maxLength)`). The user sees no warning. If they submit, the trailing content is irrecoverably lost. The truncation is justified at line 107 as "Discord modals require value to be within length constraints" — a genuine API constraint — but the destructive behavior is hidden from the user.
