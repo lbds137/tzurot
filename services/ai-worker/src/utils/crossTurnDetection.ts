@@ -29,6 +29,60 @@ const logger = createLogger('CrossTurnDetection');
 /** Minimum response length to check for cross-turn similarity */
 const MIN_LENGTH_FOR_SIMILARITY_CHECK = 30;
 
+/** Snippet length for diagnostic comparison reports — long enough to recognize
+ *  a response prefix, short enough to keep log lines scannable. */
+const DIAG_PREFIX_LENGTH = 80;
+
+/**
+ * Structured per-message row in a comparison report. One entry per message in
+ * the comparison set, with the scores and metadata the detector computed (or
+ * would have computed) against it.
+ */
+interface ComparisonReportEntry {
+  /** 1-indexed "how many turns back is this message?" */
+  turnsBack: number;
+  /** First 8 chars of the content hash, enough to correlate across logs */
+  hash: string;
+  /** Bounded prefix of the cleaned content for human scan */
+  prefix: string;
+  /** Cleaned (post-`stripBotFooters`) length */
+  length: number;
+  /** Word-level Jaccard similarity, or null if message was too short to score */
+  jaccard: number | null;
+  /** Character-bigram similarity, or null if message was too short */
+  bigram: number | null;
+  /** True if hash equals the new response's hash (Layer 1 match) */
+  hashMatch: boolean;
+}
+
+/**
+ * Build a full diagnostic comparison report across ALL messages in the set,
+ * without early-return. Used for telemetry — gives us ground-truth data on
+ * what the detector actually saw when a duplicate slipped through (or when
+ * it fired correctly). Non-trivial provider-side cache-hit bugs (esp. on
+ * free-tier models) are hard to reason about without this view.
+ */
+function buildComparisonReport(
+  cleanNewResponse: string,
+  newResponseHash: string,
+  recentMessages: string[]
+): ComparisonReportEntry[] {
+  return recentMessages.map((msg, i) => {
+    const clean = stripBotFooters(msg);
+    const hash = contentHash(clean);
+    const tooShort = clean.length < MIN_LENGTH_FOR_SIMILARITY_CHECK;
+    return {
+      turnsBack: i + 1,
+      hash: hash.substring(0, 8),
+      prefix: clean.substring(0, DIAG_PREFIX_LENGTH),
+      length: clean.length,
+      jaccard: tooShort ? null : Number(wordJaccardSimilarity(cleanNewResponse, clean).toFixed(3)),
+      bigram: tooShort ? null : Number(stringSimilarity(cleanNewResponse, clean).toFixed(3)),
+      hashMatch: hash === newResponseHash,
+    };
+  });
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -52,6 +106,10 @@ function logDuplicateCheckResult(params: {
   newResponseSnippet: string;
   closestMatchSnippet: string;
   newResponseHash: string;
+  /** Full per-message comparison details for diagnostic purposes. When a
+   *  user-reported duplicate slips past all 4 layers, this is the only way
+   *  to reconstruct what the detector actually saw at the time. */
+  comparisonReport: ComparisonReportEntry[];
 }): void {
   const {
     outcome,
@@ -63,6 +121,7 @@ function logDuplicateCheckResult(params: {
     newResponseSnippet,
     closestMatchSnippet,
     newResponseHash,
+    comparisonReport,
   } = params;
 
   if (outcome === 'NEAR_MISS') {
@@ -79,6 +138,7 @@ function logDuplicateCheckResult(params: {
         newResponseSnippet,
         closestMatchSnippet,
         newResponseHash,
+        comparisonReport,
       },
       `[CrossTurnDetection] NEAR-MISS: Similarity ${(maxSimilarity * 100).toFixed(1)}% ` +
         `is high but below ${(threshold * 100).toFixed(0)}% threshold.`
@@ -94,6 +154,8 @@ function logDuplicateCheckResult(params: {
         newResponseLength,
         newResponseSnippet: snippet(newResponseSnippet, 40),
         closestMatchSnippet: snippet(closestMatchSnippet, 40),
+        newResponseHash,
+        comparisonReport,
       },
       '[CrossTurnDetection] Check complete - no duplicate detected'
     );
@@ -155,7 +217,6 @@ export function isCrossTurnDuplicate(
  * @param threshold Similarity threshold (default 0.85)
  * @returns Object with isDuplicate flag and matchIndex
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Swiss cheese detection: hash, Jaccard, bigram, and semantic similarity layers with early exits
 export function isRecentDuplicate(
   newResponse: string,
   recentMessages: string[],
@@ -249,23 +310,62 @@ export function isRecentDuplicate(
     }
   }
 
-  // Log diagnostic result for every check
-  if (recentMessages.length > 0) {
-    const isNearMiss = highestSimilarity >= NEAR_MISS_THRESHOLD && highestSimilarity < threshold;
-    logDuplicateCheckResult({
-      outcome: isNearMiss ? 'NEAR_MISS' : 'PASSED',
-      maxSimilarity: highestSimilarity,
-      threshold,
-      maxSimilarityIndex: highestSimilarityIndex,
-      recentMessagesCount: recentMessages.length,
-      newResponseLength: cleanNewResponse.length,
-      newResponseSnippet: snippet(cleanNewResponse),
-      closestMatchSnippet,
-      newResponseHash,
-    });
-  }
+  emitPassedOrNearMissLog({
+    cleanNewResponse,
+    newResponseHash,
+    recentMessages,
+    threshold,
+    highestSimilarity,
+    highestSimilarityIndex,
+    closestMatchSnippet,
+  });
 
   return { isDuplicate: false, matchIndex: -1 };
+}
+
+/**
+ * Tail-of-function log emission for `isRecentDuplicate`. Extracted so the
+ * parent stays under the `max-lines-per-function` limit while all three
+ * telemetry fields (`comparisonReport` ground-truth data, near-miss band,
+ * closest-match snippet) remain emitted for every non-matching check.
+ */
+function emitPassedOrNearMissLog(args: {
+  cleanNewResponse: string;
+  newResponseHash: string;
+  recentMessages: string[];
+  threshold: number;
+  highestSimilarity: number;
+  highestSimilarityIndex: number;
+  closestMatchSnippet: string;
+}): void {
+  const {
+    cleanNewResponse,
+    newResponseHash,
+    recentMessages,
+    threshold,
+    highestSimilarity,
+    highestSimilarityIndex,
+    closestMatchSnippet,
+  } = args;
+
+  if (recentMessages.length === 0) {
+    return;
+  }
+
+  const isNearMiss = highestSimilarity >= NEAR_MISS_THRESHOLD && highestSimilarity < threshold;
+  const comparisonReport = buildComparisonReport(cleanNewResponse, newResponseHash, recentMessages);
+  logDuplicateCheckResult({
+    outcome: isNearMiss ? 'NEAR_MISS' : 'PASSED',
+    maxSimilarity: highestSimilarity,
+    threshold,
+    maxSimilarityIndex: highestSimilarityIndex,
+    recentMessagesCount: recentMessages.length,
+    newResponseLength: cleanNewResponse.length,
+    newResponseSnippet: snippet(cleanNewResponse),
+    closestMatchSnippet,
+    newResponseHash,
+    comparisonReport,
+  });
 }
 
 /**
