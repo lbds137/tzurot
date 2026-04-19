@@ -491,6 +491,9 @@ CREATE INDEX "llm_configs_is_global_idx" ON "llm_configs"("is_global");
 CREATE INDEX "llm_configs_is_free_default_idx" ON "llm_configs"("is_free_default");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "llm_configs_owner_id_name_key" ON "llm_configs"("owner_id", "name");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "personality_default_configs_personality_id_key" ON "personality_default_configs"("personality_id");
 
 -- CreateIndex

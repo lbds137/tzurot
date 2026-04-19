@@ -20,7 +20,9 @@ import {
   LLM_CONFIG_LIST_SELECT,
   LLM_CONFIG_DETAIL_SELECT,
   LLM_CONFIG_DEFAULTS,
-  generateLlmConfigUuid,
+  newLlmConfigId,
+  generateClonedName,
+  stripCopySuffix,
   createLogger,
   safeValidateAdvancedParams,
 } from '@tzurot/common-types';
@@ -180,6 +182,12 @@ export class LlmConfigService {
   /**
    * Create a new LLM config.
    *
+   * When `data.autoSuffixOnCollision === true` and the requested name already
+   * exists for the same owner, the server bumps a `(Copy N)` suffix until it
+   * finds a free slot (via {@link resolveNonCollidingName}). Used by the
+   * preset clone flow so the client can issue a single request regardless of
+   * how many existing copies the user already has.
+   *
    * @param scope - GLOBAL for admin, USER for regular users
    * @param data - Validated input data
    * @param ownerId - Internal user ID for ownership
@@ -191,11 +199,17 @@ export class LlmConfigService {
     ownerId: string
   ): Promise<RawConfigDetail> {
     const isGlobal = scope.type === 'GLOBAL';
+    const requestedName = data.name.trim();
+
+    const effectiveName =
+      data.autoSuffixOnCollision === true
+        ? await this.resolveNonCollidingName(requestedName, ownerId)
+        : requestedName;
 
     const config = await this.prisma.llmConfig.create({
       data: {
-        id: generateLlmConfigUuid(data.name.trim()),
-        name: data.name.trim(),
+        id: newLlmConfigId(),
+        name: effectiveName,
         description: data.description ?? null,
         ownerId,
         isGlobal,
@@ -217,7 +231,12 @@ export class LlmConfigService {
     });
 
     logger.info(
-      { configId: config.id, name: config.name, scope: scope.type },
+      {
+        configId: config.id,
+        name: config.name,
+        scope: scope.type,
+        autoSuffixApplied: effectiveName !== requestedName,
+      },
       'Created LLM config'
     );
 
@@ -225,6 +244,53 @@ export class LlmConfigService {
     await this.invalidateCacheSafely('create', config.id);
 
     return config as RawConfigDetail;
+  }
+
+  /** Upper bound on how far `resolveNonCollidingName` will iterate before
+   *  giving up. Chosen generously — a user with 20+ copies of the same base
+   *  name is pathological; we'd rather throw a clear error than loop forever. */
+  private static readonly MAX_CLONE_NAME_ATTEMPTS = 20;
+
+  /**
+   * Find a name that doesn't collide with any existing config owned by the
+   * same user, starting from `baseName` and bumping `(Copy N)` suffixes via
+   * `generateClonedName` until a free slot is found.
+   *
+   * Uses a single SELECT to enumerate all variants (base, `base (Copy)`,
+   * `base (Copy N)`) and resolves the bump in-memory, so the server handles
+   * the entire collision walk in one DB round-trip instead of the previous
+   * client-side loop that fired up to 10 HTTP requests.
+   *
+   * A race where another request inserts a colliding name between the SELECT
+   * and the INSERT is caught by the caller's P2002 translator — not this
+   * function's concern.
+   */
+  private async resolveNonCollidingName(baseName: string, ownerId: string): Promise<string> {
+    const stripped = stripCopySuffix(baseName);
+
+    const existing = await this.prisma.llmConfig.findMany({
+      where: {
+        ownerId,
+        name: { startsWith: stripped },
+      },
+      select: { name: true },
+    });
+    const takenNames = new Set(existing.map(row => row.name));
+
+    let candidate = baseName;
+    for (let i = 0; i < LlmConfigService.MAX_CLONE_NAME_ATTEMPTS; i++) {
+      if (!takenNames.has(candidate)) {
+        return candidate;
+      }
+      candidate = generateClonedName(candidate);
+    }
+
+    // Pathological: user has 20+ copy variants in a row. Surface a loud
+    // error rather than looping indefinitely.
+    throw new Error(
+      `Could not resolve a unique clone name starting from "${baseName}" after ` +
+        `${LlmConfigService.MAX_CLONE_NAME_ATTEMPTS} attempts`
+    );
   }
 
   /**
