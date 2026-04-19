@@ -3,7 +3,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { truncateText, splitMessage, stripBotFooters, stripDmPrefix } from './discord.js';
+import {
+  truncateText,
+  splitMessage,
+  stripBotFooters,
+  stripDmPrefix,
+  findLeadingMentionsEnd,
+  stripLeadingMentions,
+} from './discord.js';
 
 describe('discord utils', () => {
   describe('truncateText', () => {
@@ -323,6 +330,83 @@ Another paragraph here with more content.`;
     it('should handle prefix-only content', () => {
       const content = '**Name:** ';
       expect(stripDmPrefix(content)).toBe('');
+    });
+  });
+
+  describe('findLeadingMentionsEnd', () => {
+    it('returns 0 for text with no leading mention', () => {
+      expect(findLeadingMentionsEnd('plain text here')).toBe(0);
+    });
+
+    it('skips leading text-form @mention + whitespace', () => {
+      const input = '@Bot hello';
+      expect(findLeadingMentionsEnd(input)).toBe('@Bot '.length);
+    });
+
+    it('skips Discord user mention <@id> + whitespace', () => {
+      const input = '<@123456789012345678> hello';
+      expect(findLeadingMentionsEnd(input)).toBe('<@123456789012345678> '.length);
+    });
+
+    it('skips Discord nickname user mention <@!id> + whitespace', () => {
+      const input = '<@!123456789012345678> hello';
+      expect(findLeadingMentionsEnd(input)).toBe('<@!123456789012345678> '.length);
+    });
+
+    it('skips Discord role mention <@&id>', () => {
+      const input = '<@&987654321098765432> hello';
+      expect(findLeadingMentionsEnd(input)).toBe('<@&987654321098765432> '.length);
+    });
+
+    it('skips Discord channel mention <#id>', () => {
+      const input = '<#111222333444555666> hello';
+      expect(findLeadingMentionsEnd(input)).toBe('<#111222333444555666> '.length);
+    });
+
+    it('skips multiple stacked mentions of mixed types', () => {
+      const input = '@Bot <@123456789012345678> <@&987654321098765432> <#111222333444555666> hi';
+      expect(findLeadingMentionsEnd(input)).toBe(input.length - 'hi'.length);
+    });
+
+    it('respects optional `from` start index', () => {
+      const input = 'prefix ignored @Bot hello';
+      expect(findLeadingMentionsEnd(input, 'prefix ignored '.length)).toBe(
+        'prefix ignored @Bot '.length
+      );
+    });
+
+    it('does not skip mentions that appear mid-string', () => {
+      const input = 'hello @Bot world';
+      expect(findLeadingMentionsEnd(input)).toBe(0);
+    });
+
+    it('skips leading whitespace before first mention', () => {
+      const input = '   @Bot hello';
+      expect(findLeadingMentionsEnd(input)).toBe('   @Bot '.length);
+    });
+  });
+
+  describe('stripLeadingMentions', () => {
+    it('removes a single text-form mention', () => {
+      expect(stripLeadingMentions('@Bot hello')).toBe('hello');
+    });
+
+    it('removes a single Discord numeric mention', () => {
+      expect(stripLeadingMentions('<@123456789012345678> hello')).toBe('hello');
+    });
+
+    it('removes stacked mentions of mixed types', () => {
+      expect(stripLeadingMentions('@Bot <@&987654321098765432> <#111222333444555666> hi')).toBe(
+        'hi'
+      );
+    });
+
+    it('returns input unchanged when no leading mention', () => {
+      expect(stripLeadingMentions('plain text')).toBe('plain text');
+    });
+
+    it('handles empty string', () => {
+      expect(stripLeadingMentions('')).toBe('');
     });
   });
 });

@@ -571,6 +571,15 @@ describe('stripUserMessageEcho', () => {
       expect(result).toBe(TYPICAL_RESPONSE_BODY);
     });
 
+    it('strips echo even when role + channel mentions lead the response', () => {
+      // Coverage for the shared `findLeadingMentionsEnd` utility handling all
+      // Discord mention types — a model that echoes role/channel references
+      // in addition to the user mention shouldn't defeat the stripper.
+      const response = `@Baphomet <@&987654321098765432> <#111222333444555666>\n${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
     it('strips case-differing echo (response lowercased)', () => {
       const lowercased = LONG_USER_MSG.toLowerCase();
       const response = `${lowercased}\n\n${TYPICAL_RESPONSE_BODY}`;

@@ -2,7 +2,14 @@
  * Discord-specific utility functions
  */
 
-import { BOT_FOOTER_PATTERNS } from '../constants/discord.js';
+import { BOT_FOOTER_PATTERNS, DISCORD_MENTIONS } from '../constants/discord.js';
+
+/**
+ * Leading-mention pattern — matches one mention (user, role, channel, or
+ * text-rendered `@name`) at the start of a string with surrounding whitespace.
+ * Used by `findLeadingMentionsEnd` to loop-skip stacked mentions.
+ */
+const LEADING_MENTIONS_RE = new RegExp(`^\\s*${DISCORD_MENTIONS.ANY_PATTERN}\\s*`);
 
 const DISCORD_MAX_MESSAGE_LENGTH = 2000;
 
@@ -280,4 +287,48 @@ const DM_PREFIX_PATTERN = /^\*\*[^*]+:\*\*\s*/;
  */
 export function stripDmPrefix(content: string): string {
   return content.replace(DM_PREFIX_PATTERN, '');
+}
+
+/**
+ * Find the first index of `s` that is NOT part of a leading Discord mention
+ * or the whitespace surrounding one. Skips stacked mentions in a loop, so
+ * `@Bot\n<@adminId> hello` returns the index of `h`.
+ *
+ * Handles all Discord mention formats uniformly:
+ *   - User: `<@123>` or `<@!123>` (nickname-bang variant)
+ *   - Role: `<@&123>`
+ *   - Channel: `<#123>`
+ *   - Text-rendered form: `@name` (any @-prefixed whitespace-delimited token)
+ *
+ * @param s - The string to scan
+ * @param from - Starting index (default 0)
+ * @returns The index of the first non-mention, non-leading-whitespace char
+ *
+ * @example
+ * findLeadingMentionsEnd('@Bot hello')                 // 5
+ * findLeadingMentionsEnd('<@123> <#456> hi')           // 14
+ * findLeadingMentionsEnd('plain text')                 // 0
+ */
+export function findLeadingMentionsEnd(s: string, from = 0): number {
+  let i = from;
+  while (true) {
+    const match = LEADING_MENTIONS_RE.exec(s.substring(i));
+    if (match === null) {
+      return i;
+    }
+    i += match[0].length;
+  }
+}
+
+/**
+ * Strip all leading Discord mentions (and surrounding whitespace) from `s`.
+ * See {@link findLeadingMentionsEnd} for the mention formats recognized.
+ *
+ * @example
+ * stripLeadingMentions('@Bot hello')        // 'hello'
+ * stripLeadingMentions('<@123> <@456> hi')  // 'hi'
+ * stripLeadingMentions('plain text')        // 'plain text'
+ */
+export function stripLeadingMentions(s: string): string {
+  return s.substring(findLeadingMentionsEnd(s));
 }

@@ -12,7 +12,12 @@
  * - Still occasionally add "Name:" prefixes
  */
 
-import { createLogger, type MessageContent } from '@tzurot/common-types';
+import {
+  createLogger,
+  findLeadingMentionsEnd,
+  stripLeadingMentions,
+  type MessageContent,
+} from '@tzurot/common-types';
 
 const logger = createLogger('ResponseArtifacts');
 
@@ -146,46 +151,18 @@ export function stripResponseArtifacts(content: string, personalityName: string)
 }
 
 /**
- * Leading-mention matcher. Handles both forms:
- *   - `@<name>`       — rendered/display form (what a user sees; what models
- *                       often echo in their training-learned output)
- *   - `<@!?<id>>`     — Discord's raw-content form; the `!` variant marks a
- *                       nickname mention
- *
- * Anchored at `^` with `\s*` on both sides so the matcher can be looped
- * against a substring to strip *multiple* leading mentions (e.g., bot
- * self-mention followed by a user's `@admin` mention).
- */
-const LEADING_MENTION_RE = /^\s*(?:@\S+|<@!?\d+>)\s*/;
-
-/**
- * Advance past any number of leading mentions + surrounding whitespace,
- * starting from position `from` in `s`. Returns the index of the first
- * non-mention, non-leading-whitespace character.
- */
-function skipLeadingMentions(s: string, from: number): number {
-  let i = from;
-  while (true) {
-    const match = LEADING_MENTION_RE.exec(s.substring(i));
-    if (match === null) {
-      return i;
-    }
-    i += match[0].length;
-  }
-}
-
-/**
- * Normalize text for echo-match comparison: strip every leading mention
- * (text form and Discord numeric form), lowercase, collapse whitespace, trim.
- * Intentionally NOT Unicode-normalized — `.toLowerCase()` is a no-op for
- * non-cased scripts (Hebrew, Arabic, CJK), so comparison still works
- * character-for-character for those.
+ * Normalize text for echo-match comparison: strip every leading Discord
+ * mention (user/role/channel/text-rendered), lowercase, collapse whitespace,
+ * trim. Uses the shared `stripLeadingMentions` utility from common-types so
+ * all mention formats stay in lockstep across the codebase. Intentionally
+ * NOT Unicode-normalized — `.toLowerCase()` is a no-op for non-cased scripts
+ * (Hebrew, Arabic, CJK), so comparison still works character-for-character
+ * for those.
  *
  * @internal Exported for testing
  */
 export function normalizeForEchoMatch(s: string): string {
-  const afterMentions = s.substring(skipLeadingMentions(s, 0));
-  return afterMentions.toLowerCase().replace(/\s+/g, ' ').trim();
+  return stripLeadingMentions(s).toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -234,10 +211,10 @@ function stepEchoChar(
  *     `userTextNormalized` (i.e., the response prefix isn't actually the
  *     user's text even though it has enough chars).
  *
- * Both text-form (`@name`) and Discord's numeric-form (`<@!?id>`) leading
- * mentions are stripped, and multiple leading mentions are skipped in a
- * loop — matches `normalizeForEchoMatch`'s behavior so boundaries line up
- * on both sides of the comparison.
+ * All Discord mention formats (user, role, channel, text-rendered) at the
+ * leading position are skipped via `findLeadingMentionsEnd`, and multiple
+ * stacked mentions are skipped too — symmetric with `normalizeForEchoMatch`
+ * so boundaries line up on both sides of the comparison.
  */
 function findEchoCutIndex(response: string, userTextNormalized: string): number {
   if (userTextNormalized.length === 0) {
@@ -245,7 +222,7 @@ function findEchoCutIndex(response: string, userTextNormalized: string): number 
   }
 
   // Skip leading mentions (symmetric with `normalizeForEchoMatch`).
-  let i = skipLeadingMentions(response, 0);
+  let i = findLeadingMentionsEnd(response, 0);
 
   let producedLength = 0;
   let lastWasSpace = true; // start-of-normalized is "just past trim" — no leading space
