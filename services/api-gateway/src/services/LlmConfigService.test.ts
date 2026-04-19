@@ -5,7 +5,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { LlmConfigService, type LlmConfigScope } from './LlmConfigService.js';
+import {
+  LlmConfigService,
+  AutoSuffixCollisionError,
+  CloneNameExhaustedError,
+  type LlmConfigScope,
+} from './LlmConfigService.js';
 import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/common-types';
 
 // Mock logger
@@ -312,7 +317,7 @@ describe('LlmConfigService', () => {
         );
       });
 
-      it('bumps to max+1 across many existing copy variants', async () => {
+      it('finds the first free (Copy N) slot when gaps exist', async () => {
         prisma.llmConfig.findMany.mockResolvedValue([
           { name: 'Preset' },
           { name: 'Preset (Copy)' },
@@ -335,7 +340,7 @@ describe('LlmConfigService', () => {
         );
       });
 
-      it('queries findMany with startsWith on the stripped base name', async () => {
+      it('queries findMany with startsWith on the stripped base name and a bounded take', async () => {
         prisma.llmConfig.findMany.mockResolvedValue([]);
         prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
 
@@ -351,6 +356,7 @@ describe('LlmConfigService', () => {
               ownerId: 'user-1',
               name: { startsWith: 'Preset' },
             }),
+            take: 21, // MAX_CLONE_NAME_ATTEMPTS (20) + 1
           })
         );
       });
@@ -368,7 +374,7 @@ describe('LlmConfigService', () => {
         );
       });
 
-      it('throws when the suffix loop exhausts after 20 iterations', async () => {
+      it('throws CloneNameExhaustedError when every candidate is taken', async () => {
         // 20 iterations means every candidate up to (Copy 20) is taken.
         // Generate names: "Preset", "Preset (Copy)", "Preset (Copy 2)" ... "Preset (Copy 20)"
         const allTaken = [
@@ -385,9 +391,57 @@ describe('LlmConfigService', () => {
             { name: 'Preset', model: 'm', autoSuffixOnCollision: true },
             'user-1'
           )
-        ).rejects.toThrow(/Could not resolve a unique clone name/);
+        ).rejects.toBeInstanceOf(CloneNameExhaustedError);
 
         expect(prisma.llmConfig.create).not.toHaveBeenCalled();
+      });
+
+      it('wraps P2002 from the auto-suffix insert in AutoSuffixCollisionError', async () => {
+        // SELECT sees nothing, so resolve picks the bare candidate. Then the
+        // INSERT races and Prisma throws P2002 — the service should rewrap
+        // that with the candidate name so the route can cite it accurately.
+        prisma.llmConfig.findMany.mockResolvedValue([]);
+        const p2002 = Object.assign(new Error('Unique constraint failed'), {
+          code: 'P2002',
+          meta: { target: ['owner_id', 'name'] },
+        });
+        prisma.llmConfig.create.mockRejectedValue(p2002);
+
+        await expect(
+          service.create(
+            scope,
+            { name: 'Preset', model: 'm', autoSuffixOnCollision: true },
+            'user-1'
+          )
+        ).rejects.toBeInstanceOf(AutoSuffixCollisionError);
+
+        // Second assertion: the wrapped error carries the bumped name the
+        // route needs to cite in the user-facing message.
+        prisma.llmConfig.findMany.mockResolvedValue([]);
+        try {
+          await service.create(
+            scope,
+            { name: 'Preset', model: 'm', autoSuffixOnCollision: true },
+            'user-1'
+          );
+        } catch (err) {
+          expect(err).toBeInstanceOf(AutoSuffixCollisionError);
+          expect((err as AutoSuffixCollisionError).effectiveName).toBe('Preset');
+        }
+      });
+
+      it('does NOT wrap P2002 when autoSuffixOnCollision is false', async () => {
+        // The regular-create path lets P2002 propagate so the route's
+        // existing `isPrismaUniqueConstraintError` catch handles it.
+        const p2002 = Object.assign(new Error('Unique constraint failed'), {
+          code: 'P2002',
+          meta: { target: ['owner_id', 'name'] },
+        });
+        prisma.llmConfig.create.mockRejectedValue(p2002);
+
+        await expect(service.create(scope, { name: 'Regular', model: 'm' }, 'user-1')).rejects.toBe(
+          p2002
+        );
       });
     });
   });

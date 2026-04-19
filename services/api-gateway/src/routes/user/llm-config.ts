@@ -33,7 +33,12 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
-import { LlmConfigService, type LlmConfigScope } from '../../services/LlmConfigService.js';
+import {
+  LlmConfigService,
+  AutoSuffixCollisionError,
+  CloneNameExhaustedError,
+  type LlmConfigScope,
+} from '../../services/LlmConfigService.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { enrichWithModelContext } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
@@ -164,10 +169,13 @@ function createCreateHandler(
       }
     }
 
-    // Create config using service. P2002 here is the defense-in-depth path
-    // for the race between `checkNameExists` and the INSERT — map it back to
-    // the same NAME_COLLISION sub-code the check-path returns so clients
-    // don't need two error shapes for "name already exists."
+    // Create config using service. Three collision paths to translate:
+    //  - Auto-suffix path raced — service wraps P2002 with the bumped name so
+    //    we can cite the actual collided name (not `body.name`).
+    //  - Auto-suffix path exhausted — pathological case, but map to a clear
+    //    NAME_COLLISION so the client doesn't see an opaque 500.
+    //  - Non-auto-suffix path raced past `checkNameExists` — defense-in-depth
+    //    P2002 with the original requested name.
     let config;
     try {
       config = await service.create(
@@ -176,6 +184,22 @@ function createCreateHandler(
         userId
       );
     } catch (err) {
+      if (err instanceof AutoSuffixCollisionError) {
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(
+            `Name "${err.effectiveName}" was taken by a concurrent request. Please try again.`
+          )
+        );
+      }
+      if (err instanceof CloneNameExhaustedError) {
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(
+            `Too many copies of "${err.baseName}" already exist. Try renaming some before cloning again.`
+          )
+        );
+      }
       if (isPrismaUniqueConstraintError(err)) {
         return sendError(
           res,
