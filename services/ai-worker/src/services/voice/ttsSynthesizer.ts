@@ -237,14 +237,16 @@ export async function synthesizeWithChunking(
     'Multi-chunk TTS synthesis'
   );
 
-  // Synthesize chunks sequentially to avoid overwhelming the single-process voice-engine
+  // Synthesize chunks sequentially to avoid overwhelming the single-process voice-engine.
+  // Request WAV for each chunk: extractPcmData/buildWavHeader below operate on raw PCM,
+  // and Opus-in-Ogg can't be losslessly concatenated at the byte level.
   const results: SynthesisResult[] = [];
   for (let index = 0; index < chunks.length; index++) {
     logger.debug(
       { voiceId, chunkIndex: index, chunkLength: chunks[index].length },
       'Synthesizing chunk'
     );
-    results.push(await client.synthesize(chunks[index], voiceId));
+    results.push(await client.synthesize(chunks[index], voiceId, { format: 'wav' }));
   }
 
   // Extract PCM data from each WAV result and concatenate

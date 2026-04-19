@@ -108,11 +108,23 @@ export class VoiceEngineClient {
 
   /** Synthesize speech via POST /v1/tts.
    *  No explicit timeout — inherits `this.timeoutMs` (3 min) to accommodate
-   *  Railway Serverless cold starts. See constructor comment for rationale. */
-  async synthesize(text: string, voiceId: string): Promise<SynthesisResult> {
+   *  Railway Serverless cold starts. See constructor comment for rationale.
+   *
+   *  Format: defaults to 'opus' (audio/ogg, ~10x smaller than WAV). Pass 'wav'
+   *  only when the caller needs to extract raw PCM (e.g., multi-chunk
+   *  concatenation in ttsSynthesizer.ts) — Opus-in-Ogg cannot be losslessly
+   *  concatenated at the byte level. */
+  async synthesize(
+    text: string,
+    voiceId: string,
+    options?: { format?: 'opus' | 'wav' }
+  ): Promise<SynthesisResult> {
     const formData = new FormData();
     formData.append('text', text);
     formData.append('voice_id', voiceId);
+    if (options?.format !== undefined) {
+      formData.append('format', options.format);
+    }
 
     const response = await this.fetchWithTimeout('/v1/tts', {
       method: 'POST',
