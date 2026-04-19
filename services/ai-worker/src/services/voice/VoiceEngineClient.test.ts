@@ -334,6 +334,34 @@ describe('VoiceEngineClient', () => {
 
       expect(result.contentType).toBe('audio/wav');
     });
+
+    it('should omit format field when options.format is not provided (voice-engine default applies)', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
+        headers: { get: vi.fn().mockReturnValue('audio/ogg') },
+      });
+
+      await client.synthesize('Hello', 'voice-1');
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = init.body as FormData;
+      expect(body.has('format')).toBe(false);
+    });
+
+    it('should pass format=wav in FormData when requested by caller (multi-chunk path)', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
+        headers: { get: vi.fn().mockReturnValue('audio/wav') },
+      });
+
+      await client.synthesize('Hello', 'voice-1', { format: 'wav' });
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = init.body as FormData;
+      expect(body.get('format')).toBe('wav');
+    });
   });
 
   describe('registerVoice', () => {
