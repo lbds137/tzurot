@@ -181,6 +181,7 @@ model LlmConfig {
   userPersonalityConfigs      UserPersonalityConfig[]
   usersWithAsDefault          User[]                     @relation("UserDefaultLlmConfig")
 
+  @@unique([ownerId, name], map: "llm_configs_owner_id_name_key")
   @@index([ownerId])
   @@index([isGlobal])
   @@index([isFreeDefault])

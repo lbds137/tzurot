@@ -18,7 +18,7 @@
  * @see CLAUDE.md for the full list of generators and usage patterns
  */
 
-import { v5 as uuidv5 } from 'uuid';
+import { v5 as uuidv5, v7 as uuidv7 } from 'uuid';
 import crypto from 'crypto';
 
 /**
@@ -67,9 +67,30 @@ export function generateSystemPromptUuid(name: string): string {
 /**
  * Generate deterministic UUID for an LlmConfig
  * Seed: llm_config:{name}
+ *
+ * @deprecated Deriving LlmConfig IDs from a user-editable name caused phantom
+ * PK collisions when users cloned → renamed → re-cloned (bug observed
+ * 2026-04-19). Prod LlmConfig creates now use {@link newLlmConfigId} (UUIDv7)
+ * with DB-level `@@unique([ownerId, name])` enforcing name uniqueness via a
+ * proper constraint instead of indirectly via the PK. This function is
+ * retained for test fixtures that seed rows with stable IDs; do NOT add new
+ * production callers.
  */
 export function generateLlmConfigUuid(name: string): string {
   return uuidv5(`llm_config:${name}`, TZUROT_NAMESPACE);
+}
+
+/**
+ * Generate a time-ordered random UUID (UUIDv7) for a new LlmConfig row.
+ *
+ * Replaces {@link generateLlmConfigUuid} in the production create path. Time
+ * ordering gives natural chronological sort without needing a separate
+ * `createdAt` index for most queries, and random tail bytes guarantee
+ * uniqueness without any dependency on user-editable fields — which was the
+ * root cause of the 2026-04-19 clone-after-rename phantom-PK bug.
+ */
+export function newLlmConfigId(): string {
+  return uuidv7();
 }
 
 /**

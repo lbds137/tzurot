@@ -271,6 +271,125 @@ describe('LlmConfigService', () => {
         })
       );
     });
+
+    describe('autoSuffixOnCollision', () => {
+      const scope: LlmConfigScope = { type: 'USER', userId: 'user-1', discordId: 'discord-1' };
+
+      it('uses requested name unchanged when no collision exists', async () => {
+        prisma.llmConfig.findMany.mockResolvedValue([]);
+        prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
+
+        await service.create(
+          scope,
+          { name: 'Fresh Name', model: 'm', autoSuffixOnCollision: true },
+          'user-1'
+        );
+
+        expect(prisma.llmConfig.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ name: 'Fresh Name' }),
+          })
+        );
+      });
+
+      it('bumps to (Copy 2) when base and (Copy) are both taken', async () => {
+        prisma.llmConfig.findMany.mockResolvedValue([
+          { name: 'Preset' },
+          { name: 'Preset (Copy)' },
+        ]);
+        prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
+
+        await service.create(
+          scope,
+          { name: 'Preset (Copy)', model: 'm', autoSuffixOnCollision: true },
+          'user-1'
+        );
+
+        expect(prisma.llmConfig.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ name: 'Preset (Copy 2)' }),
+          })
+        );
+      });
+
+      it('bumps to max+1 across many existing copy variants', async () => {
+        prisma.llmConfig.findMany.mockResolvedValue([
+          { name: 'Preset' },
+          { name: 'Preset (Copy)' },
+          { name: 'Preset (Copy 5)' },
+        ]);
+        prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
+
+        await service.create(
+          scope,
+          { name: 'Preset (Copy)', model: 'm', autoSuffixOnCollision: true },
+          'user-1'
+        );
+
+        // "Preset (Copy)" is taken → generateClonedName gives "Preset (Copy 2)".
+        // That's free in our set (only (Copy) and (Copy 5) are taken), so (Copy 2) wins.
+        expect(prisma.llmConfig.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ name: 'Preset (Copy 2)' }),
+          })
+        );
+      });
+
+      it('queries findMany with startsWith on the stripped base name', async () => {
+        prisma.llmConfig.findMany.mockResolvedValue([]);
+        prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
+
+        await service.create(
+          scope,
+          { name: 'Preset (Copy 5)', model: 'm', autoSuffixOnCollision: true },
+          'user-1'
+        );
+
+        expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              ownerId: 'user-1',
+              name: { startsWith: 'Preset' },
+            }),
+          })
+        );
+      });
+
+      it('does NOT query or bump when autoSuffixOnCollision is omitted (regular create)', async () => {
+        prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
+
+        await service.create(scope, { name: 'Regular', model: 'm' }, 'user-1');
+
+        expect(prisma.llmConfig.findMany).not.toHaveBeenCalled();
+        expect(prisma.llmConfig.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ name: 'Regular' }),
+          })
+        );
+      });
+
+      it('throws when the suffix loop exhausts after 20 iterations', async () => {
+        // 20 iterations means every candidate up to (Copy 20) is taken.
+        // Generate names: "Preset", "Preset (Copy)", "Preset (Copy 2)" ... "Preset (Copy 20)"
+        const allTaken = [
+          { name: 'Preset' },
+          ...Array.from({ length: 20 }, (_, i) => ({
+            name: i === 0 ? 'Preset (Copy)' : `Preset (Copy ${i + 1})`,
+          })),
+        ];
+        prisma.llmConfig.findMany.mockResolvedValue(allTaken);
+
+        await expect(
+          service.create(
+            scope,
+            { name: 'Preset', model: 'm', autoSuffixOnCollision: true },
+            'user-1'
+          )
+        ).rejects.toThrow(/Could not resolve a unique clone name/);
+
+        expect(prisma.llmConfig.create).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('update', () => {

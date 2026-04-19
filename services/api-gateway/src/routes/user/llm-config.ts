@@ -30,6 +30,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
+import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService, type LlmConfigScope } from '../../services/LlmConfigService.js';
@@ -145,25 +146,44 @@ function createCreateHandler(
 
     const userId = await userService.getOrCreateUserShell(discordUserId);
 
-    // Check for duplicate name using service
-    const nameCheck = await service.checkNameExists(body.name, {
-      type: 'USER',
-      userId,
-      discordId: discordUserId,
-    });
-    if (nameCheck.exists) {
-      return sendError(
-        res,
-        ErrorResponses.nameCollision(`You already have a config named "${body.name}"`)
-      );
+    // Duplicate-name check is skipped when the client opts into
+    // autoSuffixOnCollision (the preset clone flow): the service will bump
+    // the (Copy N) suffix server-side until it finds a free slot. For
+    // regular creates, strict name-uniqueness still surfaces as an error.
+    if (body.autoSuffixOnCollision !== true) {
+      const nameCheck = await service.checkNameExists(body.name, {
+        type: 'USER',
+        userId,
+        discordId: discordUserId,
+      });
+      if (nameCheck.exists) {
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(`You already have a config named "${body.name}"`)
+        );
+      }
     }
 
-    // Create config using service
-    const config = await service.create(
-      { type: 'USER', userId, discordId: discordUserId },
-      body,
-      userId
-    );
+    // Create config using service. P2002 here is the defense-in-depth path
+    // for the race between `checkNameExists` and the INSERT — map it back to
+    // the same NAME_COLLISION sub-code the check-path returns so clients
+    // don't need two error shapes for "name already exists."
+    let config;
+    try {
+      config = await service.create(
+        { type: 'USER', userId, discordId: discordUserId },
+        body,
+        userId
+      );
+    } catch (err) {
+      if (isPrismaUniqueConstraintError(err)) {
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(`You already have a config named "${body.name}"`)
+        );
+      }
+      throw err;
+    }
 
     // User always owns their own created config
     const permissions = computeLlmConfigPermissions(
