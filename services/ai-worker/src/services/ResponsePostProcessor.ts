@@ -236,6 +236,30 @@ export class ResponsePostProcessor {
       );
     }
 
+    // Step 7: Reasoning-mode actual-vs-requested telemetry. Some models
+    // (notably `z-ai/glm-4.5-air:free`) accept a reasoning flag but don't
+    // always actually emit reasoning — the response comes back as if
+    // reasoning was disabled. When we're investigating model-inference
+    // stickiness that produces duplicate responses, knowing whether
+    // reasoning actually engaged for each turn is a load-bearing signal.
+    // This is purely diagnostic (no behavior change).
+    if (context.reasoningEnabled === true) {
+      const reasoningActuallyEngaged = thinkingContent !== null && thinkingContent.length > 0;
+      logger.info(
+        {
+          personalityName: context.personalityName,
+          reasoningRequested: true,
+          reasoningActuallyEngaged,
+          apiReasoningLength: apiReasoning !== null ? apiReasoning.length : 0,
+          thinkingContentLength: thinkingContent !== null ? thinkingContent.length : 0,
+          cleanedContentLength: cleanedContent.length,
+        },
+        reasoningActuallyEngaged
+          ? '[ResponsePostProcessor] Reasoning mode engaged as requested'
+          : '[ResponsePostProcessor] Reasoning mode requested but did NOT engage — model ignored the flag'
+      );
+    }
+
     return {
       cleanedContent,
       thinkingContent,
