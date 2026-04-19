@@ -610,4 +610,150 @@ describe('LlmConfigService Integration', () => {
       });
     });
   });
+
+  /**
+   * Regression test for the phantom-PK-collision bug observed 2026-04-19.
+   *
+   * Before fix: `id: generateLlmConfigUuid(name)` (deterministic UUIDv5 from
+   * the user-editable name) meant the flow below hit PK collision on step 4:
+   *
+   *   1. Create "X"              → id U1
+   *   2. Clone "X" → "X (Copy)"  → id U2
+   *   3. Rename "X (Copy)" → "Repurposed"  (row is now (id=U2, name="Repurposed"))
+   *   4. Clone "X" again → name "X (Copy)" free at name level, BUT id U2
+   *      is taken → 500 `Unique constraint failed on the fields: (id)`
+   *
+   * After fix: new rows get UUIDv7 (no dependency on name), and the
+   * @@unique([ownerId, name]) DB constraint enforces uniqueness at the
+   * correct level. Step 4 now succeeds with a fresh random id.
+   */
+  describe('clone-after-rename regression (phantom PK collision)', () => {
+    const userScope = (): LlmConfigScope => ({
+      type: 'USER',
+      userId: testUserId,
+      discordId: TEST_DISCORD_ID,
+    });
+
+    it('allows re-cloning the original after a prior clone was renamed', async () => {
+      // Step 1: create the original
+      const original = await service.create(
+        userScope(),
+        { name: 'X', model: 'anthropic/claude-sonnet-4' },
+        testUserId
+      );
+      expect(original.name).toBe('X');
+
+      // Step 2: first clone — server picks "X (Copy)" via autoSuffixOnCollision
+      const firstClone = await service.create(
+        userScope(),
+        {
+          name: 'X (Copy)',
+          model: 'anthropic/claude-sonnet-4',
+          autoSuffixOnCollision: true,
+        },
+        testUserId
+      );
+      expect(firstClone.name).toBe('X (Copy)');
+      expect(firstClone.id).not.toBe(original.id);
+
+      // Step 3: rename the clone — row still exists, but "X (Copy)" is
+      // now a free name slot at the application level.
+      await service.update(firstClone.id, { name: 'Repurposed' });
+
+      // Step 4: the bug scenario. Under the old deterministic-UUID scheme
+      // this would fail with "Unique constraint failed on the fields: (id)"
+      // because the new row's computed UUID would match the renamed row's PK.
+      const secondClone = await service.create(
+        userScope(),
+        {
+          name: 'X (Copy)',
+          model: 'anthropic/claude-sonnet-4',
+          autoSuffixOnCollision: true,
+        },
+        testUserId
+      );
+
+      expect(secondClone.name).toBe('X (Copy)');
+      expect(secondClone.id).not.toBe(original.id);
+      expect(secondClone.id).not.toBe(firstClone.id);
+
+      // Sanity: all three rows coexist under distinct ids.
+      const allForUser = await prisma.llmConfig.findMany({
+        where: { ownerId: testUserId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+      expect(allForUser.map(c => c.name)).toEqual(['Repurposed', 'X', 'X (Copy)']);
+    });
+
+    it('generates UUIDv7 ids for newly-created configs', async () => {
+      const config = await service.create(
+        userScope(),
+        { name: 'V7 Test', model: 'anthropic/claude-sonnet-4' },
+        testUserId
+      );
+      // UUIDv7: version digit at position 14 (0-indexed) is '7'.
+      expect(config.id[14]).toBe('7');
+    });
+
+    it('server-side suffix bumping skips existing (Copy N) variants in a single query', async () => {
+      // Seed the user's preset slot with a base + two copy variants
+      await service.create(
+        userScope(),
+        { name: 'Seed', model: 'anthropic/claude-sonnet-4' },
+        testUserId
+      );
+      await service.create(
+        userScope(),
+        {
+          name: 'Seed (Copy)',
+          model: 'anthropic/claude-sonnet-4',
+          autoSuffixOnCollision: true,
+        },
+        testUserId
+      );
+      await service.create(
+        userScope(),
+        {
+          name: 'Seed (Copy 5)',
+          model: 'anthropic/claude-sonnet-4',
+          autoSuffixOnCollision: true,
+        },
+        testUserId
+      );
+
+      // Now request "Seed (Copy)" again — server should find "Seed (Copy)"
+      // is taken, bump to "(Copy 2)", see that's free, and use it.
+      const result = await service.create(
+        userScope(),
+        {
+          name: 'Seed (Copy)',
+          model: 'anthropic/claude-sonnet-4',
+          autoSuffixOnCollision: true,
+        },
+        testUserId
+      );
+
+      expect(result.name).toBe('Seed (Copy 2)');
+    });
+
+    it('enforces (owner_id, name) uniqueness at the DB level for non-autoSuffix creates', async () => {
+      await service.create(
+        userScope(),
+        { name: 'Strict', model: 'anthropic/claude-sonnet-4' },
+        testUserId
+      );
+
+      // Regular create (no autoSuffixOnCollision) with a colliding name
+      // bypasses the app-level check in this test because we're calling the
+      // service directly, not the route. The DB constraint must still bite.
+      await expect(
+        service.create(
+          userScope(),
+          { name: 'Strict', model: 'anthropic/claude-sonnet-4' },
+          testUserId
+        )
+      ).rejects.toMatchObject({ code: 'P2002' });
+    });
+  });
 });
