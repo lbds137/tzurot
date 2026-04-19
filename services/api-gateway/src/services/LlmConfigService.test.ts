@@ -340,7 +340,7 @@ describe('LlmConfigService', () => {
         );
       });
 
-      it('queries findMany with OR(exact base, copy variants) + orderBy + bounded take', async () => {
+      it('queries findMany with OR(exact base, (Copy), (Copy number)) + orderBy + bounded take', async () => {
         prisma.llmConfig.findMany.mockResolvedValue([]);
         prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
 
@@ -350,11 +350,16 @@ describe('LlmConfigService', () => {
           'user-1'
         );
 
+        // Split copy-variant match so "(Copycat Theme)" doesn't false-match.
         expect(prisma.llmConfig.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
             where: expect.objectContaining({
               ownerId: 'user-1',
-              OR: [{ name: 'Preset' }, { name: { startsWith: 'Preset (Copy' } }],
+              OR: [
+                { name: 'Preset' },
+                { name: { startsWith: 'Preset (Copy)' } },
+                { name: { startsWith: 'Preset (Copy ' } },
+              ],
             }),
             orderBy: { name: 'asc' },
             take: 21, // MAX_CLONE_NAME_ATTEMPTS (20) + 1
@@ -375,24 +380,28 @@ describe('LlmConfigService', () => {
         );
       });
 
-      it('throws CloneNameExhaustedError when every candidate is taken', async () => {
-        // 20 iterations means every candidate up to (Copy 20) is taken.
-        // Generate names: "Preset", "Preset (Copy)", "Preset (Copy 2)" ... "Preset (Copy 20)"
-        const allTaken = [
-          { name: 'Preset' },
-          ...Array.from({ length: 20 }, (_, i) => ({
-            name: i === 0 ? 'Preset (Copy)' : `Preset (Copy ${i + 1})`,
-          })),
-        ];
+      it('throws CloneNameExhaustedError carrying the stripped base name', async () => {
+        // Caller requests "Preset (Copy 5)"; the walk climbs from (Copy 5)
+        // through (Copy 24), so all 20 of those must be in takenNames to
+        // force exhaustion.
+        const allTaken = Array.from({ length: 20 }, (_, i) => ({
+          name: `Preset (Copy ${i + 5})`,
+        }));
         prisma.llmConfig.findMany.mockResolvedValue(allTaken);
 
-        await expect(
-          service.create(
+        try {
+          await service.create(
             scope,
-            { name: 'Preset', model: 'm', autoSuffixOnCollision: true },
+            { name: 'Preset (Copy 5)', model: 'm', autoSuffixOnCollision: true },
             'user-1'
-          )
-        ).rejects.toBeInstanceOf(CloneNameExhaustedError);
+          );
+          throw new Error('should have thrown');
+        } catch (err) {
+          expect(err).toBeInstanceOf(CloneNameExhaustedError);
+          // The error should report the stripped base ("Preset"), not the
+          // caller's copy-suffixed input — that's how the user identifies it.
+          expect((err as CloneNameExhaustedError).baseName).toBe('Preset');
+        }
 
         expect(prisma.llmConfig.create).not.toHaveBeenCalled();
       });
@@ -443,6 +452,26 @@ describe('LlmConfigService', () => {
         await expect(service.create(scope, { name: 'Regular', model: 'm' }, 'user-1')).rejects.toBe(
           p2002
         );
+      });
+
+      it('does NOT wrap a P2002 whose target is not (owner_id, name)', async () => {
+        // Defense-in-depth against mislabeling: a hypothetical PK collision
+        // (target: ['id']) must propagate untouched, not get re-thrown as
+        // AutoSuffixCollisionError with a misleading `effectiveName`.
+        prisma.llmConfig.findMany.mockResolvedValue([]);
+        const pkCollision = Object.assign(new Error('PK collision'), {
+          code: 'P2002',
+          meta: { target: ['id'] },
+        });
+        prisma.llmConfig.create.mockRejectedValue(pkCollision);
+
+        await expect(
+          service.create(
+            scope,
+            { name: 'Preset', model: 'm', autoSuffixOnCollision: true },
+            'user-1'
+          )
+        ).rejects.toBe(pkCollision);
       });
     });
   });

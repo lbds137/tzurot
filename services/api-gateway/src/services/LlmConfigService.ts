@@ -27,7 +27,7 @@ import {
   safeValidateAdvancedParams,
 } from '@tzurot/common-types';
 
-import { isPrismaUniqueConstraintError } from '../utils/prismaErrors.js';
+import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
 
 const logger = createLogger('LlmConfigService');
 
@@ -283,7 +283,14 @@ export class LlmConfigService {
       // Auto-suffix path: the server-side SELECT said `effectiveName` was free,
       // but a concurrent request just claimed it. Wrap the P2002 so the route
       // can surface the actual collided name (not `body.name` from the client).
-      if (data.autoSuffixOnCollision === true && isPrismaUniqueConstraintError(err)) {
+      //
+      // Scoped to the `(owner_id, name)` target so a hypothetical PK collision
+      // (astronomically unlikely under UUIDv7) isn't mislabeled as a name
+      // conflict.
+      if (
+        data.autoSuffixOnCollision === true &&
+        isPrismaUniqueConstraintErrorOn(err, ['owner_id', 'name'])
+      ) {
         throw new AutoSuffixCollisionError(effectiveName, err);
       }
       throw err;
@@ -328,10 +335,12 @@ export class LlmConfigService {
     const stripped = stripCopySuffix(baseName);
 
     // Tight filter: fetch the exact base name OR a `base (Copy...)` variant.
-    // `startsWith: stripped` alone would over-fetch unrelated names sharing a
-    // short prefix ("AI" → "AI Assistant", "AI Fast") and crowd actual copy
-    // variants out of the `take` budget. `orderBy: name asc` puts the base
-    // name first (shorter prefix) and the copy variants right behind it.
+    // Splitting the copy-variant match into two startsWith predicates —
+    // `"<base> (Copy)"` (the no-number form) and `"<base> (Copy "` (the
+    // numbered form, note trailing space) — avoids over-fetching false
+    // positives like `"<base> (Copycat Theme)"` that can never match a
+    // generated candidate but still consume the `take` budget. `orderBy: name
+    // asc` puts the base name first and the copy variants right behind it.
     //
     // Bounded read: the in-memory loop walks at most MAX_CLONE_NAME_ATTEMPTS
     // candidates, so the SELECT only needs to see those N rows. Any collision
@@ -340,7 +349,11 @@ export class LlmConfigService {
     const existing = await this.prisma.llmConfig.findMany({
       where: {
         ownerId,
-        OR: [{ name: stripped }, { name: { startsWith: `${stripped} (Copy` } }],
+        OR: [
+          { name: stripped },
+          { name: { startsWith: `${stripped} (Copy)` } },
+          { name: { startsWith: `${stripped} (Copy ` } },
+        ],
       },
       select: { name: true },
       orderBy: { name: 'asc' },
@@ -358,7 +371,10 @@ export class LlmConfigService {
 
     // Pathological: user has 20+ copy variants in a row. Typed so the route
     // can translate to a user-friendly NAME_COLLISION instead of an opaque 500.
-    throw new CloneNameExhaustedError(baseName, LlmConfigService.MAX_CLONE_NAME_ATTEMPTS);
+    // Passing `stripped` rather than the raw `baseName` means the user-facing
+    // message reads "Too many copies of 'Preset'..." instead of "...of
+    // 'Preset (Copy 5)'..." — the former is how the user identifies the preset.
+    throw new CloneNameExhaustedError(stripped, LlmConfigService.MAX_CLONE_NAME_ATTEMPTS);
   }
 
   /**
