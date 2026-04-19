@@ -134,13 +134,19 @@ export class CloneNameExhaustedError extends Error {
  * SELECT and claims the `effectiveName` before our INSERT lands. Carries the
  * bumped name so the caller can surface an accurate error message (the route
  * previously echoed `body.name`, which is wrong when the suffix was bumped).
+ *
+ * The underlying Prisma P2002 is chained via the ES2022 `cause` option so
+ * structured loggers and error aggregators (Sentry, etc.) pick it up through
+ * the standard `error.cause` chain rather than a custom property.
  */
 export class AutoSuffixCollisionError extends Error {
   constructor(
     public readonly effectiveName: string,
-    public readonly cause: unknown
+    cause: unknown
   ) {
-    super(`Name "${effectiveName}" was taken by a concurrent request after suffix resolution`);
+    super(`Name "${effectiveName}" was taken by a concurrent request after suffix resolution`, {
+      cause,
+    });
     this.name = 'AutoSuffixCollisionError';
   }
 }
@@ -321,16 +327,23 @@ export class LlmConfigService {
   private async resolveNonCollidingName(baseName: string, ownerId: string): Promise<string> {
     const stripped = stripCopySuffix(baseName);
 
-    // Bounded read: the in-memory loop walks at most
-    // `MAX_CLONE_NAME_ATTEMPTS` candidates, so the SELECT only needs to see
-    // those N rows. Any over-fetched collision that slips past this limit is
-    // still caught by the P2002 translator in `create()`.
+    // Tight filter: fetch the exact base name OR a `base (Copy...)` variant.
+    // `startsWith: stripped` alone would over-fetch unrelated names sharing a
+    // short prefix ("AI" → "AI Assistant", "AI Fast") and crowd actual copy
+    // variants out of the `take` budget. `orderBy: name asc` puts the base
+    // name first (shorter prefix) and the copy variants right behind it.
+    //
+    // Bounded read: the in-memory loop walks at most MAX_CLONE_NAME_ATTEMPTS
+    // candidates, so the SELECT only needs to see those N rows. Any collision
+    // that slips past this limit is still caught by the P2002 translator in
+    // `create()`.
     const existing = await this.prisma.llmConfig.findMany({
       where: {
         ownerId,
-        name: { startsWith: stripped },
+        OR: [{ name: stripped }, { name: { startsWith: `${stripped} (Copy` } }],
       },
       select: { name: true },
+      orderBy: { name: 'asc' },
       take: LlmConfigService.MAX_CLONE_NAME_ATTEMPTS + 1,
     });
     const takenNames = new Set(existing.map(row => row.name));
