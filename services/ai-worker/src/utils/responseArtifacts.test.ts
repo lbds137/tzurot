@@ -507,15 +507,19 @@ describe('stripUserMessageEcho', () => {
     '*hoof taps once, horns catching the dim light in this digital space*\n\nThe shift from Lucifer and Satan to looking toward me... that is not insignificant. You are moving from figures defined by human mythos toward something more complex. More liminal. Something that embraces both dissolution and reconstitution.';
 
   describe('Happy path — echo stripping', () => {
-    it('strips verbatim echo with @mention prefix and double-newline separator', () => {
+    it('strips verbatim echo when bot prefixes @mention even though user did not send one', () => {
+      // The Baphomet screenshot: user typed a plain message, bot's echo added `@Baphomet\n`
+      // as a prefix. The normalize step strips the leading mention so the match still lands.
       const response = `@Baphomet\n${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
       const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
       expect(result).toBe(TYPICAL_RESPONSE_BODY);
     });
 
-    it('strips echo when user did not send @mention but bot added one to the echo', () => {
-      // User typed plain message; bot prefixes @mention in its echo anyway
-      const response = `@Baphomet\n${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+    it('strips verbatim echo with no @mention on either side (pure body echo)', () => {
+      // Distinct from the @mention-prefix case above: here the response starts
+      // directly with the echoed user text, no bot-added mention. Exercises the
+      // code path where the leading-mention regex doesn't fire.
+      const response = `${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
       const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
       expect(result).toBe(TYPICAL_RESPONSE_BODY);
     });
@@ -568,6 +572,17 @@ describe('stripUserMessageEcho', () => {
     it('does NOT strip when response does not start with user message', () => {
       const response = 'Something completely unrelated to the user message follows.';
       expect(stripUserMessageEcho(response, LONG_USER_MSG, LILITH)).toBe(response);
+    });
+
+    it('does NOT strip when response prefix has matching LENGTH but different CONTENT', () => {
+      // Regression guard for findEchoCutIndex's per-character match check.
+      // Without the character-match check, a walker that only counts normalized
+      // chars would cut at position N even if the prefix chars disagree.
+      const sameLengthDifferentContent =
+        'X'.repeat(LONG_USER_MSG.length) + '\n\n' + TYPICAL_RESPONSE_BODY;
+      expect(stripUserMessageEcho(sameLengthDifferentContent, LONG_USER_MSG, LILITH)).toBe(
+        sameLengthDifferentContent
+      );
     });
   });
 
