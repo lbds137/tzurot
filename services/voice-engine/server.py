@@ -451,9 +451,14 @@ async def _encode_opus(wav_bytes: bytes, loop: asyncio.AbstractEventLoop) -> tup
     rates, keeping voice-engine output well under Discord's 8 MiB attachment
     limit for anything up to ~17 minutes of speech.
 
-    Returns (audio_bytes, media_type). On any subprocess failure — missing
-    ffmpeg binary, encode error, empty output — returns the original WAV bytes
-    + "audio/wav" so the caller still gets playable audio.
+    On any subprocess failure — missing ffmpeg binary, encode error, empty
+    output — returns the original WAV bytes + "audio/wav" so the caller still
+    gets playable audio.
+
+    Takes ``loop`` as an explicit parameter rather than calling
+    ``asyncio.get_running_loop()`` internally. This matches the ``_load_voice``
+    helper pattern in this module — callers already have the loop in scope and
+    thread it through for consistency.
     """
 
     def _run() -> bytes:
@@ -467,7 +472,11 @@ async def _encode_opus(wav_bytes: bytes, loop: asyncio.AbstractEventLoop) -> tup
 
     try:
         opus_bytes = await loop.run_in_executor(None, _run)
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as exc:
+    except (subprocess.CalledProcessError, OSError) as exc:
+        # OSError catches missing-binary (FileNotFoundError), permission-denied
+        # (PermissionError), and other low-level process failures. CalledProcessError
+        # is a distinct hierarchy (not an OSError subclass) so it's listed explicitly.
+        # All three branches share the same fallback; no differentiation needed here.
         stderr = getattr(exc, "stderr", b"") or b""
         logger.error(
             "ffmpeg Opus transcode failed — falling back to WAV",
