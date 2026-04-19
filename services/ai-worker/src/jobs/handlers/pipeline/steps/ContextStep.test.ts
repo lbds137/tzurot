@@ -14,25 +14,23 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ContextStep } from './ContextStep.js';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
 
-// Mock common-types logger
+// Use vi.hoisted to create mock functions before they're used in vi.mock
+const { mockExtractParticipants, mockConvertConversationHistory, mockLogger } = vi.hoisted(() => ({
+  mockExtractParticipants: vi.fn(),
+  mockConvertConversationHistory: vi.fn(),
+  // Module-level mock logger so tests can assert call shape on warn/info
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+// Mock common-types logger — use the hoisted mockLogger so tests can inspect
+// log calls for race-window telemetry assertions.
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
-
-// Use vi.hoisted to create mock functions before they're used in vi.mock
-const { mockExtractParticipants, mockConvertConversationHistory } = vi.hoisted(() => ({
-  mockExtractParticipants: vi.fn(),
-  mockConvertConversationHistory: vi.fn(),
-}));
 
 vi.mock('../../../utils/conversationUtils.js', () => ({
   extractParticipants: mockExtractParticipants,
@@ -697,6 +695,166 @@ describe('ContextStep', () => {
         expect(result.preparedContext?.crossChannelHistory?.[0].channelEnvironment.type).toBe('dm');
         expect(result.preparedContext?.crossChannelHistory?.[0].messages[0].content).toBe(
           'DM message'
+        );
+      });
+    });
+
+    describe('race-window telemetry', () => {
+      const config: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      function jobWithTimestamp(
+        timestamp: number,
+        overrides: Partial<LLMGenerationJobData> = {}
+      ): Job<LLMGenerationJobData> {
+        return {
+          id: 'race-job',
+          timestamp,
+          data: createValidJobData(overrides),
+        } as unknown as Job<LLMGenerationJobData>;
+      }
+
+      it('warns when job created within 500ms of newest assistant message persistence', () => {
+        const jobTs = 1_700_000_000_000;
+        const conversationHistory = [
+          {
+            role: MessageRole.User,
+            content: 'hi',
+            createdAt: new Date(jobTs - 1000).toISOString(),
+          },
+          {
+            role: MessageRole.Assistant,
+            content: 'previous bot response',
+            createdAt: new Date(jobTs - 200).toISOString(),
+          },
+        ];
+
+        const context: GenerationContext = {
+          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
+          startTime: jobTs,
+          config,
+        };
+
+        step.process(context);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ suggestsRace: true, deltaMs: 200 }),
+          expect.stringContaining('Race-window signal')
+        );
+      });
+
+      it('emits info (not warn) when delta is comfortably positive', () => {
+        const jobTs = 1_700_000_000_000;
+        const conversationHistory = [
+          {
+            role: MessageRole.Assistant,
+            content: 'older bot response',
+            createdAt: new Date(jobTs - 60_000).toISOString(),
+          },
+        ];
+
+        const context: GenerationContext = {
+          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
+          startTime: jobTs,
+          config,
+        };
+
+        step.process(context);
+
+        expect(mockLogger.info).toHaveBeenCalledWith(
+          expect.objectContaining({ suggestsRace: false, deltaMs: 60_000 }),
+          expect.stringContaining('Race-window telemetry')
+        );
+        expect(mockLogger.warn).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Race-window signal')
+        );
+      });
+
+      it('picks the newest assistant message when multiple are present', () => {
+        const jobTs = 1_700_000_000_000;
+        const conversationHistory = [
+          {
+            role: MessageRole.Assistant,
+            content: 'oldest',
+            createdAt: new Date(jobTs - 10_000).toISOString(),
+          },
+          {
+            role: MessageRole.Assistant,
+            content: 'middle',
+            createdAt: new Date(jobTs - 5_000).toISOString(),
+          },
+          {
+            role: MessageRole.Assistant,
+            content: 'newest',
+            createdAt: new Date(jobTs - 100).toISOString(),
+          },
+        ];
+
+        const context: GenerationContext = {
+          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
+          startTime: jobTs,
+          config,
+        };
+
+        step.process(context);
+
+        // 100ms delta → race-suspect; uses newest, not oldest
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ deltaMs: 100 }),
+          expect.stringContaining('Race-window signal')
+        );
+      });
+
+      it('emits nothing when history has no assistant messages', () => {
+        const jobTs = 1_700_000_000_000;
+        const conversationHistory = [
+          { role: MessageRole.User, content: 'hi', createdAt: new Date(jobTs - 100).toISOString() },
+        ];
+
+        const context: GenerationContext = {
+          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
+          startTime: jobTs,
+          config,
+        };
+
+        step.process(context);
+
+        // Race-window messages never emit — no newest assistant to compare against
+        expect(mockLogger.warn).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Race-window signal')
+        );
+        expect(mockLogger.info).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Race-window telemetry')
+        );
+      });
+
+      it('emits nothing when assistant messages lack valid createdAt', () => {
+        const jobTs = 1_700_000_000_000;
+        const conversationHistory = [
+          { role: MessageRole.Assistant, content: 'no timestamp' },
+          { role: MessageRole.Assistant, content: 'invalid ts', createdAt: 'not-a-date' },
+        ];
+
+        const context: GenerationContext = {
+          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
+          startTime: jobTs,
+          config,
+        };
+
+        step.process(context);
+
+        expect(mockLogger.warn).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Race-window signal')
+        );
+        expect(mockLogger.info).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Race-window telemetry')
         );
       });
     });

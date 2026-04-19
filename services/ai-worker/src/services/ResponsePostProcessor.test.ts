@@ -17,6 +17,7 @@ const {
   mockExtractApiReasoningContent,
   mockMergeThinkingContent,
   mockReplacePromptPlaceholders,
+  mockLogger,
 } = vi.hoisted(() => ({
   mockRemoveDuplicateResponse: vi.fn(),
   mockStripResponseArtifacts: vi.fn(),
@@ -25,7 +26,16 @@ const {
   mockExtractApiReasoningContent: vi.fn(),
   mockMergeThinkingContent: vi.fn(),
   mockReplacePromptPlaceholders: vi.fn(),
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => mockLogger,
+  };
+});
 
 vi.mock('../utils/duplicateDetection.js', () => ({
   removeDuplicateResponse: mockRemoveDuplicateResponse,
@@ -387,6 +397,83 @@ Key elements: stay in persona.`;
       );
 
       expect(result.onlyThinkingProduced).toBe(false);
+    });
+  });
+
+  describe('processResponse reasoning-engagement telemetry', () => {
+    const reasoningContext = {
+      personalityName: 'TestBot',
+      userName: 'TestUser',
+      reasoningEnabled: true,
+    };
+
+    it('does not emit reasoning-telemetry log when reasoning was NOT requested', () => {
+      mockRemoveDuplicateResponse.mockReturnValue('Normal response');
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: null,
+        visibleContent: 'Normal response',
+      });
+      mockStripResponseArtifacts.mockReturnValue('Normal response');
+      mockReplacePromptPlaceholders.mockReturnValue('Normal response');
+
+      processor.processResponse('Normal response', undefined, undefined, {
+        personalityName: 'TestBot',
+        userName: 'TestUser',
+      });
+
+      // Neither path should have emitted the reasoning-engagement telemetry
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Reasoning mode')
+      );
+      expect(mockLogger.info).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining('Reasoning mode')
+      );
+    });
+
+    it('emits info when reasoning requested AND actually engaged', () => {
+      mockRemoveDuplicateResponse.mockReturnValue('Normal response');
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: 'actual reasoning content',
+        visibleContent: 'Normal response',
+      });
+      mockMergeThinkingContent.mockReturnValue('actual reasoning content');
+      mockStripResponseArtifacts.mockReturnValue('Normal response');
+      mockReplacePromptPlaceholders.mockReturnValue('Normal response');
+
+      processor.processResponse('Normal response', undefined, undefined, reasoningContext);
+
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reasoningRequested: true,
+          reasoningActuallyEngaged: true,
+          personalityName: 'TestBot',
+        }),
+        expect.stringContaining('engaged as requested')
+      );
+    });
+
+    it('emits warn when reasoning requested but did NOT engage', () => {
+      mockRemoveDuplicateResponse.mockReturnValue('Normal response');
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: null,
+        visibleContent: 'Normal response',
+      });
+      mockMergeThinkingContent.mockReturnValue(null);
+      mockStripResponseArtifacts.mockReturnValue('Normal response');
+      mockReplacePromptPlaceholders.mockReturnValue('Normal response');
+
+      processor.processResponse('Normal response', undefined, undefined, reasoningContext);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reasoningRequested: true,
+          reasoningActuallyEngaged: false,
+          personalityName: 'TestBot',
+        }),
+        expect.stringContaining('did NOT engage')
+      );
     });
   });
 

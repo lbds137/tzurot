@@ -61,6 +61,13 @@ interface ComparisonReportEntry {
  * what the detector actually saw when a duplicate slipped through (or when
  * it fired correctly). Non-trivial provider-side cache-hit bugs (esp. on
  * free-tier models) are hard to reason about without this view.
+ *
+ * Note: this intentionally re-runs `stripBotFooters` / `contentHash` / the
+ * similarity scores for each message, even though the main loop in
+ * `isRecentDuplicate` already computed some of these for its early-exit
+ * path. The main loop returns on first match and can skip remaining
+ * messages; we need scores for ALL of them regardless. Capped at 5
+ * messages in practice, so cost is inconsequential.
  */
 function buildComparisonReport(
   cleanNewResponse: string,
