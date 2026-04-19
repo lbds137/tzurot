@@ -137,13 +137,21 @@ fi
 
 # 10. Run Python quality checks if Python files changed
 if [ -n "$PYTHON_FILES" ]; then
-    echo "Running Python quality checks (ruff + mypy)..."
+    echo "Running Python quality checks (ruff + mypy + pytest)..."
     if ! (cd services/voice-engine && ruff check .); then
         echo "${RED}Python linting (ruff) failed!${NC}"
         exit 1
     fi
     if ! (cd services/voice-engine && mypy --strict server.py tests/); then
         echo "${RED}Python type checking (mypy) failed!${NC}"
+        exit 1
+    fi
+    # Pytest was previously missing from this hook — tests would fail in CI
+    # after a successful push. Added 2026-04-19 after CI caught a hermeticity
+    # leak in test_openai_compat.py that passed locally (real ffmpeg available)
+    # but failed in CI (no ffmpeg → WAV fallback broke content-type assertion).
+    if ! (cd services/voice-engine && python3 -m pytest tests/ -q); then
+        echo "${RED}Python tests (pytest) failed!${NC}"
         exit 1
     fi
 fi
