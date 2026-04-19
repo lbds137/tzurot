@@ -399,6 +399,12 @@ describe('synthesizeWithChunking', () => {
     // Should have called synthesize for each chunk
     expect(vi.mocked(mockClient.synthesize).mock.calls.length).toBeGreaterThanOrEqual(2);
 
+    // Each chunk must request WAV format — extractPcmData/buildWavHeader below operate
+    // on raw PCM, and Opus-in-Ogg can't be losslessly concatenated at the byte level.
+    for (const call of vi.mocked(mockClient.synthesize).mock.calls) {
+      expect(call[2]).toEqual({ format: 'wav' });
+    }
+
     // Result should be a WAV with combined PCM
     expect(result.contentType).toBe('audio/wav');
 
