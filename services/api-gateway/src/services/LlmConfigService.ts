@@ -27,6 +27,8 @@ import {
   safeValidateAdvancedParams,
 } from '@tzurot/common-types';
 
+import { isPrismaUniqueConstraintError } from '../utils/prismaErrors.js';
+
 const logger = createLogger('LlmConfigService');
 
 // ============================================================================
@@ -102,6 +104,45 @@ interface FormattedConfigDetail {
   modelContextLength?: number;
   /** 50% cap for contextWindowTokens, set by enrichWithModelContext */
   contextWindowCap?: number;
+}
+
+// ============================================================================
+// Typed errors for the auto-suffix clone path
+// ============================================================================
+
+/**
+ * Thrown when {@link LlmConfigService.resolveNonCollidingName} walks its full
+ * `MAX_CLONE_NAME_ATTEMPTS` budget without finding a free name. Pathological
+ * case (user has ~20 copies of the same base name). The route translates this
+ * to a `NAME_COLLISION` with a distinct message so the client sees an
+ * actionable error instead of an opaque 500.
+ */
+export class CloneNameExhaustedError extends Error {
+  constructor(
+    public readonly baseName: string,
+    public readonly attempts: number
+  ) {
+    super(
+      `Could not resolve a unique clone name starting from "${baseName}" after ${attempts} attempts`
+    );
+    this.name = 'CloneNameExhaustedError';
+  }
+}
+
+/**
+ * Thrown when a concurrent insert races past the `resolveNonCollidingName`
+ * SELECT and claims the `effectiveName` before our INSERT lands. Carries the
+ * bumped name so the caller can surface an accurate error message (the route
+ * previously echoed `body.name`, which is wrong when the suffix was bumped).
+ */
+export class AutoSuffixCollisionError extends Error {
+  constructor(
+    public readonly effectiveName: string,
+    public readonly cause: unknown
+  ) {
+    super(`Name "${effectiveName}" was taken by a concurrent request after suffix resolution`);
+    this.name = 'AutoSuffixCollisionError';
+  }
 }
 
 // ============================================================================
@@ -206,29 +247,41 @@ export class LlmConfigService {
         ? await this.resolveNonCollidingName(requestedName, ownerId)
         : requestedName;
 
-    const config = await this.prisma.llmConfig.create({
-      data: {
-        id: newLlmConfigId(),
-        name: effectiveName,
-        description: data.description ?? null,
-        ownerId,
-        isGlobal,
-        isDefault: false,
-        provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
-        model: data.model.trim(),
-        visionModel: data.visionModel ?? null,
-        advancedParameters: data.advancedParameters ?? undefined,
-        // Memory settings
-        memoryScoreThreshold: data.memoryScoreThreshold ?? LLM_CONFIG_DEFAULTS.memoryScoreThreshold,
-        memoryLimit: data.memoryLimit ?? LLM_CONFIG_DEFAULTS.memoryLimit,
-        contextWindowTokens: data.contextWindowTokens ?? LLM_CONFIG_DEFAULTS.contextWindowTokens,
-        // Context settings
-        maxMessages: data.maxMessages ?? LLM_CONFIG_DEFAULTS.maxMessages,
-        maxAge: data.maxAge ?? null,
-        maxImages: data.maxImages ?? LLM_CONFIG_DEFAULTS.maxImages,
-      },
-      select: LLM_CONFIG_DETAIL_SELECT,
-    });
+    let config;
+    try {
+      config = await this.prisma.llmConfig.create({
+        data: {
+          id: newLlmConfigId(),
+          name: effectiveName,
+          description: data.description ?? null,
+          ownerId,
+          isGlobal,
+          isDefault: false,
+          provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
+          model: data.model.trim(),
+          visionModel: data.visionModel ?? null,
+          advancedParameters: data.advancedParameters ?? undefined,
+          // Memory settings
+          memoryScoreThreshold:
+            data.memoryScoreThreshold ?? LLM_CONFIG_DEFAULTS.memoryScoreThreshold,
+          memoryLimit: data.memoryLimit ?? LLM_CONFIG_DEFAULTS.memoryLimit,
+          contextWindowTokens: data.contextWindowTokens ?? LLM_CONFIG_DEFAULTS.contextWindowTokens,
+          // Context settings
+          maxMessages: data.maxMessages ?? LLM_CONFIG_DEFAULTS.maxMessages,
+          maxAge: data.maxAge ?? null,
+          maxImages: data.maxImages ?? LLM_CONFIG_DEFAULTS.maxImages,
+        },
+        select: LLM_CONFIG_DETAIL_SELECT,
+      });
+    } catch (err) {
+      // Auto-suffix path: the server-side SELECT said `effectiveName` was free,
+      // but a concurrent request just claimed it. Wrap the P2002 so the route
+      // can surface the actual collided name (not `body.name` from the client).
+      if (data.autoSuffixOnCollision === true && isPrismaUniqueConstraintError(err)) {
+        throw new AutoSuffixCollisionError(effectiveName, err);
+      }
+      throw err;
+    }
 
     logger.info(
       {
@@ -268,12 +321,17 @@ export class LlmConfigService {
   private async resolveNonCollidingName(baseName: string, ownerId: string): Promise<string> {
     const stripped = stripCopySuffix(baseName);
 
+    // Bounded read: the in-memory loop walks at most
+    // `MAX_CLONE_NAME_ATTEMPTS` candidates, so the SELECT only needs to see
+    // those N rows. Any over-fetched collision that slips past this limit is
+    // still caught by the P2002 translator in `create()`.
     const existing = await this.prisma.llmConfig.findMany({
       where: {
         ownerId,
         name: { startsWith: stripped },
       },
       select: { name: true },
+      take: LlmConfigService.MAX_CLONE_NAME_ATTEMPTS + 1,
     });
     const takenNames = new Set(existing.map(row => row.name));
 
@@ -285,12 +343,9 @@ export class LlmConfigService {
       candidate = generateClonedName(candidate);
     }
 
-    // Pathological: user has 20+ copy variants in a row. Surface a loud
-    // error rather than looping indefinitely.
-    throw new Error(
-      `Could not resolve a unique clone name starting from "${baseName}" after ` +
-        `${LlmConfigService.MAX_CLONE_NAME_ATTEMPTS} attempts`
-    );
+    // Pathological: user has 20+ copy variants in a row. Typed so the route
+    // can translate to a user-friendly NAME_COLLISION instead of an opaque 500.
+    throw new CloneNameExhaustedError(baseName, LlmConfigService.MAX_CLONE_NAME_ATTEMPTS);
   }
 
   /**
