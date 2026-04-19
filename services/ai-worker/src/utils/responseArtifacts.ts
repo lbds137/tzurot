@@ -12,8 +12,7 @@
  * - Still occasionally add "Name:" prefixes
  */
 
-import { createLogger } from '@tzurot/common-types';
-import type { MessageContent } from '@tzurot/common-types';
+import { createLogger, type MessageContent } from '@tzurot/common-types';
 
 const logger = createLogger('ResponseArtifacts');
 
@@ -147,19 +146,46 @@ export function stripResponseArtifacts(content: string, personalityName: string)
 }
 
 /**
- * Normalize text for echo-match comparison: strip leading @mention, lowercase,
- * collapse whitespace, trim. Intentionally NOT Unicode-normalized — `.toLowerCase()`
- * is a no-op for non-cased scripts (Hebrew, Arabic, CJK), so comparison still
- * works character-for-character for those.
+ * Leading-mention matcher. Handles both forms:
+ *   - `@<name>`       — rendered/display form (what a user sees; what models
+ *                       often echo in their training-learned output)
+ *   - `<@!?<id>>`     — Discord's raw-content form; the `!` variant marks a
+ *                       nickname mention
+ *
+ * Anchored at `^` with `\s*` on both sides so the matcher can be looped
+ * against a substring to strip *multiple* leading mentions (e.g., bot
+ * self-mention followed by a user's `@admin` mention).
+ */
+const LEADING_MENTION_RE = /^\s*(?:@\S+|<@!?\d+>)\s*/;
+
+/**
+ * Advance past any number of leading mentions + surrounding whitespace,
+ * starting from position `from` in `s`. Returns the index of the first
+ * non-mention, non-leading-whitespace character.
+ */
+function skipLeadingMentions(s: string, from: number): number {
+  let i = from;
+  while (true) {
+    const match = LEADING_MENTION_RE.exec(s.substring(i));
+    if (match === null) {
+      return i;
+    }
+    i += match[0].length;
+  }
+}
+
+/**
+ * Normalize text for echo-match comparison: strip every leading mention
+ * (text form and Discord numeric form), lowercase, collapse whitespace, trim.
+ * Intentionally NOT Unicode-normalized — `.toLowerCase()` is a no-op for
+ * non-cased scripts (Hebrew, Arabic, CJK), so comparison still works
+ * character-for-character for those.
  *
  * @internal Exported for testing
  */
 export function normalizeForEchoMatch(s: string): string {
-  return s
-    .replace(/^\s*@\S+\s*/, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  const afterMentions = s.substring(skipLeadingMentions(s, 0));
+  return afterMentions.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -208,21 +234,18 @@ function stepEchoChar(
  *     `userTextNormalized` (i.e., the response prefix isn't actually the
  *     user's text even though it has enough chars).
  *
- * Note: only `@<name>` text-form mentions are stripped from the leading
- * position. Discord's `<@numericId>` mention format is intentionally out of
- * scope — the observed bug uses the text form, and the `<@` format would be
- * caught (or pass through harmlessly) via the `<received>` patterns in
- * `stripResponseArtifacts` or left alone.
+ * Both text-form (`@name`) and Discord's numeric-form (`<@!?id>`) leading
+ * mentions are stripped, and multiple leading mentions are skipped in a
+ * loop — matches `normalizeForEchoMatch`'s behavior so boundaries line up
+ * on both sides of the comparison.
  */
 function findEchoCutIndex(response: string, userTextNormalized: string): number {
   if (userTextNormalized.length === 0) {
     return -1;
   }
 
-  // Skip optional leading @mention prefix in the response.
-  // Matches `normalizeForEchoMatch`'s first transform so boundaries line up.
-  const mentionMatch = /^\s*@\S+\s*/.exec(response);
-  let i = mentionMatch !== null ? mentionMatch[0].length : 0;
+  // Skip leading mentions (symmetric with `normalizeForEchoMatch`).
+  let i = skipLeadingMentions(response, 0);
 
   let producedLength = 0;
   let lastWasSpace = true; // start-of-normalized is "just past trim" — no leading space
@@ -313,7 +336,7 @@ export function stripUserMessageEcho(
   // Safety guard: refuse to strip if we'd remove more than MAX_STRIP_RATIO
   // of the response. The model likely regurgitated the input instead of
   // responding — leave it visible so the real failure surfaces.
-  if (stripped.length < content.length * (1 - MAX_STRIP_RATIO)) {
+  if (strippedChars > content.length * MAX_STRIP_RATIO) {
     logger.warn(
       {
         strippedChars,
