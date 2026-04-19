@@ -17,6 +17,11 @@
 // slide produced O(N²) on spacey input. We now parse the tail with
 // `trimEnd` + `lastIndexOf('(')` and only regex-match the content
 // inside the parentheses.
+//
+// `\s{1,8}` between "copy" and the digit run is intentionally strict:
+// inputs like "(Copy         5)" (>8 spaces) won't be recognised as a
+// copy suffix, but that's preferable to re-introducing an unbounded
+// `\s+` that could reopen the ReDoS surface on nasty inputs.
 const COPY_INNER_PATTERN = /^copy(?:\s{1,8}(\d+))?$/i;
 
 /**
@@ -26,14 +31,20 @@ const COPY_INNER_PATTERN = /^copy(?:\s{1,8}(\d+))?$/i;
  */
 function tryStripOneSuffix(name: string): { base: string; num: number } | null {
   const trimmed = name.trimEnd();
-  if (trimmed.length === 0 || !trimmed.endsWith(')')) {return null;}
+  if (trimmed.length === 0 || !trimmed.endsWith(')')) {
+    return null;
+  }
 
   const openIdx = trimmed.lastIndexOf('(');
-  if (openIdx < 0) {return null;}
+  if (openIdx < 0) {
+    return null;
+  }
 
   const inside = trimmed.slice(openIdx + 1, trimmed.length - 1);
   const match = COPY_INNER_PATTERN.exec(inside);
-  if (match === null) {return null;}
+  if (match === null) {
+    return null;
+  }
 
   const num = match[1] !== undefined ? parseInt(match[1], 10) : 1;
   const base = trimmed.slice(0, openIdx);
@@ -61,7 +72,9 @@ export function generateClonedName(originalName: string): string {
 
   while (true) {
     const stripped = tryStripOneSuffix(baseName);
-    if (stripped === null) {break;}
+    if (stripped === null) {
+      break;
+    }
     hadSuffix = true;
     maxNum = Math.max(maxNum, stripped.num);
     baseName = stripped.base;
@@ -96,7 +109,9 @@ export function stripCopySuffix(name: string): string {
   let base = name;
   while (true) {
     const stripped = tryStripOneSuffix(base);
-    if (stripped === null) {break;}
+    if (stripped === null) {
+      break;
+    }
     base = stripped.base;
   }
   return base.trim();
