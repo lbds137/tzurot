@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-04-19
-> **Version**: v3.0.0-beta.100 (PR A + PR B + TTS silent-drop fix unreleased on develop)
+> **Version**: v3.0.0-beta.100 (Phase 5c PR A/B + TTS silent-drop + echo-strip + dup-reply telemetry + preset-clone fix unreleased on develop)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -20,6 +20,12 @@ _None currently._
 ## 📥 Inbox
 
 _New items go here. Triage to appropriate section weekly._
+
+- 🏗️ `[LIFT]` **Audit global-scope LlmConfig uniqueness across admins** — The 2026-04-19 preset-clone fix (PR #TBD) added `@@unique([ownerId, name])` on `llm_configs`, which correctly enforces "one user can't have two configs with the same name." But the admin-global-create path (`checkNameExists({type: 'GLOBAL'})` → scoped to `isGlobal = true` only, not ownerId) relies on app-level checking alone. Two admins creating `isGlobal=true, name="Default"` each with their own ownerId would both satisfy the new DB constraint, and a race could slip past the app check. **Fix shape**: add a partial unique index `CREATE UNIQUE INDEX ON llm_configs (name) WHERE is_global = true;` with a drift-ignore entry. Low urgency — admin-create path is rare; `isGlobal` is a share flag so cross-admin global name collisions are unusual. Tracked for structural completeness. **Start**: `prisma/schema.prisma` LlmConfig model, `services/api-gateway/src/services/LlmConfigService.ts` `checkNameExists` GLOBAL branch. Surfaced 2026-04-19.
+
+- 🧹 `[CHORE]` **ESLint `no-restricted-syntax` rule banning new prod callers of `generateLlmConfigUuid`** — After PR #TBD (2026-04-19) removed the sole prod call site of `generateLlmConfigUuid` and marked the function `@deprecated`, add an ESLint guardrail matching the existing `prisma.user.create` pattern: `CallExpression[callee.name="generateLlmConfigUuid"]` should be banned outside test files, with an explanatory justification referencing the phantom-PK-collision bug. Prevents future-you from accidentally re-introducing the footgun. Low-urgency — `@deprecated` tag plus the full-context comment in `deterministicUuid.ts` already discourages new callers; this is belt-and-suspenders. **Start**: `eslint.config.js` — add the selector alongside existing PINO_LOGGER_RULES / `prisma.user.create` bans. Surfaced 2026-04-19.
+
+- 🧊 `[ICEBOX]` **UUIDv7 audit for other deterministic-UUID-from-mutable-input tables** — 2026-04-19 LlmConfig fix (PR #TBD) applied the same pattern Phase 5 personas used: random-UUID PK + `@@unique([ownerId, name])`. Other deterministic-UUID generators in `packages/common-types/src/utils/deterministicUuid.ts` should be audited: are they keyed off mutable user inputs, or off stable identifiers (Discord IDs, slugs)? **Candidates for same treatment**: `generateSystemPromptUuid(name)` — name is user-editable; any rename-then-recreate scenario could hit the same phantom collision. **Likely fine as-is**: `generateUserUuid(discordId)`, `generatePersonalityUuid(slug)` (slug is immutable/assigned), `generatePersonaUuid` (Phase 5 fixed this one). Audit-first, action-second. **Start**: enumerate each `generate*Uuid` in `deterministicUuid.ts`, cross-reference against the entity's schema to check if the seed source is mutable. Surfaced 2026-04-19.
 
 - 🐛 `[FIX]` **Deleting from dashboard-after-browse loses the browse context — no back-to-browse affordance** — When a user browses to a character/persona/preset via `/... browse` and then clicks Delete in the resulting dashboard, the post-delete screen is just an `editReply` with "✅ Character has been deleted." + stats. There's no button to return to the browse list they came from, even though the session has `browseContext` populated when the dashboard was opened from browse. User has to re-run the browse command to keep going through their collection. Surfaced in conversation 2026-04-17.
 
