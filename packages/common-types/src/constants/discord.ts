@@ -129,6 +129,16 @@ export const DISCORD_MENTIONS = {
    * Use with 'g' flag for global matching: new RegExp(DISCORD_MENTIONS.ROLE_PATTERN, 'g')
    */
   ROLE_PATTERN: '<@&(\\d+)>',
+  /**
+   * Regex pattern string matching ANY single Discord mention — user (with or
+   * without nickname-bang), role, or channel — plus the text-rendered `@name`
+   * form. Use when you want to detect or strip mentions regardless of type,
+   * e.g., to skip leading mentions in content before comparing text.
+   *
+   * No anchors, no capture groups — compose for specific needs (anchor with
+   * `^` for leading-only, add `g` flag for global scan, etc.).
+   */
+  ANY_PATTERN: '(?:@\\S+|<@!?\\d+>|<@&\\d+>|<#\\d+>)',
   /** Maximum user mentions to process per message (DoS prevention) */
   MAX_PER_MESSAGE: 10,
   /** Maximum channel mentions to process per message (DoS prevention) */

@@ -20,7 +20,14 @@ export * from './types/shapes-import.js';
 export * from './types/schemas/index.js';
 
 // Export utilities
-export { splitMessage, truncateText, stripBotFooters, stripDmPrefix } from './utils/discord.js';
+export {
+  splitMessage,
+  truncateText,
+  stripBotFooters,
+  stripDmPrefix,
+  findLeadingMentionsEnd,
+  stripLeadingMentions,
+} from './utils/discord.js';
 export { createLogger } from './utils/logger.js';
 export {
   parseRedisUrl,
