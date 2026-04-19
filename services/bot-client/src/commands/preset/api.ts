@@ -156,6 +156,12 @@ export async function createPreset(
     provider?: string;
     description?: string;
     visionModel?: string;
+    /**
+     * When true, server bumps the `(Copy N)` suffix on name collision
+     * instead of returning NAME_COLLISION. Used by the clone flow so a
+     * single HTTP call handles any number of existing copies.
+     */
+    autoSuffixOnCollision?: boolean;
   },
   user: GatewayUser
 ): Promise<PresetData> {

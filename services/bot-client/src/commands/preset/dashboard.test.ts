@@ -1068,7 +1068,10 @@ describe('handleButton', () => {
       });
     });
 
-    it('should auto-number past a first-attempt name collision', async () => {
+    it('sends a single createPreset call with autoSuffixOnCollision: true', async () => {
+      // Server now owns the (Copy N) bumping. Client makes exactly one
+      // request with autoSuffixOnCollision: true and receives the
+      // already-bumped name in the response.
       mockParseDashboardCustomId.mockReturnValue({
         entityType: 'preset',
         entityId: 'preset-123',
@@ -1085,41 +1088,27 @@ describe('handleButton', () => {
         },
       });
 
+      // Server resolves the collision internally and returns the bumped name.
       const clonedPreset = { ...mockPresetData, id: 'preset-456', name: 'Test Preset (Copy 2)' };
-      // First attempt collides (user already has "Test Preset (Copy)"); second
-      // attempt with the bumped name succeeds.
-      mockCreatePreset
-        .mockRejectedValueOnce(
-          new GatewayApiError(
-            'Failed to create preset: 400 - You already have a config named "Test Preset (Copy)"',
-            400,
-            'NAME_COLLISION'
-          )
-        )
-        .mockResolvedValueOnce(clonedPreset);
+      mockCreatePreset.mockResolvedValueOnce(clonedPreset);
       mockFetchPreset.mockResolvedValue(clonedPreset);
 
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
 
-      expect(mockCreatePreset).toHaveBeenCalledTimes(2);
-      // First attempt used the plain "(Copy)" suffix
-      expect(mockCreatePreset).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({ name: 'Test Preset (Copy)' }),
+      expect(mockCreatePreset).toHaveBeenCalledTimes(1);
+      expect(mockCreatePreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Test Preset (Copy)',
+          autoSuffixOnCollision: true,
+        }),
         TEST_USER
       );
-      // Retry bumped the suffix to "(Copy 2)" and succeeded
-      expect(mockCreatePreset).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({ name: 'Test Preset (Copy 2)' }),
-        TEST_USER
-      );
-      // User sees the success path, not an error
+      // User sees the success path
       expect(mockFollowUp).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalled();
     });
 
-    it('should pass non-collision errors through immediately without retrying', async () => {
+    it('passes non-collision errors through to the user', async () => {
       mockParseDashboardCustomId.mockReturnValue({
         entityType: 'preset',
         entityId: 'preset-123',
@@ -1136,9 +1125,6 @@ describe('handleButton', () => {
         },
       });
 
-      // A 400 that is NOT a name collision (e.g., invalid model) must not
-      // trigger the retry loop — we want the first attempt's error to
-      // reach the user immediately.
       mockCreatePreset.mockRejectedValue(
         new Error(
           "Failed to create preset: 400 - Model 'nonexistent/model' not found in the available models list."
@@ -1147,16 +1133,16 @@ describe('handleButton', () => {
 
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
 
-      // Called exactly once — no retry
       expect(mockCreatePreset).toHaveBeenCalledTimes(1);
-      // User sees the underlying API error, not the generic "Failed to clone"
       expect(mockFollowUp).toHaveBeenCalledWith({
         content: expect.stringContaining("Model 'nonexistent/model' not found"),
         flags: MessageFlags.Ephemeral,
       });
     });
 
-    it('should rethrow the last collision error after exhausting retries', async () => {
+    it('surfaces NAME_COLLISION to the user when the server still fails to resolve', async () => {
+      // If the server-side suffix loop exhausts (MAX_CLONE_NAME_ATTEMPTS),
+      // it returns NAME_COLLISION. Client surfaces it directly — no retries.
       mockParseDashboardCustomId.mockReturnValue({
         entityType: 'preset',
         entityId: 'preset-123',
@@ -1173,12 +1159,9 @@ describe('handleButton', () => {
         },
       });
 
-      // Every attempt collides — the retry loop reaches MAX_CLONE_NAME_RETRIES
-      // (10) and rethrows the last collision error so the user sees which
-      // name finally couldn't be placed.
       mockCreatePreset.mockRejectedValue(
         new GatewayApiError(
-          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy 10)"',
+          'Failed to create preset: 400 - You already have a config named "Test Preset (Copy 20)"',
           400,
           'NAME_COLLISION'
         )
@@ -1186,9 +1169,8 @@ describe('handleButton', () => {
 
       await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
 
-      // Attempted the max number of times
-      expect(mockCreatePreset).toHaveBeenCalledTimes(10);
-      // Final user-visible error surfaces the collision
+      // Single call — no client-side retry
+      expect(mockCreatePreset).toHaveBeenCalledTimes(1);
       expect(mockFollowUp).toHaveBeenCalledWith({
         content: expect.stringContaining('You already have a config named'),
         flags: MessageFlags.Ephemeral,

@@ -1,10 +1,11 @@
 /**
- * Tests for Preset Clone Name Utilities
+ * Tests for Preset Clone Driver
  *
- * `generateClonedName` and `createClonedPreset` (with the name-collision
- * retry driver). Kept narrow: the integration-level retry behavior is
- * already exercised through `handleCloneButton` in dashboard.test.ts —
- * this file tests the pure extraction directly.
+ * `generateClonedName` lives in `@tzurot/common-types` now — its unit tests
+ * are there. This file narrowly tests `createClonedPreset`: the thin wrapper
+ * that asks the server to auto-bump the (Copy N) suffix on collision. The
+ * server now owns the retry loop; previously this file tested a client-side
+ * retry that looped up to 10 times on NAME_COLLISION, which has been removed.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -22,8 +23,7 @@ vi.mock('./api.js', () => ({
 }));
 
 // Imported after the mock so the factory resolves before module load.
-const { generateClonedName, createClonedPreset, MAX_CLONE_NAME_RETRIES } =
-  await import('./cloneName.js');
+const { generateClonedName, createClonedPreset } = await import('./cloneName.js');
 
 // Cast: `createClonedPreset` only reads name / model / provider / description /
 // visionModel off the source, but FlattenedPresetData requires ~20 fields. The
@@ -41,7 +41,10 @@ beforeEach(() => {
   mockCreatePreset.mockReset();
 });
 
-describe('generateClonedName', () => {
+describe('generateClonedName (re-exported from common-types)', () => {
+  // Narrow smoke test — the full suite lives in
+  // `packages/common-types/src/utils/presetCloneName.test.ts`. This file
+  // keeps a couple of cases to pin the re-export wiring.
   it('appends "(Copy)" to an unsuffixed name', () => {
     expect(generateClonedName('My Preset')).toBe('My Preset (Copy)');
   });
@@ -49,30 +52,12 @@ describe('generateClonedName', () => {
   it('bumps "(Copy)" to "(Copy 2)"', () => {
     expect(generateClonedName('My Preset (Copy)')).toBe('My Preset (Copy 2)');
   });
-
-  it('bumps "(Copy N)" to "(Copy N+1)"', () => {
-    expect(generateClonedName('My Preset (Copy 5)')).toBe('My Preset (Copy 6)');
-  });
-
-  it('strips multiple stacked suffixes and keeps the max seen number', () => {
-    // "My Preset (Copy 5) (Copy)" — max(5, 1) = 5 → next is 6
-    expect(generateClonedName('My Preset (Copy 5) (Copy)')).toBe('My Preset (Copy 6)');
-  });
-
-  it('trims trailing whitespace when stripping suffixes', () => {
-    expect(generateClonedName('My Preset (Copy)   ')).toBe('My Preset (Copy 2)');
-  });
-
-  it('trims trailing whitespace on unsuffixed names before appending (Copy)', () => {
-    // Parallels the trailing-whitespace handling in the suffix-present
-    // branch above — both paths should normalize whitespace before
-    // emitting the copy name.
-    expect(generateClonedName('My Preset   ')).toBe('My Preset (Copy)');
-  });
 });
 
 describe('createClonedPreset', () => {
-  it('returns the created preset on first-attempt success', async () => {
+  it('makes a SINGLE createPreset call with autoSuffixOnCollision: true', async () => {
+    // Server owns the suffix-bumping loop now. Client sends one request and
+    // relies on the server to pick a non-colliding name internally.
     const resultPreset = { id: 'new-id', name: 'My Preset (Copy)' };
     mockCreatePreset.mockResolvedValueOnce(resultPreset);
 
@@ -82,56 +67,37 @@ describe('createClonedPreset', () => {
     expect(result).toBe(resultPreset);
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
     expect(mockCreatePreset).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'My Preset (Copy)' }),
+      expect.objectContaining({
+        name: 'My Preset (Copy)',
+        autoSuffixOnCollision: true,
+      }),
       user
     );
   });
 
-  it('bumps the suffix and retries on NAME_COLLISION', async () => {
-    const resultPreset = { id: 'new-id', name: 'My Preset (Copy 2)' };
-    mockCreatePreset
-      .mockRejectedValueOnce(new GatewayApiError('collision', 400, 'NAME_COLLISION'))
-      .mockResolvedValueOnce(resultPreset);
+  it('propagates NAME_COLLISION errors directly (no client-side retry)', async () => {
+    // Previously the client looped up to 10 times bumping the suffix.
+    // Now the server handles bumping; if we still get NAME_COLLISION it's
+    // a genuine failure (e.g., MAX_CLONE_NAME_ATTEMPTS exhausted server-side)
+    // and should propagate immediately.
+    const collision = new GatewayApiError('still colliding', 400, 'NAME_COLLISION');
+    mockCreatePreset.mockRejectedValueOnce(collision);
 
-    const user = mkUser();
-    const result = await createClonedPreset(sourceData, user);
-
-    expect(result).toBe(resultPreset);
-    expect(mockCreatePreset).toHaveBeenCalledTimes(2);
-    expect(mockCreatePreset).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ name: 'My Preset (Copy)' }),
-      user
-    );
-    expect(mockCreatePreset).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ name: 'My Preset (Copy 2)' }),
-      user
-    );
+    await expect(createClonedPreset(sourceData, mkUser())).rejects.toBe(collision);
+    expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 
   it('propagates GatewayApiErrors with no sub-code immediately', async () => {
-    // Unknown gateway error path: GatewayApiError is constructed without a
-    // code argument (e.g. the response body didn't include one). Must
-    // propagate — don't retry.
     mockCreatePreset.mockRejectedValueOnce(new GatewayApiError('Bad request', 400));
 
     await expect(createClonedPreset(sourceData, mkUser())).rejects.toThrow('Bad request');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
   });
 
-  it('propagates plain Errors immediately (not GatewayApiError)', async () => {
+  it('propagates plain Errors immediately', async () => {
     mockCreatePreset.mockRejectedValueOnce(new Error('network blip'));
 
     await expect(createClonedPreset(sourceData, mkUser())).rejects.toThrow('network blip');
     expect(mockCreatePreset).toHaveBeenCalledTimes(1);
-  });
-
-  it('rethrows the last collision error after exhausting MAX_CLONE_NAME_RETRIES', async () => {
-    const collision = new GatewayApiError('still colliding', 400, 'NAME_COLLISION');
-    mockCreatePreset.mockRejectedValue(collision);
-
-    await expect(createClonedPreset(sourceData, mkUser())).rejects.toBe(collision);
-    expect(mockCreatePreset).toHaveBeenCalledTimes(MAX_CLONE_NAME_RETRIES);
   });
 });
