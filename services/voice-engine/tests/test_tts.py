@@ -107,6 +107,29 @@ async def test_encode_opus_falls_back_to_wav_when_binary_missing(
     assert out == wav_in
 
 
+async def test_encode_opus_falls_back_to_wav_on_generic_oserror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-FileNotFoundError OSError subclasses (PermissionError, etc.) also fall back.
+
+    Complements the FileNotFoundError test above — FileNotFoundError is itself an
+    OSError subclass, so a PermissionError exercises the generalized branch and
+    confirms we're not narrowly catching just the missing-binary case.
+    """
+    import server
+
+    def fake_run_denied(args: Any, **_kw: Any) -> Any:
+        raise PermissionError("Permission denied: 'ffmpeg'")
+
+    monkeypatch.setattr("subprocess.run", fake_run_denied)
+    wav_in = b"RIFF-wav-bytes"
+
+    out, media_type = await server._encode_opus(wav_in, asyncio.get_running_loop())
+
+    assert media_type == "audio/wav"
+    assert out == wav_in
+
+
 async def test_tts_format_wav_bypasses_opus_encode(
     client: httpx.AsyncClient, mock_tts: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
