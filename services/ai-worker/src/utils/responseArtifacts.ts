@@ -163,15 +163,56 @@ export function normalizeForEchoMatch(s: string): string {
 }
 
 /**
+ * Outcome of inspecting a single character in the response during the echo walk.
+ *   - `match`: a normalized character was produced and matched the expected char
+ *   - `skip`: whitespace run continuation; nothing produced, keep walking
+ *   - `mismatch`: produced char did not match the expected char — abort walk
+ */
+type StepResult = 'match' | 'skip' | 'mismatch';
+
+/**
+ * Consume one character of the response and determine whether it extends the
+ * match against `expected[producedIndex]`. Factored out of `findEchoCutIndex`
+ * so the walker's control flow stays readable and its cognitive complexity
+ * stays within the project limit.
+ */
+function stepEchoChar(
+  char: string,
+  expected: string,
+  producedIndex: number,
+  lastWasSpace: boolean
+): StepResult {
+  if (/\s/.test(char)) {
+    // Leading whitespace and whitespace-run continuations produce nothing.
+    if (lastWasSpace) {
+      return 'skip';
+    }
+    return expected[producedIndex] === ' ' ? 'match' : 'mismatch';
+  }
+  return expected[producedIndex] === char.toLowerCase() ? 'match' : 'mismatch';
+}
+
+/**
  * Find the index in the original response where the echoed user message ends.
  *
  * Walks the original response character-by-character, applying the same
- * normalization rules as `normalizeForEchoMatch` on the fly, and stops when
- * the normalized length produced equals the normalized length of the user's
- * text. The returned index preserves the original casing/whitespace of
- * everything AFTER the echo.
+ * normalization rules as `normalizeForEchoMatch` on the fly, verifying each
+ * produced character against `userTextNormalized`, and stops when the
+ * normalized length produced equals the normalized length of the user's text.
+ * The returned index preserves the original casing/whitespace of everything
+ * AFTER the echo.
  *
- * Returns -1 if no echo-end boundary was reached (caller bails out).
+ * Returns -1 if:
+ *   - the response is too short to contain the full echo, OR
+ *   - any produced character doesn't match the expected character in
+ *     `userTextNormalized` (i.e., the response prefix isn't actually the
+ *     user's text even though it has enough chars).
+ *
+ * Note: only `@<name>` text-form mentions are stripped from the leading
+ * position. Discord's `<@numericId>` mention format is intentionally out of
+ * scope — the observed bug uses the text form, and the `<@` format would be
+ * caught (or pass through harmlessly) via the `<received>` patterns in
+ * `stripResponseArtifacts` or left alone.
  */
 function findEchoCutIndex(response: string, userTextNormalized: string): number {
   if (userTextNormalized.length === 0) {
@@ -187,16 +228,13 @@ function findEchoCutIndex(response: string, userTextNormalized: string): number 
   let lastWasSpace = true; // start-of-normalized is "just past trim" — no leading space
 
   while (i < response.length && producedLength < userTextNormalized.length) {
-    const isWs = /\s/.test(response[i]);
-    if (isWs) {
-      // Whitespace run collapses to a single space; leading whitespace is skipped.
-      if (!lastWasSpace) {
-        producedLength++;
-        lastWasSpace = true;
-      }
-    } else {
+    const step = stepEchoChar(response[i], userTextNormalized, producedLength, lastWasSpace);
+    if (step === 'mismatch') {
+      return -1;
+    }
+    if (step === 'match') {
       producedLength++;
-      lastWasSpace = false;
+      lastWasSpace = /\s/.test(response[i]);
     }
     i++;
   }
@@ -261,11 +299,9 @@ export function stripUserMessageEcho(
     return content;
   }
 
-  const normalizedResponse = normalizeForEchoMatch(content);
-  if (!normalizedResponse.startsWith(normalizedUser)) {
-    return content;
-  }
-
+  // `findEchoCutIndex` verifies the normalized-prefix match character-by-character
+  // during its walk and returns -1 on any mismatch — so a separate `startsWith`
+  // check on a fully-normalized copy of `content` would be redundant work.
   const cutIndex = findEchoCutIndex(content, normalizedUser);
   if (cutIndex === -1) {
     return content;
