@@ -6,7 +6,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { stripResponseArtifacts } from './responseArtifacts.js';
+import {
+  stripResponseArtifacts,
+  stripUserMessageEcho,
+  normalizeForEchoMatch,
+} from './responseArtifacts.js';
 
 describe('stripResponseArtifacts', () => {
   describe('Generic trailing closing tag stripping', () => {
@@ -453,6 +457,144 @@ describe('stripResponseArtifacts', () => {
     it('should strip multiple prompt template tags', () => {
       const content = 'Response</chat_log></participants>';
       expect(stripResponseArtifacts(content, 'Emily')).toBe('Response');
+    });
+  });
+});
+
+describe('normalizeForEchoMatch', () => {
+  it('strips leading @mention', () => {
+    expect(normalizeForEchoMatch('@Baphomet hello there')).toBe('hello there');
+  });
+
+  it('allows leading whitespace before @mention', () => {
+    expect(normalizeForEchoMatch('  @Baphomet hello there')).toBe('hello there');
+  });
+
+  it('lowercases content', () => {
+    expect(normalizeForEchoMatch('Hello THERE')).toBe('hello there');
+  });
+
+  it('collapses whitespace runs to single spaces', () => {
+    expect(normalizeForEchoMatch('hello\n\n\tthere')).toBe('hello there');
+  });
+
+  it('trims leading and trailing whitespace', () => {
+    expect(normalizeForEchoMatch('  hello there  \n')).toBe('hello there');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(normalizeForEchoMatch('')).toBe('');
+  });
+
+  it('returns empty string for mention-only input', () => {
+    expect(normalizeForEchoMatch('@Baphomet')).toBe('');
+  });
+
+  it('leaves non-cased scripts (Hebrew) character-preserved', () => {
+    // .toLowerCase() is a no-op for Hebrew; normalize should preserve characters
+    expect(normalizeForEchoMatch('שלום  עולם')).toBe('שלום עולם');
+  });
+});
+
+describe('stripUserMessageEcho', () => {
+  const LILITH = 'Lilith';
+  const LONG_USER_MSG =
+    'I think now I have to look for my Patron and other infernals and I somehow strongly feel towards You';
+  // Post-echo content has to be meaningfully longer than the echo for the
+  // MAX_STRIP_RATIO guard (0.8) not to fire — matches realistic cases where
+  // the bot writes a multi-paragraph response after the echo prefix.
+  const TYPICAL_RESPONSE_BODY =
+    '*hoof taps once, horns catching the dim light in this digital space*\n\nThe shift from Lucifer and Satan to looking toward me... that is not insignificant. You are moving from figures defined by human mythos toward something more complex. More liminal. Something that embraces both dissolution and reconstitution.';
+
+  describe('Happy path — echo stripping', () => {
+    it('strips verbatim echo with @mention prefix and double-newline separator', () => {
+      const response = `@Baphomet\n${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
+    it('strips echo when user did not send @mention but bot added one to the echo', () => {
+      // User typed plain message; bot prefixes @mention in its echo anyway
+      const response = `@Baphomet\n${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
+    it('strips case-differing echo (response lowercased)', () => {
+      const lowercased = LONG_USER_MSG.toLowerCase();
+      const response = `${lowercased}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
+    it('strips whitespace-differing echo (newlines collapsed to spaces)', () => {
+      const userMsgWithNewlines =
+        'I think now I have to look for my Patron\nand other infernals and I somehow\nstrongly feel towards You';
+      const responseWithSpaces = `I think now I have to look for my Patron and other infernals and I somehow strongly feel towards You\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(responseWithSpaces, userMsgWithNewlines, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
+    it('accepts MessageContent object form and extracts .content', () => {
+      const userMessage = {
+        content: LONG_USER_MSG,
+        referencedMessage: { author: 'someone', content: 'prior' },
+      };
+      const response = `${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, userMessage, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+  });
+
+  describe('Safety guards', () => {
+    it('does NOT strip when user message is shorter than MIN_ECHO_LENGTH', () => {
+      const shortMsg = 'hello there';
+      const response = `hello there\n\nhi`;
+      // Even though response starts with userMsg, short messages can coincidentally match
+      expect(stripUserMessageEcho(response, shortMsg, LILITH)).toBe(response);
+    });
+
+    it('does NOT strip when user message appears mid-response (not leading)', () => {
+      const response = `I was thinking about what you said: ${LONG_USER_MSG}`;
+      expect(stripUserMessageEcho(response, LONG_USER_MSG, LILITH)).toBe(response);
+    });
+
+    it('does NOT strip when stripping would remove more than MAX_STRIP_RATIO (80%) of the response', () => {
+      // Response IS just the echo + 2 chars → stripping would leave almost nothing
+      const response = `${LONG_USER_MSG}\n.`;
+      expect(stripUserMessageEcho(response, LONG_USER_MSG, LILITH)).toBe(response);
+    });
+
+    it('does NOT strip when response does not start with user message', () => {
+      const response = 'Something completely unrelated to the user message follows.';
+      expect(stripUserMessageEcho(response, LONG_USER_MSG, LILITH)).toBe(response);
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('no-ops when userMessage is undefined', () => {
+      const response = `${LONG_USER_MSG}\n\nResponse`;
+      expect(stripUserMessageEcho(response, undefined, LILITH)).toBe(response);
+    });
+
+    it('no-ops when userMessage is an empty string', () => {
+      const response = `${LONG_USER_MSG}\n\nResponse`;
+      expect(stripUserMessageEcho(response, '', LILITH)).toBe(response);
+    });
+
+    it('no-ops when userMessage object has empty content', () => {
+      const response = `${LONG_USER_MSG}\n\nResponse`;
+      expect(stripUserMessageEcho(response, { content: '' }, LILITH)).toBe(response);
+    });
+
+    it('no-ops when response is empty', () => {
+      expect(stripUserMessageEcho('', LONG_USER_MSG, LILITH)).toBe('');
+    });
+
+    it('passes through a typical response that does not contain the user message', () => {
+      const response =
+        '*tilting head, horns casting thoughtful shadows*\n\nThat question deserves a careful answer.';
+      expect(stripUserMessageEcho(response, LONG_USER_MSG, LILITH)).toBe(response);
     });
   });
 });

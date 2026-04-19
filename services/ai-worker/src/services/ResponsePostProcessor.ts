@@ -9,8 +9,8 @@
  * - Reference filtering
  */
 
-import { createLogger, type ReferencedMessage } from '@tzurot/common-types';
-import { stripResponseArtifacts } from '../utils/responseArtifacts.js';
+import { createLogger, type MessageContent, type ReferencedMessage } from '@tzurot/common-types';
+import { stripResponseArtifacts, stripUserMessageEcho } from '../utils/responseArtifacts.js';
 import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
 import {
   extractThinkingBlocks,
@@ -47,6 +47,13 @@ interface ResponseProcessingContext {
   discordUsername?: string;
   /** Whether reasoning was enabled for this request (triggers glitch detection) */
   reasoningEnabled?: boolean;
+  /**
+   * The user's incoming message for this turn. When present, the post-processor
+   * will strip a leading verbatim echo of it from the response — some LLMs echo
+   * the user's message as a prefix before their actual response. Optional so
+   * existing callers (and tests) that don't plumb this through still work.
+   */
+  userMessage?: MessageContent;
 }
 
 /**
@@ -193,6 +200,16 @@ export class ResponsePostProcessor {
 
     // Step 4: Strip artifacts
     let cleanedContent = stripResponseArtifacts(visibleContent, context.personalityName);
+
+    // Step 4b: Strip leading verbatim echo of the user's incoming message.
+    // Some LLMs learned to echo the incoming message as a prefix; existing
+    // stripResponseArtifacts catches XML-wrapped variants, this catches the
+    // plain-text variant. Safe no-op when userMessage is undefined.
+    cleanedContent = stripUserMessageEcho(
+      cleanedContent,
+      context.userMessage,
+      context.personalityName
+    );
 
     // Step 5: Replace placeholders
     cleanedContent = replacePromptPlaceholders(
