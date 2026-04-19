@@ -242,22 +242,39 @@ export class ResponsePostProcessor {
     // reasoning was disabled. When we're investigating model-inference
     // stickiness that produces duplicate responses, knowing whether
     // reasoning actually engaged for each turn is a load-bearing signal.
-    // This is purely diagnostic (no behavior change).
+    //
+    // Level split: engaged-as-expected is `info` (routine); ignored-flag
+    // is `warn` so incident correlation (`@level:warn` grep) surfaces it
+    // quickly without paging through every successful response.
     if (context.reasoningEnabled === true) {
       const reasoningActuallyEngaged = thinkingContent !== null && thinkingContent.length > 0;
-      logger.info(
-        {
-          personalityName: context.personalityName,
-          reasoningRequested: true,
-          reasoningActuallyEngaged,
-          apiReasoningLength: apiReasoning !== null ? apiReasoning.length : 0,
-          thinkingContentLength: thinkingContent !== null ? thinkingContent.length : 0,
-          cleanedContentLength: cleanedContent.length,
-        },
-        reasoningActuallyEngaged
-          ? '[ResponsePostProcessor] Reasoning mode engaged as requested'
-          : '[ResponsePostProcessor] Reasoning mode requested but did NOT engage — model ignored the flag'
-      );
+      const apiReasoningLength = apiReasoning !== null ? apiReasoning.length : 0;
+      const thinkingContentLength = thinkingContent !== null ? thinkingContent.length : 0;
+      if (reasoningActuallyEngaged) {
+        logger.info(
+          {
+            personalityName: context.personalityName,
+            reasoningRequested: true,
+            reasoningActuallyEngaged,
+            apiReasoningLength,
+            thinkingContentLength,
+            cleanedContentLength: cleanedContent.length,
+          },
+          '[ResponsePostProcessor] Reasoning mode engaged as requested'
+        );
+      } else {
+        logger.warn(
+          {
+            personalityName: context.personalityName,
+            reasoningRequested: true,
+            reasoningActuallyEngaged,
+            apiReasoningLength,
+            thinkingContentLength,
+            cleanedContentLength: cleanedContent.length,
+          },
+          '[ResponsePostProcessor] Reasoning mode requested but did NOT engage — model ignored the flag'
+        );
+      }
     }
 
     return {

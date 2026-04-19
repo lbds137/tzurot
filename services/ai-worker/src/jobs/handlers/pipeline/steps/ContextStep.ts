@@ -160,19 +160,28 @@ export class ContextStep implements IPipelineStep {
   }
 
   /**
-   * Emit telemetry on the race window between "bot-client queried DB for
-   * conversation history" (≈ job creation time) and "the newest prior
-   * assistant response's persisted `createdAt` in that snapshot".
+   * Emit telemetry on the delta between job creation time and the newest
+   * prior assistant response's persisted `createdAt` in the history snapshot.
    *
-   * A small or negative delta means bot-client's DB query happened before
-   * or during the previous response's persistence, so the cross-turn
-   * duplicate detector will compare against stale history and miss
-   * duplicates. Non-negative-but-large deltas mean persistence completed
-   * well before the next job started, so the race isn't firing for this job.
+   * Two distinct scenarios we want to diagnose post-hoc:
    *
-   * This is purely diagnostic — no behavior change. Logged at `warn` when
-   * the delta suggests a race (< 500ms) so it's easy to grep when a
-   * user reports a duplicate incident.
+   * 1. **Barely-post-persistence**: `deltaMs < 500ms`. Job created just
+   *    after persistence completed. Timing-suspicious; logged at `warn`
+   *    so it's grep-able.
+   *
+   * 2. **Pre-persistence race (primary failure mode)**: the bot's prior
+   *    response was NOT persisted before the history query ran, so it's
+   *    absent from `history` entirely. `newestAssistantTimestamp` here
+   *    reflects an OLDER message — typically minutes ago — and `deltaMs`
+   *    is LARGE, not small. The `warn` threshold won't fire for this
+   *    case. But the logged `newestAssistantTimestamp` itself is the
+   *    signal: if a user reports a duplicate and we see the "most recent"
+   *    assistant message in history is from many minutes ago even though
+   *    the bot just responded, the race happened.
+   *
+   * For that reason this emits at `info` level in the non-race case too
+   * — we want the data available for post-hoc correlation, not stuck
+   * behind debug-level filtering.
    */
   private logRaceWindowTelemetry(
     job: { id?: string | number; timestamp?: number },
@@ -218,7 +227,11 @@ export class ContextStep implements IPipelineStep {
           `Cross-turn duplicate detector may miss prior response.`
       );
     } else {
-      logger.debug(
+      // Emit at info (not debug) so the data is available for post-hoc
+      // correlation on the primary pre-persistence race (where the recent
+      // assistant timestamp would reflect a much older message than
+      // expected).
+      logger.info(
         {
           jobId: job.id,
           jobTimestamp: new Date(jobTimestamp).toISOString(),
