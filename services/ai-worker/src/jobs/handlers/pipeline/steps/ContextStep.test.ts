@@ -716,6 +716,39 @@ describe('ContextStep', () => {
         } as unknown as Job<LLMGenerationJobData>;
       }
 
+      it('warns with clock-skew framing when deltaMs is negative', () => {
+        // Job timestamp BEFORE the persisted assistant-message timestamp — shouldn't
+        // happen with colocated BullMQ + Postgres, but if it ever does, it's a
+        // clock/data anomaly, NOT a race. Message must be distinct from the
+        // race-signal message so triage doesn't conflate them.
+        const jobTs = 1_700_000_000_000;
+        const conversationHistory = [
+          {
+            role: MessageRole.Assistant,
+            content: 'future-looking message',
+            createdAt: new Date(jobTs + 1_000).toISOString(),
+          },
+        ];
+
+        const context: GenerationContext = {
+          job: jobWithTimestamp(jobTs, { context: { userId: 'u', conversationHistory } }),
+          startTime: jobTs,
+          config,
+        };
+
+        step.process(context);
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.objectContaining({ suggestsClockSkew: true, deltaMs: -1_000 }),
+          expect.stringContaining('Clock-skew signal')
+        );
+        // And does NOT fire the race-window warning (separate failure class)
+        expect(mockLogger.warn).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.stringContaining('Race-window signal')
+        );
+      });
+
       it('warns when job created within 500ms of newest assistant message persistence', () => {
         const jobTs = 1_700_000_000_000;
         const conversationHistory = [

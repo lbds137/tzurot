@@ -212,9 +212,32 @@ export class ContextStep implements IPipelineStep {
     }
 
     const deltaMs = jobTimestamp - newestAssistantTimestamp;
-    const suggestsRace = deltaMs < 500;
+    // Distinguish three cases:
+    //   deltaMs < 0    → clock skew (job timestamp before persisted timestamp);
+    //                    shouldn't happen in practice (BullMQ + Postgres
+    //                    colocated on Railway) but triage needs it labeled
+    //                    separately if it ever does.
+    //   0 ≤ deltaMs < 500 → race-suspect (job created shortly after persistence).
+    //   deltaMs ≥ 500     → normal; emitted at info for post-hoc correlation
+    //                        on the pre-persistence race (where the "newest"
+    //                        assistant message would reflect a much older turn).
+    const suggestsClockSkew = deltaMs < 0;
+    const suggestsRace = !suggestsClockSkew && deltaMs < 500;
 
-    if (suggestsRace) {
+    if (suggestsClockSkew) {
+      logger.warn(
+        {
+          jobId: job.id,
+          jobTimestamp: new Date(jobTimestamp).toISOString(),
+          newestAssistantTimestamp: new Date(newestAssistantTimestamp).toISOString(),
+          deltaMs,
+          suggestsClockSkew,
+        },
+        `[ContextStep] Clock-skew signal: job timestamp is ${Math.abs(deltaMs)}ms BEFORE the ` +
+          `newest assistant message's persisted timestamp. Not a race condition — a clock or ` +
+          `data-source mismatch worth investigating.`
+      );
+    } else if (suggestsRace) {
       logger.warn(
         {
           jobId: job.id,
@@ -227,10 +250,6 @@ export class ContextStep implements IPipelineStep {
           `Cross-turn duplicate detector may miss prior response.`
       );
     } else {
-      // Emit at info (not debug) so the data is available for post-hoc
-      // correlation on the primary pre-persistence race (where the recent
-      // assistant timestamp would reflect a much older message than
-      // expected).
       logger.info(
         {
           jobId: job.id,
