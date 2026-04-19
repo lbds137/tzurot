@@ -1156,7 +1156,7 @@ describe('DiscordResponseSender', () => {
       expect(filesArg).toBeUndefined();
     });
 
-    it('should skip attachment when audio exceeds Discord file size limit', async () => {
+    it('should attach over-size notice when audio exceeds Discord file size limit', async () => {
       const { redisService } = await import('../redis.js');
       // Fake a buffer-like object with length > 8 MB to avoid OOM from real allocation
       const oversizedBuffer = { length: 9 * 1024 * 1024 } as unknown as Buffer;
@@ -1172,9 +1172,40 @@ describe('DiscordResponseSender', () => {
         ttsAudioKey: 'tts-audio:oversized',
       });
 
-      // Should send text but no files
-      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
-      expect(filesArg).toBeUndefined();
+      // User gets a visible signal — a tiny text attachment — instead of a silent drop
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3] as
+        | { attachment: Buffer; name: string }[]
+        | undefined;
+      expect(filesArg).toBeDefined();
+      expect(filesArg).toHaveLength(1);
+      expect(filesArg![0].name).toBe('voice_omitted_too_long.txt');
+      // Notice body mentions the actual size so users can infer cause
+      const noticeText = filesArg![0].attachment.toString('utf-8');
+      expect(noticeText).toContain('9.00 MB');
+      expect(noticeText).toContain('Discord limit 8 MB');
+    });
+
+    it('should use .ogg extension for audio/ogg content type', async () => {
+      const { redisService } = await import('../redis.js');
+      const audioBuffer = Buffer.from([0x4f, 0x67, 0x67, 0x53]); // "OggS" magic
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(audioBuffer);
+
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Hello!',
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:opus',
+        ttsAudioContentType: 'audio/ogg',
+      });
+
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3] as
+        | { attachment: Buffer; name: string }[]
+        | undefined;
+      expect(filesArg).toBeDefined();
+      expect(filesArg![0].name).toBe('voice.ogg');
     });
 
     it('should attach audio to last chunk only for multi-chunk responses', async () => {
