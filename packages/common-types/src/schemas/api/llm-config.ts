@@ -100,6 +100,18 @@ export const LlmConfigCreateSchema = z.object({
 
   // Context settings (conversation history limits)
   ...ContextSettingsSchema.shape,
+
+  /**
+   * When true, if the requested `name` collides with an existing config owned
+   * by the same user, the server bumps a `(Copy N)` suffix until it finds a
+   * free slot instead of returning NAME_COLLISION. Used by the preset clone
+   * flow so the client can issue a single HTTP request regardless of how
+   * many existing copies are already present.
+   *
+   * Default: false — regular create calls keep strict name-uniqueness
+   * enforcement so accidental name-reuse surfaces as an error.
+   */
+  autoSuffixOnCollision: z.boolean().optional(),
 });
 
 export type LlmConfigCreateInput = z.infer<typeof LlmConfigCreateSchema>;
