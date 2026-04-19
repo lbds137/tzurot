@@ -137,6 +137,11 @@ export const DISCORD_MENTIONS = {
    *
    * No anchors, no capture groups — compose for specific needs (anchor with
    * `^` for leading-only, add `g` flag for global scan, etc.).
+   *
+   * Note on text-form breadth: `@\S+` intentionally matches `@everyone`,
+   * `@here`, and any `@word` token, not just rendered username mentions.
+   * For the leading-strip use cases this is correct — all of those belong
+   * in the "mention prefix to skip" bucket.
    */
   ANY_PATTERN: '(?:@\\S+|<@!?\\d+>|<@&\\d+>|<#\\d+>)',
   /** Maximum user mentions to process per message (DoS prevention) */

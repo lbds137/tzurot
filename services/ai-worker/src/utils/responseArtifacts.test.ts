@@ -543,6 +543,16 @@ describe('stripUserMessageEcho', () => {
       expect(result).toBe(TYPICAL_RESPONSE_BODY);
     });
 
+    it('strips verbatim echo when response has leading whitespace but no mention', () => {
+      // Pins the `lastWasSpace = true` init in findEchoCutIndex — without it,
+      // the walker would consume the leading newlines as a mismatched space
+      // and bail out. With it, leading whitespace is correctly skipped the
+      // same way `normalizeForEchoMatch`'s `.trim()` handles it.
+      const response = `\n\n${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
     it('strips echo when response leads with Discord numeric mention <@id>', () => {
       // This is the raw Discord format: when a message content contains a
       // mention, Discord sends `<@userId>` not `@name` text. If a model echoes

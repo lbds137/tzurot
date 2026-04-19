@@ -308,6 +308,11 @@ export function stripUserMessageEcho(
   }
 
   const stripped = content.substring(cutIndex).replace(/^\s+/, '');
+  // Includes the echo text AND the blank-line separator (e.g., `\n\n`) before
+  // the real response body — so `MAX_STRIP_RATIO` below is measured against
+  // "echo + separator" rather than the echo alone. Intentional: the separator
+  // is legitimately being removed, and counting it makes the guard slightly
+  // more conservative (harder to trip the strip-too-much failure mode).
   const strippedChars = content.length - stripped.length;
 
   // Safety guard: refuse to strip if we'd remove more than MAX_STRIP_RATIO
