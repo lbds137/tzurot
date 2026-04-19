@@ -462,8 +462,27 @@ describe('stripResponseArtifacts', () => {
 });
 
 describe('normalizeForEchoMatch', () => {
-  it('strips leading @mention', () => {
+  it('strips leading @mention (text form)', () => {
     expect(normalizeForEchoMatch('@Baphomet hello there')).toBe('hello there');
+  });
+
+  it('strips leading Discord numeric mention form <@id>', () => {
+    expect(normalizeForEchoMatch('<@123456789012345678> hello there')).toBe('hello there');
+  });
+
+  it('strips leading Discord nickname mention form <@!id>', () => {
+    expect(normalizeForEchoMatch('<@!987654321098765432> hello there')).toBe('hello there');
+  });
+
+  it('strips multiple stacked leading mentions', () => {
+    // Bot self-mention followed by user's @admin mention — both should be stripped
+    expect(normalizeForEchoMatch('@Baphomet\n@admin hello there')).toBe('hello there');
+    expect(normalizeForEchoMatch('<@123456789012345678>\n<@987654321098765432> hello there')).toBe(
+      'hello there'
+    );
+    expect(normalizeForEchoMatch('@Baphomet <@!111222333444555666> hello there')).toBe(
+      'hello there'
+    );
   });
 
   it('allows leading whitespace before @mention', () => {
@@ -521,6 +540,34 @@ describe('stripUserMessageEcho', () => {
       // code path where the leading-mention regex doesn't fire.
       const response = `${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
       const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
+    it('strips echo when response leads with Discord numeric mention <@id>', () => {
+      // This is the raw Discord format: when a message content contains a
+      // mention, Discord sends `<@userId>` not `@name` text. If a model echoes
+      // the raw format, the stripper should still catch it.
+      const response = `<@123456789012345678>\n${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, LONG_USER_MSG, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
+    it('strips echo when both response AND user message start with mentions', () => {
+      // User typed `@admin <long text>` (or raw `<@adminId> <long text>`);
+      // bot echoes `@Baphomet\n@admin <long text>`. Both leading mentions
+      // must be skipped on both sides for the comparison to line up.
+      const userMsgWithMention = `@admin ${LONG_USER_MSG}`;
+      const response = `@Baphomet\n@admin ${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, userMsgWithMention, LILITH);
+      expect(result).toBe(TYPICAL_RESPONSE_BODY);
+    });
+
+    it('strips echo with mixed mention forms across sides', () => {
+      // User's raw content has numeric mention, bot's echo has text form
+      // (or vice versa). The skip-loop should handle both equivalently.
+      const userMsgWithNumeric = `<@987654321098765432> ${LONG_USER_MSG}`;
+      const response = `@Baphomet\n@SomeUser ${LONG_USER_MSG}\n\n${TYPICAL_RESPONSE_BODY}`;
+      const result = stripUserMessageEcho(response, userMsgWithNumeric, LILITH);
       expect(result).toBe(TYPICAL_RESPONSE_BODY);
     });
 
