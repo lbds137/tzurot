@@ -136,6 +136,14 @@ export class ContextStep implements IPipelineStep {
       crossChannelHistory,
     };
 
+    // Race-window telemetry: if the bot-client queried DB for history BEFORE
+    // the previous assistant response finished persisting, the cross-turn
+    // duplicate detector will compare against stale history and miss genuine
+    // duplicates. Log the delta between job-creation time and the newest
+    // assistant message's persisted timestamp. Negative/small deltas are the
+    // signal we'd expect to see when a rapid user follow-up races the write.
+    this.logRaceWindowTelemetry(job, jobContext.conversationHistory ?? []);
+
     logger.debug(
       {
         jobId: job.id,
@@ -149,6 +157,78 @@ export class ContextStep implements IPipelineStep {
       ...context,
       preparedContext,
     };
+  }
+
+  /**
+   * Emit telemetry on the race window between "bot-client queried DB for
+   * conversation history" (≈ job creation time) and "the newest prior
+   * assistant response's persisted `createdAt` in that snapshot".
+   *
+   * A small or negative delta means bot-client's DB query happened before
+   * or during the previous response's persistence, so the cross-turn
+   * duplicate detector will compare against stale history and miss
+   * duplicates. Non-negative-but-large deltas mean persistence completed
+   * well before the next job started, so the race isn't firing for this job.
+   *
+   * This is purely diagnostic — no behavior change. Logged at `warn` when
+   * the delta suggests a race (< 500ms) so it's easy to grep when a
+   * user reports a duplicate incident.
+   */
+  private logRaceWindowTelemetry(
+    job: { id?: string | number; timestamp?: number },
+    history: { role: string; createdAt?: string | Date }[]
+  ): void {
+    if (history.length === 0) {
+      return;
+    }
+
+    let newestAssistantTimestamp: number | null = null;
+    for (const msg of history) {
+      if (msg.role.toLowerCase() !== 'assistant') {
+        continue;
+      }
+      const ts = extractTimestamp(msg.createdAt);
+      if (ts !== null && (newestAssistantTimestamp === null || ts > newestAssistantTimestamp)) {
+        newestAssistantTimestamp = ts;
+      }
+    }
+
+    if (newestAssistantTimestamp === null) {
+      return;
+    }
+
+    const jobTimestamp = job.timestamp;
+    if (jobTimestamp === undefined) {
+      return;
+    }
+
+    const deltaMs = jobTimestamp - newestAssistantTimestamp;
+    const suggestsRace = deltaMs < 500;
+
+    if (suggestsRace) {
+      logger.warn(
+        {
+          jobId: job.id,
+          jobTimestamp: new Date(jobTimestamp).toISOString(),
+          newestAssistantTimestamp: new Date(newestAssistantTimestamp).toISOString(),
+          deltaMs,
+          suggestsRace,
+        },
+        `[ContextStep] Race-window signal: job created ${deltaMs}ms after newest assistant message persisted. ` +
+          `Cross-turn duplicate detector may miss prior response.`
+      );
+    } else {
+      logger.debug(
+        {
+          jobId: job.id,
+          jobTimestamp: new Date(jobTimestamp).toISOString(),
+          newestAssistantTimestamp: new Date(newestAssistantTimestamp).toISOString(),
+          deltaMs,
+          suggestsRace,
+        },
+        '[ContextStep] Race-window telemetry'
+      );
+    }
   }
 
   /**
