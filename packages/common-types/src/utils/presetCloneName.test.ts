@@ -66,3 +66,24 @@ describe('stripCopySuffix', () => {
     expect(stripCopySuffix('')).toBe('');
   });
 });
+
+describe('ReDoS regression', () => {
+  // Earlier implementation used `/\s*\(Copy(?:\s+(\d+))?\)\s*$/i` which
+  // CodeQL flagged as polynomial ReDoS — leading `\s*` combined with the
+  // engine's starting-position slide produced O(N²) on whitespace-heavy
+  // input. If the regex regresses to a sliding pattern, these tests will
+  // either hang past the vitest timeout or time out in CI.
+  it('generateClonedName handles long whitespace in sub-millisecond time', () => {
+    const input = ' '.repeat(50_000) + 'x';
+    const start = Date.now();
+    expect(generateClonedName(input)).toBe('x (Copy)');
+    expect(Date.now() - start).toBeLessThan(100);
+  });
+
+  it('stripCopySuffix handles long whitespace in sub-millisecond time', () => {
+    const input = ' '.repeat(50_000) + 'x';
+    const start = Date.now();
+    expect(stripCopySuffix(input)).toBe('x');
+    expect(Date.now() - start).toBeLessThan(100);
+  });
+});

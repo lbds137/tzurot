@@ -7,15 +7,38 @@
  *
  * Keeping both sides pointed at one implementation prevents drift between
  * "what the client suggests" and "what the server accepts" when the user
- * already has a Pile of `(Copy N)` variants.
+ * already has a pile of `(Copy N)` variants.
  */
 
+// Inside-the-parens pattern. Anchored on both ends with a bounded
+// whitespace run so the match stays linear-time. An earlier sliding
+// regex (`/\s*\(Copy(?:\s+(\d+))?\)\s*$/i`) was flagged as polynomial
+// ReDoS — leading `\s*` combined with the engine's starting-position
+// slide produced O(N²) on spacey input. We now parse the tail with
+// `trimEnd` + `lastIndexOf('(')` and only regex-match the content
+// inside the parentheses.
+const COPY_INNER_PATTERN = /^copy(?:\s{1,8}(\d+))?$/i;
+
 /**
- * Pattern to match a trailing (Copy) or (Copy N) suffix.
- * Module-scoped to avoid regex recompilation on each call.
- * Group 1 captures the optional number for extraction.
+ * Try to strip exactly one trailing `(Copy N)` suffix from the name.
+ * Returns the base name and the copy number (1 when no number is present),
+ * or null if the name has no recognisable copy suffix.
  */
-const COPY_SUFFIX_PATTERN = /\s*\(Copy(?:\s+(\d+))?\)\s*$/i;
+function tryStripOneSuffix(name: string): { base: string; num: number } | null {
+  const trimmed = name.trimEnd();
+  if (trimmed.length === 0 || !trimmed.endsWith(')')) {return null;}
+
+  const openIdx = trimmed.lastIndexOf('(');
+  if (openIdx < 0) {return null;}
+
+  const inside = trimmed.slice(openIdx + 1, trimmed.length - 1);
+  const match = COPY_INNER_PATTERN.exec(inside);
+  if (match === null) {return null;}
+
+  const num = match[1] !== undefined ? parseInt(match[1], 10) : 1;
+  const base = trimmed.slice(0, openIdx);
+  return { base, num };
+}
 
 /**
  * Generate a cloned name by stripping all `(Copy N)` suffixes and adding a new one.
@@ -36,12 +59,12 @@ export function generateClonedName(originalName: string): string {
   let maxNum = 0;
   let hadSuffix = false;
 
-  let match: RegExpExecArray | null;
-  while ((match = COPY_SUFFIX_PATTERN.exec(baseName)) !== null) {
+  while (true) {
+    const stripped = tryStripOneSuffix(baseName);
+    if (stripped === null) {break;}
     hadSuffix = true;
-    const num = match[1] !== undefined ? parseInt(match[1], 10) : 1;
-    maxNum = Math.max(maxNum, num);
-    baseName = baseName.slice(0, match.index);
+    maxNum = Math.max(maxNum, stripped.num);
+    baseName = stripped.base;
   }
 
   baseName = baseName.trim();
@@ -71,8 +94,10 @@ export function generateClonedName(originalName: string): string {
  */
 export function stripCopySuffix(name: string): string {
   let base = name;
-  while (COPY_SUFFIX_PATTERN.test(base)) {
-    base = base.replace(COPY_SUFFIX_PATTERN, '');
+  while (true) {
+    const stripped = tryStripOneSuffix(base);
+    if (stripped === null) {break;}
+    base = stripped.base;
   }
   return base.trim();
 }
