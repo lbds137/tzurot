@@ -28,6 +28,7 @@ export {
   findLeadingMentionsEnd,
   stripLeadingMentions,
 } from './utils/discord.js';
+export { generateClonedName, stripCopySuffix } from './utils/presetCloneName.js';
 export { createLogger } from './utils/logger.js';
 export {
   parseRedisUrl,
