@@ -13,8 +13,25 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
+import type { MessageContent } from '@tzurot/common-types';
 
 const logger = createLogger('ResponseArtifacts');
+
+/**
+ * Minimum normalized length of a user message before we'll consider stripping
+ * an echo of it from the response. Short messages ("hello", "yes", "thanks")
+ * coincidentally match common response openings — a 30-char floor makes
+ * false-positive matches vanishingly unlikely.
+ */
+const MIN_ECHO_LENGTH = 30;
+
+/**
+ * Maximum proportion of a response we're willing to strip as an echo. If the
+ * response IS just the user's message (or >80% of it), the LLM effectively
+ * refused to respond — stripping would leave almost nothing and hide the
+ * actual failure. Better to let the broken response through so we can see it.
+ */
+const MAX_STRIP_RATIO = 0.8;
 
 /**
  * Build artifact patterns for a given personality name
@@ -127,4 +144,159 @@ export function stripResponseArtifacts(content: string, personalityName: string)
   }
 
   return cleaned;
+}
+
+/**
+ * Normalize text for echo-match comparison: strip leading @mention, lowercase,
+ * collapse whitespace, trim. Intentionally NOT Unicode-normalized — `.toLowerCase()`
+ * is a no-op for non-cased scripts (Hebrew, Arabic, CJK), so comparison still
+ * works character-for-character for those.
+ *
+ * @internal Exported for testing
+ */
+export function normalizeForEchoMatch(s: string): string {
+  return s
+    .replace(/^\s*@\S+\s*/, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Find the index in the original response where the echoed user message ends.
+ *
+ * Walks the original response character-by-character, applying the same
+ * normalization rules as `normalizeForEchoMatch` on the fly, and stops when
+ * the normalized length produced equals the normalized length of the user's
+ * text. The returned index preserves the original casing/whitespace of
+ * everything AFTER the echo.
+ *
+ * Returns -1 if no echo-end boundary was reached (caller bails out).
+ */
+function findEchoCutIndex(response: string, userTextNormalized: string): number {
+  if (userTextNormalized.length === 0) {
+    return -1;
+  }
+
+  // Skip optional leading @mention prefix in the response.
+  // Matches `normalizeForEchoMatch`'s first transform so boundaries line up.
+  const mentionMatch = /^\s*@\S+\s*/.exec(response);
+  let i = mentionMatch !== null ? mentionMatch[0].length : 0;
+
+  let producedLength = 0;
+  let lastWasSpace = true; // start-of-normalized is "just past trim" — no leading space
+
+  while (i < response.length && producedLength < userTextNormalized.length) {
+    const isWs = /\s/.test(response[i]);
+    if (isWs) {
+      // Whitespace run collapses to a single space; leading whitespace is skipped.
+      if (!lastWasSpace) {
+        producedLength++;
+        lastWasSpace = true;
+      }
+    } else {
+      producedLength++;
+      lastWasSpace = false;
+    }
+    i++;
+  }
+
+  return producedLength === userTextNormalized.length ? i : -1;
+}
+
+/**
+ * Extract the text body from a `MessageContent` (string or object form).
+ * Returns empty string if there's no usable text — caller no-ops on that.
+ */
+function extractUserText(userMessage: MessageContent | undefined): string {
+  if (userMessage === undefined) {
+    return '';
+  }
+  if (typeof userMessage === 'string') {
+    return userMessage;
+  }
+  return userMessage.content;
+}
+
+/**
+ * Strip a leading verbatim echo of the user's incoming message from the AI's
+ * response. Some LLMs (especially free-tier models trained on chat transcripts)
+ * learned to format output with the user's message repeated as a prefix before
+ * the actual response begins. Existing `stripResponseArtifacts` handles the
+ * XML-wrapped variants (`<from>`, `<received message>`, etc.); this handles
+ * the plain-text variant.
+ *
+ * Three safety guards keep false positives away from legitimate content:
+ * - `MIN_ECHO_LENGTH` (30 chars): short user messages match common response
+ *   openings coincidentally.
+ * - Leading-position only: mid-response echoes are legitimate quoting.
+ * - `MAX_STRIP_RATIO` (0.8): if stripping would eat >80% of the response, the
+ *   model has failed in a different way — surface it instead of hiding it.
+ *
+ * Logs a warn on every strip-fire (and on the safety-abort for max-ratio) so
+ * prod telemetry tells us whether the thresholds are calibrated correctly —
+ * critical since the bug is not easily reproducible locally.
+ *
+ * @param content - The AI's response content (post-`stripResponseArtifacts`)
+ * @param userMessage - The incoming user message from the generation job
+ * @param personalityName - For diagnostic logging only
+ * @returns Content with the leading echo stripped, or the original content unchanged
+ */
+export function stripUserMessageEcho(
+  content: string,
+  userMessage: MessageContent | undefined,
+  personalityName: string
+): string {
+  if (content.length === 0) {
+    return content;
+  }
+
+  const userText = extractUserText(userMessage);
+  if (userText.length === 0) {
+    return content;
+  }
+
+  const normalizedUser = normalizeForEchoMatch(userText);
+  if (normalizedUser.length < MIN_ECHO_LENGTH) {
+    return content;
+  }
+
+  const normalizedResponse = normalizeForEchoMatch(content);
+  if (!normalizedResponse.startsWith(normalizedUser)) {
+    return content;
+  }
+
+  const cutIndex = findEchoCutIndex(content, normalizedUser);
+  if (cutIndex === -1) {
+    return content;
+  }
+
+  const stripped = content.substring(cutIndex).replace(/^\s+/, '');
+  const strippedChars = content.length - stripped.length;
+
+  // Safety guard: refuse to strip if we'd remove more than MAX_STRIP_RATIO
+  // of the response. The model likely regurgitated the input instead of
+  // responding — leave it visible so the real failure surfaces.
+  if (stripped.length < content.length * (1 - MAX_STRIP_RATIO)) {
+    logger.warn(
+      {
+        strippedChars,
+        responseLength: content.length,
+        personalityName,
+      },
+      '[ResponseArtifacts] Skipping user-message-echo strip — would remove >80% of response'
+    );
+    return content;
+  }
+
+  logger.warn(
+    {
+      userMessageLength: userText.length,
+      strippedChars,
+      originalResponseLength: content.length,
+      personalityName,
+    },
+    '[ResponseArtifacts] Stripped leading user-message echo — model learned echo pattern'
+  );
+  return stripped;
 }

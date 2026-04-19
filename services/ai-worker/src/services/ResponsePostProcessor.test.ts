@@ -12,6 +12,7 @@ import type { ReferencedMessage } from '@tzurot/common-types';
 const {
   mockRemoveDuplicateResponse,
   mockStripResponseArtifacts,
+  mockStripUserMessageEcho,
   mockExtractThinkingBlocks,
   mockExtractApiReasoningContent,
   mockMergeThinkingContent,
@@ -19,6 +20,7 @@ const {
 } = vi.hoisted(() => ({
   mockRemoveDuplicateResponse: vi.fn(),
   mockStripResponseArtifacts: vi.fn(),
+  mockStripUserMessageEcho: vi.fn(),
   mockExtractThinkingBlocks: vi.fn(),
   mockExtractApiReasoningContent: vi.fn(),
   mockMergeThinkingContent: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock('../utils/duplicateDetection.js', () => ({
 
 vi.mock('../utils/responseArtifacts.js', () => ({
   stripResponseArtifacts: mockStripResponseArtifacts,
+  stripUserMessageEcho: mockStripUserMessageEcho,
 }));
 
 vi.mock('../utils/thinkingExtraction.js', () => ({
@@ -53,6 +56,7 @@ describe('ResponsePostProcessor', () => {
     // Default mock implementations
     mockRemoveDuplicateResponse.mockImplementation((content: string) => content);
     mockStripResponseArtifacts.mockImplementation((content: string) => content);
+    mockStripUserMessageEcho.mockImplementation((content: string) => content);
     mockExtractThinkingBlocks.mockReturnValue({ thinkingContent: null, visibleContent: '' });
     mockExtractApiReasoningContent.mockReturnValue(null);
     mockMergeThinkingContent.mockReturnValue(null);
@@ -167,6 +171,7 @@ describe('ResponsePostProcessor', () => {
       });
       mockMergeThinkingContent.mockReturnValue(null);
       mockStripResponseArtifacts.mockReturnValue('stripped');
+      mockStripUserMessageEcho.mockReturnValue('echo-stripped');
       mockReplacePromptPlaceholders.mockReturnValue('final content');
 
       const result = processor.processResponse('raw content', undefined, undefined, defaultContext);
@@ -176,15 +181,35 @@ describe('ResponsePostProcessor', () => {
       expect(result.wasDeduplicated).toBe(false);
       expect(result.onlyThinkingProduced).toBe(false);
 
-      // Verify order of operations
+      // Verify order of operations — echo strip runs between artifact strip and placeholder replace
       expect(mockRemoveDuplicateResponse).toHaveBeenCalledWith('raw content');
       expect(mockStripResponseArtifacts).toHaveBeenCalledWith('raw content', 'TestBot');
+      expect(mockStripUserMessageEcho).toHaveBeenCalledWith('stripped', undefined, 'TestBot');
       expect(mockReplacePromptPlaceholders).toHaveBeenCalledWith(
-        'stripped',
+        'echo-stripped',
         'TestUser',
         'TestBot',
         'testuser#1234'
       );
+    });
+
+    it('should thread context.userMessage through to stripUserMessageEcho', () => {
+      mockRemoveDuplicateResponse.mockReturnValue('raw');
+      mockExtractThinkingBlocks.mockReturnValue({
+        thinkingContent: null,
+        visibleContent: 'raw',
+      });
+      mockStripResponseArtifacts.mockReturnValue('stripped');
+      mockStripUserMessageEcho.mockReturnValue('echo-stripped');
+      mockReplacePromptPlaceholders.mockReturnValue('final');
+
+      const userMessage = 'hello there, I have a question for you';
+      processor.processResponse('raw', undefined, undefined, {
+        ...defaultContext,
+        userMessage,
+      });
+
+      expect(mockStripUserMessageEcho).toHaveBeenCalledWith('stripped', userMessage, 'TestBot');
     });
 
     it('should detect when deduplication was applied', () => {
