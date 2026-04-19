@@ -340,7 +340,7 @@ describe('LlmConfigService', () => {
         );
       });
 
-      it('queries findMany with startsWith on the stripped base name and a bounded take', async () => {
+      it('queries findMany with OR(exact base, copy variants) + orderBy + bounded take', async () => {
         prisma.llmConfig.findMany.mockResolvedValue([]);
         prisma.llmConfig.create.mockResolvedValue(sampleConfigDetail);
 
@@ -354,8 +354,9 @@ describe('LlmConfigService', () => {
           expect.objectContaining({
             where: expect.objectContaining({
               ownerId: 'user-1',
-              name: { startsWith: 'Preset' },
+              OR: [{ name: 'Preset' }, { name: { startsWith: 'Preset (Copy' } }],
             }),
+            orderBy: { name: 'asc' },
             take: 21, // MAX_CLONE_NAME_ATTEMPTS (20) + 1
           })
         );
