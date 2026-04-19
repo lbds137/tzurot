@@ -236,7 +236,13 @@ export class DiscordResponseSender {
     return footer;
   }
 
-  /** Fetch TTS audio files from Redis, if a key is provided */
+  /** Fetch TTS audio files from Redis, if a key is provided.
+   *
+   * When the audio exceeds Discord's 8 MiB attachment limit, returns a tiny text
+   * attachment in its place so the user has a visible signal that voice was
+   * attempted but couldn't be delivered — rather than a silent drop where the
+   * text arrives without audio and the user assumes the bot is broken.
+   */
   private async fetchTTSFiles(
     ttsAudioKey?: string,
     contentType?: string
@@ -249,18 +255,35 @@ export class DiscordResponseSender {
       logger.warn({ ttsAudioKey }, 'TTS audio expired or not found');
       return undefined;
     }
-    // Discord non-Nitro servers have an 8 MB file upload limit
+    // Discord non-Nitro servers have an 8 MiB file upload limit. In the common case
+    // this never fires post-transcode (Opus at 64 kbps = ~17 min of speech under 8 MiB).
+    // The fallback attachment is for residual cases: transcoding disabled / failed,
+    // or text long enough to exceed the limit even compressed.
     if (audioBuffer.length > DISCORD_LIMITS.FILE_UPLOAD_MAX_BYTES) {
+      const audioMb = (audioBuffer.length / (1024 * 1024)).toFixed(2);
       logger.warn(
-        { ttsAudioKey, audioSize: audioBuffer.length, limit: DISCORD_LIMITS.FILE_UPLOAD_MAX_BYTES },
-        'TTS audio exceeds Discord file size limit, skipping attachment'
+        {
+          ttsAudioKey,
+          audioSize: audioBuffer.length,
+          audioMb,
+          limit: DISCORD_LIMITS.FILE_UPLOAD_MAX_BYTES,
+          contentType,
+        },
+        'TTS audio exceeds Discord file size limit, attaching over-size notice instead'
       );
-      return undefined;
+      const notice = Buffer.from(
+        `Voice response was too long to attach (${audioMb} MB, Discord limit 8 MB).\n` +
+          `The text response was delivered successfully.`,
+        'utf-8'
+      );
+      return [{ attachment: notice, name: 'voice_omitted_too_long.txt' }];
     }
-    logger.debug({ ttsAudioKey, audioSize: audioBuffer.length }, 'TTS audio fetched');
-    // Determine file extension from content type — ElevenLabs returns MP3 (~10x smaller),
-    // voice-engine returns WAV. MP3 also helps stay under the 8 MB Discord limit.
-    const extension = contentType === 'audio/mpeg' ? 'mp3' : 'wav';
+    logger.debug({ ttsAudioKey, audioSize: audioBuffer.length, contentType }, 'TTS audio fetched');
+    // Determine file extension from content type. Voice-engine now returns Opus-in-Ogg
+    // (audio/ogg) by default; ElevenLabs returns MP3; both are compressed and typically
+    // fit well under 8 MiB. WAV fallback remains for the multi-chunk synthesis path.
+    const extension =
+      contentType === 'audio/mpeg' ? 'mp3' : contentType === 'audio/ogg' ? 'ogg' : 'wav';
     return [{ attachment: audioBuffer, name: `voice.${extension}` }];
   }
 
