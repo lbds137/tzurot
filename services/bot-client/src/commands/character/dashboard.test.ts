@@ -65,6 +65,21 @@ vi.mock('./truncationWarning.js', () => ({
   showTruncationWarning: vi.fn(),
 }));
 
+// renderTerminalScreen imports getSessionManager directly from the source
+// module, so mocking the barrel below isn't enough — add a source-level stub
+// so handleRefreshButton's NOT_FOUND path doesn't blow up on an uninitialized
+// session manager.
+vi.mock('../../utils/dashboard/SessionManager.js', () => ({
+  getSessionManager: vi.fn().mockReturnValue({
+    get: vi.fn(),
+    set: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  }),
+  initSessionManager: vi.fn(),
+  shutdownSessionManager: vi.fn(),
+}));
+
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
   return {
@@ -605,6 +620,13 @@ describe('Character Dashboard', () => {
         entityId: 'nonexistent',
       });
 
+      // Explicitly null out the shared session-get mock. `vi.clearAllMocks` in
+      // beforeEach wipes call history but preserves implementations set by
+      // earlier tests in this suite (e.g. the modal-submit test seeds
+      // browseContext). Without this reset, renderTerminalScreen would see a
+      // leaked browseContext and render the Back-to-Browse button instead of
+      // the clean terminal expected here.
+      vi.mocked(dashboardUtils.getSessionManager().get).mockResolvedValue(null);
       vi.mocked(api.fetchCharacter).mockResolvedValue(null);
 
       const mockInteraction = createMockButtonInteraction('character::refresh::nonexistent');

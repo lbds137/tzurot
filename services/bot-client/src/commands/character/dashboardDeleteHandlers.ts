@@ -15,9 +15,12 @@ import {
 } from '@tzurot/common-types';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
+import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
+import { renderTerminalScreen } from '../../utils/dashboard/terminalScreen.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { fetchCharacter } from './api.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
+import type { CharacterData } from './config.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -75,6 +78,11 @@ export async function handleDeleteAction(
 /**
  * Handle delete confirmation button click.
  * Called when user clicks "Delete Forever" or "Cancel" on the delete confirmation dialog.
+ *
+ * Terminal success/failure paths route through {@link renderTerminalScreen} so
+ * that dashboards opened from `/character browse` preserve the Back-to-Browse
+ * affordance. The cancel path is left non-terminal — see the `intentionally-raw`
+ * marker below for the follow-up-tracked limitation.
  */
 export async function handleDeleteButton(
   interaction: ButtonInteraction,
@@ -82,20 +90,38 @@ export async function handleDeleteButton(
   confirmed: boolean
 ): Promise<void> {
   if (!confirmed) {
+    // Cancel-delete is non-terminal — ideally it restores the dashboard (like
+    // preset's handleCancelDeleteButton via refreshDashboardUI), but
+    // character's dashboard renders its own embed without a shared refresh
+    // helper. Tracked as a follow-up backlog item ("character cancel-delete
+    // should restore dashboard").
     await interaction.update({
       content: '✅ Deletion cancelled.',
       embeds: [],
+      // intentionally-raw: non-terminal cancel path; see block comment above.
       components: [],
     });
     return;
   }
 
-  // User clicked confirm - proceed with deletion
-  await interaction.update({
-    content: '🔄 Deleting character...',
-    embeds: [],
-    components: [],
-  });
+  // User clicked confirm — ack the button and let renderTerminalScreen handle
+  // every terminal outcome. No intermediate "Deleting..." message (matches the
+  // preset pattern); the user sees the button's spinner while the DELETE API
+  // call resolves.
+  await interaction.deferUpdate();
+
+  // Fetch the session so browseContext (if any) can carry into the terminal
+  // screen. Users who opened this dashboard from /character browse get a
+  // Back-to-Browse button on the final message; users who opened it via
+  // /character view get a clean terminal state with no back button.
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<CharacterData>(interaction.user.id, 'character', slug);
+  const terminalSession = {
+    userId: interaction.user.id,
+    entityType: 'character' as const,
+    entityId: slug,
+    browseContext: session?.data.browseContext,
+  };
 
   // Call the DELETE API
   const result = await callGatewayApi<unknown>(`/user/personality/${slug}`, {
@@ -105,10 +131,10 @@ export async function handleDeleteButton(
 
   if (!result.ok) {
     logger.error({ slug, error: result.error }, '[Character] Delete API failed');
-    await interaction.editReply({
+    await renderTerminalScreen({
+      interaction,
+      session: terminalSession,
       content: `❌ Failed to delete character: ${result.error}`,
-      embeds: [],
-      components: [],
     });
     return;
   }
@@ -121,10 +147,10 @@ export async function handleDeleteButton(
       '[Character] Response schema validation failed'
     );
     // Still consider it a success since the API returned 200
-    await interaction.editReply({
+    await renderTerminalScreen({
+      interaction,
+      session: terminalSession,
       content: `✅ Character has been deleted.`,
-      embeds: [],
-      components: [],
     });
     return;
   }
@@ -147,10 +173,10 @@ export async function handleDeleteButton(
     successMessage += '\n\n**Deleted data:**\n' + countLines.join('\n');
   }
 
-  await interaction.editReply({
+  await renderTerminalScreen({
+    interaction,
+    session: terminalSession,
     content: successMessage,
-    embeds: [],
-    components: [],
   });
 
   logger.info(
