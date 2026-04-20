@@ -22,13 +22,18 @@ interface DlqViewOptions {
   json?: boolean;
 }
 
+// Mirrors the shape of `bullmq.Job` for the fields we consume. BullMQ
+// 5.75+ tightened `failedReason` to `string` (always present on failed
+// jobs) and shifted `stacktrace` from `string[] | undefined` to
+// `string[] | null`. Keep this interface aligned with the library types
+// to avoid a re-break on future bumps.
 interface FailedJobDetails {
   id: string | undefined;
   name: string;
   finishedOn: string | null;
   attemptsMade: number;
-  failedReason: string | undefined;
-  stacktrace: string[] | undefined;
+  failedReason: string;
+  stacktrace: string[] | null;
   data: unknown;
   timestamp: string | null;
 }
