@@ -144,9 +144,15 @@ When the monitor fires, **all four** of the following must happen before the cyc
    Inline line comments are where human reviewers typically leave blocking feedback; if you only check `/issues/N/comments` you'll silently miss them. Track the most recently reported comment's timestamp in working memory so a subsequent push doesn't re-report already-surfaced feedback. **Include human reviewer comments** alongside `claude[bot]` / `github-advanced-security[bot]`.
 
 3. In a single concise user-facing message, report: CI pass/fail summary **and** any new review findings (grouped as blocking vs. non-blocking). If there are no new reviews since the last push, say so explicitly — silence isn't a substitute for "no new comments."
+
+   **Read every `###` section of each review body — do not rely on the trailing "Summary" / "Actionable items" section.** Reviewer output is tiered (verdict → strengths → major → minor → observations → summary), and the summary is a shortcut that commonly under-reports items the body flags. When a review is 100+ lines, treat length itself as a skimming red flag. Cross-check correlated signals: if codecov flags missing lines, grep the review body for a corresponding test-gap call-out. If multiple `claude[bot]` entries exist (e.g., one per push cycle), read every one — don't assume only the latest matters.
+
 4. **Do not fix anything without user approval.** Report only. The user decides in-PR vs. backlog (matching the pattern in `.claude/skills/tzurot-git-workflow/SKILL.md`).
 
-The "step 1 without step 2" failure mode is the common one to guard against: all-green CI feels complete, so the comment-fetch step gets skipped. Steps 1 and 2 are both part of the Monitor-fire response contract; all-CI-green does not discharge the comment-fetch obligation.
+Two failure modes to guard against — both matter:
+
+- **Step 1 without step 2**: all-green CI feels complete, so the comment-fetch step gets skipped. Steps 1 and 2 are both part of the Monitor-fire response contract; all-CI-green does not discharge the comment-fetch obligation.
+- **Step 2 without full-body read**: fetching comments but only extracting items from the trailing summary section. A review that ends "Summary: two actionable items" almost always has a body listing more. Observed 2026-04-21 on PRs #842/#843/#844 — multiple body-only items got missed, including a Medium test-coverage gap that codecov independently confirmed.
 
 If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
 
