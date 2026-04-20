@@ -16,6 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { PrismaClient } from './prisma.js';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { UserService } from './UserService.js';
 import { generatePersonaUuid } from '../utils/deterministicUuid.js';
@@ -42,7 +43,7 @@ describe('UserService', () => {
   beforeAll(async () => {
     // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
     pglite = new PGlite({
-      extensions: { vector },
+      extensions: { vector, citext },
     });
 
     // Load and execute the pre-generated schema
