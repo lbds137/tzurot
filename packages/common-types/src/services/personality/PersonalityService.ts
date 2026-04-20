@@ -87,8 +87,7 @@ export class PersonalityService {
           personality.visionModel !== undefined &&
           personality.visionModel !== null &&
           personality.visionModel.length > 0,
-        usedGlobalDefault:
-          dbPersonality.defaultConfigLink === undefined && globalDefaultConfig !== null,
+        usedGlobalDefault: !dbPersonality.defaultConfigLink && globalDefaultConfig !== null,
       },
       'Loaded personality with config'
     );
