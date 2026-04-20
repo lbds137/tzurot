@@ -214,7 +214,6 @@ describe('DiagnosticRecorders', () => {
 
       const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
       const debug = call.reasoningDebug as Record<string, unknown>;
-      // Previously this returned false because only '<reasoning>' was hardcoded
       expect(debug.hasReasoningTagsInContent).toBe(true);
     });
 

@@ -1259,9 +1259,8 @@ describe('DatabaseSyncService', () => {
         const [columnListSection, updateSetSection] = usersInsert.query.split('DO UPDATE SET');
         expect(columnListSection).toContain('"default_persona_id"');
         expect(columnListSection).toContain('"default_llm_config_id"');
-        // Now INCLUDES the FK columns in the conflict update — previously
-        // they were stripped, which caused stale values to persist. The
-        // Ouroboros refactor fixes that.
+        // FK columns must be in the conflict update — stripping them would
+        // leave stale values in the target row on upsert.
         expect(updateSetSection).toContain('default_persona_id');
         expect(updateSetSection).toContain('default_llm_config_id');
 

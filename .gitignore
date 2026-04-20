@@ -87,3 +87,6 @@ services/voice-engine/voices/*
 # Dev logs
 railway_dev_logs.md
 voices/
+
+# Session-local Claude runtime state
+.claude/scheduled_tasks.lock

@@ -196,6 +196,19 @@ export default tseslint.config(
           message:
             'Direct prisma.persona.create/upsert/createMany is banned outside UserService and persona/crud.ts. Persona lifecycle must go through the centralized service to preserve the userId+personaId deterministic-UUID invariant.',
         },
+        // Phantom-PK Protection: generateLlmConfigUuid derives a UUIDv5 from
+        // the config's user-editable name — clone-then-rename-then-re-clone
+        // produced phantom PK collisions (bug 2026-04-19). Prod creates now
+        // use newLlmConfigId (UUIDv7) + DB `@@unique([ownerId, name])`. The
+        // sole remaining prod caller is ShapesPersonalityMapper, which needs
+        // a deterministic upsert key for idempotent shape re-import — marked
+        // with an eslint-disable-next-line at that site. Any new prod caller
+        // is almost certainly reintroducing the phantom-PK class of bug.
+        {
+          selector: "CallExpression[callee.name='generateLlmConfigUuid']",
+          message:
+            'generateLlmConfigUuid is deprecated for prod callers — it caused phantom PK collisions when users cloned+renamed LlmConfigs (bug 2026-04-19). Use `newLlmConfigId()` for new rows and rely on the `@@unique([ownerId, name])` DB constraint for name uniqueness. See the @deprecated docstring in packages/common-types/src/utils/deterministicUuid.ts. Test fixtures are allowed; if your file is test-adjacent, add eslint-disable with a concrete justification.',
+        },
       ],
 
       // ============================================================================

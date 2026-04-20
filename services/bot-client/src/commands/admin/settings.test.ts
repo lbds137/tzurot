@@ -439,7 +439,6 @@ describe('Admin Settings Dashboard', () => {
 
       await handleAdminSettingsModal(interaction as never);
 
-      // Now uses /admin/settings/config-defaults with flat body (unified shape)
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings/config-defaults',
         { maxMessages: 75 },
