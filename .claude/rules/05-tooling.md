@@ -140,7 +140,7 @@ When the monitor fires, **all four** of the following must happen before the cyc
 3. In a single concise user-facing message, report: CI pass/fail summary **and** any new review findings (grouped as blocking vs. non-blocking). If there are no new reviews since the last push, say so explicitly — silence isn't a substitute for "no new comments."
 4. **Do not fix anything without user approval.** Report only. The user decides in-PR vs. backlog (matching the pattern in `.claude/skills/tzurot-git-workflow/SKILL.md`).
 
-The "step 1 without step 2" failure mode happened during PR #836/#837 scoping — "all CI green" felt complete, comments got skipped, user had to ask. Steps 1 and 2 are both part of the Monitor-fire response contract; all-CI-green does not discharge the comment-fetch obligation.
+The "step 1 without step 2" failure mode is the common one to guard against: all-green CI feels complete, so the comment-fetch step gets skipped. Steps 1 and 2 are both part of the Monitor-fire response contract; all-CI-green does not discharge the comment-fetch obligation.
 
 If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
 
