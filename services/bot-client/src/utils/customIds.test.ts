@@ -403,7 +403,7 @@ describe('customIds', () => {
   });
 
   describe('round-trip tests (build then parse)', () => {
-    it('should round-trip character list page', () => {
+    it('should round-trip character browse page', () => {
       const customId = CharacterCustomIds.listPage(5, 'date');
       const parsed = CharacterCustomIds.parse(customId);
       expect(parsed?.page).toBe(5);
