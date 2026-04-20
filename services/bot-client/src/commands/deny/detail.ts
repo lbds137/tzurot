@@ -115,7 +115,7 @@ export async function showDetailView(
   await interaction.editReply({
     content: content ?? '',
     embeds: [buildDetailEmbed(entry)],
-    components: buildDetailButtons(entry.id, entry.mode),
+    components: buildDetailButtons(entry.id, entry.mode, browseContext !== null),
   });
 }
 
@@ -160,7 +160,7 @@ async function handleModeToggle(interaction: ButtonInteraction, entryId: string)
 
     await interaction.editReply({
       embeds: [buildDetailEmbed({ ...data })],
-      components: buildDetailButtons(entryId, newMode),
+      components: buildDetailButtons(entryId, newMode, data.browseContext !== null),
     });
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to toggle mode');
@@ -251,7 +251,7 @@ async function handleCancelDelete(interaction: ButtonInteraction, entryId: strin
 
   await interaction.editReply({
     embeds: [buildDetailEmbed({ ...data })],
-    components: buildDetailButtons(entryId, data.mode),
+    components: buildDetailButtons(entryId, data.mode, data.browseContext !== null),
   });
 }
 

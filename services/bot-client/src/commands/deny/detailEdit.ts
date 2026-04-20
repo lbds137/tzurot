@@ -188,7 +188,11 @@ export async function handleEditModal(
     };
 
     const embed = buildDetailEmbed(updatedEntry);
-    const components = buildDetailButtons(updatedEntry.id, updatedEntry.mode);
+    const components = buildDetailButtons(
+      updatedEntry.id,
+      updatedEntry.mode,
+      data.browseContext !== null
+    );
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to edit entry');
