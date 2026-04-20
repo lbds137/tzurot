@@ -99,9 +99,9 @@ Release 1 = PR A (shipped to develop) + PR B (shipped to develop) + Phase 6 (not
 
 ---
 
-## Unreleased on Develop (since beta.101)
+## Unreleased on Develop (since beta.102)
 
-- Backlog-only doc commit `533d3dcc4` (2026-04-20): added Option D refactor plan for `/character chat` in DMs + v2 `/cleandm` restoration. No runtime change.
+_Nothing yet — just shipped._
 
 ---
 
@@ -117,6 +117,8 @@ Release 1 = PR A (shipped to develop) + PR B (shipped to develop) + Phase 6 (not
 - **2026-04-11**: CPD Session 1 (PRs #778-780), channel rename (#781), doc audit (#782-784).
 
 ## Recent Releases
+
+- **v3.0.0-beta.102** (2026-04-20) — Hybrid post-action UX across all four browse-capable commands (preset/character/persona/deny — destructive actions re-render browse list with success banner, one click fewer than terminal-screen-then-Back). Personality preset routing fix: removed creation-time auto-pin to global default that fossilized 24 prod personalities against stale presets (e.g. 7 stuck on Kimi K2.5 after switching to GLM 5.1) — now cascade to current global default at request time. Case-insensitive uniqueness for `LlmConfig.name` and `Persona.name` via citext migration. Deny `/view` → delete renders clean terminal; `/view` Back-to-Browse button conditionally omitted (no list to return to). `usedGlobalDefault` log field correctness fix. ESLint guardrail banning new prod callers of deprecated `generateLlmConfigUuid`. Backlog hygiene (3 obsolete entries dropped, AI-slop comment cleanup). Migration: `LlmConfig.name`/`Persona.name` → CITEXT (applied to dev+prod).
 
 - **v3.0.0-beta.101** (2026-04-20) — Preset clone phantom PK collision (UUIDv7 + unique(owner,name) + server-side suffix bumping), ReDoS fix on clone-name regex, preset back-to-browse + admin-delete via new `renderTerminalScreen` helper + structural test, `/character list`→`/browse` stale-reference sweep, GLM-4.5-air history-regurgitation fix (cross-turn detection widened 5→25), TTS Opus transcode by default (17-min-per-file instead of 2-min), echo-strip for `glm-4.5-air:free`, Phase 5c PR A/B shadow-mode provisioning + WeakMap user cache, echo-strip shared mention-skip utility, PR-monitor hook infrastructure (rule + skill + PostToolUse hook). Migration: `@@unique([owner_id, name])` on `llm_configs` (applied to dev+prod).
 
