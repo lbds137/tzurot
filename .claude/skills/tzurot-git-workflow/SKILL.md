@@ -84,9 +84,16 @@ When the monitor fires, **all four** of the following must happen — do not sto
    No bot-only filter — human reviewer comments matter too. Dedup by tracking `created_at` of the last-reported comment.
 
 3. Report CI status **and** new reviewer feedback in one concise message. Group findings as blocking vs. non-blocking. If no new reviews since the last push, say so explicitly — silence is not a substitute for "no new comments."
+
+   **Read the body, not just the summary.** Reviewer output is tiered: verdict → strengths → major items → minor items → observations → summary. The trailing "Summary" / "Actionable items" section is a reviewer's shortcut; it frequently under-reports items the body flags in detail. When a review is 100+ lines, treat length as a skimming red flag — walk every `###` section before calling the report done. Cross-check: if codecov flags missing lines, grep the review body for a corresponding test-gap call-out.
+
+   **Each `claude[bot]` entry is a separate review cycle.** If multiple exist (pre-rebase + post-rebase, push + re-push), read every one — don't assume only the latest matters. Track `created_at` of the last-reported comment so future fetches dedup correctly across session boundaries.
+
 4. Don't fix anything without user approval — report only. User decides in-PR vs. backlog.
 
 The #1-without-#2 failure mode is worth guarding against: all-green CI feels complete, but new review comments can still carry blocking findings or non-blocking observations the user wants to triage.
+
+The #2-without-full-body failure mode is the second trap: fetching comments but extracting only the summary section. A review that ends "**Summary**: two actionable items" almost always has a body with additional items that weren't promoted to the summary.
 
 If the monitor completes without a `CI_COMPLETE` line in its output, the 15-min timeout fired first — re-arm rather than assume CI passed. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
 

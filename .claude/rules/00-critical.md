@@ -198,3 +198,17 @@ When making claims about causation, origin, intent, or history, distinguish betw
 ### Mandatory Global Discovery ("Grep Rule")
 
 Before modifying config/infrastructure: Search ALL instances → List affected files → Justify exclusions.
+
+### Fix Recurring Failures Structurally
+
+When a failure pattern surfaces — a missed verification step, a skimmed review, a wrong tool default, an incorrect assumption that recurs — the first response should be to prevent recurrence at the system level, not just promise to try harder next time. Ask three questions in order:
+
+1. **Can a rule catch this?** Add to `.claude/rules/` if it's a hard constraint ("never X without Y", "always do Z before A"). Rules always load.
+2. **Can a skill capture this procedurally?** Add to `.claude/skills/<skill>/SKILL.md` if it's a workflow step the skill should own. Skills load on invocation.
+3. **Can a hook enforce it automatically?** Add to `.claude/hooks/` if the trigger is deterministic and the correction mechanical. Hooks fire without reliance on model attention.
+
+Claude's per-instance auto-memory at `~/.claude/projects/*/memory/` is a complement, not a substitute. Memory gives future-Claude the narrative ("this happened on date X during PR #Y"); rules/skills/hooks give the instruction. Memory is local to one machine and one Claude instance; rules and skills are source-controlled and apply to every contributor and every session.
+
+**When something is important enough to flag as feedback, it is usually important enough to make recurrence structurally harder.** If a failure mode belongs in memory, first ask whether it also belongs in a rule or skill. Don't let memory become a graveyard of "try harder" notes.
+
+Scope the structural fix to the **class** of failure, not just the exact symptom. And don't over-expand — a one-line rule addition or a paragraph in a skill is usually enough.
