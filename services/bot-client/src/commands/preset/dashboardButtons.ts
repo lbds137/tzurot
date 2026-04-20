@@ -444,19 +444,23 @@ export async function handleBackButton(
     return;
   }
 
+  // All three error branches below render as terminal-with-no-back-button
+  // (re-adding the back-button would re-enter the failing path) and clean up
+  // the now-dead session. Share the session descriptor.
+  const noContextSession = {
+    userId: interaction.user.id,
+    entityType: 'preset' as const,
+    entityId,
+    browseContext: undefined,
+  };
+
   const browseContext = session.data.browseContext;
   if (!browseContext) {
     // Session exists but no browse context — back-button shouldn't have been
-    // rendered in the first place. Render a terminal notice and clean up.
-    // (browseContext: undefined → helper skips the button, deletes session.)
+    // rendered in the first place.
     await renderTerminalScreen({
       interaction,
-      session: {
-        userId: interaction.user.id,
-        entityType: 'preset' as const,
-        entityId,
-        browseContext: undefined,
-      },
+      session: noContextSession,
       content: formatSessionExpiredMessage(PRESET_RECOVERY_CMD),
     });
     return;
@@ -470,17 +474,9 @@ export async function handleBackButton(
     });
 
     if (result === null) {
-      // Can't rebuild browse — re-adding a back button would just re-enter
-      // this failing path. Render as terminal with no affordance and clean
-      // up the now-dead session.
       await renderTerminalScreen({
         interaction,
-        session: {
-          userId: interaction.user.id,
-          entityType: 'preset' as const,
-          entityId,
-          browseContext: undefined,
-        },
+        session: noContextSession,
         content: '❌ Failed to load browse list. Please try again.',
       });
       return;
@@ -498,15 +494,9 @@ export async function handleBackButton(
     );
   } catch (error) {
     logger.error({ err: error, entityId }, '[Preset] Failed to return to browse');
-    // Same rationale as the null-result path above.
     await renderTerminalScreen({
       interaction,
-      session: {
-        userId: interaction.user.id,
-        entityType: 'preset' as const,
-        entityId,
-        browseContext: undefined,
-      },
+      session: noContextSession,
       content: '❌ Failed to load browse list. Please try again.',
     });
   }
