@@ -59,6 +59,29 @@ git push -u origin feat/your-feature
 gh pr create --base develop --title "feat: description"
 ```
 
+### Arm CI monitor (required)
+
+Immediately after `gh pr create` — and after any subsequent `git push` to an open PR — start a `Monitor` that waits for CI to complete and reports new review comments back. **Do not skip this step and do not wait for the user to ask about CI status.**
+
+The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook auto-fires on `git push` / `gh pr create` and injects a reminder with the Monitor invocation pre-filled with the current PR number. Use that when you see it; the template below is the fallback shape if you're arming manually:
+
+```
+Monitor({
+  description: "CI + reviews for PR <N>",
+  command: 'gh pr checks <N> --watch --interval=30 > /dev/null 2>&1; echo "CI_COMPLETE"; gh pr checks <N>',
+  timeout_ms: 900000
+})
+```
+
+When the monitor fires:
+
+1. Inspect the final `gh pr checks <N>` output for pass/fail.
+2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/<N>/comments --jq '.[] | select(.user.login == "claude[bot]" or .user.login == "github-advanced-security[bot]")'`.
+3. Report CI status + new reviewer feedback in one concise message. Group findings as blocking vs. non-blocking.
+4. Don't fix anything without user approval — report only. User decides in-PR vs. backlog.
+
+Track the `created_at` of the last-reported comment so a second push doesn't re-report reviews already surfaced. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
+
 ### After PR Merged
 
 ```bash

@@ -117,6 +117,30 @@ EOF
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`
 **Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
 
+### PR Monitoring (automatic — do not wait to be asked)
+
+**Whenever you create a PR or push commits to an open PR, arm a `Monitor` that waits for CI to finish and then reports on new reviewer comments.** Don't wait for the user to ask whether CI passed or whether a review landed.
+
+The `.claude/hooks/pr-monitor-reminder.sh` PostToolUse hook fires after every `git push` / `gh pr create` and injects a reminder with the pre-built Monitor invocation. If you see that banner, arm the Monitor before doing anything else — the hook is the enforcement mechanism behind this rule. If it ever stops firing (settings.json drift, hook script removed, etc.), fall back to manually arming the monitor yourself.
+
+The monitor command (PR number is `N`):
+
+```
+gh pr checks N --watch --interval=30 > /dev/null 2>&1; echo "CI_COMPLETE"; gh pr checks N
+```
+
+Pass it to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL usually finishes well inside that; if it exceeds, re-arm).
+
+When the monitor fires:
+
+1. Note the final CI state from the `gh pr checks N` output.
+2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/N/comments --jq '.[] | select(.user.login == "claude[bot]" or .user.login == "github-advanced-security[bot]")'` — filter to comments posted since the push.
+3. In a single concise user-facing message, report: CI pass/fail summary + any new review findings (grouped as blocking vs. non-blocking).
+4. **Do not fix anything without user approval.** Report only. The user decides in-PR vs. backlog (matching the pattern in `.claude/skills/tzurot-git-workflow/SKILL.md`).
+5. Track the `created_at` timestamp of the most recently reported comment in working memory so a subsequent push doesn't re-report reviews already surfaced.
+
+If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
+
 ### Release Notes Format
 
 Release notes follow the Conventional Changelog format. This enables machine parsing for Discord release notifications.

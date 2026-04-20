@@ -19,6 +19,15 @@
             "command": "pnpm exec eslint --fix \"$CLAUDE_FILE_PATH\" 2>&1 | head -50 || true"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pr-monitor-reminder.sh"
+          }
+        ]
       }
     ]
   },
