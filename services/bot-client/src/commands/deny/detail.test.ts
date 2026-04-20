@@ -111,7 +111,7 @@ const sampleEntry = {
 const sampleSession = {
   data: {
     ...sampleEntry,
-    browseContext: { page: 0, filter: 'all', sort: 'date' },
+    browseContext: { source: 'browse' as const, page: 0, filter: 'all', sort: 'date' },
     guildId: 'guild-456',
   },
   userId: 'user-123',
@@ -154,7 +154,12 @@ describe('showDetailView', () => {
   it('should create session and show detail embed', async () => {
     const interaction = createMockButtonInteraction('deny::browse-select::0::all::date::');
 
-    await showDetailView(interaction, sampleEntry, { page: 0, filter: 'all', sort: 'date' });
+    await showDetailView(interaction, sampleEntry, {
+      source: 'browse',
+      page: 0,
+      filter: 'all',
+      sort: 'date',
+    });
 
     expect(mockSessionManager.set).toHaveBeenCalledWith(
       expect.objectContaining({

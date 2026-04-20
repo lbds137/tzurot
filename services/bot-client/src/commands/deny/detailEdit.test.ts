@@ -60,7 +60,7 @@ const sampleEntry = {
 const sampleSession = {
   data: {
     ...sampleEntry,
-    browseContext: { page: 0, filter: 'all', sort: 'date' },
+    browseContext: { source: 'browse' as const, page: 0, filter: 'all', sort: 'date' },
     guildId: 'guild-456',
   },
   userId: 'user-123',

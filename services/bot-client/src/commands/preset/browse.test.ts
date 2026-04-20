@@ -11,6 +11,7 @@ import {
   isPresetBrowseInteraction,
   isPresetBrowseSelectInteraction,
 } from './browse.js';
+import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 import type { StringSelectMenuInteraction } from 'discord.js';
 import { mockListLlmConfigsResponse, mockListWalletKeysResponse } from '@tzurot/common-types';
 
@@ -606,5 +607,74 @@ describe('handleBrowseSelect', () => {
       embeds: [],
       components: [],
     });
+  });
+});
+
+// Capture the rebuilder callback registered at module-load BEFORE any
+// `vi.clearAllMocks()` wipes the call history.
+const presetRebuilderCall = vi
+  .mocked(registerBrowseRebuilder)
+  .mock.calls.find(c => c[0] === 'preset');
+if (presetRebuilderCall === undefined) {
+  throw new Error('preset rebuilder was not registered at module load');
+}
+const presetRebuilder = presetRebuilderCall[1];
+
+describe('registered browse rebuilder', () => {
+  function createMockInteraction() {
+    return { user: { id: '123456789', username: 'testuser' } } as unknown as Parameters<
+      typeof presetRebuilder
+    >[0];
+  }
+
+  it('returns rebuilt view with banner on success', async () => {
+    mockCallGatewayApi.mockImplementation((path: string) => {
+      if (path === '/user/llm-config') {
+        return Promise.resolve({
+          ok: true,
+          data: mockListLlmConfigsResponse([
+            {
+              id: '00000000-0000-4000-8000-000000000001',
+              name: 'Default',
+              model: 'anthropic/claude-sonnet-4',
+              isGlobal: true,
+              isOwned: false,
+            },
+          ]),
+        });
+      }
+      if (path === '/wallet/list') {
+        return Promise.resolve({
+          ok: true,
+          data: mockListWalletKeysResponse([{ isActive: true }]),
+        });
+      }
+      return Promise.resolve({ ok: false, error: 'Unknown' });
+    });
+
+    const result = await presetRebuilder(
+      createMockInteraction(),
+      { source: 'browse', page: 0, filter: 'all', query: null },
+      '✅ Banner'
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toEqual({
+      content: '✅ Banner',
+      embeds: expect.any(Array),
+      components: expect.any(Array),
+    });
+  });
+
+  it('returns null when gateway fetch fails', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Server error' });
+
+    const result = await presetRebuilder(
+      createMockInteraction(),
+      { source: 'browse', page: 0, filter: 'all', query: null },
+      '✅ Banner'
+    );
+
+    expect(result).toBeNull();
   });
 });

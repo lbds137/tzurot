@@ -50,6 +50,7 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
   if (matches.length === 1) {
     // Single match — show detail view directly
     await showDetailView(context.interaction, matches[0], {
+      source: 'browse',
       page: 0,
       filter: 'all',
       sort: 'date',
@@ -66,7 +67,7 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
   await showDetailView(
     context.interaction,
     matches[0],
-    { page: 0, filter: 'all', sort: 'date' },
+    { source: 'browse', page: 0, filter: 'all', sort: 'date' },
     `Found ${matches.length} entries for \`${target.trim()}\`. Showing first match — use the type filter for a specific entry.`
   );
 }

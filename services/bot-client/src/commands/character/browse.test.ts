@@ -10,6 +10,7 @@ import {
   isCharacterBrowseInteraction,
   isCharacterBrowseSelectInteraction,
 } from './browse.js';
+import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 import * as api from './api.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
@@ -901,5 +902,56 @@ describe('handleBrowseSelect', () => {
       embeds: [],
       components: [],
     });
+  });
+});
+
+// Capture the rebuilder callback registered at module-load BEFORE any
+// `vi.clearAllMocks()` wipes the call history.
+const characterRebuilderCall = vi
+  .mocked(registerBrowseRebuilder)
+  .mock.calls.find(c => c[0] === 'character');
+if (characterRebuilderCall === undefined) {
+  throw new Error('character rebuilder was not registered at module load');
+}
+const characterRebuilder = characterRebuilderCall[1];
+
+describe('registered browse rebuilder', () => {
+  function createMockInteraction() {
+    return {
+      user: { id: '123456789', username: 'testuser' },
+      client: { users: { fetch: vi.fn() } },
+    } as unknown as Parameters<typeof characterRebuilder>[0];
+  }
+
+  it('returns rebuilt view with banner on success', async () => {
+    vi.mocked(api.fetchUserCharacters).mockResolvedValue([]);
+    vi.mocked(api.fetchPublicCharacters).mockResolvedValue([]);
+    vi.mocked(api.fetchUsernames).mockResolvedValue(new Map());
+
+    const result = await characterRebuilder(
+      createMockInteraction(),
+      { source: 'browse', page: 0, filter: 'all', sort: 'date', query: null },
+      '✅ Banner'
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toEqual({
+      content: '✅ Banner',
+      embeds: expect.any(Array),
+      components: expect.any(Array),
+    });
+  });
+
+  it('returns null when underlying build throws', async () => {
+    vi.mocked(api.fetchUserCharacters).mockRejectedValue(new Error('API down'));
+    vi.mocked(api.fetchPublicCharacters).mockRejectedValue(new Error('API down'));
+
+    const result = await characterRebuilder(
+      createMockInteraction(),
+      { source: 'browse', page: 0, filter: 'all', sort: 'date', query: null },
+      '✅ Banner'
+    );
+
+    expect(result).toBeNull();
   });
 });

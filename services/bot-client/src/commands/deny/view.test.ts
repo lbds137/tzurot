@@ -134,6 +134,7 @@ describe('handleView', () => {
     await handleView(context);
 
     expect(showDetailView).toHaveBeenCalledWith(context.interaction, ENTRY_USER, {
+      source: 'browse',
       page: 0,
       filter: 'all',
       sort: 'date',
@@ -149,7 +150,7 @@ describe('handleView', () => {
     expect(showDetailView).toHaveBeenCalledWith(
       context.interaction,
       ENTRY_USER,
-      { page: 0, filter: 'all', sort: 'date' },
+      { source: 'browse', page: 0, filter: 'all', sort: 'date' },
       expect.stringContaining('Found 2 entries')
     );
   });
@@ -161,6 +162,7 @@ describe('handleView', () => {
     await handleView(context);
 
     expect(showDetailView).toHaveBeenCalledWith(context.interaction, ENTRY_GUILD, {
+      source: 'browse',
       page: 0,
       filter: 'all',
       sort: 'date',

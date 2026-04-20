@@ -31,6 +31,7 @@ import { parseDashboardCustomId } from '../../utils/dashboard/types.js';
 import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.js';
 import { handleSharedBackButton } from '../../utils/dashboard/sharedBackButtonHandler.js';
 import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
+import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browse.js';
 import type { DenyDetailSession } from './detailTypes.js';
 import { ENTITY_TYPE, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
@@ -85,7 +86,7 @@ export async function showDetailView(
     guildId: string | null;
   },
   entry: DenylistEntryResponse,
-  browseContext: { page: number; filter: string; sort: string },
+  browseContext: BrowseContext,
   content?: string
 ): Promise<void> {
   const sessionData: DenyDetailSession = {
@@ -201,12 +202,7 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
     userId: interaction.user.id,
     entityType: 'deny' as const,
     entityId: entryId,
-    // `data.browseContext` is shaped as a plain `{ page, filter, sort }` in
-    // deny's session data. The shared helper expects a `BrowseContext` with
-    // `source: 'browse'` — add it here. The entire DenyDetailSession is
-    // seeded from showDetailView which always has a valid browse context,
-    // so the shape is guaranteed at this point.
-    browseContext: { source: 'browse' as const, ...data.browseContext },
+    browseContext: data.browseContext,
   };
 
   try {
@@ -299,6 +295,9 @@ export async function handleDetailButton(interaction: ButtonInteraction): Promis
       await handleCancelDelete(interaction, entityId);
       break;
     case 'back':
+      // handleDetailButton calls deferUpdate above — handleSharedBackButton
+      // intentionally does NOT re-defer. Calling deferUpdate twice throws
+      // InteractionAlreadyReplied, so the shared helper trusts its callers.
       await handleSharedBackButton(interaction, 'deny', entityId);
       break;
     default:
