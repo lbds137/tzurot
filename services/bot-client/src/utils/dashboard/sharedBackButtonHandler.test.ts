@@ -133,16 +133,61 @@ describe('handleSharedBackButton', () => {
     });
   });
 
-  it('treats malformed browseContext as missing (guards against bad shape in session data)', async () => {
-    mockSessionGet.mockResolvedValue({
-      data: { browseContext: { source: 'browse', page: 'not-a-number', filter: 'all' } },
+  // Each branch of the extractBrowseContext guard gets its own test — the
+  // coverage report pinpointed each malformation path as uncovered. Grouping
+  // them here keeps the guard's every-field-matters contract explicit.
+  describe('extractBrowseContext guard', () => {
+    it('treats browseContext with non-numeric page as missing', async () => {
+      mockSessionGet.mockResolvedValue({
+        data: { browseContext: { source: 'browse', page: 'not-a-number', filter: 'all' } },
+      });
+
+      await handleSharedBackButton(makeInteraction(), 'preset', 'entity-1');
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('expired') })
+      );
     });
-    const interaction = makeInteraction();
 
-    await handleSharedBackButton(interaction, 'preset', 'entity-1');
+    it('treats browseContext with non-string filter as missing', async () => {
+      mockSessionGet.mockResolvedValue({
+        data: { browseContext: { source: 'browse', page: 1, filter: 42 } },
+      });
 
-    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('expired') })
-    );
+      await handleSharedBackButton(makeInteraction(), 'preset', 'entity-1');
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('expired') })
+      );
+    });
+
+    it('treats browseContext with wrong source literal as missing', async () => {
+      mockSessionGet.mockResolvedValue({
+        data: { browseContext: { source: 'other', page: 1, filter: 'all' } },
+      });
+
+      await handleSharedBackButton(makeInteraction(), 'preset', 'entity-1');
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('expired') })
+      );
+    });
+
+    it('treats non-object browseContext as missing', async () => {
+      mockSessionGet.mockResolvedValue({
+        data: { browseContext: 'string-not-object' },
+      });
+
+      await handleSharedBackButton(makeInteraction(), 'preset', 'entity-1');
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('expired') })
+      );
+    });
+
+    it('treats non-object session data as missing', async () => {
+      mockSessionGet.mockResolvedValue({ data: 'not-an-object' });
+
+      await handleSharedBackButton(makeInteraction(), 'preset', 'entity-1');
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining('expired') })
+      );
+    });
   });
 });
