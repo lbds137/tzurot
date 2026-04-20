@@ -334,7 +334,7 @@ describe('Preset Dashboard Buttons', () => {
     visionModel: null,
     isGlobal: false,
     isOwned: true,
-    permissions: { canEdit: true },
+    permissions: { canEdit: true, canDelete: true },
     contextWindowTokens: 8192,
     params: {
       temperature: 0.7,
@@ -380,7 +380,7 @@ describe('Preset Dashboard Buttons', () => {
         createMockPresetResponse({
           isGlobal: true,
           isOwned: false,
-          permissions: { canEdit: false },
+          permissions: { canEdit: false, canDelete: false },
         })
       );
 
@@ -405,7 +405,7 @@ describe('Preset Dashboard Buttons', () => {
         createMockPresetResponse({
           isGlobal: true,
           isOwned: false,
-          permissions: { canEdit: false },
+          permissions: { canEdit: false, canDelete: false },
         })
       );
 
