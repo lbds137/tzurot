@@ -1,31 +1,10 @@
-/**
- * Structural test — enforces that dashboard terminal handlers route through
- * {@link renderTerminalScreen} instead of assembling their own `editReply`
- * with `components: []`.
- *
- * Why this exists: we shipped back-to-browse bugs twice (preset delete, then
- * preset clone) because each terminal handler independently decided what
- * components to render. The fix (PR #836) centralised the pattern into
- * `renderTerminalScreen`, and this test enforces adoption for files added
- * to ENFORCED_FILES below.
- *
- * To migrate a new command's dashboard: add its handler file path to
- * ENFORCED_FILES, run the test, fix any flagged lines by routing through
- * `renderTerminalScreen`, and commit. The test will then keep it correct.
- *
- * Intentional opt-outs: prefix the line with a `// intentionally-raw:` comment
- * explaining why. The check is a line-level regex, not AST, so opt-outs are
- * simple string matches.
- */
+// Enforces renderTerminalScreen usage in files listed in ENFORCED_FILES — add a file to migrate it; opt out per-line with `// intentionally-raw: <reason>`.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-/**
- * Files whose terminal (post-action) screens must use `renderTerminalScreen`.
- * Add a file here when you migrate its delete/archive/confirm handlers.
- */
+// Add a file here when you migrate its delete/archive/confirm handlers.
 const ENFORCED_FILES = ['services/bot-client/src/commands/preset/dashboardButtons.ts'];
 
 const REPO_ROOT = resolve(__dirname, '../../../../..');
@@ -36,6 +15,9 @@ const OPT_OUT_MARKER = 'intentionally-raw:';
 describe('dashboard terminal screen discipline', () => {
   it.each(ENFORCED_FILES)('%s routes post-action screens through renderTerminalScreen', file => {
     const abs = resolve(REPO_ROOT, file);
+    // Hard-fail if the file moved — a vacuous pass on a missing file would
+    // silently let the invariant rot.
+    expect(existsSync(abs), `ENFORCED_FILES entry not found at ${abs}`).toBe(true);
     const source = readFileSync(abs, 'utf8');
     const lines = source.split('\n');
 
