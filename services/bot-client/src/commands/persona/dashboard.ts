@@ -25,6 +25,7 @@ import {
   parseDashboardCustomId,
   isDashboardInteraction,
   formatSessionExpiredMessage,
+  renderTerminalScreen,
 } from '../../utils/dashboard/index.js';
 import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
@@ -241,25 +242,31 @@ async function handleConfirmDeleteButton(
 
   const personaName = session?.data.name ?? 'Persona';
 
+  // Helper reads browseContext to decide: Back-to-Browse button + keep session,
+  // or cleanup. No explicit sessionManager.delete here — renderTerminalScreen
+  // handles the cleanup path internally when browseContext is absent.
+  const terminalSession = {
+    userId: interaction.user.id,
+    entityType: 'persona' as const,
+    entityId,
+    browseContext: session?.data.browseContext,
+  };
+
   const result = await deletePersona(entityId, toGatewayUser(interaction.user));
 
   if (!result.success) {
-    await interaction.editReply({
+    await renderTerminalScreen({
+      interaction,
+      session: terminalSession,
       content: `❌ Failed to delete persona: ${result.error}`,
-      embeds: [],
-      components: [],
     });
     return;
   }
 
-  // Clean up session
-  await sessionManager.delete(interaction.user.id, 'persona', entityId);
-
-  // Show success
-  await interaction.editReply({
+  await renderTerminalScreen({
+    interaction,
+    session: terminalSession,
     content: `✅ **${personaName}** has been deleted.`,
-    embeds: [],
-    components: [],
   });
 
   logger.info({ userId: interaction.user.id, entityId, personaName }, 'Persona deleted');
@@ -362,13 +369,23 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
     return;
   }
 
+  // All three error branches below render as terminal-with-no-back-button
+  // (re-adding the back-button would re-enter the failing path) and clean up
+  // the now-dead session. Share the session descriptor.
+  const noContextSession = {
+    userId: interaction.user.id,
+    entityType: 'persona' as const,
+    entityId,
+    browseContext: undefined,
+  };
+
   const browseContext = session.data.browseContext;
   if (!browseContext) {
-    // Session exists but no browse context - shouldn't happen, show expired
-    await interaction.editReply({
+    // Session exists but no browse context — terminate cleanly.
+    await renderTerminalScreen({
+      interaction,
+      session: noContextSession,
       content: formatSessionExpiredMessage(BROWSE_COMMAND),
-      embeds: [],
-      components: [],
     });
     return;
   }
@@ -381,15 +398,15 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
     );
 
     if (result === null) {
-      await interaction.editReply({
+      await renderTerminalScreen({
+        interaction,
+        session: noContextSession,
         content: '❌ Failed to load browse list. Please try again.',
-        embeds: [],
-        components: [],
       });
       return;
     }
 
-    // Clean up the dashboard session
+    // Clean up the dashboard session since we're leaving it for the browse list.
     const sessionManager = getSessionManager();
     await sessionManager.delete(interaction.user.id, 'persona', entityId);
 
@@ -401,10 +418,10 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
     logger.info({ userId: interaction.user.id }, '[Persona] Returned to browse from dashboard');
   } catch (error) {
     logger.error({ err: error }, '[Persona] Failed to return to browse');
-    await interaction.editReply({
+    await renderTerminalScreen({
+      interaction,
+      session: noContextSession,
       content: '❌ Failed to load browse list. Please try again.',
-      embeds: [],
-      components: [],
     });
   }
 }

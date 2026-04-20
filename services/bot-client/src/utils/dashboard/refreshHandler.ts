@@ -13,8 +13,9 @@ import {
   buildDashboardComponents,
   type ActionButtonOptions,
 } from './DashboardBuilder.js';
-import type { DashboardConfig } from './types.js';
+import type { BrowseContext, DashboardConfig } from './types.js';
 import { DASHBOARD_MESSAGES } from './messages.js';
+import { renderTerminalScreen, type BrowseCapableEntityType } from './terminalScreen.js';
 
 const logger = createLogger('dashboard-refresh');
 
@@ -70,13 +71,38 @@ export function createRefreshHandler<TData, TRaw = TData>(
   return async (interaction: ButtonInteraction, entityId: string): Promise<void> => {
     await interaction.deferUpdate();
 
+    // Fetch the existing session up-front so browseContext is available on
+    // both the happy path (preserved into the refreshed session) and the
+    // NOT_FOUND path (carried into the terminal screen so dashboards opened
+    // from /browse keep Back-to-Browse when the entity was deleted elsewhere).
+    const sessionManager = getSessionManager();
+    const existingSession = await sessionManager.get(interaction.user.id, entityType, entityId);
+    const existingData = existingSession?.data as Record<string, unknown> | undefined;
+    const existingBrowseContextRaw = existingData?.browseContext;
+    const hasBrowseContext =
+      existingBrowseContextRaw !== undefined &&
+      typeof existingBrowseContextRaw === 'object' &&
+      existingBrowseContextRaw !== null &&
+      'page' in existingBrowseContextRaw;
+    const existingBrowseContext = hasBrowseContext
+      ? (existingBrowseContextRaw as BrowseContext)
+      : undefined;
+
     const rawData = await fetchFn(entityId, toGatewayUser(interaction.user));
 
     if (rawData === null) {
-      await interaction.editReply({
+      // Entity gone (deleted elsewhere). If the user came from /browse,
+      // renderTerminalScreen preserves the Back-to-Browse affordance;
+      // otherwise it cleans up the session.
+      await renderTerminalScreen({
+        interaction,
+        session: {
+          userId: interaction.user.id,
+          entityType: entityType as BrowseCapableEntityType,
+          entityId,
+          browseContext: existingBrowseContext,
+        },
         content: DASHBOARD_MESSAGES.NOT_FOUND(entityLabel),
-        embeds: [],
-        components: [],
       });
       return;
     }
@@ -86,21 +112,9 @@ export function createRefreshHandler<TData, TRaw = TData>(
     // This cast is safe because the generic constraint requires callers to specify matching types.
     const data = transformFn !== undefined ? transformFn(rawData) : (rawData as unknown as TData);
 
-    // Get existing session to preserve browseContext (for back button navigation)
-    const sessionManager = getSessionManager();
-    const existingSession = await sessionManager.get(interaction.user.id, entityType, entityId);
-
-    // Preserve browseContext from existing session if present
-    // Type guard: browseContext is an object with page/filter/sort properties
-    const existingData = existingSession?.data as Record<string, unknown> | undefined;
-    const browseContext = existingData?.browseContext;
-    const hasBrowseContext =
-      browseContext !== undefined &&
-      typeof browseContext === 'object' &&
-      browseContext !== null &&
-      'page' in browseContext;
-
-    const dataWithContext = hasBrowseContext ? { ...data, browseContext } : data;
+    const dataWithContext = hasBrowseContext
+      ? { ...data, browseContext: existingBrowseContext }
+      : data;
 
     // Update session with preserved context
     await sessionManager.set({
