@@ -53,6 +53,7 @@ export { handleDashboardClose } from './closeHandler.js';
 // Terminal Screen Renderer
 export {
   renderTerminalScreen,
+  type BrowseCapableEntityType,
   type TerminalScreenOptions,
   type TerminalScreenSession,
 } from './terminalScreen.js';
