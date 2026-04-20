@@ -73,7 +73,7 @@ Monitor({
 })
 ```
 
-When the monitor fires, **both** of the following must happen — do not stop after #1 even when every check passed:
+When the monitor fires, **all four** of the following must happen — do not stop after #1 even when every check passed:
 
 1. Inspect the final `gh pr checks <N>` output for pass/fail.
 2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/<N>/comments` (no bot-only filter — human reviewer comments matter too). Dedup by tracking `created_at` of the last-reported comment.

@@ -34,6 +34,13 @@ if grep -qE '(^|[[:space:]&|;])gh pr create($|[[:space:]])' <<<"$COMMAND"; then
     # Field-path guesswork: Claude Code's PostToolUse hook payload isn't
     # strictly documented. If none of these match, we fall through to the
     # gh-pr-list lookup and log a one-liner to stderr so drift is detectable.
+    #
+    # Observability TODO: if this stderr line never fires in practice over
+    # several PRs, the three alternative paths below are dead code and can be
+    # narrowed to the single path that the payload actually uses. If it fires
+    # on every `gh pr create`, the fallback-through-gh-pr-list is the only
+    # real code path and parsing stdout is dead weight — drop it entirely.
+    # Either way, revisit once we have observational data.
     OUTPUT=$(jq -r '.tool_result.stdout // .tool_response.output // .output // empty' <<<"$INPUT" 2>/dev/null || echo "")
     if [ -z "$OUTPUT" ]; then
         echo "pr-monitor-reminder: no tool_result stdout available; falling back to gh pr list" >&2
