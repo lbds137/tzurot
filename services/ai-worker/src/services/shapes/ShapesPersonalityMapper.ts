@@ -244,6 +244,7 @@ function mapLlmConfig(config: ShapesIncPersonalityConfig, slug: string): MappedL
   const memoryScoreThreshold = config.ltm_threshold || 0.3;
 
   return {
+    // eslint-disable-next-line no-restricted-syntax -- Shapes import uses configName-derived deterministic UUID as upsert idempotency key so re-importing the same shape doesn't duplicate its LlmConfig row. Not vulnerable to the phantom-PK class of bug because shape configNames are not user-editable after import.
     id: generateLlmConfigUuid(configName),
     name: configName,
     description: `Imported from shapes.inc: ${config.username}`,

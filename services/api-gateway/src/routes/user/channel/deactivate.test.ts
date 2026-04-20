@@ -64,7 +64,6 @@ describe('DELETE /user/channel/deactivate', () => {
 
     await handler(req, res);
 
-    // Now uses update to clear activatedPersonalityId instead of delete
     expect(mockPrisma.channelSettings.update).toHaveBeenCalledWith({
       where: { id: MOCK_ACTIVATION_UUID },
       data: { activatedPersonalityId: null },

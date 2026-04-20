@@ -595,8 +595,7 @@ describe('TTSStep', () => {
   }
 
   describe('ElevenLabs single-attempt contract', () => {
-    // Previously this block tested retry behavior (2 attempts on transient errors).
-    // ELEVENLABS_MAX_ATTEMPTS is now 1 — see TTSStep.ts for rationale.
+    // ELEVENLABS_MAX_ATTEMPTS is 1 — see TTSStep.ts for rationale.
     // Transient-error classification still matters for the fallback path,
     // which is exercised by the "ElevenLabs fallback to voice-engine" block below.
     //

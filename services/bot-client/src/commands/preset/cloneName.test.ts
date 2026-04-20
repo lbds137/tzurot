@@ -76,10 +76,9 @@ describe('createClonedPreset', () => {
   });
 
   it('propagates NAME_COLLISION errors directly (no client-side retry)', async () => {
-    // Previously the client looped up to 10 times bumping the suffix.
-    // Now the server handles bumping; if we still get NAME_COLLISION it's
-    // a genuine failure (e.g., MAX_CLONE_NAME_ATTEMPTS exhausted server-side)
-    // and should propagate immediately.
+    // Name-bumping is server-owned. A NAME_COLLISION reaching the client means
+    // the server already exhausted MAX_CLONE_NAME_ATTEMPTS — propagate, don't
+    // retry (retrying would just re-hit the same server-side ceiling).
     const collision = new GatewayApiError('still colliding', 400, 'NAME_COLLISION');
     mockCreatePreset.mockRejectedValueOnce(collision);
 

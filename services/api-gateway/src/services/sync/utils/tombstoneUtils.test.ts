@@ -101,7 +101,8 @@ describe('tombstoneUtils', () => {
         prodClient as unknown as PrismaClient
       );
 
-      // Now uses pagination with cursor-based approach
+      // Cursor-based pagination: fetches in pages of 1000 to avoid
+      // memory-blowing queries on high-volume deletion tables.
       expect(devClient.conversationHistoryTombstone.findMany).toHaveBeenCalledWith({
         select: { id: true },
         orderBy: { id: 'asc' },
