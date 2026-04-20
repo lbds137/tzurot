@@ -20,7 +20,7 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.0.1",
+    "@huggingface/transformers": "^4.1.0",
     "@tzurot/common-types": "workspace:*",
     "onnxruntime-node": "^1.24.3"
   },

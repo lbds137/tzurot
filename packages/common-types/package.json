@@ -22,17 +22,17 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
-    "discord-api-types": "^0.38.46",
-    "discord.js": "^14.26.2",
+    "discord-api-types": "^0.38.47",
+    "discord.js": "^14.26.3",
     "ioredis": "^5.10.1",
     "lru-cache": "^11.3.5",
     "openai": "^6.34.0",
     "parse-duration": "^2.1.6",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
-    "redis": "^5.11.0",
+    "redis": "^5.12.1",
     "tiktoken": "^1.0.22",
-    "uuid": "^13.0.0",
+    "uuid": "^14.0.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
