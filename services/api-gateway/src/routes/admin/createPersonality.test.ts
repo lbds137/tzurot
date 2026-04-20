@@ -319,12 +319,18 @@ describe('POST /admin/personality', () => {
   });
 
   describe('default LLM config', () => {
-    it('should assign default LLM config when available', async () => {
+    // New personalities no longer auto-pin to the current global default — the
+    // old "snapshot global default as a row" pattern caused a latent defect
+    // where rotating the global default left existing personalities fossilized
+    // on stale presets. Cascading to the current global at request time is the
+    // intended behavior now. Opt-in per-personality pins live in the
+    // "Preset cascade standardization" epic.
+    it('does not create a personality_default_configs row on personality create', async () => {
       prisma.personality.findUnique.mockResolvedValue(null);
       prisma.personality.create.mockResolvedValue({
-        id: 'personality-llm-123',
+        id: 'personality-no-default',
         name: 'Test Bot',
-        slug: 'test-bot-llm',
+        slug: 'test-bot-no-default',
         displayName: null,
         characterInfo: 'A helpful assistant',
         personalityTraits: 'Friendly',
@@ -342,83 +348,16 @@ describe('POST /admin/personality', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      prisma.llmConfig.findFirst.mockResolvedValue({
-        id: 'llm-config-123',
-        name: 'Default Model',
-        isGlobal: true,
-        isDefault: true,
-      });
-      prisma.personalityDefaultConfig.create.mockResolvedValue({
-        id: 'default-config-123',
-        personalityId: 'personality-llm-123',
-        llmConfigId: 'llm-config-123',
-      });
 
       const response = await request(app).post('/admin/personality').send({
         name: 'Test Bot',
-        slug: 'test-bot-llm',
+        slug: 'test-bot-no-default',
         characterInfo: 'A helpful assistant',
         personalityTraits: 'Friendly',
       });
 
       expect(response.status).toBe(201);
-      expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
-        where: {
-          isGlobal: true,
-          isDefault: true,
-        },
-      });
-      expect(prisma.personalityDefaultConfig.create).toHaveBeenCalledWith({
-        data: {
-          personalityId: 'personality-llm-123',
-          llmConfigId: 'llm-config-123',
-        },
-      });
-    });
-
-    it('should succeed even when LLM config assignment fails', async () => {
-      prisma.personality.findUnique.mockResolvedValue(null);
-      prisma.personality.create.mockResolvedValue({
-        id: 'personality-llm-fail',
-        name: 'Test Bot',
-        slug: 'test-bot-llm-fail',
-        displayName: null,
-        characterInfo: 'A helpful assistant',
-        personalityTraits: 'Friendly',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-        customFields: null,
-        avatarData: null,
-        voiceEnabled: false,
-        imageEnabled: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      prisma.llmConfig.findFirst.mockResolvedValue({
-        id: 'llm-config-123',
-        name: 'Default Model',
-        isGlobal: true,
-        isDefault: true,
-      });
-      prisma.personalityDefaultConfig.create.mockRejectedValue(
-        new Error('Database constraint violation')
-      );
-
-      const response = await request(app).post('/admin/personality').send({
-        name: 'Test Bot',
-        slug: 'test-bot-llm-fail',
-        characterInfo: 'A helpful assistant',
-        personalityTraits: 'Friendly',
-      });
-
-      // Should still succeed - LLM config error is non-critical
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
+      expect(prisma.personalityDefaultConfig.create).not.toHaveBeenCalled();
     });
   });
 
