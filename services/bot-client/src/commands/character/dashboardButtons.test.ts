@@ -48,6 +48,16 @@ vi.mock('../../utils/dashboard/index.js', async () => {
   };
 });
 
+// renderTerminalScreen imports getSessionManager directly from
+// SessionManager.js (not via the index barrel), so the index.js mock above
+// doesn't intercept it. Mock SessionManager at the source so renderTerminalScreen
+// can run against the same mocked session manager during these tests.
+vi.mock('../../utils/dashboard/SessionManager.js', () => ({
+  getSessionManager: () => mockSessionManager,
+  initSessionManager: vi.fn(),
+  shutdownSessionManager: vi.fn(),
+}));
+
 vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
 }));

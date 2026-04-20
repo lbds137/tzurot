@@ -5,7 +5,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // Add a file here when you migrate its delete/archive/confirm handlers.
-const ENFORCED_FILES = ['services/bot-client/src/commands/preset/dashboardButtons.ts'];
+const ENFORCED_FILES = [
+  'services/bot-client/src/commands/preset/dashboardButtons.ts',
+  'services/bot-client/src/commands/character/dashboardButtons.ts',
+  'services/bot-client/src/commands/character/dashboardDeleteHandlers.ts',
+];
 
 const REPO_ROOT = resolve(__dirname, '../../../../..');
 

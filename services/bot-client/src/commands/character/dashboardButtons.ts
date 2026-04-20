@@ -15,6 +15,7 @@ import {
   handleDashboardClose,
   DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
+  renderTerminalScreen,
 } from '../../utils/dashboard/index.js';
 import {
   getCharacterDashboardConfig,
@@ -51,13 +52,23 @@ export async function handleBackButton(
     return;
   }
 
+  // All three error branches below render as terminal-with-no-back-button
+  // (re-adding the back-button would re-enter the failing path) and clean up
+  // the now-dead session. Share the session descriptor.
+  const noContextSession = {
+    userId: interaction.user.id,
+    entityType: 'character' as const,
+    entityId,
+    browseContext: undefined,
+  };
+
   const browseContext = session.data.browseContext;
   if (!browseContext) {
-    // Session exists but no browse context - shouldn't happen, show expired
-    await interaction.editReply({
+    // Session exists but no browse context - shouldn't happen; terminate cleanly.
+    await renderTerminalScreen({
+      interaction,
+      session: noContextSession,
       content: formatSessionExpiredMessage('/character browse'),
-      embeds: [],
-      components: [],
     });
     return;
   }
@@ -86,10 +97,10 @@ export async function handleBackButton(
     );
   } catch (error) {
     logger.error({ err: error, entityId }, '[Character] Failed to return to browse');
-    await interaction.editReply({
+    await renderTerminalScreen({
+      interaction,
+      session: noContextSession,
       content: '❌ Failed to load browse list. Please try again.',
-      embeds: [],
-      components: [],
     });
   }
 }
@@ -115,10 +126,18 @@ export async function handleRefreshButton(
 
   const character = await fetchCharacter(entityId, config, toGatewayUser(interaction.user));
   if (!character) {
-    await interaction.editReply({
+    // Character gone (deleted elsewhere). If the user came from /character
+    // browse, renderTerminalScreen preserves Back-to-Browse so they're not
+    // stranded.
+    await renderTerminalScreen({
+      interaction,
+      session: {
+        userId: interaction.user.id,
+        entityType: 'character' as const,
+        entityId,
+        browseContext: existingBrowseContext,
+      },
       content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
-      embeds: [],
-      components: [],
     });
     return;
   }
