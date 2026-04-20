@@ -9,6 +9,8 @@ const ENFORCED_FILES = [
   'services/bot-client/src/commands/preset/dashboardButtons.ts',
   'services/bot-client/src/commands/character/dashboardButtons.ts',
   'services/bot-client/src/commands/character/dashboardDeleteHandlers.ts',
+  'services/bot-client/src/commands/persona/dashboard.ts',
+  'services/bot-client/src/utils/dashboard/refreshHandler.ts',
 ];
 
 const REPO_ROOT = resolve(__dirname, '../../../../..');
