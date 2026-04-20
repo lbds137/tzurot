@@ -50,6 +50,42 @@ interface SetSessionOptions<T> {
 const DEFAULT_SESSION_TTL_SECONDS = 15 * 60;
 
 /**
+ * Dev-mode guard against stashing functions in session data. Sessions are
+ * Redis-backed JSON; functions silently become `undefined` on rehydration,
+ * which is the kind of bug that's nearly impossible to debug from the
+ * symptom (e.g., `session.data.rebuildBrowse is not a function` after
+ * rehydration with no obvious cause).
+ *
+ * This runs on every `set()` call in non-production builds. It uses the
+ * `JSON.stringify` replacer callback to throw at the exact key where the
+ * function lives — precise and cheap.
+ *
+ * The rule: session data is a pure JSON document. Keep callbacks in module
+ * registries (see `browseRebuilderRegistry.ts`), not in session state.
+ */
+function assertSessionDataIsSerializable(data: unknown): void {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+  try {
+    JSON.stringify(data, (key: string, value: unknown) => {
+      if (typeof value === 'function') {
+        throw new Error(
+          `SessionManager: session.data contains a function at key "${key}". ` +
+            `Sessions are Redis-backed JSON; functions cannot be persisted. ` +
+            `Use a module-level registry (e.g., browseRebuilderRegistry) instead.`
+        );
+      }
+      return value;
+    });
+  } catch (err) {
+    // Re-throw with our own message preserved; swallowing hides the class
+    // of bug we're trying to surface.
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
+/**
  * Maximum sessions per user (bounded query protection)
  */
 const MAX_SESSIONS_PER_USER = 100;
@@ -147,6 +183,12 @@ export class DashboardSessionManager {
    */
   async set<T>(options: SetSessionOptions<T>): Promise<DashboardSession<T>> {
     const { userId, entityType, entityId, data, messageId, channelId } = options;
+
+    // Dev-only: catch attempts to stash non-serializable values (functions,
+    // class methods) in session data before they silently become undefined
+    // on rehydration. See `assertSessionDataIsSerializable` for rationale.
+    assertSessionDataIsSerializable(data);
+
     const sessionKey = buildSessionKey(userId, entityType, entityId);
     const msgIndexKey = buildMessageIndexKey(messageId);
     const now = new Date();

@@ -45,7 +45,11 @@ export { buildSectionModal, extractModalValues } from './ModalFactory.js';
 export { initSessionManager, getSessionManager, shutdownSessionManager } from './SessionManager.js';
 
 // Messages
-export { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from './messages.js';
+export {
+  DASHBOARD_MESSAGES,
+  formatSessionExpiredMessage,
+  formatSuccessBanner,
+} from './messages.js';
 
 // Close Handler
 export { handleDashboardClose } from './closeHandler.js';
@@ -57,6 +61,29 @@ export {
   type TerminalScreenOptions,
   type TerminalScreenSession,
 } from './terminalScreen.js';
+
+// Post-Action Screen (hybrid success=rebuild / error=terminal dispatcher)
+export {
+  renderPostActionScreen,
+  type PostActionOutcome,
+  type PostActionScreenOptions,
+} from './postActionScreen.js';
+
+// Shared Back-to-Browse button handler (used by renderTerminalScreen's back
+// button + renderPostActionScreen's error fallback). PR 2 wires per-command
+// back-button routers to this.
+export { handleSharedBackButton } from './sharedBackButtonHandler.js';
+
+// Browse-rebuilder registry — command browse modules call
+// `registerBrowseRebuilder` at module-load time; helpers above look up by
+// entity type.
+export {
+  registerBrowseRebuilder,
+  getBrowseRebuilder,
+  clearBrowseRegistry,
+  type BrowseRebuilder,
+  type BrowseRebuildResult,
+} from './browseRebuilderRegistry.js';
 
 // Session Helpers
 export {
