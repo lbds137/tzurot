@@ -48,6 +48,7 @@ vi.mock('../../utils/dashboard/index.js', () => ({
     get: vi.fn(),
     delete: vi.fn(),
   }),
+  registerBrowseRebuilder: vi.fn(),
 }));
 
 // Mock config module

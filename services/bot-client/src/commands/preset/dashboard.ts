@@ -48,8 +48,11 @@ import {
   handleConfirmDeleteButton,
   handleCancelDeleteButton,
   handleCloneButton,
-  handleBackButton,
 } from './dashboardButtons.js';
+import { handleSharedBackButton } from '../../utils/dashboard/index.js';
+// Side-effect import: registers the preset browse rebuilder used by
+// renderPostActionScreen + handleSharedBackButton.
+import './browse.js';
 
 const logger = createLogger('preset-dashboard');
 
@@ -232,7 +235,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await handleCloseButton(interaction, entityId);
       break;
     case 'back':
-      await handleBackButton(interaction, entityId);
+      await interaction.deferUpdate();
+      await handleSharedBackButton(interaction, 'preset', entityId);
       break;
     case 'refresh':
       await handleRefreshButton(interaction, entityId);

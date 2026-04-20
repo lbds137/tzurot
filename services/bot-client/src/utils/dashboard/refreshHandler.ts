@@ -23,8 +23,13 @@ const logger = createLogger('dashboard-refresh');
  * Options for creating a refresh handler
  */
 interface RefreshHandlerOptions<TData, TRaw = TData> {
-  /** Entity type (e.g., 'persona', 'character', 'preset') */
-  entityType: string;
+  /**
+   * Entity type — must match one of the browse-capable commands. Narrowed
+   * from `string` so the NOT_FOUND path can pass `entityType` into
+   * `renderTerminalScreen` (which requires `BrowseCapableEntityType`)
+   * without an unsafe cast.
+   */
+  entityType: BrowseCapableEntityType;
   /** Dashboard configuration */
   dashboardConfig: DashboardConfig<TData>;
   /** Function to fetch fresh data */
@@ -98,7 +103,7 @@ export function createRefreshHandler<TData, TRaw = TData>(
         interaction,
         session: {
           userId: interaction.user.id,
-          entityType: entityType as BrowseCapableEntityType,
+          entityType,
           entityId,
           browseContext: existingBrowseContext,
         },

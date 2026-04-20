@@ -16,6 +16,7 @@ import {
   type EnvConfig,
   DISCORD_COLORS,
   characterBrowseOptions,
+  getConfig,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
@@ -36,6 +37,7 @@ import {
   buildDashboardEmbed,
   buildDashboardComponents,
   getSessionManager,
+  registerBrowseRebuilder,
 } from '../../utils/dashboard/index.js';
 import {
   buildBrowseButtons as buildSharedBrowseButtons,
@@ -335,6 +337,38 @@ export async function buildBrowseResponse(
     query,
   });
 }
+
+// Register the character browse rebuilder with the shared registry at module
+// load time. Consumed by `renderPostActionScreen` (destructive-action success
+// → direct re-render) and `handleSharedBackButton` (Back-to-Browse click).
+//
+// Character's rebuilder is unique among the four commands in that
+// buildBrowseResponse needs `client` (for fetchUsernames) and `config` (for
+// REST endpoint URLs). The adapter captures both from the live interaction
+// and the static getConfig() — neither is stored in the session.
+registerBrowseRebuilder('character', async (interaction, browseContext, successBanner) => {
+  try {
+    const result = await buildBrowseResponse(
+      toGatewayUser(interaction.user),
+      interaction.client,
+      getConfig(),
+      {
+        page: browseContext.page,
+        filter: browseContext.filter as CharacterBrowseFilter,
+        sort: (browseContext.sort ?? 'date') as CharacterBrowseSortType,
+        query: browseContext.query ?? null,
+      }
+    );
+    return {
+      content: successBanner,
+      embeds: [result.embed],
+      components: result.components,
+    };
+  } catch (error) {
+    logger.error({ err: error, userId: interaction.user.id }, '[Character] Browse rebuilder threw');
+    return null;
+  }
+});
 
 /**
  * Handle browse pagination button clicks

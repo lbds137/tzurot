@@ -37,7 +37,7 @@ vi.mock('../../utils/adminApiClient.js', () => ({
 
 // Mock detailTypes so we don't construct Discord.js builders
 vi.mock('./detailTypes.js', () => ({
-  ENTITY_TYPE: 'deny-detail',
+  ENTITY_TYPE: 'deny',
   VALID_SCOPES: ['BOT', 'GUILD', 'CHANNEL', 'PERSONALITY'],
   buildDetailEmbed: vi.fn(() => ({ data: { title: 'Detail' } })),
   buildDetailButtons: vi.fn(() => [{ type: 'action-row' }]),
@@ -64,7 +64,7 @@ const sampleSession = {
     guildId: 'guild-456',
   },
   userId: 'user-123',
-  entityType: 'deny-detail',
+  entityType: 'deny',
   entityId: 'entry-uuid-1234',
   messageId: 'msg-1',
   channelId: 'chan-1',

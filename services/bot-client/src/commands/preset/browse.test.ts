@@ -52,6 +52,7 @@ vi.mock('../../utils/dashboard/index.js', () => ({
   getSessionManager: () => ({
     set: mockSessionManagerSet,
   }),
+  registerBrowseRebuilder: vi.fn(),
 }));
 
 // Mock preset api

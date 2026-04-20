@@ -19,13 +19,14 @@ import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { createRefreshHandler, refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
   extractAndMergeSectionValues,
+  formatSuccessBanner,
   getSessionManager,
   requireDeferredSession,
   getSessionDataOrReply,
   parseDashboardCustomId,
   isDashboardInteraction,
-  formatSessionExpiredMessage,
-  renderTerminalScreen,
+  renderPostActionScreen,
+  handleSharedBackButton,
 } from '../../utils/dashboard/index.js';
 import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
@@ -38,8 +39,11 @@ import {
 } from './config.js';
 import type { PersonaDetails } from './types.js';
 import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './api.js';
-import { PersonaCustomIds, type PersonaBrowseSortType } from '../../utils/customIds.js';
-import { buildBrowseResponse } from './browse.js';
+import { PersonaCustomIds } from '../../utils/customIds.js';
+// Registers the persona browse rebuilder for renderPostActionScreen +
+// handleSharedBackButton. Importing the module is enough — the
+// registerBrowseRebuilder call at the bottom of browse.ts runs on load.
+import './browse.js';
 
 const logger = createLogger('persona-dashboard');
 const BROWSE_COMMAND = '/persona browse';
@@ -226,6 +230,11 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
 
 /**
  * Handle confirm-delete button - actually delete the persona.
+ *
+ * Routes success through `renderPostActionScreen` so the dashboard is
+ * replaced with the refreshed browse list (banner in `content`) when the
+ * user came from `/persona browse`, or a clean terminal otherwise. Error
+ * paths render as a terminal screen with Back-to-Browse where applicable.
  */
 async function handleConfirmDeleteButton(
   interaction: ButtonInteraction,
@@ -242,10 +251,7 @@ async function handleConfirmDeleteButton(
 
   const personaName = session?.data.name ?? 'Persona';
 
-  // Helper reads browseContext to decide: Back-to-Browse button + keep session,
-  // or cleanup. No explicit sessionManager.delete here — renderTerminalScreen
-  // handles the cleanup path internally when browseContext is absent.
-  const terminalSession = {
+  const postActionSession = {
     userId: interaction.user.id,
     entityType: 'persona' as const,
     entityId,
@@ -255,18 +261,18 @@ async function handleConfirmDeleteButton(
   const result = await deletePersona(entityId, toGatewayUser(interaction.user));
 
   if (!result.success) {
-    await renderTerminalScreen({
+    await renderPostActionScreen({
       interaction,
-      session: terminalSession,
-      content: `❌ Failed to delete persona: ${result.error}`,
+      session: postActionSession,
+      outcome: { kind: 'error', content: `❌ Failed to delete persona: ${result.error}` },
     });
     return;
   }
 
-  await renderTerminalScreen({
+  await renderPostActionScreen({
     interaction,
-    session: terminalSession,
-    content: `✅ **${personaName}** has been deleted.`,
+    session: postActionSession,
+    outcome: { kind: 'success', banner: formatSuccessBanner('Deleted persona', personaName) },
   });
 
   logger.info({ userId: interaction.user.id, entityId, personaName }, 'Persona deleted');
@@ -338,7 +344,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await handleCloseButton(interaction, entityId);
       break;
     case 'back':
-      await handleBackButton(interaction, entityId);
+      await interaction.deferUpdate();
+      await handleSharedBackButton(interaction, 'persona', entityId);
       break;
     case 'refresh':
       await handleRefreshButton(interaction, entityId);
@@ -352,77 +359,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     case 'cancel-delete':
       await handleCancelDeleteButton(interaction, entityId);
       break;
-  }
-}
-
-/**
- * Handle back button - return to browse list
- */
-async function handleBackButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
-  const session = await requireDeferredSession<FlattenedPersonaData>(
-    interaction,
-    'persona',
-    entityId,
-    BROWSE_COMMAND
-  );
-  if (session === null) {
-    return;
-  }
-
-  // All three error branches below render as terminal-with-no-back-button
-  // (re-adding the back-button would re-enter the failing path) and clean up
-  // the now-dead session. Share the session descriptor.
-  const noContextSession = {
-    userId: interaction.user.id,
-    entityType: 'persona' as const,
-    entityId,
-    browseContext: undefined,
-  };
-
-  const browseContext = session.data.browseContext;
-  if (!browseContext) {
-    // Session exists but no browse context — terminate cleanly.
-    await renderTerminalScreen({
-      interaction,
-      session: noContextSession,
-      content: formatSessionExpiredMessage(BROWSE_COMMAND),
-    });
-    return;
-  }
-
-  try {
-    const result = await buildBrowseResponse(
-      toGatewayUser(interaction.user),
-      browseContext.page,
-      browseContext.sort as PersonaBrowseSortType
-    );
-
-    if (result === null) {
-      await renderTerminalScreen({
-        interaction,
-        session: noContextSession,
-        content: '❌ Failed to load browse list. Please try again.',
-      });
-      return;
-    }
-
-    // Clean up the dashboard session since we're leaving it for the browse list.
-    const sessionManager = getSessionManager();
-    await sessionManager.delete(interaction.user.id, 'persona', entityId);
-
-    await interaction.editReply({
-      embeds: [result.embed],
-      components: result.components,
-    });
-
-    logger.info({ userId: interaction.user.id }, '[Persona] Returned to browse from dashboard');
-  } catch (error) {
-    logger.error({ err: error }, '[Persona] Failed to return to browse');
-    await renderTerminalScreen({
-      interaction,
-      session: noContextSession,
-      content: '❌ Failed to load browse list. Please try again.',
-    });
   }
 }
 

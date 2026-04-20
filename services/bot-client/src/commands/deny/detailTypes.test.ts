@@ -24,7 +24,7 @@ const sampleEntry = {
 
 describe('constants', () => {
   it('should export entity type', () => {
-    expect(ENTITY_TYPE).toBe('deny-detail');
+    expect(ENTITY_TYPE).toBe('deny');
   });
 
   it('should export valid scopes', () => {

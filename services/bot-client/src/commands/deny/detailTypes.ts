@@ -10,7 +10,7 @@ import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
 import type { DenylistEntryResponse } from './browse.js';
 
 /** Entity type key for Redis session storage */
-export const ENTITY_TYPE = 'deny-detail';
+export const ENTITY_TYPE = 'deny';
 
 /** Valid scope values for denylist entries */
 export const VALID_SCOPES = ['BOT', 'GUILD', 'CHANNEL', 'PERSONALITY'] as const;

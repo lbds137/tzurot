@@ -12,7 +12,6 @@ import {
   handleConfirmDeleteButton,
   handleCancelDeleteButton,
   handleCloneButton,
-  handleBackButton,
 } from './dashboardButtons.js';
 import { generateClonedName } from './cloneName.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
@@ -108,6 +107,8 @@ const mockCheckOwnership = vi
 
 const mockRenderTerminalScreen = vi.fn().mockResolvedValue(undefined);
 
+const mockRenderPostActionScreen = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
   return {
@@ -118,6 +119,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),
     renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
+    renderPostActionScreen: (...args: unknown[]) => mockRenderPostActionScreen(...args),
   };
 });
 
@@ -554,10 +556,10 @@ describe('Preset Dashboard Buttons', () => {
 
   describe('handleConfirmDeleteButton', () => {
     beforeEach(() => {
-      mockRenderTerminalScreen.mockClear();
+      mockRenderPostActionScreen.mockClear();
     });
 
-    it('delegates post-delete rendering to renderTerminalScreen', async () => {
+    it('routes delete success through renderPostActionScreen with a formatted banner', async () => {
       const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
@@ -572,23 +574,25 @@ describe('Preset Dashboard Buttons', () => {
         '/user/llm-config/preset-123',
         expect.objectContaining({ method: 'DELETE' })
       );
-      // The helper owns the editReply + session cleanup behaviour — this
-      // suite just verifies the handler routes through it with the correct
-      // session shape (including browseContext, which drives back-button
-      // rendering inside the helper).
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      // The helper decides success-with-rebuild vs clean-terminal based on
+      // the session's browseContext; this suite verifies the handler routes
+      // through it with the right outcome shape.
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
         expect.objectContaining({
           interaction: mockInteraction,
           session: expect.objectContaining({
             entityType: 'preset',
             entityId: 'preset-123',
           }),
-          content: expect.stringContaining('has been deleted'),
+          outcome: expect.objectContaining({
+            kind: 'success',
+            banner: expect.stringContaining('Preset To Delete'),
+          }),
         })
       );
     });
 
-    it('forwards browseContext into the terminal session so back-button renders', async () => {
+    it('forwards browseContext into the post-action session so re-render finds context', async () => {
       const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
 
       const browseCtx = { source: 'browse' as const, page: 1, filter: 'all' };
@@ -599,14 +603,14 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleConfirmDeleteButton(mockInteraction, 'preset-123');
 
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
         expect.objectContaining({
           session: expect.objectContaining({ browseContext: browseCtx }),
         })
       );
     });
 
-    it('routes the delete-failure path through renderTerminalScreen too', async () => {
+    it('routes the delete-failure path through renderPostActionScreen with an error outcome', async () => {
       const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
@@ -616,9 +620,12 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleConfirmDeleteButton(mockInteraction, 'preset-123');
 
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to delete'),
+          outcome: expect.objectContaining({
+            kind: 'error',
+            content: expect.stringContaining('Failed to delete'),
+          }),
         })
       );
     });
@@ -849,113 +856,9 @@ describe('Preset Dashboard Buttons', () => {
     });
   });
 
-  describe('handleBackButton', () => {
-    it('should return to browse list with saved context', async () => {
-      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
-      const browseContext = { source: 'browse' as const, page: 1, filter: 'owned' };
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockFlattenedPreset({ browseContext }),
-      });
-      mockBuildBrowseResponse.mockResolvedValue({
-        embed: { data: { title: 'Browse Presets' } },
-        components: [],
-      });
-
-      await handleBackButton(mockInteraction, 'preset-123');
-
-      expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ discordId: 'user-123' }),
-        {
-          page: 1,
-          filter: 'owned',
-          query: null,
-        }
-      );
-      expect(mockSessionManager.delete).toHaveBeenCalledWith('user-123', 'preset', 'preset-123');
-    });
-
-    it('routes "no browseContext" through renderTerminalScreen with cleanup', async () => {
-      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockFlattenedPreset({ browseContext: undefined }),
-      });
-
-      await handleBackButton(mockInteraction, 'preset-123');
-
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining('Session expired'),
-          // browseContext forced to undefined so the helper skips the back
-          // button (re-adding it would re-enter this failing path) and
-          // cleans up the session.
-          session: expect.objectContaining({ browseContext: undefined }),
-        })
-      );
-    });
-
-    it('should show expired message when session is null', async () => {
-      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
-
-      mockSessionManager.get.mockResolvedValue(null);
-
-      await handleBackButton(mockInteraction, 'preset-123');
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Session expired'),
-        embeds: [],
-        components: [],
-      });
-    });
-
-    it('routes buildBrowseResponse failure through renderTerminalScreen with no-button cleanup', async () => {
-      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
-      const browseContext = { source: 'browse' as const, page: 1, filter: 'all' };
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockFlattenedPreset({ browseContext }),
-      });
-      mockBuildBrowseResponse.mockResolvedValue(null);
-
-      await handleBackButton(mockInteraction, 'preset-123');
-
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining('Failed to load browse list'),
-          session: expect.objectContaining({ browseContext: undefined }),
-        })
-      );
-    });
-
-    it('should include query from browseContext', async () => {
-      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
-      const browseContext = {
-        source: 'browse' as const,
-        page: 0,
-        filter: 'all',
-        query: 'gpt',
-      };
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockFlattenedPreset({ browseContext }),
-      });
-      mockBuildBrowseResponse.mockResolvedValue({
-        embed: { data: { title: 'Browse Presets' } },
-        components: [],
-      });
-
-      await handleBackButton(mockInteraction, 'preset-123');
-
-      expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ discordId: 'user-123' }),
-        {
-          page: 0,
-          filter: 'all',
-          query: 'gpt',
-        }
-      );
-    });
-  });
+  // handleBackButton was deleted from this module in favor of the shared
+  // handleSharedBackButton (utils/dashboard/sharedBackButtonHandler.ts),
+  // which is routed to from preset/dashboard.ts. Its behavioral coverage
+  // lives in sharedBackButtonHandler.test.ts, parameterized across every
+  // BrowseCapableEntityType.
 });

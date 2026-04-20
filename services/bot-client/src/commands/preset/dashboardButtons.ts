@@ -20,8 +20,9 @@ import {
   getSessionDataOrReply,
   checkOwnership,
   DASHBOARD_MESSAGES,
-  formatSessionExpiredMessage,
+  formatSuccessBanner,
   renderTerminalScreen,
+  renderPostActionScreen,
 } from '../../utils/dashboard/index.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
@@ -33,7 +34,6 @@ import {
 } from './config.js';
 import { fetchPreset, updatePreset, fetchGlobalPreset, extractApiErrorMessage } from './api.js';
 import { createClonedPreset } from './cloneName.js';
-import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 
 // Re-export for backward compatibility
 export { buildPresetDashboardOptions } from './config.js';
@@ -242,6 +242,10 @@ export async function handleDeleteButton(
 
 /**
  * Handle confirm-delete button - actually delete the preset.
+ *
+ * Success routes through `renderPostActionScreen` → direct re-render of the
+ * browse list with a banner in `content` when the dashboard was opened from
+ * `/preset browse`. Failure paths render as a terminal with Back-to-Browse.
  */
 export async function handleConfirmDeleteButton(
   interaction: ButtonInteraction,
@@ -258,8 +262,7 @@ export async function handleConfirmDeleteButton(
 
   const presetName = session?.data.name ?? 'Preset';
 
-  // Helper reads browseContext to decide: Back-to-Browse button + keep session, or cleanup.
-  const terminalSession = {
+  const postActionSession = {
     userId: interaction.user.id,
     entityType: 'preset' as const,
     entityId,
@@ -277,27 +280,30 @@ export async function handleConfirmDeleteButton(
         { userId: interaction.user.id, status: result.status, entityId },
         '[Preset] Failed to delete preset'
       );
-      await renderTerminalScreen({
+      await renderPostActionScreen({
         interaction,
-        session: terminalSession,
-        content: `❌ Failed to delete preset: ${result.error}`,
+        session: postActionSession,
+        outcome: { kind: 'error', content: `❌ Failed to delete preset: ${result.error}` },
       });
       return;
     }
 
-    await renderTerminalScreen({
+    await renderPostActionScreen({
       interaction,
-      session: terminalSession,
-      content: `✅ **${presetName}** has been deleted.`,
+      session: postActionSession,
+      outcome: { kind: 'success', banner: formatSuccessBanner('Deleted preset', presetName) },
     });
 
     logger.info({ userId: interaction.user.id, entityId, presetName }, '[Preset] Deleted preset');
   } catch (error) {
     logger.error({ err: error, entityId }, 'Failed to delete preset');
-    await renderTerminalScreen({
+    await renderPostActionScreen({
       interaction,
-      session: terminalSession,
-      content: '❌ An error occurred while deleting the preset. Please try again.',
+      session: postActionSession,
+      outcome: {
+        kind: 'error',
+        content: '❌ An error occurred while deleting the preset. Please try again.',
+      },
     });
   }
 }
@@ -423,81 +429,6 @@ export async function handleCloneButton(
     await interaction.followUp({
       content: `❌ ${extractApiErrorMessage(error) ?? 'Failed to clone preset. Please try again.'}`,
       flags: MessageFlags.Ephemeral,
-    });
-  }
-}
-
-/**
- * Handle back button - return to browse list using saved context.
- */
-export async function handleBackButton(
-  interaction: ButtonInteraction,
-  entityId: string
-): Promise<void> {
-  const session = await requireDeferredSession<FlattenedPresetData>(
-    interaction,
-    'preset',
-    entityId,
-    PRESET_RECOVERY_CMD
-  );
-  if (session === null) {
-    return;
-  }
-
-  // All three error branches below render as terminal-with-no-back-button
-  // (re-adding the back-button would re-enter the failing path) and clean up
-  // the now-dead session. Share the session descriptor.
-  const noContextSession = {
-    userId: interaction.user.id,
-    entityType: 'preset' as const,
-    entityId,
-    browseContext: undefined,
-  };
-
-  const browseContext = session.data.browseContext;
-  if (!browseContext) {
-    // Session exists but no browse context — back-button shouldn't have been
-    // rendered in the first place.
-    await renderTerminalScreen({
-      interaction,
-      session: noContextSession,
-      content: formatSessionExpiredMessage(PRESET_RECOVERY_CMD),
-    });
-    return;
-  }
-
-  try {
-    const result = await buildBrowseResponse(toGatewayUser(interaction.user), {
-      page: browseContext.page,
-      filter: browseContext.filter as PresetBrowseFilter,
-      query: browseContext.query ?? null,
-    });
-
-    if (result === null) {
-      await renderTerminalScreen({
-        interaction,
-        session: noContextSession,
-        content: '❌ Failed to load browse list. Please try again.',
-      });
-      return;
-    }
-
-    // Clear the session since we're leaving the dashboard
-    const sessionManager = getSessionManager();
-    await sessionManager.delete(interaction.user.id, 'preset', entityId);
-
-    await interaction.editReply({ embeds: [result.embed], components: result.components });
-
-    logger.info(
-      { userId: interaction.user.id, entityId, page: browseContext.page },
-      '[Preset] Returned to browse from dashboard'
-    );
-  } catch (error) {
-    logger.error({ err: error, entityId }, '[Preset] Failed to return to browse');
-    await renderTerminalScreen({
-      interaction,
-      session: noContextSession,
-      content: '❌ Failed to load browse list. Please try again.',
     });
   }
 }
