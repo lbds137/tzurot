@@ -78,6 +78,7 @@ export interface FlattenedPresetData {
   isGlobal: boolean;
   isOwned: boolean;
   canEdit: boolean;
+  canDelete: boolean;
   // Sampling params
   temperature: string;
   top_p: string;

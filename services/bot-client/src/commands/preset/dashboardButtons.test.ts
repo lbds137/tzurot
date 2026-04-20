@@ -106,6 +106,8 @@ const mockCheckOwnership = vi
     return true;
   });
 
+const mockRenderTerminalScreen = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
   return {
@@ -115,6 +117,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),
+    renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
   };
 });
 
@@ -222,6 +225,7 @@ describe('Preset Dashboard Buttons', () => {
       isGlobal: false,
       isOwned: true,
       canEdit: true,
+      canDelete: true,
       temperature: '0.7',
       max_tokens: '4000',
       top_p: '',
@@ -256,7 +260,7 @@ describe('Preset Dashboard Buttons', () => {
 
   describe('buildPresetDashboardOptions', () => {
     it('should show delete button for owned presets', () => {
-      const data = createMockFlattenedPreset({ isOwned: true });
+      const data = createMockFlattenedPreset({ isOwned: true, canDelete: true });
       const options = buildPresetDashboardOptions(data);
 
       expect(options.showDelete).toBe(true);
@@ -264,12 +268,22 @@ describe('Preset Dashboard Buttons', () => {
       expect(options.toggleGlobal?.isOwned).toBe(true);
     });
 
-    it('should hide delete button for non-owned presets', () => {
-      const data = createMockFlattenedPreset({ isOwned: false });
+    it('should hide delete button for non-owned, non-admin users', () => {
+      const data = createMockFlattenedPreset({ isOwned: false, canDelete: false });
       const options = buildPresetDashboardOptions(data);
 
       expect(options.showDelete).toBe(false);
       expect(options.toggleGlobal?.isOwned).toBe(false);
+    });
+
+    it('should show delete button for non-owned presets when canDelete is true (admin)', () => {
+      // Bot owner / admin viewing a global or someone else's preset — server's
+      // computeLlmConfigPermissions sets canDelete: true even though isOwned is
+      // false. The dashboard should honor that and show the delete button.
+      const data = createMockFlattenedPreset({ isOwned: false, canDelete: true });
+      const options = buildPresetDashboardOptions(data);
+
+      expect(options.showDelete).toBe(true);
     });
 
     it('should include global toggle state', () => {
@@ -403,19 +417,27 @@ describe('Preset Dashboard Buttons', () => {
       expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123');
     });
 
-    it('should show error if preset not found', async () => {
+    it('routes not-found through renderTerminalScreen (preserves back-to-browse)', async () => {
       const mockInteraction = createMockButtonInteraction('preset::refresh::preset-123');
+      const browseContext = { source: 'browse' as const, page: 1, filter: 'all' };
 
-      mockSessionManager.get.mockResolvedValue({ data: createMockFlattenedPreset() });
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ browseContext }),
+      });
       mockFetchPreset.mockResolvedValue(null);
 
       await handleRefreshButton(mockInteraction, 'preset-123');
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Preset not found'),
-        embeds: [],
-        components: [],
-      });
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Preset not found'),
+          session: expect.objectContaining({
+            entityType: 'preset',
+            entityId: 'preset-123',
+            browseContext,
+          }),
+        })
+      );
     });
 
     it('should preserve browseContext when refreshing', async () => {
@@ -461,11 +483,11 @@ describe('Preset Dashboard Buttons', () => {
   });
 
   describe('handleDeleteButton', () => {
-    it('should show confirmation dialog for owned preset', async () => {
+    it('should show confirmation dialog when canDelete is true', async () => {
       const mockInteraction = createMockButtonInteraction('preset::delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
-        data: createMockFlattenedPreset({ isOwned: true }),
+        data: createMockFlattenedPreset({ isOwned: true, canDelete: true }),
       });
 
       await handleDeleteButton(mockInteraction, 'preset-123');
@@ -482,19 +504,37 @@ describe('Preset Dashboard Buttons', () => {
       });
     });
 
-    it('should reject deletion of non-owned preset', async () => {
+    it('should show confirmation dialog for admin deleting a non-owned preset', async () => {
+      // Bot owner / admin — server's computeLlmConfigPermissions sets
+      // canDelete: true even though isOwned is false.
       const mockInteraction = createMockButtonInteraction('preset::delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
-        data: createMockFlattenedPreset({ isOwned: false }),
+        data: createMockFlattenedPreset({ isOwned: false, canDelete: true }),
       });
-      // Mock ownership check to return false (checkOwnership handles the error reply)
-      mockCheckOwnership.mockResolvedValue(false);
 
       await handleDeleteButton(mockInteraction, 'preset-123');
 
-      // checkOwnership handles the error reply - just verify update wasn't called
+      expect(mockInteraction.update).toHaveBeenCalled();
+      expect(mockInteraction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should reject when canDelete is false', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::delete::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ isOwned: false, canDelete: false }),
+      });
+
+      await handleDeleteButton(mockInteraction, 'preset-123');
+
+      // Direct canDelete guard replies with the NO_PERMISSION message; the
+      // confirmation dialog update must not fire.
       expect(mockInteraction.update).not.toHaveBeenCalled();
+      expect(mockInteraction.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('delete presets'),
+        flags: expect.any(Number),
+      });
     });
 
     it('should show error if session expired', async () => {
@@ -513,7 +553,11 @@ describe('Preset Dashboard Buttons', () => {
   });
 
   describe('handleConfirmDeleteButton', () => {
-    it('should delete preset and show success', async () => {
+    beforeEach(() => {
+      mockRenderTerminalScreen.mockClear();
+    });
+
+    it('delegates post-delete rendering to renderTerminalScreen', async () => {
       const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
@@ -528,15 +572,41 @@ describe('Preset Dashboard Buttons', () => {
         '/user/llm-config/preset-123',
         expect.objectContaining({ method: 'DELETE' })
       );
-      expect(mockSessionManager.delete).toHaveBeenCalled();
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('has been deleted'),
-        embeds: [],
-        components: [],
-      });
+      // The helper owns the editReply + session cleanup behaviour — this
+      // suite just verifies the handler routes through it with the correct
+      // session shape (including browseContext, which drives back-button
+      // rendering inside the helper).
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          interaction: mockInteraction,
+          session: expect.objectContaining({
+            entityType: 'preset',
+            entityId: 'preset-123',
+          }),
+          content: expect.stringContaining('has been deleted'),
+        })
+      );
     });
 
-    it('should show error on delete failure', async () => {
+    it('forwards browseContext into the terminal session so back-button renders', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
+
+      const browseCtx = { source: 'browse' as const, page: 1, filter: 'all' };
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ browseContext: browseCtx }),
+      });
+      mockCallGatewayApi.mockResolvedValue({ ok: true });
+
+      await handleConfirmDeleteButton(mockInteraction, 'preset-123');
+
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session: expect.objectContaining({ browseContext: browseCtx }),
+        })
+      );
+    });
+
+    it('routes the delete-failure path through renderTerminalScreen too', async () => {
       const mockInteraction = createMockButtonInteraction('preset::confirm-delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
@@ -546,11 +616,11 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleConfirmDeleteButton(mockInteraction, 'preset-123');
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to delete'),
-        embeds: [],
-        components: [],
-      });
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to delete'),
+        })
+      );
     });
   });
 
@@ -748,7 +818,7 @@ describe('Preset Dashboard Buttons', () => {
       expect(mockSessionManager.delete).toHaveBeenCalledWith('user-123', 'preset', 'preset-123');
     });
 
-    it('should show expired message when no browseContext', async () => {
+    it('routes "no browseContext" through renderTerminalScreen with cleanup', async () => {
       const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
@@ -757,11 +827,15 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleBackButton(mockInteraction, 'preset-123');
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Session expired'),
-        embeds: [],
-        components: [],
-      });
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Session expired'),
+          // browseContext forced to undefined so the helper skips the back
+          // button (re-adding it would re-enter this failing path) and
+          // cleans up the session.
+          session: expect.objectContaining({ browseContext: undefined }),
+        })
+      );
     });
 
     it('should show expired message when session is null', async () => {
@@ -778,7 +852,7 @@ describe('Preset Dashboard Buttons', () => {
       });
     });
 
-    it('should show error when buildBrowseResponse fails', async () => {
+    it('routes buildBrowseResponse failure through renderTerminalScreen with no-button cleanup', async () => {
       const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
       const browseContext = { source: 'browse' as const, page: 1, filter: 'all' };
 
@@ -789,11 +863,12 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleBackButton(mockInteraction, 'preset-123');
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to load browse list'),
-        embeds: [],
-        components: [],
-      });
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to load browse list'),
+          session: expect.objectContaining({ browseContext: undefined }),
+        })
+      );
     });
 
     it('should include query from browseContext', async () => {
