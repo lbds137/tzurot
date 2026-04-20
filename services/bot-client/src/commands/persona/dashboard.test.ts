@@ -63,6 +63,12 @@ const mockRequireDeferredSession = vi
     return mockGetSessionOrExpired(interaction, entityType, entityId, command);
   });
 
+// renderTerminalScreen is imported via the dashboard index barrel, but it
+// ALSO calls getSessionManager from SessionManager.js directly (bypassing the
+// barrel). Mock the source module + spy on renderTerminalScreen so test
+// assertions can target its call shape directly.
+const mockRenderTerminalScreen = vi.fn();
+
 // Mock getSessionDataOrReply to delegate to mockSessionGet
 const mockGetSessionDataOrReply = vi
   .fn()
@@ -78,6 +84,21 @@ const mockGetSessionDataOrReply = vi
     return session.data;
   });
 
+vi.mock('../../utils/dashboard/SessionManager.js', () => ({
+  getSessionManager: () => ({
+    get: mockSessionGet,
+    set: mockSessionSet,
+    update: mockSessionUpdate,
+    delete: mockSessionDelete,
+  }),
+  initSessionManager: vi.fn(),
+  shutdownSessionManager: vi.fn(),
+}));
+
+vi.mock('../../utils/dashboard/terminalScreen.js', () => ({
+  renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
+}));
+
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
   return {
@@ -86,6 +107,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
     buildSectionModal: (...args: unknown[]) => mockBuildSectionModal(...args),
     extractModalValues: (...args: unknown[]) => mockExtractModalValues(...args),
+    renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
     getSessionManager: () => ({
       get: mockSessionGet,
       set: mockSessionSet,
@@ -552,12 +574,38 @@ describe('handleButton', () => {
       `/user/persona/${TEST_PERSONA_ID}`,
       expect.objectContaining({ method: 'DELETE' })
     );
-    expect(mockSessionDelete).toHaveBeenCalled();
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('has been deleted'),
-      embeds: [],
-      components: [],
+    // Success goes through renderTerminalScreen — dashboards opened from
+    // /persona browse keep Back-to-Browse; others get a clean terminal.
+    // renderTerminalScreen handles the session cleanup internally, so the
+    // handler no longer calls sessionManager.delete directly.
+    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          entityType: 'persona',
+          entityId: TEST_PERSONA_ID,
+        }),
+        content: expect.stringContaining('has been deleted'),
+      })
+    );
+  });
+
+  it('should carry browseContext from session into the terminal screen on confirm-delete', async () => {
+    const browseContext = { page: 1, filter: 'all', sort: 'name' };
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', browseContext },
     });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { message: 'Deleted' },
+    });
+
+    await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
+
+    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({ browseContext }),
+      })
+    );
   });
 
   it('should show error on confirm-delete when delete fails', async () => {
@@ -571,11 +619,11 @@ describe('handleButton', () => {
 
     await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to delete'),
-      embeds: [],
-      components: [],
-    });
+    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Failed to delete'),
+      })
+    );
   });
 
   it('should return to dashboard on cancel-delete button', async () => {

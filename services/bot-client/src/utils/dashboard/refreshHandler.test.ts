@@ -19,6 +19,14 @@ vi.mock('./DashboardBuilder.js', () => ({
   buildDashboardComponents: vi.fn(),
 }));
 
+// Mock renderTerminalScreen so the NOT_FOUND branch can be asserted directly
+// on the call shape (session + content) rather than on the internal
+// editReply/sessionManager.delete calls it performs.
+const mockRenderTerminalScreen = vi.fn();
+vi.mock('./terminalScreen.js', () => ({
+  renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
+}));
+
 describe('refreshHandler', () => {
   const mockSessionManager = {
     get: vi.fn(),
@@ -36,6 +44,11 @@ describe('refreshHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRenderTerminalScreen.mockReset();
+    mockSessionManager.get.mockReset();
+    // Default: no existing session. Individual tests override when they need
+    // an existing browseContext.
+    mockSessionManager.get.mockResolvedValue(null);
     vi.mocked(SessionManagerModule.getSessionManager).mockReturnValue(
       mockSessionManager as unknown as SessionManagerModule.DashboardSessionManager
     );
@@ -90,7 +103,7 @@ describe('refreshHandler', () => {
       });
     });
 
-    it('should show not found message when fetch returns null', async () => {
+    it('should route NOT_FOUND through renderTerminalScreen so Back-to-Browse is preserved', async () => {
       const fetchFn = vi.fn().mockResolvedValue(null);
 
       const handler = createRefreshHandler({
@@ -108,11 +121,45 @@ describe('refreshHandler', () => {
 
       await handler(interaction, 'entity-abc');
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: '❌ Persona not found.',
-        embeds: [],
-        components: [],
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session: expect.objectContaining({
+            entityType: 'persona',
+            entityId: 'entity-abc',
+            browseContext: undefined,
+          }),
+          content: expect.stringContaining('Persona not found'),
+        })
+      );
+    });
+
+    it('should carry existing browseContext into the NOT_FOUND terminal screen', async () => {
+      const browseContext = { page: 2, filter: 'all', sort: 'name' };
+      mockSessionManager.get.mockResolvedValue({
+        data: { browseContext },
       });
+      const fetchFn = vi.fn().mockResolvedValue(null);
+
+      const handler = createRefreshHandler({
+        entityType: 'persona',
+        dashboardConfig: mockConfig,
+        fetchFn,
+        entityLabel: 'Persona',
+      });
+
+      const interaction = {
+        user: { id: 'user-123' },
+        deferUpdate: vi.fn(),
+        editReply: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      await handler(interaction, 'entity-abc');
+
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session: expect.objectContaining({ browseContext }),
+        })
+      );
     });
 
     it('should use buildOptions when provided', async () => {
