@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-04-19
-> **Version**: v3.0.0-beta.100 (Phase 5c PR A/B + TTS silent-drop + echo-strip + dup-reply telemetry + preset-clone fix unreleased on develop)
+> **Last Updated**: 2026-04-20
+> **Version**: v3.0.0-beta.101 (released — next unreleased bundle starts fresh on develop)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -20,6 +20,28 @@ _None currently._
 ## 📥 Inbox
 
 _New items go here. Triage to appropriate section weekly._
+
+- 🏗️ `[LIFT]` **`/character chat` in DMs — extract protocol-agnostic `PersonalityChatManager` (Option D, council-blessed)** — `/character chat` hard-errors in DMs ("This command can only be used in text channels or threads") because its rendering path depends on Discord webhooks, which are a guild-only feature. Separately, `PersonalityMessageHandler.handleMessage` already owns the full DM flow (NSFW check, LLM config resolution, context building, job submission, plain-reply delivery with `**Name:**` prefix) and is used by `DMSessionProcessor` + mention/reply processors. The slash-command path duplicates most of this logic but ends in webhook rendering.
+
+  **Council rejected the obvious DRY shortcut**: do NOT synthesize a fake `Message` from an `Interaction` to reuse `handleMessage`. Known footgun — `discord.js` `Message` and `Interaction` back onto different Discord APIs (`message.reply()` vs `interaction.followUp()`, no `message.reference`/`mentions` on interactions, different typing-indicator semantics). Faking it is effectively shipping a `discord.js` mock in production code.
+
+  **Fix shape (Option D)**: extract the domain logic out of `PersonalityMessageHandler.handleMessage` into a new `services/character/PersonalityChatManager.ts` that accepts a protocol-agnostic `ChatGenerationRequest { userId, channelId, isNsfwChannel, personalityId, userPrompt, authorDisplayName }` and returns the response payload. Both entry points — the existing message handler AND `handleChat` — parse their own Discord objects, call the manager, then handle delivery in their native protocol (plain reply for messages / DMs; webhook for guild slash commands; `interaction.followUp` for DM slash commands).
+
+  **Benefits**: no duplicated context building, no hacky fakes, future-proofs a hypothetical web-dashboard / API entry point. **Risk**: touches a hot path shared by multiple processors — needs integration test coverage across DMSessionProcessor, BotMentionProcessor, and the slash command before the refactor lands.
+
+  **Also ship alongside**: belt-and-suspenders runtime message — if the DM branch of `/character chat` ever hits an unsupported state, reply with `In DMs you can also just type @CharacterName hello — no slash command needed.` instead of a bare technical error.
+
+  **Start**: `services/bot-client/src/services/PersonalityMessageHandler.ts` (source of logic to extract), `services/bot-client/src/commands/character/chat.ts:425` (site of the webhook-only hard gate), `services/bot-client/src/processors/DMSessionProcessor.ts` (second caller of handleMessage that must keep working). Council consultation 2026-04-20 (Gemini 3.1 Pro Preview). Surfaced during DM-broken investigation that revealed `/character chat` as a secondary DM UX gap.
+
+- ✨ `[FEAT]` **Bring back v2 `/cleandm` command for removing bot-authored clutter from DM history** — v2 had a `cleandm` command that let users clear bot-posted non-conversation messages from their DM so the channel kept just the actual personality conversations. v3 regressed on this: verification prompts, help messages, error replies, and slash-command error responses accumulate in the DM and clutter the scroll-back.
+
+  **Fix shape**: new DM-only slash command `/cleandm [scope:recent|all]` that (a) fetches the bot's own messages in the current DM channel (bots can only delete their own messages), (b) filters out any that match the personality-reply prefix `DM_PERSONALITY_PREFIX_REGEX = /^\*\*(.+?):\*\*/` from `DMSessionProcessor.ts`, (c) bulk-deletes the remainder respecting Discord's DM rate limit (~5 deletes/sec).
+
+  **Architectural fit**: reuse the existing `DM_PERSONALITY_PREFIX_REGEX` as the "is this conversational?" classifier — it's already the rule `DMSessionProcessor` uses to decide session membership, so cleanup logic tracks any future prefix changes for free instead of drifting into its own taxonomy.
+
+  **Scope options**: `recent` = last ~100 messages (fast, bounded); `all` = full-history sweep with progress updates and chunked deletion to avoid hitting the 3-second interaction budget or rate limits on long histories. Default to `recent` since most clutter accumulates in recent activity.
+
+  **Start**: new command at `services/bot-client/src/commands/dm/cleandm.ts` (new directory if no DM-only command exists yet). Lean on existing DM session utilities in `services/bot-client/src/processors/DMSessionProcessor.ts` and the webhook/NSFW utility patterns. Add `.setContexts(DM)` + `.setIntegrationTypes(UserInstall)` on the SlashCommandBuilder so the command only surfaces in DMs. Surfaced 2026-04-20 during DM-broken investigation.
 
 - 🐛 `[FIX]` **Case-sensitivity gap in `resolveNonCollidingName` Prisma query** — PR #840 review flagged this. `LlmConfigService.resolveNonCollidingName` uses `startsWith` on `name` which PostgreSQL evaluates case-sensitively by default, while `COPY_INNER_PATTERN` in `presetCloneName.ts` uses the case-insensitive `/i` flag. Edge case: a user with a legacy preset `"Preset (copy 3)"` (lowercase c) clones `"Preset"` — the SELECT doesn't fetch the lowercase row, the walk picks `"Preset (Copy)"` (which is actually free with respect to casing), INSERT hits P2002 on the generic unique constraint, and the route re-throws it as a 500 instead of a clean 409. **Fix shape**: add `mode: 'insensitive'` to the two `startsWith` predicates in `resolveNonCollidingName`. **Start**: `services/api-gateway/src/services/LlmConfigService.ts` (the `findMany` inside `resolveNonCollidingName`). Surfaced 2026-04-20 during PR #840 release review.
 
