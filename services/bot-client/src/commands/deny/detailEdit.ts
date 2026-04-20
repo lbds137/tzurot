@@ -112,6 +112,9 @@ export async function handleEditModal(
 
   const validationError = validateEditInput(newScope, newScopeId, newReason);
   if (validationError !== null) {
+    // intentionally-raw: deny uses manual re-render for back-to-browse (see
+    // detail.ts file-top comment). Validation error is terminal; session
+    // remains so user can re-edit.
     await interaction.editReply({ content: validationError, embeds: [], components: [] });
     return;
   }
@@ -134,9 +137,12 @@ export async function handleEditModal(
 
     if (!upsertResponse.ok) {
       const body = (await upsertResponse.json()) as { message?: string };
+      // Edit-API-failure terminal path; deny doesn't use the Back-to-Browse
+      // button pattern (see detail.ts file-top comment).
       await interaction.editReply({
         content: `\u274C Failed to update: ${body.message ?? 'Unknown error'}`,
         embeds: [],
+        // intentionally-raw: see block comment above.
         components: [],
       });
       return;
@@ -186,9 +192,12 @@ export async function handleEditModal(
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to edit entry');
+    // Edit-exception terminal path; deny doesn't use the Back-to-Browse
+    // button pattern (see detail.ts file-top comment).
     await interaction.editReply({
       content: DASHBOARD_MESSAGES.OPERATION_FAILED('update entry'),
       embeds: [],
+      // intentionally-raw: see block comment above.
       components: [],
     });
   }

@@ -7,6 +7,16 @@
  *
  * UI builders and types are in detailTypes.ts.
  * Edit modal handlers are in detailEdit.ts.
+ *
+ * Back-to-Browse UX note: unlike `/preset`, `/character`, and `/persona`, the
+ * deny detail view does NOT use `renderTerminalScreen`'s Back-to-Browse
+ * button pattern. `handleConfirmDelete` (success path) and `handleBack`
+ * manually re-fetch entries and re-render the browse list directly, which
+ * saves a click versus the Back-to-Browse + click + re-render flow the other
+ * commands use. Terminal error paths in this file are intentionally plain
+ * `editReply({ components: [] })` — see each site's `intentionally-raw:`
+ * marker for the per-site reason. This file is in ENFORCED_FILES so any NEW
+ * terminal path must either use `renderTerminalScreen` or add its own marker.
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
@@ -27,10 +37,13 @@ const logger = createLogger('deny-detail');
 async function replyExpired(interaction: {
   editReply: ButtonInteraction['editReply'];
 }): Promise<void> {
+  // intentionally-raw: session-expired helper has no access to browseContext
+  // (it's a generic utility called from multiple sites where the caller
+  // couldn't even load the session). Recovery path is in the content text.
   await interaction.editReply({
     content: `${DASHBOARD_MESSAGES.SESSION_EXPIRED} Use \`/deny browse\` to view entries again.`,
     embeds: [],
-    components: [],
+    components: [], // intentionally-raw: see file-top UX note.
   });
 }
 
@@ -121,10 +134,12 @@ async function handleModeToggle(interaction: ButtonInteraction, entryId: string)
     );
 
     if (!response.ok) {
+      // intentionally-raw: deny uses manual re-render for back-to-browse (see
+      // file-top comment); terminal error path, session remains for retry.
       await interaction.editReply({
         content: DASHBOARD_MESSAGES.OPERATION_FAILED('toggle mode'),
         embeds: [],
-        components: [],
+        components: [], // intentionally-raw: see file-top UX note.
       });
       return;
     }
@@ -140,10 +155,12 @@ async function handleModeToggle(interaction: ButtonInteraction, entryId: string)
     });
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to toggle mode');
+    // intentionally-raw: terminal exception path; see file-top comment for
+    // why deny doesn't use renderTerminalScreen's Back-to-Browse pattern.
     await interaction.editReply({
       content: DASHBOARD_MESSAGES.OPERATION_FAILED('toggle mode'),
       embeds: [],
-      components: [],
+      components: [], // intentionally-raw: see file-top UX note.
     });
   }
 }
@@ -180,10 +197,12 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
     });
 
     if (!response.ok && response.status !== 404) {
+      // intentionally-raw: delete-API-failure terminal path; session still
+      // valid so user can retry. Deny doesn't use Back-to-Browse button.
       await interaction.editReply({
         content: DASHBOARD_MESSAGES.OPERATION_FAILED('delete entry'),
         embeds: [],
-        components: [],
+        components: [], // intentionally-raw: see file-top UX note.
       });
       return;
     }
@@ -209,17 +228,21 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
       return;
     }
 
+    // intentionally-raw: delete succeeded + browse list is now empty — no
+    // meaningful browse to go back to, clean terminal is correct.
     await interaction.editReply({
       content: `\u2705 Denylist entry for ${data.type} \`${data.discordId}\` has been deleted. No entries remaining.`,
       embeds: [],
-      components: [],
+      components: [], // intentionally-raw: see file-top UX note.
     });
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to delete entry');
+    // intentionally-raw: delete-exception terminal path; session already
+    // cleaned up so no retry possible. Clean terminal per file-top UX note.
     await interaction.editReply({
       content: DASHBOARD_MESSAGES.OPERATION_FAILED('delete entry'),
       embeds: [],
-      components: [],
+      components: [], // intentionally-raw: see file-top UX note.
     });
   }
 }
@@ -249,10 +272,12 @@ async function handleBack(interaction: ButtonInteraction, entryId: string): Prom
   const { fetchEntries, buildBrowseResponse } = await import('./browse.js');
   const entries = await fetchEntries(interaction.user.id);
   if (entries === null) {
+    // intentionally-raw: back-to-browse itself failed; adding a Back-to-Browse
+    // button would just loop into the same failing fetch. Clean terminal.
     await interaction.editReply({
       content: '\u274C Failed to fetch denylist entries.',
       embeds: [],
-      components: [],
+      components: [], // intentionally-raw: see file-top UX note.
     });
     return;
   }
