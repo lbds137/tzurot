@@ -1,6 +1,4 @@
-/**
- * Tests for Dashboard Terminal Screen Renderer
- */
+// Tests for renderTerminalScreen.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction } from 'discord.js';
