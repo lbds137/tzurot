@@ -46,6 +46,20 @@ vi.mock('../../utils/customIds.js', () => ({
   },
 }));
 
+const mockSessionGet = vi.fn();
+vi.mock('../../utils/dashboard/SessionManager.js', () => ({
+  getSessionManager: () => ({
+    get: mockSessionGet,
+    set: vi.fn(),
+    delete: vi.fn(),
+  }),
+}));
+
+const mockRenderTerminalScreen = vi.fn();
+vi.mock('../../utils/dashboard/terminalScreen.js', () => ({
+  renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
+}));
+
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
   return {
@@ -98,6 +112,11 @@ describe('dashboardDeleteHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCallGatewayApi.mockReset();
+    mockSessionGet.mockReset();
+    mockRenderTerminalScreen.mockReset();
+    // Default: no session (simulates dashboard opened via /character view with
+    // no browseContext). Individual tests override when they need a session.
+    mockSessionGet.mockResolvedValue(null);
   });
 
   describe('handleDeleteAction', () => {
@@ -178,11 +197,8 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteButton(interaction, 'test-char', true);
 
-      expect(interaction.update).toHaveBeenCalledWith({
-        content: expect.stringContaining('Deleting character'),
-        embeds: [],
-        components: [],
-      });
+      // Ack via deferUpdate (no intermediate progress message per preset pattern)
+      expect(interaction.deferUpdate).toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'DELETE',
         user: {
@@ -191,11 +207,46 @@ describe('dashboardDeleteHandlers', () => {
           displayName: 'testuser',
         },
       });
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('deleted'),
-        embeds: [],
-        components: [],
+      // Success goes through renderTerminalScreen so dashboards opened from
+      // /character browse preserve the Back-to-Browse affordance.
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session: expect.objectContaining({
+            entityType: 'character',
+            entityId: 'test-char',
+            browseContext: undefined,
+          }),
+          content: expect.stringContaining('deleted'),
+        })
+      );
+    });
+
+    it('should carry browseContext from session into the terminal screen', async () => {
+      const browseContext = { page: 2, filter: 'all', sort: 'date' };
+      mockSessionGet.mockResolvedValue({ data: { browseContext } });
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          deletedCounts: {
+            conversationHistory: 0,
+            memories: 0,
+            pendingMemories: 0,
+            channelSettings: 0,
+            aliases: 0,
+          },
+          deletedName: 'Test Character',
+          deletedSlug: 'test-char',
+        },
       });
+      const interaction = createMockButtonInteraction();
+
+      await handleDeleteButton(interaction, 'test-char', true);
+
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session: expect.objectContaining({ browseContext }),
+        })
+      );
     });
 
     it('should show error on API failure', async () => {
@@ -207,11 +258,11 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteButton(interaction, 'test-char', true);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to delete'),
-        embeds: [],
-        components: [],
-      });
+      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to delete'),
+        })
+      );
     });
   });
 });
