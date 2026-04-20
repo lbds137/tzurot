@@ -11,9 +11,14 @@ import {
 import type { BrowseContext } from './types.js';
 import { getSessionManager } from './SessionManager.js';
 
+// Closed union of browse-capable commands. Extend this when a new command's
+// dashboard adopts the renderTerminalScreen contract — prevents a typo in the
+// caller from silently producing a back-button customId that no handler routes.
+export type BrowseCapableEntityType = 'preset' | 'character' | 'persona' | 'deny';
+
 export interface TerminalScreenSession {
   userId: string;
-  entityType: string;
+  entityType: BrowseCapableEntityType;
   entityId: string;
   browseContext: BrowseContext | undefined;
 }
@@ -31,9 +36,8 @@ export async function renderTerminalScreen(opts: TerminalScreenOptions): Promise
   const embeds = opts.embeds ?? [];
   const sessionManager = getSessionManager();
 
-  const hasBrowseContext = session?.browseContext !== undefined;
-
-  if (hasBrowseContext && session !== null) {
+  // Optional-chain form — TS narrows `session` to non-null inside the branch.
+  if (session?.browseContext !== undefined) {
     const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${session.entityType}::back::${session.entityId}`)

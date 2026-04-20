@@ -789,6 +789,64 @@ describe('Preset Dashboard Buttons', () => {
         components: [],
       });
     });
+
+    it('carries browseContext forward to the cloned preset session', async () => {
+      // Ensures the back-to-browse affordance survives a clone from
+      // /preset browse — the cloned dashboard should still route back.
+      const mockInteraction = createMockButtonInteraction('preset::clone::preset-123');
+      const browseContext = { source: 'browse' as const, page: 2, filter: 'owned' };
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ name: 'Original', browseContext }),
+      });
+      mockCreatePreset.mockResolvedValue({
+        id: 'cloned-preset',
+        name: 'Original (Copy)',
+        slug: 'original-copy',
+      });
+      mockFetchPreset.mockResolvedValue(
+        createMockPresetResponse({ id: 'cloned-preset', name: 'Original (Copy)' })
+      );
+
+      await handleCloneButton(mockInteraction, 'preset-123');
+
+      // The new session for the cloned preset should carry browseContext
+      // so buildPresetDashboardOptions renders the back button.
+      expect(mockSessionManager.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityId: 'cloned-preset',
+          data: expect.objectContaining({ browseContext }),
+        })
+      );
+    });
+
+    it('does not attach browseContext when the source had none (direct-open flow)', async () => {
+      // Clone triggered from /preset view <id> (no browse context) — the
+      // cloned session should not have a browseContext, so the dashboard
+      // renders the close button instead of the back-to-browse button.
+      const mockInteraction = createMockButtonInteraction('preset::clone::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ name: 'Original', browseContext: undefined }),
+      });
+      mockCreatePreset.mockResolvedValue({
+        id: 'cloned-preset',
+        name: 'Original (Copy)',
+        slug: 'original-copy',
+      });
+      mockFetchPreset.mockResolvedValue(
+        createMockPresetResponse({ id: 'cloned-preset', name: 'Original (Copy)' })
+      );
+
+      await handleCloneButton(mockInteraction, 'preset-123');
+
+      const setCall = mockSessionManager.set.mock.calls.find(
+        (call: unknown[]) => (call[0] as { entityId: string }).entityId === 'cloned-preset'
+      );
+      expect(setCall).toBeDefined();
+      const stored = (setCall as unknown[])[0] as { data: { browseContext?: unknown } };
+      expect(stored.data.browseContext).toBeUndefined();
+    });
   });
 
   describe('handleBackButton', () => {

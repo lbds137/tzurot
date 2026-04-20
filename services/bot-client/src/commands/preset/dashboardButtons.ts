@@ -95,7 +95,7 @@ export async function handleRefreshButton(
       interaction,
       session: {
         userId: interaction.user.id,
-        entityType: 'preset',
+        entityType: 'preset' as const,
         entityId,
         browseContext: existingBrowseContext,
       },
@@ -221,7 +221,7 @@ export async function handleDeleteButton(
   // delete any preset (including globals and other users'). checkOwnership
   // was UI-only and wouldn't honor the admin override from
   // computeLlmConfigPermissions.
-  if (data.canDelete !== true) {
+  if (!data.canDelete) {
     await interaction.reply({
       content: DASHBOARD_MESSAGES.NO_PERMISSION('delete presets'),
       flags: MessageFlags.Ephemeral,
@@ -261,7 +261,7 @@ export async function handleConfirmDeleteButton(
   // Helper reads browseContext to decide: Back-to-Browse button + keep session, or cleanup.
   const terminalSession = {
     userId: interaction.user.id,
-    entityType: 'preset',
+    entityType: 'preset' as const,
     entityId,
     browseContext: session?.data.browseContext,
   };
@@ -453,7 +453,7 @@ export async function handleBackButton(
       interaction,
       session: {
         userId: interaction.user.id,
-        entityType: 'preset',
+        entityType: 'preset' as const,
         entityId,
         browseContext: undefined,
       },
@@ -477,7 +477,7 @@ export async function handleBackButton(
         interaction,
         session: {
           userId: interaction.user.id,
-          entityType: 'preset',
+          entityType: 'preset' as const,
           entityId,
           browseContext: undefined,
         },
@@ -503,7 +503,7 @@ export async function handleBackButton(
       interaction,
       session: {
         userId: interaction.user.id,
-        entityType: 'preset',
+        entityType: 'preset' as const,
         entityId,
         browseContext: undefined,
       },
