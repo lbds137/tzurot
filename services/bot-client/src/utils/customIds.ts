@@ -23,7 +23,7 @@ export const CUSTOM_ID_DELIMITER = '::';
 // CHARACTER COMMAND
 // ============================================================================
 
-/** Sort options for character list */
+/** Sort options for `/character browse` */
 type CharacterListSortType = 'date' | 'name';
 
 /** Result type for CharacterCustomIds.parse */
@@ -320,7 +320,7 @@ export const DestructiveCustomIds = {
 // CHANNEL COMMAND
 // ============================================================================
 
-/** Sort options for channel list */
+/** Sort options for `/channel browse` */
 type ChannelListSortType = 'date' | 'name';
 
 /** Result type for ChannelCustomIds.parse */
