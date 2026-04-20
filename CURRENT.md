@@ -1,6 +1,6 @@
 # Current
 
-> **Session**: 2026-04-20 (in flight)
+> **Session**: 2026-04-20 (wrapped)
 > **Version**: v3.0.0-beta.101 (released 2026-04-20 — everything below shipped to prod)
 
 ---
@@ -101,13 +101,14 @@ Release 1 = PR A (shipped to develop) + PR B (shipped to develop) + Phase 6 (not
 
 ## Unreleased on Develop (since beta.101)
 
-_Nothing yet — beta.101 just shipped._
+- Backlog-only doc commit `533d3dcc4` (2026-04-20): added Option D refactor plan for `/character chat` in DMs + v2 `/cleandm` restoration. No runtime change.
 
 ---
 
 ## Previous Sessions
 
-- **2026-04-18 (this session)**: **Phase 5c PR A + PR B shipped to develop** — PR #829 (bot-client user-context headers, `GatewayUser` in common-types, URI-encoding), PR #830 (gateway shadow-mode middleware + canary, WeakMap UserService cache, route mounts on 33 files). Council pressure-test landed Option C. Backlog hygiene sweep. Monitor permission config. 6 review rounds total across both PRs — every substantive item addressed.
+- **2026-04-19 / 2026-04-20 (this session)**: **v3.0.0-beta.101 released to prod.** Bundled: preset-clone phantom PK collision (UUIDv7 + `@@unique(owner_id, name)` + server-side suffix bumping + ReDoS fix on clone-name regex), preset back-to-browse + admin-delete via new `renderTerminalScreen` helper + structural test, `/character list`→`/browse` stale-reference sweep (3 PRs' worth of internal + user-facing references), GLM-4.5-air history-regurgitation fix (cross-turn detection widened 5→25), TTS Opus transcode by default, PR-monitor hook infrastructure (rule + skill + PostToolUse hook), Phase 5c PR A/B (shadow-mode provisioning + WeakMap user cache). Migration `@@unique([owner_id, name])` on `llm_configs` applied to dev+prod. Session-end DM-broken investigation traced to Discord user-install state corruption (deauth + reauth fixed it; not a code issue). Two follow-up items backlogged: Option D refactor for `/character chat` in DMs (council-blessed) + v2 `/cleandm` restoration.
+- **2026-04-18**: **Phase 5c PR A + PR B shipped to develop** — PR #829 (bot-client user-context headers, `GatewayUser` in common-types, URI-encoding), PR #830 (gateway shadow-mode middleware + canary, WeakMap UserService cache, route mounts on 33 files). Council pressure-test landed Option C. Backlog hygiene sweep. Monitor permission config. 6 review rounds total across both PRs — every substantive item addressed.
 - **2026-04-17**: **Phase 5b shipped + beta.99 release** — PR #818 (Phase 5b NOT NULL + CTE bootstrap), PR #819 (beta.99 bundling phases 3/4/5/5b/#813/#815 + CVE bumps). Prod migrated, tag + GitHub release published.
 - **2026-04-15 / 2026-04-16**: Identity epic phases 3/4/5 + beta.98 release bundle.
 - **2026-04-14**: Identity epic Phase 1 + vision retry fix + TTS budget fix + release (PRs #802-#806), beta.97.
