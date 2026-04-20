@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-04-18 (ended)
-> **Version**: v3.0.0-beta.100 (released 2026-04-17 — PR A + PR B on develop, unreleased)
+> **Session**: 2026-04-20 (in flight)
+> **Version**: v3.0.0-beta.101 (released 2026-04-20 — everything below shipped to prod)
 
 ---
 
@@ -99,14 +99,9 @@ Release 1 = PR A (shipped to develop) + PR B (shipped to develop) + Phase 6 (not
 
 ---
 
-## Unreleased on Develop (since beta.100)
+## Unreleased on Develop (since beta.101)
 
-- `650ac12d4` — chore: allow Monitor tool in project permissions
-- `4c98c9220` — feat(api-gateway): shadow-mode provisioning middleware + shell-path canary (PR B)
-- `5bebadd52` — chore(api-gateway): replace time-bound comment in removeKey.test.ts (PR B R1 polish)
-- `862506ee2` — refactor(api-gateway,common-types): address PR #830 R2 perf review (PR B R2 polish)
-- `e51cf2dc7` — chore(repo): backlog update — Phase 5c PR A + PR B on develop, PR C scope expanded
-- Plus PR A's 3 commits (merged earlier today) and 2 from PR #828's review polish rollover (carried from yesterday).
+_Nothing yet — beta.101 just shipped._
 
 ---
 
@@ -121,6 +116,8 @@ Release 1 = PR A (shipped to develop) + PR B (shipped to develop) + Phase 6 (not
 - **2026-04-11**: CPD Session 1 (PRs #778-780), channel rename (#781), doc audit (#782-784).
 
 ## Recent Releases
+
+- **v3.0.0-beta.101** (2026-04-20) — Preset clone phantom PK collision (UUIDv7 + unique(owner,name) + server-side suffix bumping), ReDoS fix on clone-name regex, preset back-to-browse + admin-delete via new `renderTerminalScreen` helper + structural test, `/character list`→`/browse` stale-reference sweep, GLM-4.5-air history-regurgitation fix (cross-turn detection widened 5→25), TTS Opus transcode by default (17-min-per-file instead of 2-min), echo-strip for `glm-4.5-air:free`, Phase 5c PR A/B shadow-mode provisioning + WeakMap user cache, echo-strip shared mention-skip utility, PR-monitor hook infrastructure (rule + skill + PostToolUse hook). Migration: `@@unique([owner_id, name])` on `llm_configs` (applied to dev+prod).
 
 - **v3.0.0-beta.100** (2026-04-17) — Two prod blockers fixed (`/admin db-sync` Ouroboros Insert refactor + `/settings preset default` RFC-4122 UUID repair), character field silent-truncation warning flow (PR #825, two-click opt-in), PersonaResolver focus-mode query collapse, typed `NAME_COLLISION` sub-code, preset clone auto-numbering, protobufjs CVE. Migration: circular FKs made DEFERRABLE. New PGLite int test for db-sync class-of-bug. New 00-critical.md rule: "Don't Present Speculation as Fact".
 - **v3.0.0-beta.99** (2026-04-17) — Identity Epic Phases 3-5b, UX polish bundle, db-sync deferred-FK fix, hono/langsmith CVE bumps.
