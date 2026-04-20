@@ -1,6 +1,6 @@
 # Railway Operations Guide
 
-**Last Updated**: 2026-01-28
+**Last Updated**: 2026-04-20
 **Purpose**: Operational guide for deploying and managing Tzurot v3 on Railway
 
 > **For CLI command syntax**: See `docs/reference/RAILWAY_CLI_REFERENCE.md`
@@ -305,6 +305,37 @@ If `DATABASE_PUBLIC_URL` isn't available:
 ---
 
 ## CI/CD Integration
+
+### Branch-to-Environment Auto-Deploy
+
+Both Railway environments auto-deploy from their respective branches. **No manual deploy step is required for either environment.**
+
+| Branch    | Environment | Trigger                    |
+| --------- | ----------- | -------------------------- |
+| `develop` | dev         | Auto-deploys on every push |
+| `main`    | prod        | Auto-deploys on every push |
+
+When a feature PR merges into `develop`, dev redeploys automatically. When a release PR merges from `develop` into `main`, prod redeploys automatically. The Railway dashboard shows deploy progress for each service in the project.
+
+### Migrations are NOT auto-applied
+
+Code auto-deploys; **schema does not.** After any push that includes a new Prisma migration, run:
+
+```bash
+pnpm ops db:migrate --env dev    # after every develop push with a migration
+pnpm ops db:migrate --env prod   # after every main push with a migration
+```
+
+For backward-compatible migrations (CITEXT type widening, additive indexes), the small window between auto-deploy landing and migration running is low-risk because old code can still read the new schema. For breaking schema changes, sequence carefully — either run the migration first if old code can tolerate the new schema, or coordinate a brief maintenance window.
+
+### Release Sequence Order (with migration)
+
+1. `gh pr merge <num> --rebase` (release PR `develop` → `main`) — no `--delete-branch`, develop is permanent
+2. **Immediately** run `pnpm ops db:migrate --env prod` to close the auto-deploy → migration window
+3. Sync develop with main's rebased SHAs: `git rebase origin/main && git push --force-with-lease`
+4. Tag `v<version>` on main, push tag
+5. `gh release create v<version> --prerelease --notes-file <notes>`
+6. Reset CURRENT.md "Unreleased on Develop" section
 
 ### GitHub Actions Example
 
