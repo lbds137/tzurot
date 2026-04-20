@@ -335,6 +335,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   // Import detail handler lazily to avoid circular dependency
   const { showDetailView } = await import('./detail.js');
   await showDetailView(interaction, entry, {
+    source: 'browse',
     page: parsed.page,
     filter: parsed.filter,
     sort: parsed.sort ?? 'date',
