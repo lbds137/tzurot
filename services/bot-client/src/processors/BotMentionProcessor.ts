@@ -67,7 +67,7 @@ export class BotMentionProcessor implements IMessageProcessor {
         `• Reply to a personality's message to continue the conversation`,
         `• Use \`/character chat\` to start a conversation via slash command`,
         ``,
-        `Use \`/character list\` to see available personalities.`,
+        `Use \`/character browse\` to see available personalities.`,
       ].join('\n'),
     });
 
