@@ -50,6 +50,13 @@ export { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from './messages.js';
 // Close Handler
 export { handleDashboardClose } from './closeHandler.js';
 
+// Terminal Screen Renderer
+export {
+  renderTerminalScreen,
+  type TerminalScreenOptions,
+  type TerminalScreenSession,
+} from './terminalScreen.js';
+
 // Session Helpers
 export {
   fetchOrCreateSession,
