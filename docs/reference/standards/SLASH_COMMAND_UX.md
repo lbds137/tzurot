@@ -321,7 +321,7 @@ await interaction.reply({ content: '❌ Error', flags: MessageFlags.Ephemeral })
 
 // ✅ Good
 await interaction.reply({
-  content: '❌ Character not found.\n\nUse `/character list` to see available characters.',
+  content: '❌ Character not found.\n\nUse `/character browse` to see available characters.',
   flags: MessageFlags.Ephemeral,
 });
 ```

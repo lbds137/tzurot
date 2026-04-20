@@ -53,7 +53,7 @@ Deactivates the personality in the current channel.
 /channel deactivate
 ```
 
-### `/channel list`
+### `/channel browse`
 
 Lists all channel activations visible to you.
 

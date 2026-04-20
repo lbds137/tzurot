@@ -101,7 +101,7 @@ describe('BotMentionProcessor', () => {
       const replyArg = vi.mocked(message.reply).mock.calls[0][0] as { content: string };
       expect(replyArg.content).toContain('multiple AI personalities');
       expect(replyArg.content).toContain('@personality');
-      expect(replyArg.content).toContain('/character list');
+      expect(replyArg.content).toContain('/character browse');
       expect(replyArg.content).toContain('/character chat');
     });
 
