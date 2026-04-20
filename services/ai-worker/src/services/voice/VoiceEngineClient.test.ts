@@ -335,7 +335,7 @@ describe('VoiceEngineClient', () => {
       expect(result.contentType).toBe('audio/wav');
     });
 
-    it('should omit format field when options.format is not provided (voice-engine default applies)', async () => {
+    it('should default format to opus in FormData when caller omits it', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
@@ -346,7 +346,7 @@ describe('VoiceEngineClient', () => {
 
       const [, init] = mockFetch.mock.calls[0];
       const body = init.body as FormData;
-      expect(body.has('format')).toBe(false);
+      expect(body.get('format')).toBe('opus');
     });
 
     it('should pass format=wav in FormData when requested by caller (multi-chunk path)', async () => {

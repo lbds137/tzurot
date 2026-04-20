@@ -113,7 +113,11 @@ export class VoiceEngineClient {
    *  Format: defaults to 'opus' (audio/ogg, ~10x smaller than WAV). Pass 'wav'
    *  only when the caller needs to extract raw PCM (e.g., multi-chunk
    *  concatenation in ttsSynthesizer.ts) — Opus-in-Ogg cannot be losslessly
-   *  concatenated at the byte level. */
+   *  concatenated at the byte level.
+   *
+   *  The default is asserted client-side (`?? 'opus'`) rather than relying on
+   *  the voice-engine `Form("opus", ...)` default, so the client-side
+   *  contract matches what the wire carries regardless of server-side changes. */
   async synthesize(
     text: string,
     voiceId: string,
@@ -122,9 +126,7 @@ export class VoiceEngineClient {
     const formData = new FormData();
     formData.append('text', text);
     formData.append('voice_id', voiceId);
-    if (options?.format !== undefined) {
-      formData.append('format', options.format);
-    }
+    formData.append('format', options?.format ?? 'opus');
 
     const response = await this.fetchWithTimeout('/v1/tts', {
       method: 'POST',
