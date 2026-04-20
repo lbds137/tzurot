@@ -105,6 +105,20 @@ git pull origin develop
 git branch -d feat/your-feature
 ```
 
+## Dependabot PR Recovery
+
+Dependabot PRs have three distinct cleanup paths — using the wrong one wastes a cycle or produces a forbidden merge-commit state.
+
+| Situation                                                                                       | Command                             | Effect                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch is behind develop, dependabot is the only committer                                      | `@dependabot rebase` (PR comment)   | Dependabot rebases its own branch onto develop and regenerates the lockfile. PR number preserved, CI reruns.                                  |
+| Branch has a non-dependabot commit (e.g., GitHub's "Update branch" button added a merge commit) | `@dependabot recreate` (PR comment) | Dependabot **closes the existing PR** and opens a **new** one against current develop. PR number changes; any prior review comments are lost. |
+| Need to abandon the bump entirely                                                               | `gh pr close` or let it age out     | Dependabot will re-open on next schedule unless the dep is added to `ignore:` in `dependabot.yml`.                                            |
+
+**Key constraint**: `@dependabot rebase` **refuses to run** if any commit on the branch is authored by someone other than dependabot. GitHub's "Update branch" UI button appears to rebase, but it actually adds a merge commit authored by `github-actions[bot]` — which poisons the branch for `rebase`. Once that happens, `recreate` is the only in-band recovery.
+
+**Rule of thumb**: don't hit "Update branch" on dependabot PRs. Use the chat command. If you do hit it by accident, don't waste time on `rebase` — go straight to `recreate`.
+
 ## Rebase Procedure
 
 ```bash
