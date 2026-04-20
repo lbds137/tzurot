@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, Client } from 'discord.js';
-import { handleBackButton, handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
+import { handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 
 // Mock dependencies
@@ -231,153 +231,9 @@ describe('Character Dashboard Buttons', () => {
     });
   });
 
-  describe('handleBackButton', () => {
-    it('should return to browse list with saved context', async () => {
-      const mockInteraction = createMockButtonInteraction('character::back::test-character');
-      const browseContext = {
-        source: 'browse' as const,
-        page: 1,
-        filter: 'owned',
-        sort: 'date',
-      };
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockCharacterData({ browseContext }),
-      });
-      mockBuildBrowseResponse.mockResolvedValue({
-        embed: { data: { title: 'Browse Characters' } },
-        components: [],
-      });
-
-      await handleBackButton(mockInteraction, 'test-character');
-
-      expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ discordId: 'user-123' }),
-        expect.anything(),
-        expect.anything(),
-        {
-          page: 1,
-          filter: 'owned',
-          sort: 'date',
-          query: null,
-        }
-      );
-      expect(mockSessionManager.delete).toHaveBeenCalledWith(
-        'user-123',
-        'character',
-        'test-character'
-      );
-    });
-
-    it('should show expired message when no browseContext', async () => {
-      const mockInteraction = createMockButtonInteraction('character::back::test-character');
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockCharacterData({ browseContext: undefined }),
-      });
-
-      await handleBackButton(mockInteraction, 'test-character');
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Session expired'),
-        embeds: [],
-        components: [],
-      });
-    });
-
-    it('should show expired message when session is null', async () => {
-      const mockInteraction = createMockButtonInteraction('character::back::test-character');
-
-      mockSessionManager.get.mockResolvedValue(null);
-
-      await handleBackButton(mockInteraction, 'test-character');
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Session expired'),
-        embeds: [],
-        components: [],
-      });
-    });
-
-    it('should show error when buildBrowseResponse throws', async () => {
-      const mockInteraction = createMockButtonInteraction('character::back::test-character');
-      const browseContext = { source: 'browse' as const, page: 1, filter: 'all', sort: 'date' };
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockCharacterData({ browseContext }),
-      });
-      mockBuildBrowseResponse.mockRejectedValue(new Error('API error'));
-
-      await handleBackButton(mockInteraction, 'test-character');
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to load browse list'),
-        embeds: [],
-        components: [],
-      });
-    });
-
-    it('should include query from browseContext', async () => {
-      const mockInteraction = createMockButtonInteraction('character::back::test-character');
-      const browseContext = {
-        source: 'browse' as const,
-        page: 0,
-        filter: 'all',
-        sort: 'name',
-        query: 'luna',
-      };
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockCharacterData({ browseContext }),
-      });
-      mockBuildBrowseResponse.mockResolvedValue({
-        embed: { data: { title: 'Browse Characters' } },
-        components: [],
-      });
-
-      await handleBackButton(mockInteraction, 'test-character');
-
-      expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ discordId: 'user-123' }),
-        expect.anything(),
-        expect.anything(),
-        {
-          page: 0,
-          filter: 'all',
-          sort: 'name',
-          query: 'luna',
-        }
-      );
-    });
-
-    it('should default sort to date when not specified', async () => {
-      const mockInteraction = createMockButtonInteraction('character::back::test-character');
-      const browseContext = {
-        source: 'browse' as const,
-        page: 0,
-        filter: 'all',
-        // No sort specified
-      };
-
-      mockSessionManager.get.mockResolvedValue({
-        data: createMockCharacterData({ browseContext }),
-      });
-      mockBuildBrowseResponse.mockResolvedValue({
-        embed: { data: { title: 'Browse Characters' } },
-        components: [],
-      });
-
-      await handleBackButton(mockInteraction, 'test-character');
-
-      expect(mockBuildBrowseResponse).toHaveBeenCalledWith(
-        expect.objectContaining({ discordId: 'user-123' }),
-        expect.anything(),
-        expect.anything(),
-        expect.objectContaining({
-          sort: 'date', // Should default to 'date'
-        })
-      );
-    });
-  });
+  // handleBackButton was deleted from this module in favor of the shared
+  // handleSharedBackButton (utils/dashboard/sharedBackButtonHandler.ts),
+  // which `dashboard.ts` routes `::back::` customIds to. Its behavioral
+  // coverage lives in sharedBackButtonHandler.test.ts, parameterized across
+  // every BrowseCapableEntityType.
 });

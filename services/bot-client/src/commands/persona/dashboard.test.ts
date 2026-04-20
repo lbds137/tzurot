@@ -63,11 +63,15 @@ const mockRequireDeferredSession = vi
     return mockGetSessionOrExpired(interaction, entityType, entityId, command);
   });
 
-// renderTerminalScreen is imported via the dashboard index barrel, but it
-// ALSO calls getSessionManager from SessionManager.js directly (bypassing the
-// barrel). Mock the source module + spy on renderTerminalScreen so test
-// assertions can target its call shape directly.
+// renderTerminalScreen, renderPostActionScreen, and handleSharedBackButton
+// are all exported from the dashboard barrel. They also import from other
+// dashboard source modules directly (SessionManager.js, terminalScreen.js)
+// which would bypass the barrel mock, so each one is stubbed at its source
+// module below. Assertions target the post-action screen (success + error
+// paths) and the shared back-button handler for routing.
 const mockRenderTerminalScreen = vi.fn();
+const mockRenderPostActionScreen = vi.fn();
+const mockHandleSharedBackButton = vi.fn();
 
 // Mock getSessionDataOrReply to delegate to mockSessionGet
 const mockGetSessionDataOrReply = vi
@@ -98,6 +102,19 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
 vi.mock('../../utils/dashboard/terminalScreen.js', () => ({
   renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
 }));
+
+vi.mock('../../utils/dashboard/postActionScreen.js', () => ({
+  renderPostActionScreen: (...args: unknown[]) => mockRenderPostActionScreen(...args),
+}));
+
+vi.mock('../../utils/dashboard/sharedBackButtonHandler.js', () => ({
+  handleSharedBackButton: (...args: unknown[]) => mockHandleSharedBackButton(...args),
+}));
+
+// Intercept the browse.ts side-effect import (which calls
+// registerBrowseRebuilder at module load). The test doesn't exercise the
+// rebuilder path; a no-op module keeps the import graph valid.
+vi.mock('./browse.js', () => ({}));
 
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
@@ -558,7 +575,7 @@ describe('handleButton', () => {
     });
   });
 
-  it('should delete persona on confirm-delete button', async () => {
+  it('should route confirm-delete success through renderPostActionScreen', async () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona' },
     });
@@ -574,23 +591,25 @@ describe('handleButton', () => {
       `/user/persona/${TEST_PERSONA_ID}`,
       expect.objectContaining({ method: 'DELETE' })
     );
-    // Success goes through renderTerminalScreen — dashboards opened from
-    // /persona browse keep Back-to-Browse; others get a clean terminal.
-    // renderTerminalScreen handles the session cleanup internally, so the
-    // handler no longer calls sessionManager.delete directly.
-    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+    // Success routes through renderPostActionScreen with a formatted banner.
+    // The helper decides success-with-rebuild vs clean-terminal based on
+    // the session's browseContext; tested independently.
+    expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
       expect.objectContaining({
         session: expect.objectContaining({
           entityType: 'persona',
           entityId: TEST_PERSONA_ID,
         }),
-        content: expect.stringContaining('has been deleted'),
+        outcome: expect.objectContaining({
+          kind: 'success',
+          banner: expect.stringContaining('Test Persona'),
+        }),
       })
     );
   });
 
-  it('should carry browseContext from session into the terminal screen on confirm-delete', async () => {
-    const browseContext = { page: 1, filter: 'all', sort: 'name' };
+  it('should carry browseContext from session into the post-action screen on confirm-delete', async () => {
+    const browseContext = { source: 'browse', page: 1, filter: 'all', sort: 'name' };
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona', browseContext },
     });
@@ -601,14 +620,14 @@ describe('handleButton', () => {
 
     await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
 
-    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+    expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
       expect.objectContaining({
         session: expect.objectContaining({ browseContext }),
       })
     );
   });
 
-  it('should show error on confirm-delete when delete fails', async () => {
+  it('should route confirm-delete failure through renderPostActionScreen as an error outcome', async () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona' },
     });
@@ -619,10 +638,24 @@ describe('handleButton', () => {
 
     await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
 
-    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+    expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('Failed to delete'),
+        outcome: expect.objectContaining({
+          kind: 'error',
+          content: expect.stringContaining('Failed to delete'),
+        }),
       })
+    );
+  });
+
+  it('should route back button through handleSharedBackButton', async () => {
+    await handleButton(createMockButtonInteraction(`persona::back::${TEST_PERSONA_ID}`));
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockHandleSharedBackButton).toHaveBeenCalledWith(
+      expect.anything(),
+      'persona',
+      TEST_PERSONA_ID
     );
   });
 

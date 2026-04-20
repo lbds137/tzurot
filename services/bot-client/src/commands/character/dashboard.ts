@@ -37,7 +37,11 @@ import { handleSeedModalSubmit } from './create.js';
 import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandlers.js';
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
-import { handleBackButton, handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
+import { handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
+import { handleSharedBackButton } from '../../utils/dashboard/index.js';
+// Side-effect import: registers the character browse rebuilder used by
+// renderPostActionScreen + handleSharedBackButton.
+import './browse.js';
 import {
   detectOverLengthFields,
   handleCancelEditButton,
@@ -349,7 +353,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   }
 
   if (action === 'back') {
-    await handleBackButton(interaction, entityId);
+    await interaction.deferUpdate();
+    await handleSharedBackButton(interaction, 'character', entityId);
     return;
   }
 

@@ -37,6 +37,7 @@ vi.mock('../../utils/dashboard/messages.js', () => ({
     NOT_FOUND: (type: string) => `${type} not found`,
     NO_PERMISSION: (action: string) => `No permission to ${action}`,
   },
+  formatSuccessBanner: (verb: string, name: string) => `✅ **${verb}** · ${name}`,
 }));
 
 vi.mock('../../utils/customIds.js', () => ({
@@ -55,9 +56,9 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
   }),
 }));
 
-const mockRenderTerminalScreen = vi.fn();
-vi.mock('../../utils/dashboard/terminalScreen.js', () => ({
-  renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
+const mockRenderPostActionScreen = vi.fn();
+vi.mock('../../utils/dashboard/postActionScreen.js', () => ({
+  renderPostActionScreen: (...args: unknown[]) => mockRenderPostActionScreen(...args),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -113,7 +114,7 @@ describe('dashboardDeleteHandlers', () => {
     vi.clearAllMocks();
     mockCallGatewayApi.mockReset();
     mockSessionGet.mockReset();
-    mockRenderTerminalScreen.mockReset();
+    mockRenderPostActionScreen.mockReset();
     // Default: no session (simulates dashboard opened via /character view with
     // no browseContext). Individual tests override when they need a session.
     mockSessionGet.mockResolvedValue(null);
@@ -197,7 +198,7 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteButton(interaction, 'test-char', true);
 
-      // Ack via deferUpdate (no intermediate progress message per preset pattern)
+      // Ack via deferUpdate (no intermediate progress message).
       expect(interaction.deferUpdate).toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
         method: 'DELETE',
@@ -207,21 +208,24 @@ describe('dashboardDeleteHandlers', () => {
           displayName: 'testuser',
         },
       });
-      // Success goes through renderTerminalScreen so dashboards opened from
-      // /character browse preserve the Back-to-Browse affordance.
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      // Success goes through renderPostActionScreen — the helper decides
+      // success-with-rebuild vs clean-terminal based on browseContext.
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
         expect.objectContaining({
           session: expect.objectContaining({
             entityType: 'character',
             entityId: 'test-char',
             browseContext: undefined,
           }),
-          content: expect.stringContaining('deleted'),
+          outcome: expect.objectContaining({
+            kind: 'success',
+            banner: expect.stringContaining('Test Character'),
+          }),
         })
       );
     });
 
-    it('should carry browseContext from session into the terminal screen', async () => {
+    it('should carry browseContext from session into the post-action screen', async () => {
       const browseContext = { page: 2, filter: 'all', sort: 'date' };
       mockSessionGet.mockResolvedValue({ data: { browseContext } });
       mockCallGatewayApi.mockResolvedValue({
@@ -242,7 +246,7 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteButton(interaction, 'test-char', true);
 
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
         expect.objectContaining({
           session: expect.objectContaining({ browseContext }),
         })
@@ -258,9 +262,59 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteButton(interaction, 'test-char', true);
 
-      expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('Failed to delete'),
+          outcome: expect.objectContaining({
+            kind: 'error',
+            content: expect.stringContaining('Failed to delete'),
+          }),
+        })
+      );
+    });
+
+    // Covers the review gap from PR #842 — the schema-validation fallback
+    // branch (safeParse returns { success: false }) had no explicit test.
+    // Imports `DeletePersonalityResponseSchema` from the mocked module-level
+    // object so we can override safeParse for this single case.
+    it('should render success via fallback banner when schema validation fails', async () => {
+      const { DeletePersonalityResponseSchema } = await import('@tzurot/common-types');
+      vi.mocked(DeletePersonalityResponseSchema.safeParse).mockReturnValueOnce({
+        success: false,
+        error: { message: 'schema drift' } as never,
+      } as never);
+
+      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { unexpected: 'shape' } });
+      const interaction = createMockButtonInteraction();
+
+      await handleDeleteButton(interaction, 'test-char', true);
+
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: expect.objectContaining({
+            kind: 'success',
+            // Fallback banner uses the slug since deletedName isn't
+            // available from the malformed response.
+            banner: expect.stringContaining('test-char'),
+          }),
+        })
+      );
+    });
+
+    // Covers the try/catch review note — when callGatewayApi throws
+    // (network-level failure), the handler should render a graceful error
+    // rather than propagating to CommandHandler's generic reply.
+    it('should render graceful error when callGatewayApi throws', async () => {
+      mockCallGatewayApi.mockRejectedValueOnce(new Error('network down'));
+      const interaction = createMockButtonInteraction();
+
+      await handleDeleteButton(interaction, 'test-char', true);
+
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: expect.objectContaining({
+            kind: 'error',
+            content: expect.stringContaining('error occurred'),
+          }),
         })
       );
     });

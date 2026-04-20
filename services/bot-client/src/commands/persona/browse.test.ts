@@ -42,6 +42,7 @@ vi.mock('../../utils/dashboard/index.js', () => ({
   getSessionManager: () => ({
     set: mockSessionSet,
   }),
+  registerBrowseRebuilder: vi.fn(),
 }));
 
 vi.mock('@tzurot/common-types', async () => {

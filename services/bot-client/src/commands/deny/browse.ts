@@ -12,6 +12,7 @@ import { createLogger, isBotOwner, DISCORD_COLORS, formatDateShort } from '@tzur
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
+import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 import {
   buildBrowseButtons,
   buildBrowseSelectMenu,
@@ -220,6 +221,34 @@ export function buildBrowseResponse(
   const sorted = sortEntries(filtered, sort);
   return buildBrowsePage(sorted, page, filter, sort);
 }
+
+// Register the deny browse rebuilder with the shared registry at module load
+// time. Consumed by `renderPostActionScreen` (destructive-action success →
+// direct re-render) and `handleSharedBackButton` (Back-to-Browse click).
+//
+// Deny is unique among the four commands in that its buildBrowseResponse
+// takes pre-fetched entries (synchronous), so the adapter first does
+// `fetchEntries(userId)` and then passes the result into the shared builder.
+// fetchEntries returns `null` on API failure — the adapter propagates that
+// as its own null return, and the shared helper falls through to the error
+// terminal.
+registerBrowseRebuilder('deny', async (interaction, browseContext, successBanner) => {
+  const entries = await fetchEntries(interaction.user.id);
+  if (entries === null) {
+    return null;
+  }
+  const result = buildBrowseResponse(
+    entries,
+    browseContext.page,
+    browseContext.filter as DenyBrowseFilter,
+    (browseContext.sort ?? 'date') as BrowseSortType
+  );
+  return {
+    content: successBanner,
+    embeds: [result.embed],
+    components: result.components,
+  };
+});
 
 /** Handle /deny browse [filter?] */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {

@@ -8,28 +8,36 @@
  * UI builders and types are in detailTypes.ts.
  * Edit modal handlers are in detailEdit.ts.
  *
- * Back-to-Browse UX note: unlike `/preset`, `/character`, and `/persona`, the
- * deny detail view does NOT use `renderTerminalScreen`'s Back-to-Browse
- * button pattern. `handleConfirmDelete` (success path) and `handleBack`
- * manually re-fetch entries and re-render the browse list directly, which
- * saves a click versus the Back-to-Browse + click + re-render flow the other
- * commands use. Terminal error paths in this file are intentionally plain
- * `editReply({ components: [] })` — see each site's `intentionally-raw:`
- * marker for the per-site reason. This file is in ENFORCED_FILES so any NEW
- * terminal path must either use `renderTerminalScreen` or add its own marker.
+ * Destructive-action flow: `handleConfirmDelete` routes success/failure
+ * through `renderPostActionScreen` (shared with preset/character/persona).
+ * Success re-renders the browse list with a banner in `content`; failure
+ * renders a terminal with Back-to-Browse. The browse rebuilder is
+ * registered in `browse.ts` — it does `fetchEntries` + `buildBrowseResponse`
+ * internally so the unified helper works the same across all four commands.
+ *
+ * `handleModeToggle` keeps plain empty-components replies on its error
+ * paths — those are recoverable in-place errors (session still alive, user
+ * can retry), not terminal post-actions. Marked `intentionally-raw:` so
+ * the structural test catches new terminal paths without false positives
+ * on these legitimate non-terminal error renders.
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, isBotOwner } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
-import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
+import { DASHBOARD_MESSAGES, formatSuccessBanner } from '../../utils/dashboard/messages.js';
 import { parseDashboardCustomId } from '../../utils/dashboard/types.js';
+import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.js';
+import { handleSharedBackButton } from '../../utils/dashboard/sharedBackButtonHandler.js';
 import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
-import type { DenylistEntryResponse, DenyBrowseFilter } from './browse.js';
+import type { DenylistEntryResponse } from './browse.js';
 import type { DenyDetailSession } from './detailTypes.js';
 import { ENTITY_TYPE, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
+// Side-effect import: registers the deny browse rebuilder used by
+// renderPostActionScreen + handleSharedBackButton.
+import './browse.js';
 
 const logger = createLogger('deny-detail');
 
@@ -189,6 +197,18 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
     return;
   }
 
+  const postActionSession = {
+    userId: interaction.user.id,
+    entityType: 'deny' as const,
+    entityId: entryId,
+    // `data.browseContext` is shaped as a plain `{ page, filter, sort }` in
+    // deny's session data. The shared helper expects a `BrowseContext` with
+    // `source: 'browse'` — add it here. The entire DenyDetailSession is
+    // seeded from showDetailView which always has a valid browse context,
+    // so the shape is guaranteed at this point.
+    browseContext: { source: 'browse' as const, ...data.browseContext },
+  };
+
   try {
     const segments = [data.type, data.discordId, data.scope, data.scopeId].map(encodeURIComponent);
     const response = await adminFetch(`/admin/denylist/${segments.join('/')}`, {
@@ -197,52 +217,28 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
     });
 
     if (!response.ok && response.status !== 404) {
-      // intentionally-raw: delete-API-failure terminal path; session still
-      // valid so user can retry. Deny doesn't use Back-to-Browse button.
-      await interaction.editReply({
-        content: DASHBOARD_MESSAGES.OPERATION_FAILED('delete entry'),
-        embeds: [],
-        components: [], // intentionally-raw: see file-top UX note.
+      await renderPostActionScreen({
+        interaction,
+        session: postActionSession,
+        outcome: { kind: 'error', content: DASHBOARD_MESSAGES.OPERATION_FAILED('delete entry') },
       });
       return;
     }
 
-    await getSessionManager().delete(interaction.user.id, ENTITY_TYPE, entryId);
-
-    // Try to return to browse list instead of dead-ending
-    const { fetchEntries, buildBrowseResponse } = await import('./browse.js');
-    const entries = await fetchEntries(interaction.user.id);
-    if (entries !== null && entries.length > 0) {
-      const ctx = data.browseContext;
-      const { embed, components } = buildBrowseResponse(
-        entries,
-        ctx.page,
-        ctx.filter as DenyBrowseFilter,
-        ctx.sort as 'name' | 'date'
-      );
-      await interaction.editReply({
-        content: `\u2705 Denylist entry for ${data.type} \`${data.discordId}\` has been deleted.`,
-        embeds: [embed],
-        components,
-      });
-      return;
-    }
-
-    // intentionally-raw: delete succeeded + browse list is now empty — no
-    // meaningful browse to go back to, clean terminal is correct.
-    await interaction.editReply({
-      content: `\u2705 Denylist entry for ${data.type} \`${data.discordId}\` has been deleted. No entries remaining.`,
-      embeds: [],
-      components: [], // intentionally-raw: see file-top UX note.
+    await renderPostActionScreen({
+      interaction,
+      session: postActionSession,
+      outcome: {
+        kind: 'success',
+        banner: formatSuccessBanner('Deleted denylist entry', `${data.type} \`${data.discordId}\``),
+      },
     });
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to delete entry');
-    // intentionally-raw: delete-exception terminal path; session already
-    // cleaned up so no retry possible. Clean terminal per file-top UX note.
-    await interaction.editReply({
-      content: DASHBOARD_MESSAGES.OPERATION_FAILED('delete entry'),
-      embeds: [],
-      components: [], // intentionally-raw: see file-top UX note.
+    await renderPostActionScreen({
+      interaction,
+      session: postActionSession,
+      outcome: { kind: 'error', content: DASHBOARD_MESSAGES.OPERATION_FAILED('delete entry') },
     });
   }
 }
@@ -260,37 +256,10 @@ async function handleCancelDelete(interaction: ButtonInteraction, entryId: strin
   });
 }
 
-/** Handle back button — return to browse list */
-async function handleBack(interaction: ButtonInteraction, entryId: string): Promise<void> {
-  const data = await getSessionOrExpired(interaction, entryId);
-  if (data === null) {
-    return;
-  }
-
-  await getSessionManager().delete(interaction.user.id, ENTITY_TYPE, entryId);
-
-  const { fetchEntries, buildBrowseResponse } = await import('./browse.js');
-  const entries = await fetchEntries(interaction.user.id);
-  if (entries === null) {
-    // intentionally-raw: back-to-browse itself failed; adding a Back-to-Browse
-    // button would just loop into the same failing fetch. Clean terminal.
-    await interaction.editReply({
-      content: '\u274C Failed to fetch denylist entries.',
-      embeds: [],
-      components: [], // intentionally-raw: see file-top UX note.
-    });
-    return;
-  }
-
-  const ctx = data.browseContext;
-  const { embed, components } = buildBrowseResponse(
-    entries,
-    ctx.page,
-    ctx.filter as DenyBrowseFilter,
-    ctx.sort as 'name' | 'date'
-  );
-  await interaction.editReply({ embeds: [embed], components });
-}
+// handleBack was deleted in favor of the shared `handleSharedBackButton`
+// (utils/dashboard/sharedBackButtonHandler.ts) — routed to from the switch
+// in handleDetailButton below. The browse rebuilder registered in
+// `./browse.js` owns the fetchEntries + buildBrowseResponse path.
 
 /** Route detail button interactions */
 export async function handleDetailButton(interaction: ButtonInteraction): Promise<void> {
@@ -330,7 +299,7 @@ export async function handleDetailButton(interaction: ButtonInteraction): Promis
       await handleCancelDelete(interaction, entityId);
       break;
     case 'back':
-      await handleBack(interaction, entityId);
+      await handleSharedBackButton(interaction, 'deny', entityId);
       break;
     default:
       logger.warn({ action, entityId }, '[Deny] Unknown detail action');
