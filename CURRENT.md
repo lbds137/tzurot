@@ -1,17 +1,18 @@
 # Current
 
 > **Session**: 2026-04-20 (wrapped)
-> **Version**: v3.0.0-beta.101 (released 2026-04-20 — everything below shipped to prod)
+> **Version**: v3.0.0-beta.102 (released 2026-04-20 — everything below shipped to prod)
 
 ---
 
 ## Next Session Goal
 
-_Start Phase 6 (integration tests). PR C is blocked on prod canary verification — which can't happen until PR A + PR B ship to prod. Phase 6 is the unblocked Release 1 work._
+_Multiple paths are unblocked. Pick based on energy and what's coming next._
 
-1. **Phase 6 — integration test coverage for the refactor-regression class (~2 days).** Goal: the `c88ae5b7` class of regression fails loudly in tests. End-to-end test exercising "user hits HTTP route → later Discord interaction → system prompt correctness assertion." Path-agnostic so tests survive PR C's deletion of the shell path. Entry point: `docs/reference/architecture/epic-identity-hardening.md § Phase 6`.
-2. **Or**: wait for dev Railway deploy + observe PR B's `[Identity] Shell path executed` canary log before starting Phase 6. The canary observation is the empirical input for PR C. Deploying unreleased develop to dev Railway is one `pnpm ops deploy` away.
-3. **Or**: cut Release 1 early (PR A + PR B + Phase 6 once ready) to get prod canary data sooner. Trade-off: releases are an event each, so bundling all three is the documented plan — but Phase 6 is the only remaining bundled item.
+1. **Dependabot dev-deps PR** that landed mid-session (`origin/dependabot/npm_and_yarn/develop/development-dependencies-327004958d`). Quick triage: rebase if needed, verify tests pass, merge.
+2. **Identity Hardening Phase 6** — integration test coverage for the refactor-regression class. Phase 5c PR C is still blocked on the prod canary observation window; Phase 6 is the unblocked epic work. Entry point: `docs/reference/architecture/epic-identity-hardening.md § Phase 6`.
+3. **Phase 5c PR C** — only if 48–72h have passed with zero `[Identity] Shell path executed` canary hits in prod logs since beta.99. Tail with `pnpm ops logs --env prod --filter "@api-gateway" | grep "Shell path executed"`. Zero hits → cutover unblocked.
+4. **Quick wins from BACKLOG** if energy is low — candidate quick wins: SSRF encode-dynamic-path-segments (entry on line 76, defense-in-depth), partial unique index on `llm_configs (name) WHERE is_global = true` (line 74, 1-line migration), or Pino logger-prefix normalization (line 86, mechanical sweep).
 
 ## Active Task
 
@@ -32,46 +33,47 @@ Epic status:
 
 ---
 
-## Completed This Session (2026-04-18)
+## Completed This Session (2026-04-20 — second session of the day)
 
-Very long session. Started as "take inventory and plan today," ended with two sub-PRs of Phase 5c shipped to develop, a detailed PR C plan in BACKLOG, and the Monitor permission config added.
+Released **v3.0.0-beta.102** to prod after a triage-driven session that started with the Kimi K2.5 routing bug and ended with three PRs merged + the release shipped.
 
-### Backlog hygiene pass
+### v3.0.0-beta.102 release (PR #854, merged + tagged)
 
-- Removed 5 stale items already shipped in beta.99 / beta.100 (character field silent-truncation, PersonaResolver focus-mode query collapse, preset clone auto-numbering, flaky xray analyzer test, preset save errors opaque). Each verified shipped by grepping the actual code/commits before deletion.
-- Bumped `BACKLOG.md` header dates + version.
-- Updated "Standardize over-long field handling" entry from 1-consumer (memory) to 2-consumer (memory + character), tagged as rule-of-three watch.
-- Net: -95/+6 lines.
+- 23 commits since beta.101: hybrid post-action UX (#851/#852), back-to-browse fixes for character/persona/deny, citext name uniqueness, preset auto-pin removal, deny `/view` cleanup, dependency bumps, BullMQ type fix, dependabot config consolidation.
+- Migration `20260420124923_llm_config_persona_citext_name` applied to dev + prod (CITEXT collision pre-check ran clean — 0 collisions).
+- GitHub Release published: https://github.com/lbds137/tzurot/releases/tag/v3.0.0-beta.102.
 
-### Phase 5c council consultation (Gemini 3.1 Pro Preview)
+### Kimi K2.5 routing bug triage → PR #853
 
-- Pressure-tested three API-contract options for "where does 'user must be provisioned' live": (A) gateway middleware, (B) per-handler call, (C) auth-extension with bot-client sending context headers.
-- Council landed on **Option C (read-through provisioning middleware)**. Bio dropped from contract (already unused on updates). URI-encoding mandatory for non-Latin-1 chars. Shadow-mode cutover with canary telemetry inside `getOrCreateUserShell` itself (not in the new middleware — avoids false negatives from missed mounts).
-- DB verification: **0 dormant shell users on dev**. Collapsed the "dormant shell user migration" from its own sub-phase into a conditional check at cutover time.
+- **Symptom**: user cleared their global default preset but kept getting Kimi K2.5 instead of GLM 5.1.
+- **Root cause**: every personality auto-pinned at creation time to whatever was currently the global default. 24 prod personalities fossilized against 4 different historical global defaults — 7 stuck on Kimi K2.5 specifically.
+- **Fix**: deleted `setupDefaultLlmConfig` helper + 2 call sites; personalities now cascade to current global default at request time. Cleaned up all 24 stale rows from prod + 1 from dev. Shapes import path preserved (its upsert is deliberate).
+- **Backlog spawned**: "Preset cascade standardization" epic — character-tier slash command for opt-in pinning, UX alignment with config-override cascade.
 
-### PR A shipped (PR #829, merged)
+### Deny `/view` Back-to-Browse regression fix
 
-- bot-client threads `GatewayUser` through its HTTP stack. `toGatewayUser(user: DiscordUser): GatewayUser` helper centralizes the `globalName ?? username` fallback. Two new headers URI-encoded.
-- 187 files changed — almost entirely mechanical signature propagation. Delegated Tier 4 (command handler callsites) + Tier 5 (test updates) + spec-only typecheck errors to three general-purpose agents in sequence. Over-match regressions caught and fixed.
-- 3 review rounds. R1 surfaced the mock-duplication problem — migrated 73 test files to `vi.importActual` pattern in one pass. Moved `GatewayUser` interface to `common-types` for PR B's benefit.
+- Today's PR #853 follow-up made `DenyDetailSession.browseContext` nullable for `/deny view` direct-lookup sessions, but the Back-to-Browse button was still rendered unconditionally and dead-ended on "session expired."
+- Fix: `buildDetailButtons` now takes `hasBrowseContext: boolean` and omits the button when there's no browse list to return to.
 
-### PR B shipped (PR #830, merged)
+### Backlog hygiene
 
-- `requireProvisionedUser(prisma)` middleware in AuthMiddleware.ts with full graceful-degradation: missing headers → warn + next, malformed URI → warn + next, getOrCreateUser throws → warn + next, null return (bot) → warn + next. Never 4xx.
-- Mounted on 33 user-scoped routes. 37 test files updated with pass-through mock.
-- Canary `logger.warn('[Identity] Shell path executed', { discordId, stack })` inside `UserService.getOrCreateUserShell` — top 6 frames only (R2 perf optimization).
-- **WeakMap UserService cache** (R2 fix): `userServiceByPrisma` caches UserService by PrismaClient reference so multiple factory calls with the same client share ONE UserService + cache. Fixes the 12-cache-instances problem in multi-endpoint route files like `memory.ts`.
-- `.claude/rules/01-architecture.md` updated with "Request Enrichment" section documenting `req.userId` vs `req.provisionedUserId`.
-- 3 review rounds. Final verdict: "No blocking issues."
+- Removed 3 obsolete inbox entries (back-to-browse audit shipped via #842/#843/#844 + #851/#852; TerminalAction superseded by registry pattern; 3-line opt-out widening investigated and rejected).
+- Removed 1 more entry (ESLint generateLlmConfigUuid ban shipped today via `ca24d6f48`).
+- Added 4 new inbox entries from beta.102 RC testing: post-`/character create` no Delete button, `Create` button in `/X browse`, persona create UX inconsistency, bot-owner delete-any-preset.
+- Added "Preset cascade standardization" epic candidate.
+- Cleaned up 8 AI-slop narrative comments across the codebase (kept ~16 that were legitimate "why" comments using trigger words).
+- ESLint `no-restricted-syntax` rule banning new prod callers of `generateLlmConfigUuid` (with `ShapesPersonalityMapper` exception properly justified).
+- Deleted 17 stale local branches (16 marked `[gone]` + the post-merge `release/v3.0.0-beta.101` branch).
 
-### Operational / harness
+### Doc layer corrections
 
-- Added `"Monitor"` to allow list in both `.claude/settings.json` (tracked) and `~/.claude/settings.json` (global). Eliminates permission prompts for polling/wait operations. Since Bash was already unscoped-allowed, zero incremental trust.
+- Initial post-release commit dropped Railway auto-deploy info into reference, but procedural content (release sequence) and a duplicated migration constraint slipped in. Audited against `.claude/rules/07-documentation.md` three-layer system and corrected: kept the auto-deploy table (genuinely new fact) in `RAILWAY_OPERATIONS.md`; moved the procedural "run migration on release" guidance into `tzurot-git-workflow` SKILL.md as new step 5; added the auto-deploy table to `tzurot-deployment` SKILL.md so the fact is loaded when actively deploying.
+- Updated auto-memory `project_railway_dev_autodeploy.md` to reflect that BOTH environments auto-deploy (was previously dev-only). Now documented in source control too.
 
-### Backlog updates
+### Smaller fixes
 
-- PR C sub-scope expanded in the Active Epic section with concrete bullets: double-`UserService` cleanup (wallet/setKey + llm-config), isBot tightening, graceful-degradation → strict 400, username drift-sync, `User.defaultPersona` relation tightening, test-utils package-graph cleanup.
-- Epic status line updated to reflect PR A/B shipped to develop.
+- `usedGlobalDefault` log field on `PersonalityService` (review-flagged minor): replaced strict `=== undefined` with truthy check to match Prisma's null-for-missing-relation behavior.
+- `.gitignore` added `.claude/scheduled_tasks.lock` (session-local runtime state that snuck into a commit).
 
 ---
 
@@ -107,7 +109,7 @@ _Nothing yet — just shipped._
 
 ## Previous Sessions
 
-- **2026-04-19 / 2026-04-20 (this session)**: **v3.0.0-beta.101 released to prod.** Bundled: preset-clone phantom PK collision (UUIDv7 + `@@unique(owner_id, name)` + server-side suffix bumping + ReDoS fix on clone-name regex), preset back-to-browse + admin-delete via new `renderTerminalScreen` helper + structural test, `/character list`→`/browse` stale-reference sweep (3 PRs' worth of internal + user-facing references), GLM-4.5-air history-regurgitation fix (cross-turn detection widened 5→25), TTS Opus transcode by default, PR-monitor hook infrastructure (rule + skill + PostToolUse hook), Phase 5c PR A/B (shadow-mode provisioning + WeakMap user cache). Migration `@@unique([owner_id, name])` on `llm_configs` applied to dev+prod. Session-end DM-broken investigation traced to Discord user-install state corruption (deauth + reauth fixed it; not a code issue). Two follow-up items backlogged: Option D refactor for `/character chat` in DMs (council-blessed) + v2 `/cleandm` restoration.
+- **2026-04-19 / 2026-04-20 (earlier)**: **v3.0.0-beta.101 released to prod.** Bundled: preset-clone phantom PK collision (UUIDv7 + `@@unique(owner_id, name)` + server-side suffix bumping + ReDoS fix on clone-name regex), preset back-to-browse + admin-delete via new `renderTerminalScreen` helper + structural test, `/character list`→`/browse` stale-reference sweep (3 PRs' worth of internal + user-facing references), GLM-4.5-air history-regurgitation fix (cross-turn detection widened 5→25), TTS Opus transcode by default, PR-monitor hook infrastructure (rule + skill + PostToolUse hook), Phase 5c PR A/B (shadow-mode provisioning + WeakMap user cache). Migration `@@unique([owner_id, name])` on `llm_configs` applied to dev+prod. Session-end DM-broken investigation traced to Discord user-install state corruption (deauth + reauth fixed it; not a code issue). Two follow-up items backlogged: Option D refactor for `/character chat` in DMs (council-blessed) + v2 `/cleandm` restoration.
 - **2026-04-18**: **Phase 5c PR A + PR B shipped to develop** — PR #829 (bot-client user-context headers, `GatewayUser` in common-types, URI-encoding), PR #830 (gateway shadow-mode middleware + canary, WeakMap UserService cache, route mounts on 33 files). Council pressure-test landed Option C. Backlog hygiene sweep. Monitor permission config. 6 review rounds total across both PRs — every substantive item addressed.
 - **2026-04-17**: **Phase 5b shipped + beta.99 release** — PR #818 (Phase 5b NOT NULL + CTE bootstrap), PR #819 (beta.99 bundling phases 3/4/5/5b/#813/#815 + CVE bumps). Prod migrated, tag + GitHub release published.
 - **2026-04-15 / 2026-04-16**: Identity epic phases 3/4/5 + beta.98 release bundle.
