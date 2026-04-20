@@ -27,7 +27,13 @@ export interface DenyDetailSession {
   reason: string | null;
   addedAt: string;
   addedBy: string;
-  browseContext: BrowseContext;
+  /**
+   * Browse context for the dashboard's Back-to-Browse path. `null` when the
+   * detail view was opened directly via `/deny view` (target-by-ID lookup);
+   * in that case there's no browse list to return to and the post-action
+   * helper renders a clean terminal instead of rebuilding browse.
+   */
+  browseContext: BrowseContext | null;
   guildId: string | null;
 }
 
