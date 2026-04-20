@@ -578,8 +578,11 @@ Now sit there, be quiet, and try to learn something about how a real professiona
     it('should extract assistant messages from production-format history', () => {
       const recentMessages = getRecentAssistantMessages(PRODUCTION_HISTORY_FORMAT);
 
-      // Should find 5 assistant messages (the max)
-      expect(recentMessages.length).toBe(5);
+      // With the widened default (25 assistant messages, up from 5), all 6
+      // assistant messages in the fixture are returned — the old cap truncated
+      // to 5, causing a 13-day-old regurgitated message on `glm-4.5-air:free`
+      // to slip past detection.
+      expect(recentMessages.length).toBe(6);
 
       // Most recent should be the ORIGINAL duplicate response
       expect(recentMessages[0]).toBe(DUPLICATE_RESPONSE);
@@ -615,6 +618,36 @@ Now sit there, be quiet, and try to learn something about how a real professiona
       const newResponseWithExtraSpace = DUPLICATE_RESPONSE + ' ';
       const result = isRecentDuplicate(newResponseWithExtraSpace, recentAssistantMessages);
 
+      expect(result.isDuplicate).toBe(true);
+    });
+
+    it('should detect a verbatim regurgitation from far back in history', () => {
+      // Regression for the `glm-4.5-air:free` 13-day-old regurgitation
+      // incident (2026-04-20). The old 5-message cap silently dropped any
+      // assistant turn beyond the 5th most recent, so a model that
+      // regurgitated a 10-turn-old response would pass detection.
+      const OLD_REGURGITATED_RESPONSE =
+        'This is a specific response from deep in the conversation history that ' +
+        'the model decided to emit verbatim instead of generating a new reply.';
+
+      // Build a history of 20 alternating user/assistant turns. Plant the
+      // "old" response at turn index 0 (the 10th most recent assistant
+      // message, well outside the old 5-message window).
+      const history: { role: string; content: string }[] = [
+        { role: 'assistant', content: OLD_REGURGITATED_RESPONSE },
+        { role: 'user', content: 'follow-up 1' },
+      ];
+      // Pad with 9 more assistant/user pairs so the OLD one is turn 10 back.
+      for (let i = 1; i <= 9; i++) {
+        history.push({ role: 'assistant', content: `recent response ${i}` });
+        history.push({ role: 'user', content: `recent prompt ${i}` });
+      }
+
+      const recentAssistantMessages = getRecentAssistantMessages(history);
+      expect(recentAssistantMessages.length).toBe(10);
+      expect(recentAssistantMessages).toContain(OLD_REGURGITATED_RESPONSE);
+
+      const result = isRecentDuplicate(OLD_REGURGITATED_RESPONSE, recentAssistantMessages);
       expect(result.isDuplicate).toBe(true);
     });
   });
