@@ -37,6 +37,20 @@ vi.mock('../../utils/dashboard/messages.js', () => ({
     SESSION_EXPIRED: '⏰ Session expired.',
     OPERATION_FAILED: (action: string) => `❌ Failed to ${action}.`,
   },
+  formatSessionExpiredMessage: (cmd: string) => `⏰ Session expired — use ${cmd}.`,
+  formatSuccessBanner: (verb: string, name: string) => `✅ **${verb}** · ${name}`,
+}));
+
+// Stub the post-action helpers at their source so the deny tests can assert
+// on handler-level dispatch without exercising their internals (which have
+// their own test coverage).
+const mockRenderPostActionScreen = vi.fn();
+vi.mock('../../utils/dashboard/postActionScreen.js', () => ({
+  renderPostActionScreen: (...args: unknown[]) => mockRenderPostActionScreen(...args),
+}));
+const mockHandleSharedBackButton = vi.fn();
+vi.mock('../../utils/dashboard/sharedBackButtonHandler.js', () => ({
+  handleSharedBackButton: (...args: unknown[]) => mockHandleSharedBackButton(...args),
 }));
 
 vi.mock('../../utils/dashboard/types.js', () => ({
@@ -67,7 +81,7 @@ vi.mock('./browse.js', () => ({
 
 // Mock detailTypes so we don't construct Discord.js builders
 vi.mock('./detailTypes.js', () => ({
-  ENTITY_TYPE: 'deny-detail',
+  ENTITY_TYPE: 'deny',
   buildDetailEmbed: vi.fn(() => ({ data: { title: 'Detail' } })),
   buildDetailButtons: vi.fn(() => [{ type: 'action-row' }]),
 }));
@@ -80,7 +94,6 @@ vi.mock('./detailEdit.js', () => ({
 import { isBotOwner } from '@tzurot/common-types';
 import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
-import { fetchEntries, buildBrowseResponse } from './browse.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
 
 const sampleEntry = {
@@ -102,7 +115,7 @@ const sampleSession = {
     guildId: 'guild-456',
   },
   userId: 'user-123',
-  entityType: 'deny-detail',
+  entityType: 'deny',
   entityId: 'entry-uuid-1234',
   messageId: 'msg-1',
   channelId: 'chan-1',
@@ -146,7 +159,7 @@ describe('showDetailView', () => {
     expect(mockSessionManager.set).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-123',
-        entityType: 'deny-detail',
+        entityType: 'deny',
         entityId: 'entry-uuid-1234',
         data: expect.objectContaining({
           id: 'entry-uuid-1234',
@@ -196,7 +209,7 @@ describe('handleDetailButton', () => {
       );
       expect(mockSessionManager.update).toHaveBeenCalledWith(
         'user-123',
-        'deny-detail',
+        'deny',
         'entry-uuid-1234',
         { mode: 'MUTE' }
       );
@@ -272,11 +285,9 @@ describe('handleDetailButton', () => {
       );
     });
 
-    it('should delete entry and return to browse when entries remain', async () => {
+    it('should route delete success through renderPostActionScreen', async () => {
       mockSessionManager.get.mockResolvedValue(sampleSession);
-      mockSessionManager.delete.mockResolvedValue(true);
       vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
-      vi.mocked(fetchEntries).mockResolvedValue([sampleEntry]);
       const interaction = createMockButtonInteraction('deny::confirm-del::entry-uuid-1234');
 
       await handleDetailButton(interaction);
@@ -285,36 +296,27 @@ describe('handleDetailButton', () => {
         method: 'DELETE',
         userId: 'user-123',
       });
-      expect(mockSessionManager.delete).toHaveBeenCalledWith(
-        'user-123',
-        'deny-detail',
-        'entry-uuid-1234'
-      );
-      expect(fetchEntries).toHaveBeenCalledWith('user-123');
-      expect(buildBrowseResponse).toHaveBeenCalledWith([sampleEntry], 0, 'all', 'date');
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      // Delete + browse rebuild + session cleanup are owned by the shared
+      // renderPostActionScreen helper + the browse rebuilder registered in
+      // browse.ts. Assert the handler routes correctly with the right shape.
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('has been deleted'),
-          embeds: expect.any(Array),
-          components: expect.any(Array),
+          session: expect.objectContaining({
+            entityType: 'deny',
+            entityId: 'entry-uuid-1234',
+            browseContext: expect.objectContaining({
+              source: 'browse',
+              page: 0,
+              filter: 'all',
+              sort: 'date',
+            }),
+          }),
+          outcome: expect.objectContaining({
+            kind: 'success',
+            banner: expect.stringContaining('USER'),
+          }),
         })
       );
-    });
-
-    it('should delete entry and show empty message when no entries remain', async () => {
-      mockSessionManager.get.mockResolvedValue(sampleSession);
-      mockSessionManager.delete.mockResolvedValue(true);
-      vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
-      vi.mocked(fetchEntries).mockResolvedValue([]);
-      const interaction = createMockButtonInteraction('deny::confirm-del::entry-uuid-1234');
-
-      await handleDetailButton(interaction);
-
-      expect(interaction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('No entries remaining'),
-        embeds: [],
-        components: [],
-      });
     });
 
     it('should return to detail view on cancel', async () => {
@@ -329,58 +331,34 @@ describe('handleDetailButton', () => {
       });
     });
 
-    it('should handle delete API error', async () => {
+    it('should route delete API errors through renderPostActionScreen as an error outcome', async () => {
       mockSessionManager.get.mockResolvedValue(sampleSession);
       vi.mocked(adminFetch).mockResolvedValue(mockErrorResponse(500, { message: 'Error' }));
       const interaction = createMockButtonInteraction('deny::confirm-del::entry-uuid-1234');
 
       await handleDetailButton(interaction);
 
-      expect(interaction.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('Failed to delete') })
+      expect(mockRenderPostActionScreen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: expect.objectContaining({
+            kind: 'error',
+            content: expect.stringContaining('Failed to delete'),
+          }),
+        })
       );
     });
   });
 
   describe('back navigation', () => {
-    it('should return to browse view', async () => {
-      mockSessionManager.get.mockResolvedValue(sampleSession);
-      mockSessionManager.delete.mockResolvedValue(true);
-      vi.mocked(fetchEntries).mockResolvedValue([sampleEntry]);
+    it('should route back button through handleSharedBackButton', async () => {
       const interaction = createMockButtonInteraction('deny::back::entry-uuid-1234');
 
       await handleDetailButton(interaction);
 
-      expect(mockSessionManager.delete).toHaveBeenCalledWith(
-        'user-123',
-        'deny-detail',
+      expect(mockHandleSharedBackButton).toHaveBeenCalledWith(
+        interaction,
+        'deny',
         'entry-uuid-1234'
-      );
-      expect(fetchEntries).toHaveBeenCalledWith('user-123');
-      expect(buildBrowseResponse).toHaveBeenCalledWith([sampleEntry], 0, 'all', 'date');
-    });
-
-    it('should handle fetch failure on back', async () => {
-      mockSessionManager.get.mockResolvedValue(sampleSession);
-      mockSessionManager.delete.mockResolvedValue(true);
-      vi.mocked(fetchEntries).mockResolvedValue(null);
-      const interaction = createMockButtonInteraction('deny::back::entry-uuid-1234');
-
-      await handleDetailButton(interaction);
-
-      expect(interaction.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('Failed to fetch') })
-      );
-    });
-
-    it('should handle session expiry on back', async () => {
-      mockSessionManager.get.mockResolvedValue(null);
-      const interaction = createMockButtonInteraction('deny::back::entry-uuid-1234');
-
-      await handleDetailButton(interaction);
-
-      expect(interaction.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('Session expired') })
       );
     });
   });

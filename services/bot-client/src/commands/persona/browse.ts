@@ -19,6 +19,7 @@ import {
   buildDashboardEmbed,
   buildDashboardComponents,
   getSessionManager,
+  registerBrowseRebuilder,
 } from '../../utils/dashboard/index.js';
 import {
   ITEMS_PER_PAGE,
@@ -379,3 +380,24 @@ export async function buildBrowseResponse(
 
   return buildBrowsePage(result.data.personas, page, sort);
 }
+
+// Register the persona browse rebuilder with the shared registry at module
+// load time. Consumed by `renderPostActionScreen` (destructive-action success
+// → direct re-render) and `handleSharedBackButton` (Back-to-Browse click).
+// See `utils/dashboard/browseRebuilderRegistry.ts` for why the registry lives
+// in module memory rather than on the session.
+registerBrowseRebuilder('persona', async (interaction, browseContext, successBanner) => {
+  const result = await buildBrowseResponse(
+    toGatewayUser(interaction.user),
+    browseContext.page,
+    (browseContext.sort ?? DEFAULT_SORT) as BrowseSortType
+  );
+  if (result === null) {
+    return null;
+  }
+  return {
+    content: successBanner,
+    embeds: [result.embed],
+    components: result.components,
+  };
+});
