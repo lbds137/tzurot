@@ -50,14 +50,22 @@ if [ -z "$PR_NUM" ]; then
     PR_NUM=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
 fi
 
-[ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ] && exit 0
+# Explicit if/then/fi. Bash `&&` and `||` are equal-precedence and
+# left-associative, so the one-liner form `[ -z ] || [ = null ] && exit`
+# is also correct — but readers who carry C-style precedence intuition
+# (`&&` binds tighter than `||`) will misread it. Use the unambiguous form.
+if [ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ]; then
+    exit 0
+fi
 
 # Append-only dedup: one line per (PR, SHA) we've already reminded for.
 # Survives multi-PR sessions (switching between PRs doesn't clobber history).
+# Namespaced by UID so concurrent sessions from different users on the same
+# host can't cross-contaminate each other's dedup state.
 # /tmp is wiped on reboot, so the file stays bounded naturally.
 SHA=$(git rev-parse HEAD 2>/dev/null || echo "nosha-$$")
 KEY="${PR_NUM}:${SHA}"
-SEEN_FILE="/tmp/.claude_pr_monitor_seen"
+SEEN_FILE="/tmp/.claude_pr_monitor_seen.$(id -u)"
 if [ -f "$SEEN_FILE" ] && grep -qxF "$KEY" "$SEEN_FILE" 2>/dev/null; then
     exit 0
 fi
