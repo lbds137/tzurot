@@ -131,16 +131,20 @@ gh pr checks N --watch --interval=30 > /dev/null 2>&1; echo "CI_COMPLETE"; gh pr
 
 Pass it to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL usually finishes well inside that; if it exceeds, re-arm).
 
-When the monitor fires:
+When the monitor fires, **both** of the following must happen before you write the user-facing message — do not stop after step 1 even if every check passed:
 
 1. Note the final CI state from the `gh pr checks N` output.
 2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/N/comments`. Track the `created_at` timestamp of the most recently reported comment in working memory so a subsequent push doesn't re-report reviews already surfaced. **Include human reviewer comments** alongside `claude[bot]` / `github-advanced-security[bot]` — user feedback matters as much as bot feedback.
-3. In a single concise user-facing message, report: CI pass/fail summary + any new review findings (grouped as blocking vs. non-blocking).
+3. In a single concise user-facing message, report: CI pass/fail summary **and** any new review findings (grouped as blocking vs. non-blocking). If there are no new reviews since the last push, say so explicitly — silence isn't a substitute for "no new comments."
 4. **Do not fix anything without user approval.** Report only. The user decides in-PR vs. backlog (matching the pattern in `.claude/skills/tzurot-git-workflow/SKILL.md`).
+
+The #1-without-#2 failure mode happened during PR #836/#837 scoping — "all CI green" felt complete, comments got skipped, user had to ask. Both steps are part of the Monitor-fire response contract; all-CI-green does not discharge the comment-fetch obligation.
 
 If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
 
 **Timeout handling**: if the monitor output doesn't contain `CI_COMPLETE`, the 15-min `timeout_ms` fired before CI finished. Re-arm the monitor rather than assuming CI passed.
+
+**Working-memory caveat**: the `created_at` dedup lives in conversation state, which is lost when the session restarts. After a session restart, re-fetching may surface previously-reported comments once. That's acceptable — re-reporting a known comment once is strictly preferable to silently missing a new one.
 
 ### Release Notes Format
 
