@@ -86,7 +86,7 @@ export async function showDetailView(
     guildId: string | null;
   },
   entry: DenylistEntryResponse,
-  browseContext: BrowseContext,
+  browseContext: BrowseContext | null,
   content?: string
 ): Promise<void> {
   const sessionData: DenyDetailSession = {
@@ -202,7 +202,10 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
     userId: interaction.user.id,
     entityType: 'deny' as const,
     entityId: entryId,
-    browseContext: data.browseContext,
+    // `/deny view`-sourced sessions carry null here — the post-action helper
+    // sees `undefined` and falls through to terminal cleanup (no fake browse
+    // rebuild of a list the user never saw).
+    browseContext: data.browseContext ?? undefined,
   };
 
   try {

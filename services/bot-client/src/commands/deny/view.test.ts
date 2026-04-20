@@ -133,12 +133,7 @@ describe('handleView', () => {
 
     await handleView(context);
 
-    expect(showDetailView).toHaveBeenCalledWith(context.interaction, ENTRY_USER, {
-      source: 'browse',
-      page: 0,
-      filter: 'all',
-      sort: 'date',
-    });
+    expect(showDetailView).toHaveBeenCalledWith(context.interaction, ENTRY_USER, null);
   });
 
   it('should show first match with multi-match note when multiple entries found', async () => {
@@ -150,7 +145,7 @@ describe('handleView', () => {
     expect(showDetailView).toHaveBeenCalledWith(
       context.interaction,
       ENTRY_USER,
-      { source: 'browse', page: 0, filter: 'all', sort: 'date' },
+      null,
       expect.stringContaining('Found 2 entries')
     );
   });
@@ -161,11 +156,6 @@ describe('handleView', () => {
 
     await handleView(context);
 
-    expect(showDetailView).toHaveBeenCalledWith(context.interaction, ENTRY_GUILD, {
-      source: 'browse',
-      page: 0,
-      filter: 'all',
-      sort: 'date',
-    });
+    expect(showDetailView).toHaveBeenCalledWith(context.interaction, ENTRY_GUILD, null);
   });
 });

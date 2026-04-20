@@ -49,12 +49,9 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
 
   if (matches.length === 1) {
     // Single match — show detail view directly
-    await showDetailView(context.interaction, matches[0], {
-      source: 'browse',
-      page: 0,
-      filter: 'all',
-      sort: 'date',
-    });
+    // null browseContext — user didn't come from /deny browse, so delete
+    // renders a clean terminal (no fabricated "back to browse" rebuild).
+    await showDetailView(context.interaction, matches[0], null);
     return;
   }
 
@@ -67,7 +64,7 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
   await showDetailView(
     context.interaction,
     matches[0],
-    { source: 'browse', page: 0, filter: 'all', sort: 'date' },
+    null,
     `Found ${matches.length} entries for \`${target.trim()}\`. Showing first match — use the type filter for a specific entry.`
   );
 }
