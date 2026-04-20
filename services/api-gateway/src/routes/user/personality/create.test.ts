@@ -223,13 +223,13 @@ describe('POST /user/personality (create)', () => {
     expect(res.status).toHaveBeenCalledWith(201);
   });
 
-  it('should set default LLM config if available', async () => {
+  it('does not create a personality_default_configs row on personality create', async () => {
+    // New personalities cascade to the current global default at request time
+    // via PersonalityService.loadPersonality. Auto-pinning was removed after
+    // it fossilized personalities against stale global defaults. Shapes
+    // imports still pin deliberately via their own upsert (ShapesImportHelpers.ts)
+    // — that path is unaffected by this change.
     mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
-    mockPrisma.llmConfig.findFirst.mockResolvedValue({
-      id: 'default-config',
-      isGlobal: true,
-      isDefault: true,
-    });
 
     const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
     const handler = getHandler(router, 'post', '/');
@@ -242,12 +242,7 @@ describe('POST /user/personality (create)', () => {
 
     await handler(req, res);
 
-    expect(mockPrisma.personalityDefaultConfig.create).toHaveBeenCalledWith({
-      data: {
-        personalityId: 'new-personality',
-        llmConfigId: 'default-config',
-      },
-    });
+    expect(mockPrisma.personalityDefaultConfig.create).not.toHaveBeenCalled();
   });
 
   it('should set default system prompt if available', async () => {
@@ -479,56 +474,6 @@ describe('POST /user/personality (create)', () => {
           }),
         })
       );
-    });
-  });
-
-  describe('LLM config error handling', () => {
-    it('should still succeed when setting default LLM config fails', async () => {
-      mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        id: 'default-config',
-        isGlobal: true,
-        isDefault: true,
-      });
-      // Make the personalityDefaultConfig.create throw an error
-      mockPrisma.personalityDefaultConfig.create.mockRejectedValue(
-        new Error('Database constraint violation')
-      );
-
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'post', '/');
-      const { req, res } = createMockReqRes({
-        name: 'Config Error Character',
-        slug: 'config-error',
-        characterInfo: 'Info',
-        personalityTraits: 'Traits',
-      });
-
-      await handler(req, res);
-
-      // Should still succeed - LLM config failure is logged but non-fatal
-      expect(res.status).toHaveBeenCalledWith(201);
-      expect(mockPrisma.personality.create).toHaveBeenCalled();
-    });
-
-    it('should skip LLM config when no default config exists', async () => {
-      mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
-      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
-
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'post', '/');
-      const { req, res } = createMockReqRes({
-        name: 'No Config Character',
-        slug: 'no-config',
-        characterInfo: 'Info',
-        personalityTraits: 'Traits',
-      });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(201);
-      // Should NOT attempt to create personalityDefaultConfig
-      expect(mockPrisma.personalityDefaultConfig.create).not.toHaveBeenCalled();
     });
   });
 });

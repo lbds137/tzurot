@@ -22,7 +22,6 @@ import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
-import { setupDefaultLlmConfig } from '../../../utils/personalityHelpers.js';
 import { formatPersonalityResponse } from './formatters.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
@@ -138,9 +137,10 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
       '[User] Created personality'
     );
 
-    // Set default LLM config (non-blocking, errors logged but don't fail creation)
-    await setupDefaultLlmConfig(prisma, personality.id);
-
+    // Note: personality_default_configs is intentionally NOT populated here.
+    // Personalities cascade to the current global default at request time; a
+    // per-personality preset pin is an opt-in override, not a creation-time
+    // snapshot. See the "Preset cascade standardization" backlog epic.
     sendCustomSuccess(
       res,
       { success: true, personality: formatPersonalityResponse(personality) },

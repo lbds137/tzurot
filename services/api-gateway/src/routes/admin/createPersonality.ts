@@ -19,7 +19,6 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { processAvatarData } from '../../utils/avatarProcessor.js';
-import { setupDefaultLlmConfig } from '../../utils/personalityHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('admin-create-personality');
@@ -149,8 +148,12 @@ export function createCreatePersonalityRoute(
 
       logger.info(`[Admin] Created personality: ${slug} (${personality.id})`);
 
-      // Post-creation tasks
-      await setupDefaultLlmConfig(prisma, personality.id, slug);
+      // Post-creation tasks.
+      // Note: personality_default_configs is intentionally NOT populated here.
+      // New personalities cascade to the current global default at request time
+      // (see PersonalityService.loadPersonality → loadGlobalDefaultConfig). A
+      // per-personality preset pin is an opt-in override, not a creation-time
+      // snapshot — see the "Preset cascade standardization" backlog epic.
       await invalidateCacheIfPublic(cacheInvalidationService, validated.isPublic, personality.id);
 
       sendCustomSuccess(
