@@ -136,7 +136,13 @@ Pass to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL usual
 When the monitor fires, **all four** of the following must happen before the cycle is complete — do not stop after step 1 even if every check passed:
 
 1. Note the final CI state from the `gh pr checks N` output.
-2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/N/comments`. Track the `created_at` timestamp of the most recently reported comment in working memory so a subsequent push doesn't re-report reviews already surfaced. **Include human reviewer comments** alongside `claude[bot]` / `github-advanced-security[bot]` — user feedback matters as much as bot feedback.
+2. Fetch new reviewer feedback. GitHub splits it across **three** endpoints that the raw `gh api /issues/N/comments` call does **not** cover together:
+   - `pnpm ops gh:pr-comments N` — conversation comments + inline line-level review comments
+   - `pnpm ops gh:pr-reviews N` — review summaries (Approve / Request Changes / Comment)
+   - `pnpm ops gh:pr-info N` — PR-level state (status, mergeable, etc.)
+
+   Inline line comments are where human reviewers typically leave blocking feedback; if you only check `/issues/N/comments` you'll silently miss them. Track the most recently reported comment's timestamp in working memory so a subsequent push doesn't re-report already-surfaced feedback. **Include human reviewer comments** alongside `claude[bot]` / `github-advanced-security[bot]`.
+
 3. In a single concise user-facing message, report: CI pass/fail summary **and** any new review findings (grouped as blocking vs. non-blocking). If there are no new reviews since the last push, say so explicitly — silence isn't a substitute for "no new comments."
 4. **Do not fix anything without user approval.** Report only. The user decides in-PR vs. backlog (matching the pattern in `.claude/skills/tzurot-git-workflow/SKILL.md`).
 

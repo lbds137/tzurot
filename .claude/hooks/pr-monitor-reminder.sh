@@ -83,6 +83,9 @@ if [ -f "$SEEN_FILE" ] && grep -qxF "$KEY" "$SEEN_FILE" 2>/dev/null; then
     exit 0
 fi
 echo "$KEY" >>"$SEEN_FILE"
+# Non-secret data, but restrict to the owning user anyway — no reason for
+# other accounts on a shared host to read one user's PR/SHA history.
+chmod 600 "$SEEN_FILE" 2>/dev/null || true
 
 cat <<EOF
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -99,8 +102,14 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.
 - If no "CI_COMPLETE" line appeared, the 15-min timeout fired first — re-arm.
-- Fetch new comments: gh api /repos/lbds137/tzurot/issues/$PR_NUM/comments
-  (include human reviewer comments, not just bots).
+- Fetch new feedback. Conversation comments + inline code-review comments
+  + review summaries live in THREE different endpoints — you need all three:
+    pnpm ops gh:pr-comments $PR_NUM   # conversation + line-level
+    pnpm ops gh:pr-reviews $PR_NUM    # Approve / Request Changes summaries
+    pnpm ops gh:pr-info $PR_NUM       # PR-level state
+  (\`gh api /repos/.../issues/N/comments\` only returns issue-level and
+   silently misses inline line comments — the most common place human
+   reviewers leave blocking feedback.)
 - Report CI state + reviewer findings in one message (blocking vs. non-blocking).
 - Do NOT fix without user approval.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
