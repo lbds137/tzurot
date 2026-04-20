@@ -258,21 +258,19 @@ export async function handleConfirmDeleteButton(
 
   const presetName = session?.data.name ?? 'Preset';
 
+  // Helper reads browseContext to decide: Back-to-Browse button + keep session, or cleanup.
+  const terminalSession = {
+    userId: interaction.user.id,
+    entityType: 'preset',
+    entityId,
+    browseContext: session?.data.browseContext,
+  };
+
   try {
     const result = await callGatewayApi<void>(`/user/llm-config/${entityId}`, {
       method: 'DELETE',
       user: toGatewayUser(interaction.user),
     });
-
-    // Build the terminal session descriptor once — the helper uses its
-    // `browseContext` field to decide whether to render a Back-to-Browse
-    // button (and keep the session alive) or close out cleanly.
-    const terminalSession = {
-      userId: interaction.user.id,
-      entityType: 'preset',
-      entityId,
-      browseContext: session?.data.browseContext,
-    };
 
     if (!result.ok) {
       logger.warn(
@@ -298,12 +296,7 @@ export async function handleConfirmDeleteButton(
     logger.error({ err: error, entityId }, 'Failed to delete preset');
     await renderTerminalScreen({
       interaction,
-      session: {
-        userId: interaction.user.id,
-        entityType: 'preset',
-        entityId,
-        browseContext: session?.data.browseContext,
-      },
+      session: terminalSession,
       content: '❌ An error occurred while deleting the preset. Please try again.',
     });
   }
