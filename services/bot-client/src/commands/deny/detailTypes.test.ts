@@ -83,8 +83,8 @@ describe('buildDetailEmbed', () => {
 });
 
 describe('buildDetailButtons', () => {
-  it('should build buttons for BLOCK mode', () => {
-    const rows = buildDetailButtons('entry-123', 'BLOCK');
+  it('should build buttons for BLOCK mode (browse-sourced)', () => {
+    const rows = buildDetailButtons('entry-123', 'BLOCK', true);
 
     expect(rows).toHaveLength(2);
     // First row: Edit (Primary) + Mode Toggle
@@ -99,14 +99,14 @@ describe('buildDetailButtons', () => {
   });
 
   it('should build buttons for MUTE mode', () => {
-    const rows = buildDetailButtons('entry-123', 'MUTE');
+    const rows = buildDetailButtons('entry-123', 'MUTE', true);
 
     const row1 = rows[0].toJSON().components as APIButtonComponentWithCustomId[];
     expect(row1[1].label).toBe('Switch to Block');
   });
 
   it('should include entry ID in custom IDs', () => {
-    const rows = buildDetailButtons('entry-123', 'BLOCK');
+    const rows = buildDetailButtons('entry-123', 'BLOCK', true);
 
     const row1 = rows[0].toJSON().components as APIButtonComponentWithCustomId[];
     expect(row1[0].custom_id).toBe('deny::edit::entry-123');
@@ -115,5 +115,20 @@ describe('buildDetailButtons', () => {
     const row2 = rows[1].toJSON().components as APIButtonComponentWithCustomId[];
     expect(row2[0].custom_id).toBe('deny::back::entry-123');
     expect(row2[1].custom_id).toBe('deny::del::entry-123');
+  });
+
+  it('omits Back-to-Browse when the detail view was not opened from /deny browse', () => {
+    // The /deny view entry point sets browseContext=null on the session —
+    // clicking a Back-to-Browse button in that case would route to
+    // handleSharedBackButton, which correctly refuses (no browseContext)
+    // and shows "session expired". Avoid the dead-end by omitting the
+    // button entirely when there's no list to return to.
+    const rows = buildDetailButtons('entry-123', 'BLOCK', false);
+
+    expect(rows).toHaveLength(2);
+    const row2 = rows[1].toJSON().components as APIButtonComponentWithCustomId[];
+    expect(row2).toHaveLength(1);
+    expect(row2[0].label).toBe('Delete');
+    expect(row2[0].custom_id).toBe('deny::del::entry-123');
   });
 });

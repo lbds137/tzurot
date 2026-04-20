@@ -73,10 +73,33 @@ export function buildDetailEmbed(entry: DenylistEntryResponse): EmbedBuilder {
 /** Build action buttons for the detail view */
 export function buildDetailButtons(
   entryId: string,
-  mode: string
+  mode: string,
+  hasBrowseContext: boolean
 ): ActionRowBuilder<ButtonBuilder>[] {
   const toggleLabel = mode === 'BLOCK' ? 'Switch to Mute' : 'Switch to Block';
   const toggleEmoji = mode === 'BLOCK' ? '\u{1F507}' : '\u{1F6AB}';
+
+  const row2 = new ActionRowBuilder<ButtonBuilder>();
+  // Back-to-Browse only makes sense when the detail view was opened from
+  // `/deny browse`. The `/deny view` entry point sets browseContext=null —
+  // no list to return to, so omit the button rather than render one that
+  // leads to "session expired".
+  if (hasBrowseContext) {
+    row2.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`deny::back::${entryId}`)
+        .setLabel('Back to Browse')
+        .setEmoji('\u25C0\uFE0F')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+  row2.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`deny::del::${entryId}`)
+      .setLabel('Delete')
+      .setEmoji('\u{1F5D1}\uFE0F')
+      .setStyle(ButtonStyle.Danger)
+  );
 
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -91,17 +114,6 @@ export function buildDetailButtons(
         .setEmoji(toggleEmoji)
         .setStyle(ButtonStyle.Secondary)
     ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`deny::back::${entryId}`)
-        .setLabel('Back to Browse')
-        .setEmoji('\u25C0\uFE0F')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`deny::del::${entryId}`)
-        .setLabel('Delete')
-        .setEmoji('\u{1F5D1}\uFE0F')
-        .setStyle(ButtonStyle.Danger)
-    ),
+    row2,
   ];
 }
