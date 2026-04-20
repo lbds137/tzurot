@@ -22,6 +22,12 @@ fi
 # Tag pushes (`git push --tags` / `git push origin --tags`) have no PR
 # association — the branch might coincidentally have an open PR, but the push
 # is about tags, not that PR. Exit early to avoid spurious reminders.
+#
+# Specific-ref tag pushes (`git push origin v3.0.0-beta.XX`) aren't caught by
+# this filter — they look like a normal ref push — but they're implicitly
+# handled downstream: release tags are pushed from `main`, and `gh pr list
+# --head main` returns empty since main is always a target branch, so the
+# empty-PR guard below exits silently.
 if grep -qE '(^|[[:space:]])git push[[:space:]].*--tags($|[[:space:]])' <<<"$COMMAND"; then
     exit 0
 fi
