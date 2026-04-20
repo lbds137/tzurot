@@ -38,8 +38,8 @@
     "@types/estree": "^1.0.8",
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.4",
-    "memfs": "^4.57.1",
-    "typescript": "^6.0.2",
+    "memfs": "^4.57.2",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.4"
   },
   "peerDependencies": {
