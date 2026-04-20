@@ -73,12 +73,14 @@ Monitor({
 })
 ```
 
-When the monitor fires:
+When the monitor fires, **both** of the following must happen — do not stop after #1 even when every check passed:
 
 1. Inspect the final `gh pr checks <N>` output for pass/fail.
 2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/<N>/comments` (no bot-only filter — human reviewer comments matter too). Dedup by tracking `created_at` of the last-reported comment.
-3. Report CI status + new reviewer feedback in one concise message. Group findings as blocking vs. non-blocking.
+3. Report CI status **and** new reviewer feedback in one concise message. Group findings as blocking vs. non-blocking. If no new reviews since the last push, say so explicitly — silence is not a substitute for "no new comments."
 4. Don't fix anything without user approval — report only. User decides in-PR vs. backlog.
+
+The #1-without-#2 failure mode is worth guarding against: all-green CI feels complete, but new review comments can still carry blocking findings or non-blocking observations the user wants to triage.
 
 If the monitor completes without a `CI_COMPLETE` line in its output, the 15-min timeout fired first — re-arm rather than assume CI passed. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
 
