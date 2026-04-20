@@ -187,7 +187,19 @@ gh pr merge <number> --rebase
 gh pr merge <number> --rebase --delete-branch
 ```
 
-### 5. After Merge to Main
+### 5. Run Prisma Migration (if release includes one)
+
+Prod auto-deploys on merge to `main` (see `tzurot-deployment` skill), but **schema changes do NOT auto-apply**. Run the migration immediately after merge to minimize the window where new code runs against the pre-migration schema:
+
+```bash
+pnpm ops db:migrate --env prod
+```
+
+For backward-compatible migrations (column type widening, additive indexes), the small window is low-risk because old code can still read the new schema. For breaking schema changes, sequence carefully — either run the migration first if old code can tolerate the new schema, or coordinate a brief maintenance window.
+
+Skip this step if the release contains no migration. Verify with `git log v<previous>..HEAD --no-merges -- prisma/migrations/` — empty output means no migration to run.
+
+### 6. After Merge to Main
 
 ```bash
 git fetch --all
@@ -197,7 +209,7 @@ git rebase origin/main
 git push origin develop --force-with-lease
 ```
 
-### 6. Tag and Push
+### 7. Tag and Push
 
 Git tag + GitHub Release are **separate** things. The merge does neither — you must:
 
@@ -208,7 +220,7 @@ git tag -a v3.0.0-beta.XX -m "Release v3.0.0-beta.XX: Description"
 git push origin v3.0.0-beta.XX
 ```
 
-### 7. Create GitHub Release
+### 8. Create GitHub Release
 
 The tag is git metadata; the GitHub Release is the user-facing page with notes.
 Both are needed. Use the same release notes prepared in step 2:
@@ -232,7 +244,7 @@ EOF
 `--prerelease` flag is used for all `-beta.*` tags (match existing convention
 via `gh release list`).
 
-### 8. Reset CURRENT.md Unreleased Section
+### 9. Reset CURRENT.md Unreleased Section
 
 After a release merges to main, reset the "Unreleased on Develop" section in
 CURRENT.md to only track items since the new release tag. Failing to do this

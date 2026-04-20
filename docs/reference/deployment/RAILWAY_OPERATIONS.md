@@ -317,25 +317,7 @@ Both Railway environments auto-deploy from their respective branches. **No manua
 
 When a feature PR merges into `develop`, dev redeploys automatically. When a release PR merges from `develop` into `main`, prod redeploys automatically. The Railway dashboard shows deploy progress for each service in the project.
 
-### Migrations are NOT auto-applied
-
-Code auto-deploys; **schema does not.** After any push that includes a new Prisma migration, run:
-
-```bash
-pnpm ops db:migrate --env dev    # after every develop push with a migration
-pnpm ops db:migrate --env prod   # after every main push with a migration
-```
-
-For backward-compatible migrations (CITEXT type widening, additive indexes), the small window between auto-deploy landing and migration running is low-risk because old code can still read the new schema. For breaking schema changes, sequence carefully — either run the migration first if old code can tolerate the new schema, or coordinate a brief maintenance window.
-
-### Release Sequence Order (with migration)
-
-1. `gh pr merge <num> --rebase` (release PR `develop` → `main`) — no `--delete-branch`, develop is permanent
-2. **Immediately** run `pnpm ops db:migrate --env prod` to close the auto-deploy → migration window
-3. Sync develop with main's rebased SHAs: `git rebase origin/main && git push --force-with-lease`
-4. Tag `v<version>` on main, push tag
-5. `gh release create v<version> --prerelease --notes-file <notes>`
-6. Reset CURRENT.md "Unreleased on Develop" section
+**Schema changes do not auto-apply.** Prisma migrations must be run manually with `pnpm ops db:migrate --env <dev|prod>` after the deploy lands — see `.claude/rules/03-database.md` and `.claude/rules/05-tooling.md` for the constraint and `pnpm ops` syntax. For the full release procedure (merge → migrate → tag → release sequence), see the `tzurot-git-workflow` skill.
 
 ### GitHub Actions Example
 
