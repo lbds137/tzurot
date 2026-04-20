@@ -13,6 +13,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
@@ -23,7 +24,7 @@ describe('Database Infrastructure', () => {
   beforeAll(async () => {
     // Set up PGlite with pgvector
     pglite = new PGlite({
-      extensions: { vector },
+      extensions: { vector, citext },
     });
 
     // Load schema from test-utils

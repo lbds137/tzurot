@@ -32,6 +32,7 @@ import type { Job } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
@@ -59,7 +60,7 @@ describe('AIJobProcessor Component Test', () => {
     // Note: PGlite initialization is CPU-intensive and may be slow when running
     // in parallel with other tests, hence the extended timeout
     pglite = new PGlite({
-      extensions: { vector },
+      extensions: { vector, citext },
     });
 
     // Load the complete schema from the shared schema file

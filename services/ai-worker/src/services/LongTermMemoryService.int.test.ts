@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
@@ -75,7 +76,7 @@ describe('LongTermMemoryService', () => {
   beforeAll(async () => {
     // Set up PGlite with pgvector extension
     pglite = new PGlite({
-      extensions: { vector },
+      extensions: { vector, citext },
     });
 
     // Load and execute the pre-generated schema

@@ -18,6 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {
   PrismaClient,
@@ -47,7 +48,7 @@ describe('Duplicate Detection Data Flow', () => {
 
   beforeAll(async () => {
     // Initialize PGLite with pgvector
-    pglite = new PGlite({ extensions: { vector } });
+    pglite = new PGlite({ extensions: { vector, citext } });
     await pglite.exec(loadPGliteSchema());
 
     // Create Prisma client with PGLite adapter

@@ -357,8 +357,8 @@ describe('LlmConfigService', () => {
               ownerId: 'user-1',
               OR: [
                 { name: 'Preset' },
-                { name: { startsWith: 'Preset (Copy)' } },
-                { name: { startsWith: 'Preset (Copy ' } },
+                { name: { startsWith: 'Preset (Copy)', mode: 'insensitive' } },
+                { name: { startsWith: 'Preset (Copy ', mode: 'insensitive' } },
               ],
             }),
             orderBy: { name: 'asc' },

@@ -346,24 +346,38 @@ export class LlmConfigService {
     // candidates, so the SELECT only needs to see those N rows. Any collision
     // that slips past this limit is still caught by the P2002 translator in
     // `create()`.
+    //
+    // `name` is a CITEXT column, so exact equality (`{ name: stripped }`) is
+    // case-insensitive at the DB level. startsWith compiles to `LIKE` though,
+    // and Postgres citext inherits text behavior for LIKE — it does NOT
+    // override it to be case-insensitive. `mode: 'insensitive'` switches
+    // startsWith to `ILIKE` so lowercase legacy rows like `"preset (copy 5)"`
+    // still match a title-case-seeded SELECT. Without this, the walk would
+    // miss those rows, pick a "free" candidate, and trip P2002 on INSERT.
+    //
+    // takenNames is additionally lowercased so the in-memory `Set.has(...)`
+    // probe matches how the citext unique index evaluates equality — without
+    // the lowercasing, `Set.has("Preset (Copy 2)")` misses `"preset (copy 2)"`
+    // fetched via the ILIKE above, same P2002 failure mode via a different
+    // path.
     const existing = await this.prisma.llmConfig.findMany({
       where: {
         ownerId,
         OR: [
           { name: stripped },
-          { name: { startsWith: `${stripped} (Copy)` } },
-          { name: { startsWith: `${stripped} (Copy ` } },
+          { name: { startsWith: `${stripped} (Copy)`, mode: 'insensitive' } },
+          { name: { startsWith: `${stripped} (Copy `, mode: 'insensitive' } },
         ],
       },
       select: { name: true },
       orderBy: { name: 'asc' },
       take: LlmConfigService.MAX_CLONE_NAME_ATTEMPTS + 1,
     });
-    const takenNames = new Set(existing.map(row => row.name));
+    const takenNames = new Set(existing.map(row => row.name.toLowerCase()));
 
     let candidate = baseName;
     for (let i = 0; i < LlmConfigService.MAX_CLONE_NAME_ATTEMPTS; i++) {
-      if (!takenNames.has(candidate)) {
+      if (!takenNames.has(candidate.toLowerCase())) {
         return candidate;
       }
       candidate = generateClonedName(candidate);

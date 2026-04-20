@@ -14,6 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { PgvectorMemoryAdapter, type MemoryMetadata } from './PgvectorMemoryAdapter.js';
@@ -65,7 +66,7 @@ describe('PgvectorMemoryAdapter Component Test', () => {
   beforeAll(async () => {
     // Set up PGlite with pgvector extension
     pglite = new PGlite({
-      extensions: { vector },
+      extensions: { vector, citext },
     });
 
     // Load the complete schema from the shared schema file
