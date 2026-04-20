@@ -7,6 +7,7 @@
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
+import type { BrowseContext } from '../../utils/dashboard/types.js';
 import type { DenylistEntryResponse } from './browse.js';
 
 /** Entity type key for Redis session storage */
@@ -26,7 +27,7 @@ export interface DenyDetailSession {
   reason: string | null;
   addedAt: string;
   addedBy: string;
-  browseContext: { page: number; filter: string; sort: string };
+  browseContext: BrowseContext;
   guildId: string | null;
 }
 

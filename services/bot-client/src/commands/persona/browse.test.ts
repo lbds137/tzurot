@@ -13,6 +13,7 @@ import {
   isPersonaBrowseInteraction,
   isPersonaBrowseSelectInteraction,
 } from './browse.js';
+import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common-types';
 
 // Valid UUIDs for tests
@@ -269,5 +270,57 @@ describe('isPersonaBrowseSelectInteraction', () => {
   it('should return false for non-browse-select interactions', () => {
     expect(isPersonaBrowseSelectInteraction('persona::browse::0::all::name::')).toBe(false);
     expect(isPersonaBrowseSelectInteraction('persona::other::action')).toBe(false);
+  });
+});
+
+// Capture the rebuilder callback registered at module-load BEFORE any
+// `vi.clearAllMocks()` in sibling describes wipes the call history. This
+// reference is what the adapter-body tests invoke directly (codecov/patch
+// coverage).
+const personaRebuilderCall = vi
+  .mocked(registerBrowseRebuilder)
+  .mock.calls.find(c => c[0] === 'persona');
+if (personaRebuilderCall === undefined) {
+  throw new Error('persona rebuilder was not registered at module load');
+}
+const personaRebuilder = personaRebuilderCall[1];
+
+describe('registered browse rebuilder', () => {
+  function createMockInteraction() {
+    return { user: { id: '123456789', username: 'testuser' } } as unknown as Parameters<
+      typeof personaRebuilder
+    >[0];
+  }
+
+  it('returns rebuilt view with banner on success', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: mockListPersonasResponse([{ name: 'Persona A', isDefault: true }]),
+    });
+
+    const result = await personaRebuilder(
+      createMockInteraction(),
+      { source: 'browse', page: 0, filter: 'all', sort: 'name' },
+      '✅ Banner'
+    );
+
+    expect(result).not.toBeNull();
+    expect(result).toEqual({
+      content: '✅ Banner',
+      embeds: expect.any(Array),
+      components: expect.any(Array),
+    });
+  });
+
+  it('returns null when gateway fetch fails', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Network' });
+
+    const result = await personaRebuilder(
+      createMockInteraction(),
+      { source: 'browse', page: 0, filter: 'all', sort: 'name' },
+      '✅ Banner'
+    );
+
+    expect(result).toBeNull();
   });
 });
