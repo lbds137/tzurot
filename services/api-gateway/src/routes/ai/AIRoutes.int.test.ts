@@ -18,6 +18,7 @@ import type { AttachmentStorageService } from '../../services/AttachmentStorageS
 import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { setupTestEnvironment, loadPGliteSchema, type TestEnvironment } from '@tzurot/test-utils';
 
@@ -61,7 +62,7 @@ describe('AI Routes Integration', () => {
     testEnv = await setupTestEnvironment();
 
     // Set up PGLite with Prisma
-    pglite = new PGlite({ extensions: { vector } });
+    pglite = new PGlite({ extensions: { vector, citext } });
     await pglite.exec(loadPGliteSchema());
     const adapter = new PrismaPGlite(pglite);
     prisma = new PrismaClient({ adapter }) as PrismaClient;

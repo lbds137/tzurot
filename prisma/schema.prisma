@@ -6,7 +6,7 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  extensions = [vector]
+  extensions = [vector, citext]
 }
 
 /// NOTE: All models use explicit IDs (no @default(uuid())) to enforce deterministic UUIDs.
@@ -112,7 +112,7 @@ model UserApiKey {
 
 model Persona {
   id                          String                     @id @db.Uuid
-  name                        String                     @db.VarChar(255)
+  name                        String                     @db.Citext
   description                 String?
   content                     String
   preferredName               String?                    @map("preferred_name") @db.VarChar(255)
@@ -149,7 +149,7 @@ model SystemPrompt {
 
 model LlmConfig {
   id                          String                     @id @db.Uuid
-  name                        String                     @db.VarChar(255)
+  name                        String                     @db.Citext
   description                 String?
   ownerId                     String                     @map("owner_id") @db.Uuid
   isGlobal                    Boolean                    @default(false) @map("is_global")

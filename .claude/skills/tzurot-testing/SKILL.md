@@ -115,7 +115,7 @@ describe('UserService', () => {
   let prisma: PrismaClient;
 
   beforeAll(async () => {
-    pglite = new PGlite({ extensions: { vector } });
+    pglite = new PGlite({ extensions: { vector, citext } });
     await pglite.exec(loadPGliteSchema());
     prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) });
   });

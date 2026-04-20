@@ -42,6 +42,7 @@ import { PrismaClient, generateUserUuid, generatePersonaUuid } from '@tzurot/com
 import * as syncUpsertBuilder from './sync/SyncUpsertBuilder.js';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { DatabaseSyncService } from './DatabaseSyncService.js';
@@ -156,8 +157,8 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     const schema = loadPGliteSchema();
     const deferrableFkMigration = loadDeferrableFkMigration();
 
-    devPglite = new PGlite({ extensions: { vector } });
-    prodPglite = new PGlite({ extensions: { vector } });
+    devPglite = new PGlite({ extensions: { vector, citext } });
+    prodPglite = new PGlite({ extensions: { vector, citext } });
     await devPglite.exec(schema);
     await prodPglite.exec(schema);
     // Apply the DEFERRABLE migration manually since the PGLite schema

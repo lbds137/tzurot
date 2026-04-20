@@ -2,6 +2,9 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateExtension
+CREATE EXTENSION IF NOT EXISTS "citext";
+
+-- CreateExtension
 CREATE EXTENSION IF NOT EXISTS "vector";
 
 -- CreateTable
@@ -66,7 +69,7 @@ CREATE TABLE "user_api_keys" (
 -- CreateTable
 CREATE TABLE "personas" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(255) NOT NULL,
+    "name" CITEXT NOT NULL,
     "description" TEXT,
     "content" TEXT NOT NULL,
     "preferred_name" VARCHAR(255),
@@ -94,7 +97,7 @@ CREATE TABLE "system_prompts" (
 -- CreateTable
 CREATE TABLE "llm_configs" (
     "id" UUID NOT NULL,
-    "name" VARCHAR(255) NOT NULL,
+    "name" CITEXT NOT NULL,
     "description" TEXT,
     "owner_id" UUID NOT NULL,
     "is_global" BOOLEAN NOT NULL DEFAULT false,

@@ -18,9 +18,11 @@ import {
   generateLlmConfigUuid,
   generatePersonalityUuid,
   generateUserPersonalityConfigUuid,
+  newLlmConfigId,
 } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {
   setupTestEnvironment,
@@ -45,7 +47,7 @@ describe('LlmConfigService Integration', () => {
     testEnv = await setupTestEnvironment();
 
     // Set up PGLite with Prisma
-    pglite = new PGlite({ extensions: { vector } });
+    pglite = new PGlite({ extensions: { vector, citext } });
     await pglite.exec(loadPGliteSchema());
     const adapter = new PrismaPGlite(pglite);
     prisma = new PrismaClient({ adapter }) as PrismaClient;
@@ -754,6 +756,72 @@ describe('LlmConfigService Integration', () => {
           testUserId
         )
       ).rejects.toMatchObject({ code: 'P2002' });
+    });
+  });
+
+  describe('case-insensitive name uniqueness (citext)', () => {
+    const userScope = (): LlmConfigScope => ({
+      type: 'USER',
+      userId: testUserId,
+      discordId: TEST_DISCORD_ID,
+    });
+
+    it('rejects case-variant duplicate on insert (DB-level citext invariant)', async () => {
+      await service.create(
+        userScope(),
+        { name: 'Preset', model: 'anthropic/claude-sonnet-4' },
+        testUserId
+      );
+
+      // citext index treats "preset" and "Preset" as the same key.
+      await expect(
+        service.create(
+          userScope(),
+          { name: 'preset', model: 'anthropic/claude-sonnet-4' },
+          testUserId
+        )
+      ).rejects.toMatchObject({ code: 'P2002' });
+    });
+
+    it('auto-suffix walk treats a lowercase DB row as taken against a title-case candidate', async () => {
+      // Legacy / hand-edited row: "preset (copy)" in lowercase.
+      await prisma.llmConfig.create({
+        data: {
+          id: newLlmConfigId(),
+          name: 'preset (copy)',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          ownerId: testUserId,
+        },
+      });
+
+      // Clone request asks for "Preset (Copy)". Without lowercase
+      // normalization of takenNames + candidate in the walk, the in-memory
+      // Set.has("Preset (Copy)") would miss the lowercased row and try to
+      // insert — which citext would then reject with P2002. With the fix,
+      // the walk sees the collision and bumps to "(Copy 2)" instead.
+      const result = await service.create(
+        userScope(),
+        {
+          name: 'Preset (Copy)',
+          model: 'anthropic/claude-sonnet-4',
+          autoSuffixOnCollision: true,
+        },
+        testUserId
+      );
+
+      expect(result.name).toBe('Preset (Copy 2)');
+    });
+
+    it('checkNameExists is case-insensitive', async () => {
+      await service.create(
+        userScope(),
+        { name: 'MixedCase', model: 'anthropic/claude-sonnet-4' },
+        testUserId
+      );
+
+      const hit = await service.checkNameExists('mixedcase', userScope());
+      expect(hit.exists).toBe(true);
     });
   });
 });
