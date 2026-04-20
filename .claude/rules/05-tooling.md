@@ -134,12 +134,13 @@ Pass it to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL us
 When the monitor fires:
 
 1. Note the final CI state from the `gh pr checks N` output.
-2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/N/comments --jq '.[] | select(.user.login == "claude[bot]" or .user.login == "github-advanced-security[bot]")'` — filter to comments posted since the push.
+2. Fetch new review comments: `gh api /repos/<owner>/<repo>/issues/N/comments`. Track the `created_at` timestamp of the most recently reported comment in working memory so a subsequent push doesn't re-report reviews already surfaced. **Include human reviewer comments** alongside `claude[bot]` / `github-advanced-security[bot]` — user feedback matters as much as bot feedback.
 3. In a single concise user-facing message, report: CI pass/fail summary + any new review findings (grouped as blocking vs. non-blocking).
 4. **Do not fix anything without user approval.** Report only. The user decides in-PR vs. backlog (matching the pattern in `.claude/skills/tzurot-git-workflow/SKILL.md`).
-5. Track the `created_at` timestamp of the most recently reported comment in working memory so a subsequent push doesn't re-report reviews already surfaced.
 
 If CI fails or CodeQL flags a new alert, surface it via `PushNotification` — that class of feedback changes what the user does next.
+
+**Timeout handling**: if the monitor output doesn't contain `CI_COMPLETE`, the 15-min `timeout_ms` fired before CI finished. Re-arm the monitor rather than assuming CI passed.
 
 ### Release Notes Format
 

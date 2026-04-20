@@ -76,11 +76,11 @@ Monitor({
 When the monitor fires:
 
 1. Inspect the final `gh pr checks <N>` output for pass/fail.
-2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/<N>/comments --jq '.[] | select(.user.login == "claude[bot]" or .user.login == "github-advanced-security[bot]")'`.
+2. Fetch new review comments: `gh api /repos/lbds137/tzurot/issues/<N>/comments` (no bot-only filter — human reviewer comments matter too). Dedup by tracking `created_at` of the last-reported comment.
 3. Report CI status + new reviewer feedback in one concise message. Group findings as blocking vs. non-blocking.
 4. Don't fix anything without user approval — report only. User decides in-PR vs. backlog.
 
-Track the `created_at` of the last-reported comment so a second push doesn't re-report reviews already surfaced. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
+If the monitor completes without a `CI_COMPLETE` line in its output, the 15-min timeout fired first — re-arm rather than assume CI passed. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
 
 ### After PR Merged
 
