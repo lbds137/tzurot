@@ -34,11 +34,25 @@ function isAssistantRole(role: string): boolean {
 }
 
 /**
- * Number of recent assistant messages to extract by default.
- * Set to 5 based on production observations showing API-level caching
- * can return responses from 3-4 turns back.
+ * Number of recent assistant messages to extract for cross-turn duplicate detection.
+ *
+ * The window must cover every assistant turn the model could potentially
+ * regurgitate. Two failure modes inform the size:
+ *
+ * 1. API-level caching — classic "cached response from 3-4 turns back"
+ *    pattern. Narrow (≤5).
+ * 2. Model-level history regurgitation — observed on `z-ai/glm-4.5-air:free`.
+ *    The model occasionally emits a past assistant turn from anywhere in
+ *    the conversation-history slice, verbatim. Confirmed incident on
+ *    2026-04-20 surfaced a message far beyond the previous 5-turn window.
+ *
+ * Sized at 25 to match the realistic assistant-turn count within the default
+ * context (`MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES = 50` total, typically
+ * alternating user/assistant → ~25 assistant turns). Still bounded by
+ * `MAX_SCAN_DEPTH` below. Callers with larger context windows can override
+ * via the `maxMessages` parameter.
  */
-const DEFAULT_MAX_ASSISTANT_MESSAGES = 5;
+const DEFAULT_MAX_ASSISTANT_MESSAGES = 25;
 
 /**
  * Maximum number of messages to scan when searching for assistant messages.

@@ -93,13 +93,16 @@ describe('getRecentAssistantMessages', () => {
       { role: 'user', content: 'User' },
       { role: 'assistant', content: 'Message 6' },
     ];
-    // Default is 5
+    // Default is 25 (widened from 5 to catch history regurgitation on
+    // glm-4.5-air:free — see conversationHistoryUtils.ts). Fixture has only
+    // 6 assistant messages so all are returned.
     expect(getRecentAssistantMessages(history)).toEqual([
       'Message 6',
       'Message 5',
       'Message 4',
       'Message 3',
       'Message 2',
+      'Message 1',
     ]);
     // Custom limit
     expect(getRecentAssistantMessages(history, 2)).toEqual(['Message 6', 'Message 5']);
