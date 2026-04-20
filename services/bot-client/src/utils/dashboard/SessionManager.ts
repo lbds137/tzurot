@@ -67,22 +67,19 @@ function assertSessionDataIsSerializable(data: unknown): void {
   if (process.env.NODE_ENV === 'production') {
     return;
   }
-  try {
-    JSON.stringify(data, (key: string, value: unknown) => {
-      if (typeof value === 'function') {
-        throw new Error(
-          `SessionManager: session.data contains a function at key "${key}". ` +
-            `Sessions are Redis-backed JSON; functions cannot be persisted. ` +
-            `Use a module-level registry (e.g., browseRebuilderRegistry) instead.`
-        );
-      }
-      return value;
-    });
-  } catch (err) {
-    // Re-throw with our own message preserved; swallowing hides the class
-    // of bug we're trying to surface.
-    throw err instanceof Error ? err : new Error(String(err));
-  }
+  // Any throw inside the replacer propagates out of JSON.stringify as-is,
+  // so no try/catch wrapper is needed — the replacer only ever throws the
+  // Error instance constructed below.
+  JSON.stringify(data, (key: string, value: unknown) => {
+    if (typeof value === 'function') {
+      throw new Error(
+        `SessionManager: session.data contains a function at key "${key}". ` +
+          `Sessions are Redis-backed JSON; functions cannot be persisted. ` +
+          `Use a module-level registry (e.g., browseRebuilderRegistry) instead.`
+      );
+    }
+    return value;
+  });
 }
 
 /**

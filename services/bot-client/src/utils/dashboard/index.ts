@@ -76,11 +76,11 @@ export { handleSharedBackButton } from './sharedBackButtonHandler.js';
 
 // Browse-rebuilder registry — command browse modules call
 // `registerBrowseRebuilder` at module-load time; helpers above look up by
-// entity type.
+// entity type. `clearBrowseRegistry` is intentionally NOT re-exported here:
+// it's a test-only helper and tests import from the source module directly.
 export {
   registerBrowseRebuilder,
   getBrowseRebuilder,
-  clearBrowseRegistry,
   type BrowseRebuilder,
   type BrowseRebuildResult,
 } from './browseRebuilderRegistry.js';
