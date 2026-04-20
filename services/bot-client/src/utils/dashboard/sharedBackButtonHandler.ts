@@ -17,7 +17,7 @@ import type { ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { getSessionManager } from './SessionManager.js';
 import { renderTerminalScreen, type BrowseCapableEntityType } from './terminalScreen.js';
-import { getBrowseRebuilder } from './browseRebuilderRegistry.js';
+import { getBrowseRebuilder, type BrowseRebuildResult } from './browseRebuilderRegistry.js';
 import { formatSessionExpiredMessage, DASHBOARD_MESSAGES } from './messages.js';
 import type { BrowseContext } from './types.js';
 
@@ -45,11 +45,12 @@ const RECOVERY_COMMAND: Record<BrowseCapableEntityType, string> = {
  * `BrowseContext`-shaped object at `data.browseContext` when the dashboard
  * was opened from `/browse`. Returns `undefined` when missing or malformed.
  *
- * Intentionally a subset check: validates the three fields that all browse
- * variants require (`source`, `page`, `filter`) and accepts optional fields
- * (`sort`, `query`) as-is. A future required field on `BrowseContext` will
- * slip through this guard — if `BrowseContext` grows load-bearing fields,
- * migrate this to a Zod `safeParse` so the guard stays self-maintaining.
+ * TODO: migrate to Zod `safeParse` if `BrowseContext` grows required fields.
+ * Intentionally a subset check today — validates the three fields that all
+ * browse variants require (`source`, `page`, `filter`) and accepts optional
+ * fields (`sort`, `query`) as-is. A future required field on `BrowseContext`
+ * will slip through this guard; a colocated schema would make the guard
+ * self-maintaining.
  */
 function extractBrowseContext(sessionData: unknown): BrowseContext | undefined {
   if (sessionData === null || typeof sessionData !== 'object') {
@@ -135,7 +136,7 @@ export async function handleSharedBackButton(
     return;
   }
 
-  let rebuilt;
+  let rebuilt: BrowseRebuildResult | null;
   try {
     rebuilt = await rebuilder(interaction, browseContext);
   } catch (error) {
