@@ -2,7 +2,8 @@
  * Shared Sorting Utilities for List Commands
  *
  * Provides reusable comparator functions for sorting lists by name or date.
- * Used by both /channel list and /character list commands.
+ * Used by `/channel browse` and `/character browse` (both previously
+ * named `list` — renamed to `browse` before the current release cycle).
  */
 
 /** Sort options for list commands */

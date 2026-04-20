@@ -488,7 +488,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 ```typescript
 // User-friendly error with guidance
 await interaction.reply({
-  content: `❌ Character not found.\n\nUse \`/character list\` to see available characters.`,
+  content: `❌ Character not found.\n\nUse \`/character browse\` to see available characters.`,
   flags: MessageFlags.Ephemeral,
 });
 ```
