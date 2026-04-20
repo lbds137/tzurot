@@ -1,29 +1,53 @@
 ---
 name: tzurot-deployment
 description: 'Railway deployment procedures. Invoke with /tzurot-deployment for deploying, checking logs, and troubleshooting.'
-lastUpdated: '2026-02-04'
+lastUpdated: '2026-04-20'
 ---
 
 # Deployment Procedures
 
 **Invoke with /tzurot-deployment** for Railway operations.
 
+## Auto-Deploy: branch-to-environment
+
+Both Railway environments auto-deploy from their respective branches. **No manual deploy step is required for either environment.**
+
+| Branch    | Environment | Trigger                    |
+| --------- | ----------- | -------------------------- |
+| `develop` | dev         | Auto-deploys on every push |
+| `main`    | prod        | Auto-deploys on every push |
+
+For prod, the trigger is the release-PR merge from `develop` into `main` (procedure in `tzurot-git-workflow` skill). Schema changes do NOT auto-apply — see the migration step below.
+
 ## Deployment Procedure
 
-### 1. Merge PR to develop (auto-deploys)
+### 1. Merge PR (triggers auto-deploy)
+
+For feature PRs to `develop`:
 
 ```bash
 gh pr merge <PR-number> --rebase --delete-branch
 ```
 
-### 2. Monitor deployment
+For release PRs to `main`: see `tzurot-git-workflow` skill (no `--delete-branch`).
+
+### 2. Run Prisma migration if the PR includes one
+
+Migrations are NOT auto-applied. Run immediately after merge to minimize the window where new code runs against the old schema:
+
+```bash
+pnpm ops db:migrate --env dev    # for develop pushes
+pnpm ops db:migrate --env prod   # for main pushes
+```
+
+### 3. Monitor deployment
 
 ```bash
 railway status --json
 railway logs --service api-gateway -n 100
 ```
 
-### 3. Verify health
+### 4. Verify health
 
 ```bash
 curl https://api-gateway-development-83e8.up.railway.app/health
