@@ -99,7 +99,7 @@ Per .claude/rules/05-tooling.md (PR Monitoring), arm a Monitor now:
 When it fires:
 - Inspect \`gh pr checks $PR_NUM\` output for pass/fail summary.
 - If no "CI_COMPLETE" line appeared, the 15-min timeout fired first — re-arm.
-- Fetch new comments: gh api /repos/<owner>/<repo>/issues/$PR_NUM/comments
+- Fetch new comments: gh api /repos/lbds137/tzurot/issues/$PR_NUM/comments
   (include human reviewer comments, not just bots).
 - Report CI state + reviewer findings in one message (blocking vs. non-blocking).
 - Do NOT fix without user approval.
