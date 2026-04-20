@@ -12,6 +12,7 @@ import type { ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { renderTerminalScreen, type TerminalScreenSession } from './terminalScreen.js';
 import { getBrowseRebuilder } from './browseRebuilderRegistry.js';
+import { getSessionManager } from './SessionManager.js';
 
 const logger = createLogger('postActionScreen');
 
@@ -66,7 +67,7 @@ export interface PostActionScreenOptions {
 export async function renderPostActionScreen(opts: PostActionScreenOptions): Promise<void> {
   const { interaction, session, outcome } = opts;
 
-  if (outcome.kind === 'success' && session?.browseContext !== undefined && session !== null) {
+  if (outcome.kind === 'success' && session?.browseContext !== undefined) {
     const rebuilder = getBrowseRebuilder(session.entityType);
     if (rebuilder === undefined) {
       logger.warn(
@@ -76,7 +77,7 @@ export async function renderPostActionScreen(opts: PostActionScreenOptions): Pro
       await renderTerminalScreen({
         interaction,
         session,
-        content: `${outcome.banner}\n\n\u274C Could not reload the browse list.`,
+        content: `${outcome.banner}\n\n❌ Could not reload the browse list.`,
       });
       return;
     }
@@ -90,14 +91,13 @@ export async function renderPostActionScreen(opts: PostActionScreenOptions): Pro
         await renderTerminalScreen({
           interaction,
           session,
-          content: `${outcome.banner}\n\n\u274C Could not reload the browse list.`,
+          content: `${outcome.banner}\n\n❌ Could not reload the browse list.`,
         });
         return;
       }
 
       // Success path: clean up session (user is leaving the dashboard for the
       // browse list) and render the rebuilt view.
-      const { getSessionManager } = await import('./SessionManager.js');
       await getSessionManager().delete(session.userId, session.entityType, session.entityId);
       await interaction.editReply(rebuilt);
       return;
@@ -109,7 +109,7 @@ export async function renderPostActionScreen(opts: PostActionScreenOptions): Pro
       await renderTerminalScreen({
         interaction,
         session,
-        content: `${outcome.banner}\n\n\u274C Could not reload the browse list.`,
+        content: `${outcome.banner}\n\n❌ Could not reload the browse list.`,
       });
       return;
     }

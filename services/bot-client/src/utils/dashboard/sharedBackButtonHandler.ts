@@ -44,6 +44,12 @@ const RECOVERY_COMMAND: Record<BrowseCapableEntityType, string> = {
  * Session data shape varies per command, but all four commands serialize a
  * `BrowseContext`-shaped object at `data.browseContext` when the dashboard
  * was opened from `/browse`. Returns `undefined` when missing or malformed.
+ *
+ * Intentionally a subset check: validates the three fields that all browse
+ * variants require (`source`, `page`, `filter`) and accepts optional fields
+ * (`sort`, `query`) as-is. A future required field on `BrowseContext` will
+ * slip through this guard — if `BrowseContext` grows load-bearing fields,
+ * migrate this to a Zod `safeParse` so the guard stays self-maintaining.
  */
 function extractBrowseContext(sessionData: unknown): BrowseContext | undefined {
   if (sessionData === null || typeof sessionData !== 'object') {
