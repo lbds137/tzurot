@@ -74,3 +74,18 @@ export function formatNotFoundMessage(entityType: string, entityName?: string): 
   }
   return `❌ ${entityType} not found.`;
 }
+
+/**
+ * Format a post-action success banner for Pattern B (direct re-render with a
+ * short banner in `editReply.content`). Used by the hybrid post-action flow.
+ *
+ * Bright emoji + bold verb is deliberate: Discord's mobile client
+ * de-emphasizes the `content` field when a large embed sits directly below,
+ * so the banner has to be visually distinctive to remain scannable.
+ *
+ * @example
+ *   formatSuccessBanner('Deleted', 'MyPreset') // '✅ **Deleted** · MyPreset'
+ */
+export function formatSuccessBanner(verb: string, entityName: string): string {
+  return `✅ **${verb}** · ${entityName}`;
+}

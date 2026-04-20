@@ -133,6 +133,50 @@ describe('DashboardSessionManager', () => {
     vi.useRealTimers();
   });
 
+  describe('set: serialization assertion (dev-mode)', () => {
+    // Callbacks stored in session data silently become `undefined` on
+    // Redis rehydration. The assertion should catch this class of bug
+    // at write time, with a clear error pointing at the offending key.
+    it('throws when session.data contains a top-level function', async () => {
+      await expect(
+        manager.set({
+          userId: 'user1',
+          entityType: 'preset',
+          entityId: 'e1',
+          data: { rebuildBrowse: () => undefined } as unknown,
+          messageId: 'msg1',
+          channelId: 'ch1',
+        })
+      ).rejects.toThrow(/function at key "rebuildBrowse"/);
+    });
+
+    it('throws when session.data contains a nested function', async () => {
+      await expect(
+        manager.set({
+          userId: 'user1',
+          entityType: 'preset',
+          entityId: 'e1',
+          data: { browseContext: { page: 0, rebuild: () => 1 } } as unknown,
+          messageId: 'msg1',
+          channelId: 'ch1',
+        })
+      ).rejects.toThrow(/function at key "rebuild"/);
+    });
+
+    it('allows plain JSON-safe data', async () => {
+      await expect(
+        manager.set({
+          userId: 'user1',
+          entityType: 'preset',
+          entityId: 'e1',
+          data: { name: 'foo', nested: { n: 1, s: 'bar', arr: [1, 2, 3] } },
+          messageId: 'msg1',
+          channelId: 'ch1',
+        })
+      ).resolves.toBeDefined();
+    });
+  });
+
   describe('set and get', () => {
     it('should create a new session', async () => {
       const data: TestData = { name: 'test', value: 42 };

@@ -7,6 +7,7 @@ import {
   DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
   formatNotFoundMessage,
+  formatSuccessBanner,
 } from './messages.js';
 
 describe('DASHBOARD_MESSAGES', () => {
@@ -64,5 +65,24 @@ describe('formatNotFoundMessage', () => {
 
   it('should handle undefined entity name', () => {
     expect(formatNotFoundMessage('Persona', undefined)).toBe('❌ Persona not found.');
+  });
+});
+
+describe('formatSuccessBanner', () => {
+  // Snapshot-test the exact shape — banner format is load-bearing for mobile
+  // visibility (bright emoji + bold). Any change should be deliberate.
+  it('renders a success banner with bright emoji and bolded verb', () => {
+    expect(formatSuccessBanner('Deleted', 'MyPreset')).toBe('✅ **Deleted** · MyPreset');
+  });
+
+  it('handles special characters in the entity name', () => {
+    expect(formatSuccessBanner('Updated', 'Preset with "quotes" & stuff')).toBe(
+      '✅ **Updated** · Preset with "quotes" & stuff'
+    );
+  });
+
+  it('supports different verbs', () => {
+    expect(formatSuccessBanner('Archived', 'X')).toBe('✅ **Archived** · X');
+    expect(formatSuccessBanner('Cloned', 'Y')).toBe('✅ **Cloned** · Y');
   });
 });
