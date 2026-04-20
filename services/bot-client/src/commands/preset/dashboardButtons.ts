@@ -21,6 +21,7 @@ import {
   checkOwnership,
   DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
+  renderTerminalScreen,
 } from '../../utils/dashboard/index.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
@@ -88,10 +89,17 @@ export async function handleRefreshButton(
   }
 
   if (preset === null) {
-    await interaction.editReply({
+    // Preset gone (deleted elsewhere). If the user came from /preset browse,
+    // the helper will render a Back-to-Browse button so they're not stranded.
+    await renderTerminalScreen({
+      interaction,
+      session: {
+        userId: interaction.user.id,
+        entityType: 'preset',
+        entityId,
+        browseContext: existingBrowseContext,
+      },
       content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
-      embeds: [],
-      components: [],
     });
     return;
   }
@@ -209,8 +217,15 @@ export async function handleDeleteButton(
     return;
   }
 
-  // Check ownership (non-deferred, so use reply for errors)
-  if (!(await checkOwnership(interaction, data, 'delete presets'))) {
+  // Permission gate: use server-computed canDelete so bot-owner/admin can
+  // delete any preset (including globals and other users'). checkOwnership
+  // was UI-only and wouldn't honor the admin override from
+  // computeLlmConfigPermissions.
+  if (data.canDelete !== true) {
+    await interaction.reply({
+      content: DASHBOARD_MESSAGES.NO_PERMISSION('delete presets'),
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -249,34 +264,47 @@ export async function handleConfirmDeleteButton(
       user: toGatewayUser(interaction.user),
     });
 
+    // Build the terminal session descriptor once — the helper uses its
+    // `browseContext` field to decide whether to render a Back-to-Browse
+    // button (and keep the session alive) or close out cleanly.
+    const terminalSession = {
+      userId: interaction.user.id,
+      entityType: 'preset',
+      entityId,
+      browseContext: session?.data.browseContext,
+    };
+
     if (!result.ok) {
       logger.warn(
         { userId: interaction.user.id, status: result.status, entityId },
         '[Preset] Failed to delete preset'
       );
-      await interaction.editReply({
+      await renderTerminalScreen({
+        interaction,
+        session: terminalSession,
         content: `❌ Failed to delete preset: ${result.error}`,
-        embeds: [],
-        components: [],
       });
       return;
     }
 
-    await sessionManager.delete(interaction.user.id, 'preset', entityId);
-
-    await interaction.editReply({
+    await renderTerminalScreen({
+      interaction,
+      session: terminalSession,
       content: `✅ **${presetName}** has been deleted.`,
-      embeds: [],
-      components: [],
     });
 
     logger.info({ userId: interaction.user.id, entityId, presetName }, '[Preset] Deleted preset');
   } catch (error) {
     logger.error({ err: error, entityId }, 'Failed to delete preset');
-    await interaction.editReply({
+    await renderTerminalScreen({
+      interaction,
+      session: {
+        userId: interaction.user.id,
+        entityType: 'preset',
+        entityId,
+        browseContext: session?.data.browseContext,
+      },
       content: '❌ An error occurred while deleting the preset. Please try again.',
-      embeds: [],
-      components: [],
     });
   }
 }
@@ -363,6 +391,13 @@ export async function handleCloneButton(
 
     const flattenedData = flattenPresetData(clonedPreset);
 
+    // Carry the browse context forward so the cloned preset's dashboard still
+    // offers a Back-to-Browse affordance — the user came from /preset browse,
+    // and jumping into the clone shouldn't strand them.
+    if (sourceData.browseContext !== undefined) {
+      flattenedData.browseContext = sourceData.browseContext;
+    }
+
     // Create a new session for the cloned preset
     await sessionManager.set({
       userId: interaction.user.id,
@@ -418,11 +453,18 @@ export async function handleBackButton(
 
   const browseContext = session.data.browseContext;
   if (!browseContext) {
-    // Session exists but no browse context - shouldn't happen, show expired
-    await interaction.editReply({
+    // Session exists but no browse context — back-button shouldn't have been
+    // rendered in the first place. Render a terminal notice and clean up.
+    // (browseContext: undefined → helper skips the button, deletes session.)
+    await renderTerminalScreen({
+      interaction,
+      session: {
+        userId: interaction.user.id,
+        entityType: 'preset',
+        entityId,
+        browseContext: undefined,
+      },
       content: formatSessionExpiredMessage(PRESET_RECOVERY_CMD),
-      embeds: [],
-      components: [],
     });
     return;
   }
@@ -435,10 +477,18 @@ export async function handleBackButton(
     });
 
     if (result === null) {
-      await interaction.editReply({
+      // Can't rebuild browse — re-adding a back button would just re-enter
+      // this failing path. Render as terminal with no affordance and clean
+      // up the now-dead session.
+      await renderTerminalScreen({
+        interaction,
+        session: {
+          userId: interaction.user.id,
+          entityType: 'preset',
+          entityId,
+          browseContext: undefined,
+        },
         content: '❌ Failed to load browse list. Please try again.',
-        embeds: [],
-        components: [],
       });
       return;
     }
@@ -455,10 +505,16 @@ export async function handleBackButton(
     );
   } catch (error) {
     logger.error({ err: error, entityId }, '[Preset] Failed to return to browse');
-    await interaction.editReply({
+    // Same rationale as the null-result path above.
+    await renderTerminalScreen({
+      interaction,
+      session: {
+        userId: interaction.user.id,
+        entityType: 'preset',
+        entityId,
+        browseContext: undefined,
+      },
       content: '❌ Failed to load browse list. Please try again.',
-      embeds: [],
-      components: [],
     });
   }
 }
