@@ -20,6 +20,7 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     isGlobal: false,
     isOwned: true,
     canEdit: true,
+    canDelete: true,
     // Sampling params
     temperature: '',
     top_p: '',

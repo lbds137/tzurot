@@ -118,6 +118,8 @@ const mockGetSessionDataOrReply = vi
     return session.data;
   });
 const mockCheckOwnership = vi.fn().mockResolvedValue(true); // Default: owner
+const mockRenderTerminalScreen = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
   return {
@@ -129,6 +131,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionManager: () => mockGetSessionManager(),
     parseDashboardCustomId: (...args: unknown[]) => mockParseDashboardCustomId(...args),
     isDashboardInteraction: (...args: unknown[]) => mockIsDashboardInteraction(...args),
+    renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
     fetchOrCreateSession: vi
       .fn()
       .mockImplementation(
@@ -704,14 +707,18 @@ describe('handleButton', () => {
     });
     mockSessionManagerGet.mockResolvedValue(null);
     mockFetchPreset.mockResolvedValue(null);
+    mockRenderTerminalScreen.mockClear();
 
     await handleButton(createMockButtonInteraction('preset::refresh::preset-123'));
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Preset not found.',
-      embeds: [],
-      components: [],
-    });
+    // Post PR #836: the refresh/not-found path routes through
+    // renderTerminalScreen so a Back-to-Browse affordance is preserved when
+    // the user came from browse. Assert on the helper, not the raw editReply.
+    expect(mockRenderTerminalScreen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Preset not found'),
+      })
+    );
   });
 
   it('should ignore non-preset interactions', async () => {

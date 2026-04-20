@@ -27,6 +27,7 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     isGlobal: data.isGlobal,
     isOwned: data.isOwned,
     canEdit: data.permissions.canEdit,
+    canDelete: data.permissions.canDelete,
     // Sampling params
     temperature: data.params.temperature?.toString() ?? '',
     top_p: data.params.top_p?.toString() ?? '',
@@ -234,7 +235,10 @@ export function buildPresetDashboardOptions(data: FlattenedPresetData): ActionBu
     showClose: !hasBrowseContext,
     showRefresh: true,
     showClone: true,
-    showDelete: data.isOwned,
+    // Use server-computed canDelete so bot-owner/admin can delete any preset,
+    // not just their own. canDelete is symmetric with canEdit — both true for
+    // creator OR isBotOwner (see computeLlmConfigPermissions).
+    showDelete: data.canDelete,
     toggleGlobal: {
       isGlobal: data.isGlobal,
       isOwned: data.isOwned,
