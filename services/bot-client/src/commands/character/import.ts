@@ -301,7 +301,7 @@ async function checkExistingCharacter(
   const result = await callGatewayApi<{
     personality: { id: string };
     canEdit: boolean;
-  }>(`/user/personality/${slug}`, {
+  }>(`/user/personality/${encodeURIComponent(slug)}`, {
     user,
     method: 'GET',
   });
@@ -322,7 +322,7 @@ async function saveCharacter(
   isUpdate: boolean
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await callGatewayApi<{ id: string }>(
-    isUpdate ? `/user/personality/${slug}` : '/user/personality',
+    isUpdate ? `/user/personality/${encodeURIComponent(slug)}` : '/user/personality',
     {
       user,
       method: isUpdate ? 'PUT' : 'POST',

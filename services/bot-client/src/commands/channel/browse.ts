@@ -412,9 +412,15 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   }
 
   try {
-    // Build query path with optional guildId filter
+    // Build query path with optional guildId filter. `context.guildId ?? ''`
+    // preserves pre-encode-sweep behavior when the command is invoked in a DM
+    // (guildId null) — the gateway rejects empty-guildId requests, so the
+    // outcome is the same. A proper "reject in DM" guard belongs upstream if
+    // this path is reachable in practice.
     const queryPath =
-      filter === 'all' ? '/user/channel/list' : `/user/channel/list?guildId=${context.guildId}`;
+      filter === 'all'
+        ? '/user/channel/list'
+        : `/user/channel/list?guildId=${encodeURIComponent(context.guildId ?? '')}`;
 
     const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
       user: toGatewayUser(context.user),
@@ -496,8 +502,12 @@ export async function handleBrowsePagination(
   }
 
   try {
+    // See matching comment in the primary browse handler above for the
+    // `?? ''` fallback rationale.
     const queryPath =
-      filter === 'all' ? '/user/channel/list' : `/user/channel/list?guildId=${guildId}`;
+      filter === 'all'
+        ? '/user/channel/list'
+        : `/user/channel/list?guildId=${encodeURIComponent(guildId ?? '')}`;
 
     const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
       user: toGatewayUser(interaction.user),
