@@ -32,14 +32,15 @@ export async function handleDefault(context: DeferredCommandContext): Promise<vo
   }
 
   try {
-    const { blocked } = await checkGuestModePremiumAccess(
+    const outcome = await checkGuestModePremiumAccess(
       context,
       configId,
       toGatewayUser(context.user)
     );
-    if (blocked) {
+    if (outcome.blocked) {
       return;
     }
+    const { reason } = outcome;
 
     const result = await callGatewayApi<SetDefaultResponse>('/user/model-override/default', {
       method: 'PUT',
@@ -68,7 +69,7 @@ export async function handleDefault(context: DeferredCommandContext): Promise<vo
     await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, configId, configName: data.default.configName },
+      { userId, configId, configName: data.default.configName, reason },
       '[Me/Preset] Set default config'
     );
   } catch (error) {
