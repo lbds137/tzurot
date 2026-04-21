@@ -174,7 +174,7 @@ export class ReplyResolutionService {
     try {
       const messageId = message.reference?.messageId;
       if (!isValidIdentifier(messageId)) {
-        logger.warn({}, 'Called with message that has no reference');
+        logger.warn('Called with message that has no reference');
         return null;
       }
 

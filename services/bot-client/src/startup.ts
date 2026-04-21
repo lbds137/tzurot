@@ -14,7 +14,7 @@ const logger = createLogger('bot-client');
  */
 export function validateDiscordToken(config = getConfig()): void {
   if (config.DISCORD_TOKEN === undefined || config.DISCORD_TOKEN.length === 0) {
-    logger.error({}, 'DISCORD_TOKEN is required for bot-client');
+    logger.error('DISCORD_TOKEN is required for bot-client');
     throw new Error('DISCORD_TOKEN environment variable is required');
   }
 }
@@ -35,7 +35,7 @@ export function validateRedisUrl(config = getConfig()): void {
  */
 export function logGatewayHealthStatus(isHealthy: boolean): void {
   if (!isHealthy) {
-    logger.warn({}, 'Gateway health check failed, but continuing...');
+    logger.warn('Gateway health check failed, but continuing...');
   } else {
     logger.info('Gateway is healthy');
   }

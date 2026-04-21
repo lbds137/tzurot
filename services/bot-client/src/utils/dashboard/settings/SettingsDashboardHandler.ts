@@ -265,7 +265,7 @@ async function handleSetButton(
   updateHandler: SettingUpdateHandler
 ): Promise<void> {
   if (extra === undefined) {
-    logger.warn({}, 'Set button missing extra data');
+    logger.warn('Set button missing extra data');
     return;
   }
 
@@ -348,7 +348,7 @@ async function handleEditButton(
   settingId: string | undefined
 ): Promise<void> {
   if (settingId === undefined) {
-    logger.warn({}, 'Edit button missing setting ID');
+    logger.warn('Edit button missing setting ID');
     return;
   }
 

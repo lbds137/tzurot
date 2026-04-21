@@ -49,7 +49,7 @@ export class WebhookManager {
 
     const clientUser = this.client.user;
     if (!clientUser) {
-      logger.warn({}, 'Client user not available for suffix extraction');
+      logger.warn('Client user not available for suffix extraction');
       this.botSuffix = '';
       return '';
     }

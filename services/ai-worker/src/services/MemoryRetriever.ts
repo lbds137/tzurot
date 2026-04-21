@@ -138,8 +138,8 @@ export class MemoryRetriever {
 
     if (personaResult === null) {
       logger.warn(
-        {},
-        `No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`
+        { userId: context.userId, personalityName: personality.name },
+        'No persona found, skipping memory retrieval'
       );
       return { memories: [], focusModeEnabled: false };
     }

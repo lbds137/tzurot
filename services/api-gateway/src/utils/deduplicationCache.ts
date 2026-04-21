@@ -29,7 +29,7 @@ export function initializeDeduplicationCache(
   options?: RedisDeduplicationOptions
 ): void {
   if (_cache !== null) {
-    logger.warn({}, 'Cache already initialized, replacing instance');
+    logger.warn('Cache already initialized, replacing instance');
   }
 
   _cache = new RedisDeduplicationCache(redis, options);

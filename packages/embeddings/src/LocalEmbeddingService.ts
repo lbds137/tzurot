@@ -193,7 +193,7 @@ export class LocalEmbeddingService implements IEmbeddingService {
    */
   async getEmbedding(text: string): Promise<Float32Array | undefined> {
     if (!this.isReady || this.worker === null) {
-      logger.warn({}, '[LocalEmbeddingService] Service not ready, skipping embedding');
+      logger.warn('[LocalEmbeddingService] Service not ready, skipping embedding');
       return undefined;
     }
 

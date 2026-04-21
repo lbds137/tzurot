@@ -108,13 +108,13 @@ async function initializeVectorMemory(
       logger.info('Pgvector memory initialized successfully');
       return memoryManager;
     } else {
-      logger.warn({}, 'Pgvector health check failed');
-      logger.warn({}, 'Continuing without vector memory - responses will have no long-term memory');
+      logger.warn('Pgvector health check failed');
+      logger.warn('Continuing without vector memory - responses will have no long-term memory');
       return undefined;
     }
   } catch (error) {
     logger.error({ err: error }, 'Failed to initialize pgvector memory');
-    logger.warn({}, 'Continuing without vector memory - responses will have no long-term memory');
+    logger.warn('Continuing without vector memory - responses will have no long-term memory');
     return undefined;
   }
 }
@@ -134,7 +134,7 @@ async function initializeLocalEmbedding(): Promise<LocalEmbeddingService | undef
       logger.info('Local embedding service initialized successfully');
       return embeddingService;
     } else {
-      logger.warn({}, 'Local embedding service failed to initialize');
+      logger.warn('Local embedding service failed to initialize');
       logger.warn(
         {},
         'Continuing without local embeddings - semantic duplicate detection disabled'
@@ -143,7 +143,7 @@ async function initializeLocalEmbedding(): Promise<LocalEmbeddingService | undef
     }
   } catch (error) {
     logger.error({ err: error }, 'Failed to initialize local embedding service');
-    logger.warn({}, 'Continuing without local embeddings - semantic duplicate detection disabled');
+    logger.warn('Continuing without local embeddings - semantic duplicate detection disabled');
     return undefined;
   }
 }
@@ -335,7 +335,7 @@ async function main(): Promise<void> {
       : undefined;
 
   if (localEmbeddingService !== undefined && memoryManager === undefined) {
-    logger.warn({}, 'Embedding service ready but vector memory failed');
+    logger.warn('Embedding service ready but vector memory failed');
   }
 
   // Create job processor and main worker

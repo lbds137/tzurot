@@ -14,16 +14,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // the UserService/persona-crud override block (which otherwise resets the
 // full `no-restricted-syntax` array and would drop these rules for those
 // files). Extracted to avoid silent drift if the selectors change.
+// Match error-variable shapes only (Identifier like `error`, MemberExpression like
+// `result.error`) — NOT string/template literals. Lets `logger.warn('bare msg')`
+// through while still catching `logger.warn(error, 'msg')` where an Error should
+// have been wrapped as `{ err: error }`.
 const PINO_LOGGER_RULES = [
   {
     selector:
-      'CallExpression[callee.property.name="error"] > *.arguments:first-child:not(ObjectExpression)',
+      'CallExpression[callee.property.name="error"] > *.arguments:first-child:matches(Identifier, MemberExpression)',
     message:
       'logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
   },
   {
     selector:
-      'CallExpression[callee.property.name="warn"] > *.arguments:first-child:not(ObjectExpression)',
+      'CallExpression[callee.property.name="warn"] > *.arguments:first-child:matches(Identifier, MemberExpression)',
     message:
       'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
   },

@@ -356,7 +356,7 @@ export class PersonalityLoader {
       });
 
       if (globalDefault === null) {
-        logger.warn({}, '[PersonalityLoader] No global default LLM config found');
+        logger.warn('[PersonalityLoader] No global default LLM config found');
         return null;
       }
 

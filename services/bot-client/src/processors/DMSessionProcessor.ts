@@ -153,7 +153,7 @@ export class DMSessionProcessor implements IMessageProcessor {
     botId: string | undefined
   ): Promise<string | null> {
     if (botId === undefined || botId.length === 0) {
-      logger.warn({}, 'Bot ID not available');
+      logger.warn('Bot ID not available');
       return null;
     }
 

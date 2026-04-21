@@ -386,7 +386,7 @@ async function checkSemanticDuplicate(
   const newEmbedding = await embeddingService.getEmbedding(cleanNewResponse);
 
   if (newEmbedding === undefined) {
-    logger.debug({}, 'Failed to generate embedding, skipping semantic check');
+    logger.debug('Failed to generate embedding, skipping semantic check');
     return { isDuplicate: false, similarity: 0, matchedHash: '' };
   }
 
