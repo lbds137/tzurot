@@ -130,7 +130,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     }
 
     const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
-      `/user/persona/${persona.id}`,
+      `/user/persona/${encodeURIComponent(persona.id)}`,
       { user: toGatewayUser(context.user) }
     );
 

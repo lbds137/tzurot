@@ -225,7 +225,7 @@ export async function updateCharacter(
   _config: EnvConfig
 ): Promise<CharacterData> {
   const result = await callGatewayApi<{ success: boolean; personality: CharacterData }>(
-    `/user/personality/${slug}`,
+    `/user/personality/${encodeURIComponent(slug)}`,
     {
       method: 'PUT',
       user,
@@ -252,7 +252,7 @@ export async function toggleVisibility(
   const result = await callGatewayApi<{
     success: boolean;
     personality: { id: string; slug: string; isPublic: boolean };
-  }>(`/user/personality/${slug}/visibility`, {
+  }>(`/user/personality/${encodeURIComponent(slug)}/visibility`, {
     method: 'PATCH',
     user,
     body: { isPublic },
