@@ -99,7 +99,7 @@ async function setPresence(
 
     const label = ACTIVITY_LABELS[type] ?? 'Unknown';
     await context.editReply({ content: `✅ Presence set: **${label}** ${text}` });
-    logger.info({ type, text }, 'Set');
+    logger.info({ type, text }, 'Presence set');
   } catch (error) {
     logger.error({ err: error }, 'Failed to set presence');
     await context.editReply({ content: '❌ Failed to set presence.' });
@@ -114,7 +114,7 @@ async function clearPresence(context: DeferredCommandContext): Promise<void> {
     client.user?.setPresence({ activities: [] });
 
     await context.editReply({ content: '✅ Presence cleared.' });
-    logger.info({}, 'Cleared');
+    logger.info({}, 'Presence cleared');
   } catch (error) {
     logger.error({ err: error }, 'Failed to clear presence');
     await context.editReply({ content: '❌ Failed to clear presence.' });

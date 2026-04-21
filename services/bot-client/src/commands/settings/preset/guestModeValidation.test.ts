@@ -76,16 +76,17 @@ describe('guestModeValidation', () => {
 
   describe('checkGuestModePremiumAccess', () => {
     it('should not block when user has active wallet keys', async () => {
-      vi.mocked(gatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { keys: [{ provider: 'openrouter', isActive: true }] },
-        } as never)
-        .mockResolvedValueOnce({ ok: true, data: { configs: [] } } as never);
+      vi.mocked(gatewayClient.callGatewayApi).mockResolvedValueOnce({
+        ok: true,
+        data: { keys: [{ provider: 'openrouter', isActive: true }] },
+      } as never);
 
       const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
       expect(result.blocked).toBe(false);
       expect(result).toMatchObject({ blocked: false, reason: 'paid' });
+      // Guard against accidental revert to Promise.all — paid path should
+      // short-circuit after wallet fetch and never call `/user/llm-config`.
+      expect(vi.mocked(gatewayClient.callGatewayApi)).toHaveBeenCalledTimes(1);
     });
 
     it('should not block guest user selecting free model', async () => {

@@ -123,6 +123,11 @@ describe('Me Preset Set Handler', () => {
       expect(embedData.title).toContain('Preset Override Set');
       expect(embedData.description).toContain('Test Bot');
       expect(embedData.description).toContain('Fast Claude');
+
+      // Guard against accidental revert to Promise.all in guestModeValidation:
+      // paid path should short-circuit after wallet, so only wallet + the
+      // set-override PUT should fire (2 calls total, not 3).
+      expect(callGatewayApi).toHaveBeenCalledTimes(2);
     });
 
     it('should block guest mode users from using premium models', async () => {
