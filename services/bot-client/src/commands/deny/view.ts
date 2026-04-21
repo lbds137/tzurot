@@ -57,10 +57,7 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
   }
 
   // Multiple matches — show the first match's detail view with a note
-  logger.debug(
-    { target, matchCount: matches.length },
-    '[Deny] Multiple entries found, showing first'
-  );
+  logger.debug({ target, matchCount: matches.length }, 'Multiple entries found, showing first');
 
   await showDetailView(
     context.interaction,

@@ -126,9 +126,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     const embed = buildBrowseEmbed(result.data.keys);
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, keyCount: result.data.keys.length }, '[Wallet Browse] Listed keys');
+    logger.info({ userId, keyCount: result.data.keys.length }, 'Listed keys');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Wallet Browse] Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

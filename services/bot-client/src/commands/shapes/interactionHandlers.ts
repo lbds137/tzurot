@@ -67,7 +67,7 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
     // --- Parse shapes-specific custom IDs ---
     const parsed = ShapesCustomIds.parse(customId);
     if (parsed === null) {
-      logger.warn({ customId }, '[Shapes] Unparseable button customId');
+      logger.warn({ customId }, 'Unparseable button customId');
       await interaction.update({
         content: '\u274C Something went wrong. Please try again.',
         embeds: [],
@@ -122,14 +122,14 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
       return;
     }
 
-    logger.warn({ customId, action }, '[Shapes] Unknown button action');
+    logger.warn({ customId, action }, 'Unknown button action');
     await interaction.update({
       content: '\u274C Unknown action. Please try again.',
       embeds: [],
       components: [],
     });
   } catch (error) {
-    logger.error({ err: error, customId }, '[Shapes] Button handler error');
+    logger.error({ err: error, customId }, 'Button handler error');
     try {
       await interaction.update({
         content: '\u274C An unexpected error occurred.',
@@ -161,14 +161,14 @@ export async function handleShapesSelectMenu(
       return;
     }
 
-    logger.warn({ customId }, '[Shapes] Unknown select menu action');
+    logger.warn({ customId }, 'Unknown select menu action');
     await interaction.update({
       content: '\u274C Unknown action. Please try again.',
       embeds: [],
       components: [],
     });
   } catch (error) {
-    logger.error({ err: error, customId }, '[Shapes] Select menu handler error');
+    logger.error({ err: error, customId }, 'Select menu handler error');
     try {
       await interaction.update({
         content: '\u274C An unexpected error occurred.',

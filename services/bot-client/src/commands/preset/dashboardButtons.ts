@@ -278,7 +278,7 @@ export async function handleConfirmDeleteButton(
     if (!result.ok) {
       logger.warn(
         { userId: interaction.user.id, status: result.status, entityId },
-        '[Preset] Failed to delete preset'
+        'Failed to delete preset'
       );
       await renderPostActionScreen({
         interaction,
@@ -294,7 +294,7 @@ export async function handleConfirmDeleteButton(
       outcome: { kind: 'success', banner: formatSuccessBanner('Deleted preset', presetName) },
     });
 
-    logger.info({ userId: interaction.user.id, entityId, presetName }, '[Preset] Deleted preset');
+    logger.info({ userId: interaction.user.id, entityId, presetName }, 'Deleted preset');
   } catch (error) {
     logger.error({ err: error, entityId }, 'Failed to delete preset');
     await renderPostActionScreen({

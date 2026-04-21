@@ -64,7 +64,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         command: interaction.commandName,
         subcommand: interaction.options.getSubcommand(false),
       },
-      '[Me/Preset] Autocomplete error'
+      'Autocomplete error'
     );
     await interaction.respond([]);
   }
@@ -87,7 +87,7 @@ async function handlePresetAutocomplete(
   ]);
 
   if (!configResult.ok) {
-    logger.warn({ userId, error: configResult.error }, '[Me/Preset] Failed to fetch configs');
+    logger.warn({ userId, error: configResult.error }, 'Failed to fetch configs');
     await interaction.respond([]);
     return;
   }

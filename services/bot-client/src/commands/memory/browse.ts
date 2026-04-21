@@ -236,7 +236,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     const data = await fetchMemories(user, personalityId, 0, MEMORIES_PER_PAGE);
 
     if (data === null) {
-      logger.warn({ userId }, '[Memory] Browse failed');
+      logger.warn({ userId }, 'Browse failed');
       await context.editReply({ content: '❌ Failed to load memories. Please try again later.' });
       return;
     }
@@ -269,12 +269,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       },
     });
 
-    logger.info(
-      { userId, total, personalityId, hasMore: data.hasMore },
-      '[Memory] Browse displayed'
-    );
+    logger.info({ userId, total, personalityId, hasMore: data.hasMore }, 'Browse displayed');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Memory] Browse error');
+    logger.error({ err: error, userId }, 'Browse error');
     await context.editReply({
       content: '❌ An unexpected error occurred. Please try again later.',
     });

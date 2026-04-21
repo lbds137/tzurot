@@ -91,10 +91,7 @@ export async function createSettingsDashboard(
   session.messageId = reply.id;
   await storeSession(session, config.entityType, updateHandler);
 
-  logger.debug(
-    { entityType: config.entityType, entityId, userId },
-    '[SettingsDashboard] Created dashboard'
-  );
+  logger.debug({ entityType: config.entityType, entityId, userId }, 'Created dashboard');
 }
 
 /**
@@ -107,7 +104,7 @@ export async function handleSettingsSelectMenu(
 ): Promise<void> {
   const parsed = parseSettingsCustomId(interaction.customId);
   if (parsed === null) {
-    logger.warn({ customId: interaction.customId }, '[SettingsDashboard] Invalid customId');
+    logger.warn({ customId: interaction.customId }, 'Invalid customId');
     return;
   }
 
@@ -159,7 +156,7 @@ export async function handleSettingsSelectMenu(
 
   logger.debug(
     { entityType: config.entityType, entityId: parsed.entityId, settingId },
-    '[SettingsDashboard] Navigated to setting'
+    'Navigated to setting'
   );
 }
 
@@ -173,7 +170,7 @@ export async function handleSettingsButton(
 ): Promise<void> {
   const parsed = parseSettingsCustomId(interaction.customId);
   if (parsed === null) {
-    logger.warn({ customId: interaction.customId }, '[SettingsDashboard] Invalid button customId');
+    logger.warn({ customId: interaction.customId }, 'Invalid button customId');
     return;
   }
 
@@ -212,7 +209,7 @@ export async function handleSettingsButton(
       await handleEditButton(interaction, config, session, parsed.extra);
       break;
     default:
-      logger.warn({ action: parsed.action }, '[SettingsDashboard] Unknown button action');
+      logger.warn({ action: parsed.action }, 'Unknown button action');
   }
 }
 
@@ -268,7 +265,7 @@ async function handleSetButton(
   updateHandler: SettingUpdateHandler
 ): Promise<void> {
   if (extra === undefined) {
-    logger.warn({}, '[SettingsDashboard] Set button missing extra data');
+    logger.warn({}, 'Set button missing extra data');
     return;
   }
 
@@ -351,7 +348,7 @@ async function handleEditButton(
   settingId: string | undefined
 ): Promise<void> {
   if (settingId === undefined) {
-    logger.warn({}, '[SettingsDashboard] Edit button missing setting ID');
+    logger.warn({}, 'Edit button missing setting ID');
     return;
   }
 
@@ -388,7 +385,7 @@ export async function handleSettingsModal(
 ): Promise<void> {
   const parsed = parseSettingsCustomId(interaction.customId);
   if (parsed === null) {
-    logger.warn({ customId: interaction.customId }, '[SettingsDashboard] Invalid modal customId');
+    logger.warn({ customId: interaction.customId }, 'Invalid modal customId');
     return;
   }
 
@@ -461,7 +458,7 @@ export async function handleSettingsModal(
   if (!result.success) {
     // Since we deferred, we can't easily show an error
     // The dashboard will remain in its previous state
-    logger.warn({ settingId, error: result.error }, '[SettingsDashboard] Update failed');
+    logger.warn({ settingId, error: result.error }, 'Update failed');
     return;
   }
 

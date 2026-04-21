@@ -91,7 +91,7 @@ export class ResponseOrderingService {
     // Ensure interval doesn't prevent process exit
     this.cleanupInterval.unref();
 
-    logger.debug('[ResponseOrderingService] Started periodic stale job cleanup');
+    logger.debug('Started periodic stale job cleanup');
   }
 
   /**
@@ -116,7 +116,7 @@ export class ResponseOrderingService {
     if (this.cleanupInterval !== null) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
-      logger.debug('[ResponseOrderingService] Stopped periodic stale job cleanup');
+      logger.debug('Stopped periodic stale job cleanup');
     }
   }
 
@@ -144,7 +144,7 @@ export class ResponseOrderingService {
         userMessageTime: userMessageTime.toISOString(),
         pendingCount: queue.pendingJobs.size,
       },
-      '[ResponseOrderingService] Registered job for ordering'
+      'Registered job for ordering'
     );
   }
 
@@ -175,7 +175,7 @@ export class ResponseOrderingService {
     if (queue?.pendingJobs.has(jobId) !== true) {
       logger.warn(
         { channelId, jobId, hasQueue: queue !== undefined },
-        '[ResponseOrderingService] Result for unregistered job - delivering immediately'
+        'Result for unregistered job - delivering immediately'
       );
       await deliverFn(jobId, result);
       return;
@@ -191,7 +191,7 @@ export class ResponseOrderingService {
 
     logger.debug(
       { channelId, jobId, bufferedCount: queue.bufferedResults.length },
-      '[ResponseOrderingService] Buffered result, processing queue'
+      'Buffered result, processing queue'
     );
 
     // Process the queue to deliver any ready results
@@ -215,7 +215,7 @@ export class ResponseOrderingService {
     const wasRegistered = queue.pendingJobs.delete(jobId);
 
     if (wasRegistered) {
-      logger.info({ channelId, jobId }, '[ResponseOrderingService] Cancelled pending job');
+      logger.info({ channelId, jobId }, 'Cancelled pending job');
 
       // Re-process queue in case this unblocks buffered results
       if (deliverFn) {
@@ -289,7 +289,7 @@ export class ResponseOrderingService {
               oldestPendingTime !== null ? new Date(oldestPendingTime).toISOString() : null,
             waitTimeMs: waitTime,
           },
-          '[ResponseOrderingService] Result blocked waiting for older job'
+          'Result blocked waiting for older job'
         );
         break;
       }
@@ -309,7 +309,7 @@ export class ResponseOrderingService {
             waitTimeMs: waitTime,
             maxWaitMs: this.MAX_WAIT_MS,
           },
-          '[ResponseOrderingService] Delivering result after timeout (predecessor never completed)'
+          'Delivering result after timeout (predecessor never completed)'
         );
       } else {
         logger.info(
@@ -320,7 +320,7 @@ export class ResponseOrderingService {
             remainingBuffered: queue.bufferedResults.length,
             remainingPending: queue.pendingJobs.size,
           },
-          '[ResponseOrderingService] Delivering result in order'
+          'Delivering result in order'
         );
       }
 
@@ -329,10 +329,7 @@ export class ResponseOrderingService {
         await deliverFn(oldest.jobId, oldest.result);
       } catch (error) {
         // Log but continue processing queue - don't let one failure block others
-        logger.error(
-          { err: error, channelId, jobId: oldest.jobId },
-          '[ResponseOrderingService] Failed to deliver result'
-        );
+        logger.error({ err: error, channelId, jobId: oldest.jobId }, 'Failed to deliver result');
       }
     }
 
@@ -345,7 +342,7 @@ export class ResponseOrderingService {
   private cleanupIfEmpty(channelId: string, queue: ChannelQueue): void {
     if (queue.pendingJobs.size === 0 && queue.bufferedResults.length === 0) {
       this.channelQueues.delete(channelId);
-      logger.debug({ channelId }, '[ResponseOrderingService] Cleaned up empty channel queue');
+      logger.debug({ channelId }, 'Cleaned up empty channel queue');
     }
   }
 
@@ -385,7 +382,7 @@ export class ResponseOrderingService {
 
         logger.warn(
           { channelId, staleJobIds, staleCount: staleJobIds.length },
-          '[ResponseOrderingService] Cleaned up stale pending jobs (never completed)'
+          'Cleaned up stale pending jobs (never completed)'
         );
 
         channelsCleaned.push(channelId);
@@ -394,10 +391,7 @@ export class ResponseOrderingService {
     }
 
     if (cleanedCount > 0) {
-      logger.info(
-        { cleanedCount, channelsCleaned },
-        '[ResponseOrderingService] Stale job cleanup complete'
-      );
+      logger.info({ cleanedCount, channelsCleaned }, 'Stale job cleanup complete');
     }
 
     return { cleanedCount, channelsCleaned };
@@ -410,7 +404,7 @@ export class ResponseOrderingService {
   async shutdown(deliverFn: DeliverFn): Promise<void> {
     logger.info(
       { channelCount: this.channelQueues.size },
-      '[ResponseOrderingService] Shutting down - delivering all buffered results'
+      'Shutting down - delivering all buffered results'
     );
 
     for (const [channelId, queue] of this.channelQueues) {
@@ -424,19 +418,19 @@ export class ResponseOrderingService {
           await deliverFn(buffered.jobId, buffered.result);
           logger.debug(
             { channelId, jobId: buffered.jobId },
-            '[ResponseOrderingService] Delivered buffered result on shutdown'
+            'Delivered buffered result on shutdown'
           );
         } catch (error) {
           logger.error(
             { err: error, channelId, jobId: buffered.jobId },
-            '[ResponseOrderingService] Failed to deliver buffered result on shutdown'
+            'Failed to deliver buffered result on shutdown'
           );
         }
       }
     }
 
     this.channelQueues.clear();
-    logger.info('[ResponseOrderingService] Shutdown complete');
+    logger.info('Shutdown complete');
   }
 
   /**

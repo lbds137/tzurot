@@ -31,7 +31,7 @@ export async function handleBrowseOverrides(context: DeferredCommandContext): Pr
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status }, '[Me/Preset] Failed to list overrides');
+      logger.warn({ userId, status: result.status }, 'Failed to list overrides');
       await context.editReply({ content: '❌ Failed to get overrides. Please try again later.' });
       return;
     }
@@ -61,9 +61,9 @@ export async function handleBrowseOverrides(context: DeferredCommandContext): Pr
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, count: data.overrides.length }, '[Me/Preset] Listed overrides');
+    logger.info({ userId, count: data.overrides.length }, 'Listed overrides');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset List' }, '[Preset List] Error');
+    logger.error({ err: error, userId, command: 'Preset List' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

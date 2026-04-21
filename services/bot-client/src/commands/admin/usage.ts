@@ -41,7 +41,7 @@ export async function handleUsage(context: DeferredCommandContext): Promise<void
 
     logger.info(
       { timeframe, totalRequests: stats.totalRequests, uniqueUsers: stats.uniqueUsers },
-      '[AdminUsage] Returned stats'
+      'Returned stats'
     );
   } catch (error) {
     logger.error({ err: error }, 'Error retrieving usage statistics');

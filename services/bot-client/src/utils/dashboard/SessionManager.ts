@@ -215,16 +215,16 @@ export class DashboardSessionManager {
       if (hasErrors) {
         logger.warn(
           { userId, entityType, entityId, results },
-          '[Session] Partial pipeline failure during session creation'
+          'Partial pipeline failure during session creation'
         );
       }
 
       logger.debug(
         { userId, entityType, entityId, messageId, ttl: this.ttlSeconds },
-        '[Session] Created session'
+        'Created session'
       );
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, '[Session] Failed to create session');
+      logger.error({ error, userId, entityType, entityId }, 'Failed to create session');
       // Fail-open: return the session anyway (it just won't persist)
     }
 
@@ -255,15 +255,12 @@ export class DashboardSessionManager {
     } catch (error) {
       if (error instanceof SyntaxError || (error as Error).name === 'ZodError') {
         // Corrupt data - clean it up
-        logger.warn({ error, sessionKey }, '[Session] Corrupt session data, cleaning up');
+        logger.warn({ error, sessionKey }, 'Corrupt session data, cleaning up');
         await this.redis.del(sessionKey).catch(cleanupErr => {
-          logger.debug(
-            { error: cleanupErr, sessionKey },
-            '[Session] Failed to cleanup corrupt session'
-          );
+          logger.debug({ error: cleanupErr, sessionKey }, 'Failed to cleanup corrupt session');
         });
       } else {
-        logger.error({ error, sessionKey }, '[Session] Failed to get session');
+        logger.error({ error, sessionKey }, 'Failed to get session');
       }
       return null;
     }
@@ -299,9 +296,9 @@ export class DashboardSessionManager {
       const msgIndexKey = buildMessageIndexKey(session.messageId);
       await this.redis.expire(msgIndexKey, this.ttlSeconds);
 
-      logger.debug({ userId, entityType, entityId }, '[Session] Updated session');
+      logger.debug({ userId, entityType, entityId }, 'Updated session');
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, '[Session] Failed to update session');
+      logger.error({ error, userId, entityType, entityId }, 'Failed to update session');
       // Return the updated session anyway (fail-open)
     }
 
@@ -341,16 +338,13 @@ export class DashboardSessionManager {
       // Check for partial failures
       const hasErrors = results?.some(([err]) => err !== null) === true;
       if (hasErrors) {
-        logger.warn(
-          { userId, entityType, entityId },
-          '[Session] Partial pipeline failure during touch'
-        );
+        logger.warn({ userId, entityType, entityId }, 'Partial pipeline failure during touch');
       }
 
-      logger.debug({ userId, entityType, entityId }, '[Session] Touched session');
+      logger.debug({ userId, entityType, entityId }, 'Touched session');
       return true;
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, '[Session] Failed to touch session');
+      logger.error({ error, userId, entityType, entityId }, 'Failed to touch session');
       return false;
     }
   }
@@ -383,10 +377,10 @@ export class DashboardSessionManager {
       // Check if session key was deleted (first result)
       const deleted = results !== null && results[0] !== null && (results[0][1] as number) > 0;
 
-      logger.debug({ userId, entityType, entityId, deleted }, '[Session] Deleted session');
+      logger.debug({ userId, entityType, entityId, deleted }, 'Deleted session');
       return deleted;
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, '[Session] Failed to delete session');
+      logger.error({ error, userId, entityType, entityId }, 'Failed to delete session');
       return false;
     }
   }
@@ -411,10 +405,7 @@ export class DashboardSessionManager {
       if (data === null) {
         // Index orphan - clean it up
         await this.redis.del(msgIndexKey).catch(cleanupErr => {
-          logger.debug(
-            { error: cleanupErr, msgIndexKey },
-            '[Session] Failed to cleanup orphaned index'
-          );
+          logger.debug({ error: cleanupErr, msgIndexKey }, 'Failed to cleanup orphaned index');
         });
         return null;
       }
@@ -424,9 +415,9 @@ export class DashboardSessionManager {
       return toSession<T>(validated);
     } catch (error) {
       if (error instanceof SyntaxError || (error as Error).name === 'ZodError') {
-        logger.warn({ error, messageId }, '[Session] Corrupt session data from messageId lookup');
+        logger.warn({ error, messageId }, 'Corrupt session data from messageId lookup');
       } else {
-        logger.error({ error, messageId }, '[Session] Failed to find session by messageId');
+        logger.error({ error, messageId }, 'Failed to find session by messageId');
       }
       return null;
     }
@@ -465,7 +456,7 @@ export class DashboardSessionManager {
 
       return sessions;
     } catch (error) {
-      logger.error({ error, userId }, '[Session] Failed to get user sessions');
+      logger.error({ error, userId }, 'Failed to get user sessions');
       return [];
     }
   }
@@ -485,7 +476,7 @@ export class DashboardSessionManager {
       const keys = await this.scanKeys(pattern, maxSessions);
       return keys.length;
     } catch (error) {
-      logger.error({ error }, '[Session] Failed to get session count');
+      logger.error({ error }, 'Failed to get session count');
       return 0;
     }
   }
@@ -510,9 +501,9 @@ export class DashboardSessionManager {
         await this.redis.del(...allKeys);
       }
 
-      logger.debug({ count: allKeys.length }, '[Session] Cleared all sessions');
+      logger.debug({ count: allKeys.length }, 'Cleared all sessions');
     } catch (error) {
-      logger.error({ error }, '[Session] Failed to clear sessions');
+      logger.error({ error }, 'Failed to clear sessions');
     }
   }
 }
@@ -529,7 +520,7 @@ let sessionManagerInstance: DashboardSessionManager | null = null;
  */
 export function initSessionManager(redis: Redis): void {
   sessionManagerInstance = new DashboardSessionManager(redis);
-  logger.info('[Session] Session manager initialized');
+  logger.info('Session manager initialized');
 }
 
 /**
@@ -558,5 +549,5 @@ export function isSessionManagerInitialized(): boolean {
  */
 export function shutdownSessionManager(): void {
   sessionManagerInstance = null;
-  logger.info('[Session] Session manager shutdown');
+  logger.info('Session manager shutdown');
 }

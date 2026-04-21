@@ -56,10 +56,7 @@ export async function handleSetKey(context: ModalCommandContext): Promise<void> 
   // Show modal to user
   await context.showModal(modal);
 
-  logger.info(
-    { provider, userId: context.user.id },
-    '[Settings/ApiKey] Showing API key input modal'
-  );
+  logger.info({ provider, userId: context.user.id }, 'Showing API key input modal');
 }
 
 /**

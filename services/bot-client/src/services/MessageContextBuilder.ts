@@ -141,7 +141,7 @@ export class MessageContextBuilder {
 
     logger.debug(
       { channelId, limit, dbHistoryCount: history.length },
-      '[MessageContextBuilder] Fetched conversation history from database'
+      'Fetched conversation history from database'
     );
 
     return history;
@@ -166,7 +166,7 @@ export class MessageContextBuilder {
     if (!isTypingChannel(message.channel)) {
       logger.debug(
         { channelId: message.channel.id, channelType: message.channel.type },
-        '[MessageContextBuilder] Channel does not support extended context fetching'
+        'Channel does not support extended context fetching'
       );
       return { history: mergedHistory };
     }
@@ -178,7 +178,7 @@ export class MessageContextBuilder {
         maxAge: options.extendedContext.maxAge,
         maxImages: options.extendedContext.maxImages,
       },
-      '[MessageContextBuilder] Fetching extended context from Discord'
+      'Fetching extended context from Discord'
     );
 
     const fetchResult = await this.channelFetcher.fetchRecentMessages(
@@ -227,7 +227,7 @@ export class MessageContextBuilder {
           reactorCount: fetchResult.reactorUsers?.length ?? 0,
           created: userMap.size,
         },
-        '[MessageContextBuilder] Batch created personas for extended context and reactor users'
+        'Batch created personas for extended context and reactor users'
       );
 
       // Resolve personaIds for BOTH message authors AND reactors in one batch
@@ -247,7 +247,7 @@ export class MessageContextBuilder {
             reactorCount: resolved.reactorCount,
             total: resolved.total,
           },
-          '[MessageContextBuilder] Resolved extended context personaIds to UUIDs'
+          'Resolved extended context personaIds to UUIDs'
         );
       }
     }
@@ -266,7 +266,7 @@ export class MessageContextBuilder {
         dbMessages: history.length - fetchResult.messages.length + 1,
         totalMerged: mergedHistory.length,
       },
-      '[MessageContextBuilder] Extended context merged with conversation history'
+      'Extended context merged with conversation history'
     );
 
     // Collect image attachments
@@ -280,7 +280,7 @@ export class MessageContextBuilder {
           maxImages,
           selectedImages: attachments.length,
         },
-        '[MessageContextBuilder] Collected extended context images for processing'
+        'Collected extended context images for processing'
       );
     }
 
@@ -292,7 +292,7 @@ export class MessageContextBuilder {
           channelId: message.channel.id,
           participantCount: Object.keys(participantGuildInfo).length,
         },
-        '[MessageContextBuilder] Collected participant guild info from extended context'
+        'Collected participant guild info from extended context'
       );
     }
 
@@ -312,7 +312,7 @@ export class MessageContextBuilder {
         .catch(err => {
           logger.warn(
             { err, channelId: message.channel.id },
-            '[MessageContextBuilder] Opportunistic sync failed (non-blocking)'
+            'Opportunistic sync failed (non-blocking)'
           );
         });
     }
@@ -426,7 +426,7 @@ export class MessageContextBuilder {
     }).catch((err: unknown) => {
       logger.warn(
         { err, personaId, personalityId: personality.id, channelId: message.channel.id },
-        '[MCB] Cross-channel fetch failed, continuing without'
+        'Cross-channel fetch failed, continuing without'
       );
       return undefined;
     });
@@ -519,7 +519,7 @@ export class MessageContextBuilder {
         historyLength: conversationHistory.length,
         referencedMessagesCount: referencedMessages.length,
       },
-      '[MessageContextBuilder] Context built successfully'
+      'Context built successfully'
     );
 
     return {

@@ -48,9 +48,9 @@ export async function handleLogout(context: DeferredCommandContext): Promise<voi
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId }, '[Shapes] Credentials removed');
+    logger.info({ userId }, 'Credentials removed');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Shapes] Unexpected error removing credentials');
+    logger.error({ err: error, userId }, 'Unexpected error removing credentials');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

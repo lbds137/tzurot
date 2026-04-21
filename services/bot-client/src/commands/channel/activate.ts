@@ -32,7 +32,7 @@ async function invalidateSettingsCache(channelId: string): Promise<void> {
     const invalidationService = getChannelActivationCacheInvalidationService();
     await invalidationService.invalidateChannel(channelId);
   } catch (pubsubError) {
-    logger.warn({ err: pubsubError, channelId }, '[Channel] Failed to publish invalidation event');
+    logger.warn({ err: pubsubError, channelId }, 'Failed to publish invalidation event');
   }
 }
 
@@ -77,7 +77,7 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
           error: result.error,
           status: result.status,
         },
-        '[Channel] Activation failed'
+        'Activation failed'
       );
 
       // Handle specific error cases
@@ -121,7 +121,7 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
         activationId: activation.id,
         replaced,
       },
-      '[Channel] Personality activated'
+      'Personality activated'
     );
   } catch (error) {
     logger.error(
@@ -131,7 +131,7 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
         channelId,
         personalitySlug,
       },
-      '[Channel] Activation error'
+      'Activation error'
     );
     await context.editReply('❌ An unexpected error occurred while activating the channel.');
   }

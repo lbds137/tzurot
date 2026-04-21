@@ -37,10 +37,7 @@ export async function handlePersonalityAutocomplete(
       await interaction.respond([]);
     }
   } catch (error) {
-    logger.error(
-      { err: error, userId: interaction.user.id },
-      '[Persona] Personality autocomplete error'
-    );
+    logger.error({ err: error, userId: interaction.user.id }, 'Personality autocomplete error');
     await interaction.respond([]);
   }
 }
@@ -69,7 +66,7 @@ export async function handlePersonaAutocomplete(
       await interaction.respond([]);
     }
   } catch (error) {
-    logger.error({ err: error, userId: interaction.user.id }, '[Persona] Autocomplete error');
+    logger.error({ err: error, userId: interaction.user.id }, 'Autocomplete error');
     await interaction.respond([]);
   }
 }

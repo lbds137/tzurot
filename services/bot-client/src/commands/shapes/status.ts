@@ -92,9 +92,9 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
 
     await context.editReply({ embeds: [embed] });
 
-    logger.debug({ userId, hasCredentials }, '[Shapes] Status displayed');
+    logger.debug({ userId, hasCredentials }, 'Status displayed');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Shapes] Unexpected error fetching status');
+    logger.error({ err: error, userId }, 'Unexpected error fetching status');
     await context.editReply({ content: '\u274C An unexpected error occurred. Please try again.' });
   }
 }

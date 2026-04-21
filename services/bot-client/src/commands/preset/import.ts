@@ -192,7 +192,7 @@ async function createPresetFromImport(
   });
 
   if (!createResult.ok) {
-    logger.error({ error: createResult.error }, '[Preset/Import] Failed to create preset');
+    logger.error({ error: createResult.error }, 'Failed to create preset');
     return { ok: false, error: createResult.error };
   }
 
@@ -261,12 +261,9 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     const embed = buildSuccessEmbed(payload, presetName);
     await context.editReply({ embeds: [embed] });
 
-    logger.info(
-      { presetId: createResult.id, userId, presetName },
-      '[Preset/Import] Preset imported successfully'
-    );
+    logger.info({ presetId: createResult.id, userId, presetName }, 'Preset imported successfully');
   } catch (error) {
-    logger.error({ err: error }, '[Preset/Import] Error importing preset');
+    logger.error({ err: error }, 'Error importing preset');
     await context.editReply(
       '❌ An unexpected error occurred while importing the preset.\n' +
         'Check bot logs for details.'

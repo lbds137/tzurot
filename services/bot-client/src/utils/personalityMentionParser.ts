@@ -107,7 +107,7 @@ export async function findPersonalityMention(
   personalityService: IPersonalityLoader,
   userId: string
 ): Promise<PersonalityMentionResult | null> {
-  logger.debug({ content, mentionChar }, '[PersonalityMentionParser] Parsing mentions');
+  logger.debug({ content, mentionChar }, 'Parsing mentions');
 
   const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const mentionCharRegex = new RegExp(`^${escapedChar}`);
@@ -121,7 +121,7 @@ export async function findPersonalityMention(
   );
 
   if (potentialMentions.length === 0) {
-    logger.debug('[PersonalityMentionParser] No potential mentions found');
+    logger.debug('No potential mentions found');
     return null;
   }
 
@@ -129,14 +129,14 @@ export async function findPersonalityMention(
   if (potentialMentions.length > MAX_POTENTIAL_MENTIONS) {
     logger.warn(
       { count: potentialMentions.length, limit: MAX_POTENTIAL_MENTIONS },
-      '[PersonalityMentionParser] Too many mentions, truncating to prevent abuse'
+      'Too many mentions, truncating to prevent abuse'
     );
     potentialMentions.length = MAX_POTENTIAL_MENTIONS;
   }
 
   logger.debug(
     { potentialMentions: potentialMentions.map(m => m.name) },
-    `[PersonalityMentionParser] Found ${potentialMentions.length} potential mention(s)`
+    `Found ${potentialMentions.length} potential mention(s)`
   );
 
   // Step 2: Batch lookup all potential personalities at once (performance optimization)
@@ -163,7 +163,7 @@ export async function findPersonalityMention(
     });
 
   if (validMentions.length === 0) {
-    logger.debug('[PersonalityMentionParser] No valid personalities found');
+    logger.debug('No valid personalities found');
     return null;
   }
 
@@ -176,7 +176,7 @@ export async function findPersonalityMention(
       wordCount: bestMatch.wordCount,
       allMatches: validMentions.map(m => m.name),
     },
-    '[PersonalityMentionParser] Found personality mention (highest priority match)'
+    'Found personality mention (highest priority match)'
   );
 
   // Step 5: Clean the content by removing the matched personality mention

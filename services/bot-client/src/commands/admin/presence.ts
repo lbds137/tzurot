@@ -99,7 +99,7 @@ async function setPresence(
 
     const label = ACTIVITY_LABELS[type] ?? 'Unknown';
     await context.editReply({ content: `✅ Presence set: **${label}** ${text}` });
-    logger.info({ type, text }, '[Presence] Set');
+    logger.info({ type, text }, 'Set');
   } catch (error) {
     logger.error({ err: error }, 'Failed to set presence');
     await context.editReply({ content: '❌ Failed to set presence.' });
@@ -114,7 +114,7 @@ async function clearPresence(context: DeferredCommandContext): Promise<void> {
     client.user?.setPresence({ activities: [] });
 
     await context.editReply({ content: '✅ Presence cleared.' });
-    logger.info({}, '[Presence] Cleared');
+    logger.info({}, 'Cleared');
   } catch (error) {
     logger.error({ err: error }, 'Failed to clear presence');
     await context.editReply({ content: '❌ Failed to clear presence.' });
@@ -141,17 +141,17 @@ export async function restoreBotPresence(client: Client): Promise<void> {
       typeof (parsed as PresenceData).type !== 'number' ||
       typeof (parsed as PresenceData).text !== 'string'
     ) {
-      logger.warn({ stored }, '[Presence] Invalid presence data in Redis, skipping restore');
+      logger.warn({ stored }, 'Invalid presence data in Redis, skipping restore');
       return;
     }
     data = parsed as PresenceData;
   } catch (err) {
-    logger.warn({ err, stored }, '[Presence] Failed to parse presence data from Redis');
+    logger.warn({ err, stored }, 'Failed to parse presence data from Redis');
     return;
   }
 
   applyPresence(client, data.type, data.text);
 
   const label = ACTIVITY_LABELS[data.type] ?? 'Unknown';
-  logger.info({ type: data.type, text: data.text }, `[Presence] Restored: ${label} ${data.text}`);
+  logger.info({ type: data.type, text: data.text }, `Restored: ${label} ${data.text}`);
 }

@@ -135,16 +135,16 @@ interface Services {
 function createServices(): Services {
   // Composition Root: Create Prisma client for dependency injection
   const prisma = getPrismaClient();
-  logger.info('[Bot] Prisma client initialized');
+  logger.info('Prisma client initialized');
 
   // Initialize Redis for cache invalidation
   validateRedisUrl();
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated by validateRedisUrl() above, but TypeScript can't infer the narrowed type across function boundaries
   const cacheRedis = new Redis(envConfig.REDIS_URL!);
   cacheRedis.on('error', err => {
-    logger.error({ err }, '[Bot] Cache Redis connection error');
+    logger.error({ err }, 'Cache Redis connection error');
   });
-  logger.info('[Bot] Redis client initialized for cache invalidation');
+  logger.info('Redis client initialized for cache invalidation');
 
   // Core infrastructure
   const gatewayClient = new GatewayClient(config.gatewayUrl);
@@ -418,18 +418,16 @@ client.once(Events.ClientReady, () => {
   startVerificationCleanupScheduler();
 
   // Restore saved bot presence from Redis
-  void restoreBotPresence(client).catch(err =>
-    logger.warn({ err }, '[Bot] Failed to restore presence')
-  );
+  void restoreBotPresence(client).catch(err => logger.warn({ err }, 'Failed to restore presence'));
 
   // Auto-leave denied guilds when bot is added.
   // Registered inside ClientReady to make the dependency on denylistCache hydration explicit
   // (hydration runs in start() before client.login(), but co-locating here is clearer).
   client.on(Events.GuildCreate, guild => {
     if (services.denylistCache.isBotDenied('', guild.id)) {
-      logger.info({ guildId: guild.id, guildName: guild.name }, '[Bot] Leaving denied guild');
+      logger.info({ guildId: guild.id, guildName: guild.name }, 'Leaving denied guild');
       void guild.leave().catch(err => {
-        logger.error({ err, guildId: guild.id }, '[Bot] Failed to leave denied guild');
+        logger.error({ err, guildId: guild.id }, 'Failed to leave denied guild');
       });
     }
   });
@@ -458,7 +456,7 @@ process.on('SIGINT', () => {
         await services.messageHandler.handleJobResult(jobId, result);
         await services.gatewayClient.confirmDelivery(jobId);
       } catch (error) {
-        logger.error({ err: error, jobId }, '[Bot] Error delivering buffered result on shutdown');
+        logger.error({ err: error, jobId }, 'Error delivering buffered result on shutdown');
       }
     })
     .finally(() => {
@@ -484,11 +482,11 @@ process.on('SIGINT', () => {
  * Verify database connection and log personality count
  */
 async function verifyDatabaseConnection(): Promise<void> {
-  logger.info('[Bot] Verifying database connection...');
+  logger.info('Verifying database connection...');
   const tempPrisma = getPrismaClient();
   const tempPersonalityService = new PersonalityService(tempPrisma);
   const personalityList = await tempPersonalityService.loadAllPersonalities();
-  logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
+  logger.info(`Found ${personalityList.length} personalities in database`);
 }
 
 /**
@@ -499,7 +497,7 @@ async function verifyDatabaseConnection(): Promise<void> {
  * regardless of which model finishes first.
  */
 async function startResultsListener(): Promise<void> {
-  logger.info('[Bot] Starting results listener...');
+  logger.info('Starting results listener...');
   await services.resultsListener.start(async (jobId, result) => {
     try {
       // Get context to know channel and timing
@@ -507,7 +505,7 @@ async function startResultsListener(): Promise<void> {
 
       if (!context) {
         // Job not tracked (shouldn't happen in normal flow)
-        logger.warn({ jobId }, '[Bot] Result for unknown job - delivering immediately');
+        logger.warn({ jobId }, 'Result for unknown job - delivering immediately');
         await services.messageHandler.handleJobResult(jobId, result);
         await services.gatewayClient.confirmDelivery(jobId);
         return;
@@ -525,10 +523,10 @@ async function startResultsListener(): Promise<void> {
         }
       );
     } catch (error) {
-      logger.error({ err: error, jobId }, '[Bot] Error delivering result to Discord');
+      logger.error({ err: error, jobId }, 'Error delivering result to Discord');
     }
   });
-  logger.info('[Bot] Results listener started');
+  logger.info('Results listener started');
 }
 
 /**
@@ -536,37 +534,37 @@ async function startResultsListener(): Promise<void> {
  */
 async function subscribeToCacheInvalidation(): Promise<void> {
   await services.cacheInvalidationService.subscribe();
-  logger.info('[Bot] Subscribed to personality cache invalidation events');
+  logger.info('Subscribed to personality cache invalidation events');
 
   await services.personaCacheInvalidationService.subscribe(event => {
     if (event.type === 'user') {
       services.personaResolver.invalidateUserCache(event.discordId);
-      logger.debug({ discordId: event.discordId }, '[Bot] Invalidated persona cache for user');
+      logger.debug({ discordId: event.discordId }, 'Invalidated persona cache for user');
     } else if (event.type === 'all') {
       services.personaResolver.clearCache();
-      logger.debug('[Bot] Invalidated all persona caches');
+      logger.debug('Invalidated all persona caches');
     }
   });
-  logger.info('[Bot] Subscribed to persona cache invalidation events');
+  logger.info('Subscribed to persona cache invalidation events');
 
   await services.channelActivationCacheInvalidationService.subscribe(event => {
     if (event.type === 'channel') {
       invalidateChannelSettingsCache(event.channelId);
-      logger.debug({ channelId: event.channelId }, '[Bot] Invalidated channel settings cache');
+      logger.debug({ channelId: event.channelId }, 'Invalidated channel settings cache');
     } else if (event.type === 'all') {
       clearAllChannelSettingsCache();
-      logger.debug('[Bot] Invalidated all channel activation caches');
+      logger.debug('Invalidated all channel activation caches');
     }
   });
-  logger.info('[Bot] Subscribed to channel activation cache invalidation events');
+  logger.info('Subscribed to channel activation cache invalidation events');
 
   await services.denylistCacheInvalidationService.subscribe(event => {
     if (event.type === 'all') {
       // Full reload — re-hydrate from gateway
       void services.denylistCache.hydrate(services.gatewayClient).catch(err => {
-        logger.error({ err }, '[Bot] Failed to re-hydrate denylist cache');
+        logger.error({ err }, 'Failed to re-hydrate denylist cache');
       });
-      logger.info('[Bot] Denylist cache full reload triggered');
+      logger.info('Denylist cache full reload triggered');
     } else {
       // Incremental add/remove
       services.denylistCache.handleEvent(event);
@@ -575,29 +573,26 @@ async function subscribeToCacheInvalidation(): Promise<void> {
       if (event.type === 'add' && event.entry.type === 'GUILD' && event.entry.scope === 'BOT') {
         const guild = client.guilds.cache.get(event.entry.discordId);
         if (guild !== undefined) {
-          logger.info(
-            { guildId: guild.id, guildName: guild.name },
-            '[Bot] Leaving newly denied guild'
-          );
+          logger.info({ guildId: guild.id, guildName: guild.name }, 'Leaving newly denied guild');
           void guild.leave().catch(err => {
-            logger.error({ err, guildId: guild.id }, '[Bot] Failed to leave newly denied guild');
+            logger.error({ err, guildId: guild.id }, 'Failed to leave newly denied guild');
           });
         }
       }
     }
   });
-  logger.info('[Bot] Subscribed to denylist cache invalidation events');
+  logger.info('Subscribed to denylist cache invalidation events');
 }
 
 // Start the bot with explicit return type
 async function start(): Promise<void> {
   try {
-    logger.info('[Bot] Starting Tzurot v3 Bot Client...');
+    logger.info('Starting Tzurot v3 Bot Client...');
     logger.info(
       {
         gatewayUrl: config.gatewayUrl,
       },
-      '[Bot] Configuration:'
+      'Configuration:'
     );
 
     // Verify database connection
@@ -605,12 +600,12 @@ async function start(): Promise<void> {
 
     // Auto-deploy commands if enabled
     if (envConfig.AUTO_DEPLOY_COMMANDS === 'true') {
-      logger.info('[Bot] Auto-deploying slash commands...');
+      logger.info('Auto-deploying slash commands...');
       try {
         await deployCommands(true); // Always deploy globally in production
-        logger.info('[Bot] Slash commands deployed successfully');
+        logger.info('Slash commands deployed successfully');
       } catch (error) {
-        logger.warn({ err: error }, '[Bot] Failed to deploy commands, but continuing startup...');
+        logger.warn({ err: error }, 'Failed to deploy commands, but continuing startup...');
       }
     }
 
@@ -618,38 +613,38 @@ async function start(): Promise<void> {
     if (envConfig.AUTO_TRANSCRIBE_VOICE !== undefined) {
       logger.warn(
         {},
-        '[Bot] AUTO_TRANSCRIBE_VOICE env var is deprecated and ignored. ' +
+        'AUTO_TRANSCRIBE_VOICE env var is deprecated and ignored. ' +
           'Voice transcription is now controlled via admin config cascade (voiceTranscriptionEnabled).'
       );
     }
 
     // Initialize command handler
-    logger.info('[Bot] Loading slash commands...');
+    logger.info('Loading slash commands...');
     commandHandler = new CommandHandler();
     await commandHandler.loadCommands();
 
     // Attach commands to client for access by commands like /help
     client.commands = commandHandler.getCommands();
-    logger.info('[Bot] Command handler initialized');
+    logger.info('Command handler initialized');
 
     // Create all services with full dependency injection
-    logger.info('[Bot] Initializing services with dependency injection...');
+    logger.info('Initializing services with dependency injection...');
     services = createServices();
-    logger.info('[Bot] All services initialized');
+    logger.info('All services initialized');
 
     // Hydrate denylist cache from gateway
     await services.denylistCache.hydrate(services.gatewayClient);
-    logger.info('[Bot] Denylist cache hydrated');
+    logger.info('Denylist cache hydrated');
 
     // Start notification cache cleanup timer
     startNotificationCacheCleanup();
-    logger.info('[Bot] Notification cache cleanup started');
+    logger.info('Notification cache cleanup started');
 
     // Subscribe to all cache invalidation events (personality, persona, channel activation)
     await subscribeToCacheInvalidation();
 
     // Health check gateway
-    logger.info('[Bot] Checking gateway health...');
+    logger.info('Checking gateway health...');
     const isHealthy = await services.gatewayClient.healthCheck();
     logGatewayHealthStatus(isHealthy);
 
@@ -659,7 +654,7 @@ async function start(): Promise<void> {
     }
 
     await client.login(config.discordToken);
-    logger.info('[Bot] Successfully logged in to Discord');
+    logger.info('Successfully logged in to Discord');
 
     // Start listening for job results (async delivery pattern)
     await startResultsListener();

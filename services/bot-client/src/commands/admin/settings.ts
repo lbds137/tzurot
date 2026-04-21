@@ -73,7 +73,7 @@ const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
 export async function handleSettings(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
-  logger.debug({ userId }, '[Admin Settings] Opening dashboard');
+  logger.debug({ userId }, 'Opening dashboard');
 
   try {
     // Fetch current settings from API gateway
@@ -100,9 +100,9 @@ export async function handleSettings(context: DeferredCommandContext): Promise<v
       updateHandler: handleSettingUpdate,
     });
 
-    logger.info({ userId }, '[Admin Settings] Dashboard opened');
+    logger.info({ userId }, 'Dashboard opened');
   } catch (error) {
-    logger.error({ err: error }, '[Admin Settings] Error opening dashboard');
+    logger.error({ err: error }, 'Error opening dashboard');
 
     // Only respond if we haven't already (createSettingsDashboard may have replied)
     if (!context.interaction.replied) {
@@ -193,7 +193,7 @@ async function handleSettingUpdate(
 ): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
-  logger.debug({ settingId, newValue, userId }, '[Admin Settings] Updating setting');
+  logger.debug({ settingId, newValue, userId }, 'Updating setting');
 
   try {
     // Map setting ID to API body using shared utility
@@ -208,7 +208,7 @@ async function handleSettingUpdate(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.warn({ settingId, error: errorText }, '[Admin Settings] Update failed');
+      logger.warn({ settingId, error: errorText }, 'Update failed');
       return { success: false, error: errorText };
     }
 
@@ -216,11 +216,11 @@ async function handleSettingUpdate(
     const newSettings = (await response.json()) as GetAdminSettingsResponse;
     const newData = convertToSettingsData(newSettings);
 
-    logger.info({ settingId, newValue, userId }, '[Admin Settings] Setting updated');
+    logger.info({ settingId, newValue, userId }, 'Setting updated');
 
     return { success: true, newData };
   } catch (error) {
-    logger.error({ err: error, settingId }, '[Admin Settings] Error updating setting');
+    logger.error({ err: error, settingId }, 'Error updating setting');
     return { success: false, error: 'Failed to update setting' };
   }
 }

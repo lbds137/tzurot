@@ -67,7 +67,7 @@ export class ReferenceFormatter {
           limit: maxReferences,
           depthDistribution: this.countByDepth(selected.map(s => s.metadata)),
         },
-        '[ReferenceFormatter] Limited references to maxReferences'
+        'Limited references to maxReferences'
       );
     }
 
@@ -104,7 +104,7 @@ export class ReferenceFormatter {
               snapshotContent: snapshot.content?.substring(0, 50),
               referenceNumber: currentNumber - 1,
             },
-            '[ReferenceFormatter] Added snapshot from forwarded message'
+            'Added snapshot from forwarded message'
           );
         }
       } else {
@@ -124,7 +124,7 @@ export class ReferenceFormatter {
         referencesFormatted: references.length,
         linksReplaced: linkMap.size,
       },
-      '[ReferenceFormatter] Formatting complete'
+      'Formatting complete'
     );
 
     return {

@@ -40,6 +40,11 @@ describe('Me Preset Set Handler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Fully reset the callGatewayApi mock queue — the paid-user path now
+    // consumes only wallet (serial fetch), so leftover `.mockResolvedValueOnce`
+    // entries from prior tests would mis-mock later calls. `mockReset()`
+    // clears both call history and the queue.
+    vi.mocked(callGatewayApi).mockReset();
   });
 
   function createMockContext(personalityId: string, presetId: string) {
@@ -79,12 +84,12 @@ describe('Me Preset Set Handler', () => {
     });
 
     it('should successfully set model override', async () => {
+      // Paid user: serial fetch skips the configs call, so only wallet + set-override mocks queued.
       vi.mocked(callGatewayApi)
         .mockResolvedValueOnce({
           ok: true,
           data: { keys: [{ provider: 'openrouter', isActive: true }] },
         }) // wallet
-        .mockResolvedValueOnce({ ok: true, data: { configs: [] } }) // configs
         .mockResolvedValueOnce({
           ok: true,
           data: {
@@ -193,12 +198,12 @@ describe('Me Preset Set Handler', () => {
     });
 
     it('should handle API error when setting override', async () => {
+      // Paid user (has active keys): serial fetch skips configs. Wallet + set-override only.
       vi.mocked(callGatewayApi)
         .mockResolvedValueOnce({
           ok: true,
           data: { keys: [{ provider: 'openrouter', isActive: true }] },
         })
-        .mockResolvedValueOnce({ ok: true, data: { configs: [] } })
         .mockResolvedValueOnce({
           ok: false,
           status: 404,

@@ -90,7 +90,7 @@ function buildHardDeleteOperation(
     if (!result.ok) {
       logger.error(
         { userId: user.discordId, personalitySlug, channelId, error: result.error },
-        '[History] Hard-delete API failed'
+        'Hard-delete API failed'
       );
       return {
         success: false,
@@ -105,7 +105,7 @@ function buildHardDeleteOperation(
 
     logger.info(
       { userId: user.discordId, personalitySlug, channelId, deletedCount },
-      '[History] Hard-delete completed'
+      'Hard-delete completed'
     );
 
     return {
@@ -129,7 +129,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (DestructiveCustomIds.isDestructive(customId)) {
     const parsed = DestructiveCustomIds.parse(customId);
     if (parsed === null) {
-      logger.warn({ customId }, '[History] Failed to parse destructive modal customId');
+      logger.warn({ customId }, 'Failed to parse destructive modal customId');
       return;
     }
 
@@ -156,7 +156,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     }
   }
 
-  logger.warn({ customId }, '[History] Unknown modal customId');
+  logger.warn({ customId }, 'Unknown modal customId');
 }
 
 /**
@@ -184,7 +184,7 @@ async function handleHardDeleteConfirm(
   const entityInfo = entityId !== undefined ? parseHardDeleteEntityId(entityId) : null;
 
   if (entityInfo === null) {
-    logger.warn({ entityId }, '[History] Failed to parse entityId');
+    logger.warn({ entityId }, 'Failed to parse entityId');
     await interaction.update({
       content: 'Error: Invalid entity ID format.',
       embeds: [],
@@ -215,7 +215,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   if (DestructiveCustomIds.isDestructive(customId)) {
     const parsed = DestructiveCustomIds.parse(customId);
     if (parsed === null) {
-      logger.warn({ customId }, '[History] Failed to parse destructive customId');
+      logger.warn({ customId }, 'Failed to parse destructive customId');
       return;
     }
 
@@ -231,7 +231,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     }
   }
 
-  logger.warn({ customId }, '[History] Unknown button customId');
+  logger.warn({ customId }, 'Unknown button customId');
 }
 
 /**

@@ -65,12 +65,12 @@ export async function storePendingVerificationMessage(
 
     logger.debug(
       { userId, messageId: message.messageId, channelId: message.channelId },
-      '[PendingVerification] Stored pending verification message'
+      'Stored pending verification message'
     );
   } catch (error) {
     logger.warn(
       { err: error, userId, messageId: message.messageId },
-      '[PendingVerification] Failed to store pending verification message'
+      'Failed to store pending verification message'
     );
   }
 }
@@ -97,23 +97,17 @@ export async function getPendingVerificationMessages(
         } else {
           logger.warn(
             { userId, rawItem: item, errors: result.error.flatten() },
-            '[PendingVerification] Skipping invalid message data in Redis'
+            'Skipping invalid message data in Redis'
           );
         }
       } catch (parseError) {
-        logger.warn(
-          { err: parseError, userId, rawItem: item },
-          '[PendingVerification] Failed to parse JSON from Redis'
-        );
+        logger.warn({ err: parseError, userId, rawItem: item }, 'Failed to parse JSON from Redis');
       }
     }
 
     return validMessages;
   } catch (error) {
-    logger.warn(
-      { err: error, userId },
-      '[PendingVerification] Failed to get pending verification messages'
-    );
+    logger.warn({ err: error, userId }, 'Failed to get pending verification messages');
     return [];
   }
 }
@@ -129,12 +123,9 @@ export async function clearPendingVerificationMessages(
 
   try {
     await redis.del(key);
-    logger.debug({ userId }, '[PendingVerification] Cleared pending verification messages');
+    logger.debug({ userId }, 'Cleared pending verification messages');
   } catch (error) {
-    logger.warn(
-      { err: error, userId },
-      '[PendingVerification] Failed to clear pending verification messages'
-    );
+    logger.warn({ err: error, userId }, 'Failed to clear pending verification messages');
   }
 }
 
@@ -164,7 +155,7 @@ export async function getAllPendingVerificationUserIds(redis: Redis): Promise<st
 
     return userIds;
   } catch (error) {
-    logger.warn({ err: error }, '[PendingVerification] Failed to scan pending user IDs');
+    logger.warn({ err: error }, 'Failed to scan pending user IDs');
     return [];
   }
 }

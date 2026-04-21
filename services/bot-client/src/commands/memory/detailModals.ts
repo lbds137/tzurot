@@ -178,7 +178,7 @@ export async function handleEditModalSubmit(
     // Interaction may have expired or already been responded to
     logger.warn(
       { err: deferError, userId, memoryId },
-      '[Memory] Failed to defer modal update - interaction may have expired'
+      'Failed to defer modal update - interaction may have expired'
     );
     // Try to reply instead
     try {
@@ -210,10 +210,7 @@ export async function handleEditModalSubmit(
       components: [buttons],
     });
   } catch (editError) {
-    logger.warn(
-      { err: editError, userId, memoryId },
-      '[Memory] Failed to edit reply after modal submit'
-    );
+    logger.warn({ err: editError, userId, memoryId }, 'Failed to edit reply after modal submit');
     // Try followUp as fallback
     try {
       await interaction.followUp({
@@ -226,5 +223,5 @@ export async function handleEditModalSubmit(
     return;
   }
 
-  logger.info({ userId, memoryId }, '[Memory] Memory updated');
+  logger.info({ userId, memoryId }, 'Memory updated');
 }

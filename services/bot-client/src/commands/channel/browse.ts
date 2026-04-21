@@ -361,7 +361,7 @@ async function backfillMissingGuildIds(
 
   logger.info(
     { count: needsBackfill.length },
-    '[Channel] Backfilling missing guildIds for legacy activations'
+    'Backfilling missing guildIds for legacy activations'
   );
 
   for (const activation of needsBackfill) {
@@ -384,7 +384,7 @@ async function backfillMissingGuildIds(
     } catch (error) {
       logger.debug(
         { channelId: activation.channelId, error },
-        '[Channel] Could not backfill guildId (channel may be deleted)'
+        'Could not backfill guildId (channel may be deleted)'
       );
     }
   }
@@ -430,7 +430,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     if (!result.ok) {
       logger.warn(
         { userId: context.user.id, error: result.error, status: result.status },
-        '[Channel] Browse failed'
+        'Browse failed'
       );
       await context.editReply(`❌ Failed to browse channels: ${result.error}`);
       return;
@@ -471,10 +471,10 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
     logger.info(
       { userId: context.user.id, count: settings.length, filter, query },
-      '[Channel] Browse channels'
+      'Browse channels'
     );
   } catch (error) {
-    logger.error({ err: error, userId: context.user.id }, '[Channel] Browse error');
+    logger.error({ err: error, userId: context.user.id }, 'Browse error');
     await context.editReply('❌ An unexpected error occurred while browsing channels.');
   }
 }
@@ -515,7 +515,7 @@ export async function handleBrowsePagination(
     });
 
     if (!result.ok) {
-      logger.warn({ userId }, '[Channel] Failed to fetch channels for pagination');
+      logger.warn({ userId }, 'Failed to fetch channels for pagination');
       return;
     }
 
@@ -549,10 +549,7 @@ export async function handleBrowsePagination(
 
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
-    logger.error(
-      { err: error, userId, page, filter, sort },
-      '[Channel] Failed to load browse page'
-    );
+    logger.error({ err: error, userId, page, filter, sort }, 'Failed to load browse page');
     // Keep existing content on error
   }
 }

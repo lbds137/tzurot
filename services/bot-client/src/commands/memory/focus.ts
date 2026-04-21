@@ -67,10 +67,7 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
     );
 
     if (!result.ok) {
-      logger.warn(
-        { userId, personalityInput, status: result.status },
-        '[Memory/Focus] Status check failed'
-      );
+      logger.warn({ userId, personalityInput, status: result.status }, 'Status check failed');
       await context.editReply({
         content: '❌ Failed to check focus mode status. Please try again.',
       });
@@ -91,10 +88,10 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
 
     logger.info(
       { userId, personalityId, focusModeEnabled: data.focusModeEnabled },
-      '[Memory/Focus] Status checked'
+      'Status checked'
     );
   } catch (error) {
-    logger.error({ error, userId }, '[Memory/Focus Status] Unexpected error');
+    logger.error({ error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
@@ -127,7 +124,7 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
     if (!result.ok) {
       logger.warn(
         { userId, personalityInput, enabled, status: result.status },
-        '[Memory/Focus] Set focus mode failed'
+        'Set focus mode failed'
       );
       await context.editReply({ content: '❌ Failed to update focus mode. Please try again.' });
       return;
@@ -149,13 +146,10 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
 
     logger.info(
       { userId, personalityId, enabled },
-      `[Memory/Focus] Focus mode ${enabled ? 'enabled' : 'disabled'}`
+      `Focus mode ${enabled ? 'enabled' : 'disabled'}`
     );
   } catch (error) {
-    logger.error(
-      { error, userId },
-      `[Memory/Focus ${enabled ? 'Enable' : 'Disable'}] Unexpected error`
-    );
+    logger.error({ error, userId }, `Unexpected error`);
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

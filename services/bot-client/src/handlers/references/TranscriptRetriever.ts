@@ -73,7 +73,7 @@ export class TranscriptRetriever {
           messageId: discordMessageId,
           attachmentUrl: attachmentUrl.substring(0, 50),
         },
-        '[TranscriptRetriever] No transcript found in cache or database'
+        'No transcript found in cache or database'
       );
       return null;
     } catch (error) {
@@ -83,7 +83,7 @@ export class TranscriptRetriever {
           messageId: discordMessageId,
           attachmentUrl: attachmentUrl.substring(0, 50),
         },
-        '[TranscriptRetriever] Error retrieving voice transcript'
+        'Error retrieving voice transcript'
       );
       return null;
     }

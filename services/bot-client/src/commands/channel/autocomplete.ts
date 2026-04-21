@@ -37,7 +37,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         command: interaction.commandName,
         subcommand,
       },
-      '[Channel] Autocomplete error'
+      'Autocomplete error'
     );
     await interaction.respond([]);
   }

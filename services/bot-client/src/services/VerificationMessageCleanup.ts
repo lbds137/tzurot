@@ -39,7 +39,7 @@ export class VerificationMessageCleanup {
 
     logger.info(
       { userId, messageCount: messages.length },
-      '[VerificationCleanup] Cleaning up verification messages after successful verification'
+      'Cleaning up verification messages after successful verification'
     );
 
     let deletedCount = 0;
@@ -58,10 +58,7 @@ export class VerificationMessageCleanup {
     // (if we couldn't delete, Discord might have already deleted them or channel is gone)
     await clearPendingVerificationMessages(this.redis, userId);
 
-    logger.info(
-      { userId, deletedCount, failedCount },
-      '[VerificationCleanup] Completed cleanup for user'
-    );
+    logger.info({ userId, deletedCount, failedCount }, 'Completed cleanup for user');
   }
 
   /**
@@ -153,7 +150,7 @@ export class VerificationMessageCleanup {
     if (processed > 0) {
       logger.info(
         { processed, deleted, failed },
-        '[VerificationCleanup] Completed scheduled cleanup of expired messages'
+        'Completed scheduled cleanup of expired messages'
       );
     }
 
@@ -183,7 +180,7 @@ export class VerificationMessageCleanup {
       if (!isTextBasedMessageChannel(channel)) {
         logger.debug(
           { messageId: msg.messageId, channelId: msg.channelId, channelType: channel?.type },
-          '[VerificationCleanup] Channel not found or does not support message deletion'
+          'Channel not found or does not support message deletion'
         );
         return false;
       }
@@ -193,7 +190,7 @@ export class VerificationMessageCleanup {
 
       logger.debug(
         { messageId: msg.messageId, channelId: msg.channelId },
-        '[VerificationCleanup] Successfully deleted verification message'
+        'Successfully deleted verification message'
       );
 
       return true;
@@ -206,13 +203,13 @@ export class VerificationMessageCleanup {
         // Expected errors: message/channel deleted, permissions changed
         logger.debug(
           { err: error, messageId: msg.messageId, channelId: msg.channelId, errorCode },
-          '[VerificationCleanup] Failed to delete message (expected condition)'
+          'Failed to delete message (expected condition)'
         );
       } else {
         // Unexpected errors: network issues, API bugs, rate limits
         logger.warn(
           { err: error, messageId: msg.messageId, channelId: msg.channelId, errorCode },
-          '[VerificationCleanup] Unexpected error deleting message'
+          'Unexpected error deleting message'
         );
       }
       return false;

@@ -61,7 +61,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
 
       logger.warn(
         { userId: discordId, personalitySlug, error: result.error },
-        '[Persona] Failed to clear override via gateway'
+        'Failed to clear override via gateway'
       );
       await context.editReply({
         content: '❌ Failed to clear persona override. Please try again later.',
@@ -79,16 +79,13 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
       return;
     }
 
-    logger.info(
-      { userId: discordId, personalityId: personality.id },
-      '[Persona] Cleared persona override'
-    );
+    logger.info({ userId: discordId, personalityId: personality.id }, 'Cleared persona override');
 
     await context.editReply({
       content: `✅ **Persona override cleared for ${personalityName}!**\n\nYour default persona will now be used when talking to ${personalityName}.`,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to clear override');
+    logger.error({ err: error, userId: discordId }, 'Failed to clear override');
     await context.editReply({
       content: '❌ Failed to clear persona override. Please try again later.',
     });

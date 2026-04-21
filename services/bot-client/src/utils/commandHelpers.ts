@@ -56,7 +56,7 @@ export async function handleCommandError(
   error: unknown,
   context: { userId: string; command: string }
 ): Promise<void> {
-  logger.error({ err: error, ...context }, `[${context.command}] Error`);
+  logger.error({ err: error, ...context }, `Error`);
   await interaction.editReply({
     content: '❌ An error occurred. Please try again later.',
   });
@@ -167,7 +167,7 @@ export function createSafeHandler<
       await handler(interaction);
     } catch (error) {
       const userId = interaction.user.id;
-      logger.error({ err: error, userId, command: commandName }, `[${commandName}] Error`);
+      logger.error({ err: error, userId, command: commandName }, `Error`);
       await interaction.editReply({ content: '❌ An error occurred. Please try again later.' });
     }
   };

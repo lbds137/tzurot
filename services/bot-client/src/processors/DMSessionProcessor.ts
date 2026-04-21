@@ -64,7 +64,7 @@ export class DMSessionProcessor implements IMessageProcessor {
     const userId = message.author.id;
     const botId = message.client.user?.id;
 
-    logger.debug({ userId }, '[DMSessionProcessor] Processing DM message');
+    logger.debug({ userId }, 'Processing DM message');
 
     // 2. Check NSFW verification first (higher priority than help message).
     // Tri-state: verified / unverified / check-failed. Fail-closed on
@@ -72,23 +72,20 @@ export class DMSessionProcessor implements IMessageProcessor {
     // blip doesn't re-onboard previously-verified users.
     const check = await checkNsfwVerification(toGatewayUser(message.author));
     if (check.kind === 'error') {
-      logger.warn(
-        { userId, error: check.error },
-        '[DMSessionProcessor] NSFW check failed — surfacing retry message'
-      );
+      logger.warn({ userId, error: check.error }, 'NSFW check failed — surfacing retry message');
       try {
         await message.reply(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
       } catch (replyError) {
         logger.warn(
           { err: replyError, messageId: message.id },
-          '[DMSessionProcessor] Failed to send NSFW check-failed message'
+          'Failed to send NSFW check-failed message'
         );
       }
       return true; // Consume message
     }
     if (!check.value.nsfwVerified) {
-      logger.info({ userId }, '[DMSessionProcessor] DM blocked - user not NSFW verified');
-      await sendNsfwVerificationMessage(message, 'DMSessionProcessor');
+      logger.info({ userId }, 'DM blocked - user not NSFW verified');
+      await sendNsfwVerificationMessage(message);
       return true; // Consume message
     }
 
@@ -105,7 +102,7 @@ export class DMSessionProcessor implements IMessageProcessor {
     if (mentionMatch !== null) {
       logger.debug(
         { userId, mentionedPersonality: mentionMatch.personalityName },
-        '[DMSessionProcessor] Explicit mention found, deferring to PersonalityMentionProcessor'
+        'Explicit mention found, deferring to PersonalityMentionProcessor'
       );
       return false; // Let PersonalityMentionProcessor handle it
     }
@@ -115,7 +112,7 @@ export class DMSessionProcessor implements IMessageProcessor {
 
     if (personalityId === null || personalityId.length === 0) {
       // No active session - send self-destructing help message
-      logger.debug({ userId }, '[DMSessionProcessor] No active session found');
+      logger.debug({ userId }, 'No active session found');
       await this.sendHelpMessage(message);
       return true; // Consume message (don't continue chain)
     }
@@ -125,10 +122,7 @@ export class DMSessionProcessor implements IMessageProcessor {
 
     if (!personality) {
       // Personality deleted or access revoked - send help
-      logger.debug(
-        { userId, personalityId },
-        '[DMSessionProcessor] Personality not accessible, showing help'
-      );
+      logger.debug({ userId, personalityId }, 'Personality not accessible, showing help');
       await this.sendHelpMessage(message);
       return true;
     }
@@ -139,7 +133,7 @@ export class DMSessionProcessor implements IMessageProcessor {
 
     logger.info(
       { userId, personalityName: personality.displayName },
-      '[DMSessionProcessor] Routing DM to active personality session'
+      'Routing DM to active personality session'
     );
 
     await this.personalityHandler.handleMessage(message, personality, content, {
@@ -159,7 +153,7 @@ export class DMSessionProcessor implements IMessageProcessor {
     botId: string | undefined
   ): Promise<string | null> {
     if (botId === undefined || botId.length === 0) {
-      logger.warn({}, '[DMSessionProcessor] Bot ID not available');
+      logger.warn({}, 'Bot ID not available');
       return null;
     }
 
@@ -183,7 +177,7 @@ export class DMSessionProcessor implements IMessageProcessor {
         if (historyEntry?.personalityId !== undefined && historyEntry.personalityId.length > 0) {
           logger.debug(
             { messageId: msg.id, personalityId: historyEntry.personalityId },
-            '[DMSessionProcessor] Found active personality from conversation history'
+            'Found active personality from conversation history'
           );
           return historyEntry.personalityId;
         }
@@ -192,13 +186,13 @@ export class DMSessionProcessor implements IMessageProcessor {
         // but for now, just continue to the next message
         logger.debug(
           { messageId: msg.id, displayName: match[1] },
-          '[DMSessionProcessor] Message not found in conversation history, trying next'
+          'Message not found in conversation history, trying next'
         );
       }
 
       return null; // No personality messages found
     } catch (error) {
-      logger.error({ err: error }, '[DMSessionProcessor] Error fetching DM messages');
+      logger.error({ err: error }, 'Error fetching DM messages');
       return null;
     }
   }
@@ -225,7 +219,7 @@ Or reply to any of my previous messages.`,
       }, HELP_MESSAGE_DELETE_DELAY);
     } catch (error) {
       // Ignore - user may have DMs disabled or other Discord API issues
-      logger.debug({ err: error }, '[DMSessionProcessor] Failed to send help message');
+      logger.debug({ err: error }, 'Failed to send help message');
     }
   }
 }

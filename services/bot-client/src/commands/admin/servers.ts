@@ -328,9 +328,9 @@ export async function handleServers(context: DeferredCommandContext): Promise<vo
     const { embed, components } = buildBrowsePage(guilds, 0, DEFAULT_SORT);
     await context.editReply({ embeds: [embed], components });
 
-    logger.info({ count: guilds.length }, '[Admin] Browse servers');
+    logger.info({ count: guilds.length }, 'Browse servers');
   } catch (error) {
-    logger.error({ err: error }, '[Admin] Error listing servers');
+    logger.error({ err: error }, 'Error listing servers');
     await context.editReply({ content: '❌ Failed to retrieve server list.' });
   }
 }
@@ -366,7 +366,7 @@ export async function handleServersBrowsePagination(interaction: ButtonInteracti
     const { embed, components } = buildBrowsePage(guilds, parsed.page, parsed.sort);
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
-    logger.error({ err: error }, '[Admin] Failed to load servers browse page');
+    logger.error({ err: error }, 'Failed to load servers browse page');
   }
 }
 
@@ -403,9 +403,9 @@ export async function handleServersSelect(interaction: StringSelectMenuInteracti
     const { embed, components } = buildServerDetailsEmbed(guildInfo, parsed.page, parsed.sort);
     await interaction.editReply({ embeds: [embed], components });
 
-    logger.info({ guildId, guildName: guild.name }, '[Admin] View server details');
+    logger.info({ guildId, guildName: guild.name }, 'View server details');
   } catch (error) {
-    logger.error({ err: error, guildId }, '[Admin] Failed to load server details');
+    logger.error({ err: error, guildId }, 'Failed to load server details');
     await interaction.editReply({
       content: '❌ Failed to load server details.',
       embeds: [],

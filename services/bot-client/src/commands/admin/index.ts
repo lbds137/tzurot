@@ -113,7 +113,7 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
         command: interaction.commandName,
         subcommand: interaction.options.getSubcommand(false),
       },
-      '[Admin] Autocomplete error'
+      'Autocomplete error'
     );
     await interaction.respond([]);
   }

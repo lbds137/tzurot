@@ -62,10 +62,7 @@ export class MentionResolver {
       };
     }
 
-    logger.debug(
-      { mentionCount: matches.length },
-      '[MentionResolver] Found user mentions to resolve'
-    );
+    logger.debug({ mentionCount: matches.length }, 'Found user mentions to resolve');
 
     // Extract unique Discord IDs from matches
     const allUniqueIds = [...new Set(matches.map(m => m[1]))];
@@ -73,7 +70,7 @@ export class MentionResolver {
     if (allUniqueIds.length < matches.length) {
       logger.debug(
         { totalMentions: matches.length, uniqueUsers: allUniqueIds.length },
-        '[MentionResolver] Deduplicated mention IDs'
+        'Deduplicated mention IDs'
       );
     }
 
@@ -89,7 +86,7 @@ export class MentionResolver {
           uniqueMentions: allUniqueIds.length,
           limit: DISCORD_MENTIONS.MAX_PER_MESSAGE,
         },
-        '[MentionResolver] Unique mentions exceed limit, processing only first batch'
+        'Unique mentions exceed limit, processing only first batch'
       );
     }
 
@@ -111,7 +108,7 @@ export class MentionResolver {
           if (!existingInfo) {
             logger.debug(
               { discordId },
-              '[MentionResolver] Could not resolve mention - user not in shared server or database'
+              'Could not resolve mention - user not in shared server or database'
             );
           }
           return [discordId, existingInfo];
@@ -143,7 +140,7 @@ export class MentionResolver {
         resolvedCount: userInfoMap.size,
         totalMentions: uniqueIds.length,
       },
-      '[MentionResolver] Mention resolution complete'
+      'Mention resolution complete'
     );
 
     return {
@@ -191,10 +188,7 @@ export class MentionResolver {
         personaName: personaName ?? displayName,
       };
     } catch (error) {
-      logger.error(
-        { err: error, discordId: discordUser.id },
-        '[MentionResolver] Failed to resolve known user'
-      );
+      logger.error({ err: error, discordId: discordUser.id }, 'Failed to resolve known user');
       return null;
     }
   }
@@ -230,7 +224,7 @@ export class MentionResolver {
         personaName: personaName ?? user.username,
       };
     } catch (error) {
-      logger.error({ err: error, discordId }, '[MentionResolver] Failed to look up existing user');
+      logger.error({ err: error, discordId }, 'Failed to look up existing user');
       return null;
     }
   }
@@ -291,10 +285,7 @@ export class MentionResolver {
       };
     }
 
-    logger.debug(
-      { mentionCount: matches.length },
-      '[MentionResolver] Found channel mentions to resolve'
-    );
+    logger.debug({ mentionCount: matches.length }, 'Found channel mentions to resolve');
 
     // Extract unique channel IDs and validate (Discord snowflakes are 17-19 digit strings)
     const allUniqueIds = [...new Set(matches.map(m => m[1]))].filter(isValidDiscordId);
@@ -311,7 +302,7 @@ export class MentionResolver {
           uniqueChannels: allUniqueIds.length,
           limit: DISCORD_MENTIONS.MAX_CHANNELS_PER_MESSAGE,
         },
-        '[MentionResolver] Unique channel mentions exceed limit, processing only first batch'
+        'Unique channel mentions exceed limit, processing only first batch'
       );
     }
 
@@ -346,10 +337,7 @@ export class MentionResolver {
         processedContent = processedContent.replaceAll(mentionTag, `#${channel.name}`);
       } else {
         // Channel not found - leave as-is or use placeholder
-        logger.debug(
-          { channelId },
-          '[MentionResolver] Could not resolve channel - not in cache or external'
-        );
+        logger.debug({ channelId }, 'Could not resolve channel - not in cache or external');
         // Replace with a generic placeholder to avoid raw IDs in prompt
         const mentionTag = `<#${channelId}>`;
         processedContent = processedContent.replaceAll(
@@ -364,7 +352,7 @@ export class MentionResolver {
         resolvedCount: mentionedChannels.length,
         totalMentions: uniqueIds.length,
       },
-      '[MentionResolver] Channel mention resolution complete'
+      'Channel mention resolution complete'
     );
 
     return {
@@ -395,10 +383,7 @@ export class MentionResolver {
       };
     }
 
-    logger.debug(
-      { mentionCount: matches.length },
-      '[MentionResolver] Found role mentions to resolve'
-    );
+    logger.debug({ mentionCount: matches.length }, 'Found role mentions to resolve');
 
     // Extract unique role IDs and validate (Discord snowflakes are 17-19 digit strings)
     const allUniqueIds = [...new Set(matches.map(m => m[1]))].filter(isValidDiscordId);
@@ -415,7 +400,7 @@ export class MentionResolver {
           uniqueRoles: allUniqueIds.length,
           limit: DISCORD_MENTIONS.MAX_ROLES_PER_MESSAGE,
         },
-        '[MentionResolver] Unique role mentions exceed limit, processing only first batch'
+        'Unique role mentions exceed limit, processing only first batch'
       );
     }
 
@@ -438,10 +423,7 @@ export class MentionResolver {
         processedContent = processedContent.replaceAll(mentionTag, `@${role.name}`);
       } else {
         // Role not found - leave as-is or use placeholder
-        logger.debug(
-          { roleId },
-          '[MentionResolver] Could not resolve role - not in cache or external'
-        );
+        logger.debug({ roleId }, 'Could not resolve role - not in cache or external');
         // Replace with a generic placeholder
         const mentionTag = `<@&${roleId}>`;
         processedContent = processedContent.replaceAll(
@@ -456,7 +438,7 @@ export class MentionResolver {
         resolvedCount: mentionedRoles.length,
         totalMentions: uniqueIds.length,
       },
-      '[MentionResolver] Role mention resolution complete'
+      'Role mention resolution complete'
     );
 
     return {

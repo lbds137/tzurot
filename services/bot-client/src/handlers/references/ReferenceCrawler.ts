@@ -95,7 +95,7 @@ export class ReferenceCrawler {
           queueLength: queue.length,
           extractedCount: messages.size,
         },
-        '[ReferenceCrawler] Processing message at depth level'
+        'Processing message at depth level'
       );
 
       // Extract references using all strategies
@@ -122,7 +122,7 @@ export class ReferenceCrawler {
                 referencedMessageId: refResult.messageId,
                 error: (error as Error).message,
               },
-              '[ReferenceCrawler] Failed to fetch reply reference'
+              'Failed to fetch reply reference'
             );
           }
         }
@@ -186,7 +186,7 @@ export class ReferenceCrawler {
         totalReferences: messages.size,
         maxDepth,
       },
-      '[ReferenceCrawler] BFS crawl complete'
+      'BFS crawl complete'
     );
 
     return { messages, maxDepth };

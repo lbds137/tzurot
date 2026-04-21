@@ -73,7 +73,7 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
     if (!result.ok) {
       logger.error(
         { status: result.status, userId: interaction.user.id, error: result.error },
-        '[Shapes] Failed to store session cookie'
+        'Failed to store session cookie'
       );
       await interaction.editReply(getAuthErrorMessage(result.status));
       return;
@@ -100,9 +100,9 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId: interaction.user.id }, '[Shapes] Session cookie stored successfully');
+    logger.info({ userId: interaction.user.id }, 'Session cookie stored successfully');
   } catch (error) {
-    logger.error({ err: error, userId: interaction.user.id }, '[Shapes] Error storing cookie');
+    logger.error({ err: error, userId: interaction.user.id }, 'Error storing cookie');
     await interaction.editReply(
       '❌ An unexpected error occurred while saving your credentials.\n' + 'Please try again later.'
     );

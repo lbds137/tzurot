@@ -119,10 +119,7 @@ export async function buildShapeDetailEmbed(
   try {
     jobStatus = await fetchJobStatusForSlug(user, slug);
   } catch (error) {
-    logger.error(
-      { err: error, userId: user.discordId, slug },
-      '[Shapes] Failed to fetch job status'
-    );
+    logger.error({ err: error, userId: user.discordId, slug }, 'Failed to fetch job status');
     jobStatus = { latestImport: null, latestExport: null };
   }
 

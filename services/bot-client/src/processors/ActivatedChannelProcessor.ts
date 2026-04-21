@@ -61,10 +61,7 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
 
     const { personalitySlug, personalityName } = channelSettings.settings;
 
-    logger.debug(
-      { channelId, personalitySlug, userId },
-      '[ActivatedChannelProcessor] Channel has activated personality'
-    );
+    logger.debug({ channelId, personalitySlug, userId }, 'Channel has activated personality');
 
     // Load the personality with access control
     // Pass userId to enforce access - user must have access to the personality
@@ -76,7 +73,7 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
       // sending the message isn't the owner
       logger.debug(
         { channelId, personalitySlug, personalityName, userId },
-        '[ActivatedChannelProcessor] Personality not accessible to user, skipping auto-response'
+        'Personality not accessible to user, skipping auto-response'
       );
 
       // Notify the user (with rate limiting to avoid spam)
@@ -89,7 +86,7 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
         } catch (error) {
           logger.warn(
             { err: error, channelId, userId },
-            '[ActivatedChannelProcessor] Failed to send private personality notification'
+            'Failed to send private personality notification'
           );
         }
       }
@@ -109,7 +106,7 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
 
     logger.info(
       { channelId, personalityName: personality.displayName, userId },
-      '[ActivatedChannelProcessor] Auto-responded via channel activation'
+      'Auto-responded via channel activation'
     );
 
     return true; // Stop processing - we handled the message

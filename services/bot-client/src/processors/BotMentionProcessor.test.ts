@@ -179,10 +179,7 @@ describe('BotMentionProcessor', () => {
 
       await processor.process(message);
 
-      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalledWith(
-        message,
-        'BotMentionProcessor'
-      );
+      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalledWith(message);
     });
 
     it('should block help and return true when verification denied (unverified non-NSFW / DM)', async () => {

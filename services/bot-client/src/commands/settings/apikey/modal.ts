@@ -81,7 +81,7 @@ async function handleSetKeySubmit(
     if (!result.ok) {
       logger.error(
         { status: result.status, provider, userId: interaction.user.id, error: result.error },
-        '[Settings/ApiKey] Failed to store API key'
+        'Failed to store API key'
       );
 
       // Handle specific error cases with user-friendly messages
@@ -114,12 +114,9 @@ async function handleSetKeySubmit(
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info(
-      { provider, userId: interaction.user.id },
-      '[Settings/ApiKey] API key stored successfully'
-    );
+    logger.info({ provider, userId: interaction.user.id }, 'API key stored successfully');
   } catch (error) {
-    logger.error({ err: error, provider, userId: interaction.user.id }, '[Settings/ApiKey] Error');
+    logger.error({ err: error, provider, userId: interaction.user.id }, 'Error');
 
     await interaction.editReply(
       '❌ An unexpected error occurred while saving your API key.\n' +

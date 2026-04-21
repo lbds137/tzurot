@@ -62,10 +62,10 @@ export class DenylistCache {
           channelUsers: this.channelUsers.size,
           personalityUsers: this.personalityUsers.size,
         },
-        '[DenylistCache] Hydrated from gateway'
+        'Hydrated from gateway'
       );
     } catch (error) {
-      logger.error({ err: error }, '[DenylistCache] Failed to hydrate - starting with empty cache');
+      logger.error({ err: error }, 'Failed to hydrate - starting with empty cache');
     }
   }
 
@@ -101,7 +101,7 @@ export class DenylistCache {
       );
       logger.debug(
         { entityType: event.entry.type, discordId: event.entry.discordId, mode },
-        '[DenylistCache] Added entry from event'
+        'Added entry from event'
       );
     } else if (event.type === 'remove') {
       this.removeEntry(
@@ -112,7 +112,7 @@ export class DenylistCache {
       );
       logger.debug(
         { entityType: event.entry.type, discordId: event.entry.discordId },
-        '[DenylistCache] Removed entry from event'
+        'Removed entry from event'
       );
     }
     // 'all' events trigger a full re-hydration (handled by caller)

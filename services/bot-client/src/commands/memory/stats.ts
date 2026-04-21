@@ -57,7 +57,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
         result.status === 404
           ? `Personality "${personalityInput}" not found.`
           : 'Failed to get stats. Please try again later.';
-      logger.warn({ userId, personalityInput, status: result.status }, '[Memory] Stats failed');
+      logger.warn({ userId, personalityInput, status: result.status }, 'Stats failed');
       await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
@@ -116,10 +116,10 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
         lockedCount: data.lockedCount,
         focusModeEnabled: data.focusModeEnabled,
       },
-      '[Memory] Stats retrieved'
+      'Stats retrieved'
     );
   } catch (error) {
-    logger.error({ error, userId }, '[Memory Stats] Unexpected error');
+    logger.error({ error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

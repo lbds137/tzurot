@@ -779,10 +779,7 @@ describe('PersonalityMessageHandler', () => {
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello from NSFW channel');
 
       // Should call handleNsfwVerification
-      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalledWith(
-        mockMessage,
-        'PersonalityMessageHandler'
-      );
+      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalledWith(mockMessage);
 
       // Should send confirmation for new verification
       expect(nsfwVerification.sendVerificationConfirmation).toHaveBeenCalled();

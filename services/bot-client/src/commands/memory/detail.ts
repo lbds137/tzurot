@@ -262,7 +262,7 @@ export async function handleLockButton(
   });
 
   const action = updatedMemory.isLocked ? 'locked' : 'unlocked';
-  logger.info({ userId, memoryId, action }, '[Memory] Memory lock toggled');
+  logger.info({ userId, memoryId, action }, 'Memory lock toggled');
 }
 
 /**
@@ -328,7 +328,7 @@ export async function handleDeleteConfirm(
     return false;
   }
 
-  logger.info({ userId, memoryId }, '[Memory] Memory deleted');
+  logger.info({ userId, memoryId }, 'Memory deleted');
   return true;
 }
 
@@ -363,8 +363,5 @@ export async function handleViewFullButton(
     files: [attachment],
   });
 
-  logger.info(
-    { userId, memoryId, contentLength: memory.content.length },
-    '[Memory] Full content sent'
-  );
+  logger.info({ userId, memoryId, contentLength: memory.content.length }, 'Full content sent');
 }

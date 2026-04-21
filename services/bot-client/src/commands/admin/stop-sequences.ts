@@ -93,10 +93,7 @@ export async function handleStopSequences(context: DeferredCommandContext): Prom
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info(
-      { totalActivations: stats.totalActivations },
-      '[StopSequences] Returned stats embed'
-    );
+    logger.info({ totalActivations: stats.totalActivations }, 'Returned stats embed');
   } catch (error) {
     logger.error({ err: error }, 'Error retrieving stop sequence stats');
     await context.editReply({

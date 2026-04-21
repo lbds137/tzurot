@@ -56,16 +56,16 @@ export class ReplyResolutionService {
   ): boolean {
     if (isDM) {
       if (referencedMessage.author?.id !== clientUserId) {
-        logger.debug('[ReplyResolutionService] Reply in DM is not to a bot message, skipping');
+        logger.debug('Reply in DM is not to a bot message, skipping');
         return false;
       }
-      logger.debug('[ReplyResolutionService] DM reply to bot message detected');
+      logger.debug('DM reply to bot message detected');
       return true;
     }
 
     // Guild: require webhookId (personality messages are sent via webhooks)
     if (!isValidIdentifier(referencedMessage.webhookId)) {
-      logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
+      logger.debug('Reply is to a non-webhook message, skipping');
       return false;
     }
 
@@ -79,7 +79,7 @@ export class ReplyResolutionService {
           webhookApplicationId: referencedMessage.applicationId,
           currentBotId: clientUserId,
         },
-        '[ReplyResolutionService] Ignoring reply to webhook from different bot instance'
+        'Ignoring reply to webhook from different bot instance'
       );
       return false;
     }
@@ -98,7 +98,7 @@ export class ReplyResolutionService {
       if (prefixMatch) {
         logger.debug(
           { displayName: prefixMatch[1] },
-          '[ReplyResolutionService] Parsed display name from DM message prefix (tier 3)'
+          'Parsed display name from DM message prefix (tier 3)'
         );
         return prefixMatch[1];
       }
@@ -113,7 +113,7 @@ export class ReplyResolutionService {
         const name = webhookUsername.split(' | ')[0].trim();
         logger.debug(
           { personalityName: name },
-          '[ReplyResolutionService] Extracted personality name from webhook username (tier 3)'
+          'Extracted personality name from webhook username (tier 3)'
         );
         return name;
       }
@@ -133,10 +133,7 @@ export class ReplyResolutionService {
     let identifier = await redisService.getWebhookPersonality(referencedMessage.id);
 
     if (isValidIdentifier(identifier) && isUuidFormat(identifier)) {
-      logger.debug(
-        { personalityId: identifier },
-        '[ReplyResolutionService] Found personality ID in Redis (tier 1)'
-      );
+      logger.debug({ personalityId: identifier }, 'Found personality ID in Redis (tier 1)');
     }
 
     // Tier 2: Database lookup (DM only when Redis misses)
@@ -148,7 +145,7 @@ export class ReplyResolutionService {
         identifier = dbResult.personalityId;
         logger.debug(
           { personalityId: identifier },
-          '[ReplyResolutionService] Found personality via database lookup (tier 2)'
+          'Found personality via database lookup (tier 2)'
         );
       }
     }
@@ -177,7 +174,7 @@ export class ReplyResolutionService {
     try {
       const messageId = message.reference?.messageId;
       if (!isValidIdentifier(messageId)) {
-        logger.warn({}, '[ReplyResolutionService] Called with message that has no reference');
+        logger.warn({}, 'Called with message that has no reference');
         return null;
       }
 
@@ -190,7 +187,7 @@ export class ReplyResolutionService {
 
       const personalityIdOrName = await this.lookupPersonalityIdentifier(referencedMessage, isDM);
       if (personalityIdOrName === null) {
-        logger.debug('[ReplyResolutionService] No personality found for replied message');
+        logger.debug('No personality found for replied message');
         return null;
       }
 
@@ -201,27 +198,21 @@ export class ReplyResolutionService {
       );
 
       if (!personality) {
-        logger.debug(
-          { personalityIdOrName, userId },
-          '[ReplyResolutionService] Personality not found or access denied'
-        );
+        logger.debug({ personalityIdOrName, userId }, 'Personality not found or access denied');
         return null;
       }
 
       logger.info(
         { personalityName: personality.displayName, userId, isDM },
-        '[ReplyResolutionService] Resolved personality from reply'
+        'Resolved personality from reply'
       );
 
       return personality;
     } catch (error) {
       if (isExpectedDiscordError(error)) {
-        logger.debug({ err: error }, '[ReplyResolutionService] Referenced message was deleted');
+        logger.debug({ err: error }, 'Referenced message was deleted');
       } else {
-        logger.warn(
-          { err: error },
-          '[ReplyResolutionService] Unexpected error fetching or processing referenced message'
-        );
+        logger.warn({ err: error }, 'Unexpected error fetching or processing referenced message');
       }
       return null;
     }

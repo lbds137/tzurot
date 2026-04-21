@@ -51,9 +51,9 @@ export async function handleCreatePersona(context: ModalCommandContext): Promise
     modal.addComponents(...inputFields);
 
     await context.showModal(modal);
-    logger.info({ userId: context.user.id }, '[Persona] Showed create modal');
+    logger.info({ userId: context.user.id }, 'Showed create modal');
   } catch (error) {
-    logger.error({ err: error, userId: context.user.id }, '[Persona] Failed to show create modal');
+    logger.error({ err: error, userId: context.user.id }, 'Failed to show create modal');
     await context.reply({
       content: '❌ Failed to open create dialog. Please try again later.',
       flags: MessageFlags.Ephemeral,
@@ -102,7 +102,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     if (!result.ok) {
       logger.warn(
         { userId: discordId, error: result.error },
-        '[Persona] Failed to create persona via gateway'
+        'Failed to create persona via gateway'
       );
       await interaction.reply({
         content: '❌ Failed to create persona. Please try again later.',
@@ -113,16 +113,10 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
 
     const { persona, setAsDefault } = result.data;
 
-    logger.info(
-      { userId: discordId, personaId: persona.id, personaName },
-      '[Persona] Created new persona'
-    );
+    logger.info({ userId: discordId, personaId: persona.id, personaName }, 'Created new persona');
 
     if (setAsDefault) {
-      logger.info(
-        { userId: discordId, personaId: persona.id },
-        '[Persona] Set as default (first persona)'
-      );
+      logger.info({ userId: discordId, personaId: persona.id }, 'Set as default (first persona)');
     }
 
     // Build response
@@ -156,7 +150,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       flags: MessageFlags.Ephemeral,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to create persona');
+    logger.error({ err: error, userId: discordId }, 'Failed to create persona');
     await interaction.reply({
       content: '❌ Failed to create persona. Please try again later.',
       flags: MessageFlags.Ephemeral,

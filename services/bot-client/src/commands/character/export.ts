@@ -90,7 +90,7 @@ async function fetchAvatarData(slug: string): Promise<Buffer | null> {
     const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(arrayBuffer);
   } catch (error) {
-    logger.warn({ err: error, slug }, '[Character/Export] Failed to fetch avatar');
+    logger.warn({ err: error, slug }, 'Failed to fetch avatar');
     return null;
   }
 }
@@ -198,10 +198,10 @@ export async function handleExport(
 
     logger.info(
       { slug, userId, hasAvatar: character.hasAvatar },
-      '[Character/Export] Character exported successfully'
+      'Character exported successfully'
     );
   } catch (error) {
-    logger.error({ err: error, slug }, '[Character/Export] Error exporting character');
+    logger.error({ err: error, slug }, 'Error exporting character');
     await context.editReply('❌ An unexpected error occurred while exporting the character.');
   }
 }

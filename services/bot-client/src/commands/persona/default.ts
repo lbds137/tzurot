@@ -51,10 +51,7 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
         return;
       }
 
-      logger.warn(
-        { userId: discordId, personaId, error: result.error },
-        '[Persona] Failed to set default'
-      );
+      logger.warn({ userId: discordId, personaId, error: result.error }, 'Failed to set default');
       await context.editReply({
         content: '❌ Failed to set default persona. Please try again later.',
       });
@@ -72,16 +69,13 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
       return;
     }
 
-    logger.info(
-      { userId: discordId, personaId, personaName: persona.name },
-      '[Persona] Set default'
-    );
+    logger.info({ userId: discordId, personaId, personaName: persona.name }, 'Set default');
 
     await context.editReply({
       content: `⭐ **${displayName}** is now your default persona.\n\nThis persona will be used when talking to personalities that don't have a specific override set.`,
     });
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to set default');
+    logger.error({ err: error, userId: discordId }, 'Failed to set default');
     await context.editReply({
       content: '❌ Failed to set default persona. Please try again later.',
     });

@@ -24,7 +24,7 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status }, '[Me/Preset] Failed to clear default');
+      logger.warn({ userId, status: result.status }, 'Failed to clear default');
       await context.editReply({ content: `❌ Failed to clear default: ${result.error}` });
       return;
     }
@@ -40,12 +40,9 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId }, '[Me/Preset] Cleared default config');
+    logger.info({ userId }, 'Cleared default config');
   } catch (error) {
-    logger.error(
-      { err: error, userId, command: 'Preset Clear-Default' },
-      '[Preset Clear-Default] Error'
-    );
+    logger.error({ err: error, userId, command: 'Preset Clear-Default' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

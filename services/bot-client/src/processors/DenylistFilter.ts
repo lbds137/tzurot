@@ -30,13 +30,13 @@ export class DenylistFilter implements IMessageProcessor {
 
     // Check bot-wide guild denial
     if (message.guildId !== null && this.denylistCache.isBotDenied('', message.guildId)) {
-      logger.debug({ guildId: message.guildId }, '[DenylistFilter] Message from denied guild');
+      logger.debug({ guildId: message.guildId }, 'Message from denied guild');
       return Promise.resolve(true);
     }
 
     // Check bot-wide user denial
     if (this.denylistCache.isBotDenied(message.author.id)) {
-      logger.debug({ userId: message.author.id }, '[DenylistFilter] Message from denied user');
+      logger.debug({ userId: message.author.id }, 'Message from denied user');
       return Promise.resolve(true);
     }
 
@@ -47,7 +47,7 @@ export class DenylistFilter implements IMessageProcessor {
     ) {
       logger.debug(
         { userId: message.author.id, guildId: message.guildId },
-        '[DenylistFilter] Message from user denied in this guild'
+        'Message from user denied in this guild'
       );
       return Promise.resolve(true);
     }
@@ -64,7 +64,7 @@ export class DenylistFilter implements IMessageProcessor {
       if (this.denylistCache.isChannelDenied(message.author.id, channelId)) {
         logger.debug(
           { userId: message.author.id, channelId: message.channelId, deniedIn: channelId },
-          '[DenylistFilter] Message from user denied in channel'
+          'Message from user denied in channel'
         );
         return Promise.resolve(true);
       }

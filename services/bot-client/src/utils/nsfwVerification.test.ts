@@ -373,7 +373,7 @@ describe('NSFW Verification Utilities', () => {
         reply: vi.fn().mockResolvedValue(mockReply),
       } as any;
 
-      await sendNsfwVerificationMessage(mockMessage, 'TestProcessor');
+      await sendNsfwVerificationMessage(mockMessage);
 
       expect(mockMessage.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_MESSAGE);
     });
@@ -386,9 +386,7 @@ describe('NSFW Verification Utilities', () => {
       } as any;
 
       // Should not throw
-      await expect(
-        sendNsfwVerificationMessage(mockMessage, 'TestProcessor')
-      ).resolves.toBeUndefined();
+      await expect(sendNsfwVerificationMessage(mockMessage)).resolves.toBeUndefined();
     });
   });
 
@@ -412,7 +410,7 @@ describe('NSFW Verification Utilities', () => {
         reply: vi.fn(),
       } as any;
 
-      const result = await handleNsfwVerification(mockMessage, 'TestProcessor');
+      const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: true, wasNewVerification: true });
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw/verify', {
@@ -444,7 +442,7 @@ describe('NSFW Verification Utilities', () => {
         reply: vi.fn(),
       } as any;
 
-      const result = await handleNsfwVerification(mockMessage, 'TestProcessor');
+      const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: true, wasNewVerification: false });
     });
@@ -467,7 +465,7 @@ describe('NSFW Verification Utilities', () => {
         reply: vi.fn(),
       } as any;
 
-      const result = await handleNsfwVerification(mockMessage, 'TestProcessor');
+      const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: true, wasNewVerification: false });
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw', {
@@ -497,7 +495,7 @@ describe('NSFW Verification Utilities', () => {
         reply: vi.fn().mockResolvedValue(mockReply),
       } as any;
 
-      const result = await handleNsfwVerification(mockMessage, 'TestProcessor');
+      const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: false, wasNewVerification: false });
       expect(mockMessage.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
@@ -525,7 +523,7 @@ describe('NSFW Verification Utilities', () => {
         reply: vi.fn().mockResolvedValue(mockReply),
       } as any;
 
-      const result = await handleNsfwVerification(mockMessage, 'TestProcessor');
+      const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: false, wasNewVerification: false });
       expect(mockMessage.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_MESSAGE);
@@ -553,7 +551,7 @@ describe('NSFW Verification Utilities', () => {
         reply: vi.fn(),
       } as any;
 
-      const result = await handleNsfwVerification(mockMessage, 'TestProcessor');
+      const result = await handleNsfwVerification(mockMessage);
 
       expect(result).toEqual({ allowed: true, wasNewVerification: true });
     });

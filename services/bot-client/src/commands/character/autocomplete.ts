@@ -47,7 +47,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         command: interaction.commandName,
         subcommand,
       },
-      '[Character] Autocomplete error'
+      'Autocomplete error'
     );
     await interaction.respond([]);
   }

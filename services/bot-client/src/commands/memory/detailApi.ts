@@ -40,7 +40,7 @@ export async function fetchMemory(user: GatewayUser, memoryId: string): Promise<
   if (!result.ok) {
     logger.warn(
       { userId: user.discordId, memoryId, error: result.error },
-      '[Memory] Failed to fetch memory'
+      'Failed to fetch memory'
     );
     return null;
   }
@@ -68,7 +68,7 @@ export async function updateMemory(
   if (!result.ok) {
     logger.warn(
       { userId: user.discordId, memoryId, error: result.error },
-      '[Memory] Failed to update memory'
+      'Failed to update memory'
     );
     return null;
   }
@@ -92,10 +92,7 @@ export async function toggleMemoryLock(
   );
 
   if (!result.ok) {
-    logger.warn(
-      { userId: user.discordId, memoryId, error: result.error },
-      '[Memory] Failed to toggle lock'
-    );
+    logger.warn({ userId: user.discordId, memoryId, error: result.error }, 'Failed to toggle lock');
     return null;
   }
 
@@ -117,7 +114,7 @@ export async function deleteMemory(user: GatewayUser, memoryId: string): Promise
   if (!result.ok) {
     logger.warn(
       { userId: user.discordId, memoryId, error: result.error },
-      '[Memory] Failed to delete memory'
+      'Failed to delete memory'
     );
     return false;
   }
