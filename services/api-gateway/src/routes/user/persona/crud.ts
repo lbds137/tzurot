@@ -26,7 +26,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-persona-crud');
@@ -62,7 +62,7 @@ function toPersonaDetails(p: PersonaFromDb, isDefault: boolean): PersonaDetails 
  */
 async function resolveOwnedPersona(
   prisma: PrismaClient,
-  discordUserId: string,
+  req: ProvisionedRequest,
   id: string | undefined,
   res: Response
 ): Promise<{
@@ -75,7 +75,7 @@ async function resolveOwnedPersona(
     return null;
   }
 
-  const user = await getOrCreateInternalUser(prisma, discordUserId);
+  const user = await getOrCreateInternalUser(prisma, req);
 
   const persona = await prisma.persona.findFirst({
     where: { id, ownerId: user.id },
@@ -93,9 +93,8 @@ async function resolveOwnedPersona(
 // --- Handler Factories ---
 
 function createListHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
+  return async (req: ProvisionedRequest, res: Response) => {
+    const user = await getOrCreateInternalUser(prisma, req);
 
     const personas = await prisma.persona.findMany({
       where: { ownerId: user.id },
@@ -113,8 +112,7 @@ function createListHandler(prisma: PrismaClient) {
 }
 
 function createGetHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
+  return async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
     const idValidation = validateUuid(id, 'persona ID');
@@ -122,7 +120,7 @@ function createGetHandler(prisma: PrismaClient) {
       return sendError(res, idValidation.error);
     }
 
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
+    const user = await getOrCreateInternalUser(prisma, req);
 
     const persona = await prisma.persona.findFirst({
       where: { id, ownerId: user.id },
@@ -140,9 +138,7 @@ function createGetHandler(prisma: PrismaClient) {
 }
 
 function createCreateHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
-
+  return async (req: ProvisionedRequest, res: Response) => {
     // Validate request body with Zod
     const parseResult = PersonaCreateSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -151,7 +147,7 @@ function createCreateHandler(prisma: PrismaClient) {
 
     const { name, content, preferredName, description, pronouns } = parseResult.data;
 
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
+    const user = await getOrCreateInternalUser(prisma, req);
 
     const persona = await prisma.persona.create({
       data: {
@@ -189,11 +185,10 @@ function createCreateHandler(prisma: PrismaClient) {
 }
 
 function createUpdateHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
+  return async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
-    const resolved = await resolveOwnedPersona(prisma, discordUserId, id, res);
+    const resolved = await resolveOwnedPersona(prisma, req, id, res);
     if (resolved === null) {
       return;
     }
@@ -241,11 +236,10 @@ function createUpdateHandler(prisma: PrismaClient) {
 }
 
 function createDeleteHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
+  return async (req: ProvisionedRequest, res: Response) => {
     const id = getParam(req.params.id);
 
-    const resolved = await resolveOwnedPersona(prisma, discordUserId, id, res);
+    const resolved = await resolveOwnedPersona(prisma, req, id, res);
     if (resolved === null) {
       return;
     }

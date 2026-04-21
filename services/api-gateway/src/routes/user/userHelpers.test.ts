@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getOrCreateInternalUser } from './userHelpers.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 describe('getOrCreateInternalUser', () => {
   // Mock Prisma with UserService dependencies
@@ -38,7 +39,50 @@ describe('getOrCreateInternalUser', () => {
     vi.clearAllMocks();
   });
 
-  it('should return existing user with defaultPersonaId', async () => {
+  it('returns the provisioned UUIDs directly when middleware attached them (common path)', async () => {
+    // Provisioned path: `requireProvisionedUser` middleware ran successfully
+    // and attached both UUIDs. No DB lookups needed — the provisioned values
+    // ARE the authoritative answer.
+    const req = {
+      userId: 'discord-123',
+      provisionedUserId: 'user-uuid-from-middleware',
+      provisionedDefaultPersonaId: 'persona-uuid-from-middleware',
+    } as ProvisionedRequest;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
+    const result = await getOrCreateInternalUser(mockPrisma as any, req);
+
+    expect(result).toEqual({
+      id: 'user-uuid-from-middleware',
+      defaultPersonaId: 'persona-uuid-from-middleware',
+    });
+    // Structural proof the provisioned path won: no DB round-trip.
+    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('returns null defaultPersonaId when middleware attached only userId', async () => {
+    // Edge case: middleware can theoretically attach provisionedUserId without
+    // provisionedDefaultPersonaId (getOrCreateUser always returns both today,
+    // but the types are optional independently). Handle the edge gracefully.
+    const req = {
+      userId: 'discord-123',
+      provisionedUserId: 'user-uuid-from-middleware',
+    } as ProvisionedRequest;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
+    const result = await getOrCreateInternalUser(mockPrisma as any, req);
+
+    expect(result).toEqual({
+      id: 'user-uuid-from-middleware',
+      defaultPersonaId: null,
+    });
+  });
+
+  it('falls back to shell path when middleware fell through — existing user', async () => {
+    // Shadow-mode fallthrough: middleware didn't attach provisionedUserId
+    // (missing/malformed headers, bot user, rare getOrCreateUser failure).
+    // Preserves the legacy behavior: shell-create then findUnique for persona.
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-123',
       username: 'existing-user',
@@ -46,8 +90,10 @@ describe('getOrCreateInternalUser', () => {
       isSuperuser: false,
     });
 
+    const req = { userId: 'discord-123' } as ProvisionedRequest;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
-    const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-123');
+    const result = await getOrCreateInternalUser(mockPrisma as any, req);
 
     expect(result).toEqual(
       expect.objectContaining({ id: 'user-123', defaultPersonaId: 'persona-456' })
@@ -55,7 +101,7 @@ describe('getOrCreateInternalUser', () => {
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('should create shell user with placeholder persona if not found', async () => {
+  it('falls back to shell path when middleware fell through — creates user via CTE', async () => {
     // Phase 5b: shell creation now atomically creates the user + a
     // placeholder persona via a single $executeRaw CTE. The follow-up
     // findUnique returns the freshly-created row with its non-null
@@ -64,8 +110,10 @@ describe('getOrCreateInternalUser', () => {
       .mockResolvedValueOnce(null) // UserService shell-path initial lookup
       .mockResolvedValueOnce({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' });
 
+    const req = { userId: 'discord-456' } as ProvisionedRequest;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
-    const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-456');
+    const result = await getOrCreateInternalUser(mockPrisma as any, req);
 
     expect(result).toEqual(
       expect.objectContaining({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' })

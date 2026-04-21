@@ -20,7 +20,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import type { PersonaOverrideSummary } from './types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 
@@ -56,9 +56,8 @@ async function resolvePersonalityBySlug(
 // --- Handler Factories ---
 
 function createListHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
+  return async (req: ProvisionedRequest, res: Response) => {
+    const user = await getOrCreateInternalUser(prisma, req);
 
     const overrides = await prisma.userPersonalityConfig.findMany({
       where: { userId: user.id, personaId: { not: null } },
@@ -91,7 +90,7 @@ function createListHandler(prisma: PrismaClient) {
 }
 
 function createGetHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const personality = await resolvePersonalityBySlug(
       prisma,
       getParam(req.params.personalitySlug),
@@ -112,8 +111,7 @@ function createGetHandler(prisma: PrismaClient) {
 }
 
 function createSetHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
+  return async (req: ProvisionedRequest, res: Response) => {
     const personalitySlug = getParam(req.params.personalitySlug);
 
     // Validate request body with Zod
@@ -124,7 +122,7 @@ function createSetHandler(prisma: PrismaClient) {
 
     const { personaId: personaIdValue } = parseResult.data;
 
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
+    const user = await getOrCreateInternalUser(prisma, req);
 
     const persona = await prisma.persona.findFirst({
       where: { id: personaIdValue, ownerId: user.id },
@@ -169,10 +167,8 @@ function createSetHandler(prisma: PrismaClient) {
 }
 
 function createClearHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
-
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
+  return async (req: ProvisionedRequest, res: Response) => {
+    const user = await getOrCreateInternalUser(prisma, req);
 
     const personality = await resolvePersonalityBySlug(
       prisma,

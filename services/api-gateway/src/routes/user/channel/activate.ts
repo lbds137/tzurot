@@ -20,7 +20,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 import { canUserViewPersonality } from '../personality/helpers.js';
 
@@ -86,7 +86,7 @@ function buildActivationResponse(
  * Activates a personality in a channel. Replaces any existing activation.
  */
 export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
     // Validate request body
@@ -110,7 +110,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
     }
 
     // Get or create internal user and check access
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
+    const user = await getOrCreateInternalUser(prisma, req);
     const canView = await canUserViewPersonality({
       prisma,
       userId: user.id,

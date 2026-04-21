@@ -23,7 +23,7 @@ import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
 import { formatPersonalityResponse } from './formatters.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-personality-create');
@@ -77,7 +77,7 @@ function buildCreateData(
  * Create a new personality owned by the user
  */
 export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
     // Validate request body with Zod schema
@@ -117,7 +117,7 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
 
     // Get or create user and find default system prompt in parallel
     const [user, defaultSystemPrompt] = await Promise.all([
-      getOrCreateInternalUser(prisma, discordUserId),
+      getOrCreateInternalUser(prisma, req),
       prisma.systemPrompt.findFirst({ where: { isDefault: true }, select: { id: true } }),
     ]);
 

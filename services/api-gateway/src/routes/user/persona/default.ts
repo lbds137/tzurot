@@ -11,7 +11,7 @@ import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-persona-default');
@@ -25,8 +25,7 @@ export function addDefaultRoutes(router: Router, prisma: PrismaClient): void {
     '/:id/default',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const id = getParam(req.params.id);
 
       const idValidation = validateUuid(id, 'persona ID');
@@ -35,7 +34,7 @@ export function addDefaultRoutes(router: Router, prisma: PrismaClient): void {
         return;
       }
 
-      const user = await getOrCreateInternalUser(prisma, discordUserId);
+      const user = await getOrCreateInternalUser(prisma, req);
 
       const persona = await prisma.persona.findFirst({
         where: { id, ownerId: user.id },
