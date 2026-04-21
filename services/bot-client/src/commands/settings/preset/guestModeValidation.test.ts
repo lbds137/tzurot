@@ -78,8 +78,8 @@ describe('guestModeValidation', () => {
         .mockResolvedValueOnce({ ok: true, data: { configs: [] } } as never);
 
       const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
-      expect(result.isGuestMode).toBe(false);
       expect(result.blocked).toBe(false);
+      expect(result).toMatchObject({ blocked: false, reason: 'paid' });
     });
 
     it('should not block guest user selecting free model', async () => {
@@ -91,8 +91,8 @@ describe('guestModeValidation', () => {
         } as never);
 
       const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
-      expect(result.isGuestMode).toBe(true);
       expect(result.blocked).toBe(false);
+      expect(result).toMatchObject({ blocked: false, reason: 'guest-free-model' });
     });
 
     it('should block guest user selecting premium model', async () => {
@@ -106,7 +106,6 @@ describe('guestModeValidation', () => {
         } as never);
 
       const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
-      expect(result.isGuestMode).toBe(true);
       expect(result.blocked).toBe(true);
       expect(mockEditReply).toHaveBeenCalled();
     });
@@ -124,8 +123,34 @@ describe('guestModeValidation', () => {
         'config-not-found',
         mkUser()
       );
-      expect(result.isGuestMode).toBe(true);
       expect(result.blocked).toBe(false);
+      expect(result).toMatchObject({ blocked: false, reason: 'guest-free-model' });
+    });
+
+    it('should fail-open when wallet API fails (ai-worker will enforce authoritatively)', async () => {
+      // Simulate a transient /wallet/list failure. The historic bug was that
+      // this was treated identically to "no keys", locking out users with
+      // active paid keys. Fix: fail-open with a warn log, trust the
+      // downstream ai-worker gate.
+      vi.mocked(gatewayClient.callGatewayApi)
+        .mockResolvedValueOnce({
+          ok: false,
+          error: 'Gateway timeout',
+          status: 504,
+        } as never)
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            configs: [{ id: 'config-1', name: 'Premium Config', model: 'claude-sonnet' }],
+          },
+        } as never);
+
+      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
+      expect(result.blocked).toBe(false);
+      expect(result).toMatchObject({ blocked: false, reason: 'check-failed' });
+      // Critically: we must NOT have shown the "Premium Model Not Available"
+      // embed — that's the user-visible false-positive the fix targets.
+      expect(mockEditReply).not.toHaveBeenCalled();
     });
   });
 });
