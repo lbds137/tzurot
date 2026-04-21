@@ -62,13 +62,13 @@ export class WebhookManager {
     let suffix: string;
     if (botTag.includes(' · ')) {
       const parts = botTag.split(' · ');
-      suffix = parts[1].replace(/\s*#\d{4}$/, '').trim();
+      suffix = parts[1].replace(/\s{0,16}#\d{4}$/, '').trim();
     } else if (botTag.includes(' | ')) {
       const parts = botTag.split(' | ');
-      suffix = parts[1].replace(/\s*#\d{4}$/, '').trim();
+      suffix = parts[1].replace(/\s{0,16}#\d{4}$/, '').trim();
     } else {
       // No delimiter - use full username (without discriminator) as suffix
-      suffix = botTag.replace(/\s*#\d{4}$/, '').trim();
+      suffix = botTag.replace(/\s{0,16}#\d{4}$/, '').trim();
     }
 
     this.botSuffix = ` · ${suffix}`;

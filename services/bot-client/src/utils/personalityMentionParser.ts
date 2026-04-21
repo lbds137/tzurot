@@ -29,7 +29,9 @@ const POSSESSIVE_SUFFIX = /'s$/i;
  * to {@link extractPotentialMentions} for cleaning the full matched text
  * at the message-spanning level.
  */
-const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|`]+$/;
+// Bounded `{1,16}` quantifier prevents polynomial-slide ReDoS — real trailing
+// punctuation is rarely more than 2-3 chars ("?!", "...", etc.).
+const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|`]{1,16}$/;
 
 /**
  * Strip trailing punctuation from a word — period-preserving variant.
@@ -47,7 +49,8 @@ const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|`]+$/;
  * Backtick is included so inline-code wrapping (`` `@Dr. Gregory House` ``)
  * strips correctly while preserving the name's internal period.
  */
-const WORD_PUNCTUATION_STRIP_NON_PERIOD = /[,!?;:)"'*_~|`]+$/;
+// Bounded `{1,16}` — see WORD_PUNCTUATION_STRIP_ALL above for rationale.
+const WORD_PUNCTUATION_STRIP_NON_PERIOD = /[,!?;:)"'*_~|`]{1,16}$/;
 
 interface PersonalityMentionResult {
   personalityName: string;

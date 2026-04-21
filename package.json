@@ -69,6 +69,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^10.2.1",
     "eslint-formatter-pretty": "^7.1.0",
+    "eslint-plugin-regexp": "^3.1.0",
     "eslint-plugin-sonarjs": "^4.0.3",
     "globals": "^17.5.0",
     "husky": "^9.1.7",

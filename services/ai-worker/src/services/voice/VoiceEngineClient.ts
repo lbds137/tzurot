@@ -40,8 +40,11 @@ export class VoiceEngineClient {
   private readonly timeoutMs: number;
 
   constructor(baseUrl: string, apiKey?: string, timeoutMs?: number) {
-    // Strip trailing slash for consistent URL construction
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
+    // Strip trailing slash for consistent URL construction.
+    // Bounded quantifier `{1,64}` prevents polynomial-slide ReDoS on misconfigured
+    // URLs with many trailing slashes; 64 is an arbitrary-but-safe ceiling since
+    // real config values have 0 or 1 trailing slash.
+    this.baseUrl = baseUrl.replace(/\/{1,64}$/, '');
     this.apiKey = apiKey;
     // Uses VOICE_ENGINE_API timeout (3min) — Railway Serverless cold starts
     // take 30-120s for model loading, so a shorter timeout would cause false failures.

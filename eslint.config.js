@@ -4,6 +4,7 @@ import globals from 'globals';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import sonarjs from 'eslint-plugin-sonarjs';
+import * as regexpPlugin from 'eslint-plugin-regexp';
 import tzurotPlugin from './packages/tooling/dist/eslint/index.js';
 
 // Get the directory name of the current module (monorepo root)
@@ -99,6 +100,7 @@ export default tseslint.config(
     plugins: {
       '@tzurot': tzurotPlugin,
       sonarjs,
+      regexp: regexpPlugin,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -283,6 +285,21 @@ export default tseslint.config(
       'sonarjs/no-collapsible-if': 'warn',
       'sonarjs/no-redundant-jump': 'warn',
       'sonarjs/prefer-immediate-return': 'warn',
+
+      // ReDoS defense — catch super-linear regex backtracking / moves at lint time
+      // rather than waiting for CodeQL to flag them post-push. We've shipped 5
+      // separate ReDoS fixes (e.g., ERROR_SPOILER char-class, ERROR_SPOILER
+      // unbounded quantifier, preset-clone nested quantifier, CHIMERA_ARTIFACT
+      // `[\s]*`, polynomial-slide `\s*...\s*$`) that all reached CodeQL before
+      // being caught — these two rules would have caught each one locally.
+      //
+      // - no-super-linear-backtracking: classic exponential ReDoS (nested quantifiers,
+      //   overlapping alternatives that cause catastrophic backtracking).
+      // - no-super-linear-move: polynomial-slide case where a pattern starting with an
+      //   unbounded quantifier (e.g., `\s*literal`) causes O(n^2) matching attempts
+      //   as the engine slides the match start position.
+      'regexp/no-super-linear-backtracking': 'error',
+      'regexp/no-super-linear-move': 'error',
     },
   },
 
