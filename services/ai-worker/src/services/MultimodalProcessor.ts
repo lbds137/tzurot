@@ -107,7 +107,7 @@ export async function processAttachments(
       isGuestMode,
       hasUserApiKey: userApiKey !== undefined,
     },
-    '[MultimodalProcessor] Processing attachments in parallel'
+    'Processing attachments in parallel'
   );
 
   // Use retryService for consistent retry behavior
@@ -163,7 +163,7 @@ export async function processAttachments(
       succeeded: successCount,
       failed: attachments.length - successCount,
     },
-    '[MultimodalProcessor] Parallel processing complete'
+    'Parallel processing complete'
   );
 
   return processed;

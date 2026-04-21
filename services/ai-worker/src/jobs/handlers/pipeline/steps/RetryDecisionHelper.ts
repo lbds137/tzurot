@@ -67,7 +67,7 @@ export function logFallbackUsed(fallback: FallbackResponse, jobId: string | unde
       fallbackAttempt: fallback.attempt,
       modelUsed: fallback.response.modelUsed,
     },
-    '[RetryDecisionHelper] Using fallback response from earlier attempt after LLM failure'
+    'Using fallback response from earlier attempt after LLM failure'
   );
 }
 
@@ -95,7 +95,7 @@ export function logRetryEscalation(
       frequencyPenaltyOverride: retryConfig.frequencyPenaltyOverride,
       historyReductionPercent: retryConfig.historyReductionPercent,
     },
-    '[RetryDecisionHelper] Escalating retry parameters'
+    'Escalating retry parameters'
   );
 }
 
@@ -108,7 +108,7 @@ export function logRetrySuccess(opts: {
   emptyRetries: number;
   leakedThinkingRetries: number;
 }): void {
-  logger.info(opts, '[RetryDecisionHelper] Retry succeeded - got valid unique response');
+  logger.info(opts, 'Retry succeeded - got valid unique response');
 }
 
 /** Options for empty response check */
@@ -150,12 +150,12 @@ export function shouldRetryEmptyResponse(opts: EmptyResponseCheckOptions): Retry
   if (canRetry) {
     logger.warn(
       { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
-      '[RetryDecisionHelper] Empty response after post-processing. Retrying...'
+      'Empty response after post-processing. Retrying...'
     );
   } else {
     logger.error(
       { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
-      '[RetryDecisionHelper] All retries produced empty responses.'
+      'All retries produced empty responses.'
     );
   }
 
@@ -178,12 +178,12 @@ export function logDuplicateDetection(opts: DuplicateDetectionOptions): 'retry' 
   if (canRetry) {
     logger.warn(
       { jobId, modelUsed: response.modelUsed, isGuestMode, attempt, matchedTurnsBack },
-      '[RetryDecisionHelper] Cross-turn duplication detected. Retrying...'
+      'Cross-turn duplication detected. Retrying...'
     );
   } else {
     logger.error(
       { jobId, modelUsed: response.modelUsed, isGuestMode, attempt, matchedTurnsBack },
-      '[RetryDecisionHelper] All retries produced duplicate responses.'
+      'All retries produced duplicate responses.'
     );
   }
 

@@ -51,7 +51,7 @@ export class DependencyStep implements IPipelineStep {
     if (!config) {
       logger.warn(
         { jobId: job.id },
-        '[DependencyStep] Config context missing - using raw personality (ConfigStep may have failed)'
+        'Config context missing - using raw personality (ConfigStep may have failed)'
       );
     }
     const personality = config?.effectivePersonality ?? job.data.personality;
@@ -61,7 +61,7 @@ export class DependencyStep implements IPipelineStep {
     if (!auth) {
       logger.warn(
         { jobId: job.id },
-        '[DependencyStep] Auth context not available - inline processing will use system API key'
+        'Auth context not available - inline processing will use system API key'
       );
     }
 
@@ -75,7 +75,7 @@ export class DependencyStep implements IPipelineStep {
     if (dependencies && dependencies.length > 0) {
       logger.info(
         { jobId: job.id, dependencyCount: dependencies.length },
-        '[DependencyStep] Fetching preprocessing results from dependency jobs'
+        'Fetching preprocessing results from dependency jobs'
       );
 
       const { redisService } = await import('../../../../redis.js');
@@ -133,7 +133,7 @@ export class DependencyStep implements IPipelineStep {
       } catch (error) {
         logger.error(
           { err: error, jobId: dep.jobId, type: dep.type },
-          '[DependencyStep] Failed to fetch dependency result - continuing without it'
+          'Failed to fetch dependency result - continuing without it'
         );
       }
     }
@@ -150,7 +150,7 @@ export class DependencyStep implements IPipelineStep {
     if (result?.success === true && result.content !== undefined && result.content.length > 0) {
       logger.debug(
         { jobId, key, sourceRef: result.sourceReferenceNumber },
-        '[DependencyStep] Retrieved audio transcription'
+        'Retrieved audio transcription'
       );
       return {
         url: result.attachmentUrl ?? '',
@@ -159,7 +159,7 @@ export class DependencyStep implements IPipelineStep {
         sourceReferenceNumber: result.sourceReferenceNumber,
       };
     }
-    logger.warn({ jobId, key }, '[DependencyStep] Audio transcription job failed or has no result');
+    logger.warn({ jobId, key }, 'Audio transcription job failed or has no result');
     return null;
   }
 
@@ -176,14 +176,14 @@ export class DependencyStep implements IPipelineStep {
     ) {
       logger.debug(
         { jobId, key, count: result.descriptions.length, sourceRef: result.sourceReferenceNumber },
-        '[DependencyStep] Retrieved image descriptions'
+        'Retrieved image descriptions'
       );
       return result.descriptions.map(d => ({
         ...d,
         sourceReferenceNumber: result.sourceReferenceNumber,
       }));
     }
-    logger.warn({ jobId, key }, '[DependencyStep] Image description job failed or has no result');
+    logger.warn({ jobId, key }, 'Image description job failed or has no result');
     return [];
   }
 
@@ -218,7 +218,7 @@ export class DependencyStep implements IPipelineStep {
         isGuestMode,
         hasUserApiKey: userApiKey !== undefined,
       },
-      '[DependencyStep] Processing extended context images inline'
+      'Processing extended context images inline'
     );
 
     try {
@@ -237,14 +237,14 @@ export class DependencyStep implements IPipelineStep {
 
       logger.info(
         { jobId, processedCount: processed.length },
-        '[DependencyStep] Extended context images processed successfully'
+        'Extended context images processed successfully'
       );
 
       return processed;
     } catch (error) {
       logger.error(
         { err: error, jobId },
-        '[DependencyStep] Failed to process extended context images - continuing without them'
+        'Failed to process extended context images - continuing without them'
       );
       return [];
     }
@@ -270,7 +270,7 @@ export class DependencyStep implements IPipelineStep {
         totalPreprocessed:
           preprocessing.processedAttachments.length + refAttachmentCount + extendedCount,
       },
-      '[DependencyStep] Preprocessing results ready'
+      'Preprocessing results ready'
     );
   }
 

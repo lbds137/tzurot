@@ -45,7 +45,7 @@ export class RedisService {
 
       logger.info(
         { jobId, requestId, messageId },
-        `[RedisService] Published job result to stream (message: ${messageId})`
+        `Published job result to stream (message: ${messageId})`
       );
 
       // Trim stream to prevent unbounded growth (~10k messages, approximately 1 week of results)
@@ -53,10 +53,7 @@ export class RedisService {
       // ioredis xtrim signature: xtrim(key, strategy, modifier, count)
       await this.redis.xtrim('job-results', 'MAXLEN', '~', 10000);
     } catch (error) {
-      logger.error(
-        { err: error, jobId, requestId },
-        '[RedisService] Failed to publish job result to stream'
-      );
+      logger.error({ err: error, jobId, requestId }, 'Failed to publish job result to stream');
       throw error; // Re-throw so caller knows about failure
     }
   }
@@ -76,9 +73,9 @@ export class RedisService {
       // ioredis uses lowercase method names: setex instead of setEx
       await this.redis.setex(key, ttlSeconds, value);
 
-      logger.debug({ jobId, key }, '[RedisService] Stored job result (TTL: 1 hour)');
+      logger.debug({ jobId, key }, 'Stored job result (TTL: 1 hour)');
     } catch (error) {
-      logger.error({ err: error, jobId }, '[RedisService] Failed to store job result');
+      logger.error({ err: error, jobId }, 'Failed to store job result');
       throw error;
     }
   }
@@ -94,15 +91,15 @@ export class RedisService {
       const value = await this.redis.get(key);
 
       if (value === null || value.length === 0) {
-        logger.debug({ jobId, key }, '[RedisService] Job result not found');
+        logger.debug({ jobId, key }, 'Job result not found');
         return null;
       }
 
       const result = JSON.parse(value) as T;
-      logger.debug({ jobId, key }, '[RedisService] Retrieved job result');
+      logger.debug({ jobId, key }, 'Retrieved job result');
       return result;
     } catch (error) {
-      logger.error({ err: error, jobId }, '[RedisService] Failed to get job result');
+      logger.error({ err: error, jobId }, 'Failed to get job result');
       return null;
     }
   }
@@ -138,7 +135,7 @@ export class RedisService {
         } catch {
           // Invalid session data - clean up
           await this.redis.del(specificKey);
-          logger.warn({ key: specificKey }, '[RedisService] Cleaned up invalid incognito session');
+          logger.warn({ key: specificKey }, 'Cleaned up invalid incognito session');
         }
       }
 
@@ -149,14 +146,14 @@ export class RedisService {
         } catch {
           // Invalid session data - clean up
           await this.redis.del(globalKey);
-          logger.warn({ key: globalKey }, '[RedisService] Cleaned up invalid incognito session');
+          logger.warn({ key: globalKey }, 'Cleaned up invalid incognito session');
         }
       }
 
       if (isActive) {
         logger.debug(
           { userId, personalityId },
-          '[RedisService] Incognito mode active - memory storage will be skipped'
+          'Incognito mode active - memory storage will be skipped'
         );
       }
 
@@ -164,7 +161,7 @@ export class RedisService {
     } catch (error) {
       logger.error(
         { err: error, userId, personalityId },
-        '[RedisService] Error checking incognito status - defaulting to active storage'
+        'Error checking incognito status - defaulting to active storage'
       );
       // On error, default to normal behavior (don't block memory storage)
       return false;
@@ -197,17 +194,14 @@ export class RedisService {
       const isNew = result === 'OK';
 
       if (!isNew) {
-        logger.info(
-          { messageId },
-          '[RedisService] Duplicate message detected - skipping processing'
-        );
+        logger.info({ messageId }, 'Duplicate message detected - skipping processing');
       }
 
       return isNew;
     } catch (error) {
       logger.error(
         { err: error, messageId },
-        '[RedisService] Error acquiring idempotency lock - allowing processing'
+        'Error acquiring idempotency lock - allowing processing'
       );
       // On error, default to allowing processing (fail open)
       return true;
@@ -225,10 +219,10 @@ export class RedisService {
     try {
       const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}`;
       await this.redis.del(key);
-      logger.debug({ messageId }, '[RedisService] Released idempotency lock for retry');
+      logger.debug({ messageId }, 'Released idempotency lock for retry');
     } catch (error) {
       // Log but don't throw - lock release failure shouldn't block error propagation
-      logger.error({ err: error, messageId }, '[RedisService] Failed to release idempotency lock');
+      logger.error({ err: error, messageId }, 'Failed to release idempotency lock');
     }
   }
 
@@ -247,7 +241,7 @@ export class RedisService {
     const key = `${REDIS_KEY_PREFIXES.TTS_AUDIO}${jobId}`;
     // Store as binary via ioredis Buffer support
     await this.redis.setex(key, ttlSeconds, audio);
-    logger.debug({ jobId, key, audioSize: audio.length }, '[RedisService] Stored TTS audio');
+    logger.debug({ jobId, key, audioSize: audio.length }, 'Stored TTS audio');
     return key;
   }
 
@@ -260,13 +254,13 @@ export class RedisService {
     try {
       const value = await this.redis.getBuffer(key);
       if (value === null) {
-        logger.debug({ key }, '[RedisService] TTS audio not found or expired');
+        logger.debug({ key }, 'TTS audio not found or expired');
         return null;
       }
-      logger.debug({ key, audioSize: value.length }, '[RedisService] Retrieved TTS audio');
+      logger.debug({ key, audioSize: value.length }, 'Retrieved TTS audio');
       return value;
     } catch (error) {
-      logger.error({ err: error, key }, '[RedisService] Failed to get TTS audio');
+      logger.error({ err: error, key }, 'Failed to get TTS audio');
       return null;
     }
   }
@@ -275,8 +269,8 @@ export class RedisService {
    * Graceful shutdown
    */
   async close(): Promise<void> {
-    logger.info('[RedisService] Closing Redis connection...');
+    logger.info('Closing Redis connection...');
     await this.redis.quit();
-    logger.info('[RedisService] Redis connection closed');
+    logger.info('Redis connection closed');
   }
 }

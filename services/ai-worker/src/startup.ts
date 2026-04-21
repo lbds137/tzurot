@@ -28,21 +28,21 @@ export async function checkVoiceEngineHealth(): Promise<void> {
   try {
     const client = getVoiceEngineClient();
     if (client === null) {
-      logger.info('[AIWorker] Voice engine not configured (VOICE_ENGINE_URL not set)');
+      logger.info('Voice engine not configured (VOICE_ENGINE_URL not set)');
       return;
     }
 
     const health = await client.getHealth();
     if (health.asr && health.tts) {
-      logger.info('[AIWorker] Voice engine healthy (ASR + TTS loaded)');
+      logger.info('Voice engine healthy (ASR + TTS loaded)');
     } else {
       logger.warn(
         { asrLoaded: health.asr, ttsLoaded: health.tts },
-        '[AIWorker] Voice engine configured but not fully healthy'
+        'Voice engine configured but not fully healthy'
       );
     }
   } catch (error) {
-    logger.warn({ err: error }, '[AIWorker] Voice engine health check failed');
+    logger.warn({ err: error }, 'Voice engine health check failed');
   }
 }
 

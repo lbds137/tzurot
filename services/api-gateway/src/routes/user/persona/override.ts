@@ -151,7 +151,7 @@ function createSetHandler(prisma: PrismaClient) {
 
     logger.info(
       { userId: user.id, personalitySlug, personaId: personaIdValue },
-      '[Persona] Set persona override'
+      'Set persona override'
     );
 
     sendCustomSuccess(res, {
@@ -191,10 +191,7 @@ function createClearHandler(prisma: PrismaClient) {
     };
 
     if (!existing) {
-      logger.info(
-        { userId: user.id, personalityId: personality.id },
-        '[Persona] No override to clear'
-      );
+      logger.info({ userId: user.id, personalityId: personality.id }, 'No override to clear');
       sendCustomSuccess(res, {
         success: true,
         personality: personalityResponse,
@@ -212,10 +209,7 @@ function createClearHandler(prisma: PrismaClient) {
       await prisma.userPersonalityConfig.delete({ where: { id: existing.id } });
     }
 
-    logger.info(
-      { userId: user.id, personalityId: personality.id },
-      '[Persona] Cleared persona override'
-    );
+    logger.info({ userId: user.id, personalityId: personality.id }, 'Cleared persona override');
     sendCustomSuccess(res, { success: true, personality: personalityResponse, hadOverride: true });
   };
 }

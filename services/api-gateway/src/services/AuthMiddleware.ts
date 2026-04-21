@@ -142,7 +142,7 @@ export function requireUserAuth(customMessage?: string) {
           method: req.method,
           ip: req.ip,
         },
-        '[Auth] Missing user ID in request'
+        'Missing user ID in request'
       );
 
       const errorResponse = ErrorResponses.unauthorized(
@@ -257,7 +257,7 @@ export function requireProvisionedUser(prisma: PrismaClient) {
           hasUsername: username !== undefined,
           hasDisplayName: displayName !== undefined,
         },
-        '[Identity] Missing user-context headers — shadow middleware falling through'
+        'Missing user-context headers — shadow middleware falling through'
       );
       next();
       return;
@@ -272,7 +272,7 @@ export function requireProvisionedUser(prisma: PrismaClient) {
           usernameMalformed: username === null,
           displayNameMalformed: displayName === null,
         },
-        '[Identity] Malformed URI in user-context header — shadow middleware falling through'
+        'Malformed URI in user-context header — shadow middleware falling through'
       );
       next();
       return;
@@ -287,7 +287,7 @@ export function requireProvisionedUser(prisma: PrismaClient) {
         // we fall through rather than block the request.
         logger.warn(
           { discordId, path: req.path },
-          '[Identity] getOrCreateUser returned null (bot user?) — shadow middleware falling through'
+          'getOrCreateUser returned null (bot user?) — shadow middleware falling through'
         );
         next();
         return;
@@ -297,7 +297,7 @@ export function requireProvisionedUser(prisma: PrismaClient) {
     } catch (err) {
       logger.warn(
         { err, discordId, path: req.path },
-        '[Identity] getOrCreateUser threw — shadow middleware falling through'
+        'getOrCreateUser threw — shadow middleware falling through'
       );
     }
 
@@ -440,7 +440,7 @@ export function requireServiceAuth(customMessage?: string) {
           method: req.method,
           ip: req.ip,
         },
-        '[Auth] Service authentication failed'
+        'Service authentication failed'
       );
 
       const errorResponse = ErrorResponses.unauthorized(

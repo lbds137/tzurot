@@ -89,7 +89,7 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       },
     });
 
-    logger.info({ discordUserId }, '[Shapes] Session cookie stored');
+    logger.info({ discordUserId }, 'Session cookie stored');
     sendCustomSuccess(res, { success: true, timestamp: new Date().toISOString() }, StatusCodes.OK);
   };
 }
@@ -117,7 +117,7 @@ function createDeleteHandler(prisma: PrismaClient) {
 
     await prisma.userCredential.delete({ where: { id: existing.id } });
 
-    logger.info({ discordUserId }, '[Shapes] Credentials removed');
+    logger.info({ discordUserId }, 'Credentials removed');
     sendCustomSuccess(res, {
       success: true,
       message: 'Shapes.inc credentials removed',

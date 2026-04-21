@@ -123,7 +123,7 @@ function buildImageDescriptionMap(
   if (map.size > 0) {
     logger.debug(
       { messageCount: map.size, totalImages: attachments.length },
-      '[RAG] Built image description map for inline display'
+      'Built image description map for inline display'
     );
   }
 
@@ -200,7 +200,7 @@ export function injectImageDescriptions(
   if (injectedCount > 0) {
     logger.info(
       { injectedCount },
-      '[RAG] Injected image descriptions into history entries for inline display'
+      'Injected image descriptions into history entries for inline display'
     );
   }
 
@@ -209,7 +209,7 @@ export function injectImageDescriptions(
     const mapKeys = [...imageMap.keys()];
     logger.warn(
       { historyIds, mapKeys },
-      '[RAG] Image map had entries but no history matches — descriptions will not appear inline'
+      'Image map had entries but no history matches — descriptions will not appear inline'
     );
   }
 }
@@ -255,7 +255,7 @@ export function extractRecentHistoryWindow(
     .join('\n');
 
   logger.debug(
-    `[RAG] Extracted ${recentMessages.length} messages (${Math.ceil(recentMessages.length / 2)} turns) for LTM search context`
+    `Extracted ${recentMessages.length} messages (${Math.ceil(recentMessages.length / 2)} turns) for LTM search context`
   );
 
   return formatted;
@@ -350,12 +350,12 @@ export async function enrichConversationHistory(
         await processImagesFn(linkedImages);
         logger.info(
           { imageCount: linkedImages.length },
-          '[RAG] Warmed vision cache for linked-message images'
+          'Warmed vision cache for linked-message images'
         );
       } catch (error) {
         logger.warn(
           { err: error, imageCount: linkedImages.length },
-          '[RAG] Failed to warm vision cache for linked-message images — hydrator will use cache lookups only'
+          'Failed to warm vision cache for linked-message images — hydrator will use cache lookups only'
         );
       }
     }

@@ -129,7 +129,7 @@ export class ResponsePostProcessor {
     ) {
       logger.debug(
         { reasoningLength: additionalKwargs.reasoning.length },
-        '[ResponsePostProcessor] Found reasoning in additional_kwargs'
+        'Found reasoning in additional_kwargs'
       );
       return additionalKwargs.reasoning;
     }
@@ -161,7 +161,7 @@ export class ResponsePostProcessor {
     ) {
       logger.warn(
         { inlineThinkingLength: inlineThinking.length, hasApiReasoning: apiReasoning !== null },
-        '[ResponsePostProcessor] Empty visible content - model only produced reasoning'
+        'Empty visible content - model only produced reasoning'
       );
     }
 
@@ -171,7 +171,7 @@ export class ResponsePostProcessor {
     if (apiReasoning !== null) {
       logger.debug(
         { apiReasoningLength: apiReasoning.length, hasInline: inlineThinking !== null },
-        '[ResponsePostProcessor] Extracted API-level reasoning'
+        'Extracted API-level reasoning'
       );
     }
 
@@ -241,7 +241,7 @@ export class ResponsePostProcessor {
       // contentLength only — full content appears in diagnostics collector
       logger.warn(
         { contentLength: cleanedContent.length },
-        '[ResponsePostProcessor] Detected leaked chain-of-thought — signaling retry'
+        'Detected leaked chain-of-thought — signaling retry'
       );
     }
 
@@ -270,7 +270,7 @@ export class ResponsePostProcessor {
             thinkingContentLength,
             cleanedContentLength: cleanedContent.length,
           },
-          '[ResponsePostProcessor] Reasoning mode engaged as requested'
+          'Reasoning mode engaged as requested'
         );
       } else {
         logger.warn(
@@ -283,7 +283,7 @@ export class ResponsePostProcessor {
             thinkingContentLength,
             cleanedContentLength: cleanedContent.length,
           },
-          '[ResponsePostProcessor] Reasoning mode requested but did NOT engage — model ignored the flag'
+          'Reasoning mode requested but did NOT engage — model ignored the flag'
         );
       }
     }
@@ -336,7 +336,7 @@ export class ResponsePostProcessor {
           filteredCount: filtered.length,
           removedCount: removed,
         },
-        '[ResponsePostProcessor] Filtered duplicate references from history'
+        'Filtered duplicate references from history'
       );
     }
 

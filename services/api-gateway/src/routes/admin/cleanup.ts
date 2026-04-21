@@ -83,12 +83,12 @@ export function createCleanupRoute(retentionService: ConversationRetentionServic
 
       if (target === 'history' || target === 'all') {
         historyDeleted = await retentionService.cleanupOldHistory(daysToKeep);
-        logger.info({ historyDeleted, daysToKeep }, '[Admin] Cleaned up old conversation history');
+        logger.info({ historyDeleted, daysToKeep }, 'Cleaned up old conversation history');
       }
 
       if (target === 'tombstones' || target === 'all') {
         tombstonesDeleted = await retentionService.cleanupOldTombstones(daysToKeep);
-        logger.info({ tombstonesDeleted, daysToKeep }, '[Admin] Cleaned up old tombstones');
+        logger.info({ tombstonesDeleted, daysToKeep }, 'Cleaned up old tombstones');
       }
 
       const result: CleanupResult = {

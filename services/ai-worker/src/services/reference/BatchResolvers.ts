@@ -58,7 +58,7 @@ export async function batchResolveByShapesUserIds(
   } catch (error) {
     logger.error(
       { err: error, count: shapesUserIds.length },
-      '[UserReferenceResolver] Error batch resolving shapes user IDs'
+      'Error batch resolving shapes user IDs'
     );
   }
 
@@ -108,10 +108,7 @@ export async function batchResolveByDiscordIds(
       }
     }
   } catch (error) {
-    logger.error(
-      { err: error, count: discordIds.length },
-      '[UserReferenceResolver] Error batch resolving Discord IDs'
-    );
+    logger.error({ err: error, count: discordIds.length }, 'Error batch resolving Discord IDs');
   }
 
   return result;
@@ -184,10 +181,7 @@ export async function batchResolveByUsernames(
       }
     }
   } catch (error) {
-    logger.error(
-      { err: error, count: usernames.length },
-      '[UserReferenceResolver] Error batch resolving usernames'
-    );
+    logger.error({ err: error, count: usernames.length }, 'Error batch resolving usernames');
   }
 
   return result;

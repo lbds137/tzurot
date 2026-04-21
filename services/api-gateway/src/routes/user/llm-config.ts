@@ -86,7 +86,7 @@ function createListHandler(service: LlmConfigService, prisma: PrismaClient) {
       ),
     }));
 
-    logger.info({ discordUserId, count: configs.length }, '[LlmConfig] Listed configs');
+    logger.info({ discordUserId, count: configs.length }, 'Listed configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);
   };
 }
@@ -126,7 +126,7 @@ function createGetHandler(
     const formatted = service.formatConfigDetail(config);
     await enrichWithModelContext(formatted, config.model, modelCache);
 
-    logger.debug({ discordUserId, configId }, '[LlmConfig] Fetched config');
+    logger.debug({ discordUserId, configId }, 'Fetched config');
     sendCustomSuccess(res, { config: { ...formatted, isOwned, permissions } }, StatusCodes.OK);
   };
 }
@@ -221,10 +221,7 @@ function createCreateHandler(
     const formatted = service.formatConfigDetail(config);
     await enrichWithModelContext(formatted, config.model, modelCache);
 
-    logger.info(
-      { discordUserId, configId: config.id, name: config.name },
-      '[LlmConfig] Created config'
-    );
+    logger.info({ discordUserId, configId: config.id, name: config.name }, 'Created config');
     sendCustomSuccess(
       res,
       { config: { ...formatted, isOwned: true, permissions } },
@@ -315,7 +312,7 @@ function createUpdateHandler(
 
     logger.info(
       { discordUserId, configId, name: updated.name, updates: Object.keys(body) },
-      '[LlmConfig] Updated config'
+      'Updated config'
     );
 
     sendCustomSuccess(
@@ -365,7 +362,7 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
     // Delete using service (handles cache invalidation)
     await service.delete(configId);
 
-    logger.info({ discordUserId, configId, name: config.name }, '[LlmConfig] Deleted config');
+    logger.info({ discordUserId, configId, name: config.name }, 'Deleted config');
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
   };
 }

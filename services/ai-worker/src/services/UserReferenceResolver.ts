@@ -47,10 +47,7 @@ export class UserReferenceResolver {
     if (persona === null) {
       const replacement = fallbackName ?? fullMatch;
       if (fallbackName !== undefined) {
-        logger.debug(
-          { ...logContext, fallbackName },
-          `[UserReferenceResolver] No mapping found, falling back to username`
-        );
+        logger.debug({ ...logContext, fallbackName }, `No mapping found, falling back to username`);
       }
       return {
         updatedText: ctx.currentText.replaceAll(fullMatch, replacement),
@@ -70,7 +67,7 @@ export class UserReferenceResolver {
     if (persona.personaId === ctx.activePersonaId) {
       logger.debug(
         { ...logContext, personaName: persona.personaName },
-        `[UserReferenceResolver] Resolved ${refType} self-reference (not adding to participants)`
+        `Resolved ${refType} self-reference (not adding to participants)`
       );
       return { updatedText, persona: null, markAsSeen: persona.personaId };
     }
@@ -78,7 +75,7 @@ export class UserReferenceResolver {
     // Normal case - add persona and mark as seen
     logger.debug(
       { ...logContext, personaName: persona.personaName },
-      `[UserReferenceResolver] Resolved ${refType} reference`
+      `Resolved ${refType} reference`
     );
     return { updatedText, persona, markAsSeen: persona.personaId };
   }
@@ -226,7 +223,7 @@ export class UserReferenceResolver {
           count: ctx.resolvedPersonas.length,
           personas: ctx.resolvedPersonas.map(p => p.personaName),
         },
-        '[UserReferenceResolver] Resolved user references in prompt'
+        'Resolved user references in prompt'
       );
     }
 
@@ -291,7 +288,7 @@ export class UserReferenceResolver {
         failedFields.push(fieldName);
         logger.warn(
           { field: fieldName, error: result.reason, personalityId: personality.id },
-          '[UserReferenceResolver] Failed to resolve user references in personality field'
+          'Failed to resolve user references in personality field'
         );
         continue;
       }
@@ -314,7 +311,7 @@ export class UserReferenceResolver {
     if (failedFields.length > 0) {
       logger.error(
         { failedFields, failedCount: failedFields.length, personalityId: personality.id },
-        '[UserReferenceResolver] Some personality fields failed to resolve user references'
+        'Some personality fields failed to resolve user references'
       );
     }
 
@@ -327,7 +324,7 @@ export class UserReferenceResolver {
           count: allResolvedPersonas.length,
           personas: allResolvedPersonas.map(p => p.personaName),
         },
-        '[UserReferenceResolver] Resolved user references across personality fields'
+        'Resolved user references across personality fields'
       );
     }
 

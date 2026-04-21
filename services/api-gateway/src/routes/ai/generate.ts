@@ -32,10 +32,7 @@ async function downloadAttachmentsIfPresent(
   if (!attachments || attachments.length === 0) {
     return attachments;
   }
-  logger.info(
-    { requestId, count: attachments.length },
-    `[AI] Downloading ${logLabel} to local storage`
-  );
+  logger.info({ requestId, count: attachments.length }, `Downloading ${logLabel} to local storage`);
   return attachmentStorage.downloadAndStore(requestId, attachments);
 }
 
@@ -50,7 +47,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
       // Validate request body
       const validationResult = generateRequestSchema.safeParse(req.body);
       if (!validationResult.success) {
-        logger.warn({ errors: validationResult.error.issues }, '[AI] Validation error');
+        logger.warn({ errors: validationResult.error.issues }, 'Validation error');
         return sendZodError(res, validationResult.error);
       }
 
@@ -60,7 +57,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
       const deduplicationCache = getDeduplicationCache();
       const duplicate = await deduplicationCache.checkDuplicate(request);
       if (duplicate !== null) {
-        logger.info(`[AI] Returning cached job ${duplicate.jobId} for duplicate request`);
+        logger.info(`Returning cached job ${duplicate.jobId} for duplicate request`);
         return sendSuccess(res, {
           jobId: duplicate.jobId,
           requestId: duplicate.requestId,
@@ -87,7 +84,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
       if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
         logger.info(
           { requestId, referencedMessagesCount: request.context.referencedMessages.length },
-          `[AI] Request includes ${request.context.referencedMessages.length} referenced message(s)`
+          `Request includes ${request.context.referencedMessages.length} referenced message(s)`
         );
       }
 
@@ -108,7 +105,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
         await deduplicationCache.cacheRequest(request, requestId, jobId);
         const creationTime = Date.now() - startTime;
         logger.info(
-          `[AI] Created job chain with main job ${jobId} for ${request.personality.name} (${creationTime}ms)`
+          `Created job chain with main job ${jobId} for ${request.personality.name} (${creationTime}ms)`
         );
 
         sendCustomSuccess(res, { jobId, requestId, status: JobStatus.Queued }, 202);
@@ -121,7 +118,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
             personalityName: request.personality.name,
             processingTimeMs: processingTime,
           },
-          `[AI] Error creating job (${processingTime}ms)`
+          `Error creating job (${processingTime}ms)`
         );
         throw error;
       }

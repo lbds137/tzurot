@@ -107,7 +107,7 @@ function createClearHandler(deps: HistoryHandlerDeps): RouteHandler {
         personaId: personaId.substring(0, 8),
         epoch: now.toISOString(),
       },
-      '[History] Context cleared (epoch set)'
+      'Context cleared (epoch set)'
     );
 
     sendCustomSuccess(
@@ -193,7 +193,7 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
         personaId: personaId.substring(0, 8),
         restoredEpoch: result.restoredEpoch?.toISOString(),
       },
-      '[History] Context restored (undo)'
+      'Context restored (undo)'
     );
 
     sendCustomSuccess(
@@ -254,7 +254,7 @@ function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
 
     logger.debug(
       { discordUserId, personalitySlug, channelId, personaId: personaId.substring(0, 8) },
-      '[History] Stats retrieved'
+      'Stats retrieved'
     );
 
     sendCustomSuccess(
@@ -339,7 +339,7 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
         personaId: personaId.substring(0, 8),
         deletedCount,
       },
-      '[History] Hard delete completed'
+      'Hard delete completed'
     );
 
     sendCustomSuccess(

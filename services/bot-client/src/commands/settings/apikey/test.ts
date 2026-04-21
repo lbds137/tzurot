@@ -108,7 +108,7 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
 
     logger.info({ provider, userId, hasCredits: data.credits !== undefined }, 'API key validated');
   } catch (error) {
-    logger.error({ error, userId, provider }, 'Unexpected error');
+    logger.error({ err: error, userId, provider }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

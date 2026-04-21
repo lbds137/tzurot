@@ -46,7 +46,7 @@ export function createDbSyncRoute(): Router {
         );
       }
 
-      logger.info({ dryRun }, '[Admin] Starting database sync');
+      logger.info({ dryRun }, 'Starting database sync');
 
       // Create Prisma clients for dev and prod databases using driver adapters
       const devAdapter = new PrismaPg({ connectionString: config.DEV_DATABASE_URL });
@@ -59,7 +59,7 @@ export function createDbSyncRoute(): Router {
       const syncService = new DatabaseSyncService(devClient, prodClient);
       const result = await syncService.sync({ dryRun });
 
-      logger.info({ result }, '[Admin] Database sync complete');
+      logger.info({ result }, 'Database sync complete');
 
       sendCustomSuccess(res, {
         success: true,

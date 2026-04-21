@@ -157,7 +157,7 @@ export async function handleList(
       offset: effectiveOffset,
       hasMore,
     },
-    '[Memory] List retrieved'
+    'List retrieved'
   );
 
   sendCustomSuccess(

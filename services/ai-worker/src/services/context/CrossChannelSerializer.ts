@@ -91,7 +91,7 @@ export function serializeCrossChannelHistory(
           tokensUsed,
           availableBudget,
         },
-        '[CrossChannelSerializer] Skipping group: no messages fit within remaining budget'
+        'Skipping group: no messages fit within remaining budget'
       );
     }
 
@@ -108,7 +108,7 @@ export function serializeCrossChannelHistory(
   const xml = formatCrossChannelHistoryAsXml(selectedGroups, personalityName);
   logger.debug(
     { groupCount: selectedGroups.length, messagesIncluded, tokensUsed, budget: tokenBudget },
-    '[CrossChannelSerializer] Serialized channel groups'
+    'Serialized channel groups'
   );
   return { xml, messagesIncluded };
 }

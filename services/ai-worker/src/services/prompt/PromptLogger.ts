@@ -87,10 +87,10 @@ export function logDetailedPromptAssembly(opts: PromptAssemblyLogOptions): void 
   // Show full prompt in debug mode (truncated to avoid massive logs)
   const maxPreviewLength = TEXT_LIMITS.LOG_FULL_PROMPT;
   if (fullSystemPrompt.length <= maxPreviewLength) {
-    logger.debug('[PromptBuilder] Full system prompt:\n' + fullSystemPrompt);
+    logger.debug('Full system prompt:\n' + fullSystemPrompt);
   } else {
     logger.debug(
-      `[PromptBuilder] Full system prompt (showing first ${maxPreviewLength} chars):\n` +
+      `Full system prompt (showing first ${maxPreviewLength} chars):\n` +
         fullSystemPrompt.substring(0, maxPreviewLength) +
         `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
     );
@@ -123,7 +123,7 @@ export function detectNameCollision(
   if (username.length === 0) {
     logger.error(
       { personalityId, activePersonaName },
-      '[PromptBuilder] Name collision detected but cannot add disambiguation instruction (discordUsername missing from context - check bot-client MessageContextBuilder)'
+      'Name collision detected but cannot add disambiguation instruction (discordUsername missing from context - check bot-client MessageContextBuilder)'
     );
     return undefined;
   }

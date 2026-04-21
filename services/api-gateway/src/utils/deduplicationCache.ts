@@ -29,11 +29,11 @@ export function initializeDeduplicationCache(
   options?: RedisDeduplicationOptions
 ): void {
   if (_cache !== null) {
-    logger.warn({}, '[DeduplicationCache] Cache already initialized, replacing instance');
+    logger.warn({}, 'Cache already initialized, replacing instance');
   }
 
   _cache = new RedisDeduplicationCache(redis, options);
-  logger.info('[DeduplicationCache] Redis-backed deduplication cache initialized');
+  logger.info('Redis-backed deduplication cache initialized');
 }
 
 /**
@@ -57,7 +57,7 @@ export function getDeduplicationCache(): RedisDeduplicationCache {
 export function disposeDeduplicationCache(): void {
   if (_cache !== null) {
     _cache = null;
-    logger.info('[DeduplicationCache] Deduplication cache reference cleared');
+    logger.info('Deduplication cache reference cleared');
   }
 }
 

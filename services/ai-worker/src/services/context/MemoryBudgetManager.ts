@@ -72,10 +72,7 @@ export class MemoryBudgetManager {
     const budgetRemaining = tokenBudget - wrapperOverhead;
 
     if (budgetRemaining <= 0) {
-      logger.warn(
-        { tokenBudget, wrapperOverhead },
-        '[MemoryBudget] Budget too small even for wrapper overhead'
-      );
+      logger.warn({ tokenBudget, wrapperOverhead }, 'Budget too small even for wrapper overhead');
       return {
         selectedMemories: [],
         tokensUsed: 0,
@@ -100,7 +97,7 @@ export class MemoryBudgetManager {
           droppedDueToSize++;
           logger.debug(
             { memoryTokens, budgetRemaining, relevanceScore: memory.metadata?.score },
-            '[MemoryBudget] Skipping oversized memory'
+            'Skipping oversized memory'
           );
         }
         // Continue checking - smaller memories might still fit
@@ -118,7 +115,7 @@ export class MemoryBudgetManager {
           tokensUsed,
           tokenBudget,
         },
-        '[MemoryBudget] Selection complete - some memories dropped due to token budget'
+        'Selection complete - some memories dropped due to token budget'
       );
     }
 
@@ -192,7 +189,7 @@ export class MemoryBudgetManager {
         hardCap,
         dynamicBudget: budget,
       },
-      '[MemoryBudget] Calculated dynamic memory budget'
+      'Calculated dynamic memory budget'
     );
 
     return budget;

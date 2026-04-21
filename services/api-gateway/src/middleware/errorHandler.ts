@@ -26,7 +26,7 @@ export function notFoundHandler(req: Request, res: Response): void {
  */
 export function globalErrorHandler(isProduction: boolean) {
   return (err: Error, _req: Request, res: Response, _next: NextFunction): void => {
-    logger.error({ err }, '[Server] Unhandled error:');
+    logger.error({ err }, 'Unhandled error:');
 
     const errorResponse = ErrorResponses.internalError(
       isProduction ? 'Internal server error' : err.message

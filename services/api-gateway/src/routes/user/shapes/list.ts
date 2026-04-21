@@ -95,7 +95,7 @@ function createListHandler(prisma: PrismaClient) {
             bodyPreview: bodyText.slice(0, 200),
             discordUserId,
           },
-          '[Shapes] shapes.inc API call failed'
+          'shapes.inc API call failed'
         );
 
         if (response.status === 401 || response.status === 403 || wasRedirected) {
@@ -124,7 +124,7 @@ function createListHandler(prisma: PrismaClient) {
         data: { lastUsedAt: new Date() },
       });
 
-      logger.info({ discordUserId, shapesCount: shapes.length }, '[Shapes] Listed owned shapes');
+      logger.info({ discordUserId, shapesCount: shapes.length }, 'Listed owned shapes');
 
       sendCustomSuccess(res, {
         shapes: shapes.map(s => ({

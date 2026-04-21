@@ -86,7 +86,7 @@ export function createTranscribeRoute(
         jobId: `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${requestId}`,
       });
 
-      logger.info(`[AI] Created transcribe job ${job.id} (${Date.now() - startTime}ms)`);
+      logger.info(`Created transcribe job ${job.id} (${Date.now() - startTime}ms)`);
 
       // If client wants to wait, use Redis pub/sub
       if (waitForCompletion) {
@@ -96,7 +96,7 @@ export function createTranscribeRoute(
             TIMEOUTS.JOB_WAIT
           )) as AudioTranscriptionResult;
 
-          logger.info(`[AI] Transcribe job ${job.id} completed after ${Date.now() - startTime}ms`);
+          logger.info(`Transcribe job ${job.id} completed after ${Date.now() - startTime}ms`);
 
           return sendCustomSuccess(res, {
             jobId: job.id ?? requestId,
@@ -106,7 +106,7 @@ export function createTranscribeRoute(
             timestamp: new Date().toISOString(),
           });
         } catch (error) {
-          logger.error({ err: error, jobId: job.id }, `[AI] Transcribe job ${job.id} failed`);
+          logger.error({ err: error, jobId: job.id }, `Transcribe job ${job.id} failed`);
 
           return sendError(
             res,

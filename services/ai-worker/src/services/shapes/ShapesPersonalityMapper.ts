@@ -92,7 +92,7 @@ export function mapShapesConfigToPersonality(
       model: llmConfig.model,
       hasJailbreak: config.jailbreak.length > 0,
     },
-    '[ShapesPersonalityMapper] Mapped shapes.inc config'
+    'Mapped shapes.inc config'
   );
 
   return { systemPrompt, personality, llmConfig };

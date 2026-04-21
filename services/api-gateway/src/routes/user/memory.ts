@@ -122,7 +122,7 @@ async function handleGetStats(
 
   logger.debug(
     { discordUserId, personalityId, personaId: personaId.substring(0, 8), totalCount },
-    '[Memory] Stats retrieved'
+    'Stats retrieved'
   );
 
   sendCustomSuccess(
@@ -248,7 +248,7 @@ async function handleSetFocus(
 
   logger.info(
     { discordUserId, personalityId, enabled },
-    `[Memory] Focus mode ${enabled ? 'enabled' : 'disabled'}`
+    `Focus mode ${enabled ? 'enabled' : 'disabled'}`
   );
 
   sendCustomSuccess(

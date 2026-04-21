@@ -48,7 +48,7 @@ logger.info(
     connectTimeout: redisConfig.connectTimeout,
     commandTimeout: redisConfig.commandTimeout,
   },
-  '[Queue] Redis config:'
+  'Redis config:'
 );
 
 // Queue name
@@ -84,7 +84,7 @@ export const queueEvents = new QueueEvents(QUEUE_NAME, {
 
 // Event handlers
 queueEvents.on('completed', ({ jobId }) => {
-  logger.info(`[Queue] Job ${jobId} completed`);
+  logger.info(`Job ${jobId} completed`);
 
   // Clean up temporary attachments after a short delay
   // This ensures ai-worker has finished all async operations
@@ -98,7 +98,7 @@ queueEvents.on('completed', ({ jobId }) => {
 });
 
 queueEvents.on('failed', ({ jobId, failedReason }) => {
-  logger.error({ failedReason }, `[Queue] Job ${jobId} failed:`);
+  logger.error({ failedReason }, `Job ${jobId} failed:`);
 
   // Clean up temporary attachments even on failure
   if (jobId.startsWith(JOB_PREFIXES.LLM_GENERATION)) {
@@ -110,16 +110,16 @@ queueEvents.on('failed', ({ jobId, failedReason }) => {
 });
 
 queueEvents.on('error', error => {
-  logger.error({ err: error }, '[Queue] Queue error');
+  logger.error({ err: error }, 'Queue error');
 });
 
 // Graceful shutdown
 export async function closeQueue(): Promise<void> {
-  logger.info('[Queue] Closing queue connections...');
+  logger.info('Closing queue connections...');
   await queueEvents.close();
   await flowProducer.close();
   await aiQueue.close();
-  logger.info('[Queue] Queue connections closed');
+  logger.info('Queue connections closed');
 }
 
 // Health check
@@ -129,7 +129,7 @@ export async function checkQueueHealth(): Promise<boolean> {
     await client.ping();
     return true;
   } catch (error) {
-    logger.error({ err: error }, '[Queue] Health check failed');
+    logger.error({ err: error }, 'Health check failed');
     return false;
   }
 }

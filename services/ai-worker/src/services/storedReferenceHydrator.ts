@@ -115,7 +115,7 @@ export async function hydrateStoredReferences(
   if (personaResolved > 0 || visionHits > 0) {
     logger.info(
       { totalRefs: allRefs.length, personaResolved, visionHits },
-      '[StoredReferenceHydrator] Hydrated stored references'
+      'Hydrated stored references'
     );
   }
 }

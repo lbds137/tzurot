@@ -77,7 +77,7 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
         res.set('Cache-Control', `max-age=${CACHE_CONTROL.VOICE_REFERENCE_MAX_AGE}`);
         res.send(buffer);
       } catch (error) {
-        logger.error({ err: error, slug }, '[Gateway] Error serving voice reference');
+        logger.error({ err: error, slug }, 'Error serving voice reference');
         const errorResponse = ErrorResponses.internalError('Failed to retrieve voice reference');
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
       }

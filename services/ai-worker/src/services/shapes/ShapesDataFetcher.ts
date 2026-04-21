@@ -81,16 +81,13 @@ export class ShapesDataFetcher {
   async fetchShapeData(slug: string, options: FetchOptions): Promise<ShapesDataFetchResult> {
     this.currentCookie = options.sessionCookie;
 
-    logger.info({ slug }, '[ShapesDataFetcher] Starting data fetch');
+    logger.info({ slug }, 'Starting data fetch');
 
     // 1. Fetch shape config (also resolves slug → UUID)
     const config = await this.fetchShapeConfig(slug, options.signal);
     const shapeId = config.id;
 
-    logger.info(
-      { slug, shapeId, name: config.name },
-      '[ShapesDataFetcher] Config fetched, starting data collection'
-    );
+    logger.info({ slug, shapeId, name: config.name }, 'Config fetched, starting data collection');
 
     await this.delay(undefined, options.signal);
 
@@ -127,7 +124,7 @@ export class ShapesDataFetcher {
         pagesTraversed: result.stats.pagesTraversed,
         hasUserPersonalization: userPersonalization !== null,
       },
-      '[ShapesDataFetcher] Data fetch complete'
+      'Data fetch complete'
     );
 
     return result;
@@ -182,7 +179,7 @@ export class ShapesDataFetcher {
 
       logger.debug(
         { shapeId, page, count: pageMemories.length, total: allMemories.length, hasNext },
-        '[ShapesDataFetcher] Memory page fetched'
+        'Memory page fetched'
       );
 
       if (hasNext) {

@@ -89,7 +89,7 @@ export class RedisRateLimiter {
     if (userKey === null) {
       // No key = can't rate limit, allow through
       // This happens for unauthenticated requests (should be caught by auth middleware)
-      logger.debug('[RateLimiter.checkRateLimit] No user key, skipping rate limit');
+      logger.debug('No user key, skipping rate limit');
       next();
       return;
     }
@@ -111,7 +111,7 @@ export class RedisRateLimiter {
 
         logger.warn(
           { userId: userKey, count, maxRequests: this.maxRequests },
-          '[RateLimiter.checkRateLimit] Rate limit exceeded'
+          'Rate limit exceeded'
         );
 
         res.status(StatusCodes.TOO_MANY_REQUESTS).json({
@@ -126,10 +126,7 @@ export class RedisRateLimiter {
     } catch (error) {
       // On Redis error, log and allow request through
       // (fail open to prevent service disruption)
-      logger.error(
-        { err: error, userId: userKey },
-        '[RateLimiter.checkRateLimit] Redis error - allowing request through'
-      );
+      logger.error({ err: error, userId: userKey }, 'Redis error - allowing request through');
       next();
     }
   }

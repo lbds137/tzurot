@@ -68,13 +68,13 @@ export async function importMemories(
   if (existingContentSet.size > 0) {
     logger.info(
       { personalityId, existingCount: existingContentSet.size },
-      '[ShapesImportMemories] Found existing memories — will deduplicate by content'
+      'Found existing memories — will deduplicate by content'
     );
   }
   if (existingMemories.length === DEDUP_QUERY_LIMIT) {
     logger.warn(
       { personalityId },
-      '[ShapesImportMemories] Hit 10k memory dedup limit — duplicates beyond this threshold may not be detected'
+      'Hit 10k memory dedup limit — duplicates beyond this threshold may not be detected'
     );
   }
 
@@ -133,7 +133,7 @@ export async function importMemories(
       }
     } catch (error) {
       failed++;
-      logger.warn({ err: error, personalityId }, '[ShapesImportMemories] Failed to import memory');
+      logger.warn({ err: error, personalityId }, 'Failed to import memory');
     }
   }
 

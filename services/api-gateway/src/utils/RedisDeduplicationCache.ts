@@ -73,13 +73,13 @@ export class RedisDeduplicationCache {
       const timeSinceRequest = Date.now() - data.timestamp;
 
       logger.info(
-        `[Deduplication] Found duplicate request, returning cached job ${data.jobId} (${timeSinceRequest}ms ago)`
+        `Found duplicate request, returning cached job ${data.jobId} (${timeSinceRequest}ms ago)`
       );
 
       return data;
     } catch (error) {
       // Log error but don't fail the request - deduplication is a performance optimization
-      logger.error({ err: error }, '[Deduplication] Failed to check duplicate, proceeding');
+      logger.error({ err: error }, 'Failed to check duplicate, proceeding');
       return null;
     }
   }
@@ -102,10 +102,10 @@ export class RedisDeduplicationCache {
     try {
       // Use SETEX for atomic set + expiry
       await this.redis.setex(key, this.duplicateWindowSeconds, JSON.stringify(data));
-      logger.debug(`[Deduplication] Cached request ${requestId} with job ${jobId}`);
+      logger.debug(`Cached request ${requestId} with job ${jobId}`);
     } catch (error) {
       // Log error but don't fail the request
-      logger.error({ err: error }, '[Deduplication] Failed to cache request');
+      logger.error({ err: error }, 'Failed to cache request');
     }
   }
 
@@ -136,7 +136,7 @@ export class RedisDeduplicationCache {
 
       return count;
     } catch (error) {
-      logger.error({ err: error }, '[Deduplication] Failed to get cache size');
+      logger.error({ err: error }, 'Failed to get cache size');
       return 0;
     }
   }

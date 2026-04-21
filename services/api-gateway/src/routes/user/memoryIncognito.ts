@@ -69,7 +69,7 @@ async function handleGetStatus(
 
   logger.debug(
     { discordUserId, active: status.active, sessionCount: status.sessions.length },
-    '[Incognito] Status checked'
+    'Status checked'
   );
 
   sendCustomSuccess(
@@ -136,7 +136,7 @@ async function handleEnable(
   const session = await manager.enable(discordUserId, personalityId, duration);
   const personalityName = await getPersonalityName(prisma, personalityId);
 
-  logger.info({ discordUserId, personalityId, duration }, '[Incognito] Mode enabled');
+  logger.info({ discordUserId, personalityId, duration }, 'Mode enabled');
 
   sendCustomSuccess(
     res,
@@ -185,7 +185,7 @@ async function handleDisable(
     return;
   }
 
-  logger.info({ discordUserId, personalityId }, '[Incognito] Mode disabled');
+  logger.info({ discordUserId, personalityId }, 'Mode disabled');
 
   sendCustomSuccess(
     res,
@@ -289,7 +289,7 @@ async function handleForget(
       deletedCount: deleteResult.count,
       cutoff: cutoff.toISOString(),
     },
-    '[Incognito] Retroactive forget executed'
+    'Retroactive forget executed'
   );
 
   sendCustomSuccess(

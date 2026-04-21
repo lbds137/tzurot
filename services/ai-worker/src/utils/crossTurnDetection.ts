@@ -147,7 +147,7 @@ function logDuplicateCheckResult(params: {
         newResponseHash,
         comparisonReport,
       },
-      `[CrossTurnDetection] NEAR-MISS: Similarity ${(maxSimilarity * 100).toFixed(1)}% ` +
+      `NEAR-MISS: Similarity ${(maxSimilarity * 100).toFixed(1)}% ` +
         `is high but below ${(threshold * 100).toFixed(0)}% threshold.`
     );
   } else {
@@ -164,7 +164,7 @@ function logDuplicateCheckResult(params: {
         newResponseHash,
         comparisonReport,
       },
-      '[CrossTurnDetection] Check complete - no duplicate detected'
+      'Check complete - no duplicate detected'
     );
   }
 }
@@ -204,7 +204,7 @@ export function isCrossTurnDuplicate(
         newResponseLength: newResponse.length,
         previousResponseLength: previousResponse.length,
       },
-      '[CrossTurnDetection] Cross-turn duplication detected. Possible API-level caching.'
+      'Cross-turn duplication detected. Possible API-level caching.'
     );
   }
 
@@ -235,7 +235,7 @@ export function isRecentDuplicate(
   if (cleanNewResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
     logger.debug(
       { newResponseLength: cleanNewResponse.length, minLength: MIN_LENGTH_FOR_SIMILARITY_CHECK },
-      '[CrossTurnDetection] Skipping - response too short'
+      'Skipping - response too short'
     );
     return { isDuplicate: false, matchIndex: -1 };
   }
@@ -386,7 +386,7 @@ async function checkSemanticDuplicate(
   const newEmbedding = await embeddingService.getEmbedding(cleanNewResponse);
 
   if (newEmbedding === undefined) {
-    logger.debug({}, '[CrossTurnDetection] Failed to generate embedding, skipping semantic check');
+    logger.debug({}, 'Failed to generate embedding, skipping semantic check');
     return { isDuplicate: false, similarity: 0, matchedHash: '' };
   }
 
@@ -478,7 +478,7 @@ export async function isRecentDuplicateAsync(
         threshold: SEMANTIC_SIMILARITY_THRESHOLD,
         storedEmbeddingsCount: embeddingService.getAllStoredEmbeddings().length,
       },
-      '[CrossTurnDetection] Semantic check passed - no semantic duplicate found'
+      'Semantic check passed - no semantic duplicate found'
     );
   }
 

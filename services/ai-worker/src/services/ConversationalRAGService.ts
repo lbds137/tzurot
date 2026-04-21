@@ -105,10 +105,10 @@ export class ConversationalRAGService {
     );
     if (participantPersonas.size > 0) {
       logger.info(
-        `[RAG] Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`
+        `Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`
       );
     } else {
-      logger.debug(`[RAG] No participant personas found in conversation history`);
+      logger.debug(`No participant personas found in conversation history`);
     }
 
     // Resolve user references across all personality text fields (shapes.inc format mentions)
@@ -128,14 +128,12 @@ export class ConversationalRAGService {
           });
           logger.debug(
             { personaName: persona.personaName },
-            '[RAG] Added referenced user to participants'
+            'Added referenced user to participants'
           );
         }
       }
 
-      logger.info(
-        `[RAG] Resolved ${resolvedPersonas.length} user reference(s) in personality fields`
-      );
+      logger.info(`Resolved ${resolvedPersonas.length} user reference(s) in personality fields`);
     }
 
     return { participantPersonas, processedPersonality };
@@ -295,11 +293,11 @@ export class ConversationalRAGService {
         hadThinkingBlocks: thinkingContent !== null,
         thinkingContentLength: thinkingContent?.length ?? 0,
       },
-      `[RAG] Content cleanup check for ${personality.name}`
+      `Content cleanup check for ${personality.name}`
     );
 
     logger.info(
-      `[RAG] Generated ${cleanedContent.length} chars for ${personality.name} using model: ${modelName}`
+      `Generated ${cleanedContent.length} chars for ${personality.name} using model: ${modelName}`
     );
 
     return {
@@ -382,7 +380,7 @@ export class ConversationalRAGService {
 
       // Step 3: Retrieve relevant memories
       logger.info(
-        `[RAG] Memory search query: "${inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
+        `Memory search query: "${inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
       );
       diagnosticCollector?.markMemoryRetrievalStart();
       const { memories: retrievedMemories, focusModeEnabled } =
@@ -461,7 +459,7 @@ export class ConversationalRAGService {
       if (incognitoModeActive) {
         logger.info(
           { userId: context.userId, personalityId: personality.id },
-          '[RAG] Incognito mode active - skipping LTM storage'
+          'Incognito mode active - skipping LTM storage'
         );
       } else if (options.skipMemoryStorage === true) {
         // Deferred storage: build data for caller to store later
@@ -476,7 +474,7 @@ export class ConversationalRAGService {
         if (deferredMemoryData !== undefined) {
           logger.debug(
             { userId: context.userId, personalityId: personality.id },
-            '[RAG] Memory storage deferred - data included in response'
+            'Memory storage deferred - data included in response'
           );
         }
       } else {

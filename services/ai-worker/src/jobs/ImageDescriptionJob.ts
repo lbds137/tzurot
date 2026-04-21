@@ -65,7 +65,7 @@ async function resolveVisionApiKey(
     const keyResult = await apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
     logger.debug(
       { userId, isGuestMode: keyResult.isGuestMode, source: keyResult.source },
-      '[ImageDescriptionJob] Resolved API key for vision processing'
+      'Resolved API key for vision processing'
     );
 
     // Return the user's API key if they have one (source='user')
@@ -75,10 +75,7 @@ async function resolveVisionApiKey(
       userApiKey: keyResult.source === 'user' ? keyResult.apiKey : undefined,
     };
   } catch (error) {
-    logger.warn(
-      { err: error, userId },
-      '[ImageDescriptionJob] Failed to resolve API key, defaulting to guest mode'
-    );
+    logger.warn({ err: error, userId }, 'Failed to resolve API key, defaulting to guest mode');
     return { isGuestMode: true };
   }
 }
@@ -162,10 +159,7 @@ export async function processImageDescriptionJob(
   // Validate job payload against schema (contract testing)
   const validation = imageDescriptionJobDataSchema.safeParse(job.data);
   if (!validation.success) {
-    logger.error(
-      { jobId: job.id, errors: validation.error.format() },
-      '[ImageDescriptionJob] Job validation failed'
-    );
+    logger.error({ jobId: job.id, errors: validation.error.format() }, 'Job validation failed');
     throw new Error(`Image description job validation failed: ${validation.error.message}`);
   }
 
@@ -174,7 +168,7 @@ export async function processImageDescriptionJob(
 
   logger.info(
     { jobId: job.id, requestId, imageCount: attachments.length, personalityName: personality.name },
-    '[ImageDescriptionJob] Processing image description job'
+    'Processing image description job'
   );
 
   try {
@@ -216,7 +210,7 @@ export async function processImageDescriptionJob(
     const processingTimeMs = Date.now() - startTime;
     logger.info(
       { jobId: job.id, requestId, processingTimeMs, imageCount: descriptions.length },
-      '[ImageDescriptionJob] Image description completed'
+      'Image description completed'
     );
 
     return {
@@ -228,10 +222,7 @@ export async function processImageDescriptionJob(
     };
   } catch (error) {
     const processingTimeMs = Date.now() - startTime;
-    logger.error(
-      { err: error, jobId: job.id, requestId },
-      '[ImageDescriptionJob] Image description failed'
-    );
+    logger.error({ err: error, jobId: job.id, requestId }, 'Image description failed');
 
     return {
       requestId,

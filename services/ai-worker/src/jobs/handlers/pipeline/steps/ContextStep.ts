@@ -75,7 +75,7 @@ export class ContextStep implements IPipelineStep {
             validTimestamps: historyTimestamps.length,
             missingTimestamps: jobContext.conversationHistory.length - historyTimestamps.length,
           },
-          '[ContextStep] Some conversation history messages missing valid createdAt timestamps'
+          'Some conversation history messages missing valid createdAt timestamps'
         );
       }
     }
@@ -105,7 +105,7 @@ export class ContextStep implements IPipelineStep {
       oldestHistoryTimestamp = allTimestamps.reduce((min, ts) => Math.min(min, ts), Infinity);
       logger.debug(
         { jobId: job.id, oldestTimestamp: new Date(oldestHistoryTimestamp).toISOString() },
-        '[ContextStep] Oldest timestamp (includes referenced and cross-channel messages)'
+        'Oldest timestamp (includes referenced and cross-channel messages)'
       );
     }
 
@@ -150,7 +150,7 @@ export class ContextStep implements IPipelineStep {
         historyLength: conversationHistory.length,
         participantCount: allParticipants.length,
       },
-      '[ContextStep] Context prepared'
+      'Context prepared'
     );
 
     return {
@@ -233,7 +233,7 @@ export class ContextStep implements IPipelineStep {
           deltaMs,
           suggestsClockSkew,
         },
-        `[ContextStep] Clock-skew signal: job timestamp is ${Math.abs(deltaMs)}ms BEFORE the ` +
+        `Clock-skew signal: job timestamp is ${Math.abs(deltaMs)}ms BEFORE the ` +
           `newest assistant message's persisted timestamp. Not a race condition — a clock or ` +
           `data-source mismatch worth investigating.`
       );
@@ -246,7 +246,7 @@ export class ContextStep implements IPipelineStep {
           deltaMs,
           suggestsRace,
         },
-        `[ContextStep] Race-window signal: job created ${deltaMs}ms after newest assistant message persisted. ` +
+        `Race-window signal: job created ${deltaMs}ms after newest assistant message persisted. ` +
           `Cross-turn duplicate detector may miss prior response.`
       );
     } else {
@@ -258,7 +258,7 @@ export class ContextStep implements IPipelineStep {
           deltaMs,
           suggestsRace,
         },
-        '[ContextStep] Race-window telemetry'
+        'Race-window telemetry'
       );
     }
   }

@@ -85,7 +85,7 @@ function handleAddEntry(
       mode: entry.mode,
     });
 
-    logger.info({ type, discordId, scope, scopeId, addedBy }, '[Admin] Denylist entry added');
+    logger.info({ type, discordId, scope, scopeId, addedBy }, 'Denylist entry added');
     sendCustomSuccess(res, { success: true, entry });
   });
 }
@@ -137,7 +137,7 @@ export function createDenylistRoutes(
       if (entries.length >= CACHE_HYDRATION_MAX_ENTRIES) {
         logger.warn(
           { count: entries.length, limit: CACHE_HYDRATION_MAX_ENTRIES },
-          '[Denylist] Cache hydration hit max entry limit — some entries may not be cached'
+          'Cache hydration hit max entry limit — some entries may not be cached'
         );
       }
       sendCustomSuccess(res, { entries });
@@ -191,7 +191,7 @@ export function createDenylistRoutes(
         scopeId,
         mode: existing.mode,
       });
-      logger.info({ type, discordId, scope, scopeId }, '[Admin] Denylist entry removed');
+      logger.info({ type, discordId, scope, scopeId }, 'Denylist entry removed');
       sendCustomSuccess(res, { success: true, removed: true });
     })
   );

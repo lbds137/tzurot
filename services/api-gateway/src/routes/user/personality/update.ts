@@ -83,12 +83,9 @@ async function invalidatePersonalityCache(
   if (cacheInvalidationService) {
     try {
       await cacheInvalidationService.invalidatePersonality(personalityId);
-      logger.info({ personalityId, reason }, '[User] Invalidated personality cache');
+      logger.info({ personalityId, reason }, 'Invalidated personality cache');
     } catch (error) {
-      logger.warn(
-        { err: error, personalityId, reason },
-        '[User] Failed to invalidate personality cache'
-      );
+      logger.warn({ err: error, personalityId, reason }, 'Failed to invalidate personality cache');
     }
   }
 }
@@ -188,7 +185,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       if (!isBotOwner(discordUserId)) {
         logger.warn(
           { discordUserId, currentSlug: slug, attemptedSlug: body.slug },
-          '[User] Non-admin attempted slug update'
+          'Non-admin attempted slug update'
         );
         return sendError(
           res,
@@ -216,7 +213,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
       logger.info(
         { discordUserId, oldSlug: slug, newSlug: body.slug, personalityId: personality.id },
-        '[User] Bot admin updating personality slug'
+        'Bot admin updating personality slug'
       );
     }
 
@@ -264,7 +261,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
         avatarUpdated,
         slugUpdated: slugWasUpdated,
       },
-      '[User] Updated personality'
+      'Updated personality'
     );
 
     sendCustomSuccess(

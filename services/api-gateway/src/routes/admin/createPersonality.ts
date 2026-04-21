@@ -37,9 +37,9 @@ async function invalidateCacheIfPublic(
 
   try {
     await cacheInvalidationService.invalidateAll();
-    logger.info({ personalityId }, '[Admin] Invalidated personality cache after public create');
+    logger.info({ personalityId }, 'Invalidated personality cache after public create');
   } catch (error) {
-    logger.warn({ err: error, personalityId }, '[Admin] Failed to invalidate personality cache');
+    logger.warn({ err: error, personalityId }, 'Failed to invalidate personality cache');
   }
 }
 
@@ -146,7 +146,7 @@ export function createCreatePersonalityRoute(
       });
       const personality = await prisma.personality.create({ data: createData });
 
-      logger.info(`[Admin] Created personality: ${slug} (${personality.id})`);
+      logger.info(`Created personality: ${slug} (${personality.id})`);
 
       // Post-creation tasks.
       // Note: personality_default_configs is intentionally NOT populated here.

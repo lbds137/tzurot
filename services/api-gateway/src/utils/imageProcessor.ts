@@ -122,7 +122,7 @@ export async function optimizeAvatar(
     const originalBuffer = Buffer.from(base64Data, 'base64');
     const originalSizeKB = originalBuffer.length / 1024;
 
-    logger.info(`[ImageProcessor] Original avatar size: ${originalSizeKB.toFixed(2)} KB`);
+    logger.info(`Original avatar size: ${originalSizeKB.toFixed(2)} KB`);
 
     // Start with initial quality
     let quality = opts.initialQuality;
@@ -149,14 +149,12 @@ export async function optimizeAvatar(
     const processedSizeKB = processed.length / 1024;
     const exceedsTarget = processed.length > opts.maxSizeBytes;
 
-    logger.info(
-      `[ImageProcessor] Processed avatar size: ${processedSizeKB.toFixed(2)} KB (quality: ${quality})`
-    );
+    logger.info(`Processed avatar size: ${processedSizeKB.toFixed(2)} KB (quality: ${quality})`);
 
     if (exceedsTarget) {
       logger.warn(
         {},
-        `[ImageProcessor] Avatar still exceeds ${(opts.maxSizeBytes / 1024).toFixed(0)}KB after optimization: ${processedSizeKB.toFixed(2)} KB`
+        `Avatar still exceeds ${(opts.maxSizeBytes / 1024).toFixed(0)}KB after optimization: ${processedSizeKB.toFixed(2)} KB`
       );
     }
 
@@ -169,7 +167,7 @@ export async function optimizeAvatar(
     };
   } catch (error) {
     const originalMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error({ err: error }, '[ImageProcessor] Failed to process avatar image');
+    logger.error({ err: error }, 'Failed to process avatar image');
     throw new Error(
       `Failed to process avatar image: ${originalMessage}. Ensure it is a valid image format.`,
       { cause: error }

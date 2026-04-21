@@ -47,7 +47,7 @@ export class LongTermMemoryService {
 
     try {
       if (this.memoryManager === undefined) {
-        logger.debug(`[LTM] Memory storage disabled - interaction not stored in vector database`);
+        logger.debug(`Memory storage disabled - interaction not stored in vector database`);
         return;
       }
 
@@ -85,7 +85,7 @@ export class LongTermMemoryService {
         },
       });
       pendingMemoryId = pendingMemory.id;
-      logger.debug(`[LTM] Created pending_memory (${pendingMemoryId})`);
+      logger.debug(`Created pending_memory (${pendingMemoryId})`);
 
       // Try to store to vector database
       await this.memoryManager.addMemory({
@@ -98,10 +98,10 @@ export class LongTermMemoryService {
         where: { id: pendingMemoryId },
       });
       logger.info(
-        `[LTM] Stored interaction to LTM in ${canonScope} canon for ${personality.name} (persona: ${personaId})`
+        `Stored interaction to LTM in ${canonScope} canon for ${personality.name} (persona: ${personaId})`
       );
     } catch (error) {
-      logger.error({ err: error }, '[LTM] Failed to store interaction to vector database');
+      logger.error({ err: error }, 'Failed to store interaction to vector database');
 
       // Update pending_memory with error details (for retry later)
       if (pendingMemoryId !== null && pendingMemoryId.length > 0) {
@@ -114,11 +114,9 @@ export class LongTermMemoryService {
               error: error instanceof Error ? error.message : String(error),
             },
           });
-          logger.info(
-            `[LTM] Updated pending_memory (${pendingMemoryId}) with error - will retry later`
-          );
+          logger.info(`Updated pending_memory (${pendingMemoryId}) with error - will retry later`);
         } catch (updateError) {
-          logger.error({ err: updateError }, `[LTM] Failed to update pending_memory`);
+          logger.error({ err: updateError }, `Failed to update pending_memory`);
         }
       }
 

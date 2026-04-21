@@ -84,15 +84,15 @@ async function invalidateCacheAfterUpdate(
       await cacheInvalidationService.invalidateAll();
       logger.info(
         { personalityId, wasPublic, isNowPublic },
-        '[Admin] Invalidated all personality caches after visibility-affecting update'
+        'Invalidated all personality caches after visibility-affecting update'
       );
     } else {
       // Private personality, visibility unchanged - just invalidate this one
       await cacheInvalidationService.invalidatePersonality(personalityId);
-      logger.info({ personalityId }, '[Admin] Invalidated personality cache after private update');
+      logger.info({ personalityId }, 'Invalidated personality cache after private update');
     }
   } catch (error) {
-    logger.warn({ err: error, personalityId }, '[Admin] Failed to invalidate personality cache');
+    logger.warn({ err: error, personalityId }, 'Failed to invalidate personality cache');
   }
 }
 
@@ -165,7 +165,7 @@ export function createUpdatePersonalityRoute(
         data: updateData,
       });
 
-      logger.info(`[Admin] Updated personality: ${slug} (${personality.id})`);
+      logger.info(`Updated personality: ${slug} (${personality.id})`);
 
       // Invalidate cache with visibility-aware logic
       const wasPublic = existing.isPublic;

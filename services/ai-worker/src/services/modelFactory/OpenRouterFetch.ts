@@ -52,7 +52,7 @@ function injectOpenRouterParams(
         url: urlStr,
         injectedParams: extraParams,
       },
-      '[ModelFactory] Custom fetch injecting OpenRouter params'
+      'Custom fetch injecting OpenRouter params'
     );
 
     init.body = JSON.stringify(body);
@@ -134,7 +134,7 @@ function injectReasoningIntoMessage(message: Record<string, unknown>): boolean {
     // Model put response in reasoning with empty content — use reasoning as content
     logger.warn(
       { reasoningLength: reasoning.length },
-      '[ModelFactory] Empty content with populated reasoning — using reasoning as content'
+      'Empty content with populated reasoning — using reasoning as content'
     );
     message.content = reasoning;
     return true;
@@ -144,7 +144,7 @@ function injectReasoningIntoMessage(message: Record<string, unknown>): boolean {
 
   logger.debug(
     { reasoningLength: reasoning.length, contentLength: content.length },
-    '[ModelFactory] Injected reasoning from API response into content'
+    'Injected reasoning from API response into content'
   );
 
   return true;
@@ -216,7 +216,7 @@ async function tryRecoverErrorContent(response: Response): Promise<Response | nu
 
     logger.warn(
       { status: response.status, contentLength: recoveredLength, fromReasoning },
-      '[ModelFactory] Recovered valid content from error response — synthesizing 200'
+      'Recovered valid content from error response — synthesizing 200'
     );
     interceptReasoningResponse(body);
     return new Response(JSON.stringify(body), {
@@ -252,10 +252,7 @@ export function createOpenRouterFetch(
     }
 
     const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
-    logger.info(
-      { url: urlStr, method: init?.method },
-      '[ModelFactory] Custom fetch intercepting request'
-    );
+    logger.info({ url: urlStr, method: init?.method }, 'Custom fetch intercepting request');
 
     const response = await fetch(url, init);
 
@@ -267,7 +264,7 @@ export function createOpenRouterFetch(
         ok: response.ok,
         contentType,
       },
-      '[ModelFactory] Custom fetch received response'
+      'Custom fetch received response'
     );
 
     // For 400-class errors with JSON body, try to recover valid content
@@ -297,7 +294,7 @@ export function createOpenRouterFetch(
       const body = (await clone.json()) as Record<string, unknown>;
       const modified = interceptReasoningResponse(body);
 
-      logger.info({ reasoningInjected: modified }, '[ModelFactory] Response interception complete');
+      logger.info({ reasoningInjected: modified }, 'Response interception complete');
 
       return new Response(JSON.stringify(body), {
         status: response.status,
@@ -305,10 +302,7 @@ export function createOpenRouterFetch(
         headers: response.headers,
       });
     } catch (err) {
-      logger.warn(
-        { err },
-        '[ModelFactory] Failed to parse response JSON for reasoning interception'
-      );
+      logger.warn({ err }, 'Failed to parse response JSON for reasoning interception');
       return response;
     }
   };

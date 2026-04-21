@@ -143,13 +143,13 @@ export async function validateSyncConfig(
   }
 
   if (warnings.length > 0) {
-    logger.warn({ warnings }, '[Sync] SYNC_CONFIG validation warnings detected');
+    logger.warn({ warnings }, 'SYNC_CONFIG validation warnings detected');
   }
   if (info.length > 0) {
-    logger.info({ excludedCount: info.length }, '[Sync] Excluded tables acknowledged');
+    logger.info({ excludedCount: info.length }, 'Excluded tables acknowledged');
   }
   if (warnings.length === 0 && info.length === 0) {
-    logger.info('[Sync] SYNC_CONFIG validation passed - all UUID columns match schema');
+    logger.info('SYNC_CONFIG validation passed - all UUID columns match schema');
   }
 
   return { warnings, info };

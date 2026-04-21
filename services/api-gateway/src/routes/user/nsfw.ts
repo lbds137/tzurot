@@ -70,7 +70,7 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      logger.info({ discordUserId }, '[NSFW] Verifying user via NSFW channel interaction');
+      logger.info({ discordUserId }, 'Verifying user via NSFW channel interaction');
 
       // Prefer the provisionedUserId attached by requireProvisionedUser; fall
       // back to the shell path on shadow-mode fallthrough. Once the middleware
@@ -106,7 +106,7 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
         },
       });
 
-      logger.info({ discordUserId }, '[NSFW] User successfully verified');
+      logger.info({ discordUserId }, 'User successfully verified');
 
       sendCustomSuccess(
         res,

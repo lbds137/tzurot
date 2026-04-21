@@ -37,20 +37,20 @@ export async function initializeEmbeddingService(): Promise<boolean> {
 
   initializationPromise = (async () => {
     try {
-      logger.info('[EmbeddingService] Initializing local embedding service...');
+      logger.info('Initializing local embedding service...');
       embeddingService = new LocalEmbeddingService();
       const success = await embeddingService.initialize();
 
       if (success) {
-        logger.info('[EmbeddingService] Local embedding service initialized successfully');
+        logger.info('Local embedding service initialized successfully');
       } else {
-        logger.warn({}, '[EmbeddingService] Local embedding service failed to initialize');
+        logger.warn({}, 'Local embedding service failed to initialize');
         embeddingService = null;
       }
 
       return success;
     } catch (error) {
-      logger.error({ err: error }, '[EmbeddingService] Failed to initialize embedding service');
+      logger.error({ err: error }, 'Failed to initialize embedding service');
       embeddingService = null;
       return false;
     } finally {
@@ -76,33 +76,33 @@ export function isEmbeddingServiceAvailable(): boolean {
  */
 export async function generateEmbedding(text: string): Promise<number[] | null> {
   if (embeddingService === null || embeddingService.isServiceReady() === false) {
-    logger.warn({}, '[EmbeddingService] Service not ready - call initializeEmbeddingService first');
+    logger.warn({}, 'Service not ready - call initializeEmbeddingService first');
     return null;
   }
 
   if (text.trim().length === 0) {
-    logger.warn({}, '[EmbeddingService] Empty text provided for embedding');
+    logger.warn({}, 'Empty text provided for embedding');
     return null;
   }
 
-  logger.debug({ textLength: text.length }, '[EmbeddingService] Generating embedding');
+  logger.debug({ textLength: text.length }, 'Generating embedding');
 
   const embedding = await embeddingService.getEmbedding(text);
 
   if (embedding === undefined) {
-    logger.warn({}, '[EmbeddingService] Failed to generate embedding');
+    logger.warn({}, 'Failed to generate embedding');
     return null;
   }
 
   if (embedding.length !== EMBEDDING_DIMENSION) {
     logger.error(
       { expected: EMBEDDING_DIMENSION, got: embedding.length },
-      '[EmbeddingService] Invalid embedding dimension'
+      'Invalid embedding dimension'
     );
     return null;
   }
 
-  logger.debug({ dimension: embedding.length }, '[EmbeddingService] Embedding generated');
+  logger.debug({ dimension: embedding.length }, 'Embedding generated');
 
   // Convert Float32Array to number[] for API compatibility
   return Array.from(embedding);
@@ -128,10 +128,10 @@ export function formatAsVector(embedding: number[]): string {
  */
 export async function shutdownEmbeddingService(): Promise<void> {
   if (embeddingService !== null) {
-    logger.info('[EmbeddingService] Shutting down embedding service...');
+    logger.info('Shutting down embedding service...');
     await embeddingService.shutdown();
     embeddingService = null;
-    logger.info('[EmbeddingService] Embedding service shut down');
+    logger.info('Embedding service shut down');
   }
 }
 

@@ -64,7 +64,7 @@ export async function handleRemoveKey(context: DeferredCommandContext): Promise<
 
     logger.info({ provider, userId }, 'API key removed');
   } catch (error) {
-    logger.error({ error, userId, provider }, 'Unexpected error');
+    logger.error({ err: error, userId, provider }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
