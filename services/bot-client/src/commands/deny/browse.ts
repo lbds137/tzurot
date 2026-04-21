@@ -39,7 +39,6 @@ const browseHelpers = createBrowseCustomIdHelpers<DenyBrowseFilter>({
   validFilters: VALID_FILTERS,
 });
 
-export type { DenylistEntryResponse } from './browseTypes.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
 
 /** Check if custom ID is a deny browse button interaction */

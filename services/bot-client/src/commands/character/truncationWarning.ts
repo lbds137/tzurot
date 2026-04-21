@@ -27,7 +27,7 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { createLogger, DISCORD_COLORS, getConfig, type EnvConfig } from '@tzurot/common-types';
 import { buildDashboardCustomId, type SectionDefinition } from '../../utils/dashboard/types.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
-import { type CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 import {
   findCharacterSection,
   loadCharacterSectionData,

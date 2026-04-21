@@ -2,7 +2,7 @@
  * Character View Types and Constants
  */
 
-import type { CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 
 /** Number of pages for character view */
 export const VIEW_TOTAL_PAGES = 4;

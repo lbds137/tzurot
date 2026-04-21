@@ -33,11 +33,8 @@ import {
 } from '../../utils/dashboard/types.js';
 import { fetchOrCreateSession } from '../../utils/dashboard/sessionHelpers.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
-import {
-  getCharacterDashboardConfig,
-  type CharacterData,
-  type CharacterSessionData,
-} from './config.js';
+import { getCharacterDashboardConfig, type CharacterSessionData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter } from './api.js';
 

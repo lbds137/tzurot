@@ -146,7 +146,7 @@ export class NormalizationStep implements IPipelineStep {
       if (ref.timestamp !== undefined) {
         const normalizedTimestamp = normalizeTimestamp(ref.timestamp);
         if (normalizedTimestamp !== undefined && ref.timestamp !== normalizedTimestamp) {
-          (ref as { timestamp: string }).timestamp = normalizedTimestamp;
+          ref.timestamp = normalizedTimestamp;
           stats.timestampNormalizations++;
         }
       }
