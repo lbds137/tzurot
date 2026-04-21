@@ -16,10 +16,11 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('user-timezone');
 
@@ -74,7 +75,7 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
       const parseResult = SetTimezoneInputSchema.safeParse(req.body);
@@ -96,7 +97,7 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
 
       logger.info({ discordUserId, timezone }, '[Timezone] Setting user timezone');
 
-      const userId = await userService.getOrCreateUserShell(discordUserId);
+      const userId = await resolveProvisionedUserId(req, userService, discordUserId);
 
       // Update the timezone
       await prisma.user.update({

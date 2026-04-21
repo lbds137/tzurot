@@ -27,11 +27,12 @@ import {
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('user-model-override');
 
@@ -118,7 +119,7 @@ export function createModelOverrideRoutes(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
       // Validate request body with Zod
@@ -129,7 +130,7 @@ export function createModelOverrideRoutes(
 
       const { personalityId, configId } = parseResult.data;
 
-      const userId = await userService.getOrCreateUserShell(discordUserId);
+      const userId = await resolveProvisionedUserId(req, userService, discordUserId);
 
       // Verify personality exists
       const personality = await prisma.personality.findFirst({
@@ -241,7 +242,7 @@ export function createModelOverrideRoutes(
     '/default',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
       // Validate request body with Zod
@@ -252,7 +253,7 @@ export function createModelOverrideRoutes(
 
       const { configId } = parseResult.data;
 
-      const userId = await userService.getOrCreateUserShell(discordUserId);
+      const userId = await resolveProvisionedUserId(req, userService, discordUserId);
 
       // Verify config exists and user can access it (global or owned)
       const llmConfig = await verifyConfigAccess(prisma, configId, userId);

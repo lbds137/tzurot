@@ -23,9 +23,10 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-auth');
 
@@ -35,7 +36,7 @@ const SHAPES_CREDENTIAL_WHERE = {
 } as const;
 
 function createStoreHandler(prisma: PrismaClient, userService: UserService) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const { sessionCookie } = req.body as { sessionCookie?: string };
 
@@ -60,7 +61,7 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       );
     }
 
-    const userId = await userService.getOrCreateUserShell(discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
 
     const encrypted = encryptApiKey(sessionCookie);
     const credentialId = generateUserCredentialUuid(
