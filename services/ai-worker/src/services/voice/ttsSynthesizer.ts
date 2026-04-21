@@ -272,10 +272,30 @@ export async function synthesizeWithChunking(
   const header = buildWavHeader(totalPcmLength, sampleRate);
   const combined = Buffer.concat([header, ...pcmBuffers]);
 
-  logger.info(
-    { voiceId, totalAudioSize: combined.length, chunkCount: chunks.length },
-    'Multi-chunk TTS synthesis complete'
-  );
-
-  return { audioBuffer: combined, contentType: 'audio/wav' };
+  // Re-encode combined WAV to Opus-in-Ogg so multi-chunk output matches the
+  // single-chunk path's ~10x size reduction. Without this, ~2 min of speech
+  // lands around 11-13 MB WAV and trips Discord's 8 MiB attachment limit.
+  // On transcode failure, fall back to WAV — better to deliver too-large
+  // audio that Discord's sender will replace with a fallback notice than to
+  // fail the whole synthesis.
+  try {
+    const transcoded = await client.transcode(combined);
+    logger.info(
+      {
+        voiceId,
+        wavSize: combined.length,
+        encodedSize: transcoded.audioBuffer.length,
+        contentType: transcoded.contentType,
+        chunkCount: chunks.length,
+      },
+      'Multi-chunk TTS synthesis complete'
+    );
+    return transcoded;
+  } catch (error) {
+    logger.warn(
+      { err: error, voiceId, wavSize: combined.length, chunkCount: chunks.length },
+      'Multi-chunk Opus transcode failed — falling back to combined WAV'
+    );
+    return { audioBuffer: combined, contentType: 'audio/wav' };
+  }
 }

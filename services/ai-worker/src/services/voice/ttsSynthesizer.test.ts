@@ -350,6 +350,7 @@ describe('synthesizeWithChunking', () => {
     vi.useFakeTimers();
     mockClient = {
       synthesize: vi.fn(),
+      transcode: vi.fn(),
     } as unknown as VoiceEngineClient;
   });
 
@@ -373,7 +374,7 @@ describe('synthesizeWithChunking', () => {
     expect(result).toBe(expectedResult);
   });
 
-  it('should synthesize each chunk and concatenate PCM for multi-chunk text', async () => {
+  it('should synthesize each chunk and re-encode combined WAV to Opus', async () => {
     // Build text that requires multiple chunks
     const sentence = 'This is a moderately long sentence for testing purposes. ';
     const repetitions = Math.ceil(2100 / sentence.length);
@@ -394,31 +395,41 @@ describe('synthesizeWithChunking', () => {
       };
     });
 
+    const opusBuffer = Buffer.from('OggS\0fake-opus-payload', 'ascii');
+    vi.mocked(mockClient.transcode).mockResolvedValue({
+      audioBuffer: opusBuffer,
+      contentType: 'audio/ogg',
+    });
+
     const result = await synthesizeWithChunking(mockClient, longText, 'voice-1');
 
     // Should have called synthesize for each chunk
     expect(vi.mocked(mockClient.synthesize).mock.calls.length).toBeGreaterThanOrEqual(2);
 
-    // Each chunk must request WAV format — extractPcmData/buildWavHeader below operate
+    // Each chunk must request WAV format — extractPcmData/buildWavHeader operate
     // on raw PCM, and Opus-in-Ogg can't be losslessly concatenated at the byte level.
     for (const call of vi.mocked(mockClient.synthesize).mock.calls) {
       expect(call[2]).toEqual({ format: 'wav' });
     }
 
-    // Result should be a WAV with combined PCM
-    expect(result.contentType).toBe('audio/wav');
+    // Transcode should be called exactly once, with the combined WAV
+    expect(mockClient.transcode).toHaveBeenCalledTimes(1);
+    const transcodedInput = vi.mocked(mockClient.transcode).mock.calls[0][0];
 
-    // Verify the WAV header
-    const resultBuffer = result.audioBuffer;
-    expect(resultBuffer.toString('ascii', 0, 4)).toBe('RIFF');
-    expect(resultBuffer.toString('ascii', 8, 12)).toBe('WAVE');
-    expect(resultBuffer.toString('ascii', 36, 40)).toBe('data');
+    // The combined WAV passed to transcode should have a valid header and the
+    // combined PCM payload — this is the byte-identical substitute for what
+    // used to be the return value before the Opus re-encode was added.
+    expect(transcodedInput.toString('ascii', 0, 4)).toBe('RIFF');
+    expect(transcodedInput.toString('ascii', 8, 12)).toBe('WAVE');
+    expect(transcodedInput.toString('ascii', 36, 40)).toBe('data');
+    expect(transcodedInput.readUInt32LE(24)).toBe(sampleRate);
 
-    // Verify sample rate is preserved
-    expect(resultBuffer.readUInt32LE(24)).toBe(sampleRate);
+    // Final result is whatever transcode returned — Opus in the happy path
+    expect(result.contentType).toBe('audio/ogg');
+    expect(result.audioBuffer).toBe(opusBuffer);
   });
 
-  it('should produce combined WAV with correct total PCM length', async () => {
+  it('should produce combined WAV with correct total PCM length before transcoding', async () => {
     // Create text that will result in exactly 2 chunks
     // Use a clear sentence boundary to make splitting predictable
     const chunk1Text = 'A'.repeat(1500) + '.';
@@ -440,21 +451,54 @@ describe('synthesizeWithChunking', () => {
       };
     });
 
-    const result = await synthesizeWithChunking(mockClient, longText, 'voice-1');
+    vi.mocked(mockClient.transcode).mockResolvedValue({
+      audioBuffer: Buffer.from('OggS\0'),
+      contentType: 'audio/ogg',
+    });
+
+    await synthesizeWithChunking(mockClient, longText, 'voice-1');
+
+    // Inspect the combined WAV that was passed to transcode()
+    const transcodedInput = vi.mocked(mockClient.transcode).mock.calls[0][0];
 
     // Total PCM should be pcm1 + pcm2 = 300 bytes
     const expectedPcmLength = pcm1.length + pcm2.length;
 
     // PCM data length is written at offset 40 in the WAV header
-    expect(result.audioBuffer.readUInt32LE(40)).toBe(expectedPcmLength);
+    expect(transcodedInput.readUInt32LE(40)).toBe(expectedPcmLength);
 
     // Total buffer should be 44 (header) + 300 (PCM)
-    expect(result.audioBuffer.length).toBe(44 + expectedPcmLength);
+    expect(transcodedInput.length).toBe(44 + expectedPcmLength);
 
     // Verify the PCM data content is correct (first 100 bytes = 0xAA, next 200 = 0xBB)
-    const pcmData = extractPcmData(result.audioBuffer);
+    const pcmData = extractPcmData(transcodedInput);
     expect(pcmData.length).toBe(expectedPcmLength);
     expect(pcmData.subarray(0, 100).every(b => b === 0xaa)).toBe(true);
     expect(pcmData.subarray(100, 300).every(b => b === 0xbb)).toBe(true);
+  });
+
+  it('should fall back to combined WAV when transcode fails', async () => {
+    // Behavior contract: if the Opus re-encode errors (voice-engine unreachable,
+    // ffmpeg missing, 5xx), ship the combined WAV instead of failing the whole
+    // synthesis. DiscordResponseSender already has a size-limit fallback notice
+    // for the pathological case where the WAV exceeds 8 MiB.
+    const longText = 'A'.repeat(1500) + '. ' + 'B'.repeat(1500) + '.';
+    expect(longText.length).toBeGreaterThan(2000);
+
+    const sampleRate = 22050;
+    vi.mocked(mockClient.synthesize).mockImplementation(async () => ({
+      audioBuffer: createFakeWav(Buffer.alloc(50, 0xcc), sampleRate),
+      contentType: 'audio/wav',
+    }));
+
+    vi.mocked(mockClient.transcode).mockRejectedValue(new Error('voice-engine unreachable'));
+
+    const result = await synthesizeWithChunking(mockClient, longText, 'voice-1');
+
+    expect(result.contentType).toBe('audio/wav');
+    expect(result.audioBuffer.toString('ascii', 0, 4)).toBe('RIFF');
+    // Transcode was attempted exactly once (no retry loop in synthesizer — retry
+    // belongs in the client if we want it, not here)
+    expect(mockClient.transcode).toHaveBeenCalledTimes(1);
   });
 });

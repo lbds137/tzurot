@@ -145,6 +145,41 @@ export class VoiceEngineClient {
     };
   }
 
+  /**
+   * Transcode a WAV buffer to Opus-in-Ogg via POST /v1/audio/transcode.
+   *
+   * Used by the multi-chunk TTS path: chunks are synthesized as WAV (so raw
+   * PCM can be concatenated), then the combined WAV is posted through here
+   * for a single Opus encode — matching single-chunk behavior so Discord
+   * never receives raw WAV that trips its 8 MiB attachment limit.
+   *
+   * On voice-engine-side ffmpeg failure, the server returns the original WAV
+   * with content-type audio/wav (defensive fallback — see /v1/audio/transcode
+   * docstring). Callers should treat contentType as authoritative rather than
+   * assuming audio/ogg.
+   */
+  async transcode(wavBuffer: Buffer): Promise<SynthesisResult> {
+    const formData = new FormData();
+    const blob = new Blob([new Uint8Array(wavBuffer)], { type: 'audio/wav' });
+    formData.append('file', blob, 'combined.wav');
+
+    const response = await this.fetchWithTimeout('/v1/audio/transcode', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const detail = await this.extractErrorDetail(response);
+      throw new VoiceEngineError(response.status, detail);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return {
+      audioBuffer: Buffer.from(arrayBuffer),
+      contentType: response.headers.get('content-type') ?? 'audio/wav',
+    };
+  }
+
   /** Register a voice via POST /v1/voices/register. */
   async registerVoice(voiceId: string, audioBuffer: Buffer, contentType: string): Promise<void> {
     const formData = new FormData();

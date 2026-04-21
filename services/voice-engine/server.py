@@ -670,6 +670,51 @@ async def tts_openai_compat(
 
 
 # ---------------------------------------------------------------------------
+# Audio Transcode
+# ---------------------------------------------------------------------------
+@app.post("/v1/audio/transcode")
+async def transcode_wav_to_opus(file: UploadFile = File(...)) -> Response:
+    """Transcode WAV audio to Opus-in-Ogg (64 kbps VBR, speech-tuned).
+
+    Intended for the multi-chunk TTS path in ai-worker: chunks are synthesized
+    as WAV (so raw PCM can be concatenated), then the combined WAV is posted
+    here for a single Opus encode. Keeps encoding config (bitrate, VBR, voip
+    profile) centralized with _encode_opus so single-chunk and multi-chunk
+    produce byte-identical Opus output.
+
+    Accepts: audio/wav bodies up to MAX_AUDIO_UPLOAD_BYTES (50 MB — well above
+    the ~15 MB that ~5 min of 22.05 kHz 16-bit mono PCM produces).
+
+    Returns: audio/ogg (Opus) on success; falls back to audio/wav (the original
+    input) if ffmpeg is unavailable or fails — matches the /v1/tts fallback so
+    callers see one consistent contract.
+    """
+    audio_bytes = await file.read()
+    if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Audio file too large")
+    if len(audio_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Empty audio body")
+
+    try:
+        loop = asyncio.get_running_loop()
+        opus_bytes, media_type = await _encode_opus(audio_bytes, loop)
+        logger.info(
+            "Transcoded audio",
+            extra={
+                "in_bytes": len(audio_bytes),
+                "out_bytes": len(opus_bytes),
+                "media_type": media_type,
+            },
+        )
+        return Response(content=opus_bytes, media_type=media_type)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.error("Transcode failed", exc_info=True)
+        raise HTTPException(status_code=500, detail="Transcode failed") from None
+
+
+# ---------------------------------------------------------------------------
 # Voice Management
 # ---------------------------------------------------------------------------
 @app.get("/v1/voices")
