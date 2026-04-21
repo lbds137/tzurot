@@ -130,7 +130,7 @@ export function createModelOverrideRoutes(
 
       const { personalityId, configId } = parseResult.data;
 
-      const userId = await resolveProvisionedUserId(req, userService, discordUserId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Verify personality exists
       const personality = await prisma.personality.findFirst({
@@ -253,7 +253,7 @@ export function createModelOverrideRoutes(
 
       const { configId } = parseResult.data;
 
-      const userId = await resolveProvisionedUserId(req, userService, discordUserId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Verify config exists and user can access it (global or owned)
       const llmConfig = await verifyConfigAccess(prisma, configId, userId);

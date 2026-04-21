@@ -150,7 +150,7 @@ function createCreateHandler(
       return;
     }
 
-    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Duplicate-name check is skipped when the client opts into
     // autoSuffixOnCollision (the preset clone flow): the service will bump

@@ -75,7 +75,7 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
       // Prefer the provisionedUserId attached by requireProvisionedUser; fall
       // back to the shell path on shadow-mode fallthrough. Once the middleware
       // is tightened to 400 on missing provisioning, the fallback disappears.
-      const userId = await resolveProvisionedUserId(req, userService, discordUserId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Check if already verified
       const existingUser = await prisma.user.findUnique({
