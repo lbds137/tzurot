@@ -179,7 +179,7 @@ export class LlmConfigService {
     return this.prisma.llmConfig.findUnique({
       where: { id: configId },
       select: LLM_CONFIG_DETAIL_SELECT,
-    }) as Promise<RawConfigDetail | null>;
+    });
   }
 
   /**
@@ -309,7 +309,7 @@ export class LlmConfigService {
     // Invalidate list caches
     await this.invalidateCacheSafely('create', config.id);
 
-    return config as RawConfigDetail;
+    return config;
   }
 
   /** Upper bound on how far `resolveNonCollidingName` will iterate before
@@ -452,7 +452,7 @@ export class LlmConfigService {
 
     await this.invalidateCacheSafely('update', configId);
 
-    return config as RawConfigDetail;
+    return config;
   }
 
   /**

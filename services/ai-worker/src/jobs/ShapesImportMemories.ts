@@ -10,7 +10,6 @@
  */
 
 import { createLogger, type PrismaClient } from '@tzurot/common-types';
-import type { Prisma } from '@tzurot/common-types';
 import type { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { MemoryMetadata } from '../services/PgvectorTypes.js';
 
@@ -128,7 +127,7 @@ export async function importMemories(
             memoriesFailed: failed,
             importMetadata: {
               progress: { imported, failed, skipped, total },
-            } as Prisma.InputJsonValue,
+            },
           },
         });
       }

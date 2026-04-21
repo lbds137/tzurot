@@ -31,7 +31,7 @@ function mergeConfigWithPersonality(
   config: ResolvedLlmConfig
 ): LoadedPersonality {
   // Start with personality as base, override model (required field)
-  const result = { ...personality, model: config.model } as LoadedPersonality;
+  const result = { ...personality, model: config.model };
 
   // For each config key, use config value if defined, else keep personality value
   for (const key of LLM_CONFIG_OVERRIDE_KEYS) {

@@ -223,9 +223,7 @@ export function buildBrowsePage(
   // clamps to safePage so the slice is non-empty. Defensive check satisfies
   // the type system without adding a runtime branch that can fire.
   const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] =
-    selectRow !== null
-      ? [selectRow as unknown as ActionRowBuilder<MessageActionRowComponentBuilder>, buttonRow]
-      : [buttonRow];
+    selectRow !== null ? [selectRow, buttonRow] : [buttonRow];
 
   return {
     embeds: [embed],

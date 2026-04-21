@@ -386,7 +386,7 @@ export class UserService {
     if (meta === null || typeof meta !== 'object' || !('target' in meta)) {
       return false;
     }
-    const metaTarget = (meta as { target: unknown }).target;
+    const metaTarget = meta.target;
     if (Array.isArray(metaTarget)) {
       return metaTarget.some(t => t === target);
     }

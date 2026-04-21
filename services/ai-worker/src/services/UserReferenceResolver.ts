@@ -288,7 +288,7 @@ export class UserReferenceResolver {
       const fieldName = RESOLVABLE_PERSONALITY_FIELDS[i];
 
       if (result.status === 'rejected') {
-        failedFields.push(fieldName as string);
+        failedFields.push(fieldName);
         logger.warn(
           { field: fieldName, error: result.reason, personalityId: personality.id },
           '[UserReferenceResolver] Failed to resolve user references in personality field'

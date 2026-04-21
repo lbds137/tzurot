@@ -181,7 +181,7 @@ export class PersonalityLoader {
           select: PERSONALITY_SELECT,
         });
         if (byId) {
-          return byId as DatabasePersonality;
+          return byId;
         }
       }
 
@@ -210,18 +210,18 @@ export class PersonalityLoader {
       const nameMatches = candidates.filter(c => c.name.toLowerCase() === searchLower);
 
       if (nameMatches.length === 1) {
-        return nameMatches[0] as DatabasePersonality;
+        return nameMatches[0];
       }
 
       if (nameMatches.length > 1) {
         // Multiple personalities share the same name — pick by priority:
         // public > private, admin-owned > others, tiebreaker: oldest (from DB ordering)
-        return (await this.pickBestCandidate(nameMatches)) as DatabasePersonality;
+        return await this.pickBestCandidate(nameMatches);
       }
 
       const slugMatch = candidates.find(c => c.slug === searchLower);
       if (slugMatch) {
-        return slugMatch as DatabasePersonality;
+        return slugMatch;
       }
 
       // Step 2: If not found, check aliases (case-insensitive)
@@ -251,7 +251,7 @@ export class PersonalityLoader {
         });
 
         if (personalityByAlias) {
-          return personalityByAlias as DatabasePersonality;
+          return personalityByAlias;
         }
 
         // Personality exists but user doesn't have access
@@ -283,9 +283,7 @@ export class PersonalityLoader {
    *
    * Tiebreaker within same score: oldest (createdAt ascending).
    */
-  private async pickBestCandidate(
-    matches: { isPublic: boolean; ownerId: string; createdAt: Date }[]
-  ): Promise<{ isPublic: boolean; ownerId: string; createdAt: Date }> {
+  private async pickBestCandidate(matches: DatabasePersonality[]): Promise<DatabasePersonality> {
     const adminUuid = await this.resolveBotAdminUuid();
 
     const score = (c: { isPublic: boolean; ownerId: string }): number =>
@@ -407,7 +405,7 @@ export class PersonalityLoader {
       });
 
       logger.info(`Loaded ${dbPersonalities.length} personalities from database`);
-      return dbPersonalities as DatabasePersonality[];
+      return dbPersonalities;
     } catch (error) {
       logger.error({ err: error }, 'Failed to load all personalities from database');
       return [];
