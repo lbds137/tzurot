@@ -135,10 +135,7 @@ async function initializeLocalEmbedding(): Promise<LocalEmbeddingService | undef
       return embeddingService;
     } else {
       logger.warn('Local embedding service failed to initialize');
-      logger.warn(
-        {},
-        'Continuing without local embeddings - semantic duplicate detection disabled'
-      );
+      logger.warn('Continuing without local embeddings - semantic duplicate detection disabled');
       return undefined;
     }
   } catch (error) {
