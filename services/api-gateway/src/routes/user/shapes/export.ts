@@ -131,7 +131,7 @@ function createExportHandler(
     const normalizedSlug = slug.trim().toLowerCase();
     const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
-    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Verify credentials exist (don't decrypt — ai-worker does that)
     const credential = await prisma.userCredential.findFirst({

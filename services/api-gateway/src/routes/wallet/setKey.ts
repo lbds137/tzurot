@@ -22,11 +22,12 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { validateApiKey, type ApiKeyValidationResult } from '../../utils/apiKeyValidation.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-set-key');
 
@@ -65,7 +66,7 @@ export function createSetKeyRoute(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const parseResult = SetWalletKeySchema.safeParse(req.body);
       if (!parseResult.success) {
         return sendZodError(res, parseResult.error);
@@ -86,7 +87,7 @@ export function createSetKeyRoute(
         return sendError(res, mapValidationErrorToResponse(validation));
       }
 
-      const userId = await userService.getOrCreateUserShell(discordUserId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Encrypt and store the API key
       const encrypted = encryptApiKey(apiKey);

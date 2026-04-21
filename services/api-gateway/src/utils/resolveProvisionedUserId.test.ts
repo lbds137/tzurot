@@ -17,7 +17,7 @@ describe('resolveProvisionedUserId', () => {
     } as ProvisionedRequest;
     const userService = mockUserService('shell-uuid-should-not-be-used');
 
-    const result = await resolveProvisionedUserId(req, userService, 'discord-123');
+    const result = await resolveProvisionedUserId(req, userService);
 
     expect(result).toBe('internal-uuid-abc');
     // Structural proof the provisioned path won: shell must NOT have been called.
@@ -32,9 +32,10 @@ describe('resolveProvisionedUserId', () => {
     } as ProvisionedRequest;
     const userService = mockUserService('shell-uuid-fallback');
 
-    const result = await resolveProvisionedUserId(req, userService, 'discord-123');
+    const result = await resolveProvisionedUserId(req, userService);
 
     expect(result).toBe('shell-uuid-fallback');
+    // Uses req.userId directly — no more redundant third parameter.
     expect(userService.getOrCreateUserShell).toHaveBeenCalledWith('discord-123');
   });
 });
