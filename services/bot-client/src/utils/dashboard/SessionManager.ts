@@ -257,7 +257,7 @@ export class DashboardSessionManager {
         // Corrupt data - clean it up
         logger.warn({ err: error, sessionKey }, 'Corrupt session data, cleaning up');
         await this.redis.del(sessionKey).catch(cleanupErr => {
-          logger.debug({ error: cleanupErr, sessionKey }, 'Failed to cleanup corrupt session');
+          logger.debug({ err: cleanupErr, sessionKey }, 'Failed to cleanup corrupt session');
         });
       } else {
         logger.error({ err: error, sessionKey }, 'Failed to get session');
@@ -405,7 +405,7 @@ export class DashboardSessionManager {
       if (data === null) {
         // Index orphan - clean it up
         await this.redis.del(msgIndexKey).catch(cleanupErr => {
-          logger.debug({ error: cleanupErr, msgIndexKey }, 'Failed to cleanup orphaned index');
+          logger.debug({ err: cleanupErr, msgIndexKey }, 'Failed to cleanup orphaned index');
         });
         return null;
       }

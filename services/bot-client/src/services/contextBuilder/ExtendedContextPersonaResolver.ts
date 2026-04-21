@@ -160,7 +160,7 @@ export async function batchResolvePersonas(
 
   for (const result of resolutionResults) {
     if (result.status === 'rejected') {
-      logger.warn({ error: result.reason }, 'Failed to resolve persona');
+      logger.warn({ err: result.reason }, 'Failed to resolve persona');
       continue;
     }
     const { discordId, resolved } = result.value;
