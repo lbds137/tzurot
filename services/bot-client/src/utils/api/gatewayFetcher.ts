@@ -49,7 +49,9 @@ export function createEntityFetcher<TResponse, TResult>(
   const logger = createLogger(options.loggerName);
 
   return async (endpoint: string, entityId: string, user: GatewayUser): Promise<TResult | null> => {
-    const result = await callGatewayApi<TResponse>(`${endpoint}/${entityId}`, { user });
+    const result = await callGatewayApi<TResponse>(`${endpoint}/${encodeURIComponent(entityId)}`, {
+      user,
+    });
 
     if (!result.ok) {
       logger.warn(
@@ -109,7 +111,7 @@ export function createEntityUpdater<TResponse, TResult>(
     data: Record<string, unknown>,
     user: GatewayUser
   ): Promise<TResult | null> => {
-    const result = await callGatewayApi<TResponse>(`${endpoint}/${entityId}`, {
+    const result = await callGatewayApi<TResponse>(`${endpoint}/${encodeURIComponent(entityId)}`, {
       method: 'PUT',
       user,
       body: data,
@@ -172,10 +174,13 @@ export function createEntityDeleter(
   const logger = createLogger(options.loggerName);
 
   return async (endpoint: string, entityId: string, user: GatewayUser): Promise<DeleteResult> => {
-    const result = await callGatewayApi<{ message: string }>(`${endpoint}/${entityId}`, {
-      method: 'DELETE',
-      user,
-    });
+    const result = await callGatewayApi<{ message: string }>(
+      `${endpoint}/${encodeURIComponent(entityId)}`,
+      {
+        method: 'DELETE',
+        user,
+      }
+    );
 
     if (!result.ok) {
       logger.warn(

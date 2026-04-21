@@ -102,6 +102,7 @@ function createMockButtonInteraction(overrides?: Partial<ButtonInteraction>): Bu
     reply: vi.fn(),
     update: vi.fn(),
     editReply: vi.fn(),
+    followUp: vi.fn(),
     deferUpdate: vi.fn(),
     ...overrides,
   } as unknown as ButtonInteraction;
@@ -127,7 +128,10 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteAction(interaction, 'test-char', mockConfig);
 
-      expect(interaction.reply).toHaveBeenCalledWith({
+      // 3-sec budget guard: handler defers FIRST, then does the gateway fetch,
+      // then uses followUp for the ephemeral error branches.
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith({
         content: 'Character not found',
         flags: MessageFlags.Ephemeral,
       });
@@ -142,7 +146,8 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteAction(interaction, 'test-char', mockConfig);
 
-      expect(interaction.reply).toHaveBeenCalledWith({
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.followUp).toHaveBeenCalledWith({
         content: 'No permission to delete this character',
         flags: MessageFlags.Ephemeral,
       });
@@ -158,7 +163,10 @@ describe('dashboardDeleteHandlers', () => {
 
       await handleDeleteAction(interaction, 'test-char', mockConfig);
 
-      expect(interaction.update).toHaveBeenCalledWith({
+      // After deferUpdate, the confirmation dialog is sent via editReply
+      // (which edits the deferred placeholder message in place), not update.
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.editReply).toHaveBeenCalledWith({
         embeds: [{ data: {} }],
         components: [{ type: 1 }],
       });

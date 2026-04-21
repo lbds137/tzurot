@@ -29,10 +29,13 @@ interface SingleMemoryResponse {
  * Fetch a single memory by ID
  */
 export async function fetchMemory(user: GatewayUser, memoryId: string): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}`, {
-    user,
-    method: 'GET',
-  });
+  const result = await callGatewayApi<SingleMemoryResponse>(
+    `/user/memory/${encodeURIComponent(memoryId)}`,
+    {
+      user,
+      method: 'GET',
+    }
+  );
 
   if (!result.ok) {
     logger.warn(
@@ -53,11 +56,14 @@ export async function updateMemory(
   memoryId: string,
   content: string
 ): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}`, {
-    user,
-    method: 'PATCH',
-    body: { content },
-  });
+  const result = await callGatewayApi<SingleMemoryResponse>(
+    `/user/memory/${encodeURIComponent(memoryId)}`,
+    {
+      user,
+      method: 'PATCH',
+      body: { content },
+    }
+  );
 
   if (!result.ok) {
     logger.warn(
@@ -77,10 +83,13 @@ export async function toggleMemoryLock(
   user: GatewayUser,
   memoryId: string
 ): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}/lock`, {
-    user,
-    method: 'POST',
-  });
+  const result = await callGatewayApi<SingleMemoryResponse>(
+    `/user/memory/${encodeURIComponent(memoryId)}/lock`,
+    {
+      user,
+      method: 'POST',
+    }
+  );
 
   if (!result.ok) {
     logger.warn(
@@ -97,10 +106,13 @@ export async function toggleMemoryLock(
  * Delete a memory
  */
 export async function deleteMemory(user: GatewayUser, memoryId: string): Promise<boolean> {
-  const result = await callGatewayApi<{ success: boolean }>(`/user/memory/${memoryId}`, {
-    user,
-    method: 'DELETE',
-  });
+  const result = await callGatewayApi<{ success: boolean }>(
+    `/user/memory/${encodeURIComponent(memoryId)}`,
+    {
+      user,
+      method: 'DELETE',
+    }
+  );
 
   if (!result.ok) {
     logger.warn(

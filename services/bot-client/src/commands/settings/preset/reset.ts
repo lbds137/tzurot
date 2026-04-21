@@ -24,10 +24,13 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
   const personalityId = options.personality();
 
   try {
-    const result = await callGatewayApi<ResetResponse>(`/user/model-override/${personalityId}`, {
-      method: 'DELETE',
-      user: toGatewayUser(context.user),
-    });
+    const result = await callGatewayApi<ResetResponse>(
+      `/user/model-override/${encodeURIComponent(personalityId)}`,
+      {
+        method: 'DELETE',
+        user: toGatewayUser(context.user),
+      }
+    );
 
     if (!result.ok) {
       logger.warn(

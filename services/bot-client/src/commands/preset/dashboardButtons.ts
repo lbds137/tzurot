@@ -270,7 +270,7 @@ export async function handleConfirmDeleteButton(
   };
 
   try {
-    const result = await callGatewayApi<void>(`/user/llm-config/${entityId}`, {
+    const result = await callGatewayApi<void>(`/user/llm-config/${encodeURIComponent(entityId)}`, {
       method: 'DELETE',
       user: toGatewayUser(interaction.user),
     });

@@ -341,9 +341,12 @@ function buildViewComponents(
  * Fetch a character by slug
  */
 async function fetchCharacter(slug: string, user: GatewayUser): Promise<CharacterData | null> {
-  const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slug}`, {
-    user,
-  });
+  const result = await callGatewayApi<PersonalityResponse>(
+    `/user/personality/${encodeURIComponent(slug)}`,
+    {
+      user,
+    }
+  );
 
   if (!result.ok) {
     if (result.status === 404 || result.status === 403) {

@@ -43,6 +43,11 @@
       "action": "remove"
     },
     {
+      "pattern": "DROP INDEX.*llm_configs_global_name_unique",
+      "reason": "Partial unique index with WHERE clause cannot be represented in Prisma schema",
+      "action": "remove"
+    },
+    {
       "pattern": "DROP INDEX.*idx_memories_is_locked",
       "reason": "Partial index with WHERE clause cannot be represented in Prisma schema",
       "action": "remove"

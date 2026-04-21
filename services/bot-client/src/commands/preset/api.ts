@@ -40,9 +40,12 @@ export function extractApiErrorMessage(error: unknown): string | null {
  * Fetch a preset by ID (user endpoint)
  */
 export async function fetchPreset(presetId: string, user: GatewayUser): Promise<PresetData | null> {
-  const result = await callGatewayApi<PresetResponse>(`/user/llm-config/${presetId}`, {
-    user,
-  });
+  const result = await callGatewayApi<PresetResponse>(
+    `/user/llm-config/${encodeURIComponent(presetId)}`,
+    {
+      user,
+    }
+  );
 
   if (!result.ok) {
     if (result.status === 404) {
@@ -93,11 +96,14 @@ export async function updatePreset(
   data: Record<string, unknown>,
   user: GatewayUser
 ): Promise<PresetData> {
-  const result = await callGatewayApi<PresetResponse>(`/user/llm-config/${presetId}`, {
-    method: 'PUT',
-    user,
-    body: data,
-  });
+  const result = await callGatewayApi<PresetResponse>(
+    `/user/llm-config/${encodeURIComponent(presetId)}`,
+    {
+      method: 'PUT',
+      user,
+      body: data,
+    }
+  );
 
   if (!result.ok) {
     throw new Error(`Failed to update preset: ${result.status} - ${result.error ?? 'Unknown'}`);
