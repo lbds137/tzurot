@@ -146,7 +146,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
       'Mode enabled'
     );
   } catch (error) {
-    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
+    logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
@@ -200,7 +200,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
 
     logger.info({ userId, personalityId: resolved.id, wasActive: data.disabled }, 'Mode disabled');
   } catch (error) {
-    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
+    logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
@@ -257,7 +257,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
 
     logger.info({ userId, sessionCount: data.sessions.length }, 'Status checked');
   } catch (error) {
-    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
+    logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
@@ -316,7 +316,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
       'Forget executed'
     );
   } catch (error) {
-    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
+    logger.error({ err: error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
