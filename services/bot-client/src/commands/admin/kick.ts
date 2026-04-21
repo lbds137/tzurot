@@ -35,9 +35,12 @@ export async function handleKick(context: DeferredCommandContext): Promise<void>
       content: `✅ Successfully left server: **${serverName}** (\`${serverId}\`)`,
     });
 
-    logger.info(`Left server: ${serverName} (${serverId}) by request of ${context.user.id}`);
+    logger.info(
+      { serverName, serverId, requestedBy: context.user.id },
+      'Left server by admin request'
+    );
   } catch (error) {
-    logger.error({ err: error }, `Error leaving server ${serverId}`);
+    logger.error({ err: error, serverId }, 'Error leaving server');
     await context.editReply({
       content:
         `❌ Failed to leave server \`${serverId}\`.\n\n` +
