@@ -36,6 +36,8 @@ The backlog follows a "Now, Next, Later" topology with clear focus:
 
 Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in `BACKLOG.md` with a concrete destination section. Applies to plans, PRs, code reviews, and ad-hoc work.
 
+**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes for `BACKLOG.md` entries.** Mentioning "adminFetch sites are a distinct follow-up" in a commit message, or writing `// TODO: migrate this later` in a comment, does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a concrete `BACKLOG.md` entry before the current work closes. Observed failure mode 2026-04-21 on PR #859 where "adminFetch follow-up" was flagged in a commit message but never written to backlog; reviewer caught the gap.
+
 ### Two types of "out of scope" — only one needs tracking
 
 | Type                    | What it is                                                                                                                     | Example                                                                                             | Track?                                            |
