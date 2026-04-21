@@ -127,6 +127,26 @@ describe('guestModeValidation', () => {
       expect(result).toMatchObject({ blocked: false, reason: 'guest-free-model' });
     });
 
+    it('should fail-open with reason=check-failed when configs API fails in guest mode', async () => {
+      // Wallet succeeded as "no keys" → we're in guest mode. But configs
+      // endpoint failed, so we can't decide if the selected config is
+      // premium or free. Fail-open with the accurate `check-failed` reason,
+      // not the misleading `guest-free-model` that the fallthrough used to
+      // produce.
+      vi.mocked(gatewayClient.callGatewayApi)
+        .mockResolvedValueOnce({ ok: true, data: { keys: [] } } as never)
+        .mockResolvedValueOnce({
+          ok: false,
+          error: 'Gateway timeout',
+          status: 504,
+        } as never);
+
+      const result = await checkGuestModePremiumAccess(createMockContext(), 'config-1', mkUser());
+      expect(result.blocked).toBe(false);
+      expect(result).toMatchObject({ blocked: false, reason: 'check-failed' });
+      expect(mockEditReply).not.toHaveBeenCalled();
+    });
+
     it('should fail-open when wallet API fails (ai-worker will enforce authoritatively)', async () => {
       // Simulate a transient /wallet/list failure. The historic bug was that
       // this was treated identically to "no keys", locking out users with
