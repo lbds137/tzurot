@@ -51,13 +51,7 @@ jobs:
         continue-on-error: true
 
       - name: Check dependency boundaries
-        run: |
-          pnpm depcruise 2>&1 || true
-          # Report known violation count for trend tracking
-          if [ -f .dependency-cruiser-baseline.json ]; then
-            COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.dependency-cruiser-baseline.json','utf8')).length)")
-            echo "📊 Architecture health: ${COUNT} known violations in baseline"
-          fi
+        run: pnpm depcruise
 
       - name: Check for unused code (knip)
         run: pnpm knip
