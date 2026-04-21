@@ -69,7 +69,7 @@ export async function fetchPreset(presetId: string, user: GatewayUser): Promise<
  * for dashboard compatibility.
  */
 export async function fetchGlobalPreset(presetId: string): Promise<PresetData | null> {
-  const response = await adminFetch(`/admin/llm-config/${presetId}`);
+  const response = await adminFetch(`/admin/llm-config/${encodeURIComponent(presetId)}`);
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -122,7 +122,7 @@ export async function updateGlobalPreset(
   presetId: string,
   data: Record<string, unknown>
 ): Promise<PresetData> {
-  const response = await adminPutJson(`/admin/llm-config/${presetId}`, data);
+  const response = await adminPutJson(`/admin/llm-config/${encodeURIComponent(presetId)}`, data);
 
   if (!response.ok) {
     // Read body once, then try parsing as JSON (structured API error).
