@@ -9,11 +9,10 @@
  * inheriting the silent "no" that a naive `result.ok && …` collapse
  * produces.
  *
- * Background: introduced on PR #857 after a user-reported Guest-Mode
- * lockout where a `/wallet/list` gateway failure was collapsing into
- * "no active keys." The same pattern had previously been flagged on
- * PR #819 for NSFW verification. Widening the return type for these
- * checks is the structural fix; see `BACKLOG.md` for the remaining
- * autocomplete-cache callsites that should adopt this pattern.
+ * Widening the return type of a gateway check is the structural fix for
+ * the silent-fail-closed anti-pattern (a transient gateway failure
+ * looking identical to "user definitively lacks the entitlement"). See
+ * `BACKLOG.md` for the autocomplete-cache callsites that should still
+ * adopt this pattern.
  */
 export type ApiCheck<T> = { kind: 'ok'; value: T } | { kind: 'error'; error: string };
