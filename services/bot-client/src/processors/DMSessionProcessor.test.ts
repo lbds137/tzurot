@@ -27,6 +27,7 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   sendNsfwVerificationMessage: vi.fn().mockResolvedValue(undefined),
   trackPendingVerificationMessage: vi.fn(),
   NSFW_VERIFICATION_MESSAGE: '**Age Verification Required**\n\nMocked message',
+  NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: "⚠️ Couldn't verify your age status right now.",
 }));
 
 // Mock personalityMentionParser
@@ -128,8 +129,11 @@ describe('DMSessionProcessor', () => {
     vi.mocked(VoiceMessageProcessor.getVoiceTranscript).mockReturnValue(undefined);
     // Default: user is NSFW verified (override in specific tests)
     vi.mocked(checkNsfwVerification).mockResolvedValue({
-      nsfwVerified: true,
-      nsfwVerifiedAt: new Date().toISOString(),
+      kind: 'ok',
+      value: {
+        nsfwVerified: true,
+        nsfwVerifiedAt: new Date().toISOString(),
+      },
     });
     vi.mocked(trackPendingVerificationMessage).mockResolvedValue(undefined);
     // Default: no explicit personality mention (override in specific tests)
@@ -638,8 +642,11 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel });
       vi.mocked(isDMChannel).mockReturnValue(true);
       vi.mocked(checkNsfwVerification).mockResolvedValue({
-        nsfwVerified: false,
-        nsfwVerifiedAt: null,
+        kind: 'ok',
+        value: {
+          nsfwVerified: false,
+          nsfwVerifiedAt: null,
+        },
       });
 
       const result = await processor.process(message);
@@ -650,13 +657,37 @@ describe('DMSessionProcessor', () => {
       expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
     });
 
+    it('should surface distinct retry message when NSFW check fails (fail-closed)', async () => {
+      const channel = createMockDMChannel();
+      const message = createMockMessage({ channel });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+      vi.mocked(checkNsfwVerification).mockResolvedValue({
+        kind: 'error',
+        error: 'Gateway timeout',
+      });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(true); // Consumed message
+      expect(message.reply).toHaveBeenCalledWith(
+        expect.stringContaining("Couldn't verify your age status")
+      );
+      // Must NOT re-onboard a previously-verified user through the full
+      // education embed — that's the bug this path is fixing.
+      expect(sendNsfwVerificationMessage).not.toHaveBeenCalled();
+      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+    });
+
     it('should allow verified users to continue', async () => {
       const channel = createMockDMChannel();
       const message = createMockMessage({ channel });
       vi.mocked(isDMChannel).mockReturnValue(true);
       vi.mocked(checkNsfwVerification).mockResolvedValue({
-        nsfwVerified: true,
-        nsfwVerifiedAt: new Date().toISOString(),
+        kind: 'ok',
+        value: {
+          nsfwVerified: true,
+          nsfwVerifiedAt: new Date().toISOString(),
+        },
       });
 
       // No active session - should get help message (not verification message)
@@ -686,8 +717,11 @@ describe('DMSessionProcessor', () => {
       const message = createMockMessage({ channel, botId });
       vi.mocked(isDMChannel).mockReturnValue(true);
       vi.mocked(checkNsfwVerification).mockResolvedValue({
-        nsfwVerified: false,
-        nsfwVerifiedAt: null,
+        kind: 'ok',
+        value: {
+          nsfwVerified: false,
+          nsfwVerifiedAt: null,
+        },
       });
 
       mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({

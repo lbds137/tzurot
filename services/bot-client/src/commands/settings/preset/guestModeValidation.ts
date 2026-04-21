@@ -66,23 +66,34 @@ export async function handleUnlockModelsUpsell(
   return true;
 }
 
-/** Result of guest mode premium model check */
-export interface GuestModeCheckResult {
-  /** Whether the user is in guest mode (no active wallet keys) */
-  isGuestMode: boolean;
-}
+/**
+ * Outcome of the guest-mode premium-model pre-flight check.
+ *
+ * Tri-state `reason` distinguishes the three input conditions so callers
+ * + observability can tell them apart. Only one of them (`guest-premium`)
+ * causes `blocked: true`; the `check-failed` reason explicitly falls
+ * through (fail-open) because the ai-worker's `ApiKeyResolver` +
+ * `AuthStep` enforce the gate authoritatively at generation time.
+ * Blocking here on a transient `/wallet/list` failure would falsely
+ * lock out users who genuinely have active paid keys.
+ */
+export type GuestModeCheckOutcome =
+  | { blocked: false; reason: 'paid' | 'guest-free-model' | 'check-failed' }
+  | { blocked: true; reason: 'guest-premium' };
 
 /**
  * Check if a guest mode user is trying to select a premium model config.
- * If so, shows an error embed and returns true (caller should return early).
+ * If so, shows an error embed and returns `blocked: true`.
  *
- * Also returns isGuestMode for logging purposes.
+ * On wallet-API failure, fails OPEN (returns `blocked: false` with reason
+ * `check-failed`) and logs a warn. Downstream `ai-worker` enforcement
+ * catches the truly-guest case at generation time.
  */
 export async function checkGuestModePremiumAccess(
   context: DeferredCommandContext,
   configId: string,
   user: GatewayUser
-): Promise<GuestModeCheckResult & { blocked: boolean }> {
+): Promise<GuestModeCheckOutcome> {
   const [walletResult, configsResult] = await Promise.all([
     callGatewayApi<WalletListResponse>('/wallet/list', {
       user,
@@ -94,10 +105,22 @@ export async function checkGuestModePremiumAccess(
     }),
   ]);
 
-  const hasActiveWallet = walletResult.ok && walletResult.data.keys.some(k => k.isActive === true);
-  const isGuestMode = !hasActiveWallet;
+  if (!walletResult.ok) {
+    logger.warn(
+      { userId: user.discordId, configId, error: walletResult.error },
+      '[Me/Preset] Wallet check failed — failing open, ai-worker will enforce'
+    );
+    return { blocked: false, reason: 'check-failed' };
+  }
 
-  if (isGuestMode && configsResult.ok) {
+  const hasActiveWallet = walletResult.data.keys.some(k => k.isActive === true);
+
+  if (hasActiveWallet) {
+    return { blocked: false, reason: 'paid' };
+  }
+
+  // Guest mode: only block if the selected config uses a premium (non-free) model.
+  if (configsResult.ok) {
     const selectedConfig = configsResult.data.configs.find(c => c.id === configId);
     if (selectedConfig && !isFreeModel(selectedConfig.model)) {
       const embed = new EmbedBuilder()
@@ -113,12 +136,12 @@ export async function checkGuestModePremiumAccess(
 
       await context.editReply({ embeds: [embed] });
       logger.info(
-        { userId: user.discordId, configId, configName: selectedConfig.name, isGuestMode },
+        { userId: user.discordId, configId, configName: selectedConfig.name },
         '[Me/Preset] Guest mode user tried to select premium model'
       );
-      return { isGuestMode, blocked: true };
+      return { blocked: true, reason: 'guest-premium' };
     }
   }
 
-  return { isGuestMode, blocked: false };
+  return { blocked: false, reason: 'guest-free-model' };
 }

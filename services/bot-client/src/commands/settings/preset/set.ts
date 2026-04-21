@@ -35,10 +35,11 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
 
   try {
     const user = toGatewayUser(context.user);
-    const { isGuestMode, blocked } = await checkGuestModePremiumAccess(context, configId, user);
-    if (blocked) {
+    const outcome = await checkGuestModePremiumAccess(context, configId, user);
+    if (outcome.blocked) {
       return;
     }
+    const { reason } = outcome;
 
     const result = await callGatewayApi<SetResponse>('/user/model-override', {
       method: 'PUT',
@@ -75,7 +76,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
         personalityName: data.override.personalityName,
         configId,
         configName: data.override.configName,
-        isGuestMode,
+        reason,
       },
       '[Me/Preset] Set override'
     );
