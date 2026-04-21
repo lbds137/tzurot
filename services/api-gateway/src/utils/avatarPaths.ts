@@ -367,7 +367,7 @@ export async function deleteAllAvatarVersions(
   logContext = 'Avatar'
 ): Promise<number | null> {
   if (!isValidSlug(slug)) {
-    logger.debug({ slug }, `Rejected invalid slug format`);
+    logger.debug({ slug, logContext }, 'Rejected invalid slug format');
     return null;
   }
 
@@ -393,12 +393,12 @@ export async function deleteAllAvatarVersions(
       // Security: filePath comes from glob on a validated pattern (no path traversal)
       if (await tryDeleteAvatarFile(filePath, logContext)) {
         deletedCount++;
-        logger.debug({ slug, filename }, `Deleted avatar version`);
+        logger.debug({ slug, filename, logContext }, 'Deleted avatar version');
       }
     }
 
     if (deletedCount > 0) {
-      logger.info({ slug, deletedCount }, `Deleted all avatar versions`);
+      logger.info({ slug, deletedCount, logContext }, 'Deleted all avatar versions');
     }
     return deletedCount;
   } catch (error) {
@@ -407,7 +407,7 @@ export async function deleteAllAvatarVersions(
       // Avatar directory doesn't exist yet, nothing to delete
       return 0;
     }
-    logger.warn({ err: error, slug }, `Failed to glob avatar directory`);
+    logger.warn({ err: error, slug, logContext }, 'Failed to glob avatar directory');
     return null;
   }
 }
