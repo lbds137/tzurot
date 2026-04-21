@@ -69,13 +69,13 @@ export async function handleUnlockModelsUpsell(
 /**
  * Outcome of the guest-mode premium-model pre-flight check.
  *
- * Tri-state `reason` distinguishes the three input conditions so callers
- * + observability can tell them apart. Only one of them (`guest-premium`)
- * causes `blocked: true`; the `check-failed` reason explicitly falls
- * through (fail-open) because the ai-worker's `ApiKeyResolver` +
- * `AuthStep` enforce the gate authoritatively at generation time.
- * Blocking here on a transient `/wallet/list` failure would falsely
- * lock out users who genuinely have active paid keys.
+ * `reason` distinguishes the four reachable outcomes so callers and
+ * observability can tell them apart. Only `guest-premium` causes
+ * `blocked: true`; the `check-failed` reason explicitly falls through
+ * (fail-open) because the ai-worker's `ApiKeyResolver` + `AuthStep`
+ * enforce the gate authoritatively at generation time. Blocking here
+ * on a transient `/wallet/list` failure would falsely lock out users
+ * who genuinely have active paid keys.
  */
 export type GuestModeCheckOutcome =
   | { blocked: false; reason: 'paid' | 'guest-free-model' | 'check-failed' }

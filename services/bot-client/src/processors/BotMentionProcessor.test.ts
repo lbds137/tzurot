@@ -235,8 +235,10 @@ describe('BotMentionProcessor', () => {
       // The new code calls `handleNsfwVerification` directly with no local try/catch
       // for two reasons:
       //
-      // 1. handleNsfwVerification is internally error-safe: verifyNsfwUser and
-      //    checkNsfwVerification return null/falsy on API failure;
+      // 1. handleNsfwVerification is internally error-safe: verifyNsfwUser
+      //    surfaces API failure as `null`, checkNsfwVerification surfaces it
+      //    as `ApiCheck<NsfwStatus>` with `kind: 'error'` (both handled by
+      //    the tri-state branch in handleNsfwVerification), and
       //    sendNsfwVerificationMessage wraps message.reply in its own try/catch.
       //    So throwing requires something catastrophic deeper in the stack.
       //
