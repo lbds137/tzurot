@@ -22,7 +22,7 @@ export async function handleUsage(context: DeferredCommandContext): Promise<void
       : '7d';
 
   try {
-    const response = await adminFetch(`/admin/usage?timeframe=${timeframe}`);
+    const response = await adminFetch(`/admin/usage?timeframe=${encodeURIComponent(timeframe)}`);
 
     if (!response.ok) {
       const errorText = await response.text();
