@@ -170,9 +170,12 @@ export async function handleExpandContent(
 
   try {
     // Fetch persona details via gateway (also verifies ownership)
-    const result = await callGatewayApi<{ persona: PersonaDetails }>(`/user/persona/${personaId}`, {
-      user: toGatewayUser(interaction.user),
-    });
+    const result = await callGatewayApi<{ persona: PersonaDetails }>(
+      `/user/persona/${encodeURIComponent(personaId)}`,
+      {
+        user: toGatewayUser(interaction.user),
+      }
+    );
 
     if (!result.ok) {
       logger.warn(

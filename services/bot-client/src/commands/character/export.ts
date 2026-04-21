@@ -131,9 +131,12 @@ export async function handleExport(
 
   try {
     // Fetch character data
-    const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slug}`, {
-      user: toGatewayUser(context.user),
-    });
+    const result = await callGatewayApi<PersonalityResponse>(
+      `/user/personality/${encodeURIComponent(slug)}`,
+      {
+        user: toGatewayUser(context.user),
+      }
+    );
 
     if (!result.ok) {
       if (result.status === 404) {

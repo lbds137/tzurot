@@ -92,6 +92,7 @@ Prisma tries to DROP these indexes in migrations - ALWAYS review and remove:
 | `idx_memories_embedding`          | IVFFlat vector | 100x slower queries if dropped                |
 | `memories_chunk_group_id_idx`     | Partial B-tree | Prisma can't represent WHERE clauses          |
 | `llm_configs_free_default_unique` | Partial unique | Prisma can't represent partial unique indexes |
+| `llm_configs_global_name_unique`  | Partial unique | Prisma can't represent partial unique indexes |
 | `idx_memories_is_locked`          | Partial B-tree | Prisma can't represent WHERE clauses          |
 
 **Source of truth**: `prisma/drift-ignore.json` has a two-tier structure for index protection — pick the right tier when adding new entries:
@@ -99,7 +100,7 @@ Prisma tries to DROP these indexes in migrations - ALWAYS review and remove:
 - **`ignorePatterns`** — list of regexes that strip unwanted SQL from Prisma's generated migration. Most entries are `DROP INDEX` patterns (the index should survive Prisma's drop), but the array also handles `CREATE INDEX` patterns where Prisma generates the wrong shape. For example, `memories_chunk_group_id_idx` has both a DROP entry **and** a CREATE entry — Prisma emits a non-partial CREATE that gets stripped, and the manually-written partial-index CREATE in the migration body is what actually applies. Use this for any generated SQL that should be suppressed; it's the minimum required for any partial/special index Prisma can't represent.
 - **`protectedIndexes`** — DROP suppression **plus** full `recreateSQL`. Add an entry here only if you also need a recovery path: someone accidentally drops the index and you want a one-line recreate. The IVFFlat vector index lives here because losing it would silently degrade query performance by 100x and you'd want the SQL ready to paste back in.
 
-The 4 indexes above are split: `idx_memories_embedding` and `memories_chunk_group_id_idx` are in **both** arrays (DROP suppression + recreate SQL); `llm_configs_free_default_unique` and `idx_memories_is_locked` are in **`ignorePatterns` only** (DROP suppression alone is enough — they have no expensive recreate cost). When adding a new partial/special index, default to `ignorePatterns`-only and only promote to `protectedIndexes` if recovery SQL would be valuable.
+The 5 indexes above are split: `idx_memories_embedding` and `memories_chunk_group_id_idx` are in **both** arrays (DROP suppression + recreate SQL); `llm_configs_free_default_unique`, `llm_configs_global_name_unique`, and `idx_memories_is_locked` are in **`ignorePatterns` only** (DROP suppression alone is enough — they have no expensive recreate cost). When adding a new partial/special index, default to `ignorePatterns`-only and only promote to `protectedIndexes` if recovery SQL would be valuable.
 
 ### Anti-Patterns
 

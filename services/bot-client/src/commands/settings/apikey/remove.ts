@@ -33,7 +33,7 @@ export async function handleRemoveKey(context: DeferredCommandContext): Promise<
   const provider = options.provider() as AIProvider;
 
   try {
-    const result = await callGatewayApi<void>(`/wallet/${provider}`, {
+    const result = await callGatewayApi<void>(`/wallet/${encodeURIComponent(provider)}`, {
       method: 'DELETE',
       user: toGatewayUser(context.user),
     });

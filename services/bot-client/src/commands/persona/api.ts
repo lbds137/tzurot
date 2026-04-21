@@ -21,10 +21,13 @@ export async function fetchPersona(
   personaId: string,
   user: GatewayUser
 ): Promise<PersonaDetails | null> {
-  const result = await callGatewayApi<{ persona: PersonaDetails }>(`/user/persona/${personaId}`, {
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const result = await callGatewayApi<{ persona: PersonaDetails }>(
+    `/user/persona/${encodeURIComponent(personaId)}`,
+    {
+      user,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    }
+  );
 
   if (!result.ok) {
     logger.warn(
@@ -70,12 +73,15 @@ export async function updatePersona(
   data: Record<string, unknown>,
   user: GatewayUser
 ): Promise<PersonaDetails | null> {
-  const result = await callGatewayApi<SavePersonaResponse>(`/user/persona/${personaId}`, {
-    method: 'PUT',
-    user,
-    body: data,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const result = await callGatewayApi<SavePersonaResponse>(
+    `/user/persona/${encodeURIComponent(personaId)}`,
+    {
+      method: 'PUT',
+      user,
+      body: data,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    }
+  );
 
   if (!result.ok) {
     logger.warn(
@@ -95,11 +101,14 @@ export async function deletePersona(
   personaId: string,
   user: GatewayUser
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await callGatewayApi<{ message: string }>(`/user/persona/${personaId}`, {
-    method: 'DELETE',
-    user,
-    timeout: GATEWAY_TIMEOUTS.DEFERRED,
-  });
+  const result = await callGatewayApi<{ message: string }>(
+    `/user/persona/${encodeURIComponent(personaId)}`,
+    {
+      method: 'DELETE',
+      user,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    }
+  );
 
   if (!result.ok) {
     logger.warn(
