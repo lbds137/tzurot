@@ -16,8 +16,6 @@ import {
 } from './sections.js';
 import type { CharacterData } from './characterTypes.js';
 
-export type { CharacterData } from './characterTypes.js';
-
 /** Browse filter options */
 export type CharacterBrowseFilter = 'all' | 'mine' | 'public';
 

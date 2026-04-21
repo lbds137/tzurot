@@ -13,7 +13,7 @@ import {
   conversationSection,
   adminSection,
 } from './sections.js';
-import type { CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 import { SectionStatus, type DashboardContext } from '../../utils/dashboard/index.js';
 
 /**

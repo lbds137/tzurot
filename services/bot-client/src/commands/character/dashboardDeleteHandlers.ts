@@ -20,7 +20,7 @@ import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.j
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { fetchCharacter } from './api.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
-import type { CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 
 const logger = createLogger('character-dashboard');
 

@@ -8,7 +8,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 import { callGatewayApi, type GatewayUser } from '../../utils/userGatewayClient.js';
-import type { CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 
 /**
  * API response type for personality endpoint

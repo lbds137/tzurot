@@ -29,10 +29,10 @@ import {
 import {
   getCharacterDashboardConfig,
   buildCharacterDashboardOptions,
-  type CharacterData,
   type CharacterBrowseFilter,
   type CharacterBrowseSortType,
 } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,

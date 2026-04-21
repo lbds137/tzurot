@@ -9,7 +9,8 @@
 import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
-import { fetchEntries, type DenylistEntryResponse } from './browse.js';
+import { fetchEntries } from './browse.js';
+import type { DenylistEntryResponse } from './browseTypes.js';
 import { showDetailView } from './detail.js';
 
 const logger = createLogger('deny-view');
