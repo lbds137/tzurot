@@ -9,11 +9,11 @@
  * inheriting the silent "no" that a naive `result.ok && …` collapse
  * produces.
  *
- * Background: a user-reported bug (2026-04-21) intermittently flagged
- * users with active paid keys as "Guest Mode" because the wallet
- * check treated any `/wallet/list` gateway failure as "no keys." The
- * same pattern had already been flagged on PR #819 for NSFW
- * verification. Widening the return type for these checks is the
- * structural fix; see `BACKLOG.md` for the full class-of-bug note.
+ * Background: introduced on PR #857 after a user-reported Guest-Mode
+ * lockout where a `/wallet/list` gateway failure was collapsing into
+ * "no active keys." The same pattern had previously been flagged on
+ * PR #819 for NSFW verification. Widening the return type for these
+ * checks is the structural fix; see `BACKLOG.md` for the remaining
+ * autocomplete-cache callsites that should adopt this pattern.
  */
 export type ApiCheck<T> = { kind: 'ok'; value: T } | { kind: 'error'; error: string };

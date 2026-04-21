@@ -119,28 +119,37 @@ export async function checkGuestModePremiumAccess(
     return { blocked: false, reason: 'paid' };
   }
 
-  // Guest mode: only block if the selected config uses a premium (non-free) model.
-  if (configsResult.ok) {
-    const selectedConfig = configsResult.data.configs.find(c => c.id === configId);
-    if (selectedConfig && !isFreeModel(selectedConfig.model)) {
-      const embed = new EmbedBuilder()
-        .setTitle('❌ Premium Model Not Available')
-        .setColor(DISCORD_COLORS.ERROR)
-        .setDescription(
-          `**${selectedConfig.name}** uses a premium model that requires an API key.\n\n` +
-            'In **Guest Mode**, you can only use configs with free models (marked with 🆓).\n\n' +
-            'Use `/settings apikey set` to add your own API key for full model access.'
-        )
-        .setFooter({ text: 'Use /settings preset browse to see available free presets' })
-        .setTimestamp();
+  // Guest mode path: we need the config list to decide whether the selected
+  // config is free or premium. A transient configs-endpoint failure leaves us
+  // unable to decide — fail-open with an accurate `check-failed` reason
+  // rather than mislabeling the outcome as `guest-free-model`.
+  if (!configsResult.ok) {
+    logger.warn(
+      { userId: user.discordId, configId, error: configsResult.error },
+      '[Me/Preset] Config list check failed — failing open, ai-worker will enforce'
+    );
+    return { blocked: false, reason: 'check-failed' };
+  }
 
-      await context.editReply({ embeds: [embed] });
-      logger.info(
-        { userId: user.discordId, configId, configName: selectedConfig.name },
-        '[Me/Preset] Guest mode user tried to select premium model'
-      );
-      return { blocked: true, reason: 'guest-premium' };
-    }
+  const selectedConfig = configsResult.data.configs.find(c => c.id === configId);
+  if (selectedConfig && !isFreeModel(selectedConfig.model)) {
+    const embed = new EmbedBuilder()
+      .setTitle('❌ Premium Model Not Available')
+      .setColor(DISCORD_COLORS.ERROR)
+      .setDescription(
+        `**${selectedConfig.name}** uses a premium model that requires an API key.\n\n` +
+          'In **Guest Mode**, you can only use configs with free models (marked with 🆓).\n\n' +
+          'Use `/settings apikey set` to add your own API key for full model access.'
+      )
+      .setFooter({ text: 'Use /settings preset browse to see available free presets' })
+      .setTimestamp();
+
+    await context.editReply({ embeds: [embed] });
+    logger.info(
+      { userId: user.discordId, configId, configName: selectedConfig.name },
+      '[Me/Preset] Guest mode user tried to select premium model'
+    );
+    return { blocked: true, reason: 'guest-premium' };
   }
 
   return { blocked: false, reason: 'guest-free-model' };
