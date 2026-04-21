@@ -78,11 +78,14 @@ export async function handleSettings(
 
   try {
     // Fetch current character data from API gateway
-    const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${characterSlug}`, {
-      method: 'GET',
-      user: toGatewayUser(context.user),
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    });
+    const result = await callGatewayApi<PersonalityResponse>(
+      `/user/personality/${encodeURIComponent(characterSlug)}`,
+      {
+        method: 'GET',
+        user: toGatewayUser(context.user),
+        timeout: GATEWAY_TIMEOUTS.DEFERRED,
+      }
+    );
 
     if (!result.ok) {
       if (result.status === 404) {

@@ -25,17 +25,24 @@ import type { CharacterData } from './characterTypes.js';
 const logger = createLogger('character-dashboard');
 
 /**
- * Handle delete button click from dashboard - show confirmation dialog
+ * Handle delete button click from dashboard - show confirmation dialog.
+ *
+ * `fetchCharacter` is a gateway round-trip that can exceed Discord's 3-second
+ * interaction budget under load, so we `deferUpdate` first (ack the click
+ * within the budget) and use `followUp` / `editReply` for the subsequent
+ * response. See `.claude/rules/04-discord.md` — "defer first, then process."
  */
 export async function handleDeleteAction(
   interaction: ButtonInteraction,
   slug: string,
   config: EnvConfig
 ): Promise<void> {
+  await interaction.deferUpdate();
+
   // Re-fetch to verify current state and permissions
   const character = await fetchCharacter(slug, config, toGatewayUser(interaction.user));
   if (!character) {
-    await interaction.reply({
+    await interaction.followUp({
       content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
       flags: MessageFlags.Ephemeral,
     });
@@ -44,7 +51,7 @@ export async function handleDeleteAction(
 
   // Verify user can delete
   if (!character.canEdit) {
-    await interaction.reply({
+    await interaction.followUp({
       content: DASHBOARD_MESSAGES.NO_PERMISSION('delete this character'),
       flags: MessageFlags.Ephemeral,
     });
@@ -70,7 +77,7 @@ export async function handleDeleteAction(
     ],
   });
 
-  await interaction.update({ embeds: [embed], components });
+  await interaction.editReply({ embeds: [embed], components });
 
   logger.info({ userId: interaction.user.id, slug }, 'Showing delete confirmation from dashboard');
 }
@@ -130,7 +137,7 @@ export async function handleDeleteButton(
   // (fetch throws, timeout, DNS failure) don't propagate up to CommandHandler's
   // generic error reply. Matches the preset pattern.
   try {
-    const result = await callGatewayApi<unknown>(`/user/personality/${slug}`, {
+    const result = await callGatewayApi<unknown>(`/user/personality/${encodeURIComponent(slug)}`, {
       method: 'DELETE',
       user: toGatewayUser(interaction.user),
     });

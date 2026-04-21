@@ -124,9 +124,12 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
 
   try {
     // Fetch preset data
-    const result = await callGatewayApi<PresetResponse>(`/user/llm-config/${presetId}`, {
-      user: toGatewayUser(context.user),
-    });
+    const result = await callGatewayApi<PresetResponse>(
+      `/user/llm-config/${encodeURIComponent(presetId)}`,
+      {
+        user: toGatewayUser(context.user),
+      }
+    );
 
     if (!result.ok) {
       if (result.status === 404) {

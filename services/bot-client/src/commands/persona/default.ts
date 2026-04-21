@@ -34,10 +34,13 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
 
   try {
     // Set default via gateway API
-    const result = await callGatewayApi<SetDefaultResponse>(`/user/persona/${personaId}/default`, {
-      user: toGatewayUser(context.user),
-      method: 'PATCH',
-    });
+    const result = await callGatewayApi<SetDefaultResponse>(
+      `/user/persona/${encodeURIComponent(personaId)}/default`,
+      {
+        user: toGatewayUser(context.user),
+        method: 'PATCH',
+      }
+    );
 
     if (!result.ok) {
       // Handle specific error cases

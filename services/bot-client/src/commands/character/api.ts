@@ -55,9 +55,12 @@ export async function fetchCharacter(
   _config: EnvConfig,
   user: GatewayUser
 ): Promise<FetchedCharacter | null> {
-  const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slugOrId}`, {
-    user,
-  });
+  const result = await callGatewayApi<PersonalityResponse>(
+    `/user/personality/${encodeURIComponent(slugOrId)}`,
+    {
+      user,
+    }
+  );
 
   if (!result.ok) {
     if (result.status === 404 || result.status === 403) {
