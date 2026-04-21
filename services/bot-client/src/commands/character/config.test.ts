@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { characterSeedFields, getCharacterDashboardConfig, type CharacterData } from './config.js';
+import { characterSeedFields, getCharacterDashboardConfig } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types';
 import { SectionStatus, type DashboardContext } from '../../utils/dashboard/index.js';
 

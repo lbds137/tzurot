@@ -18,9 +18,9 @@ import {
 import {
   getCharacterDashboardConfig,
   buildCharacterDashboardOptions,
-  type CharacterData,
   type CharacterSessionData,
 } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter } from './api.js';
 

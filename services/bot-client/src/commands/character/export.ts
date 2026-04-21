@@ -14,7 +14,7 @@ import {
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
-import type { CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 
 const logger = createLogger('character-export');
 

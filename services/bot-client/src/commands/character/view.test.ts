@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { _testExports } from './view.js';
-import type { CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 import { DISCORD_LIMITS, TEXT_LIMITS } from '@tzurot/common-types';
 
 const {
