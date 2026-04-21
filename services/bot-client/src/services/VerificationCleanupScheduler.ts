@@ -22,7 +22,7 @@ let cleanupInterval: ReturnType<typeof setInterval> | null = null;
  */
 export function startVerificationCleanupScheduler(): void {
   if (cleanupInterval !== null) {
-    logger.warn({}, 'Scheduler already running');
+    logger.warn('Scheduler already running');
     return;
   }
 

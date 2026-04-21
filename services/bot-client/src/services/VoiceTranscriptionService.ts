@@ -179,7 +179,7 @@ export class VoiceTranscriptionService {
   ): Promise<VoiceTranscriptionResult | null> {
     // Skip transcription of bot's own voice messages (e.g., forwarded TTS)
     if (message.author.id === message.client.user?.id) {
-      logger.debug({}, 'Skipping transcription of bot own message');
+      logger.debug('Skipping transcription of bot own message');
       return null;
     }
 

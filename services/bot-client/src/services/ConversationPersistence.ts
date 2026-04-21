@@ -379,7 +379,7 @@ export class ConversationPersistence {
     } = options;
 
     if (chunkMessageIds.length === 0) {
-      logger.warn({}, 'No chunk message IDs, skipping assistant message save');
+      logger.warn('No chunk message IDs, skipping assistant message save');
       return;
     }
 

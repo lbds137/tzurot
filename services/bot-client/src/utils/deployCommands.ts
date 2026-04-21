@@ -38,7 +38,7 @@ async function loadCommandFile(filePath: string): Promise<unknown> {
     command.execute === undefined ||
     command.execute === null
   ) {
-    logger.warn({}, `Skipping invalid command file: ${filePath}`);
+    logger.warn(`Skipping invalid command file: ${filePath}`);
     return null;
   }
 
