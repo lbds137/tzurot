@@ -61,7 +61,7 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       );
     }
 
-    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService);
 
     const encrypted = encryptApiKey(sessionCookie);
     const credentialId = generateUserCredentialUuid(

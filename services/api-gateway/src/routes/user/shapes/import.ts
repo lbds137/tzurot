@@ -107,7 +107,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 
     const validImportType = importType === 'memory_only' ? 'memory_only' : 'full';
 
-    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Atomically check for conflicts and create the import job
     let importJobId: string;

@@ -17,11 +17,10 @@ import type { ProvisionedRequest } from '../types.js';
 
 export async function resolveProvisionedUserId(
   req: ProvisionedRequest,
-  userService: UserService,
-  discordUserId: string
+  userService: UserService
 ): Promise<string> {
   if (req.provisionedUserId !== undefined) {
     return req.provisionedUserId;
   }
-  return userService.getOrCreateUserShell(discordUserId);
+  return userService.getOrCreateUserShell(req.userId);
 }

@@ -78,7 +78,7 @@ export function createPersonalityConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await resolveProvisionedUserId(req, userService, req.userId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Verify creator ownership
       const personality = await prisma.personality.findUnique({

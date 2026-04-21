@@ -82,7 +82,7 @@ export function createConfigOverrideRoutes(
   router.get(
     '/resolve-defaults',
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const userId = await resolveProvisionedUserId(req, userService, req.userId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Load admin and user tiers in parallel
       const [adminSettings, user] = await Promise.all([
@@ -139,7 +139,7 @@ export function createConfigOverrideRoutes(
   router.get(
     '/defaults',
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const userId = await resolveProvisionedUserId(req, userService, req.userId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -162,7 +162,7 @@ export function createConfigOverrideRoutes(
   router.patch(
     '/defaults',
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const userId = await resolveProvisionedUserId(req, userService, req.userId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -199,7 +199,7 @@ export function createConfigOverrideRoutes(
   router.delete(
     '/defaults',
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const userId = await resolveProvisionedUserId(req, userService, req.userId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       await prisma.user.update({
         where: { id: userId },
@@ -252,7 +252,7 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await resolveProvisionedUserId(req, userService, req.userId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Upsert UserPersonalityConfig with deterministic UUID
       const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
@@ -306,7 +306,7 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await resolveProvisionedUserId(req, userService, req.userId);
+      const userId = await resolveProvisionedUserId(req, userService);
 
       const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
 
