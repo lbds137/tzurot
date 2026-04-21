@@ -32,13 +32,10 @@ import { renderPostActionScreen } from '../../utils/dashboard/postActionScreen.j
 import { handleSharedBackButton } from '../../utils/dashboard/sharedBackButtonHandler.js';
 import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
-import type { DenylistEntryResponse } from './browse.js';
+import type { DenylistEntryResponse } from './browseTypes.js';
 import type { DenyDetailSession } from './detailTypes.js';
 import { ENTITY_TYPE, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
 import { handleEdit, handleEditModal } from './detailEdit.js';
-// Side-effect import: registers the deny browse rebuilder used by
-// renderPostActionScreen + handleSharedBackButton.
-import './browse.js';
 
 const logger = createLogger('deny-detail');
 

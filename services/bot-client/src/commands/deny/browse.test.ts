@@ -134,17 +134,10 @@ vi.mock('./detail.js', () => ({
   showDetailView: vi.fn(),
 }));
 
-// Mock the dashboard index so module-load registration is observable and
-// doesn't pollute the real browse-rebuilder registry across test files.
-vi.mock('../../utils/dashboard/index.js', () => ({
-  registerBrowseRebuilder: vi.fn(),
-}));
-
 import { isBotOwner } from '@tzurot/common-types';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { showDetailView } from './detail.js';
-import { registerBrowseRebuilder } from '../../utils/dashboard/index.js';
 
 function createMockContext(options: Record<string, unknown> = {}): DeferredCommandContext {
   const optionMap = new Map(Object.entries(options));
@@ -615,52 +608,5 @@ describe('buildBrowseResponse', () => {
 
     expect(result.embed.data.footer?.text).toContain('all types');
     expect(result.embed.data.footer?.text).toContain('by target ID');
-  });
-});
-
-// Capture the rebuilder callback registered at module-load BEFORE any
-// `vi.clearAllMocks()` wipes the call history.
-const denyRebuilderCall = vi.mocked(registerBrowseRebuilder).mock.calls.find(c => c[0] === 'deny');
-if (denyRebuilderCall === undefined) {
-  throw new Error('deny rebuilder was not registered at module load');
-}
-const denyRebuilder = denyRebuilderCall[1];
-
-describe('registered browse rebuilder', () => {
-  function createMockInteraction() {
-    return { user: { id: 'user-123' } } as unknown as Parameters<typeof denyRebuilder>[0];
-  }
-
-  it('returns rebuilt view with banner on success', async () => {
-    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ entries: sampleEntries }));
-
-    const result = await denyRebuilder(
-      createMockInteraction(),
-      { source: 'browse', page: 0, filter: 'all', sort: 'date' },
-      '✅ Banner'
-    );
-
-    expect(result).not.toBeNull();
-    expect(result).toEqual({
-      content: '✅ Banner',
-      embeds: expect.any(Array),
-      components: expect.any(Array),
-    });
-  });
-
-  it('returns null when fetchEntries returns null (admin API fails)', async () => {
-    vi.mocked(adminFetch).mockResolvedValue({
-      ok: false,
-      status: 500,
-      json: () => Promise.resolve({}),
-    } as Response);
-
-    const result = await denyRebuilder(
-      createMockInteraction(),
-      { source: 'browse', page: 0, filter: 'all', sort: 'date' },
-      '✅ Banner'
-    );
-
-    expect(result).toBeNull();
   });
 });
