@@ -48,7 +48,7 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
         result.status === 404
           ? `Personality "${personalitySlug}" not found.`
           : 'Failed to clear history. Please try again later.';
-      logger.warn({ userId, personalitySlug, status: result.status }, '[History] Clear failed');
+      logger.warn({ userId, personalitySlug, status: result.status }, 'Clear failed');
       await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
@@ -69,12 +69,9 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info(
-      { userId, personalitySlug, epoch: data.epoch },
-      '[History] Context cleared successfully'
-    );
+    logger.info({ userId, personalitySlug, epoch: data.epoch }, 'Context cleared successfully');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'History Clear' }, '[History Clear] Error');
+    logger.error({ err: error, userId, command: 'History Clear' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

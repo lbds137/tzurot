@@ -82,7 +82,7 @@ export class PersonalityMessageHandler {
     if (!result.ok) {
       logger.warn(
         { userId: user.discordId, personalityId: personality.id, error: result.error },
-        '[PersonalityMessageHandler] Failed to resolve config, using personality defaults'
+        'Failed to resolve config, using personality defaults'
       );
       // Fall back to personality defaults with hardcoded fallbacks for safety
       // These ensure valid values even if personality has no config
@@ -175,13 +175,13 @@ export class PersonalityMessageHandler {
       ) {
         logger.debug(
           { userId: message.author.id, personalityId: personality.id },
-          '[PersonalityMessageHandler] User denied for this personality, ignoring'
+          'User denied for this personality, ignoring'
         );
         return;
       }
 
       // Handle NSFW verification (auto-verify in NSFW channels, block unverified DMs)
-      const verificationResult = await handleNsfwVerification(message, 'PersonalityMessageHandler');
+      const verificationResult = await handleNsfwVerification(message);
       if (!verificationResult.allowed) {
         return;
       }
@@ -213,7 +213,7 @@ export class PersonalityMessageHandler {
           maxImages: extendedContextSettings.maxImages,
           sources: extendedContextSettings.sources,
         },
-        '[PersonalityMessageHandler] Extended context settings for this request'
+        'Extended context settings for this request'
       );
 
       // Build AI context (user lookup, history, references, attachments, environment)
@@ -257,16 +257,13 @@ export class PersonalityMessageHandler {
         isAutoResponse: options.isAutoResponse,
       });
     } catch (error) {
-      logger.error(
-        { err: error },
-        '[PersonalityMessageHandler] Error handling personality message'
-      );
+      logger.error({ err: error }, 'Error handling personality message');
 
       const errorMessage = error instanceof Error ? error.message : String(error);
       await message.reply(`Error: ${errorMessage}`).catch(replyError => {
         logger.warn(
           { err: replyError, messageId: message.id },
-          '[PersonalityMessageHandler] Failed to send error message to user'
+          'Failed to send error message to user'
         );
       });
     }
@@ -288,10 +285,7 @@ export class PersonalityMessageHandler {
     });
 
     if (!isTypingChannel(channel)) {
-      logger.warn(
-        { channelType: channel.type },
-        '[PersonalityMessageHandler] Unsupported channel type for AI interactions'
-      );
+      logger.warn({ channelType: channel.type }, 'Unsupported channel type for AI interactions');
       throw new Error('This channel type is not supported for AI interactions');
     }
 
@@ -310,7 +304,7 @@ export class PersonalityMessageHandler {
         personalityName: personality.displayName,
         historyLength: context.conversationHistory?.length ?? 0,
       },
-      '[PersonalityMessageHandler] Job submitted successfully, awaiting async result'
+      'Job submitted successfully, awaiting async result'
     );
   }
 }

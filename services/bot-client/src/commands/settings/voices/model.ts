@@ -55,9 +55,9 @@ export async function handleModelSet(context: DeferredCommandContext): Promise<v
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, modelId }, '[Voices Model] Set TTS model');
+    logger.info({ userId, modelId }, 'Set TTS model');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Voices Model] Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
@@ -93,7 +93,7 @@ export async function handleModelAutocomplete(interaction: AutocompleteInteracti
 
     await interaction.respond(choices);
   } catch (error) {
-    logger.error({ err: error, userId }, '[Voices Model Autocomplete] Error');
+    logger.error({ err: error, userId }, 'Error');
     await interaction.respond([]);
   }
 }

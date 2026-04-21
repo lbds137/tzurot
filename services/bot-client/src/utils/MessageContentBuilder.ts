@@ -117,7 +117,7 @@ async function processVoiceAttachments(
         nonVoiceAttachments.push(attachment);
         logger.debug(
           { messageId, originalMessageId, duration: attachment.duration },
-          '[MessageContentBuilder] Forwarded voice message without transcript'
+          'Forwarded voice message without transcript'
         );
       } else {
         nonVoiceAttachments.push(attachment);
@@ -147,7 +147,7 @@ async function processVoiceAttachments(
         nonVoiceAttachments.push(attachment);
         logger.debug(
           { messageId, duration: attachment.duration },
-          '[MessageContentBuilder] Voice message without transcript'
+          'Voice message without transcript'
         );
       } else {
         nonVoiceAttachments.push(attachment);
@@ -240,10 +240,7 @@ export async function buildMessageContent(
         const forwardedAttachments = extractForwardedAttachments(message);
         snapshotAttachments.push(...forwardedAttachments);
       } catch (error) {
-        logger.warn(
-          { messageId: message.id, error },
-          '[MessageContentBuilder] Failed to extract forwarded attachments'
-        );
+        logger.warn({ messageId: message.id, error }, 'Failed to extract forwarded attachments');
       }
 
       // Process snapshot embeds - collect as XML for structured formatting

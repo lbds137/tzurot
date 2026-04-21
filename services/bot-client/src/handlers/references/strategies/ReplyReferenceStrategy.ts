@@ -43,7 +43,7 @@ export class ReplyReferenceStrategy implements IReferenceStrategy {
           hasGuildId: guildId !== null && guildId !== undefined,
           hasChannelId: channelId !== null && channelId !== undefined,
         },
-        '[ReplyReferenceStrategy] Skipping reply reference - missing guild or channel ID'
+        'Skipping reply reference - missing guild or channel ID'
       );
       return Promise.resolve([]);
     }
@@ -53,7 +53,7 @@ export class ReplyReferenceStrategy implements IReferenceStrategy {
         messageId: message.id,
         referencedMessageId: message.reference.messageId,
       },
-      '[ReplyReferenceStrategy] Found reply reference'
+      'Found reply reference'
     );
 
     return Promise.resolve([

@@ -31,7 +31,7 @@ export async function handleTimezoneSet(context: DeferredCommandContext): Promis
     });
 
     if (!result.ok) {
-      logger.warn({ userId, timezone, status: result.status }, '[Timezone] Failed to set timezone');
+      logger.warn({ userId, timezone, status: result.status }, 'Failed to set timezone');
       await context.editReply({ content: `❌ Failed to set timezone: ${result.error}` });
       return;
     }
@@ -56,9 +56,9 @@ export async function handleTimezoneSet(context: DeferredCommandContext): Promis
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, timezone }, '[Timezone] Timezone updated successfully');
+    logger.info({ userId, timezone }, 'Timezone updated successfully');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Timezone Set' }, '[Timezone Set] Error');
+    logger.error({ err: error, userId, command: 'Timezone Set' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

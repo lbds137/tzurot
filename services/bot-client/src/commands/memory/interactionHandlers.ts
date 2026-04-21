@@ -78,7 +78,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // Detail action buttons (memory-detail::...)
   const parsed = parseMemoryActionId(customId);
   if (parsed === null) {
-    logger.debug({ customId }, '[Memory] Unknown button customId');
+    logger.debug({ customId }, 'Unknown button customId');
     await interaction.reply({
       content: '❌ Unknown interaction.',
       flags: MessageFlags.Ephemeral,
@@ -131,7 +131,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       : await handleSearchDetailAction(interaction);
 
   if (!handled) {
-    logger.warn({ customId }, '[Memory] Unhandled detail action');
+    logger.warn({ customId }, 'Unhandled detail action');
     // Interaction is already deferred at this point, so use followUp.
     await interaction.followUp({
       content: '❌ Unknown action.',
@@ -151,7 +151,7 @@ export async function handleModal(interaction: ModalSubmitInteraction): Promise<
   const parsed = parseMemoryActionId(interaction.customId);
 
   if (parsed?.action !== 'edit') {
-    logger.warn({ customId: interaction.customId }, '[Memory] Unknown modal');
+    logger.warn({ customId: interaction.customId }, 'Unknown modal');
     await interaction.reply({
       content: '❌ Unknown modal submission.',
       flags: MessageFlags.Ephemeral,
@@ -160,7 +160,7 @@ export async function handleModal(interaction: ModalSubmitInteraction): Promise<
   }
 
   if (parsed.memoryId === undefined) {
-    logger.warn({ customId: interaction.customId }, '[Memory] Edit modal missing memoryId');
+    logger.warn({ customId: interaction.customId }, 'Edit modal missing memoryId');
     await interaction.reply({
       content: '❌ Malformed edit modal (missing memory ID).',
       flags: MessageFlags.Ephemeral,
@@ -203,7 +203,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     return;
   }
 
-  logger.debug({ customId }, '[Memory] Unknown select menu customId');
+  logger.debug({ customId }, 'Unknown select menu customId');
   // The session may still be valid; the customId itself isn't recognized.
   // Show "Unknown interaction" rather than "expired" so the user doesn't
   // chase the wrong cause (e.g., re-running the command needlessly).

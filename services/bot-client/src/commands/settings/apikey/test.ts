@@ -106,12 +106,9 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info(
-      { provider, userId, hasCredits: data.credits !== undefined },
-      '[Wallet Test] API key validated'
-    );
+    logger.info({ provider, userId, hasCredits: data.credits !== undefined }, 'API key validated');
   } catch (error) {
-    logger.error({ error, userId, provider }, '[Wallet Test] Unexpected error');
+    logger.error({ error, userId, provider }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

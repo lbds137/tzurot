@@ -35,8 +35,8 @@ export function validateRedisUrl(config = getConfig()): void {
  */
 export function logGatewayHealthStatus(isHealthy: boolean): void {
   if (!isHealthy) {
-    logger.warn({}, '[Bot] Gateway health check failed, but continuing...');
+    logger.warn({}, 'Gateway health check failed, but continuing...');
   } else {
-    logger.info('[Bot] Gateway is healthy');
+    logger.info('Gateway is healthy');
   }
 }

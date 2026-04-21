@@ -41,7 +41,7 @@ export async function handleShapesSlugAutocomplete(
       }))
     );
   } catch (error) {
-    logger.error({ err: error, userId }, '[Shapes] Autocomplete error');
+    logger.error({ err: error, userId }, 'Autocomplete error');
     await interaction.respond([]);
   }
 }

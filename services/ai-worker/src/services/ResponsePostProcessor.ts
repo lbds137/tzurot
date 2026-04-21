@@ -48,6 +48,15 @@ interface ResponseProcessingContext {
   /** Whether reasoning was enabled for this request (triggers glitch detection) */
   reasoningEnabled?: boolean;
   /**
+   * Model identifier (e.g. `moonshotai/kimi-k2.6`) for per-model diagnostics on
+   * reasoning-did-not-engage events. Included in the warn log so log searches
+   * can correlate extraction misses with specific upstream model releases
+   * (e.g. detecting when a new model drops that produces unstructured CoT
+   * output like Kimi K2.6 did vs. K2.5). Optional for callers/tests that
+   * don't have a model context.
+   */
+  modelName?: string;
+  /**
    * The user's incoming message for this turn. When present, the post-processor
    * will strip a leading verbatim echo of it from the response — some LLMs echo
    * the user's message as a prefix before their actual response. Optional so
@@ -253,6 +262,7 @@ export class ResponsePostProcessor {
       if (reasoningActuallyEngaged) {
         logger.info(
           {
+            modelName: context.modelName,
             personalityName: context.personalityName,
             reasoningRequested: true,
             reasoningActuallyEngaged,
@@ -265,6 +275,7 @@ export class ResponsePostProcessor {
       } else {
         logger.warn(
           {
+            modelName: context.modelName,
             personalityName: context.personalityName,
             reasoningRequested: true,
             reasoningActuallyEngaged,

@@ -28,10 +28,7 @@ export class MessageHandler {
     private readonly persistence: ConversationPersistence,
     private readonly jobTracker: JobTracker
   ) {
-    logger.info(
-      { processorCount: processors.length },
-      '[MessageHandler] Initialized with processor chain'
-    );
+    logger.info({ processorCount: processors.length }, 'Initialized with processor chain');
   }
 
   /**
@@ -49,15 +46,12 @@ export class MessageHandler {
             messageType: message.type,
             messageTypeName: MessageType[message.type],
           },
-          '[MessageHandler] Ignoring system message'
+          'Ignoring system message'
         );
         return;
       }
 
-      logger.debug(
-        { messageId: message.id, authorTag: message.author.tag },
-        '[MessageHandler] Processing message'
-      );
+      logger.debug({ messageId: message.id, authorTag: message.author.tag }, 'Processing message');
 
       // Pass message through the chain of processors
       for (const processor of this.processors) {
@@ -66,19 +60,16 @@ export class MessageHandler {
         if (wasHandled) {
           logger.debug(
             { messageId: message.id, processorName: processor.constructor.name },
-            '[MessageHandler] Message handled by processor'
+            'Message handled by processor'
           );
           return; // Stop the chain
         }
       }
 
       // No processor handled the message
-      logger.debug(
-        { messageId: message.id },
-        '[MessageHandler] Message not handled by any processor'
-      );
+      logger.debug({ messageId: message.id }, 'Message not handled by any processor');
     } catch (error) {
-      logger.error({ err: error }, '[MessageHandler] Error processing message');
+      logger.error({ err: error }, 'Error processing message');
 
       // Try to send error message to user
       await message
@@ -86,7 +77,7 @@ export class MessageHandler {
         .catch(replyError => {
           logger.warn(
             { err: replyError, messageId: message.id },
-            '[MessageHandler] Failed to send error message to user'
+            'Failed to send error message to user'
           );
         });
     }
@@ -101,7 +92,7 @@ export class MessageHandler {
     // Get pending job context from JobTracker
     const jobContext = this.jobTracker.getContext(jobId);
     if (!jobContext) {
-      logger.warn({ jobId }, '[MessageHandler] Received result for unknown job - ignoring');
+      logger.warn({ jobId }, 'Received result for unknown job - ignoring');
       return;
     }
 
@@ -115,7 +106,7 @@ export class MessageHandler {
     if (result.success === false) {
       logger.error(
         { jobId, error: result.error, errorInfo: result.errorInfo },
-        '[MessageHandler] Job failed with error from ai-worker'
+        'Job failed with error from ai-worker'
       );
       await this.sendErrorResponse(jobId, buildErrorContent(result), result, jobContext);
       return;
@@ -134,7 +125,7 @@ export class MessageHandler {
           hasContent: result.content !== undefined && result.content !== null,
           contentType: typeof result.content,
         },
-        '[MessageHandler] Job result missing or invalid content field'
+        'Job result missing or invalid content field'
       );
       await this.sendErrorResponse(jobId, buildErrorContent(result), result, jobContext);
       return;
@@ -183,16 +174,16 @@ export class MessageHandler {
         void getGatewayClient()
           .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
           .catch(err => {
-            logger.warn({ err }, '[MessageHandler] Failed to update diagnostic response IDs');
+            logger.warn({ err }, 'Failed to update diagnostic response IDs');
           });
       }
 
       logger.info(
         { jobId, chunks: chunkMessageIds.length },
-        '[MessageHandler] Async job result delivered successfully'
+        'Async job result delivered successfully'
       );
     } catch (error) {
-      logger.error({ err: error, jobId }, '[MessageHandler] Error handling job result');
+      logger.error({ err: error, jobId }, 'Error handling job result');
       // Try to notify user of the error via webhook (don't throw - we don't want to crash the listener)
       await this.sendErrorResponse(jobId, buildErrorContent(result), result, jobContext);
     }
@@ -239,16 +230,13 @@ export class MessageHandler {
         void getGatewayClient()
           .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
           .catch(err => {
-            logger.warn(
-              { err },
-              '[MessageHandler] Failed to update diagnostic response IDs for error'
-            );
+            logger.warn({ err }, 'Failed to update diagnostic response IDs for error');
           });
       }
     } catch (sendError) {
       logger.error(
         { err: sendError, jobId },
-        '[MessageHandler] Failed to send error via webhook, falling back to reply'
+        'Failed to send error via webhook, falling back to reply'
       );
       // Fallback to direct reply if webhook fails
       await message.reply(errorContent).catch(() => {

@@ -51,7 +51,7 @@ export async function checkNsfwVerification(user: GatewayUser): Promise<ApiCheck
   if (!result.ok) {
     logger.warn(
       { userId: user.discordId, error: result.error },
-      '[NSFW] Failed to check verification status'
+      'Failed to check verification status'
     );
     return { kind: 'error', error: result.error };
   }
@@ -71,18 +71,18 @@ export async function verifyNsfwUser(user: GatewayUser): Promise<NsfwVerifyRespo
   });
 
   if (!result.ok) {
-    logger.warn({ userId, error: result.error }, '[NSFW] Failed to verify user');
+    logger.warn({ userId, error: result.error }, 'Failed to verify user');
     return null;
   }
 
   if (!result.data.alreadyVerified) {
-    logger.info({ userId }, '[NSFW] User verified via NSFW channel interaction');
+    logger.info({ userId }, 'User verified via NSFW channel interaction');
 
     // Clean up any pending verification messages since user is now verified
     void cleanupVerificationMessagesForUser(userId).catch(cleanupError => {
       logger.warn(
         { err: cleanupError, userId },
-        '[NSFW] Failed to cleanup verification messages after verification'
+        'Failed to cleanup verification messages after verification'
       );
     });
   }
@@ -203,10 +203,7 @@ interface NsfwVerificationResult {
  * Send NSFW verification message and track for cleanup
  * Shared utility to avoid duplication across processors.
  */
-export async function sendNsfwVerificationMessage(
-  message: Message,
-  logPrefix: string
-): Promise<void> {
+export async function sendNsfwVerificationMessage(message: Message): Promise<void> {
   try {
     const verificationReply = await message.reply(NSFW_VERIFICATION_MESSAGE);
     void trackPendingVerificationMessage(
@@ -216,14 +213,11 @@ export async function sendNsfwVerificationMessage(
     ).catch(trackError => {
       logger.warn(
         { err: trackError, userId: message.author.id, messageId: verificationReply.id },
-        `[${logPrefix}] Failed to track verification message`
+        `Failed to track verification message`
       );
     });
   } catch (error) {
-    logger.warn(
-      { err: error, messageId: message.id },
-      `[${logPrefix}] Failed to send NSFW verification message`
-    );
+    logger.warn({ err: error, messageId: message.id }, `Failed to send NSFW verification message`);
   }
 }
 
@@ -234,10 +228,7 @@ export async function sendNsfwVerificationMessage(
  *
  * @returns Result indicating if processing should continue and if this was a new verification
  */
-export async function handleNsfwVerification(
-  message: Message,
-  logPrefix: string
-): Promise<NsfwVerificationResult> {
+export async function handleNsfwVerification(message: Message): Promise<NsfwVerificationResult> {
   const userId = message.author.id;
   const user = toGatewayUser(message.author);
   const { channel } = message;
@@ -258,14 +249,14 @@ export async function handleNsfwVerification(
     // previously-verified user just because the gateway blipped.
     logger.warn(
       { userId, channelType: channel.type, error: check.error },
-      `[${logPrefix}] NSFW check failed — surfacing retry message`
+      `NSFW check failed — surfacing retry message`
     );
     try {
       await message.reply(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
     } catch (replyError) {
       logger.warn(
         { err: replyError, messageId: message.id },
-        `[${logPrefix}] Failed to send NSFW check-failed message`
+        `Failed to send NSFW check-failed message`
       );
     }
     return { allowed: false, wasNewVerification: false };
@@ -274,9 +265,9 @@ export async function handleNsfwVerification(
   if (!check.value.nsfwVerified) {
     logger.info(
       { userId, channelType: channel.type },
-      `[${logPrefix}] Interaction blocked - user not NSFW verified`
+      `Interaction blocked - user not NSFW verified`
     );
-    await sendNsfwVerificationMessage(message, logPrefix);
+    await sendNsfwVerificationMessage(message);
     return { allowed: false, wasNewVerification: false };
   }
 

@@ -34,7 +34,7 @@ export function collateChunksForSync(
         expectedChunks: expectedChunkCount,
         fetchedChunks: chunks.length,
       },
-      '[SyncValidator] Skipping sync - missing chunks from Discord fetch'
+      'Skipping sync - missing chunks from Discord fetch'
     );
     return null;
   }
@@ -63,7 +63,7 @@ export function collateChunksForSync(
         originalLength: originalDbLength,
         newLength: collatedContent.length,
       },
-      '[SyncValidator] Skipping sync - content would shrink by >80%'
+      'Skipping sync - content would shrink by >80%'
     );
     return null;
   }

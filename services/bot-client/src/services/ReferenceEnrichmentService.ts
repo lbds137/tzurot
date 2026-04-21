@@ -62,7 +62,7 @@ export class ReferenceEnrichmentService {
         historySize: conversationHistory.length,
         cachedPersonaNames: personaNameMap.size,
       },
-      '[ReferenceEnrichmentService] Starting persona name enrichment'
+      'Starting persona name enrichment'
     );
 
     // Enrich each referenced message
@@ -76,7 +76,7 @@ export class ReferenceEnrichmentService {
         referenceNumbers: referencedMessages.map(r => r.referenceNumber),
         personaNames: referencedMessages.map(r => r.authorDisplayName),
       },
-      `[ReferenceEnrichmentService] Enriched ${referencedMessages.length} referenced messages with persona names`
+      `Enriched ${referencedMessages.length} referenced messages with persona names`
     );
   }
 
@@ -91,7 +91,7 @@ export class ReferenceEnrichmentService {
     } catch (error) {
       logger.warn(
         { err: error, discordMessageId: reference.discordMessageId },
-        '[ReferenceEnrichmentService] Redis lookup failed for webhook detection, falling back to webhookId'
+        'Redis lookup failed for webhook detection, falling back to webhookId'
       );
     }
 
@@ -109,7 +109,7 @@ export class ReferenceEnrichmentService {
           cachedPersonality: webhookPersonality,
           authorDisplayName: reference.authorDisplayName,
         },
-        '[ReferenceEnrichmentService] Skipping persona enrichment - message is from webhook'
+        'Skipping persona enrichment - message is from webhook'
       );
     }
 
@@ -144,7 +144,7 @@ export class ReferenceEnrichmentService {
       if (provisioned === null) {
         logger.debug(
           { discordUserId: reference.discordUserId },
-          '[ReferenceEnrichmentService] Skipping persona enrichment - user is a bot'
+          'Skipping persona enrichment - user is a bot'
         );
         return;
       }
@@ -171,12 +171,12 @@ export class ReferenceEnrichmentService {
       if (personaName !== undefined && personaName !== null && personaName.length > 0) {
         reference.authorDisplayName = personaName;
         logger.debug(
-          `[ReferenceEnrichmentService] Enriched reference ${reference.referenceNumber}: ${reference.authorUsername} -> ${personaName}`
+          `Enriched reference ${reference.referenceNumber}: ${reference.authorUsername} -> ${personaName}`
         );
       } else {
         logger.warn(
           {},
-          `[ReferenceEnrichmentService] Could not find persona name for reference ${reference.referenceNumber} (persona: ${personaId})`
+          `Could not find persona name for reference ${reference.referenceNumber} (persona: ${personaId})`
         );
       }
     } catch (error) {
@@ -193,7 +193,7 @@ export class ReferenceEnrichmentService {
               ? personaId
               : 'unknown',
         },
-        '[ReferenceEnrichmentService] Failed to enrich reference with persona name'
+        'Failed to enrich reference with persona name'
       );
       // Keep the original Discord display name on error
     }

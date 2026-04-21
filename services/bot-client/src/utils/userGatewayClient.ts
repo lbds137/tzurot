@@ -205,7 +205,7 @@ export async function callGatewayApi<T>(
       const parsed = await parseErrorResponse(response);
       logger.warn(
         { path, method, status: response.status, userId: user.discordId },
-        '[Gateway] Request failed'
+        'Request failed'
       );
       return {
         ok: false,
@@ -228,7 +228,7 @@ export async function callGatewayApi<T>(
 
     logger.warn(
       { path, method, userId: user.discordId, errorMessage, isTimeout: isAbortError },
-      '[Gateway] Request error'
+      'Request error'
     );
     return { ok: false, error: errorMessage, status: 0 };
   }

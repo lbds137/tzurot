@@ -31,6 +31,9 @@ import { resolvePersonalityId, getPersonalityName } from './autocomplete.js';
 
 const logger = createLogger('memory-incognito');
 
+/** Shared message for catch-all error logs in this module's four handlers. */
+const UNEXPECTED_ERROR_LOG_MESSAGE = 'Unexpected error';
+
 const ALL_PERSONALITIES_LABEL = 'all personalities';
 const INCOGNITO_API_PATH = '/user/memory/incognito';
 const UNEXPECTED_ERROR_MESSAGE = '❌ An unexpected error occurred. Please try again.';
@@ -119,10 +122,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
     });
 
     if (!result.ok) {
-      logger.warn(
-        { userId, personalityInput, duration, status: result.status },
-        '[Memory/Incognito] Enable failed'
-      );
+      logger.warn({ userId, personalityInput, duration, status: result.status }, 'Enable failed');
       await context.editReply({ content: '❌ Failed to enable incognito mode. Please try again.' });
       return;
     }
@@ -143,10 +143,10 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
 
     logger.info(
       { userId, personalityId: resolved.id, duration, wasAlreadyActive: data.wasAlreadyActive },
-      '[Memory/Incognito] Mode enabled'
+      'Mode enabled'
     );
   } catch (error) {
-    logger.error({ error, userId }, '[Memory/Incognito Enable] Unexpected error');
+    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
@@ -177,10 +177,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
     });
 
     if (!result.ok) {
-      logger.warn(
-        { userId, personalityInput, status: result.status },
-        '[Memory/Incognito] Disable failed'
-      );
+      logger.warn({ userId, personalityInput, status: result.status }, 'Disable failed');
       await context.editReply({
         content: '❌ Failed to disable incognito mode. Please try again.',
       });
@@ -201,12 +198,9 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info(
-      { userId, personalityId: resolved.id, wasActive: data.disabled },
-      '[Memory/Incognito] Mode disabled'
-    );
+    logger.info({ userId, personalityId: resolved.id, wasActive: data.disabled }, 'Mode disabled');
   } catch (error) {
-    logger.error({ error, userId }, '[Memory/Incognito Disable] Unexpected error');
+    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
@@ -225,7 +219,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status }, '[Memory/Incognito] Status check failed');
+      logger.warn({ userId, status: result.status }, 'Status check failed');
       await context.editReply({
         content: '❌ Failed to check incognito status. Please try again.',
       });
@@ -261,12 +255,9 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info(
-      { userId, sessionCount: data.sessions.length },
-      '[Memory/Incognito] Status checked'
-    );
+    logger.info({ userId, sessionCount: data.sessions.length }, 'Status checked');
   } catch (error) {
-    logger.error({ error, userId }, '[Memory/Incognito Status] Unexpected error');
+    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
@@ -298,10 +289,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
     });
 
     if (!result.ok) {
-      logger.warn(
-        { userId, personalityInput, timeframe, status: result.status },
-        '[Memory/Incognito] Forget failed'
-      );
+      logger.warn({ userId, personalityInput, timeframe, status: result.status }, 'Forget failed');
       await context.editReply({
         content: '❌ Failed to delete recent memories. Please try again.',
       });
@@ -325,10 +313,10 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
 
     logger.info(
       { userId, personalityId: resolved.id, timeframe, deletedCount: data.deletedCount },
-      '[Memory/Incognito] Forget executed'
+      'Forget executed'
     );
   } catch (error) {
-    logger.error({ error, userId }, '[Memory/Incognito Forget] Unexpected error');
+    logger.error({ error, userId }, UNEXPECTED_ERROR_LOG_MESSAGE);
     await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }

@@ -69,9 +69,9 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
     const warning = buildDestructiveWarning(config);
     await context.editReply(warning);
 
-    logger.info({ userId, voiceCount: count }, '[Voices Clear] Showing confirmation');
+    logger.info({ userId, voiceCount: count }, 'Showing confirmation');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Voices Clear] Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
@@ -138,7 +138,7 @@ export async function handleVoiceClearModalSubmit(
     // Invalidate autocomplete cache so deleted voices don't appear in /settings voices delete
     invalidateVoiceCache(userId);
 
-    logger.info({ userId, deleted, total }, '[Voices Clear] Cleared voices');
+    logger.info({ userId, deleted, total }, 'Cleared voices');
 
     return { success: true, successEmbed: embed };
   });

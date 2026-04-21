@@ -153,7 +153,7 @@ export class DiscordResponseSender {
         isWebhook: isWebhookChannel,
         personalityName: personality.name,
       },
-      '[DiscordResponseSender] Response sent successfully'
+      'Response sent successfully'
     );
 
     return {
@@ -351,7 +351,7 @@ export class DiscordResponseSender {
       } catch (error) {
         logger.warn(
           { err: error, chunk: i + 1, totalChunks: chunks.length },
-          '[DiscordResponseSender] Failed to send thinking block chunk'
+          'Failed to send thinking block chunk'
         );
         // Continue with main response even if thinking fails
         break;
@@ -364,7 +364,7 @@ export class DiscordResponseSender {
         chunks: chunks.length,
         personalityName: personality.name,
       },
-      '[DiscordResponseSender] Sent thinking block'
+      'Sent thinking block'
     );
   }
 }

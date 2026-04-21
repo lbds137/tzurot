@@ -105,10 +105,7 @@ export async function startImport(
     await buttonInteraction.editReply({ embeds: [successEmbed], components: [] });
   }
 
-  logger.info(
-    { userId, slug, importJobId: importResult.data.importJobId },
-    '[Shapes] Import started'
-  );
+  logger.info({ userId, slug, importJobId: importResult.data.importJobId }, 'Import started');
 
   return true;
 }
@@ -182,7 +179,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
 
     await context.editReply({ embeds: [confirmEmbed], components: [row] });
   } catch (error) {
-    logger.error({ err: error, userId, slug }, '[Shapes] Unexpected error starting import');
+    logger.error({ err: error, userId, slug }, 'Unexpected error starting import');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

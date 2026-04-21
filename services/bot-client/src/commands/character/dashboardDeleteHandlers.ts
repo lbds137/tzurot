@@ -143,7 +143,7 @@ export async function handleDeleteButton(
     });
 
     if (!result.ok) {
-      logger.error({ slug, error: result.error }, '[Character] Delete API failed');
+      logger.error({ slug, error: result.error }, 'Delete API failed');
       await renderPostActionScreen({
         interaction,
         session: postActionSession,
@@ -157,7 +157,7 @@ export async function handleDeleteButton(
     if (!parseResult.success) {
       logger.error(
         { slug, parseError: parseResult.error.message },
-        '[Character] Response schema validation failed'
+        'Response schema validation failed'
       );
       // Still consider it a success since the API returned 200
       await renderPostActionScreen({
@@ -195,10 +195,10 @@ export async function handleDeleteButton(
 
     logger.info(
       { userId: interaction.user.id, slug: deletedSlug, counts },
-      '[Character] Successfully deleted character'
+      'Successfully deleted character'
     );
   } catch (error) {
-    logger.error({ err: error, slug }, '[Character] Failed to delete character');
+    logger.error({ err: error, slug }, 'Failed to delete character');
     await renderPostActionScreen({
       interaction,
       session: postActionSession,

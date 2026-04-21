@@ -27,10 +27,7 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
     // Forwarded messages are referential ("look at this"), not invocational.
     // A forwarded message containing @PersonalityName should not trigger AI.
     if (isForwardedMessage(message)) {
-      logger.debug(
-        { messageId: message.id },
-        '[PersonalityMentionProcessor] Skipping forwarded message'
-      );
+      logger.debug({ messageId: message.id }, 'Skipping forwarded message');
       return false;
     }
 
@@ -52,7 +49,7 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
 
     logger.debug(
       { personalityName: mentionMatch.personalityName, userId },
-      '[PersonalityMentionProcessor] Processing personality mention'
+      'Processing personality mention'
     );
 
     // Load personality from database (PersonalityService has internal cache)
@@ -67,7 +64,7 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
       // Unknown personality or no access - silently ignore
       logger.debug(
         { personalityName: mentionMatch.personalityName, userId },
-        '[PersonalityMentionProcessor] Personality not found or access denied'
+        'Personality not found or access denied'
       );
       return false; // Continue to next processor
     }

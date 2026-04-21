@@ -22,7 +22,7 @@ let cleanupInterval: ReturnType<typeof setInterval> | null = null;
  */
 export function startVerificationCleanupScheduler(): void {
   if (cleanupInterval !== null) {
-    logger.warn({}, '[VerificationCleanupScheduler] Scheduler already running');
+    logger.warn({}, 'Scheduler already running');
     return;
   }
 
@@ -38,7 +38,7 @@ export function startVerificationCleanupScheduler(): void {
 
   logger.info(
     { intervalHours: CLEANUP_INTERVAL_MS / (60 * 60 * 1000) },
-    '[VerificationCleanupScheduler] Started scheduled cleanup'
+    'Started scheduled cleanup'
   );
 }
 
@@ -50,7 +50,7 @@ export function stopVerificationCleanupScheduler(): void {
   if (cleanupInterval !== null) {
     clearInterval(cleanupInterval);
     cleanupInterval = null;
-    logger.info('[VerificationCleanupScheduler] Stopped scheduled cleanup');
+    logger.info('Stopped scheduled cleanup');
   }
 }
 
@@ -65,12 +65,12 @@ async function runCleanup(): Promise<void> {
     if (result.processed > 0) {
       logger.info(
         { processed: result.processed, deleted: result.deleted, failed: result.failed },
-        '[VerificationCleanupScheduler] Completed scheduled cleanup'
+        'Completed scheduled cleanup'
       );
     } else {
-      logger.debug('[VerificationCleanupScheduler] No expired messages to clean up');
+      logger.debug('No expired messages to clean up');
     }
   } catch (error) {
-    logger.error({ err: error }, '[VerificationCleanupScheduler] Failed to run scheduled cleanup');
+    logger.error({ err: error }, 'Failed to run scheduled cleanup');
   }
 }

@@ -66,7 +66,7 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
 
     await context.editReply(`✅ ${label} ${targetDisplay} denied (${scopeDesc}${modeDesc}).`);
   } catch (error) {
-    logger.error({ err: error }, '[Deny] Failed to add denial');
+    logger.error({ err: error }, 'Failed to add denial');
     await context.editReply('❌ Failed to add denial. Please try again.');
   }
 }

@@ -338,7 +338,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     ]);
 
     if (!presetResult.ok) {
-      logger.warn({ userId, status: presetResult.status }, '[Preset] Failed to browse presets');
+      logger.warn({ userId, status: presetResult.status }, 'Failed to browse presets');
       await context.editReply({ content: '❌ Failed to get presets. Please try again later.' });
       return;
     }
@@ -349,7 +349,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     if (!walletResult.ok) {
       logger.warn(
         { userId, error: walletResult.error },
-        '[Preset] Wallet check failed, assuming not guest mode'
+        'Wallet check failed, assuming not guest mode'
       );
     }
     const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
@@ -366,10 +366,10 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
     logger.info(
       { userId, count: presetResult.data.configs.length, filter, query, isGuestMode },
-      '[Preset] Browse presets'
+      'Browse presets'
     );
   } catch (error) {
-    logger.error({ err: error, userId }, '[Preset] Error browsing presets');
+    logger.error({ err: error, userId }, 'Error browsing presets');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }
@@ -445,10 +445,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     const result = await buildBrowseResponse(toGatewayUser(interaction.user), parsed);
 
     if (result === null) {
-      logger.warn(
-        { userId: interaction.user.id },
-        '[Preset] Failed to fetch presets for pagination'
-      );
+      logger.warn({ userId: interaction.user.id }, 'Failed to fetch presets for pagination');
       return;
     }
 
@@ -456,7 +453,7 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   } catch (error) {
     logger.error(
       { err: error, userId: interaction.user.id, ...parsed },
-      '[Preset] Error during browse pagination'
+      'Error during browse pagination'
     );
     // Keep existing content on error
   }
@@ -524,9 +521,9 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
       channelId: interaction.channelId,
     });
 
-    logger.info({ userId, presetId, name: preset.name }, '[Preset] Opened dashboard from browse');
+    logger.info({ userId, presetId, name: preset.name }, 'Opened dashboard from browse');
   } catch (error) {
-    logger.error({ err: error, presetId }, '[Preset] Failed to open dashboard from browse');
+    logger.error({ err: error, presetId }, 'Failed to open dashboard from browse');
     await interaction.editReply({
       content: '❌ Failed to load preset. Please try again.',
       embeds: [],

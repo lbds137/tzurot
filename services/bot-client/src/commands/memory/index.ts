@@ -96,7 +96,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
   } else if (subcommand === 'purge') {
     await handlePurge(context);
   } else {
-    logger.warn({ subcommandGroup, subcommand }, '[Memory] Unknown subcommand');
+    logger.warn({ subcommandGroup, subcommand }, 'Unknown subcommand');
   }
 }
 

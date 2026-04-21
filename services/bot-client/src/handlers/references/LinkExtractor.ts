@@ -60,7 +60,7 @@ export class LinkExtractor {
         // Skip if this exact message was already extracted (e.g., from reply)
         if (extractedMessageIds.has(referencedMessage.id)) {
           logger.debug(
-            `[LinkExtractor] Skipping duplicate link reference ${referencedMessage.id} - already extracted from reply`
+            `Skipping duplicate link reference ${referencedMessage.id} - already extracted from reply`
           );
           continue;
         }
@@ -74,7 +74,7 @@ export class LinkExtractor {
           )
         ) {
           logger.debug(
-            `[LinkExtractor] Skipping link reference ${referencedMessage.id} - already in conversation history`
+            `Skipping link reference ${referencedMessage.id} - already in conversation history`
           );
           continue;
         }
@@ -98,7 +98,7 @@ export class LinkExtractor {
                 snapshotContent: snapshot.content?.substring(0, 50),
                 referenceNumber: currentNumber - 1,
               },
-              '[LinkExtractor] Added snapshot from linked forward'
+              'Added snapshot from linked forward'
             );
           }
 
@@ -143,7 +143,7 @@ export class LinkExtractor {
               guildId: link.guildId,
               messageId: link.messageId,
             },
-            '[LinkExtractor] Guild not in cache, attempting fetch...'
+            'Guild not in cache, attempting fetch...'
           );
 
           guild = await invokingMessage.client.guilds.fetch(link.guildId);
@@ -153,7 +153,7 @@ export class LinkExtractor {
               guildId: link.guildId,
               guildName: guild.name,
             },
-            '[LinkExtractor] Successfully fetched guild'
+            'Successfully fetched guild'
           );
         } catch (fetchError) {
           logger.info(
@@ -162,7 +162,7 @@ export class LinkExtractor {
               messageId: link.messageId,
               err: fetchError,
             },
-            '[LinkExtractor] Guild not accessible for message link'
+            'Guild not accessible for message link'
           );
           return null;
         }
@@ -179,7 +179,7 @@ export class LinkExtractor {
               channelId: link.channelId,
               messageId: link.messageId,
             },
-            '[LinkExtractor] Channel not in cache, fetching...'
+            'Channel not in cache, fetching...'
           );
 
           channel = await invokingMessage.client.channels.fetch(link.channelId);
@@ -190,7 +190,7 @@ export class LinkExtractor {
               channelType: channel?.type,
               isThread: (channel?.isThread?.() ?? false) === true,
             },
-            '[LinkExtractor] Channel fetched successfully'
+            'Channel fetched successfully'
           );
         } catch (fetchError) {
           logger.warn(
@@ -199,7 +199,7 @@ export class LinkExtractor {
               channelId: link.channelId,
               messageId: link.messageId,
             },
-            '[LinkExtractor] Failed to fetch channel'
+            'Failed to fetch channel'
           );
           return null;
         }
@@ -236,7 +236,7 @@ export class LinkExtractor {
             guildId: link.guildId,
             invokerId: invokingMessage.author.id,
           },
-          '[LinkExtractor] Invoking user lacks access to source channel — skipping expansion'
+          'Invoking user lacks access to source channel — skipping expansion'
         );
         return null;
       }
@@ -251,7 +251,7 @@ export class LinkExtractor {
           channelId: link.channelId,
           author: fetchedMessage.author.username,
         },
-        '[LinkExtractor] Successfully fetched message from link'
+        'Successfully fetched message from link'
       );
 
       return fetchedMessage;
@@ -262,12 +262,10 @@ export class LinkExtractor {
 
       if (errorCode === 10008) {
         // Unknown Message - deleted or never existed (expected)
-        logger.debug(
-          `[LinkExtractor] Message ${link.messageId} not found (deleted or inaccessible)`
-        );
+        logger.debug(`Message ${link.messageId} not found (deleted or inaccessible)`);
       } else if (errorCode === 50001 || errorCode === 50013) {
         // Missing Access / Missing Permissions (expected)
-        logger.debug(`[LinkExtractor] No permission to access message ${link.messageId}`);
+        logger.debug(`No permission to access message ${link.messageId}`);
       } else {
         // Unexpected error - log at WARN level for investigation
         logger.warn(
@@ -277,7 +275,7 @@ export class LinkExtractor {
             guildId: link.guildId,
             channelId: link.channelId,
           },
-          '[LinkExtractor] Unexpected error fetching message from link'
+          'Unexpected error fetching message from link'
         );
       }
       return null;
@@ -424,7 +422,7 @@ export class LinkExtractor {
       // Catch-all: any unexpected error during permission checks fails closed.
       logger.warn(
         { err: error, invokerId: invokingMessage.author.id, channelId: channel.id },
-        '[LinkExtractor] Unexpected error during access check — failing closed'
+        'Unexpected error during access check — failing closed'
       );
       return false;
     }
@@ -450,7 +448,7 @@ export class LinkExtractor {
           author: message.author.username,
           reason: 'exact Discord ID match',
         },
-        '[LinkExtractor] Excluding reference - found in conversation history'
+        'Excluding reference - found in conversation history'
       );
       return false; // Exclude - already in conversation history
     }

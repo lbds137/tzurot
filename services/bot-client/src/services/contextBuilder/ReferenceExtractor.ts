@@ -44,7 +44,7 @@ interface ExtractReferencesOptions {
 /**
  * Extract referenced messages and resolve mentions.
  */
-// eslint-disable-next-line max-lines-per-function -- Cohesive extraction workflow with debug logging
+ 
 export async function extractReferencesAndMentions(
   opts: ExtractReferencesOptions
 ): Promise<ReferencesAndMentionsResult> {
@@ -100,7 +100,7 @@ export async function extractReferencesAndMentions(
   }
 
   // Extract referenced messages
-  logger.debug('[MessageContextBuilder] Extracting referenced messages with deduplication');
+  logger.debug('Extracting referenced messages with deduplication');
   const referenceExtractor = new MessageReferenceExtractor({
     prisma,
     maxReferences,
@@ -118,7 +118,7 @@ export async function extractReferencesAndMentions(
         count: referencedMessages.length,
         referenceNumbers: referencedMessages.map(r => r.referenceNumber),
       },
-      '[MessageContextBuilder] Extracted referenced messages (after deduplication)'
+      'Extracted referenced messages (after deduplication)'
     );
   }
 
@@ -145,10 +145,7 @@ export async function extractReferencesAndMentions(
       personaId: u.personaId,
       personaName: u.personaName,
     }));
-    logger.debug(
-      { mentionedCount: mentionedPersonas.length },
-      '[MessageContextBuilder] Resolved user mentions'
-    );
+    logger.debug({ mentionedCount: mentionedPersonas.length }, 'Resolved user mentions');
   }
 
   if (mentionResult.mentionedChannels.length > 0) {
@@ -160,7 +157,7 @@ export async function extractReferencesAndMentions(
     }));
     logger.debug(
       { channelCount: referencedChannels.length },
-      '[MessageContextBuilder] Resolved channel mentions for LTM scoping'
+      'Resolved channel mentions for LTM scoping'
     );
   }
 

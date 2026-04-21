@@ -28,7 +28,7 @@ export async function handleTimezoneGet(context: DeferredCommandContext): Promis
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status }, '[Timezone] Failed to get timezone');
+      logger.warn({ userId, status: result.status }, 'Failed to get timezone');
       await context.editReply({ content: '❌ Failed to get timezone. Please try again later.' });
       return;
     }
@@ -54,7 +54,7 @@ export async function handleTimezoneGet(context: DeferredCommandContext): Promis
 
     await context.editReply({ embeds: [embed] });
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Timezone Get' }, '[Timezone Get] Error');
+    logger.error({ err: error, userId, command: 'Timezone Get' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

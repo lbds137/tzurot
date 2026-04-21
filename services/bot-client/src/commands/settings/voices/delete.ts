@@ -54,9 +54,9 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, voiceId, slug: result.data.slug }, '[Voices Delete] Deleted voice');
+    logger.info({ userId, voiceId, slug: result.data.slug }, 'Deleted voice');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Voices Delete] Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
@@ -99,7 +99,7 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
 
     await interaction.respond(choices);
   } catch (error) {
-    logger.error({ err: error, userId }, '[Voices Autocomplete] Error');
+    logger.error({ err: error, userId }, 'Error');
     await interaction.respond([]);
   }
 }

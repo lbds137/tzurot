@@ -72,12 +72,12 @@ export async function getCachedPersonalities(user: GatewayUser): Promise<Persona
   // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
   if (cached?.personalities !== undefined) {
-    logger.debug({ userId }, '[AutocompleteCache] Personality cache hit');
+    logger.debug({ userId }, 'Personality cache hit');
     return cached.personalities;
   }
 
   // Cache miss - fetch from gateway
-  logger.debug({ userId }, '[AutocompleteCache] Personality cache miss, fetching');
+  logger.debug({ userId }, 'Personality cache miss, fetching');
 
   try {
     const result = await callGatewayApi<{ personalities: PersonalitySummary[] }>(
@@ -86,10 +86,7 @@ export async function getCachedPersonalities(user: GatewayUser): Promise<Persona
     );
 
     if (!result.ok) {
-      logger.warn(
-        { userId, error: result.error },
-        '[AutocompleteCache] Failed to fetch personalities'
-      );
+      logger.warn({ userId, error: result.error }, 'Failed to fetch personalities');
       return [];
     }
 
@@ -103,14 +100,11 @@ export async function getCachedPersonalities(user: GatewayUser): Promise<Persona
     };
 
     userCache.set(userId, newData);
-    logger.debug(
-      { userId, count: result.data.personalities.length },
-      '[AutocompleteCache] Cached personalities'
-    );
+    logger.debug({ userId, count: result.data.personalities.length }, 'Cached personalities');
 
     return result.data.personalities;
   } catch (error) {
-    logger.error({ err: error, userId }, '[AutocompleteCache] Error fetching personalities');
+    logger.error({ err: error, userId }, 'Error fetching personalities');
     return [];
   }
 }
@@ -126,12 +120,12 @@ export async function getCachedPersonas(user: GatewayUser): Promise<PersonaSumma
   // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
   if (cached?.personas !== undefined) {
-    logger.debug({ userId }, '[AutocompleteCache] Persona cache hit');
+    logger.debug({ userId }, 'Persona cache hit');
     return cached.personas;
   }
 
   // Cache miss - fetch from gateway
-  logger.debug({ userId }, '[AutocompleteCache] Persona cache miss, fetching');
+  logger.debug({ userId }, 'Persona cache miss, fetching');
 
   try {
     const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
@@ -139,7 +133,7 @@ export async function getCachedPersonas(user: GatewayUser): Promise<PersonaSumma
     });
 
     if (!result.ok) {
-      logger.warn({ userId, error: result.error }, '[AutocompleteCache] Failed to fetch personas');
+      logger.warn({ userId, error: result.error }, 'Failed to fetch personas');
       return [];
     }
 
@@ -153,14 +147,11 @@ export async function getCachedPersonas(user: GatewayUser): Promise<PersonaSumma
     };
 
     userCache.set(userId, newData);
-    logger.debug(
-      { userId, count: result.data.personas.length },
-      '[AutocompleteCache] Cached personas'
-    );
+    logger.debug({ userId, count: result.data.personas.length }, 'Cached personas');
 
     return result.data.personas;
   } catch (error) {
-    logger.error({ err: error, userId }, '[AutocompleteCache] Error fetching personas');
+    logger.error({ err: error, userId }, 'Error fetching personas');
     return [];
   }
 }
@@ -176,12 +167,12 @@ export async function getCachedShapes(user: GatewayUser): Promise<ShapesSummary[
   // Check cache first - undefined means "not fetched yet"
   const cached = userCache.get(userId);
   if (cached?.shapes !== undefined) {
-    logger.debug({ userId }, '[AutocompleteCache] Shapes cache hit');
+    logger.debug({ userId }, 'Shapes cache hit');
     return cached.shapes;
   }
 
   // Cache miss - fetch from gateway
-  logger.debug({ userId }, '[AutocompleteCache] Shapes cache miss, fetching');
+  logger.debug({ userId }, 'Shapes cache miss, fetching');
 
   try {
     const result = await callGatewayApi<{ shapes: ShapesSummary[] }>('/user/shapes/list', {
@@ -190,7 +181,7 @@ export async function getCachedShapes(user: GatewayUser): Promise<ShapesSummary[
     });
 
     if (!result.ok) {
-      logger.warn({ userId, error: result.error }, '[AutocompleteCache] Failed to fetch shapes');
+      logger.warn({ userId, error: result.error }, 'Failed to fetch shapes');
       return [];
     }
 
@@ -204,11 +195,11 @@ export async function getCachedShapes(user: GatewayUser): Promise<ShapesSummary[
     };
 
     userCache.set(userId, newData);
-    logger.debug({ userId, count: result.data.shapes.length }, '[AutocompleteCache] Cached shapes');
+    logger.debug({ userId, count: result.data.shapes.length }, 'Cached shapes');
 
     return result.data.shapes;
   } catch (error) {
-    logger.error({ err: error, userId }, '[AutocompleteCache] Error fetching shapes');
+    logger.error({ err: error, userId }, 'Error fetching shapes');
     return [];
   }
 }
@@ -221,7 +212,7 @@ export async function getCachedShapes(user: GatewayUser): Promise<ShapesSummary[
  */
 export function invalidateUserCache(userId: string): void {
   userCache.delete(userId);
-  logger.debug({ userId }, '[AutocompleteCache] Invalidated user cache');
+  logger.debug({ userId }, 'Invalidated user cache');
 }
 
 /**

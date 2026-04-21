@@ -652,7 +652,7 @@ describe('DMSessionProcessor', () => {
       const result = await processor.process(message);
 
       expect(result).toBe(true); // Consumed message
-      expect(sendNsfwVerificationMessage).toHaveBeenCalledWith(message, 'DMSessionProcessor');
+      expect(sendNsfwVerificationMessage).toHaveBeenCalledWith(message);
       // Should NOT check for active session or send help message
       expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
     });
@@ -733,7 +733,7 @@ describe('DMSessionProcessor', () => {
 
       // Even though there's an active personality, should block for verification
       expect(result).toBe(true);
-      expect(sendNsfwVerificationMessage).toHaveBeenCalledWith(message, 'DMSessionProcessor');
+      expect(sendNsfwVerificationMessage).toHaveBeenCalledWith(message);
       expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
     });
   });

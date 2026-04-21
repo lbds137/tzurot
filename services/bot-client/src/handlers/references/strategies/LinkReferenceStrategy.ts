@@ -35,7 +35,7 @@ export class LinkReferenceStrategy implements IReferenceStrategy {
         messageId: message.id,
         linkCount: links.length,
       },
-      '[LinkReferenceStrategy] Found message links'
+      'Found message links'
     );
 
     // Convert parsed links to reference results

@@ -88,7 +88,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         command: interaction.commandName,
         subcommand: interaction.options.getSubcommand(false),
       },
-      '[Preset] Autocomplete error'
+      'Autocomplete error'
     );
     await interaction.respond([]);
   }
@@ -163,7 +163,7 @@ async function handlePresetAutocomplete(
   });
 
   if (!result.ok) {
-    logger.warn({ userId, error: result.error }, '[Preset] Failed to fetch presets');
+    logger.warn({ userId, error: result.error }, 'Failed to fetch presets');
     await interaction.respond([]);
     return;
   }
@@ -232,7 +232,7 @@ async function fetchGlobalConfigs(): Promise<GlobalConfigEntry[] | null> {
   // Check cache first
   const cached = cache.get(GLOBAL_CONFIG_CACHE_KEY);
   if (cached !== null) {
-    logger.debug('[Preset] Using cached global configs');
+    logger.debug('Using cached global configs');
     return cached;
   }
 
@@ -247,7 +247,7 @@ async function fetchGlobalConfigs(): Promise<GlobalConfigEntry[] | null> {
 
   // Store in cache
   cache.set(GLOBAL_CONFIG_CACHE_KEY, data.configs);
-  logger.debug(`[Preset] Cached ${data.configs.length} global configs`);
+  logger.debug(`Cached ${data.configs.length} global configs`);
 
   return data.configs;
 }

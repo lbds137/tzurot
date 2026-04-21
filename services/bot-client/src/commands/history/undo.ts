@@ -52,7 +52,7 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
       } else {
         errorMessage = 'Failed to undo. Please try again later.';
       }
-      logger.warn({ userId, personalitySlug, status: result.status }, '[History] Undo failed');
+      logger.warn({ userId, personalitySlug, status: result.status }, 'Undo failed');
       await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
@@ -70,10 +70,10 @@ export async function handleUndo(context: DeferredCommandContext): Promise<void>
 
     logger.info(
       { userId, personalitySlug, restoredEpoch: data.restoredEpoch },
-      '[History] Context restored successfully'
+      'Context restored successfully'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'History Undo' }, '[History Undo] Error');
+    logger.error({ err: error, userId, command: 'History Undo' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

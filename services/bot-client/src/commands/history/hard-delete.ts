@@ -58,15 +58,9 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
       components: warning.components,
     });
 
-    logger.info(
-      { userId, personalitySlug, channelId },
-      '[History] Showing hard-delete confirmation'
-    );
+    logger.info({ userId, personalitySlug, channelId }, 'Showing hard-delete confirmation');
   } catch (error) {
-    logger.error(
-      { err: error, userId, command: 'History Hard-Delete' },
-      '[History Hard-Delete] Error'
-    );
+    logger.error({ err: error, userId, command: 'History Hard-Delete' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

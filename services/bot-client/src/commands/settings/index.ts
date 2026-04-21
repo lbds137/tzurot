@@ -152,7 +152,7 @@ async function execute(context: SafeCommandContext): Promise<void> {
   } else if (group === 'voices') {
     await voicesRouter(context as DeferredCommandContext);
   } else {
-    logger.warn({ group }, '[Settings] Unknown subcommand group');
+    logger.warn({ group }, 'Unknown subcommand group');
     await (context as DeferredCommandContext).editReply({
       content: '❌ Unknown settings group.',
     });
@@ -184,7 +184,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     }
   }
 
-  logger.warn({ customId: interaction.customId }, '[Settings] Unknown modal customId');
+  logger.warn({ customId: interaction.customId }, 'Unknown modal customId');
 }
 
 /**
@@ -211,7 +211,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     }
   }
 
-  logger.warn({ customId: interaction.customId }, '[Settings] Unknown button customId');
+  logger.warn({ customId: interaction.customId }, 'Unknown button customId');
 }
 
 /**
@@ -223,7 +223,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     return;
   }
 
-  logger.warn({ customId: interaction.customId }, '[Settings] Unknown select menu customId');
+  logger.warn({ customId: interaction.customId }, 'Unknown select menu customId');
 }
 
 /**

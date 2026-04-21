@@ -76,7 +76,7 @@ export class DiscordChannelFetcher {
         limit,
         before: options.before,
       },
-      '[DiscordChannelFetcher] Fetching channel messages'
+      'Fetching channel messages'
     );
 
     try {
@@ -108,7 +108,7 @@ export class DiscordChannelFetcher {
               skippedCount: linkResult.skippedCount,
               trimmedCount: linkResult.trimmedCount,
             },
-            '[DiscordChannelFetcher] History links resolved'
+            'History links resolved'
           );
         }
 
@@ -136,7 +136,7 @@ export class DiscordChannelFetcher {
           extendedContextUserCount: userCount,
           reactorUserCount: reactorCount,
         },
-        '[DiscordChannelFetcher] Fetched and processed channel messages'
+        'Fetched and processed channel messages'
       );
 
       return {
@@ -156,7 +156,7 @@ export class DiscordChannelFetcher {
           channelId: channel.id,
           error: error instanceof Error ? error.message : String(error),
         },
-        '[DiscordChannelFetcher] Failed to fetch channel messages'
+        'Failed to fetch channel messages'
       );
 
       // Return empty result on error (graceful degradation)
@@ -203,7 +203,7 @@ export class DiscordChannelFetcher {
     if (botTranscriptFallback.size > 0) {
       logger.debug(
         { count: botTranscriptFallback.size },
-        '[DiscordChannelFetcher] Built bot transcript fallback map for voice messages'
+        'Built bot transcript fallback map for voice messages'
       );
     }
 
@@ -222,7 +222,7 @@ export class DiscordChannelFetcher {
       if (fallbackTranscript !== undefined) {
         logger.info(
           { messageId: discordMessageId },
-          '[DiscordChannelFetcher] Using bot reply fallback for voice transcript (DB lookup failed)'
+          'Using bot reply fallback for voice transcript (DB lookup failed)'
         );
         return fallbackTranscript;
       }

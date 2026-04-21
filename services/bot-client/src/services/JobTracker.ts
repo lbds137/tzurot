@@ -87,7 +87,7 @@ export class JobTracker {
   trackJob(jobId: string, channel: TypingChannel, context: PendingJobContext): void {
     // Clear any existing tracking for this jobId (shouldn't happen, but be safe)
     if (this.activeJobs.has(jobId)) {
-      logger.warn({ jobId }, '[JobTracker] Job already tracked - clearing old tracker');
+      logger.warn({ jobId }, 'Job already tracked - clearing old tracker');
       this.completeJob(jobId);
     }
 
@@ -126,15 +126,12 @@ export class JobTracker {
               void notification.delete().catch(deleteErr => {
                 logger.debug(
                   { err: deleteErr, jobId },
-                  '[JobTracker] Delete of orphaned taking-longer notification failed'
+                  'Delete of orphaned taking-longer notification failed'
                 );
               });
             }
           } catch (err) {
-            logger.error(
-              { err, jobId },
-              '[JobTracker] Failed to send taking-longer notification to user'
-            );
+            logger.error({ err, jobId }, 'Failed to send taking-longer notification to user');
           }
         }
 
@@ -143,7 +140,7 @@ export class JobTracker {
         if (age > TYPING_INDICATOR_TIMEOUT_MS) {
           logger.warn(
             { jobId, ageMs: age },
-            '[JobTracker] Job exceeded typing timeout - stopping indicator but keeping job tracked'
+            'Job exceeded typing timeout - stopping indicator but keeping job tracked'
           );
           // Clear the typing interval to avoid rate limits, but DON'T remove the job
           // The job context must remain so we can deliver the result when it arrives
@@ -156,9 +153,9 @@ export class JobTracker {
 
         try {
           await channel.sendTyping();
-          logger.debug({ jobId }, '[JobTracker] Sent typing indicator');
+          logger.debug({ jobId }, 'Sent typing indicator');
         } catch (error) {
-          logger.error({ err: error, jobId }, '[JobTracker] Failed to send typing indicator');
+          logger.error({ err: error, jobId }, 'Failed to send typing indicator');
           // Don't clear interval - channel might be temporarily unavailable
         }
       })();
@@ -166,7 +163,7 @@ export class JobTracker {
 
     // Send initial typing indicator immediately
     channel.sendTyping().catch(error => {
-      logger.error({ err: error, jobId }, '[JobTracker] Failed to send initial typing indicator');
+      logger.error({ err: error, jobId }, 'Failed to send initial typing indicator');
     });
 
     this.activeJobs.set(jobId, {
@@ -186,7 +183,7 @@ export class JobTracker {
       this.orderingService.registerJob(channel.id, jobId, context.userMessageTime);
     }
 
-    logger.info({ jobId, channelId: channel.id }, '[JobTracker] Started tracking job with context');
+    logger.info({ jobId, channelId: channel.id }, 'Started tracking job with context');
   }
 
   /**
@@ -197,7 +194,7 @@ export class JobTracker {
     const tracked = this.activeJobs.get(jobId);
 
     if (!tracked) {
-      logger.warn({ jobId }, '[JobTracker] Attempted to complete untracked job');
+      logger.warn({ jobId }, 'Attempted to complete untracked job');
       return null;
     }
 
@@ -217,14 +214,14 @@ export class JobTracker {
     // limited) and neither should throw out of completeJob.
     if (tracked.takingLongerMessage) {
       void tracked.takingLongerMessage.delete().catch(err => {
-        logger.debug({ err, jobId }, '[JobTracker] Delete of taking-longer notification failed');
+        logger.debug({ err, jobId }, 'Delete of taking-longer notification failed');
       });
     }
 
     const waitTime = Date.now() - tracked.startTime;
     logger.info(
       { jobId, channelId: tracked.channelId, waitTimeMs: waitTime },
-      `[JobTracker] Completed job after ${Math.round(waitTime / 1000)}s`
+      `Completed job after ${Math.round(waitTime / 1000)}s`
     );
 
     this.activeJobs.delete(jobId);
@@ -274,7 +271,7 @@ export class JobTracker {
    * Cleanup on shutdown
    */
   cleanup(): void {
-    logger.info({ activeJobs: this.activeJobs.size }, '[JobTracker] Cleaning up tracked jobs');
+    logger.info({ activeJobs: this.activeJobs.size }, 'Cleaning up tracked jobs');
 
     for (const job of this.activeJobs.values()) {
       clearInterval(job.typingInterval);
@@ -309,7 +306,7 @@ export class JobTracker {
       if (this.activeJobs.has(jobId)) {
         logger.warn(
           { jobId, ageMs: Date.now() - startTime },
-          '[JobTracker] Orphan sweep — job never completed past grace period, releasing tracker'
+          'Orphan sweep — job never completed past grace period, releasing tracker'
         );
         this.completeJob(jobId);
       }

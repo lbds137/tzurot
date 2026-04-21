@@ -127,7 +127,7 @@ async function pollAndSendResponse(
 
     logger.info(
       { jobId, characterSlug, isWeighInMode, responseCount: responseMessageIds.length },
-      '[Character Chat] Response sent successfully'
+      'Response sent successfully'
     );
     return { success: true, responseMessageIds, content: result.content };
   } finally {
@@ -243,7 +243,7 @@ async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise
       timestamp,
     })
     .catch(err => {
-      logger.warn({ err, messageId: userMsg.id }, '[Character Chat] Failed to save user message');
+      logger.warn({ err, messageId: userMsg.id }, 'Failed to save user message');
     });
 
   return userMsg;
@@ -281,7 +281,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
   } = params;
 
   const { jobId, requestId } = await getGatewayClient().generate(personality, context);
-  logger.info({ jobId, requestId, characterSlug, isWeighInMode }, '[Character Chat] Job submitted');
+  logger.info({ jobId, requestId, characterSlug, isWeighInMode }, 'Job submitted');
 
   const pollResult = await pollAndSendResponse(
     jobId,
@@ -297,10 +297,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
     void getGatewayClient()
       .updateDiagnosticResponseIds(requestId, pollResult.responseMessageIds)
       .catch(err => {
-        logger.warn(
-          { err, requestId },
-          '[Character Chat] Failed to update diagnostic response IDs'
-        );
+        logger.warn({ err, requestId }, 'Failed to update diagnostic response IDs');
       });
   }
 
@@ -317,7 +314,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
         userMessageTime,
       })
       .catch(err => {
-        logger.warn({ err, jobId }, '[Character Chat] Failed to save assistant message');
+        logger.warn({ err, jobId }, 'Failed to save assistant message');
       });
   }
 }
@@ -410,7 +407,7 @@ export async function handleChat(
 
   logger.info(
     { characterSlug, userId, messageLength: message?.length ?? 0, isWeighInMode },
-    '[Character Chat] Processing chat request'
+    'Processing chat request'
   );
 
   try {
@@ -511,7 +508,7 @@ export async function handleChat(
       userMessageTime,
     });
   } catch (error) {
-    logger.error({ err: error, characterSlug }, '[Character Chat] Error processing chat');
+    logger.error({ err: error, characterSlug }, 'Error processing chat');
     await handleChatError(context);
   }
 }

@@ -160,10 +160,7 @@ export async function batchResolvePersonas(
 
   for (const result of resolutionResults) {
     if (result.status === 'rejected') {
-      logger.warn(
-        { error: result.reason },
-        '[ExtendedContextPersonaResolver] Failed to resolve persona'
-      );
+      logger.warn({ error: result.reason }, 'Failed to resolve persona');
       continue;
     }
     const { discordId, resolved } = result.value;
@@ -384,7 +381,7 @@ export async function resolveExtendedContextPersonaIds(
   if (total > 0 || strippedMessageCount > 0 || strippedReactorCount > 0) {
     logger.debug(
       { messageCount, reactorCount, total, strippedMessageCount, strippedReactorCount },
-      '[ExtendedContextPersonaResolver] Resolved/stripped personaIds'
+      'Resolved/stripped personaIds'
     );
   }
 

@@ -207,7 +207,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     });
 
     if (!result.ok) {
-      logger.warn({ userId, error: result.error }, '[Persona] Failed to fetch personas');
+      logger.warn({ userId, error: result.error }, 'Failed to fetch personas');
       await context.editReply({
         content: '❌ Failed to load your personas. Please try again later.',
       });
@@ -219,9 +219,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
     await context.editReply({ embeds: [embed], components });
 
-    logger.info({ userId, count: result.data.personas.length }, '[Persona] Browse personas');
+    logger.info({ userId, count: result.data.personas.length }, 'Browse personas');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Persona] Failed to browse personas');
+    logger.error({ err: error, userId }, 'Failed to browse personas');
     await context.editReply('❌ Failed to load personas. Please try again.');
   }
 }
@@ -249,20 +249,14 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     });
 
     if (!result.ok) {
-      logger.warn(
-        { userId, error: result.error },
-        '[Persona] Failed to fetch personas for pagination'
-      );
+      logger.warn({ userId, error: result.error }, 'Failed to fetch personas for pagination');
       return;
     }
 
     const { embed, components } = buildBrowsePage(result.data.personas, page, sort);
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
-    logger.error(
-      { err: error, userId: interaction.user.id },
-      '[Persona] Failed to load browse page'
-    );
+    logger.error({ err: error, userId: interaction.user.id }, 'Failed to load browse page');
     // Keep existing content on error
   }
 }
@@ -328,12 +322,9 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
       channelId: interaction.channelId,
     });
 
-    logger.info(
-      { userId, personaId, name: persona.name },
-      '[Persona] Opened dashboard from browse'
-    );
+    logger.info({ userId, personaId, name: persona.name }, 'Opened dashboard from browse');
   } catch (error) {
-    logger.error({ err: error, personaId }, '[Persona] Failed to open dashboard from browse');
+    logger.error({ err: error, personaId }, 'Failed to open dashboard from browse');
     await interaction.editReply({
       content: '❌ Failed to load persona. Please try again.',
       embeds: [],
@@ -373,7 +364,7 @@ export async function buildBrowseResponse(
   if (!result.ok) {
     logger.warn(
       { userId: user.discordId, error: result.error },
-      '[Persona] Failed to fetch personas for back navigation'
+      'Failed to fetch personas for back navigation'
     );
     return null;
   }

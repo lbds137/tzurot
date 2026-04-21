@@ -107,7 +107,7 @@ export async function resolveHistoryLinks(
       if (contextMessageIds.has(link.messageId)) {
         logger.debug(
           { messageId: link.messageId, sourceId: msg.id },
-          '[HistoryLinkResolver] Skipping link - target already in context'
+          'Skipping link - target already in context'
         );
         continue;
       }
@@ -116,7 +116,7 @@ export async function resolveHistoryLinks(
   }
 
   if (linksToResolve.length === 0) {
-    logger.debug('[HistoryLinkResolver] No links to resolve');
+    logger.debug('No links to resolve');
     return {
       messages,
       resolvedCount: 0,
@@ -129,7 +129,7 @@ export async function resolveHistoryLinks(
 
   logger.info(
     { linkCount: linksToResolve.length, messageCount: messages.length },
-    '[HistoryLinkResolver] Found links to resolve'
+    'Found links to resolve'
   );
 
   // Deduplicate links (same target message from different sources)
@@ -150,7 +150,7 @@ export async function resolveHistoryLinks(
         budget,
         currentCount: messages.length,
       },
-      '[HistoryLinkResolver] Limiting links due to budget'
+      'Limiting links due to budget'
     );
   }
 
@@ -188,7 +188,7 @@ export async function resolveHistoryLinks(
       trimmedCount,
       finalCount: finalMessages.length,
     },
-    '[HistoryLinkResolver] Link resolution complete'
+    'Link resolution complete'
   );
 
   return {
@@ -253,7 +253,7 @@ async function resolveLinksWithConcurrency(
         } catch (error) {
           logger.debug(
             { messageId: link.messageId, error: (error as Error).message },
-            '[HistoryLinkResolver] Failed to resolve link'
+            'Failed to resolve link'
           );
         }
         return null;
@@ -292,17 +292,14 @@ async function fetchAndFormatMessage(
 
     if (guild === undefined) {
       // Not in cache - bot might not have access
-      logger.debug({ guildId: link.guildId }, '[HistoryLinkResolver] Guild not accessible');
+      logger.debug({ guildId: link.guildId }, 'Guild not accessible');
       return null;
     }
 
     // Get channel
     const channel = guild.channels.cache.get(link.channelId);
     if (channel === undefined || !('messages' in channel)) {
-      logger.debug(
-        { channelId: link.channelId },
-        '[HistoryLinkResolver] Channel not accessible or not text-based'
-      );
+      logger.debug({ channelId: link.channelId }, 'Channel not accessible or not text-based');
       return null;
     }
 
@@ -340,7 +337,7 @@ async function fetchAndFormatMessage(
   } catch (error) {
     logger.debug(
       { messageId: link.messageId, error: (error as Error).message },
-      '[HistoryLinkResolver] Failed to fetch message'
+      'Failed to fetch message'
     );
     return null;
   }

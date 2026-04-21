@@ -62,7 +62,7 @@ export async function handleUnlockModelsUpsell(
     .setTimestamp();
 
   await context.editReply({ embeds: [embed] });
-  logger.info({ userId }, '[Me/Preset] User clicked unlock models upsell');
+  logger.info({ userId }, 'User clicked unlock models upsell');
   return true;
 }
 
@@ -94,21 +94,19 @@ export async function checkGuestModePremiumAccess(
   configId: string,
   user: GatewayUser
 ): Promise<GuestModeCheckOutcome> {
-  const [walletResult, configsResult] = await Promise.all([
-    callGatewayApi<WalletListResponse>('/wallet/list', {
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }),
-    callGatewayApi<ConfigListResponse>('/user/llm-config', {
-      user,
-      timeout: GATEWAY_TIMEOUTS.DEFERRED,
-    }),
-  ]);
+  // Serial fetch: paid users (the common path) return early after only the
+  // wallet check. The configs endpoint is only needed on the guest-mode
+  // branch to decide free-vs-premium, so fetching it upfront in parallel
+  // wasted a gateway round-trip per paid-user interaction.
+  const walletResult = await callGatewayApi<WalletListResponse>('/wallet/list', {
+    user,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
+  });
 
   if (!walletResult.ok) {
     logger.warn(
       { userId: user.discordId, configId, error: walletResult.error },
-      '[Me/Preset] Wallet check failed — failing open, ai-worker will enforce'
+      'Wallet check failed — failing open, ai-worker will enforce'
     );
     return { blocked: false, reason: 'check-failed' };
   }
@@ -119,14 +117,20 @@ export async function checkGuestModePremiumAccess(
     return { blocked: false, reason: 'paid' };
   }
 
-  // Guest mode path: we need the config list to decide whether the selected
-  // config is free or premium. A transient configs-endpoint failure leaves us
-  // unable to decide — fail-open with an accurate `check-failed` reason
-  // rather than mislabeling the outcome as `guest-free-model`.
+  // Guest mode path: fetch the config list lazily now that we've confirmed
+  // we actually need it. A transient configs-endpoint failure leaves us
+  // unable to decide free-vs-premium — fail-open with an accurate
+  // `check-failed` reason rather than mislabeling the outcome as
+  // `guest-free-model`.
+  const configsResult = await callGatewayApi<ConfigListResponse>('/user/llm-config', {
+    user,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
+  });
+
   if (!configsResult.ok) {
     logger.warn(
       { userId: user.discordId, configId, error: configsResult.error },
-      '[Me/Preset] Config list check failed — failing open, ai-worker will enforce'
+      'Config list check failed — failing open, ai-worker will enforce'
     );
     return { blocked: false, reason: 'check-failed' };
   }
@@ -147,7 +151,7 @@ export async function checkGuestModePremiumAccess(
     await context.editReply({ embeds: [embed] });
     logger.info(
       { userId: user.discordId, configId, configName: selectedConfig.name },
-      '[Me/Preset] Guest mode user tried to select premium model'
+      'Guest mode user tried to select premium model'
     );
     return { blocked: true, reason: 'guest-premium' };
   }

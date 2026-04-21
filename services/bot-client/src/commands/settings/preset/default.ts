@@ -49,7 +49,7 @@ export async function handleDefault(context: DeferredCommandContext): Promise<vo
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, configId }, '[Me/Preset] Failed to set default');
+      logger.warn({ userId, status: result.status, configId }, 'Failed to set default');
       await context.editReply({ content: `❌ Failed to set default: ${result.error}` });
       return;
     }
@@ -70,10 +70,10 @@ export async function handleDefault(context: DeferredCommandContext): Promise<vo
 
     logger.info(
       { userId, configId, configName: data.default.configName, reason },
-      '[Me/Preset] Set default config'
+      'Set default config'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset Default' }, '[Preset Default] Error');
+    logger.error({ err: error, userId, command: 'Preset Default' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

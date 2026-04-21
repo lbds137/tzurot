@@ -190,7 +190,7 @@ export async function fetchEntries(userId: string): Promise<DenylistEntryRespons
     const data = (await response.json()) as { entries: DenylistEntryResponse[] };
     return data.entries;
   } catch (error) {
-    logger.error({ err: error }, '[Deny] Failed to fetch denylist entries');
+    logger.error({ err: error }, 'Failed to fetch denylist entries');
     return null;
   }
 }

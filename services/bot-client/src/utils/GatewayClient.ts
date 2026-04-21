@@ -47,7 +47,7 @@ const adminSettingsCache = new TTLCache<GetAdminSettingsResponse>({
  */
 export function invalidateChannelSettingsCache(channelId: string): void {
   channelSettingsCache.delete(channelId);
-  logger.debug({ channelId }, '[GatewayClient] Invalidated channel settings cache');
+  logger.debug({ channelId }, 'Invalidated channel settings cache');
 }
 
 /**
@@ -75,7 +75,7 @@ export class GatewayClient {
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl ?? config.GATEWAY_URL;
 
-    logger.info(`[GatewayClient] Initialized with base URL: ${this.baseUrl}`);
+    logger.info(`Initialized with base URL: ${this.baseUrl}`);
   }
 
   /**
@@ -97,7 +97,7 @@ export class GatewayClient {
           count: context.referencedMessages?.length ?? 0,
           contextKeys: Object.keys(context),
         },
-        '[GatewayClient] Sending context'
+        'Sending context'
       );
 
       // ASYNC PATTERN: Don't use wait=true, get job ID immediately
@@ -127,11 +127,11 @@ export class GatewayClient {
       // Response contains job ID (202 Accepted)
       const data = (await response.json()) as { jobId: string; requestId: string; status: string };
 
-      logger.info({ jobId: data.jobId }, '[GatewayClient] Job submitted successfully');
+      logger.info({ jobId: data.jobId }, 'Job submitted successfully');
 
       return { jobId: data.jobId, requestId: data.requestId };
     } catch (error) {
-      logger.error({ err: error }, '[GatewayClient] Failed to submit job');
+      logger.error({ err: error }, 'Failed to submit job');
       throw error;
     }
   }
@@ -189,14 +189,14 @@ export class GatewayClient {
         throw new Error('No transcript in job result');
       }
 
-      logger.info(`[GatewayClient] Transcription completed: ${data.jobId}`);
+      logger.info(`Transcription completed: ${data.jobId}`);
 
       return {
         content: data.result.content,
         metadata: data.result.metadata,
       };
     } catch (error) {
-      logger.error({ err: error }, '[GatewayClient] Transcription failed');
+      logger.error({ err: error }, 'Transcription failed');
       throw error;
     }
   }
@@ -221,9 +221,9 @@ export class GatewayClient {
         throw new Error(`Delivery confirmation failed: ${response.status} ${errorText}`);
       }
 
-      logger.debug({ jobId }, '[GatewayClient] Delivery confirmed');
+      logger.debug({ jobId }, 'Delivery confirmed');
     } catch (error) {
-      logger.error({ err: error, jobId }, '[GatewayClient] Failed to confirm delivery');
+      logger.error({ err: error, jobId }, 'Failed to confirm delivery');
       // Don't throw - delivery confirmation is best-effort
       // The cleanup job will eventually remove unconfirmed results
     }
@@ -248,7 +248,7 @@ export class GatewayClient {
     const pollIntervalMs = options.pollIntervalMs ?? INTERVALS.JOB_POLL_INTERVAL;
     const startTime = Date.now();
 
-    logger.info({ jobId, maxWaitMs, pollIntervalMs }, '[GatewayClient] Starting job poll');
+    logger.info({ jobId, maxWaitMs, pollIntervalMs }, 'Starting job poll');
 
     while (Date.now() - startTime < maxWaitMs) {
       try {
@@ -268,10 +268,10 @@ export class GatewayClient {
           result?: GenerateResponse['result'];
         };
 
-        logger.debug({ jobId, status: data.status }, '[GatewayClient] Job status check');
+        logger.debug({ jobId, status: data.status }, 'Job status check');
 
         if (data.status === 'completed') {
-          logger.info({ jobId }, '[GatewayClient] Job completed');
+          logger.info({ jobId }, 'Job completed');
           return data.result;
         }
 
@@ -288,7 +288,7 @@ export class GatewayClient {
           throw error;
         }
         // On network error, wait and retry
-        logger.warn({ err: error, jobId }, '[GatewayClient] Poll request failed, retrying');
+        logger.warn({ err: error, jobId }, 'Poll request failed, retrying');
         await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
       }
     }
@@ -313,7 +313,7 @@ export class GatewayClient {
     // Check cache first
     const cached = channelSettingsCache.get(channelId);
     if (cached !== null) {
-      logger.debug({ channelId }, '[GatewayClient] Channel settings cache hit');
+      logger.debug({ channelId }, 'Channel settings cache hit');
       return cached;
     }
 
@@ -327,10 +327,7 @@ export class GatewayClient {
       });
 
       if (!response.ok) {
-        logger.warn(
-          { channelId, status: response.status },
-          '[GatewayClient] Channel settings check failed'
-        );
+        logger.warn({ channelId, status: response.status }, 'Channel settings check failed');
         return null;
       }
 
@@ -338,14 +335,11 @@ export class GatewayClient {
 
       // Cache the result (including "no settings" responses)
       channelSettingsCache.set(channelId, data);
-      logger.debug(
-        { channelId, hasSettings: data.hasSettings },
-        '[GatewayClient] Cached channel settings'
-      );
+      logger.debug({ channelId, hasSettings: data.hasSettings }, 'Cached channel settings');
 
       return data;
     } catch (error) {
-      logger.error({ err: error, channelId }, '[GatewayClient] Channel settings check error');
+      logger.error({ err: error, channelId }, 'Channel settings check error');
       return null;
     }
   }
@@ -378,7 +372,7 @@ export class GatewayClient {
 
       return (await response.json()) as DenylistCacheResponse;
     } catch (error) {
-      logger.error({ err: error }, '[GatewayClient] Failed to fetch denylist entries');
+      logger.error({ err: error }, 'Failed to fetch denylist entries');
       throw error;
     }
   }
@@ -391,7 +385,7 @@ export class GatewayClient {
       const response = await fetch(`${this.baseUrl}/health`);
       return response.ok;
     } catch (error) {
-      logger.error({ err: error }, '[GatewayClient] Health check failed');
+      logger.error({ err: error }, 'Health check failed');
       return false;
     }
   }
@@ -411,7 +405,7 @@ export class GatewayClient {
     // Check cache first
     const cached = adminSettingsCache.get(GatewayClient.ADMIN_SETTINGS_CACHE_KEY);
     if (cached !== null) {
-      logger.debug('[GatewayClient] Admin settings cache hit');
+      logger.debug('Admin settings cache hit');
       return cached;
     }
 
@@ -424,7 +418,7 @@ export class GatewayClient {
       });
 
       if (!response.ok) {
-        logger.warn({ status: response.status }, '[GatewayClient] Admin settings fetch failed');
+        logger.warn({ status: response.status }, 'Admin settings fetch failed');
         return null;
       }
 
@@ -432,11 +426,11 @@ export class GatewayClient {
 
       // Cache the result
       adminSettingsCache.set(GatewayClient.ADMIN_SETTINGS_CACHE_KEY, result);
-      logger.debug('[GatewayClient] Admin settings fetched and cached');
+      logger.debug('Admin settings fetched and cached');
 
       return result;
     } catch (error) {
-      logger.error({ err: error }, '[GatewayClient] Failed to fetch admin settings');
+      logger.error({ err: error }, 'Failed to fetch admin settings');
       return null;
     }
   }
@@ -447,7 +441,7 @@ export class GatewayClient {
    */
   invalidateAdminSettingsCache(): void {
     adminSettingsCache.delete(GatewayClient.ADMIN_SETTINGS_CACHE_KEY);
-    logger.debug('[GatewayClient] Invalidated admin settings cache');
+    logger.debug('Invalidated admin settings cache');
   }
 
   /**
@@ -475,18 +469,12 @@ export class GatewayClient {
 
       // 404 means no message found - not an error
       if (response.status === 404) {
-        logger.debug(
-          { discordMessageId },
-          '[GatewayClient] No personality found for Discord message ID'
-        );
+        logger.debug({ discordMessageId }, 'No personality found for Discord message ID');
         return null;
       }
 
       if (!response.ok) {
-        logger.warn(
-          { discordMessageId, status: response.status },
-          '[GatewayClient] Personality lookup failed'
-        );
+        logger.warn({ discordMessageId, status: response.status }, 'Personality lookup failed');
         return null;
       }
 
@@ -497,12 +485,12 @@ export class GatewayClient {
 
       logger.debug(
         { discordMessageId, personalityId: data.personalityId },
-        '[GatewayClient] Found personality via conversation lookup'
+        'Found personality via conversation lookup'
       );
 
       return data;
     } catch (error) {
-      logger.error({ err: error, discordMessageId }, '[GatewayClient] Personality lookup error');
+      logger.error({ err: error, discordMessageId }, 'Personality lookup error');
       return null;
     }
   }
@@ -541,21 +529,15 @@ export class GatewayClient {
         // Log but don't throw - this is best-effort
         logger.warn(
           { requestId, status: response.status },
-          '[GatewayClient] Failed to update diagnostic response IDs'
+          'Failed to update diagnostic response IDs'
         );
         return;
       }
 
-      logger.debug(
-        { requestId, responseMessageIds },
-        '[GatewayClient] Updated diagnostic response IDs'
-      );
+      logger.debug({ requestId, responseMessageIds }, 'Updated diagnostic response IDs');
     } catch (error) {
       // Log but don't throw - this is fire-and-forget
-      logger.warn(
-        { err: error, requestId },
-        '[GatewayClient] Error updating diagnostic response IDs'
-      );
+      logger.warn({ err: error, requestId }, 'Error updating diagnostic response IDs');
     }
   }
 }

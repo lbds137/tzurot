@@ -77,7 +77,7 @@ const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
 export async function handleDefaultsEdit(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
-  logger.debug({ userId }, '[User Defaults] Opening dashboard');
+  logger.debug({ userId }, 'Opening dashboard');
 
   try {
     const data = await fetchAndConvertSettingsData(toGatewayUser(context.user));
@@ -91,9 +91,9 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
       updateHandler: handleSettingUpdate,
     });
 
-    logger.info({ userId }, '[User Defaults] Dashboard opened');
+    logger.info({ userId }, 'Dashboard opened');
   } catch (error) {
-    logger.error({ err: error }, '[User Defaults] Error opening dashboard');
+    logger.error({ err: error }, 'Error opening dashboard');
 
     if (!context.interaction.replied) {
       await context.editReply({
@@ -155,7 +155,7 @@ async function fetchAndConvertSettingsData(user: GatewayUser): Promise<SettingsD
   );
 
   if (!result.ok) {
-    logger.warn({ error: result.error }, '[User Defaults] Failed to fetch resolve-defaults');
+    logger.warn({ error: result.error }, 'Failed to fetch resolve-defaults');
     return buildFallbackSettingsData();
   }
 
@@ -175,7 +175,7 @@ async function handleSettingUpdate(
 ): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
-  logger.debug({ settingId, newValue, userId }, '[User Defaults] Updating setting');
+  logger.debug({ settingId, newValue, userId }, 'Updating setting');
 
   try {
     const body = mapSettingToApiUpdate(settingId, newValue);
@@ -193,18 +193,18 @@ async function handleSettingUpdate(
     });
 
     if (!result.ok) {
-      logger.warn({ settingId, error: result.error }, '[User Defaults] Update failed');
+      logger.warn({ settingId, error: result.error }, 'Update failed');
       return { success: false, error: result.error };
     }
 
     // Re-fetch resolved data to get updated effective values and sources
     const newData = await fetchAndConvertSettingsData(user);
 
-    logger.info({ settingId, newValue, userId }, '[User Defaults] Setting updated');
+    logger.info({ settingId, newValue, userId }, 'Setting updated');
 
     return { success: true, newData };
   } catch (error) {
-    logger.error({ err: error, settingId }, '[User Defaults] Error updating setting');
+    logger.error({ err: error, settingId }, 'Error updating setting');
     return { success: false, error: 'Failed to update setting' };
   }
 }

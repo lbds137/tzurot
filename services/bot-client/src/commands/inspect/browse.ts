@@ -248,7 +248,7 @@ export async function handleRecentBrowse(
     const { embeds, components } = buildBrowsePage(data.logs, 0);
     await context.editReply({ embeds, components });
   } catch (error) {
-    logger.error({ err: error }, '[InspectBrowse] Error fetching recent logs');
+    logger.error({ err: error }, 'Error fetching recent logs');
     await context.editReply({
       content: '\u274c Error fetching recent diagnostic logs. Please try again later.',
     });
@@ -275,7 +275,7 @@ export async function handleBrowsePagination(
     const { embeds, components } = buildBrowsePage(data.logs, parsed.page);
     await interaction.editReply({ embeds, components });
   } catch (error) {
-    logger.error({ err: error }, '[InspectBrowse] Error during pagination');
+    logger.error({ err: error }, 'Error during pagination');
     await interaction.editReply({
       content: '\u274c Error loading diagnostic logs.',
       embeds: [],
@@ -320,7 +320,7 @@ export async function handleBrowseLogSelection(
       components: [...inspectComponents, backRow],
     });
   } catch (error) {
-    logger.error({ err: error, requestId }, '[InspectBrowse] Error loading selected log');
+    logger.error({ err: error, requestId }, 'Error loading selected log');
     await interaction.editReply({
       content: '\u274c Error loading diagnostic log.',
       embeds: [],

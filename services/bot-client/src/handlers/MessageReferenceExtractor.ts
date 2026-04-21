@@ -135,7 +135,7 @@ export class MessageReferenceExtractor {
         messageId: updatedMessage.id,
         maxReferences: this.maxReferences,
       },
-      '[MessageReferenceExtractor] Starting reference extraction'
+      'Starting reference extraction'
     );
 
     // Step 1: Crawl references using BFS
@@ -146,7 +146,7 @@ export class MessageReferenceExtractor {
         totalReferences: crawlResult.messages.size,
         maxDepth: crawlResult.maxDepth,
       },
-      '[MessageReferenceExtractor] Crawl complete'
+      'Crawl complete'
     );
 
     // Step 2: Format references (sort, number, replace links)
@@ -179,9 +179,7 @@ export class MessageReferenceExtractor {
       }
       return message;
     } catch (error) {
-      logger.debug(
-        `[MessageReferenceExtractor] Could not refetch message: ${(error as Error).message}`
-      );
+      logger.debug(`Could not refetch message: ${(error as Error).message}`);
       return message;
     }
   }

@@ -112,7 +112,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     });
 
     if (!result.ok) {
-      logger.warn({ userId: discordId, error: result.error }, '[Persona] Failed to fetch personas');
+      logger.warn({ userId: discordId, error: result.error }, 'Failed to fetch personas');
       await context.editReply({
         content: PERSONA_FETCH_ERROR,
       });
@@ -137,7 +137,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     if (!detailsResult.ok) {
       logger.warn(
         { userId: discordId, personaId: persona.id, error: detailsResult.error },
-        '[Persona] Failed to fetch persona details'
+        'Failed to fetch persona details'
       );
       await context.editReply({
         content: PERSONA_FETCH_ERROR,
@@ -147,9 +147,9 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
 
     const { embed, components } = buildPersonaEmbed(detailsResult.data.persona);
     await context.editReply({ embeds: [embed], components });
-    logger.info({ userId: discordId }, '[Persona] User viewed their persona');
+    logger.info({ userId: discordId }, 'User viewed their persona');
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to view persona');
+    logger.error({ err: error, userId: discordId }, 'Failed to view persona');
     await context.editReply({
       content: PERSONA_FETCH_ERROR,
     });
@@ -180,7 +180,7 @@ export async function handleExpandContent(
     if (!result.ok) {
       logger.warn(
         { userId: discordId, personaId, error: result.error },
-        '[Persona] Failed to fetch persona for expand'
+        'Failed to fetch persona for expand'
       );
       await interaction.editReply('❌ Persona not found or access denied.');
       return;
@@ -199,9 +199,9 @@ export async function handleExpandContent(
       continuedHeader: '📝 Content (continued)\n\n',
     });
 
-    logger.info({ userId: discordId, personaId }, '[Persona] User expanded persona content');
+    logger.info({ userId: discordId, personaId }, 'User expanded persona content');
   } catch (error) {
-    logger.error({ err: error, personaId }, '[Persona] Failed to expand persona content');
+    logger.error({ err: error, personaId }, 'Failed to expand persona content');
     await interaction.editReply('❌ Failed to load content. Please try again.');
   }
 }

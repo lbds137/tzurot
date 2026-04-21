@@ -204,12 +204,12 @@ async function processAvatarDownload(
         finalSizeKb: (result.buffer.length / 1024).toFixed(2),
         wasResized: result.wasResized,
       },
-      '[Character/Import] Processed avatar image'
+      'Processed avatar image'
     );
 
     return { success: true, data: result.buffer.toString('base64') };
   } catch (error) {
-    logger.error({ err: error }, '[Character/Import] Failed to download avatar');
+    logger.error({ err: error }, 'Failed to download avatar');
     return { error: '❌ Failed to download avatar image. Please try again.' };
   }
 }
@@ -331,7 +331,7 @@ async function saveCharacter(
   );
 
   if (!result.ok) {
-    logger.error({ error: result.error, isUpdate }, '[Character/Import] Failed to import');
+    logger.error({ error: result.error, isUpdate }, 'Failed to import');
     return { ok: false, error: result.error };
   }
   return { ok: true };
@@ -448,10 +448,10 @@ export async function handleImport(
 
     logger.info(
       { slug, userId, isUpdate: existingCheck.exists },
-      `[Character/Import] Character ${existingCheck.exists ? 'updated' : 'imported'} successfully`
+      `Character ${existingCheck.exists ? 'updated' : 'imported'} successfully`
     );
   } catch (error) {
-    logger.error({ err: error }, '[Character/Import] Error importing character');
+    logger.error({ err: error }, 'Error importing character');
     await context.editReply(
       '❌ An unexpected error occurred while importing the character.\n' +
         'Check bot logs for details.'

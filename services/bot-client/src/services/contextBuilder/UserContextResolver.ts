@@ -116,7 +116,7 @@ export async function resolveUserContext(
 
   logger.debug(
     { personaId, personaName, internalUserId, discordUserId, personalityId: personality.id },
-    '[UserContextResolver] User persona lookup complete'
+    'User persona lookup complete'
   );
 
   // Look up context epoch (STM clear feature)
@@ -124,7 +124,7 @@ export async function resolveUserContext(
   if (contextEpoch !== undefined) {
     logger.debug(
       { personaId, contextEpoch: contextEpoch.toISOString() },
-      '[UserContextResolver] Applying context epoch filter (STM clear)'
+      'Applying context epoch filter (STM clear)'
     );
   }
 

@@ -33,10 +33,7 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
     );
 
     if (!result.ok) {
-      logger.warn(
-        { userId, status: result.status, personalityId },
-        '[Me/Preset] Failed to reset override'
-      );
+      logger.warn({ userId, status: result.status, personalityId }, 'Failed to reset override');
       await context.editReply({ content: `❌ Failed to reset preset: ${result.error}` });
       return;
     }
@@ -56,9 +53,9 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId, wasSet }, '[Me/Preset] Reset override');
+    logger.info({ userId, personalityId, wasSet }, 'Reset override');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset Reset' }, '[Preset Reset] Error');
+    logger.error({ err: error, userId, command: 'Preset Reset' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

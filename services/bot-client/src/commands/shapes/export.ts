@@ -80,7 +80,7 @@ export async function startExport(
     return false;
   }
 
-  logger.info({ userId, slug, format }, '[Shapes] Export job started (detail)');
+  logger.info({ userId, slug, format }, 'Export job started (detail)');
   return true;
 }
 
@@ -120,9 +120,9 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, slug, format }, '[Shapes] Export job started');
+    logger.info({ userId, slug, format }, 'Export job started');
   } catch (error) {
-    logger.error({ err: error, userId, slug }, '[Shapes] Unexpected error starting export');
+    logger.error({ err: error, userId, slug }, 'Unexpected error starting export');
     await context.editReply({
       embeds: [],
       content: '\u274C An unexpected error occurred. Please try again.',

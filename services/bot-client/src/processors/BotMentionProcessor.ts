@@ -30,14 +30,14 @@ export class BotMentionProcessor implements IMessageProcessor {
     if (!hasExplicitMention) {
       logger.debug(
         { userId: message.author.id, isReply: !!message.reference },
-        '[BotMentionProcessor] Ignoring implicit reply mention (no explicit @bot in content)'
+        'Ignoring implicit reply mention (no explicit @bot in content)'
       );
       return false; // Let message fall through unhandled
     }
 
     logger.debug(
       { userId: message.author.id, channelId: message.channelId },
-      '[BotMentionProcessor] Processing generic bot mention, sending help'
+      'Processing generic bot mention, sending help'
     );
 
     // NSFW verification gate: auto-verify in NSFW channels; prompt + block in
@@ -45,7 +45,7 @@ export class BotMentionProcessor implements IMessageProcessor {
     // and-forget in NSFW channels and silently skipped verification everywhere
     // else, letting unverified users direct-ping the bot repeatedly without
     // ever being nudged to verify.
-    const verification = await handleNsfwVerification(message, 'BotMentionProcessor');
+    const verification = await handleNsfwVerification(message);
     if (!verification.allowed) {
       // Verification message already sent by handleNsfwVerification; stop here.
       return true;

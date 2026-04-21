@@ -48,6 +48,12 @@ describe('guestModeValidation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the queue — after the serial-fetch refactor, the paid-user path
+    // consumes only one `callGatewayApi` mock (wallet) instead of two
+    // (wallet + configs). Without a full reset between tests, leftover
+    // `mockResolvedValueOnce` entries would bleed across tests and mis-mock
+    // later calls. `mockReset()` clears both call history and the queue.
+    vi.mocked(gatewayClient.callGatewayApi).mockReset();
   });
 
   describe('handleUnlockModelsUpsell', () => {
