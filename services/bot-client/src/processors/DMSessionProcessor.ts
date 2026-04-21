@@ -23,6 +23,7 @@ import {
   isDMChannel,
   sendNsfwVerificationMessage,
   checkNsfwVerification,
+  NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
 } from '../utils/nsfwVerification.js';
 import { toGatewayUser } from '../utils/userGatewayClient.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
@@ -65,9 +66,27 @@ export class DMSessionProcessor implements IMessageProcessor {
 
     logger.debug({ userId }, '[DMSessionProcessor] Processing DM message');
 
-    // 2. Check NSFW verification first (higher priority than help message)
-    const nsfwStatus = await checkNsfwVerification(toGatewayUser(message.author));
-    if (!nsfwStatus.nsfwVerified) {
+    // 2. Check NSFW verification first (higher priority than help message).
+    // Tri-state: verified / unverified / check-failed. Fail-closed on
+    // check-failed with a distinct "try again" message so a transient gateway
+    // blip doesn't re-onboard previously-verified users.
+    const check = await checkNsfwVerification(toGatewayUser(message.author));
+    if (check.kind === 'error') {
+      logger.warn(
+        { userId, error: check.error },
+        '[DMSessionProcessor] NSFW check failed — surfacing retry message'
+      );
+      try {
+        await message.reply(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
+      } catch (replyError) {
+        logger.warn(
+          { err: replyError, messageId: message.id },
+          '[DMSessionProcessor] Failed to send NSFW check-failed message'
+        );
+      }
+      return true; // Consume message
+    }
+    if (!check.value.nsfwVerified) {
       logger.info({ userId }, '[DMSessionProcessor] DM blocked - user not NSFW verified');
       await sendNsfwVerificationMessage(message, 'DMSessionProcessor');
       return true; // Consume message

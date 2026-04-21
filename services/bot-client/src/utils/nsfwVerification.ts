@@ -19,10 +19,11 @@ import { redis } from '../redis.js';
 import { storePendingVerificationMessage } from './pendingVerificationMessages.js';
 import { cleanupVerificationMessagesForUser } from '../services/VerificationCleanupService.js';
 import { isThreadChannel, getThreadParent } from './discordChannelTypes.js';
+import type { ApiCheck } from './apiCheck.js';
 
 const logger = createLogger('nsfw-verification');
 
-interface NsfwStatus {
+export interface NsfwStatus {
   nsfwVerified: boolean;
   nsfwVerifiedAt: string | null;
 }
@@ -34,9 +35,14 @@ interface NsfwVerifyResponse {
 }
 
 /**
- * Check if a user is NSFW verified
+ * Check if a user is NSFW verified.
+ *
+ * Returns a tri-state `ApiCheck<NsfwStatus>` so callers can distinguish
+ * "definitively not verified" from "couldn't check." Collapsing a
+ * transient gateway failure into `{ nsfwVerified: false }` would falsely
+ * block previously-verified users from DMs during gateway outages.
  */
-export async function checkNsfwVerification(user: GatewayUser): Promise<NsfwStatus> {
+export async function checkNsfwVerification(user: GatewayUser): Promise<ApiCheck<NsfwStatus>> {
   const result = await callGatewayApi<NsfwStatus>('/user/nsfw', {
     method: 'GET',
     user,
@@ -47,10 +53,10 @@ export async function checkNsfwVerification(user: GatewayUser): Promise<NsfwStat
       { userId: user.discordId, error: result.error },
       '[NSFW] Failed to check verification status'
     );
-    return { nsfwVerified: false, nsfwVerifiedAt: null };
+    return { kind: 'error', error: result.error };
   }
 
-  return result.data;
+  return { kind: 'ok', value: result.data };
 }
 
 /**
@@ -141,6 +147,15 @@ export function isNsfwChannel(channel: Channel): boolean {
 export function isDMChannel(channel: Channel): boolean {
   return channel.type === ChannelType.DM;
 }
+
+/**
+ * Shown when the gateway age-check couldn't run (network blip, gateway 500,
+ * etc.). Distinct from {@link NSFW_VERIFICATION_MESSAGE} — we don't want a
+ * previously-verified user to see the "you need to verify" onboarding flow
+ * during a transient failure.
+ */
+export const NSFW_VERIFICATION_CHECK_FAILED_MESSAGE =
+  "⚠️ Couldn't verify your age status right now. Please try again in a moment.";
 
 /**
  * NSFW verification requirement message
@@ -236,8 +251,27 @@ export async function handleNsfwVerification(
   }
 
   // For all other channels (DMs and non-NSFW guild channels), check verification
-  const nsfwStatus = await checkNsfwVerification(user);
-  if (!nsfwStatus.nsfwVerified) {
+  const check = await checkNsfwVerification(user);
+  if (check.kind === 'error') {
+    // Fail-closed with a DISTINCT message: NSFW is a compliance gate, so we
+    // can't let the user through, but we also shouldn't re-onboard a
+    // previously-verified user just because the gateway blipped.
+    logger.warn(
+      { userId, channelType: channel.type, error: check.error },
+      `[${logPrefix}] NSFW check failed — surfacing retry message`
+    );
+    try {
+      await message.reply(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
+    } catch (replyError) {
+      logger.warn(
+        { err: replyError, messageId: message.id },
+        `[${logPrefix}] Failed to send NSFW check-failed message`
+      );
+    }
+    return { allowed: false, wasNewVerification: false };
+  }
+
+  if (!check.value.nsfwVerified) {
     logger.info(
       { userId, channelType: channel.type },
       `[${logPrefix}] Interaction blocked - user not NSFW verified`

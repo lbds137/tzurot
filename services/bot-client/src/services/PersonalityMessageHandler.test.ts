@@ -20,7 +20,9 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   // Keep these for backward-compatible tests
   isNsfwChannel: vi.fn().mockReturnValue(false),
   isDMChannel: vi.fn().mockReturnValue(false),
-  checkNsfwVerification: vi.fn().mockResolvedValue({ nsfwVerified: true, nsfwVerifiedAt: null }),
+  checkNsfwVerification: vi
+    .fn()
+    .mockResolvedValue({ kind: 'ok', value: { nsfwVerified: true, nsfwVerifiedAt: null } }),
   verifyNsfwUser: vi.fn().mockResolvedValue(null),
   trackPendingVerificationMessage: vi.fn().mockResolvedValue(undefined),
   sendNsfwVerificationMessage: vi.fn().mockResolvedValue(undefined),

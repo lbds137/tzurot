@@ -10,6 +10,7 @@ import {
   isNsfwChannel,
   isDMChannel,
   NSFW_VERIFICATION_MESSAGE,
+  NSFW_VERIFICATION_CHECK_FAILED_MESSAGE,
   handleNsfwVerification,
   sendNsfwVerificationMessage,
   sendVerificationConfirmation,
@@ -36,7 +37,7 @@ describe('NSFW Verification Utilities', () => {
   });
 
   describe('checkNsfwVerification', () => {
-    it('should return verified status when API returns success', async () => {
+    it('should return kind=ok with verified status when API returns success', async () => {
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
         ok: true,
         data: {
@@ -52,8 +53,11 @@ describe('NSFW Verification Utilities', () => {
       });
 
       expect(result).toEqual({
-        nsfwVerified: true,
-        nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
+        kind: 'ok',
+        value: {
+          nsfwVerified: true,
+          nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
+        },
       });
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith('/user/nsfw', {
         method: 'GET',
@@ -65,7 +69,7 @@ describe('NSFW Verification Utilities', () => {
       });
     });
 
-    it('should return not verified when API fails', async () => {
+    it('should return kind=error when API fails (distinguishable from unverified)', async () => {
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
         ok: false,
         error: 'Server error',
@@ -79,8 +83,8 @@ describe('NSFW Verification Utilities', () => {
       });
 
       expect(result).toEqual({
-        nsfwVerified: false,
-        nsfwVerifiedAt: null,
+        kind: 'error',
+        error: 'Server error',
       });
     });
   });
@@ -474,6 +478,32 @@ describe('NSFW Verification Utilities', () => {
           displayName: 'testuser',
         },
       });
+    });
+
+    it('should block with distinct retry message when NSFW check fails (fail-closed)', async () => {
+      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+        ok: false,
+        error: 'Gateway timeout',
+        status: 504,
+      });
+
+      const mockReply = { id: 'reply-retry', channelId: 'channel-789' };
+      const mockMessage = {
+        id: 'msg-retry',
+        author: { id: 'user-123', username: 'testuser' },
+        channel: {
+          type: ChannelType.DM,
+        },
+        reply: vi.fn().mockResolvedValue(mockReply),
+      } as any;
+
+      const result = await handleNsfwVerification(mockMessage, 'TestProcessor');
+
+      expect(result).toEqual({ allowed: false, wasNewVerification: false });
+      expect(mockMessage.reply).toHaveBeenCalledWith(NSFW_VERIFICATION_CHECK_FAILED_MESSAGE);
+      // Must NOT send the full verification education message — a previously
+      // verified user shouldn't be re-onboarded because of a transient blip.
+      expect(mockMessage.reply).not.toHaveBeenCalledWith(NSFW_VERIFICATION_MESSAGE);
     });
 
     it('should block unverified user in non-NSFW channel and send message', async () => {
