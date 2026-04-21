@@ -98,7 +98,7 @@ export class CommandHandler {
       cmdDef.execute === undefined ||
       cmdDef.execute === null
     ) {
-      logger.warn(`Invalid command file: ${filePath}`);
+      logger.warn({ filePath }, 'Invalid command file');
       return;
     }
 
@@ -189,7 +189,7 @@ export class CommandHandler {
     const command = this.commands.get(commandName);
 
     if (!command) {
-      logger.warn(`Unknown command: ${commandName}`);
+      logger.warn({ commandName }, 'Unknown command');
       await interaction.reply({
         content: 'Unknown command!',
         flags: MessageFlags.Ephemeral,
@@ -269,13 +269,13 @@ export class CommandHandler {
     const command = this.commands.get(interaction.commandName);
 
     if (!command) {
-      logger.warn(`Unknown command for autocomplete: ${interaction.commandName}`);
+      logger.warn({ commandName: interaction.commandName }, 'Unknown command for autocomplete');
       await interaction.respond([]);
       return;
     }
 
     if (!command.autocomplete) {
-      logger.warn(`No autocomplete handler for command: ${interaction.commandName}`);
+      logger.warn({ commandName: interaction.commandName }, 'No autocomplete handler for command');
       await interaction.respond([]);
       return;
     }
