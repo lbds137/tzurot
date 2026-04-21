@@ -71,7 +71,10 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
     /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references)>/gi,
     // Trailing <reactions>...</reactions> block: LLM mimics conversation history metadata
     // Must be checked before simpler trailing tags since it's multiline
-    /\s*<reactions>[\s\S]*?<\/reactions>\s*$/i,
+    // Bounded leading whitespace (`\s{0,64}`) prevents polynomial-slide ReDoS
+    // on long inputs — the trailing `\s*$` is safe (anchored), but an unbounded
+    // leading `\s*` before a literal makes the engine retry from every position.
+    /\s{0,64}<reactions>[\s\S]*?<\/reactions>\s*$/i,
     // Generic trailing closing tag: catches </message>, </module>, </current_turn>, etc.
     // Models learn XML patterns from training data and append stray closing tags
     /<\/[a-z][a-z0-9_-]*>\s*$/i,

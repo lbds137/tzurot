@@ -124,7 +124,11 @@ function extractStatusCode(error: unknown): number | undefined {
   // Cap message length to prevent ReDoS on very long error messages
   if (error instanceof Error) {
     const messageToSearch = error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH);
-    const statusPattern = /status(?:\s+code)?\s*[=:]?\s*(\d{3})/i;
+    // Bounded whitespace quantifiers (`{0,8}` / `{1,8}`) avoid super-linear
+    // backtracking where adjacent `\s*` groups can exchange characters. Input
+    // is also pre-capped via `MAX_ERROR_MESSAGE_LENGTH` — this is defense in
+    // depth. Real status messages have <= 2 spaces between tokens.
+    const statusPattern = /status(?:\s{1,8}code)?\s{0,8}[=:]?\s{0,8}(\d{3})/i;
     const statusMatch = statusPattern.exec(messageToSearch);
     if (statusMatch !== null) {
       return parseInt(statusMatch[1], 10);
