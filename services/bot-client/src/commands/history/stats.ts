@@ -74,7 +74,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
         result.status === 404
           ? `Personality "${personalitySlug}" not found.`
           : 'Failed to get stats. Please try again later.';
-      logger.warn({ userId, personalitySlug, status: result.status }, '[History] Stats failed');
+      logger.warn({ userId, personalitySlug, status: result.status }, 'Stats failed');
       await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
@@ -134,10 +134,10 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
         visible: data.visible.totalMessages,
         hidden: data.hidden.count,
       },
-      '[History] Stats retrieved'
+      'Stats retrieved'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'History Stats' }, '[History Stats] Error');
+    logger.error({ err: error, userId, command: 'History Stats' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

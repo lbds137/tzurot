@@ -94,10 +94,10 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 
     logger.info(
       { requestId: log.requestId, personalityId: log.personalityId },
-      '[Inspect] Diagnostic log retrieved'
+      'Diagnostic log retrieved'
     );
   } catch (error) {
-    logger.error({ err: error, identifier }, '[Inspect] Error fetching diagnostic log');
+    logger.error({ err: error, identifier }, 'Error fetching diagnostic log');
     await context.editReply({
       content: '\u274c Error fetching diagnostic log. Please try again later.',
     });
@@ -148,7 +148,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
   } catch (error) {
     logger.error(
       { err: error, requestId: parsed.requestId, viewType },
-      '[Inspect] Error building view from select'
+      'Error building view from select'
     );
     await interaction.editReply({
       content: '\u274c Error loading diagnostic view. The log may have expired.',
@@ -193,7 +193,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   } catch (error) {
     logger.error(
       { err: error, requestId: parsed.requestId, viewType: parsed.viewType },
-      '[Inspect] Error building view'
+      'Error building view'
     );
     await interaction.editReply({
       content: '\u274c Error loading diagnostic view. The log may have expired.',

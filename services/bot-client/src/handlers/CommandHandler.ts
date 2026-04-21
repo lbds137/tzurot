@@ -98,7 +98,7 @@ export class CommandHandler {
       cmdDef.execute === undefined ||
       cmdDef.execute === null
     ) {
-      logger.warn({}, `[CommandHandler] Invalid command file: ${filePath}`);
+      logger.warn({}, `Invalid command file: ${filePath}`);
       return;
     }
 
@@ -148,7 +148,7 @@ export class CommandHandler {
       }
     }
 
-    logger.info(`[CommandHandler] Loaded command: ${commandName}`);
+    logger.info(`Loaded command: ${commandName}`);
   }
 
   /**
@@ -158,21 +158,18 @@ export class CommandHandler {
     const commandsPath = join(__dirname, '../commands');
     const commandFiles = getCommandFiles(commandsPath);
 
-    logger.info(`[CommandHandler] Loading ${commandFiles.length} command files...`);
+    logger.info(`Loading ${commandFiles.length} command files...`);
 
     for (const filePath of commandFiles) {
       try {
         await this.loadSingleCommand(filePath, commandsPath);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error(
-          { err: error, filePath, errorMessage },
-          `[CommandHandler] Failed to load command: ${filePath}`
-        );
+        logger.error({ err: error, filePath, errorMessage }, `Failed to load command: ${filePath}`);
       }
     }
 
-    logger.info(`[CommandHandler] Loaded ${this.commands.size} commands`);
+    logger.info(`Loaded ${this.commands.size} commands`);
   }
 
   /**
@@ -192,7 +189,7 @@ export class CommandHandler {
     const command = this.commands.get(commandName);
 
     if (!command) {
-      logger.warn({}, `[CommandHandler] Unknown command: ${commandName}`);
+      logger.warn({}, `Unknown command: ${commandName}`);
       await interaction.reply({
         content: 'Unknown command!',
         flags: MessageFlags.Ephemeral,
@@ -201,14 +198,14 @@ export class CommandHandler {
     }
 
     try {
-      logger.info(`[CommandHandler] Executing command: ${commandName}`);
+      logger.info(`Executing command: ${commandName}`);
       // Type assertion for legacy commands that receive raw interaction
       // New commands with deferralMode are handled by index.ts directly
       type LegacyExecute = (interaction: ChatInputCommandInteraction) => Promise<void>;
       const execute = command.execute as LegacyExecute;
       await execute(interaction);
     } catch (error) {
-      logger.error({ err: error }, `[CommandHandler] Error executing command: ${commandName}`);
+      logger.error({ err: error }, `Error executing command: ${commandName}`);
       try {
         await this.sendErrorReply(interaction, 'There was an error executing this command!');
       } catch (replyError) {
@@ -229,7 +226,7 @@ export class CommandHandler {
     const command = this.prefixToCommand.get(prefix);
 
     if (!command) {
-      logger.warn({ customId, prefix }, '[CommandHandler] Unknown prefix for modal');
+      logger.warn({ customId, prefix }, 'Unknown prefix for modal');
       await interaction.reply({
         content: 'Unknown interaction!',
         flags: MessageFlags.Ephemeral,
@@ -242,12 +239,12 @@ export class CommandHandler {
     try {
       // Commands must export handleModal to handle modal submissions
       if (command.handleModal !== undefined) {
-        logger.info(`[CommandHandler] Executing modal handler: ${commandName}`);
+        logger.info(`Executing modal handler: ${commandName}`);
         await command.handleModal(interaction);
       } else {
         logger.warn(
           { commandName, customId },
-          `[CommandHandler] Command "${commandName}" received modal but doesn't export handleModal`
+          `Command "${commandName}" received modal but doesn't export handleModal`
         );
         await interaction.reply({
           content: 'This command does not support modal interactions.',
@@ -256,7 +253,7 @@ export class CommandHandler {
         return;
       }
     } catch (error) {
-      logger.error({ err: error, customId }, `[CommandHandler] Error in modal: ${commandName}`);
+      logger.error({ err: error, customId }, `Error in modal: ${commandName}`);
       try {
         await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
       } catch (replyError) {
@@ -272,19 +269,13 @@ export class CommandHandler {
     const command = this.commands.get(interaction.commandName);
 
     if (!command) {
-      logger.warn(
-        {},
-        `[CommandHandler] Unknown command for autocomplete: ${interaction.commandName}`
-      );
+      logger.warn({}, `Unknown command for autocomplete: ${interaction.commandName}`);
       await interaction.respond([]);
       return;
     }
 
     if (!command.autocomplete) {
-      logger.warn(
-        {},
-        `[CommandHandler] No autocomplete handler for command: ${interaction.commandName}`
-      );
+      logger.warn({}, `No autocomplete handler for command: ${interaction.commandName}`);
       await interaction.respond([]);
       return;
     }
@@ -292,10 +283,7 @@ export class CommandHandler {
     try {
       await command.autocomplete(interaction);
     } catch (error) {
-      logger.error(
-        { err: error },
-        `[CommandHandler] Error in autocomplete for: ${interaction.commandName}`
-      );
+      logger.error({ err: error }, `Error in autocomplete for: ${interaction.commandName}`);
       await interaction.respond([]);
     }
   }
@@ -316,7 +304,7 @@ export class CommandHandler {
     const command = this.prefixToCommand.get(prefix);
 
     if (!command) {
-      logger.warn({ customId, prefix }, '[CommandHandler] Unknown prefix for component');
+      logger.warn({ customId, prefix }, 'Unknown prefix for component');
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: 'Unknown interaction!',
@@ -331,27 +319,21 @@ export class CommandHandler {
     try {
       if (interaction.isStringSelectMenu()) {
         if (!command.handleSelectMenu) {
-          logger.warn(
-            { customId, commandName },
-            '[CommandHandler] No select menu handler for command'
-          );
+          logger.warn({ customId, commandName }, 'No select menu handler for command');
           return;
         }
-        logger.info(`[CommandHandler] Executing select menu handler: ${commandName}`);
+        logger.info(`Executing select menu handler: ${commandName}`);
         await command.handleSelectMenu(interaction);
       } else if (interaction.isButton()) {
         if (!command.handleButton) {
-          logger.warn({ customId, commandName }, '[CommandHandler] No button handler for command');
+          logger.warn({ customId, commandName }, 'No button handler for command');
           return;
         }
-        logger.info(`[CommandHandler] Executing button handler: ${commandName}`);
+        logger.info(`Executing button handler: ${commandName}`);
         await command.handleButton(interaction);
       }
     } catch (error) {
-      logger.error(
-        { err: error, customId, commandName },
-        '[CommandHandler] Error in component interaction'
-      );
+      logger.error({ err: error, customId, commandName }, 'Error in component interaction');
       try {
         await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
       } catch (replyError) {

@@ -70,7 +70,7 @@ export async function processReactions(
         totalReactions: allReactions.length,
         reactorUserCount: reactorUsers.length,
       },
-      '[ReactionProcessor] Extracted reactions from recent messages'
+      'Extracted reactions from recent messages'
     );
   }
 
@@ -129,7 +129,7 @@ export async function extractReactions(msg: Message): Promise<MessageReaction[]>
     } catch (error) {
       logger.warn(
         { messageId: msg.id, emoji: reaction.emoji.name, error },
-        '[ReactionProcessor] Failed to fetch reaction users'
+        'Failed to fetch reaction users'
       );
     }
   }

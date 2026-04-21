@@ -239,9 +239,7 @@ export class ConversationPersistence {
       attachmentDescriptions === null ||
       attachmentDescriptions.length === 0
     ) {
-      logger.debug(
-        '[ConversationPersistence] No attachment descriptions available, keeping placeholders'
-      );
+      logger.debug('No attachment descriptions available, keeping placeholders');
       return;
     }
 
@@ -252,7 +250,7 @@ export class ConversationPersistence {
 
     logger.debug(
       { descriptionLength: attachmentDescriptions.length },
-      '[ConversationPersistence] Upgrading attachment placeholders to rich descriptions'
+      'Upgrading attachment placeholders to rich descriptions'
     );
 
     // Update the message content only (metadata with references is already saved)
@@ -359,7 +357,7 @@ export class ConversationPersistence {
         contentLength: userMessageContent.length,
         hasMetadata: metadata !== undefined,
       },
-      '[ConversationPersistence] Saved user message'
+      'Saved user message'
     );
   }
 
@@ -381,10 +379,7 @@ export class ConversationPersistence {
     } = options;
 
     if (chunkMessageIds.length === 0) {
-      logger.warn(
-        {},
-        '[ConversationPersistence] No chunk message IDs, skipping assistant message save'
-      );
+      logger.warn({}, 'No chunk message IDs, skipping assistant message save');
       return;
     }
 
@@ -400,7 +395,7 @@ export class ConversationPersistence {
         userMessageTime: userMessageTime.toISOString(),
         assistantMessageTime: assistantMessageTime.toISOString(),
       },
-      '[ConversationPersistence] Saving assistant message'
+      'Saving assistant message'
     );
 
     await this.conversationHistory.addMessage({
@@ -414,9 +409,6 @@ export class ConversationPersistence {
       timestamp: assistantMessageTime,
     });
 
-    logger.info(
-      { chunks: chunkMessageIds.length },
-      '[ConversationPersistence] Saved assistant message'
-    );
+    logger.info({ chunks: chunkMessageIds.length }, 'Saved assistant message');
   }
 }

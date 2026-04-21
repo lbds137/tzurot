@@ -48,7 +48,7 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
           error: result.error,
           status: result.status,
         },
-        '[Channel] Deactivation failed'
+        'Deactivation failed'
       );
 
       await context.editReply(`❌ Failed to deactivate: ${result.error}`);
@@ -67,10 +67,7 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
       await invalidationService.invalidateChannel(channelId);
     } catch (pubsubError) {
       // Log but don't fail the command - local invalidation already happened
-      logger.warn(
-        { err: pubsubError, channelId },
-        '[Channel] Failed to publish invalidation event'
-      );
+      logger.warn({ err: pubsubError, channelId }, 'Failed to publish invalidation event');
     }
 
     if (!deactivated) {
@@ -92,7 +89,7 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
         channelId,
         personalityName,
       },
-      '[Channel] Personality deactivated'
+      'Personality deactivated'
     );
   } catch (error) {
     logger.error(
@@ -101,7 +98,7 @@ export async function handleDeactivate(context: DeferredCommandContext): Promise
         userId: context.user.id,
         channelId,
       },
-      '[Channel] Deactivation error'
+      'Deactivation error'
     );
     await context.editReply('❌ An unexpected error occurred while deactivating the channel.');
   }

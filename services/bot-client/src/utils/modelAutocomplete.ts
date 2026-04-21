@@ -68,7 +68,7 @@ export async function fetchModels(
   const gatewayUrl = getGatewayUrl();
 
   if (gatewayUrl === null) {
-    logger.warn({ gatewayUrl: 'not configured' }, '[ModelAutocomplete] Gateway URL not configured');
+    logger.warn({ gatewayUrl: 'not configured' }, 'Gateway URL not configured');
     return [];
   }
 
@@ -108,10 +108,7 @@ export async function fetchModels(
     });
 
     if (!response.ok) {
-      logger.warn(
-        { status: response.status, endpoint },
-        '[ModelAutocomplete] Failed to fetch models'
-      );
+      logger.warn({ status: response.status, endpoint }, 'Failed to fetch models');
       return [];
     }
 
@@ -124,12 +121,12 @@ export async function fetchModels(
         visionOnly: options.visionOnly,
         search: options.search,
       },
-      '[ModelAutocomplete] Fetched models'
+      'Fetched models'
     );
 
     return data.models;
   } catch (error) {
-    logger.error({ err: error }, '[ModelAutocomplete] Error fetching models');
+    logger.error({ err: error }, 'Error fetching models');
     return [];
   }
 }

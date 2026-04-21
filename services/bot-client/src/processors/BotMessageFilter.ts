@@ -14,7 +14,7 @@ const logger = createLogger('BotMessageFilter');
 export class BotMessageFilter implements IMessageProcessor {
   process(message: Message): Promise<boolean> {
     if (message.author.bot) {
-      logger.debug({ authorId: message.author.id }, '[BotMessageFilter] Ignoring bot message');
+      logger.debug({ authorId: message.author.id }, 'Ignoring bot message');
       return Promise.resolve(true); // Stop processing
     }
 

@@ -81,11 +81,11 @@ export async function downloadAndParseJson<T = Record<string, unknown>>(
     const data = JSON.parse(text) as T;
     logger.info(
       { filename, sizeKb: (text.length / 1024).toFixed(2) },
-      '[JsonFile] Downloaded and parsed JSON'
+      'Downloaded and parsed JSON'
     );
     return { data };
   } catch (error) {
-    logger.error({ err: error, filename }, '[JsonFile] Failed to download or parse JSON');
+    logger.error({ err: error, filename }, 'Failed to download or parse JSON');
     return {
       error: '❌ Failed to parse JSON file. Make sure the file is valid JSON format.',
     };

@@ -127,9 +127,9 @@ export async function handleBrowseVoices(context: DeferredCommandContext): Promi
     const { embed, components } = buildVoiceBrowsePage(result.data, 0);
     await context.editReply({ embeds: [embed], components });
 
-    logger.info({ userId, voiceCount: result.data.voices.length }, '[Voices Browse] Listed voices');
+    logger.info({ userId, voiceCount: result.data.voices.length }, 'Listed voices');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Voices Browse] Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
@@ -167,7 +167,7 @@ export async function handleVoiceBrowsePagination(interaction: ButtonInteraction
   } catch (error) {
     logger.error(
       { err: error, userId, page: parsed.page },
-      '[Voices Browse] Failed to load browse page'
+      'Failed to load browse page'
     );
     // Keep existing content on error (same pattern as character browse)
   }

@@ -192,7 +192,7 @@ export class VoiceTranscriptionService {
         await channel.sendTyping();
         typingInterval = setInterval(() => {
           void (channel as { sendTyping: () => Promise<void> }).sendTyping().catch(err => {
-            logger.warn({ err }, '[VoiceTranscriptionService] Failed to refresh typing indicator');
+            logger.warn({ err }, 'Failed to refresh typing indicator');
           });
         }, TYPING_INDICATOR_INTERVAL_MS);
       }
@@ -206,7 +206,7 @@ export class VoiceTranscriptionService {
         const forwardedAudio = extractAudioFromForwardedSnapshots(message);
         if (forwardedAudio.length > 0) {
           attachments = forwardedAudio;
-          logger.debug('[VoiceTranscriptionService] Found audio in forwarded message snapshot');
+          logger.debug('Found audio in forwarded message snapshot');
         }
       }
 
@@ -221,7 +221,7 @@ export class VoiceTranscriptionService {
       const chunks = splitMessage(response.content);
 
       logger.info(
-        `[VoiceTranscriptionService] Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`
+        `Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`
       );
 
       // Cache transcript in Redis BEFORE sending Discord replies to prevent race condition
@@ -231,7 +231,7 @@ export class VoiceTranscriptionService {
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
         await voiceTranscriptCache.store(voiceAttachment.url, response.content);
         logger.debug(
-          `[VoiceTranscriptionService] Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`
+          `Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`
         );
       }
 
@@ -249,7 +249,7 @@ export class VoiceTranscriptionService {
 
       if (continueToPersonalityHandler) {
         logger.debug(
-          '[VoiceTranscriptionService] Voice message with personality mention/reply - continuing to personality handler'
+          'Voice message with personality mention/reply - continuing to personality handler'
         );
       }
 
@@ -258,7 +258,7 @@ export class VoiceTranscriptionService {
         continueToPersonalityHandler,
       };
     } catch (error) {
-      logger.error({ err: error }, '[VoiceTranscriptionService] Error transcribing voice message');
+      logger.error({ err: error }, 'Error transcribing voice message');
 
       const userMessage = isTimeoutError(error)
         ? 'Sorry, transcription is taking too long \u2014 the voice service may be starting up. Please try again in a moment.'
@@ -272,7 +272,7 @@ export class VoiceTranscriptionService {
         .catch(replyError => {
           logger.warn(
             { err: replyError, messageId: message.id },
-            '[VoiceTranscriptionService] Failed to send error message to user'
+            'Failed to send error message to user'
           );
         });
       return null;

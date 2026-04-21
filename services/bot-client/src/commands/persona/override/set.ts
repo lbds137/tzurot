@@ -128,7 +128,7 @@ async function showCreateOverrideModal(
   await context.showModal(modal);
   logger.info(
     { userId: discordId, personalityId: personality.id },
-    '[Persona] Showed create-for-override modal'
+    'Showed create-for-override modal'
   );
 }
 
@@ -152,7 +152,7 @@ async function setExistingOverride(
     }
     logger.warn(
       { userId: discordId, personalitySlug, personaId, error: result.error },
-      '[Persona] Failed to set override'
+      'Failed to set override'
     );
     await context.reply({
       content: '❌ Failed to set persona override. Please try again later.',
@@ -167,7 +167,7 @@ async function setExistingOverride(
 
   logger.info(
     { userId: discordId, personalityId: personality.id, personaId: persona.id },
-    '[Persona] Set override persona'
+    'Set override persona'
   );
 
   await context.reply({
@@ -192,7 +192,7 @@ export async function handleOverrideSet(context: ModalCommandContext): Promise<v
       await setExistingOverride(context, discordId, personalitySlug, personaId);
     }
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to set override');
+    logger.error({ err: error, userId: discordId }, 'Failed to set override');
     await context.reply({
       content: '❌ Failed to set persona override. Please try again later.',
       flags: MessageFlags.Ephemeral,
@@ -255,7 +255,7 @@ export async function handleOverrideCreateModalSubmit(
 
       logger.warn(
         { userId: discordId, personalityId, error: result.error },
-        '[Persona] Failed to create override persona via gateway'
+        'Failed to create override persona via gateway'
       );
       await interaction.reply({
         content: '❌ Failed to create persona. Please try again later.',
@@ -269,7 +269,7 @@ export async function handleOverrideCreateModalSubmit(
 
     logger.info(
       { userId: discordId, personalityId, personaId: persona.id, personaName },
-      '[Persona] Created new persona and set as override'
+      'Created new persona and set as override'
     );
 
     await interaction.reply({
@@ -282,7 +282,7 @@ export async function handleOverrideCreateModalSubmit(
   } catch (error) {
     logger.error(
       { err: error, userId: discordId, personalityId },
-      '[Persona] Failed to create override persona'
+      'Failed to create override persona'
     );
     await interaction.reply({
       content: '❌ Failed to create persona. Please try again later.',

@@ -26,7 +26,7 @@ export class ReplyMessageProcessor implements IMessageProcessor {
     // Forwarded messages have a reference but it points to the original channel,
     // not a personality webhook. Skip early to avoid unnecessary lookups.
     if (isForwardedMessage(message)) {
-      logger.debug({ messageId: message.id }, '[ReplyMessageProcessor] Skipping forwarded message');
+      logger.debug({ messageId: message.id }, 'Skipping forwarded message');
       return false;
     }
 
@@ -36,7 +36,7 @@ export class ReplyMessageProcessor implements IMessageProcessor {
     }
 
     const userId = message.author.id;
-    logger.debug({ userId }, '[ReplyMessageProcessor] Processing reply message');
+    logger.debug({ userId }, 'Processing reply message');
 
     // Resolve which personality this reply targets
     // Pass userId for access control to prevent the "Reply Loophole"

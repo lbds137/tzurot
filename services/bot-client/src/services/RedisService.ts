@@ -31,9 +31,9 @@ export class RedisService {
         ttlSeconds,
         personalityName
       );
-      logger.debug(`[RedisService] Stored webhook message: ${messageId} -> ${personalityName}`);
+      logger.debug(`Stored webhook message: ${messageId} -> ${personalityName}`);
     } catch (error) {
-      logger.error({ err: error }, `[RedisService] Failed to store webhook message: ${messageId}`);
+      logger.error({ err: error }, `Failed to store webhook message: ${messageId}`);
     }
   }
 
@@ -48,13 +48,11 @@ export class RedisService {
         `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`
       );
       if (personalityName !== undefined && personalityName !== null && personalityName.length > 0) {
-        logger.debug(
-          `[RedisService] Retrieved webhook message: ${messageId} -> ${personalityName}`
-        );
+        logger.debug(`Retrieved webhook message: ${messageId} -> ${personalityName}`);
       }
       return personalityName;
     } catch (error) {
-      logger.error({ err: error }, `[RedisService] Failed to get webhook message: ${messageId}`);
+      logger.error({ err: error }, `Failed to get webhook message: ${messageId}`);
       return null;
     }
   }
@@ -70,13 +68,13 @@ export class RedisService {
       // getBuffer returns raw binary data (not UTF-8 decoded string)
       const value = await this.redis.getBuffer(key);
       if (value === null) {
-        logger.debug({ key }, '[RedisService] TTS audio not found or expired');
+        logger.debug({ key }, 'TTS audio not found or expired');
         return null;
       }
-      logger.debug({ key, audioSize: value.length }, '[RedisService] Retrieved TTS audio');
+      logger.debug({ key, audioSize: value.length }, 'Retrieved TTS audio');
       return value;
     } catch (error) {
-      logger.error({ err: error, key }, '[RedisService] Failed to get TTS audio');
+      logger.error({ err: error, key }, 'Failed to get TTS audio');
       return null;
     }
   }
@@ -89,7 +87,7 @@ export class RedisService {
       await this.redis.ping();
       return true;
     } catch (error) {
-      logger.error({ err: error }, '[RedisService] Health check failed');
+      logger.error({ err: error }, 'Health check failed');
       return false;
     }
   }
@@ -98,8 +96,8 @@ export class RedisService {
    * Graceful shutdown
    */
   async close(): Promise<void> {
-    logger.info('[RedisService] Closing Redis connection...');
+    logger.info('Closing Redis connection...');
     await this.redis.quit();
-    logger.info('[RedisService] Redis connection closed');
+    logger.info('Redis connection closed');
   }
 }

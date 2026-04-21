@@ -69,10 +69,7 @@ export async function lookupByMessageId(
   let response = await adminFetch(`/admin/diagnostic/by-message/${encodeURIComponent(messageId)}`);
 
   if (response.status === 404) {
-    logger.debug(
-      { messageId },
-      '[Inspect] Not found as trigger message, trying response message lookup'
-    );
+    logger.debug({ messageId }, 'Not found as trigger message, trying response message lookup');
     response = await adminFetch(`/admin/diagnostic/by-response/${encodeURIComponent(messageId)}`);
 
     if (response.ok) {
@@ -98,10 +95,7 @@ export async function lookupByMessageId(
     }
 
     const errorText = await response.text();
-    logger.error(
-      { status: response.status, error: errorText },
-      '[Inspect] Fetch by message failed'
-    );
+    logger.error({ status: response.status, error: errorText }, 'Fetch by message failed');
     return {
       success: false,
       errorMessage: `Failed to fetch diagnostic logs (HTTP ${response.status})`,
@@ -123,7 +117,7 @@ export async function lookupByMessageId(
   if (logs.length > 1) {
     logger.info(
       { messageId, count: logs.length },
-      '[Inspect] Multiple logs found for message, using most recent'
+      'Multiple logs found for message, using most recent'
     );
   }
 
@@ -159,7 +153,7 @@ export async function lookupByRequestId(
     }
 
     const errorText = await response.text();
-    logger.error({ status: response.status, error: errorText }, '[Inspect] Fetch failed');
+    logger.error({ status: response.status, error: errorText }, 'Fetch failed');
     return {
       success: false,
       errorMessage: `Failed to fetch diagnostic log (HTTP ${response.status})`,

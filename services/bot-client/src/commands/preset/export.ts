@@ -172,9 +172,9 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
       files: [attachment],
     });
 
-    logger.info({ presetId, userId, presetName: preset.name }, '[Preset/Export] Preset exported');
+    logger.info({ presetId, userId, presetName: preset.name }, 'Preset exported');
   } catch (error) {
-    logger.error({ err: error, presetId }, '[Preset/Export] Error exporting preset');
+    logger.error({ err: error, presetId }, 'Error exporting preset');
     await context.editReply('❌ An unexpected error occurred while exporting the preset.');
   }
 }

@@ -79,7 +79,7 @@ export class MessageFormatter {
       } else {
         logger.debug(
           { messageId, attachmentUrl: attachment.url },
-          '[MessageFormatter] Voice transcript not found for attachment'
+          'Voice transcript not found for attachment'
         );
       }
     }

@@ -36,7 +36,7 @@ export async function handleCleanup(context: DeferredCommandContext): Promise<vo
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, '[AdminCleanup] Cleanup failed');
+      logger.error({ status: response.status, error: errorText }, 'Cleanup failed');
       await context.editReply({
         content: `❌ Cleanup failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``,
       });
@@ -65,10 +65,10 @@ export async function handleCleanup(context: DeferredCommandContext): Promise<vo
         daysKept: data.daysKept,
         target,
       },
-      '[AdminCleanup] Cleanup completed'
+      'Cleanup completed'
     );
   } catch (error) {
-    logger.error({ err: error }, '[AdminCleanup] Error running cleanup');
+    logger.error({ err: error }, 'Error running cleanup');
     await context.editReply({ content: '❌ Error running cleanup. Please try again later.' });
   }
 }

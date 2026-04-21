@@ -300,7 +300,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
     });
 
     if (data === null) {
-      logger.warn({ userId, query: query.substring(0, 50) }, '[Memory] Search failed');
+      logger.warn({ userId, query: query.substring(0, 50) }, 'Search failed');
       await context.editReply({ content: '❌ Failed to search memories. Please try again later.' });
       return;
     }
@@ -347,10 +347,10 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
         hasMore: data.hasMore,
         searchType: searchType ?? 'semantic',
       },
-      '[Memory] Search displayed'
+      'Search displayed'
     );
   } catch (error) {
-    logger.error({ err: error, userId }, '[Memory Search] Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

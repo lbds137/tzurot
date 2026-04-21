@@ -20,12 +20,12 @@ let cleanupService: VerificationMessageCleanup | null = null;
  */
 export function initVerificationCleanupService(client: Client): void {
   if (cleanupService !== null) {
-    logger.warn({}, '[VerificationCleanup] Service already initialized');
+    logger.warn({}, 'Service already initialized');
     return;
   }
 
   cleanupService = new VerificationMessageCleanup(client, redis);
-  logger.info('[VerificationCleanup] Service initialized');
+  logger.info('Service initialized');
 }
 
 /**
@@ -45,7 +45,7 @@ export function getVerificationCleanupService(): VerificationMessageCleanup {
  */
 export async function cleanupVerificationMessagesForUser(userId: string): Promise<void> {
   if (cleanupService === null) {
-    logger.warn({ userId }, '[VerificationCleanup] Cannot cleanup - service not initialized');
+    logger.warn({ userId }, 'Cannot cleanup - service not initialized');
     return;
   }
 

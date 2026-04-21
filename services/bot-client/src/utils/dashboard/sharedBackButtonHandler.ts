@@ -115,7 +115,7 @@ export async function handleSharedBackButton(
     // shouldn't have been rendered in the first place. Treat as expired.
     logger.warn(
       { entityType, entityId },
-      '[back] Session had no browseContext; rendering expired terminal'
+      'Session had no browseContext; rendering expired terminal'
     );
     await renderTerminalScreen({
       interaction,
@@ -127,7 +127,7 @@ export async function handleSharedBackButton(
 
   const rebuilder = getBrowseRebuilder(entityType);
   if (rebuilder === undefined) {
-    logger.error({ entityType, entityId }, '[back] No BrowseRebuilder registered for entity type');
+    logger.error({ entityType, entityId }, 'No BrowseRebuilder registered for entity type');
     await renderTerminalScreen({
       interaction,
       session: errorSession,
@@ -140,7 +140,7 @@ export async function handleSharedBackButton(
   try {
     rebuilt = await rebuilder(interaction, browseContext);
   } catch (error) {
-    logger.error({ err: error, entityType, entityId }, '[back] BrowseRebuilder threw');
+    logger.error({ err: error, entityType, entityId }, 'BrowseRebuilder threw');
     await renderTerminalScreen({
       interaction,
       session: errorSession,
@@ -161,5 +161,5 @@ export async function handleSharedBackButton(
   // Happy path — leaving the dashboard for the browse list.
   await sessionManager.delete(interaction.user.id, entityType, entityId);
   await interaction.editReply(rebuilt);
-  logger.info({ userId: interaction.user.id, entityType, entityId }, '[back] Returned to browse');
+  logger.info({ userId: interaction.user.id, entityType, entityId }, 'Returned to browse');
 }

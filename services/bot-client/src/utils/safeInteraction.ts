@@ -69,7 +69,7 @@ export function wrapDeferredInteraction(
 
           logger.warn(
             { command: fullCommand },
-            `[SafeInteraction] Command called deferReply() but interaction is already deferred - ignoring. ` +
+            `Command called deferReply() but interaction is already deferred - ignoring. ` +
               `FIX: Remove deferReply() call from /${fullCommand} (handled at top-level)`
           );
 
@@ -100,7 +100,7 @@ export function wrapDeferredInteraction(
 
           logger.warn(
             { command: fullCommand, caller: callerLine },
-            `[SafeInteraction] Command used reply() on deferred interaction - auto-converting to editReply(). ` +
+            `Command used reply() on deferred interaction - auto-converting to editReply(). ` +
               `FIX: Change interaction.reply() to interaction.editReply() in /${fullCommand}`
           );
 

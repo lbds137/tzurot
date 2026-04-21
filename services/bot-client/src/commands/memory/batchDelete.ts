@@ -106,7 +106,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
           : (previewResult.error ?? 'Failed to preview deletion. Please try again later.');
       logger.warn(
         { userId, personalityInput, status: previewResult.status },
-        '[Memory] Delete preview failed'
+        'Delete preview failed'
       );
       await context.editReply({ content: `❌ ${errorMessage}` });
       return;
@@ -228,7 +228,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
           deletedCount: result.deletedCount,
           skippedLocked: result.skippedLocked,
         },
-        '[Memory] Batch delete completed'
+        'Batch delete completed'
       );
     } catch {
       // Timeout or error - clear components
@@ -239,7 +239,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       });
     }
   } catch (error) {
-    logger.error({ error, userId }, '[Memory Batch Delete] Unexpected error');
+    logger.error({ error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

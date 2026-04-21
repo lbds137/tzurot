@@ -132,7 +132,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   // Parse using persona customId utilities
   const parsed = PersonaCustomIds.parse(customId);
   if (parsed === null) {
-    logger.warn({ customId }, '[Persona] Unknown modal customId');
+    logger.warn({ customId }, 'Unknown modal customId');
     return;
   }
 
@@ -143,7 +143,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     // Create persona for override - personalityId from customId
     await handleOverrideCreateModalSubmit(interaction, parsed.personalityId);
   } else {
-    logger.warn({ customId, parsed }, '[Persona] Unknown modal action');
+    logger.warn({ customId, parsed }, 'Unknown modal action');
   }
 }
 
@@ -188,7 +188,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   const parsed = PersonaCustomIds.parse(customId);
   if (parsed === null) {
-    logger.warn({ customId }, '[Persona] Unknown button customId');
+    logger.warn({ customId }, 'Unknown button customId');
     return;
   }
 
@@ -196,10 +196,10 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     if (parsed.personaId !== undefined && parsed.field !== undefined) {
       await handleExpandContent(interaction, parsed.personaId, parsed.field);
     } else {
-      logger.warn({ customId, parsed }, '[Persona] Missing personaId or field for expand action');
+      logger.warn({ customId, parsed }, 'Missing personaId or field for expand action');
     }
   } else {
-    logger.warn({ customId, parsed }, '[Persona] Unknown button action');
+    logger.warn({ customId, parsed }, 'Unknown button action');
   }
 }
 
@@ -221,7 +221,7 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     return;
   }
 
-  logger.warn({ customId }, '[Persona] Unknown select menu customId');
+  logger.warn({ customId }, 'Unknown select menu customId');
 }
 
 /**

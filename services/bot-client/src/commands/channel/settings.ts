@@ -85,7 +85,7 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
     return;
   }
 
-  logger.debug({ channelId, userId }, '[Channel Settings] Opening dashboard');
+  logger.debug({ channelId, userId }, 'Opening dashboard');
 
   try {
     // Get the activated personality for this channel (needed for resolve endpoint)
@@ -121,9 +121,9 @@ export async function handleChannelSettings(context: DeferredCommandContext): Pr
       updateHandler: createUpdateHandler(channelId),
     });
 
-    logger.info({ channelId, userId }, '[Channel Settings] Dashboard opened');
+    logger.info({ channelId, userId }, 'Dashboard opened');
   } catch (error) {
-    logger.error({ err: error, channelId }, '[Channel Settings] Error opening dashboard');
+    logger.error({ err: error, channelId }, 'Error opening dashboard');
 
     // Check if already replied via interaction (dashboard may have responded)
     if (!interaction.replied) {
@@ -229,7 +229,7 @@ async function handleSettingUpdate(
 ): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
-  logger.debug({ settingId, newValue, channelId, userId }, '[Channel Settings] Updating setting');
+  logger.debug({ settingId, newValue, channelId, userId }, 'Updating setting');
 
   try {
     // Map setting ID to API body using shared utility
@@ -251,10 +251,7 @@ async function handleSettingUpdate(
     );
 
     if (!result.ok) {
-      logger.warn(
-        { settingId, error: result.error, channelId },
-        '[Channel Settings] Update failed'
-      );
+      logger.warn({ settingId, error: result.error, channelId }, 'Update failed');
       return { success: false, error: result.error };
     }
 
@@ -271,11 +268,11 @@ async function handleSettingUpdate(
       channelId
     );
 
-    logger.info({ settingId, newValue, channelId, userId }, '[Channel Settings] Setting updated');
+    logger.info({ settingId, newValue, channelId, userId }, 'Setting updated');
 
     return { success: true, newData };
   } catch (error) {
-    logger.error({ err: error, settingId, channelId }, '[Channel Settings] Error updating setting');
+    logger.error({ err: error, settingId, channelId }, 'Error updating setting');
     return { success: false, error: 'Failed to update setting' };
   }
 }

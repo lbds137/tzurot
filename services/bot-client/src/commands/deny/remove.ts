@@ -46,7 +46,7 @@ export async function handleRemove(context: DeferredCommandContext): Promise<voi
       `✅ Denial removed for ${targetDisplay} (${scope.toLowerCase()} scope).`
     );
   } catch (error) {
-    logger.error({ err: error }, '[Deny] Failed to remove denial');
+    logger.error({ err: error }, 'Failed to remove denial');
     await context.editReply('❌ Failed to remove denial. Please try again.');
   }
 }

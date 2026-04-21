@@ -195,7 +195,7 @@ export async function handleEditModal(
     );
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
-    logger.error({ err: error }, '[Deny] Failed to edit entry');
+    logger.error({ err: error }, 'Failed to edit entry');
     // Edit-exception terminal path; deny doesn't use the Back-to-Browse
     // button pattern (see detail.ts file-top comment).
     await interaction.editReply({

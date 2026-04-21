@@ -63,10 +63,7 @@ async function resolveChannelEnvironment(
 
     return buildFallbackEnvironment(channelId, guildId);
   } catch (error) {
-    logger.warn(
-      { err: error, channelId },
-      '[CCHF] Failed to fetch channel, using fallback environment'
-    );
+    logger.warn({ err: error, channelId }, 'Failed to fetch channel, using fallback environment');
     return buildFallbackEnvironment(channelId, guildId);
   }
 }
@@ -91,7 +88,7 @@ function buildGuildEnvironment(
   if (channel.isThread() && channel.parent === null) {
     logger.debug(
       { channelId: channel.id },
-      '[CCHF] Thread parent is null (deletion race); using thread as channel'
+      'Thread parent is null (deletion race); using thread as channel'
     );
   } else if (channel.isThread() && channel.parent !== null) {
     env.thread = {
@@ -150,7 +147,7 @@ function getChannelTypeName(type: ChannelType): string {
   if (name === undefined) {
     logger.warn(
       { channelType: type },
-      '[CCHF] Unmapped Discord channel type — may need explicit handling'
+      'Unmapped Discord channel type — may need explicit handling'
     );
   }
   return name ?? 'unknown';
@@ -189,7 +186,7 @@ export async function fetchCrossChannelHistory(
   );
 
   if (groups.length === 0) {
-    logger.debug({ personaId, personalityId }, '[CCHF] No cross-channel history found');
+    logger.debug({ personaId, personalityId }, 'No cross-channel history found');
     return [];
   }
 
@@ -216,7 +213,7 @@ export async function fetchCrossChannelHistory(
       groupCount: resolvedGroups.length,
       totalMessages,
     },
-    '[CCHF] Fetched cross-channel history'
+    'Fetched cross-channel history'
   );
 
   return resolvedGroups;
@@ -250,7 +247,7 @@ export async function fetchCrossChannelIfEnabled(opts: {
         currentHistoryLength: opts.currentHistoryLength,
         dbLimit: opts.dbLimit,
       },
-      '[CCHF] No remaining message count for cross-channel history'
+      'No remaining message count for cross-channel history'
     );
     return undefined;
   }

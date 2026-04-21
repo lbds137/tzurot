@@ -142,7 +142,7 @@ export async function handlePersonalityAutocomplete(
         userId,
         guildId: interaction.guildId,
       },
-      '[Personality] Autocomplete error'
+      'Autocomplete error'
     );
     await interaction.respond([]);
     return true;

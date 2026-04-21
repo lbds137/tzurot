@@ -49,7 +49,7 @@ export class EmptyMessageFilter implements IMessageProcessor {
 
     // Only filter if message has no content AND no attachments (direct or snapshot)
     if (message.content.length === 0 && !hasDirectAttachments && !hasSnapshotAttachments) {
-      logger.debug({ messageId: message.id }, '[EmptyMessageFilter] Ignoring empty message');
+      logger.debug({ messageId: message.id }, 'Ignoring empty message');
       return Promise.resolve(true); // Stop processing
     }
 

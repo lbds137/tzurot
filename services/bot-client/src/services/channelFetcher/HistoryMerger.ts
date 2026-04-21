@@ -45,7 +45,7 @@ export function recoverEmptyDbContent(
     recoveredCount++;
     logger.info(
       { messageId: msgId, contentLength: extendedContent.length },
-      '[HistoryMerger] Recovered empty DB message content from extended context'
+      'Recovered empty DB message content from extended context'
     );
   }
   return recoveredCount;
@@ -97,7 +97,7 @@ export function enrichDbMessagesWithExtendedMetadata(
   if (reactionsEnrichedCount > 0) {
     logger.debug(
       { reactionsEnrichedCount },
-      '[HistoryMerger] Enriched DB messages with reactions from extended context'
+      'Enriched DB messages with reactions from extended context'
     );
   }
   return reactionsEnrichedCount;
@@ -154,7 +154,7 @@ export function mergeWithHistory(
       deduplicatedCount: extendedMessages.length - uniqueExtendedMessages.length,
       recoveredCount,
     },
-    '[HistoryMerger] Merged extended context with DB history'
+    'Merged extended context with DB history'
   );
 
   // Combine: DB history (chronological, richer metadata) + unique extended messages

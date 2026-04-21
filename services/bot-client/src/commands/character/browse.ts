@@ -277,10 +277,10 @@ export async function handleBrowse(
 
     logger.info(
       { userId, total: ownCharacters.length + others.length, filter, query },
-      '[Character] Browse characters'
+      'Browse characters'
     );
   } catch (error) {
-    logger.error({ err: error, userId }, '[Character] Failed to browse characters');
+    logger.error({ err: error, userId }, 'Failed to browse characters');
     await context.editReply('❌ Failed to load characters. Please try again.');
   }
 }
@@ -365,7 +365,7 @@ registerBrowseRebuilder('character', async (interaction, browseContext, successB
       components: result.components,
     };
   } catch (error) {
-    logger.error({ err: error, userId: interaction.user.id }, '[Character] Browse rebuilder threw');
+    logger.error({ err: error, userId: interaction.user.id }, 'Browse rebuilder threw');
     return null;
   }
 });
@@ -396,7 +396,7 @@ export async function handleBrowsePagination(
   } catch (error) {
     logger.error(
       { err: error, userId: interaction.user.id, ...parsed },
-      '[Character] Failed to load browse page'
+      'Failed to load browse page'
     );
     // Keep existing content on error
   }
@@ -476,10 +476,10 @@ export async function handleBrowseSelect(
 
     logger.info(
       { userId, slug, name: character.displayName ?? character.name, canEdit: character.canEdit },
-      '[Character] Opened dashboard from browse'
+      'Opened dashboard from browse'
     );
   } catch (error) {
-    logger.error({ err: error, slug }, '[Character] Failed to open dashboard from browse');
+    logger.error({ err: error, slug }, 'Failed to open dashboard from browse');
     await interaction.editReply({
       content: '❌ Failed to load character. Please try again.',
       embeds: [],

@@ -56,9 +56,7 @@ export class ConversationManager {
       thread.messages = thread.messages.slice(-this.maxMessagesPerThread);
     }
 
-    logger.debug(
-      `[ConversationManager] Added user message to ${key} (${thread.messages.length} total)`
-    );
+    logger.debug(`Added user message to ${key} (${thread.messages.length} total)`);
   }
 
   /**
@@ -79,9 +77,7 @@ export class ConversationManager {
       thread.messages = thread.messages.slice(-this.maxMessagesPerThread);
     }
 
-    logger.debug(
-      `[ConversationManager] Added assistant message to ${key} (${thread.messages.length} total)`
-    );
+    logger.debug(`Added assistant message to ${key} (${thread.messages.length} total)`);
   }
 
   /**
@@ -105,7 +101,7 @@ export class ConversationManager {
   clearConversation(channelId: string, personalityName: string): void {
     const key = this.getKey(channelId, personalityName);
     this.conversations.delete(key);
-    logger.info(`[ConversationManager] Cleared conversation for ${key}`);
+    logger.info(`Cleared conversation for ${key}`);
   }
 
   /**
@@ -119,7 +115,7 @@ export class ConversationManager {
         cleared++;
       }
     }
-    logger.info(`[ConversationManager] Cleared ${cleared} conversations for channel ${channelId}`);
+    logger.info(`Cleared ${cleared} conversations for channel ${channelId}`);
   }
 
   /**
@@ -133,7 +129,7 @@ export class ConversationManager {
         messages: [],
       };
       this.conversations.set(key, thread);
-      logger.debug(`[ConversationManager] Created new thread: ${key}`);
+      logger.debug(`Created new thread: ${key}`);
     }
 
     return thread;
@@ -159,6 +155,6 @@ export class ConversationManager {
    */
   destroy(): void {
     this.conversations.clear();
-    logger.info('[ConversationManager] Destroyed');
+    logger.info('Destroyed');
   }
 }

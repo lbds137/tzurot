@@ -167,7 +167,7 @@ export async function handleDetailExport(
         components,
       });
     } catch (error) {
-      logger.error({ err: error, userId, slug }, '[Shapes] Failed to refresh detail after export');
+      logger.error({ err: error, userId, slug }, 'Failed to refresh detail after export');
       // Export succeeded but detail refresh failed — show a simple success message
       // so the user isn't stuck on the "Starting Export..." spinner with no buttons
       await interaction.editReply({
@@ -222,7 +222,7 @@ export async function handleImportConfirm(
   const { slug, sort, isFromDetail } = parseSlugFromFooter(interaction);
 
   if (slug === undefined || importType === undefined) {
-    logger.warn({ customId: interaction.customId }, '[Shapes] Import confirm missing state');
+    logger.warn({ customId: interaction.customId }, 'Import confirm missing state');
     await interaction.update({
       content: '\u274C Invalid import state. Please try `/shapes import` again.',
       embeds: [],
@@ -250,7 +250,7 @@ export async function handleImportConfirm(
         components,
       });
     } catch (error) {
-      logger.error({ err: error, userId, slug }, '[Shapes] Failed to refresh detail after import');
+      logger.error({ err: error, userId, slug }, 'Failed to refresh detail after import');
       // Import succeeded but detail refresh failed — show a simple success message
       // so the user isn't stuck on the "Starting Import..." spinner with no buttons
       await interaction.editReply({

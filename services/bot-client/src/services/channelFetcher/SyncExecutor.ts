@@ -39,7 +39,7 @@ export async function executeDatabaseSync(
     if (dbMessages.size === 0) {
       logger.debug(
         { channelId, discordCount: discordMessageIds.length },
-        '[DiscordChannelFetcher] No matching DB messages for sync'
+        'No matching DB messages for sync'
       );
       return result;
     }
@@ -73,10 +73,7 @@ export async function executeDatabaseSync(
         const updated = await conversationSync.updateMessageContent(dbId, collatedContent);
         if (updated) {
           result.updated++;
-          logger.debug(
-            { messageId: dbId, chunkCount: chunks.length },
-            '[DiscordChannelFetcher] Synced edited message'
-          );
+          logger.debug({ messageId: dbId, chunkCount: chunks.length }, 'Synced edited message');
         }
       }
     }
@@ -107,7 +104,7 @@ export async function executeDatabaseSync(
         result.deleted = deleteCount;
         logger.info(
           { channelId, deletedCount: deleteCount },
-          '[DiscordChannelFetcher] Soft deleted messages not found in Discord'
+          'Soft deleted messages not found in Discord'
         );
       }
     }
@@ -115,7 +112,7 @@ export async function executeDatabaseSync(
     if (result.updated > 0 || result.deleted > 0) {
       logger.info(
         { channelId, personalityId, updated: result.updated, deleted: result.deleted },
-        '[DiscordChannelFetcher] Opportunistic sync completed'
+        'Opportunistic sync completed'
       );
     }
 
@@ -123,7 +120,7 @@ export async function executeDatabaseSync(
   } catch (error) {
     logger.error(
       { channelId, personalityId, error: error instanceof Error ? error.message : String(error) },
-      '[DiscordChannelFetcher] Sync failed'
+      'Sync failed'
     );
     return result;
   }

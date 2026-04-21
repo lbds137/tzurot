@@ -44,7 +44,7 @@ export function extractGuildInfo(msg: Message): ParticipantGuildInfo {
     // Discord.js can throw when accessing member properties in edge cases
     logger.warn(
       { err: error, memberId: member.id },
-      '[ParticipantContextCollector] Failed to extract guild info, returning empty'
+      'Failed to extract guild info, returning empty'
     );
     return { roles: [] };
   }

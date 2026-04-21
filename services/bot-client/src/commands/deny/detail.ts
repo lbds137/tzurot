@@ -160,7 +160,7 @@ async function handleModeToggle(interaction: ButtonInteraction, entryId: string)
       components: buildDetailButtons(entryId, newMode, data.browseContext !== null),
     });
   } catch (error) {
-    logger.error({ err: error }, '[Deny] Failed to toggle mode');
+    logger.error({ err: error }, 'Failed to toggle mode');
     // intentionally-raw: terminal exception path; see file-top comment for
     // why deny doesn't use renderTerminalScreen's Back-to-Browse pattern.
     await interaction.editReply({
@@ -230,7 +230,7 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
       },
     });
   } catch (error) {
-    logger.error({ err: error }, '[Deny] Failed to delete entry');
+    logger.error({ err: error }, 'Failed to delete entry');
     await renderPostActionScreen({
       interaction,
       session: postActionSession,
@@ -301,7 +301,7 @@ export async function handleDetailButton(interaction: ButtonInteraction): Promis
       await handleSharedBackButton(interaction, 'deny', entityId);
       break;
     default:
-      logger.warn({ action, entityId }, '[Deny] Unknown detail action');
+      logger.warn({ action, entityId }, 'Unknown detail action');
   }
 }
 

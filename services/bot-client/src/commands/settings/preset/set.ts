@@ -50,7 +50,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
     if (!result.ok) {
       logger.warn(
         { userId, status: result.status, personalityId, configId },
-        '[Me/Preset] Failed to set override'
+        'Failed to set override'
       );
       await context.editReply({ content: `❌ Failed to set preset: ${result.error}` });
       return;
@@ -78,10 +78,10 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
         configName: data.override.configName,
         reason,
       },
-      '[Me/Preset] Set override'
+      'Set override'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset Set' }, '[Preset Set] Error');
+    logger.error({ err: error, userId, command: 'Preset Set' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

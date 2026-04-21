@@ -201,9 +201,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
       components: components as ActionRowBuilder<ButtonBuilder>[],
     });
 
-    logger.debug({ userId, total: shapes.length }, '[Shapes] Browse displayed');
+    logger.debug({ userId, total: shapes.length }, 'Browse displayed');
   } catch (error) {
-    logger.error({ err: error, userId }, '[Shapes] Unexpected error fetching list');
+    logger.error({ err: error, userId }, 'Unexpected error fetching list');
     await context.editReply({
       content: '\u274C An unexpected error occurred. Please try again.',
     });

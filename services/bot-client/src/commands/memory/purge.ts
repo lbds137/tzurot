@@ -88,10 +88,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
         statsResult.status === 404
           ? `Personality "${personalityInput}" not found.`
           : 'Failed to get memory stats. Please try again later.';
-      logger.warn(
-        { userId, personalityInput, status: statsResult.status },
-        '[Memory] Purge stats failed'
-      );
+      logger.warn({ userId, personalityInput, status: statsResult.status }, 'Purge stats failed');
       await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
@@ -263,10 +260,10 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
         deletedCount: result.deletedCount,
         lockedPreserved: result.lockedPreserved,
       },
-      '[Memory] PURGE completed'
+      'PURGE completed'
     );
   } catch (error) {
-    logger.error({ error, userId }, '[Memory Purge] Unexpected error');
+    logger.error({ error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

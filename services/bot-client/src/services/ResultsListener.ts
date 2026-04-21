@@ -69,7 +69,7 @@ export class ResultsListener {
     });
 
     this.redis.on('error', (error: Error) => {
-      logger.error({ err: error }, '[ResultsListener] Redis client error');
+      logger.error({ err: error }, 'Redis client error');
     });
   }
 
@@ -85,21 +85,18 @@ export class ResultsListener {
     try {
       // Connect to Redis (manual since lazyConnect is true)
       await this.redis.connect();
-      logger.info('[ResultsListener] Connected to Redis (ioredis)');
+      logger.info('Connected to Redis (ioredis)');
 
       // Create consumer group (idempotent - won't error if exists)
       try {
         // ioredis xgroup: xgroup('CREATE', stream, group, id, 'MKSTREAM')
         await this.redis.xgroup('CREATE', STREAM_NAME, CONSUMER_GROUP, '0', 'MKSTREAM');
-        logger.info(
-          { stream: STREAM_NAME, group: CONSUMER_GROUP },
-          '[ResultsListener] Created consumer group'
-        );
+        logger.info({ stream: STREAM_NAME, group: CONSUMER_GROUP }, 'Created consumer group');
       } catch (error: unknown) {
         // BUSYGROUP error means group already exists - this is fine
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (errorMessage.includes('BUSYGROUP')) {
-          logger.info({ group: CONSUMER_GROUP }, '[ResultsListener] Consumer group already exists');
+          logger.info({ group: CONSUMER_GROUP }, 'Consumer group already exists');
         } else {
           throw error;
         }
@@ -111,10 +108,10 @@ export class ResultsListener {
 
       logger.info(
         { consumer: CONSUMER_NAME, group: CONSUMER_GROUP },
-        '[ResultsListener] Started listening for job results'
+        'Started listening for job results'
       );
     } catch (error) {
-      logger.error({ err: error }, '[ResultsListener] Failed to start listening');
+      logger.error({ err: error }, 'Failed to start listening');
       throw error;
     }
   }
@@ -125,7 +122,7 @@ export class ResultsListener {
   async stop(): Promise<void> {
     this.isListening = false;
     await this.redis.quit();
-    logger.info('[ResultsListener] Stopped listening');
+    logger.info('Stopped listening');
   }
 
   /**
@@ -170,7 +167,7 @@ export class ResultsListener {
           await this.processMessages(newMessages);
         }
       } catch (error) {
-        logger.error({ err: error }, '[ResultsListener] Error in consume loop');
+        logger.error({ err: error }, 'Error in consume loop');
         // Sleep briefly before retrying to avoid tight error loop
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -202,7 +199,7 @@ export class ResultsListener {
             completedAt: messageObj.completedAt,
           };
 
-          logger.info({ jobId: data.jobId, messageId }, '[ResultsListener] Received job result');
+          logger.info({ jobId: data.jobId, messageId }, 'Received job result');
 
           // Parse LLMGenerationResult from JSON string
           const result = JSON.parse(data.result) as LLMGenerationResult;
@@ -216,12 +213,9 @@ export class ResultsListener {
           // ioredis xack: xack(stream, group, id)
           await this.redis.xack(STREAM_NAME, CONSUMER_GROUP, messageId);
 
-          logger.debug({ messageId }, '[ResultsListener] Acknowledged message');
+          logger.debug({ messageId }, 'Acknowledged message');
         } catch (error) {
-          logger.error(
-            { err: error, messageId },
-            '[ResultsListener] Error processing message - will retry'
-          );
+          logger.error({ err: error, messageId }, 'Error processing message - will retry');
           // Don't ACK - message stays in pending list for retry
         }
       }

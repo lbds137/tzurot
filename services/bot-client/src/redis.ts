@@ -32,10 +32,7 @@ export { voiceTranscriptCache };
 try {
   initSessionManager(redis);
 } catch (error) {
-  logger.error(
-    { err: error },
-    '[Redis] Failed to initialize session manager - dashboards will not work'
-  );
+  logger.error({ err: error }, 'Failed to initialize session manager - dashboards will not work');
   // Session manager remains null; getSessionManager() will throw a clear error if called
 }
 

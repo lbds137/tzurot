@@ -74,7 +74,7 @@ export async function handleSettings(
   const characterSlug = options.character();
   const userId = context.user.id;
 
-  logger.debug({ characterSlug, userId }, '[Character Settings] Opening dashboard');
+  logger.debug({ characterSlug, userId }, 'Opening dashboard');
 
   try {
     // Fetch current character data from API gateway
@@ -94,7 +94,7 @@ export async function handleSettings(
         });
         return;
       }
-      logger.warn({ error: result.error, characterSlug }, '[Character Settings] Fetch failed');
+      logger.warn({ error: result.error, characterSlug }, 'Fetch failed');
       await context.editReply({
         content: '❌ Failed to load character data.',
       });
@@ -129,9 +129,9 @@ export async function handleSettings(
       updateHandler: createUpdateHandler(personality.id),
     });
 
-    logger.info({ characterSlug, userId }, '[Character Settings] Dashboard opened');
+    logger.info({ characterSlug, userId }, 'Dashboard opened');
   } catch (error) {
-    logger.error({ err: error, characterSlug }, '[Character Settings] Error opening dashboard');
+    logger.error({ err: error, characterSlug }, 'Error opening dashboard');
 
     await context.editReply({
       content: '❌ An error occurred while opening the settings dashboard.',

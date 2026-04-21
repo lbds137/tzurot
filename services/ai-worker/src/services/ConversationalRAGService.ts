@@ -264,6 +264,10 @@ export class ConversationalRAGService {
         // is always boolean in practice, but this prevents future undefined values
         // from accidentally suppressing glitch detection.
         reasoningEnabled: personality.reasoning !== undefined && supportsReasoning !== false,
+        // Included in the per-model reasoning-did-not-engage warn so log
+        // searches can correlate extraction misses with specific upstream
+        // model releases.
+        modelName,
         // Threaded so the post-processor can strip leading verbatim echoes of
         // the user's message from the response (some LLMs learned this pattern).
         userMessage,

@@ -53,7 +53,7 @@ export class VoiceMessageProcessor implements IMessageProcessor {
       return false; // Continue to next processor
     }
 
-    logger.debug('[VoiceMessageProcessor] Processing voice message');
+    logger.debug('Processing voice message');
 
     // Check if message also targets a personality
     const isReply = message.reference !== null;
@@ -86,7 +86,7 @@ export class VoiceMessageProcessor implements IMessageProcessor {
     // continueToPersonalityHandler is logged for observability only.
     logger.debug(
       { continueToPersonalityHandler: result.continueToPersonalityHandler },
-      '[VoiceMessageProcessor] Voice transcription complete, continuing chain'
+      'Voice transcription complete, continuing chain'
     );
     return false; // Continue to next processor
   }
