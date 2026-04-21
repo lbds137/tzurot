@@ -12,7 +12,7 @@ import { createLogger } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
-import type { DenylistEntryResponse } from './browse.js';
+import type { DenylistEntryResponse } from './browseTypes.js';
 import type { DenyDetailSession } from './detailTypes.js';
 import { ENTITY_TYPE, VALID_SCOPES, buildDetailEmbed, buildDetailButtons } from './detailTypes.js';
 
