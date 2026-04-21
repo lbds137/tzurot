@@ -51,15 +51,9 @@ export function storeDiagnosticLog(
       },
     })
     .then(() => {
-      logger.debug(
-        { requestId: payload.meta.requestId },
-        '[DiagnosticStorage] Diagnostic log stored successfully'
-      );
+      logger.debug({ requestId: payload.meta.requestId }, 'Diagnostic log stored successfully');
     })
     .catch((err: unknown) => {
-      logger.error(
-        { err, requestId: payload.meta.requestId },
-        '[DiagnosticStorage] Failed to store diagnostic log'
-      );
+      logger.error({ err, requestId: payload.meta.requestId }, 'Failed to store diagnostic log');
     });
 }

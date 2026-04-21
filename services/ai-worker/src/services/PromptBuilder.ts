@@ -198,7 +198,7 @@ export class PromptBuilder {
       context.discordUsername
     );
     logger.debug(
-      `[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
+      `Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
     );
 
     // Build <system_identity> section
@@ -251,9 +251,7 @@ ${locationXml}
         : '';
 
     if (referencesContext.length > 0) {
-      logger.info(
-        `[PromptBuilder] referencesContext length after formatting: ${referencesContext.length}`
-      );
+      logger.info(`referencesContext length after formatting: ${referencesContext.length}`);
     }
 
     // Conversation history as XML
@@ -277,7 +275,7 @@ ${serializedHistory}
     // Basic prompt composition logging
     const historyLength = serializedHistory?.length ?? 0;
     logger.info(
-      `[PromptBuilder] Prompt composition: identity=${identitySection.length} identityConstraints=${identityConstraintsSection.length} platformConstraints=${PLATFORM_CONSTRAINTS.length} context=${contextSection.length} participants=${participantsContext.length} memories=${memoryContext.length} references=${referencesContext.length} history=${historyLength} protocol=${protocolSection.length} outputConstraints=${outputConstraintsSection.length} total=${fullSystemPrompt.length} chars`
+      `Prompt composition: identity=${identitySection.length} identityConstraints=${identityConstraintsSection.length} platformConstraints=${PLATFORM_CONSTRAINTS.length} context=${contextSection.length} participants=${participantsContext.length} memories=${memoryContext.length} references=${referencesContext.length} history=${historyLength} protocol=${protocolSection.length} outputConstraints=${outputConstraintsSection.length} total=${fullSystemPrompt.length} chars`
     );
 
     // Detailed prompt assembly logging (development only)

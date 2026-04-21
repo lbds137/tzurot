@@ -53,7 +53,7 @@ export async function createFullPersonality(
 
   logger.info(
     { personalityId: mapped.personality.id, slug: mapped.personality.slug },
-    '[ShapesImportJob] Created/updated personality with LLM config'
+    'Created/updated personality with LLM config'
   );
 
   return { personalityId: mapped.personality.id, slug: mapped.personality.slug };
@@ -156,7 +156,7 @@ export async function downloadAndStoreAvatar(
     if (!response.ok) {
       logger.warn(
         { personalityId, status: response.status },
-        '[ShapesImportJob] Failed to download avatar — skipping'
+        'Failed to download avatar — skipping'
       );
       return;
     }
@@ -166,7 +166,7 @@ export async function downloadAndStoreAvatar(
     if (buffer.length > MAX_AVATAR_BYTES) {
       logger.warn(
         { personalityId, sizeBytes: buffer.length, maxBytes: MAX_AVATAR_BYTES },
-        '[ShapesImportJob] Avatar exceeds size limit — skipping'
+        'Avatar exceeds size limit — skipping'
       );
       return;
     }
@@ -176,22 +176,16 @@ export async function downloadAndStoreAvatar(
       data: { avatarData: buffer },
     });
 
-    logger.info(
-      { personalityId, sizeBytes: buffer.length },
-      '[ShapesImportJob] Avatar downloaded and stored'
-    );
+    logger.info({ personalityId, sizeBytes: buffer.length }, 'Avatar downloaded and stored');
   } catch (error) {
     // Non-fatal — personality is usable without an avatar
     if (error instanceof DOMException && error.name === 'AbortError') {
       logger.warn(
         { personalityId, timeoutMs: AVATAR_TIMEOUT_MS },
-        '[ShapesImportJob] Avatar download timed out — skipping'
+        'Avatar download timed out — skipping'
       );
     } else {
-      logger.warn(
-        { err: error, personalityId },
-        '[ShapesImportJob] Avatar download failed — skipping'
-      );
+      logger.warn({ err: error, personalityId }, 'Avatar download failed — skipping');
     }
   } finally {
     clearTimeout(timeout);

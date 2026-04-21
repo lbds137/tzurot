@@ -170,7 +170,7 @@ function createCreateHandler(prisma: PrismaClient) {
       });
     }
 
-    logger.info({ userId: user.id, personaId: persona.id }, '[Persona] Created new persona');
+    logger.info({ userId: user.id, personaId: persona.id }, 'Created new persona');
 
     sendCustomSuccess(
       res,
@@ -226,7 +226,7 @@ function createUpdateHandler(prisma: PrismaClient) {
       select: PERSONA_SELECT,
     });
 
-    logger.info({ userId: user.id, personaId: ownedPersona.id }, '[Persona] Updated persona');
+    logger.info({ userId: user.id, personaId: ownedPersona.id }, 'Updated persona');
 
     sendCustomSuccess(res, {
       success: true,
@@ -255,7 +255,7 @@ function createDeleteHandler(prisma: PrismaClient) {
     }
 
     await prisma.persona.delete({ where: { id: persona.id } });
-    logger.info({ userId: user.id, personaId: persona.id }, '[Persona] Deleted persona');
+    logger.info({ userId: user.id, personaId: persona.id }, 'Deleted persona');
 
     sendCustomSuccess(res, { message: 'Persona deleted' });
   };

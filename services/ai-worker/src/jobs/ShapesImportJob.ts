@@ -51,10 +51,7 @@ export async function processShapesImportJob(
   const { prisma, memoryAdapter } = deps;
   const { userId, discordUserId, sourceSlug, importJobId, importType } = job.data;
 
-  logger.info(
-    { jobId: job.id, sourceSlug, importType, userId: discordUserId },
-    '[ShapesImportJob] Starting import'
-  );
+  logger.info({ jobId: job.id, sourceSlug, importType, userId: discordUserId }, 'Starting import');
 
   // 1. Mark import as in_progress
   await updateImportJobStatus(prisma, importJobId, 'in_progress');
@@ -99,7 +96,7 @@ export async function processShapesImportJob(
         avatarError = error instanceof Error ? error.message : String(error);
         logger.warn(
           { err: error, personalityId },
-          '[ShapesImportJob] Avatar download failed — continuing without avatar'
+          'Avatar download failed — continuing without avatar'
         );
       }
     }
@@ -149,7 +146,7 @@ export async function processShapesImportJob(
       memoriesSkipped: memoryStats.skipped,
       importType,
     };
-    logger.info({ jobId: job.id, ...result }, '[ShapesImportJob] Import completed successfully');
+    logger.info({ jobId: job.id, ...result }, 'Import completed successfully');
     return result;
   } catch (error) {
     // Persist rotated cookie before error handling — prevents stale cookie on retry

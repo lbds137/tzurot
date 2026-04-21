@@ -77,20 +77,20 @@ export function createTestKeyRoute(prisma: PrismaClient): Router {
           tag: storedKey.tag,
         });
       } catch (error) {
-        logger.error({ err: error, provider, discordUserId }, '[Wallet] Failed to decrypt API key');
+        logger.error({ err: error, provider, discordUserId }, 'Failed to decrypt API key');
         sendError(res, ErrorResponses.internalError('Failed to decrypt stored API key'));
         return;
       }
 
       // Validate the API key
-      logger.info({ provider, discordUserId }, '[Wallet] Testing API key');
+      logger.info({ provider, discordUserId }, 'Testing API key');
 
       const validation = await validateApiKey(apiKey, provider);
 
       if (!validation.valid) {
         logger.warn(
           { provider, discordUserId, error: validation.error },
-          '[Wallet] API key validation failed'
+          'API key validation failed'
         );
 
         sendCustomSuccess(
@@ -119,7 +119,7 @@ export function createTestKeyRoute(prisma: PrismaClient): Router {
 
       logger.info(
         { provider, discordUserId, hasCredits: validation.credits !== undefined },
-        '[Wallet] API key validated successfully'
+        'API key validated successfully'
       );
 
       sendCustomSuccess(res, {

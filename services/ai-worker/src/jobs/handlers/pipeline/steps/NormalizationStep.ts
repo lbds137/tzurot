@@ -47,10 +47,10 @@ export class NormalizationStep implements IPipelineStep {
           timestampNormalizations,
           historyLength: conversationHistory?.length ?? 0,
         },
-        '[NormalizationStep] Normalized legacy data formats'
+        'Normalized legacy data formats'
       );
     } else {
-      logger.debug({ jobId: job.id }, '[NormalizationStep] No normalization needed');
+      logger.debug({ jobId: job.id }, 'No normalization needed');
     }
 
     return context;
@@ -105,7 +105,7 @@ export class NormalizationStep implements IPipelineStep {
           originalRole: msg.role,
           error: error instanceof Error ? error.message : String(error),
         },
-        '[NormalizationStep] Failed to normalize role, leaving as-is'
+        'Failed to normalize role, leaving as-is'
       );
     }
     return 0;

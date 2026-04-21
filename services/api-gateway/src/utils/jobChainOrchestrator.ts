@@ -122,7 +122,7 @@ function createAudioTranscriptionJobs(params: AudioJobParams): PreprocessingJobs
       const errorContext = referenceNumber !== undefined ? `referenced message ` : '';
       logger.error(
         { requestId: audioRequestId, referenceNumber, errors: validation.error.format() },
-        `[JobChain] ${errorContext}Audio transcription job validation failed`
+        `${errorContext}Audio transcription job validation failed`
       );
       throw new Error(
         `${errorContext}Audio transcription job validation failed: ${validation.error.message}`
@@ -145,7 +145,7 @@ function createAudioTranscriptionJobs(params: AudioJobParams): PreprocessingJobs
 
     logger.info(
       { jobId, requestId: audioRequestId, referenceNumber, attachmentName: attachment.name },
-      '[JobChain] Added audio transcription child job'
+      'Added audio transcription child job'
     );
   }
 
@@ -190,7 +190,7 @@ function createImageDescriptionJob(params: ImageJobParams): PreprocessingJobsRes
     const errorContext = referenceNumber !== undefined ? `referenced message ` : '';
     logger.error(
       { requestId: imageRequestId, referenceNumber, errors: validation.error.format() },
-      `[JobChain] ${errorContext}Image description job validation failed`
+      `${errorContext}Image description job validation failed`
     );
     throw new Error(
       `${errorContext}Image description job validation failed: ${validation.error.message}`
@@ -217,7 +217,7 @@ function createImageDescriptionJob(params: ImageJobParams): PreprocessingJobsRes
 
   logger.info(
     { jobId, requestId: imageRequestId, referenceNumber, imageCount: imageAttachments.length },
-    '[JobChain] Added image description child job'
+    'Added image description child job'
   );
 
   return { children, dependencies };
@@ -321,7 +321,7 @@ export async function createJobChain(params: {
   if (context.attachments && context.attachments.length > 0) {
     logger.info(
       { requestId, attachmentCount: context.attachments.length },
-      '[JobChain] Attachments detected - creating preprocessing jobs as flow children'
+      'Attachments detected - creating preprocessing jobs as flow children'
     );
 
     const result = processAttachmentsForJobs(context.attachments, {
@@ -333,7 +333,7 @@ export async function createJobChain(params: {
 
     logger.info(
       { requestId, totalChildren: children.length },
-      '[JobChain] Built preprocessing child jobs for direct attachments'
+      'Built preprocessing child jobs for direct attachments'
     );
   }
 
@@ -359,7 +359,7 @@ export async function createJobChain(params: {
         referencedMessageCount: context.referencedMessages.length,
         totalChildren: children.length,
       },
-      '[JobChain] Built preprocessing child jobs including referenced messages'
+      'Built preprocessing child jobs including referenced messages'
     );
   }
 
@@ -381,7 +381,7 @@ export async function createJobChain(params: {
   if (!validation.success) {
     logger.error(
       { requestId, errors: validation.error.format() },
-      '[JobChain] LLM generation job validation failed'
+      'LLM generation job validation failed'
     );
     throw new Error(`LLM generation job validation failed: ${validation.error.message}`);
   }
@@ -401,7 +401,7 @@ export async function createJobChain(params: {
 
   logger.info(
     { jobId: llmJobId, requestId, personalityName: personality.name, childCount: children.length },
-    '[JobChain] Created flow - LLM will wait for all children to complete'
+    'Created flow - LLM will wait for all children to complete'
   );
 
   // Return parent job ID (the LLM job)

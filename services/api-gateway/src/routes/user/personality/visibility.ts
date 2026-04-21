@@ -58,7 +58,7 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
 
     logger.info(
       { discordUserId, slug, oldValue: personality.isPublic, newValue: isPublic },
-      '[User] Changed personality visibility'
+      'Changed personality visibility'
     );
 
     sendCustomSuccess(

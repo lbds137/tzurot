@@ -125,7 +125,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
       if (isPrismaUniqueConstraintError(error)) {
         logger.warn(
           { discordUserId, sourceSlug: normalizedSlug },
-          '[Shapes] P2002 unique constraint — treating as conflict'
+          'P2002 unique constraint — treating as conflict'
         );
         return sendError(
           res,
@@ -167,7 +167,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 
     logger.info(
       { discordUserId, sourceSlug: normalizedSlug, importType: validImportType, importJobId },
-      '[Shapes] Import job created'
+      'Import job created'
     );
 
     sendCustomSuccess(

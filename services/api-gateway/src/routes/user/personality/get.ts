@@ -85,7 +85,7 @@ function createHandler(prisma: PrismaClient) {
       user !== null &&
       (await canUserEditPersonality(prisma, user.id, personality.id, discordUserId));
 
-    logger.info({ discordUserId, slug, canEdit }, '[Personality] Retrieved personality');
+    logger.info({ discordUserId, slug, canEdit }, 'Retrieved personality');
 
     sendCustomSuccess(
       res,

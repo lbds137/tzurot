@@ -89,7 +89,7 @@ export function logAndThrow(
  * } catch (error) {
  *   return logAndReturnFallback(
  *     logger,
- *     '[Service] Fetch failed, using empty array',
+ *     'Fetch failed, using empty array',
  *     error,
  *     [],
  *     { queryId: 'abc123' }

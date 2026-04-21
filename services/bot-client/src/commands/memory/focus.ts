@@ -91,7 +91,7 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
       'Status checked'
     );
   } catch (error) {
-    logger.error({ error, userId }, 'Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
@@ -149,7 +149,7 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
       `Focus mode ${enabled ? 'enabled' : 'disabled'}`
     );
   } catch (error) {
-    logger.error({ error, userId }, `Unexpected error`);
+    logger.error({ err: error, userId }, `Unexpected error`);
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

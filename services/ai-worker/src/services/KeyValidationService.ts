@@ -161,7 +161,7 @@ export class KeyValidationService {
    * @see {@link ValidationTimeoutError} - Thrown when validation request times out
    */
   async validateKey(apiKey: string, provider: AIProvider): Promise<KeyValidationResult> {
-    logger.info({ provider }, '[KeyValidationService] Validating API key');
+    logger.info({ provider }, 'Validating API key');
 
     try {
       switch (provider) {
@@ -171,19 +171,13 @@ export class KeyValidationService {
           return await this.validateElevenLabsKey(apiKey);
         default: {
           const _exhaustive: never = provider;
-          logger.warn(
-            { provider: _exhaustive },
-            '[KeyValidationService] Unsupported provider for validation'
-          );
+          logger.warn({ provider: _exhaustive }, 'Unsupported provider for validation');
           // For unsupported providers, return valid=true (optimistic)
           return { valid: true, provider: _exhaustive };
         }
       }
     } catch (error) {
-      logger.error(
-        { err: error, provider },
-        '[KeyValidationService] Unexpected error during validation'
-      );
+      logger.error({ err: error, provider }, 'Unexpected error during validation');
 
       if (
         error instanceof InvalidApiKeyError ||
@@ -233,7 +227,7 @@ export class KeyValidationService {
           usage: data?.data?.usage,
           limit: data?.data?.limit,
         },
-        '[KeyValidationService] OpenRouter key validated successfully'
+        'OpenRouter key validated successfully'
       );
 
       return {
@@ -300,7 +294,7 @@ export class KeyValidationService {
 
       logger.info(
         { hasSubscription: !!data.subscription, remaining },
-        '[KeyValidationService] ElevenLabs key validated successfully'
+        'ElevenLabs key validated successfully'
       );
 
       return {

@@ -62,7 +62,7 @@ export class MemoryRetriever {
           bufferMs: AI_DEFAULTS.STM_LTM_BUFFER_MS,
           historyMessageCount: context.conversationHistory?.length ?? 0,
         },
-        '[MemoryRetriever] STM/LTM deduplication active - excluding memories newer than cutoff'
+        'STM/LTM deduplication active - excluding memories newer than cutoff'
       );
     } else {
       logger.warn(
@@ -70,7 +70,7 @@ export class MemoryRetriever {
           hasConversationHistory: context.conversationHistory !== undefined,
           historyMessageCount: context.conversationHistory?.length ?? 0,
         },
-        '[MemoryRetriever] WARNING: No oldestHistoryTimestamp - STM/LTM deduplication DISABLED. ' +
+        'WARNING: No oldestHistoryTimestamp - STM/LTM deduplication DISABLED. ' +
           'Recent memories may duplicate conversation history content.'
       );
     }
@@ -84,14 +84,12 @@ export class MemoryRetriever {
   private logRetrievedMemories(memories: MemoryDocument[], personalityName: string): void {
     if (memories.length === 0) {
       logger.debug(
-        `[MemoryRetriever] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`
+        `No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`
       );
       return;
     }
 
-    logger.info(
-      `[MemoryRetriever] Retrieved ${memories.length} relevant memories for ${personalityName}`
-    );
+    logger.info(`Retrieved ${memories.length} relevant memories for ${personalityName}`);
 
     memories.forEach((doc, idx) => {
       const id = typeof doc.metadata?.id === 'string' ? doc.metadata.id : 'unknown';
@@ -103,7 +101,7 @@ export class MemoryRetriever {
       const truncated = doc.pageContent.length > 120 ? '...' : '';
 
       logger.info(
-        `[MemoryRetriever] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp ?? 'unknown'} content="${content}${truncated}"`
+        `Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp ?? 'unknown'} content="${content}${truncated}"`
       );
     });
   }
@@ -125,7 +123,7 @@ export class MemoryRetriever {
     if (context.isWeighIn === true) {
       logger.info(
         { userId: context.userId, personalityId: personality.id },
-        '[MemoryRetriever] Weigh-in mode - skipping LTM retrieval'
+        'Weigh-in mode - skipping LTM retrieval'
       );
       return { memories: [], focusModeEnabled: false };
     }
@@ -141,7 +139,7 @@ export class MemoryRetriever {
     if (personaResult === null) {
       logger.warn(
         {},
-        `[MemoryRetriever] No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`
+        `No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`
       );
       return { memories: [], focusModeEnabled: false };
     }
@@ -198,7 +196,7 @@ export class MemoryRetriever {
           channelCount: memoryQueryOptions.channelIds.length,
           channelIds: memoryQueryOptions.channelIds,
         },
-        '[MemoryRetriever] Using channel-scoped memory retrieval'
+        'Using channel-scoped memory retrieval'
       );
     }
 
@@ -248,13 +246,11 @@ export class MemoryRetriever {
     const personaMap = new Map<string, ParticipantInfo>();
 
     if (!context.participants || context.participants.length === 0) {
-      logger.debug(`[MemoryRetriever] No participants provided in context`);
+      logger.debug(`No participants provided in context`);
       return personaMap;
     }
 
-    logger.debug(
-      `[MemoryRetriever] Fetching content for ${context.participants.length} participant(s)`
-    );
+    logger.debug(`Fetching content for ${context.participants.length} participant(s)`);
 
     // Track resolved personaIds to deduplicate participants
     // Same user may appear with different names (persona name vs Discord display name)
@@ -281,7 +277,7 @@ export class MemoryRetriever {
       if (resolvedPersonaId === null) {
         logger.debug(
           { personaId: participant.personaId, personaName: participant.personaName },
-          `[MemoryRetriever] Participant has no resolvable persona — skipping`
+          `Participant has no resolvable persona — skipping`
         );
         continue;
       }
@@ -296,7 +292,7 @@ export class MemoryRetriever {
         if (existingEntry?.isActive === true) {
           logger.debug(
             { resolvedPersonaId, skippedName: participant.personaName, keptName: existingName },
-            `[MemoryRetriever] Skipping duplicate participant - active speaker takes precedence`
+            `Skipping duplicate participant - active speaker takes precedence`
           );
           continue;
         }
@@ -306,7 +302,7 @@ export class MemoryRetriever {
         if (existingName.length <= participant.personaName.length && !participant.isActive) {
           logger.debug(
             { resolvedPersonaId, skippedName: participant.personaName, keptName: existingName },
-            `[MemoryRetriever] Skipping duplicate participant - preferring shorter name`
+            `Skipping duplicate participant - preferring shorter name`
           );
           continue;
         }
@@ -315,7 +311,7 @@ export class MemoryRetriever {
         personaMap.delete(existingName);
         logger.debug(
           { resolvedPersonaId, removedName: existingName, newName: participant.personaName },
-          `[MemoryRetriever] Replacing duplicate participant with better name`
+          `Replacing duplicate participant with better name`
         );
       }
 
@@ -325,7 +321,7 @@ export class MemoryRetriever {
         // Warn so missing records don't stay silent.
         logger.warn(
           { resolvedPersonaId, personaName: participant.personaName },
-          `[MemoryRetriever] No persona record for participant — omitting from prompt`
+          `No persona record for participant — omitting from prompt`
         );
         continue;
       }
@@ -342,7 +338,7 @@ export class MemoryRetriever {
             personaName: participant.personaName,
             isActive: participant.isActive,
           },
-          `[MemoryRetriever] Persona has empty content — including with identity fields only`
+          `Persona has empty content — including with identity fields only`
         );
       }
 
@@ -374,7 +370,7 @@ export class MemoryRetriever {
           resolvedPersonaId,
           contentPreview: personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
         },
-        '[MemoryRetriever] Loaded persona'
+        'Loaded persona'
       );
     }
 

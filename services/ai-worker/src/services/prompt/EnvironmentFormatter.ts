@@ -22,10 +22,10 @@ const logger = createLogger('EnvironmentFormatter');
  * @returns XML location element string
  */
 export function formatEnvironmentContext(environment: DiscordEnvironment): string {
-  logger.debug({ environment }, '[EnvironmentFormatter] Formatting environment context');
+  logger.debug({ environment }, 'Formatting environment context');
 
   if (environment.type === 'dm') {
-    logger.info('[EnvironmentFormatter] Environment type: DM');
+    logger.info('Environment type: DM');
   } else {
     logger.info(
       {
@@ -33,7 +33,7 @@ export function formatEnvironmentContext(environment: DiscordEnvironment): strin
         channelName: environment.channel.name,
         channelType: environment.channel.type,
       },
-      '[EnvironmentFormatter] Environment type: Guild'
+      'Environment type: Guild'
     );
   }
 

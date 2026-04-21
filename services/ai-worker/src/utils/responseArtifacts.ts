@@ -142,7 +142,7 @@ export function stripResponseArtifacts(content: string, personalityName: string)
     const charsRemoved = content.length - cleaned.length;
     logger.warn(
       { personalityName, strippedCount, charsRemoved },
-      `[ResponseArtifacts] Stripped ${strippedCount} artifact(s) (${charsRemoved} chars) from response. ` +
+      `Stripped ${strippedCount} artifact(s) (${charsRemoved} chars) from response. ` +
         `LLM learned pattern from conversation history.`
     );
   }
@@ -325,7 +325,7 @@ export function stripUserMessageEcho(
         responseLength: content.length,
         personalityName,
       },
-      '[ResponseArtifacts] Skipping user-message-echo strip — would remove >80% of response'
+      'Skipping user-message-echo strip — would remove >80% of response'
     );
     return content;
   }
@@ -337,7 +337,7 @@ export function stripUserMessageEcho(
       originalResponseLength: content.length,
       personalityName,
     },
-    '[ResponseArtifacts] Stripped leading user-message echo — model learned echo pattern'
+    'Stripped leading user-message echo — model learned echo pattern'
   );
   return stripped;
 }

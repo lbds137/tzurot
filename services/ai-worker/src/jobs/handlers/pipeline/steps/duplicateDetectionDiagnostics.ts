@@ -44,7 +44,7 @@ export function logDuplicateDetectionSetup(opts: DuplicateDetectionSetupOptions)
           roleType: typeof m.role,
         })),
       },
-      '[GenerationStep] ANOMALY: No assistant messages extracted from non-empty history. ' +
+      'ANOMALY: No assistant messages extracted from non-empty history. ' +
         'Duplicate detection may fail!'
     );
   } else {
@@ -55,7 +55,7 @@ export function logDuplicateDetectionSetup(opts: DuplicateDetectionSetupOptions)
         recentAssistantMessages: recentAssistantMessages.length,
         recentMessagesPreview: recentAssistantMessages.slice(0, 2).map(m => m.substring(0, 50)),
       },
-      '[GenerationStep] Duplicate detection ready'
+      'Duplicate detection ready'
     );
   }
 }

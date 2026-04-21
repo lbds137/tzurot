@@ -49,11 +49,11 @@ export function createUpdateGuildHandler(prisma: PrismaClient): RequestHandler[]
     const wasUpdated = result.count > 0;
 
     if (wasUpdated) {
-      logger.info({ channelId, guildId }, '[Channel] Backfilled guildId for channel settings');
+      logger.info({ channelId, guildId }, 'Backfilled guildId for channel settings');
     } else {
       logger.debug(
         { channelId, guildId },
-        '[Channel] No update needed (guildId already set or no settings found)'
+        'No update needed (guildId already set or no settings found)'
       );
     }
 

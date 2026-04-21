@@ -44,7 +44,7 @@ function createListHandler(service: LlmConfigService) {
   return async (_req: Request, res: Response) => {
     const configs = await service.list({ type: 'GLOBAL' });
 
-    logger.info({ count: configs.length }, '[AdminLlmConfig] Listed all configs');
+    logger.info({ count: configs.length }, 'Listed all configs');
     sendCustomSuccess(res, { configs }, StatusCodes.OK);
   };
 }
@@ -61,7 +61,7 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
     const formatted = service.formatConfigDetail(config);
     await enrichWithModelContext(formatted, config.model, modelCache);
 
-    logger.debug({ configId }, '[AdminLlmConfig] Fetched config');
+    logger.debug({ configId }, 'Fetched config');
     sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
   };
 }
@@ -109,10 +109,7 @@ function createCreateConfigHandler(
     const formatted = service.formatConfigDetail(config);
     await enrichWithModelContext(formatted, config.model, modelCache);
 
-    logger.info(
-      { configId: config.id, name: config.name },
-      '[AdminLlmConfig] Created global config'
-    );
+    logger.info({ configId: config.id, name: config.name }, 'Created global config');
     sendCustomSuccess(res, { config: formatted }, StatusCodes.CREATED);
   };
 }
@@ -176,7 +173,7 @@ function createEditConfigHandler(
 
     logger.info(
       { configId, name: config.name, updates: Object.keys(body) },
-      '[AdminLlmConfig] Updated global config'
+      'Updated global config'
     );
     sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
   };
@@ -203,7 +200,7 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
 
     await service.setAsDefault(configId);
 
-    logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as system default');
+    logger.info({ configId, name: config.name }, 'Set as system default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
   };
 }
@@ -237,7 +234,7 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
 
     await service.setAsFreeDefault(configId);
 
-    logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as free tier default');
+    logger.info({ configId, name: config.name }, 'Set as free tier default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
   };
 }
@@ -272,7 +269,7 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
 
     await service.delete(configId);
 
-    logger.info({ configId, name: config.name }, '[AdminLlmConfig] Deleted global config');
+    logger.info({ configId, name: config.name }, 'Deleted global config');
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
   };
 }

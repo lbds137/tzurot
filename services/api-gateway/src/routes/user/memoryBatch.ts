@@ -256,7 +256,7 @@ export async function handlePurge(
       deletedCount: result.count,
       lockedPreserved: lockedCount,
     },
-    '[Memory] PURGE completed'
+    'PURGE completed'
   );
 
   sendCustomSuccess(

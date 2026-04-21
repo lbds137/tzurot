@@ -164,7 +164,7 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
 
       logger.info(
         { discordUserId, period, totalRequests: stats.totalRequests },
-        '[Usage] Returned usage stats'
+        'Returned usage stats'
       );
 
       sendCustomSuccess(res, stats, StatusCodes.OK);

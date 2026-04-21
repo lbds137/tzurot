@@ -195,7 +195,7 @@ export class GenerationStep implements IPipelineStep {
       if (response.onlyThinkingProduced === true) {
         leakedThinkingRetries++;
         if (attempt < maxAttempts) {
-          logger.warn({ jobId, attempt }, '[GenerationStep] Leaked chain-of-thought — retrying');
+          logger.warn({ jobId, attempt }, 'Leaked chain-of-thought — retrying');
           fallback = selectBetterFallback(fallback, {
             response,
             reason: 'leaked-thinking',
@@ -207,7 +207,7 @@ export class GenerationStep implements IPipelineStep {
         // to duplicate check. Bad response > no response.
         logger.error(
           { jobId, attempt, contentLength: response.content.length },
-          '[GenerationStep] All attempts produced leaked chain-of-thought'
+          'All attempts produced leaked chain-of-thought'
         );
       }
       // Check for duplicate responses (async: includes semantic embedding layer)
@@ -277,7 +277,7 @@ export class GenerationStep implements IPipelineStep {
         hasReferencedMessages: !!jobContext.referencedMessages,
         referencedMessagesCount: jobContext.referencedMessages?.length ?? 0,
       },
-      '[GenerationStep] Processing with context'
+      'Processing with context'
     );
 
     // Create diagnostic collector for flight recorder (captures full pipeline data)
@@ -342,7 +342,7 @@ export class GenerationStep implements IPipelineStep {
         } catch (error) {
           logger.error(
             { jobId: job.id, err: error },
-            '[GenerationStep] Failed to store deferred memory - continuing without memory storage'
+            'Failed to store deferred memory - continuing without memory storage'
           );
         }
       }
@@ -350,7 +350,7 @@ export class GenerationStep implements IPipelineStep {
       const processingTimeMs = Date.now() - startTime;
       logger.info(
         { jobId: job.id, processingTimeMs, duplicateRetries, emptyRetries, leakedThinkingRetries },
-        '[GenerationStep] Generation completed'
+        'Generation completed'
       );
 
       // Final check for empty content (fallback after retry loop exhausted)
@@ -366,7 +366,7 @@ export class GenerationStep implements IPipelineStep {
             thinkingLength: response.thinkingContent?.length ?? 0,
             emptyRetries,
           },
-          '[GenerationStep] All retry attempts produced empty content'
+          'All retry attempts produced empty content'
         );
 
         // Record error for diagnostic flight recorder
@@ -456,7 +456,7 @@ export class GenerationStep implements IPipelineStep {
 
       logger.error(
         { err: error, jobId: job.id, ...getErrorLogContext(underlyingError) },
-        `[GenerationStep] Generation failed: ${errorInfo.category}`
+        `Generation failed: ${errorInfo.category}`
       );
 
       // Record partial LLM response for /admin debug visibility

@@ -34,7 +34,7 @@ export function createListKeysRoute(prisma: PrismaClient): Router {
 
       if (!user) {
         // User doesn't exist yet - they have no keys
-        logger.info({ discordUserId }, '[Wallet] User not found, returning empty list');
+        logger.info({ discordUserId }, 'User not found, returning empty list');
         sendCustomSuccess(res, {
           keys: [],
           timestamp: new Date().toISOString(),
@@ -54,7 +54,7 @@ export function createListKeysRoute(prisma: PrismaClient): Router {
         orderBy: { createdAt: 'desc' },
       });
 
-      logger.info({ discordUserId, keyCount: keys.length }, '[Wallet] Listed API keys');
+      logger.info({ discordUserId, keyCount: keys.length }, 'Listed API keys');
 
       sendCustomSuccess(res, {
         keys: keys.map(key => ({

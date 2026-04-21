@@ -55,7 +55,7 @@ export async function setupCacheInvalidation(
   const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
   await cacheInvalidationService.subscribe();
   cleanupFns.push(() => cacheInvalidationService.unsubscribe());
-  logger.info('[AIWorker] Subscribed to personality cache invalidation events');
+  logger.info('Subscribed to personality cache invalidation events');
 
   // ApiKeyResolver with cache invalidation
   const apiKeyResolver = new ApiKeyResolver(prisma);
@@ -63,14 +63,14 @@ export async function setupCacheInvalidation(
   await apiKeyCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
       apiKeyResolver.clearCache();
-      logger.info('[AIWorker] Cleared all API key cache entries');
+      logger.info('Cleared all API key cache entries');
     } else {
       apiKeyResolver.invalidateUserCache(event.discordId);
-      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated API key cache for user');
+      logger.info({ discordId: event.discordId }, 'Invalidated API key cache for user');
     }
   });
   cleanupFns.push(() => apiKeyCacheInvalidation.unsubscribe());
-  logger.info('[AIWorker] ApiKeyResolver initialized with cache invalidation');
+  logger.info('ApiKeyResolver initialized with cache invalidation');
 
   // LlmConfigResolver with cache invalidation
   const llmConfigResolver = new LlmConfigResolver(prisma);
@@ -78,23 +78,17 @@ export async function setupCacheInvalidation(
   await llmConfigCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
       llmConfigResolver.clearCache();
-      logger.info('[AIWorker] Cleared all LLM config cache entries');
+      logger.info('Cleared all LLM config cache entries');
     } else if (event.type === 'user') {
       llmConfigResolver.invalidateUserCache(event.discordId);
-      logger.info(
-        { discordId: event.discordId },
-        '[AIWorker] Invalidated LLM config cache for user'
-      );
+      logger.info({ discordId: event.discordId }, 'Invalidated LLM config cache for user');
     } else {
       llmConfigResolver.clearCache();
-      logger.info(
-        { configId: event.configId },
-        '[AIWorker] Cleared LLM config cache (config changed)'
-      );
+      logger.info({ configId: event.configId }, 'Cleared LLM config cache (config changed)');
     }
   });
   cleanupFns.push(() => llmConfigCacheInvalidation.unsubscribe());
-  logger.info('[AIWorker] LlmConfigResolver initialized with cache invalidation');
+  logger.info('LlmConfigResolver initialized with cache invalidation');
 
   // PersonaResolver with cache invalidation
   const personaResolver = new PersonaResolver(prisma);
@@ -102,14 +96,14 @@ export async function setupCacheInvalidation(
   await personaCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
       personaResolver.clearCache();
-      logger.info('[AIWorker] Cleared all persona cache entries');
+      logger.info('Cleared all persona cache entries');
     } else {
       personaResolver.invalidateUserCache(event.discordId);
-      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated persona cache for user');
+      logger.info({ discordId: event.discordId }, 'Invalidated persona cache for user');
     }
   });
   cleanupFns.push(() => personaCacheInvalidation.unsubscribe());
-  logger.info('[AIWorker] PersonaResolver initialized with cache invalidation');
+  logger.info('PersonaResolver initialized with cache invalidation');
 
   // ConfigCascadeResolver with cache invalidation
   const cascadeResolver = new ConfigCascadeResolver(prisma);
@@ -117,32 +111,26 @@ export async function setupCacheInvalidation(
   await cascadeCacheInvalidation.subscribe(event => {
     if (event.type === 'all') {
       cascadeResolver.clearCache();
-      logger.info('[AIWorker] Cleared all config cascade cache entries');
+      logger.info('Cleared all config cascade cache entries');
     } else if (event.type === 'admin') {
       cascadeResolver.clearCache();
-      logger.info('[AIWorker] Cleared config cascade cache (admin defaults changed)');
+      logger.info('Cleared config cascade cache (admin defaults changed)');
     } else if (event.type === 'user') {
       cascadeResolver.invalidateUserCache(event.discordId);
-      logger.info(
-        { discordId: event.discordId },
-        '[AIWorker] Invalidated config cascade cache for user'
-      );
+      logger.info({ discordId: event.discordId }, 'Invalidated config cascade cache for user');
     } else if (event.type === 'channel') {
       cascadeResolver.invalidateChannelCache(event.channelId);
-      logger.info(
-        { channelId: event.channelId },
-        '[AIWorker] Invalidated config cascade cache for channel'
-      );
+      logger.info({ channelId: event.channelId }, 'Invalidated config cascade cache for channel');
     } else if (event.type === 'personality') {
       cascadeResolver.invalidatePersonalityCache(event.personalityId);
       logger.info(
         { personalityId: event.personalityId },
-        '[AIWorker] Invalidated config cascade cache for personality'
+        'Invalidated config cascade cache for personality'
       );
     }
   });
   cleanupFns.push(() => cascadeCacheInvalidation.unsubscribe());
-  logger.info('[AIWorker] ConfigCascadeResolver initialized with cache invalidation');
+  logger.info('ConfigCascadeResolver initialized with cache invalidation');
 
   return {
     personalityService,

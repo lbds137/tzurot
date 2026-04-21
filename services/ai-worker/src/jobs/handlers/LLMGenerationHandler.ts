@@ -136,7 +136,7 @@ export class LLMGenerationHandler {
 
     logger.info(
       { jobId: job.id, requestId: job.data.requestId, personality: job.data.personality?.name },
-      '[LLMGenerationHandler] Processing job through pipeline'
+      'Processing job through pipeline'
     );
 
     // Track which step we're on for error reporting
@@ -149,10 +149,7 @@ export class LLMGenerationHandler {
         const step = this.pipeline[i];
         currentStepName = step.name;
 
-        logger.debug(
-          { jobId: job.id, step: step.name },
-          '[LLMGenerationHandler.processJob] Executing pipeline step'
-        );
+        logger.debug({ jobId: job.id, step: step.name }, 'Executing pipeline step');
 
         context = await step.process(context);
         lastSuccessfulStep = step.name;
@@ -166,7 +163,7 @@ export class LLMGenerationHandler {
       const processingTimeMs = Date.now() - startTime;
       logger.info(
         { jobId: job.id, processingTimeMs, success: context.result.success },
-        '[LLMGenerationHandler.processJob] Job completed'
+        'Job completed'
       );
 
       return context.result;
@@ -181,7 +178,7 @@ export class LLMGenerationHandler {
           failedStep: currentStepName,
           lastSuccessfulStep,
         },
-        '[LLMGenerationHandler.processJob] Pipeline failed'
+        'Pipeline failed'
       );
 
       // Return error result with step information for debugging

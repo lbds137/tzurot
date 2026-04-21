@@ -119,13 +119,13 @@ export class DatabaseSyncService {
    */
   async sync(options: SyncOptions): Promise<SyncResult> {
     try {
-      logger.info({ dryRun: options.dryRun }, '[Sync] Starting database sync');
+      logger.info({ dryRun: options.dryRun }, 'Starting database sync');
 
       await this.devClient.$connect();
       await this.prodClient.$connect();
 
       const schemaVersion = await checkSchemaVersions(this.devClient, this.prodClient);
-      logger.info({ schemaVersion }, '[Sync] Schema versions verified');
+      logger.info({ schemaVersion }, 'Schema versions verified');
 
       const configValidation = await validateSyncConfig(this.devClient, SYNC_CONFIG);
 
@@ -151,10 +151,10 @@ export class DatabaseSyncService {
       const devBoundWrites: PendingWrite[] = [];
       const prodBoundWrites: PendingWrite[] = [];
 
-      logger.info('[Sync] Phase 1: Scanning tables and accumulating pending writes');
+      logger.info('Phase 1: Scanning tables and accumulating pending writes');
       for (const tableName of SYNC_TABLE_ORDER) {
         const config = SYNC_CONFIG[tableName];
-        logger.info({ table: tableName }, '[Sync] Scanning table');
+        logger.info({ table: tableName }, 'Scanning table');
 
         if (tableName === 'llm_configs' && !options.dryRun) {
           await prepareLlmConfigSingletonFlags(this.devClient, this.prodClient);
@@ -204,7 +204,7 @@ export class DatabaseSyncService {
         await finalizeLlmConfigSingletonFlags(this.devClient, this.prodClient);
       }
 
-      logger.info({ stats }, '[Sync] Sync complete');
+      logger.info({ stats }, 'Sync complete');
 
       return { schemaVersion, stats, warnings, info };
     } finally {
@@ -227,7 +227,7 @@ export class DatabaseSyncService {
     if (writes.length === 0) {
       return;
     }
-    logger.info({ label, count: writes.length }, '[Sync] Phase 2: Flushing writes');
+    logger.info({ label, count: writes.length }, 'Phase 2: Flushing writes');
     await client.$transaction(
       async tx => {
         // Defer exactly the four circular FKs, not ALL deferrable constraints

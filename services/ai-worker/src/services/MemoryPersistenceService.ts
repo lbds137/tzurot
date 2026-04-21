@@ -65,10 +65,7 @@ export class MemoryPersistenceService {
         personaResult.personaId
       );
     } else {
-      logger.warn(
-        {},
-        `[MemoryPersistence] No persona found for user ${context.userId}, skipping LTM storage`
-      );
+      logger.warn({}, `No persona found for user ${context.userId}, skipping LTM storage`);
     }
   }
 
@@ -89,10 +86,7 @@ export class MemoryPersistenceService {
     );
 
     if (personaResult === null) {
-      logger.warn(
-        {},
-        `[MemoryPersistence] No persona found for user ${context.userId}, cannot defer LTM`
-      );
+      logger.warn({}, `No persona found for user ${context.userId}, cannot defer LTM`);
       return null;
     }
 
@@ -127,7 +121,7 @@ export class MemoryPersistenceService {
     );
     logger.info(
       { userId: context.userId, personalityId: personality.id, personaId: deferredData.personaId },
-      '[MemoryPersistence] Stored deferred memory to LTM'
+      'Stored deferred memory to LTM'
     );
   }
 }

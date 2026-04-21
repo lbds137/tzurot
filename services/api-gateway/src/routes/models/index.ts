@@ -116,7 +116,7 @@ export function createModelsRouter(modelCache: OpenRouterModelCache): Router {
           search: searchQuery,
           limit: parsedLimit,
         },
-        '[Models] Fetching models'
+        'Fetching models'
       );
 
       const models = await modelCache.getFilteredModels({
@@ -173,7 +173,7 @@ export function createModelsRouter(modelCache: OpenRouterModelCache): Router {
         );
       }
 
-      logger.info({ userId: userIdStr }, '[Models] Admin refreshing model cache');
+      logger.info({ userId: userIdStr }, 'Admin refreshing model cache');
       const modelCount = await modelCache.refreshCache();
       sendCustomSuccess(
         res,

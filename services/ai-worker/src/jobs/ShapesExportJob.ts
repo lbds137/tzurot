@@ -37,10 +37,7 @@ export async function processShapesExportJob(
   const { prisma } = deps;
   const { userId, sourceSlug, exportJobId, format } = job.data;
 
-  logger.info(
-    { jobId: job.id, sourceSlug, format, exportJobId },
-    '[ShapesExportJob] Starting export'
-  );
+  logger.info({ jobId: job.id, sourceSlug, format, exportJobId }, 'Starting export');
 
   // 1. Mark export as in_progress
   await prisma.exportJob.update({
@@ -108,7 +105,7 @@ export async function processShapesExportJob(
       storiesCount: fetchResult.stats.storiesCount,
     };
 
-    logger.info({ jobId: job.id, ...result }, '[ShapesExportJob] Export completed successfully');
+    logger.info({ jobId: job.id, ...result }, 'Export completed successfully');
 
     return result;
   } catch (error) {

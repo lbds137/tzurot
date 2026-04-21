@@ -149,7 +149,7 @@ export class LLMInvoker {
     if (stopSequences && stopSequences.length > 0 && !modelSupportsStop) {
       logger.warn(
         { modelName, stopSequenceCount: stopSequences.length },
-        '[LLMInvoker] Model does not support stop sequences - filtering them out to prevent 400 errors'
+        'Model does not support stop sequences - filtering them out to prevent 400 errors'
       );
     }
 
@@ -164,7 +164,7 @@ export class LLMInvoker {
           reasoningType: reasoningConfig.type,
           allowsSystemMessage: reasoningConfig.allowsSystemMessage,
         },
-        '[LLMInvoker] Detected reasoning model, applying special handling'
+        'Detected reasoning model, applying special handling'
       );
     }
 
@@ -184,13 +184,13 @@ export class LLMInvoker {
         stopSequenceCount: effectiveStopSequences?.length ?? 0,
         stopSequencesFiltered: !modelSupportsStop && (stopSequences?.length ?? 0) > 0,
       },
-      `[LLMInvoker] Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
+      `Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
     );
 
     if (effectiveStopSequences && effectiveStopSequences.length > 0) {
       logger.debug(
         { stopSequences: effectiveStopSequences },
-        '[LLMInvoker] Using stop sequences for identity bleeding prevention'
+        'Using stop sequences for identity bleeding prevention'
       );
     }
 
@@ -267,7 +267,7 @@ export class LLMInvoker {
           modelName,
           ...this.extractResponseDiagnostics(response),
         },
-        '[LLMInvoker] Empty response detected, treating as retryable error'
+        'Empty response detected, treating as retryable error'
       );
       throw emptyResponseError;
     }
@@ -285,7 +285,7 @@ export class LLMInvoker {
           provider,
           responseContent: content,
         },
-        '[LLMInvoker] LLM censored response detected, treating as retryable error'
+        'LLM censored response detected, treating as retryable error'
       );
       throw censoredResponseError;
     }
@@ -310,7 +310,7 @@ export class LLMInvoker {
       .response_metadata;
 
     if (!metadata) {
-      logger.debug({ modelName }, '[LLMInvoker] No response_metadata available for finish_reason');
+      logger.debug({ modelName }, 'No response_metadata available for finish_reason');
       return;
     }
 
@@ -336,14 +336,14 @@ export class LLMInvoker {
     if (finishReason === FINISH_REASONS.LENGTH) {
       logger.info(
         logContext,
-        '[LLMInvoker] WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
+        'WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
       );
     } else if (stoppedAt !== null) {
       const sequenceStr = typeof stoppedAt === 'string' ? stoppedAt : JSON.stringify(stoppedAt);
       recordStopSequenceActivation(sequenceStr, modelName);
       logger.info(
         logContext,
-        '[LLMInvoker] Stop sequence triggered - prevented potential identity bleeding or hallucination'
+        'Stop sequence triggered - prevented potential identity bleeding or hallucination'
       );
     } else if (
       typeof response.content === 'string' &&
@@ -352,12 +352,12 @@ export class LLMInvoker {
       recordStopSequenceActivation('inferred:non-xml-stop', modelName);
       logger.info(
         logContext,
-        '[LLMInvoker] Possible stop sequence activation — response ended without </message> (heuristic, may be a false positive)'
+        'Possible stop sequence activation — response ended without </message> (heuristic, may be a false positive)'
       );
     } else if (isNaturalStop(finishReason)) {
-      logger.debug(logContext, '[LLMInvoker] Model completed naturally');
+      logger.debug(logContext, 'Model completed naturally');
     } else {
-      logger.info(logContext, '[LLMInvoker] Model completion with non-standard finish_reason');
+      logger.info(logContext, 'Model completion with non-standard finish_reason');
     }
   }
 

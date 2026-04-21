@@ -48,7 +48,7 @@ export async function cleanupDiagnosticLogs(
 
   logger.debug(
     { cutoffDate: cutoffDate.toISOString(), retentionHours },
-    '[DiagnosticCleanup] Starting cleanup of old diagnostic logs'
+    'Starting cleanup of old diagnostic logs'
   );
 
   try {
@@ -64,13 +64,10 @@ export async function cleanupDiagnosticLogs(
     if (result.count > 0) {
       logger.info(
         { deletedCount: result.count, durationMs, cutoffDate: cutoffDate.toISOString() },
-        '[DiagnosticCleanup] Cleanup completed'
+        'Cleanup completed'
       );
     } else {
-      logger.debug(
-        { durationMs },
-        '[DiagnosticCleanup] No logs to clean up (all within retention period)'
-      );
+      logger.debug({ durationMs }, 'No logs to clean up (all within retention period)');
     }
 
     return {
@@ -79,7 +76,7 @@ export async function cleanupDiagnosticLogs(
       durationMs,
     };
   } catch (error) {
-    logger.error({ err: error }, '[DiagnosticCleanup] Error during cleanup');
+    logger.error({ err: error }, 'Error during cleanup');
     throw error;
   }
 }

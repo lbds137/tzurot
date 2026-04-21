@@ -199,7 +199,7 @@ async function tryDeleteAvatarFile(filePath: string, logContext: string): Promis
   } catch (error) {
     const errCode = (error as NodeJS.ErrnoException).code;
     if (errCode !== 'ENOENT') {
-      logger.warn({ err: error, filePath }, `[${logContext}] Failed to delete avatar file`);
+      logger.warn({ err: error, filePath, logContext }, 'Failed to delete avatar file');
     }
     return false;
   }
@@ -231,7 +231,7 @@ export async function globToArray(pattern: string, limit = GLOB_RESULT_LIMIT): P
   const files: string[] = [];
   for await (const file of glob(pattern)) {
     if (files.length >= limit) {
-      logger.warn({ pattern, limit }, '[Avatar glob] Result limit reached');
+      logger.warn({ pattern, limit }, 'Result limit reached');
       break;
     }
     files.push(file);
@@ -268,7 +268,7 @@ export async function cleanupOldAvatarVersions(
 
   // Skip if cleanup already in progress for this slug (prevents duplicate concurrent work)
   if (cleanupInProgress.has(slug)) {
-    logger.debug({ slug }, '[Avatar cleanup] Skipping, cleanup already in progress');
+    logger.debug({ slug }, 'Skipping, cleanup already in progress');
     return null;
   }
 
@@ -309,7 +309,7 @@ export async function cleanupOldAvatarVersions(
     if (filesToDelete.length > HIGH_VERSION_COUNT_THRESHOLD) {
       logger.warn(
         { slug, versionCount: filesToDelete.length, threshold: HIGH_VERSION_COUNT_THRESHOLD },
-        '[Avatar cleanup] High version count detected'
+        'High version count detected'
       );
     }
 
@@ -319,7 +319,7 @@ export async function cleanupOldAvatarVersions(
       if (deletedCount >= MAX_DELETIONS_PER_CLEANUP) {
         logger.info(
           { slug, deleted: deletedCount, remaining: filesToDelete.length - deletedCount },
-          '[Avatar cleanup] Reached deletion limit, remaining will be cleaned on next request'
+          'Reached deletion limit, remaining will be cleaned on next request'
         );
         break;
       }
@@ -327,18 +327,12 @@ export async function cleanupOldAvatarVersions(
       // Security: filePath comes from glob on a validated pattern (no path traversal)
       if (await tryDeleteAvatarFile(filePath, 'Avatar cleanup')) {
         deletedCount++;
-        logger.debug(
-          { slug, filename: basename(filePath) },
-          '[Avatar cleanup] Deleted old version'
-        );
+        logger.debug({ slug, filename: basename(filePath) }, 'Deleted old version');
       }
     }
 
     if (deletedCount > 0) {
-      logger.info(
-        { slug, currentTimestamp, deletedCount },
-        '[Avatar cleanup] Cleaned up old versions'
-      );
+      logger.info({ slug, currentTimestamp, deletedCount }, 'Cleaned up old versions');
     }
     return deletedCount;
   } catch (error) {
@@ -347,7 +341,7 @@ export async function cleanupOldAvatarVersions(
       // Avatar directory doesn't exist yet, nothing to clean
       return 0;
     }
-    logger.warn({ err: error, slug }, '[Avatar cleanup] Failed to glob avatar directory');
+    logger.warn({ err: error, slug }, 'Failed to glob avatar directory');
     return null;
   } finally {
     cleanupInProgress.delete(slug);
@@ -373,7 +367,7 @@ export async function deleteAllAvatarVersions(
   logContext = 'Avatar'
 ): Promise<number | null> {
   if (!isValidSlug(slug)) {
-    logger.debug({ slug }, `[${logContext}] Rejected invalid slug format`);
+    logger.debug({ slug }, `Rejected invalid slug format`);
     return null;
   }
 
@@ -399,12 +393,12 @@ export async function deleteAllAvatarVersions(
       // Security: filePath comes from glob on a validated pattern (no path traversal)
       if (await tryDeleteAvatarFile(filePath, logContext)) {
         deletedCount++;
-        logger.debug({ slug, filename }, `[${logContext}] Deleted avatar version`);
+        logger.debug({ slug, filename }, `Deleted avatar version`);
       }
     }
 
     if (deletedCount > 0) {
-      logger.info({ slug, deletedCount }, `[${logContext}] Deleted all avatar versions`);
+      logger.info({ slug, deletedCount }, `Deleted all avatar versions`);
     }
     return deletedCount;
   } catch (error) {
@@ -413,7 +407,7 @@ export async function deleteAllAvatarVersions(
       // Avatar directory doesn't exist yet, nothing to delete
       return 0;
     }
-    logger.warn({ err: error, slug }, `[${logContext}] Failed to glob avatar directory`);
+    logger.warn({ err: error, slug }, `Failed to glob avatar directory`);
     return null;
   }
 }

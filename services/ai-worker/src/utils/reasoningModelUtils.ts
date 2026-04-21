@@ -260,7 +260,7 @@ export function transformMessagesForReasoningModel(
       systemContent += content + '\n\n';
       logger.debug(
         { contentLength: content.length },
-        '[ReasoningModelUtils] Converting system message to context prefix'
+        'Converting system message to context prefix'
       );
     } else {
       transformedMessages.push(message);
@@ -285,9 +285,7 @@ export function transformMessagesForReasoningModel(
         content: `[System Instructions]\n${systemContent}[End System Instructions]\n\n${originalContent}`,
       });
 
-      logger.info(
-        '[ReasoningModelUtils] Prepended system message content to first user message for o-series model'
-      );
+      logger.info('Prepended system message content to first user message for o-series model');
     }
   }
 
@@ -315,7 +313,7 @@ export function stripThinkingTags(content: string): string {
     const removedLength = content.length - finalResult.length;
     logger.debug(
       { originalLength: content.length, strippedLength: finalResult.length, removedLength },
-      '[ReasoningModelUtils] Stripped thinking tags from response'
+      'Stripped thinking tags from response'
     );
   }
 

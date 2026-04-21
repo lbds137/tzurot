@@ -113,11 +113,11 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
                 try {
                   await ensureAvatarDir(slug);
                   await writeFile(versionedPath, buffer);
-                  logger.info({ slug, timestamp: dbTimestamp }, '[Gateway] Cached avatar from DB');
+                  logger.info({ slug, timestamp: dbTimestamp }, 'Cached avatar from DB');
                   // Cleanup old versions after successful cache
                   void cleanupOldAvatarVersions(slug, dbTimestamp);
                 } catch (err) {
-                  logger.warn({ err, slug }, '[Gateway] Failed to cache avatar to filesystem');
+                  logger.warn({ err, slug }, 'Failed to cache avatar to filesystem');
                 }
               })();
             }
@@ -125,7 +125,7 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
             // Request is for an old version but DB has newer - serve current but don't cache
             logger.debug(
               { slug, requestedTimestamp, dbTimestamp },
-              '[Gateway] Serving current avatar without caching (version mismatch)'
+              'Serving current avatar without caching (version mismatch)'
             );
           }
 
@@ -134,7 +134,7 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
           res.set('Cache-Control', `max-age=${CACHE_CONTROL.AVATAR_MAX_AGE}`); // 7 days
           res.send(buffer);
         } catch (error) {
-          logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
+          logger.error({ err: error, slug }, 'Error serving avatar');
           const errorResponse = ErrorResponses.internalError('Failed to retrieve avatar');
           res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(errorResponse);
         }

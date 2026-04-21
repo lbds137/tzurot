@@ -159,7 +159,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
 
     logger.info(
       { discordUserId, channelId, personalitySlug, replaced: wasReplaced },
-      '[Channel] Activated personality in channel'
+      'Activated personality in channel'
     );
 
     sendCustomSuccess(res, buildActivationResponse(settings, wasReplaced), StatusCodes.CREATED);

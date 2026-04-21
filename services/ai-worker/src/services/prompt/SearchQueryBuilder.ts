@@ -33,9 +33,7 @@ export function buildSearchQuery(
   // This helps resolve pronouns like "that", "it", "he" by embedding the recent topic
   if (recentHistoryWindow !== undefined && recentHistoryWindow.length > 0) {
     parts.push(recentHistoryWindow);
-    logger.info(
-      `[PromptBuilder] Including ${recentHistoryWindow.length} chars of recent history in memory search`
-    );
+    logger.info(`Including ${recentHistoryWindow.length} chars of recent history in memory search`);
   }
 
   // Add user message (if not just the "Hello" fallback)
@@ -52,9 +50,7 @@ export function buildSearchQuery(
 
       // Log when using voice transcription instead of "Hello"
       if (userMessage.trim() === 'Hello') {
-        logger.info(
-          '[PromptBuilder] Using voice transcription for memory search instead of "Hello" fallback'
-        );
+        logger.info('Using voice transcription for memory search instead of "Hello" fallback');
       }
     }
   }
@@ -62,7 +58,7 @@ export function buildSearchQuery(
   // Add referenced message content for semantic search
   if (referencedMessagesText !== undefined && referencedMessagesText.length > 0) {
     parts.push(referencedMessagesText);
-    logger.info('[PromptBuilder] Including referenced message content in memory search query');
+    logger.info('Including referenced message content in memory search query');
   }
 
   // If we have nothing, fall back to "Hello"

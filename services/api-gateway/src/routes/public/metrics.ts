@@ -48,7 +48,7 @@ export function createMetricsRouter(queue: Queue, startTime: number): Router {
           timestamp: new Date().toISOString(),
         });
       } catch (error) {
-        logger.error({ err: error }, '[Metrics] Failed to get metrics');
+        logger.error({ err: error }, 'Failed to get metrics');
 
         const errorResponse = ErrorResponses.metricsError(
           error instanceof Error ? error.message : 'Unknown error'

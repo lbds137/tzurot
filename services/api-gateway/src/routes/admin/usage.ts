@@ -169,7 +169,7 @@ export function createAdminUsageRoutes(prisma: PrismaClient): Router {
           totalTokens: stats.totalTokens,
           uniqueUsers: stats.uniqueUsers,
         },
-        '[AdminUsage] Returned global usage stats'
+        'Returned global usage stats'
       );
 
       sendCustomSuccess(res, stats, StatusCodes.OK);

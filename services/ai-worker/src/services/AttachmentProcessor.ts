@@ -124,7 +124,7 @@ export async function processAttachmentsParallel(
     } else {
       logger.error(
         { err: result.reason, index: i, referenceNumber },
-        '[AttachmentProcessor] Unexpected error in attachment processing'
+        'Unexpected error in attachment processing'
       );
       attachmentLines.push(`- Attachment [processing error]`);
     }
@@ -155,7 +155,7 @@ async function processVoiceAttachment(
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug(
       { referenceNumber, url: attachment.url },
-      '[AttachmentProcessor] Using preprocessed voice transcription'
+      'Using preprocessed voice transcription'
     );
     return {
       index,
@@ -166,7 +166,7 @@ async function processVoiceAttachment(
   try {
     logger.info(
       { referenceNumber, url: attachment.url, duration: attachment.duration },
-      '[AttachmentProcessor] Transcribing voice message'
+      'Transcribing voice message'
     );
     const result = await withRetry(() => transcribeAudio(attachment, elevenlabsApiKey), {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
@@ -177,7 +177,7 @@ async function processVoiceAttachment(
   } catch (error) {
     logger.error(
       { err: error, referenceNumber, url: attachment.url },
-      '[AttachmentProcessor] Voice transcription failed'
+      'Voice transcription failed'
     );
     return { index, line: `- Voice Message (${attachment.duration}s) [transcription failed]` };
   }
@@ -190,10 +190,7 @@ async function processImageAttachment(
   const { attachment, index, referenceNumber, personality, isGuestMode, preprocessed, userApiKey } =
     options;
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
-    logger.debug(
-      { referenceNumber, url: attachment.url },
-      '[AttachmentProcessor] Using preprocessed image description'
-    );
+    logger.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
     return { index, line: `- Image (${attachment.name}): ${preprocessed.description}` };
   }
 
@@ -205,7 +202,7 @@ async function processImageAttachment(
         name: attachment.name,
         hasUserApiKey: userApiKey !== undefined,
       },
-      '[AttachmentProcessor] Processing image (inline fallback)'
+      'Processing image (inline fallback)'
     );
     const result = await withRetry(
       () =>
@@ -220,10 +217,7 @@ async function processImageAttachment(
     );
     return { index, line: `- Image (${attachment.name}): ${result.value}` };
   } catch (error) {
-    logger.error(
-      { err: error, referenceNumber, url: attachment.url },
-      '[AttachmentProcessor] Image processing failed'
-    );
+    logger.error({ err: error, referenceNumber, url: attachment.url }, 'Image processing failed');
     return { index, line: `- Image (${attachment.name}) [vision processing failed]` };
   }
 }

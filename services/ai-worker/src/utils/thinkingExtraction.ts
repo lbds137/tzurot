@@ -159,7 +159,7 @@ function extractUnclosedTag(
 
   logger.warn(
     { tagName, contentLength: content.length },
-    '[ThinkingExtraction] Found unclosed thinking tag - content may be incomplete'
+    'Found unclosed thinking tag - content may be incomplete'
   );
 
   UNCLOSED_TAG_PATTERN.lastIndex = 0;
@@ -170,7 +170,7 @@ function extractUnclosedTag(
   if (cleaned.trim().length === 0) {
     logger.warn(
       { contentLength: content.length },
-      '[ThinkingExtraction] Unclosed tag would consume entire response — keeping content visible'
+      'Unclosed tag would consume entire response — keeping content visible'
     );
     return {
       thinkingContent: '',
@@ -202,7 +202,7 @@ function extractOrphanClosingTag(
 
   logger.warn(
     { tagName, contentLength: content.length },
-    '[ThinkingExtraction] Found orphan closing tag - extracted preceding content as thinking'
+    'Found orphan closing tag - extracted preceding content as thinking'
   );
 
   const cleaned = visibleContent.replace(ORPHAN_CLOSING_TAG_PATTERN, '');
@@ -335,7 +335,7 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     const thinkingLength = thinkingContent?.length ?? 0;
     logger.info(
       { blockCount, thinkingLength, visibleLength: visibleContent.length },
-      `[ThinkingExtraction] Extracted ${blockCount} thinking block(s) (${thinkingLength} chars)`
+      `Extracted ${blockCount} thinking block(s) (${thinkingLength} chars)`
     );
   }
 
@@ -438,7 +438,7 @@ export function extractApiReasoningContent(reasoningDetails: unknown): string | 
       extractedParts: parts.length,
       contentLength: content.length,
     },
-    `[ThinkingExtraction] Extracted API-level reasoning from ${parts.length} detail(s)`
+    `Extracted API-level reasoning from ${parts.length} detail(s)`
   );
 
   return content;
@@ -456,7 +456,7 @@ function processReasoningDetail(detail: ReasoningDetail, _parts: string[]): stri
     case 'reasoning.encrypted':
       logger.debug(
         { type: detail.type, format: detail.format },
-        '[ThinkingExtraction] Found encrypted reasoning content (cannot extract)'
+        'Found encrypted reasoning content (cannot extract)'
       );
       return null;
 

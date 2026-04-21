@@ -143,7 +143,7 @@ export function compareTimestamps(
   const prodTime = prodObj[timestampField];
 
   if (!(devTime instanceof Date) || !(prodTime instanceof Date)) {
-    logger.warn({ devTime, prodTime }, '[Sync] Non-date timestamps detected');
+    logger.warn({ devTime, prodTime }, 'Non-date timestamps detected');
     return 'same';
   }
 

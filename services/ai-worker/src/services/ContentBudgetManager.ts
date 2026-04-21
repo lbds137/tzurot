@@ -182,7 +182,7 @@ export class ContentBudgetManager {
           dropped: memoriesDroppedCount,
           oversized: droppedDueToSize,
         },
-        '[Budget] Memory budget applied'
+        'Memory budget applied'
       );
     }
 
@@ -239,7 +239,7 @@ export class ContentBudgetManager {
           originalBudget: historyBudget,
           reducedBudget,
         },
-        '[Budget] Reducing history budget for duplicate retry'
+        'Reducing history budget for duplicate retry'
       );
       historyBudget = reducedBudget;
     }
@@ -298,10 +298,10 @@ export class ContentBudgetManager {
         crossChannelMessagesIncluded:
           crossChannelMessagesIncluded > 0 ? crossChannelMessagesIncluded : undefined,
       },
-      '[Budget] Token allocation'
+      'Token allocation'
     );
     if (messagesDropped > 0) {
-      logger.debug({ messagesDropped }, '[Budget] Dropped history messages due to token budget');
+      logger.debug({ messagesDropped }, 'Dropped history messages due to token budget');
     }
   }
 

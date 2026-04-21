@@ -224,7 +224,7 @@ export class DashboardSessionManager {
         'Created session'
       );
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, 'Failed to create session');
+      logger.error({ err: error, userId, entityType, entityId }, 'Failed to create session');
       // Fail-open: return the session anyway (it just won't persist)
     }
 
@@ -255,12 +255,12 @@ export class DashboardSessionManager {
     } catch (error) {
       if (error instanceof SyntaxError || (error as Error).name === 'ZodError') {
         // Corrupt data - clean it up
-        logger.warn({ error, sessionKey }, 'Corrupt session data, cleaning up');
+        logger.warn({ err: error, sessionKey }, 'Corrupt session data, cleaning up');
         await this.redis.del(sessionKey).catch(cleanupErr => {
           logger.debug({ error: cleanupErr, sessionKey }, 'Failed to cleanup corrupt session');
         });
       } else {
-        logger.error({ error, sessionKey }, 'Failed to get session');
+        logger.error({ err: error, sessionKey }, 'Failed to get session');
       }
       return null;
     }
@@ -298,7 +298,7 @@ export class DashboardSessionManager {
 
       logger.debug({ userId, entityType, entityId }, 'Updated session');
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, 'Failed to update session');
+      logger.error({ err: error, userId, entityType, entityId }, 'Failed to update session');
       // Return the updated session anyway (fail-open)
     }
 
@@ -344,7 +344,7 @@ export class DashboardSessionManager {
       logger.debug({ userId, entityType, entityId }, 'Touched session');
       return true;
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, 'Failed to touch session');
+      logger.error({ err: error, userId, entityType, entityId }, 'Failed to touch session');
       return false;
     }
   }
@@ -380,7 +380,7 @@ export class DashboardSessionManager {
       logger.debug({ userId, entityType, entityId, deleted }, 'Deleted session');
       return deleted;
     } catch (error) {
-      logger.error({ error, userId, entityType, entityId }, 'Failed to delete session');
+      logger.error({ err: error, userId, entityType, entityId }, 'Failed to delete session');
       return false;
     }
   }
@@ -415,9 +415,9 @@ export class DashboardSessionManager {
       return toSession<T>(validated);
     } catch (error) {
       if (error instanceof SyntaxError || (error as Error).name === 'ZodError') {
-        logger.warn({ error, messageId }, 'Corrupt session data from messageId lookup');
+        logger.warn({ err: error, messageId }, 'Corrupt session data from messageId lookup');
       } else {
-        logger.error({ error, messageId }, 'Failed to find session by messageId');
+        logger.error({ err: error, messageId }, 'Failed to find session by messageId');
       }
       return null;
     }
@@ -456,7 +456,7 @@ export class DashboardSessionManager {
 
       return sessions;
     } catch (error) {
-      logger.error({ error, userId }, 'Failed to get user sessions');
+      logger.error({ err: error, userId }, 'Failed to get user sessions');
       return [];
     }
   }
@@ -476,7 +476,7 @@ export class DashboardSessionManager {
       const keys = await this.scanKeys(pattern, maxSessions);
       return keys.length;
     } catch (error) {
-      logger.error({ error }, 'Failed to get session count');
+      logger.error({ err: error }, 'Failed to get session count');
       return 0;
     }
   }
@@ -503,7 +503,7 @@ export class DashboardSessionManager {
 
       logger.debug({ count: allKeys.length }, 'Cleared all sessions');
     } catch (error) {
-      logger.error({ error }, 'Failed to clear sessions');
+      logger.error({ err: error }, 'Failed to clear sessions');
     }
   }
 }

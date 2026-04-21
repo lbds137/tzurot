@@ -105,7 +105,7 @@ export function createModelOverrideRoutes(
         configName: o.llmConfig?.name ?? null,
       }));
 
-      logger.info({ discordUserId, count: result.length }, '[ModelOverride] Listed overrides');
+      logger.info({ discordUserId, count: result.length }, 'Listed overrides');
 
       sendCustomSuccess(res, { overrides: result }, StatusCodes.OK);
     })
@@ -188,7 +188,7 @@ export function createModelOverrideRoutes(
           configId,
           configName: llmConfig.name,
         },
-        '[ModelOverride] Set override'
+        'Set override'
       );
 
       sendCustomSuccess(res, { override: result }, StatusCodes.OK);
@@ -225,10 +225,7 @@ export function createModelOverrideRoutes(
         configName: user?.defaultLlmConfig?.name ?? null,
       };
 
-      logger.info(
-        { discordUserId, configId: result.configId },
-        '[ModelDefault] Got default config'
-      );
+      logger.info({ discordUserId, configId: result.configId }, 'Got default config');
 
       sendCustomSuccess(res, { default: result }, StatusCodes.OK);
     })
@@ -272,10 +269,7 @@ export function createModelOverrideRoutes(
         configName: llmConfig.name,
       };
 
-      logger.info(
-        { discordUserId, configId, configName: llmConfig.name },
-        '[ModelDefault] Set default config'
-      );
+      logger.info({ discordUserId, configId, configName: llmConfig.name }, 'Set default config');
 
       // Invalidate user's LLM config cache so ai-worker picks up the change
       await tryInvalidateCache(
@@ -314,7 +308,7 @@ export function createModelOverrideRoutes(
       if (user.defaultLlmConfigId === null) {
         logger.info(
           { discordUserId, hadDefault: false },
-          '[ModelDefault] Clear called but no default was set (idempotent success)'
+          'Clear called but no default was set (idempotent success)'
         );
         return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
       }
@@ -324,7 +318,7 @@ export function createModelOverrideRoutes(
         data: { defaultLlmConfigId: null },
       });
 
-      logger.info({ discordUserId }, '[ModelDefault] Cleared default config');
+      logger.info({ discordUserId }, 'Cleared default config');
 
       // Invalidate user's LLM config cache so ai-worker picks up the change
       await tryInvalidateCache(
@@ -379,7 +373,7 @@ export function createModelOverrideRoutes(
       if (override?.llmConfigId === null || override?.llmConfigId === undefined) {
         logger.info(
           { discordUserId, personalityId, hadOverride: false },
-          '[ModelOverride] Reset called but no override was set (idempotent success)'
+          'Reset called but no override was set (idempotent success)'
         );
         return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
       }
@@ -392,7 +386,7 @@ export function createModelOverrideRoutes(
 
       logger.info(
         { discordUserId, personalityId, personalityName: override.personality.name },
-        '[ModelOverride] Removed override'
+        'Removed override'
       );
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);

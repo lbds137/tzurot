@@ -94,13 +94,13 @@ export class ConfigStep implements IPipelineStep {
               configName: configResult.configName,
               model: effectivePersonality.model,
             },
-            '[ConfigStep] Applied user config override'
+            'Applied user config override'
           );
         }
       } catch (error) {
         logger.warn(
           { err: error, userId: jobContext.userId },
-          '[ConfigStep] Failed to resolve user config, using personality default'
+          'Failed to resolve user config, using personality default'
         );
       }
     }
@@ -119,7 +119,7 @@ export class ConfigStep implements IPipelineStep {
       } catch (error) {
         logger.warn(
           { err: error, userId: jobContext.userId },
-          '[ConfigStep] Failed to resolve config cascade, using hardcoded defaults'
+          'Failed to resolve config cascade, using hardcoded defaults'
         );
       }
     }

@@ -148,16 +148,13 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
       const personalities = await fetchAdminPersonalities(prisma, user?.id ?? null, discordUserId);
       logger.info(
         { discordUserId, isAdmin: true, totalCount: personalities.length },
-        '[Personality] Listed all personalities (admin)'
+        'Listed all personalities (admin)'
       );
       return sendCustomSuccess(res, { personalities }, StatusCodes.OK);
     }
 
     const personalities = await fetchUserPersonalities(prisma, user?.id, discordUserId);
-    logger.info(
-      { discordUserId, totalCount: personalities.length },
-      '[Personality] Listed personalities'
-    );
+    logger.info({ discordUserId, totalCount: personalities.length }, 'Listed personalities');
     sendCustomSuccess(res, { personalities }, StatusCodes.OK);
   });
 

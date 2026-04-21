@@ -58,10 +58,7 @@ async function resolveFromRedis(
     try {
       models = JSON.parse(modelsJson) as OpenRouterModel[];
     } catch (parseError) {
-      logger.warn(
-        { err: parseError, modelId },
-        '[ModelCapabilityChecker] Failed to parse Redis cache data, using fallback'
-      );
+      logger.warn({ err: parseError, modelId }, 'Failed to parse Redis cache data, using fallback');
       return null;
     }
 
@@ -88,10 +85,7 @@ async function resolveFromRedis(
     );
     return capabilities;
   } catch (error) {
-    logger.warn(
-      { err: error, modelId },
-      '[ModelCapabilityChecker] Failed to read from Redis, using fallback'
-    );
+    logger.warn({ err: error, modelId }, 'Failed to read from Redis, using fallback');
     return null;
   }
 }

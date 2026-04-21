@@ -243,10 +243,7 @@ async function executeSemanticSearchWithFallback(
       return { error: 'embedding_unavailable' };
     }
   } catch (error) {
-    logger.error(
-      { err: error, query: query.substring(0, 50) },
-      '[Memory] Embedding generation failed'
-    );
+    logger.error({ err: error, query: query.substring(0, 50) }, 'Embedding generation failed');
     return { error: 'embedding_failed' };
   }
 
@@ -360,7 +357,7 @@ export async function handleSearch(
       resultCount: output.count,
       searchType: output.searchType,
     },
-    `[Memory] Search completed${output.searchType === 'text' ? ' (text fallback)' : ''}`
+    `Search completed${output.searchType === 'text' ? ' (text fallback)' : ''}`
   );
   sendCustomSuccess(res, output, StatusCodes.OK);
 }
