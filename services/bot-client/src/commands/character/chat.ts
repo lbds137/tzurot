@@ -58,7 +58,7 @@ function validateWebhookChannel(context: DeferredCommandContext): WebhookChannel
   ) {
     return null;
   }
-  return channel as WebhookChannel;
+  return channel;
 }
 
 /**

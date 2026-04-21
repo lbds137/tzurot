@@ -20,7 +20,6 @@ import {
   DISCORD_COLORS,
   GATEWAY_TIMEOUTS,
   type ResolvedConfigOverrides,
-  type ConfigOverrides,
 } from '@tzurot/common-types';
 import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
@@ -196,7 +195,7 @@ async function fetchAndConvertSettingsData(
   ]);
 
   const channelOverrides = channelOverridesResult.ok
-    ? (channelOverridesResult.data.configOverrides as Partial<ConfigOverrides> | null)
+    ? channelOverridesResult.data.configOverrides
     : null;
 
   // Convert the resolved result to ResolvedConfigOverrides format

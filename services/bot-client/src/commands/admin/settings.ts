@@ -22,12 +22,7 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  type GetAdminSettingsResponse,
-  type ConfigOverrides,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type GetAdminSettingsResponse } from '@tzurot/common-types';
 import { adminFetch, adminPatchJson } from '../../utils/adminApiClient.js';
 import {
   type SettingsData,
@@ -181,7 +176,7 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
  * Admin is the lowest tier — no resolve endpoint needed, uses hardcoded + local.
  */
 function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData {
-  const defaults = (settings.configDefaults ?? null) as Partial<ConfigOverrides> | null;
+  const defaults = settings.configDefaults ?? null;
   return buildCascadeSettingsData(null, defaults, 'admin');
 }
 

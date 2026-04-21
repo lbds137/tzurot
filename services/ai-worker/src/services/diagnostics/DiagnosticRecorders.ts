@@ -133,9 +133,7 @@ export function recordLlmResponseDiagnostic(
   metadata: ParsedResponseMetadata,
   stopSequences?: string[]
 ): void {
-  const finishReason = resolveFinishReason(
-    metadata.responseMetadata as Record<string, unknown> | undefined
-  );
+  const finishReason = resolveFinishReason(metadata.responseMetadata);
 
   // Resolve provider-reported stop sequence, or infer from content
   let stopSequenceTriggered = resolveStopSequence(metadata.responseMetadata);

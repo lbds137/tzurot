@@ -64,8 +64,6 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
     }),
 
     // Add other PersonalityService methods as needed for tests
-    loadAllPersonalities: vi
-      .fn()
-      .mockResolvedValue(personalities as unknown as LoadedPersonality[]),
+    loadAllPersonalities: vi.fn().mockResolvedValue(personalities),
   } as unknown as PersonalityService;
 }

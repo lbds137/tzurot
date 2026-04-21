@@ -31,5 +31,5 @@ export function createMockPersonality(overrides?: Partial<LoadedPersonality>): L
     personalityTraits: 'Helpful, kind, knowledgeable',
     voiceEnabled: false,
     ...overrides,
-  } as LoadedPersonality;
+  };
 }

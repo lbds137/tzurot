@@ -16,10 +16,7 @@
  */
 
 import { REDIS_CHANNELS } from '../constants/queue.js';
-import {
-  BaseCacheInvalidationService,
-  type EventValidator,
-} from './BaseCacheInvalidationService.js';
+import { BaseCacheInvalidationService } from './BaseCacheInvalidationService.js';
 import type { Redis } from 'ioredis';
 
 /**
@@ -85,7 +82,7 @@ export class DenylistCacheInvalidationService extends BaseCacheInvalidationServi
       redis,
       REDIS_CHANNELS.DENYLIST_CACHE_INVALIDATION,
       'DenylistCacheInvalidation',
-      isValidDenylistInvalidationEvent as EventValidator<DenylistInvalidationEvent>,
+      isValidDenylistInvalidationEvent,
       {
         getLogContext: event => {
           if (event.type === 'all') {

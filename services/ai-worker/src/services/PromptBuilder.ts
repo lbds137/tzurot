@@ -31,7 +31,6 @@ import {
   buildMessageWithAttachments,
   wrapWithSpeakerIdentification,
   formatComplexMessageContent,
-  type ComplexMessage,
 } from './prompt/MessageFormatters.js';
 import * as tokenCounters from './prompt/TokenCounters.js';
 import { buildSearchQuery } from './prompt/SearchQueryBuilder.js';
@@ -317,9 +316,7 @@ ${serializedHistory}
 
     // Handle complex message objects
     if (typeof message === 'object' && message !== null) {
-      const { content, refPrefix, attachmentSuffix } = formatComplexMessageContent(
-        message as ComplexMessage
-      );
+      const { content, refPrefix, attachmentSuffix } = formatComplexMessageContent(message);
       const result = refPrefix + proxyPrefix + content + attachmentSuffix;
       return result || 'Hello';
     }

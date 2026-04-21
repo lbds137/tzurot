@@ -83,5 +83,5 @@ export async function fetchFromElevenLabs<T extends z.ZodType>(
     };
   }
 
-  return { data: parseResult.data as z.infer<T> };
+  return { data: parseResult.data };
 }
