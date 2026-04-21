@@ -57,12 +57,16 @@ ignore:
   - '**/node_modules/**'
   - 'scripts/**'
   - 'tzurot-legacy/**'
-  # Service entry points: bootstrap glue (Express setup, BullMQ worker wiring,
-  # HTTP listeners). Unit-testing these requires extensive mocking of discord.js
-  # / bullmq / express internals that tests the mocks rather than behavior —
-  # real coverage comes from integration tests. Excluding them prevents pure
-  # refactors (e.g. log-prefix normalization) from tripping patch coverage on
-  # lines that were already uncovered before the change.
+  # Service entry points and BullMQ wiring: bootstrap glue (Express setup,
+  # Worker/Queue instantiation, Discord client login, HTTP listeners). These
+  # are composition roots — unit-testing them requires extensive mocking of
+  # discord.js / bullmq / express internals that tests the mocks rather than
+  # behavior. Real coverage comes from integration and smoke tests.
+  #
+  # Blanket policy across all service entry points, not per-PR: if we add a
+  # fourth service, its index.ts belongs here too. To tighten coverage on
+  # this class of file, the answer is to extract testable helpers into their
+  # own modules (DI refactor), not to unit-test the composition root.
   - 'services/api-gateway/src/index.ts'
   - 'services/ai-worker/src/index.ts'
   - 'services/bot-client/src/index.ts'
