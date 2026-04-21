@@ -14,22 +14,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // the UserService/persona-crud override block (which otherwise resets the
 // full `no-restricted-syntax` array and would drop these rules for those
 // files). Extracted to avoid silent drift if the selectors change.
-// Match error-variable shapes only (Identifier like `error`, MemberExpression like
-// `result.error`) — NOT string/template literals. Lets `logger.warn('bare msg')`
-// through while still catching `logger.warn(error, 'msg')` where an Error should
-// have been wrapped as `{ err: error }`.
+// Fires on error-variable shapes (Identifier like `error`, MemberExpression like
+// `result.error`) AND TemplateLiteral — the latter catches `logger.warn(`msg ${var}`)`
+// which loses structure per 02-code-standards.md. Bare string Literals pass through
+// (covers valid `logger.warn('static message')` calls).
 const PINO_LOGGER_RULES = [
   {
     selector:
-      'CallExpression[callee.property.name="error"] > *.arguments:first-child:matches(Identifier, MemberExpression)',
+      'CallExpression[callee.property.name="error"] > *.arguments:first-child:matches(Identifier, MemberExpression, TemplateLiteral)',
     message:
-      'logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
+      'logger.error() must use pino format: logger.error({ err: error }, "message") or logger.error({ fields }, "message"). Template-literal messages lose structure — move variables into the fields object. See packages/common-types/src/logger.ts.',
   },
   {
     selector:
-      'CallExpression[callee.property.name="warn"] > *.arguments:first-child:matches(Identifier, MemberExpression)',
+      'CallExpression[callee.property.name="warn"] > *.arguments:first-child:matches(Identifier, MemberExpression, TemplateLiteral)',
     message:
-      'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.',
+      'logger.warn() must use pino format: logger.warn({ err: error }, "message") or logger.warn({ fields }, "message"). Template-literal messages lose structure — move variables into the fields object. See packages/common-types/src/logger.ts.',
   },
 ];
 
