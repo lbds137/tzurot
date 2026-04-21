@@ -59,7 +59,7 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
     }
 
     const result = await callGatewayApi<FocusResponse>(
-      `/user/memory/focus?personalityId=${personalityId}`,
+      `/user/memory/focus?personalityId=${encodeURIComponent(personalityId)}`,
       {
         user,
         method: 'GET',

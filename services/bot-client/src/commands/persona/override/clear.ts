@@ -35,7 +35,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
   try {
     // Clear override via gateway
     const result = await callGatewayApi<ClearOverrideResponse>(
-      `/user/persona/override/${personalitySlug}`,
+      `/user/persona/override/${encodeURIComponent(personalitySlug)}`,
       {
         user: toGatewayUser(context.user),
         method: 'DELETE',

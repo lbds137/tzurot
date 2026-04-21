@@ -45,7 +45,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
     }
 
     const result = await callGatewayApi<StatsResponse>(
-      `/user/memory/stats?personalityId=${personalityId}`,
+      `/user/memory/stats?personalityId=${encodeURIComponent(personalityId)}`,
       {
         user,
         method: 'GET',

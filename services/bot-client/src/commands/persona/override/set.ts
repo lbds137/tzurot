@@ -94,7 +94,7 @@ async function showCreateOverrideModal(
   personalitySlug: string
 ): Promise<void> {
   const infoResult = await callGatewayApi<OverrideInfoResponse>(
-    `/user/persona/override/${personalitySlug}`,
+    `/user/persona/override/${encodeURIComponent(personalitySlug)}`,
     { user: toGatewayUser(context.user) }
   );
 
@@ -140,7 +140,7 @@ async function setExistingOverride(
   personaId: string
 ): Promise<void> {
   const result = await callGatewayApi<SetOverrideResponse>(
-    `/user/persona/override/${personalitySlug}`,
+    `/user/persona/override/${encodeURIComponent(personalitySlug)}`,
     { user: toGatewayUser(context.user), method: 'PUT', body: { personaId } }
   );
 
@@ -229,7 +229,7 @@ export async function handleOverrideCreateModalSubmit(
 
     // Create persona and set as override via gateway (using personality ID in path)
     const result = await callGatewayApi<CreateOverrideResponse>(
-      `/user/persona/override/by-id/${personalityId}`,
+      `/user/persona/override/by-id/${encodeURIComponent(personalityId)}`,
       {
         user: toGatewayUser(interaction.user),
         method: 'POST',

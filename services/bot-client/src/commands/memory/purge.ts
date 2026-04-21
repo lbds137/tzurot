@@ -76,7 +76,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
 
     // Get stats to show what will be purged
     const statsResult = await callGatewayApi<StatsResponse>(
-      `/user/memory/stats?personalityId=${personalityId}`,
+      `/user/memory/stats?personalityId=${encodeURIComponent(personalityId)}`,
       {
         user,
         method: 'GET',
