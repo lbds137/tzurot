@@ -8,7 +8,7 @@
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
-import type { DenylistEntryResponse } from './browse.js';
+import type { DenylistEntryResponse } from './browseTypes.js';
 
 /** Entity type key for Redis session storage */
 export const ENTITY_TYPE = 'deny';

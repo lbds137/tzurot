@@ -5,16 +5,8 @@
  * Organizes fields into logical sections that fit Discord's 5-field modal limit.
  */
 
-import {
-  DISCORD_COLORS,
-  formatDateShort,
-  type PersonalityCharacterFields,
-} from '@tzurot/common-types';
-import {
-  type DashboardConfig,
-  type BrowseContext,
-  type ActionButtonOptions,
-} from '../../utils/dashboard/index.js';
+import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
+import { type DashboardConfig, type ActionButtonOptions } from '../../utils/dashboard/index.js';
 import {
   identitySection,
   biographySection,
@@ -22,6 +14,9 @@ import {
   conversationSection,
   adminSection,
 } from './sections.js';
+import type { CharacterData } from './characterTypes.js';
+
+export type { CharacterData } from './characterTypes.js';
 
 /** Browse filter options */
 export type CharacterBrowseFilter = 'all' | 'mine' | 'public';
@@ -39,37 +34,6 @@ export interface CharacterSessionData extends CharacterData {
    * Stored for audit/debugging only - always re-verify with isBotOwner() for authorization.
    */
   _isAdmin?: boolean;
-}
-
-/**
- * Character data structure (from API)
- * Index signature uses `unknown` for Record<string, unknown> compatibility
- * while preserving strict types for known properties.
- */
-export interface CharacterData extends PersonalityCharacterFields {
-  [key: string]: unknown;
-  id: string;
-  name: string;
-  displayName: string | null;
-  slug: string;
-  characterInfo: string;
-  personalityTraits: string;
-  birthMonth: number | null;
-  birthDay: number | null;
-  birthYear: number | null;
-  isPublic: boolean;
-  voiceEnabled: boolean;
-  /** Whether the character has a voice reference uploaded (from API) */
-  hasVoiceReference: boolean;
-  imageEnabled: boolean;
-  ownerId: string;
-  avatarData: string | null; // Base64-encoded
-  createdAt: string;
-  updatedAt: string;
-  /** Whether the current user can edit this character (set by API based on ownership) */
-  canEdit?: boolean;
-  /** Browse context when opened from browse (for back navigation) */
-  browseContext?: BrowseContext;
 }
 
 /**

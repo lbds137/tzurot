@@ -15,7 +15,7 @@ import {
   type DashboardContext,
   SectionStatus,
 } from '../../utils/dashboard/index.js';
-import type { CharacterData } from './config.js';
+import type { CharacterData } from './characterTypes.js';
 
 /**
  * Truncate text for preview display

@@ -39,6 +39,9 @@ import {
   isDenyBrowseSelectInteraction,
 } from './browse.js';
 import { handleDetailButton, handleDetailModal } from './detail.js';
+// Ensure the deny browse rebuilder is registered on module load, even when
+// subcommands that don't touch detail.ts fire first.
+import './browseRebuilder.js';
 
 const logger = createLogger('deny-command');
 
