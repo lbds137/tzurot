@@ -5,8 +5,10 @@
  * Prevents leaking Prisma errors, stack traces, or internal details.
  */
 
-/** Matches stack trace lines like "    at SomeClass.method (file.ts:42:15)" */
-const STACK_TRACE_PATTERN = /\s+at\s+\w/;
+/** Matches stack trace lines like "    at SomeClass.method (file.ts:42:15)".
+ * Bounded leading `\s{1,16}` prevents polynomial-slide ReDoS on long error
+ * bodies — stack trace indentation is at most 4-8 spaces in practice. */
+const STACK_TRACE_PATTERN = /\s{1,16}at\s{1,4}\w/;
 
 /** Map known internal error patterns to user-friendly messages */
 export function sanitizeErrorForDiscord(error: string): string {

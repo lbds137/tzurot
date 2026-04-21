@@ -79,8 +79,10 @@ export class AttachmentStorageService {
       }
 
       // Hostname must be from allowed Discord CDN hosts
-      // Normalize: strip trailing dots and ensure lowercase (URL API already lowercases)
-      const normalizedHostname = url.hostname.replace(/\.+$/, '');
+      // Normalize: strip trailing dots and ensure lowercase (URL API already lowercases).
+      // Bounded quantifier `{1,16}` prevents polynomial-slide ReDoS; real hostnames
+      // can have at most 1-2 trailing dots (DNS absolute form), 16 is a safe ceiling.
+      const normalizedHostname = url.hostname.replace(/\.{1,16}$/, '');
 
       // Reject IP addresses (IPv4 and IPv6)
       const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;

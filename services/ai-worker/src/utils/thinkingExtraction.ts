@@ -222,11 +222,10 @@ function cleanupVisibleContent(content: string): string {
   // Remove OpenAI Harmony format token leakage (GPT-OSS-120B)
   result = result.replace(HARMONY_TOKEN_PATTERN, '');
 
-  // Clean whitespace
-  result = result
-    .replace(/^\s+/, '') // Leading whitespace
-    .replace(/\s+$/, '') // Trailing whitespace
-    .replace(/\n{3,}/g, '\n\n'); // Multiple blank lines to double
+  // Clean whitespace — `.trim()` is equivalent to the old /^\s+/ + /\s+$/ pair
+  // and has no regex backtracking concerns on long inputs (the unbounded `\s+$`
+  // tripped regexp/no-super-linear-move).
+  result = result.trim().replace(/\n{3,}/g, '\n\n'); // Multiple blank lines to double
 
   // Strip leading stray punctuation left after truncated thinking extraction
   // (e.g., visible content starts with "., " or ", " after an unclosed tag was removed).
