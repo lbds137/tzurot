@@ -698,12 +698,18 @@ async def transcode_wav_to_opus(file: UploadFile = File(...)) -> Response:
     try:
         loop = asyncio.get_running_loop()
         opus_bytes, media_type = await _encode_opus(audio_bytes, loop)
-        logger.info(
+        # _encode_opus already logs logger.error on ffmpeg failure before returning
+        # (wav_bytes, "audio/wav") as a graceful fallback. Logging at info here in
+        # that case would paper over the earlier error; use warning so log triage
+        # sees both signals consistently.
+        log_fn = logger.info if media_type != "audio/wav" else logger.warning
+        log_fn(
             "Transcoded audio",
             extra={
                 "in_bytes": len(audio_bytes),
                 "out_bytes": len(opus_bytes),
                 "media_type": media_type,
+                "ffmpeg_fallback": media_type == "audio/wav",
             },
         )
         return Response(content=opus_bytes, media_type=media_type)
