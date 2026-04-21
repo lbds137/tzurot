@@ -13,7 +13,6 @@ import {
 } from '@tzurot/common-types';
 import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
 import { createJobChain } from '../../utils/jobChainOrchestrator.js';
-import type { GenerateResponse } from '../../types.js';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendSuccess, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -66,7 +65,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
           jobId: duplicate.jobId,
           requestId: duplicate.requestId,
           status: JobStatus.Queued,
-        } as GenerateResponse);
+        });
       }
 
       const requestId = randomUUID();
@@ -112,11 +111,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
           `[AI] Created job chain with main job ${jobId} for ${request.personality.name} (${creationTime}ms)`
         );
 
-        sendCustomSuccess(
-          res,
-          { jobId, requestId, status: JobStatus.Queued } as GenerateResponse,
-          202
-        );
+        sendCustomSuccess(res, { jobId, requestId, status: JobStatus.Queued }, 202);
       } catch (error) {
         const processingTime = Date.now() - startTime;
         logger.error(

@@ -52,7 +52,7 @@ function parseConfigTier(raw: unknown): Record<string, unknown> | null {
     logger.warn({ errors: result.error.issues }, 'Config tier JSONB failed validation');
     return null;
   }
-  return result.data as Record<string, unknown>;
+  return result.data;
 }
 
 /** Query schema for resolve endpoint */

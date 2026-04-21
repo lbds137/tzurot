@@ -52,7 +52,7 @@ export async function handlePresence(context: DeferredCommandContext): Promise<v
     return;
   }
 
-  await setPresence(context, typeOption as ActivityType, textOption);
+  await setPresence(context, typeOption, textOption);
 }
 
 async function showCurrentPresence(context: DeferredCommandContext): Promise<void> {

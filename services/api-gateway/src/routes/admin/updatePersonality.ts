@@ -10,7 +10,7 @@ import {
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
 } from '@tzurot/common-types';
-import { type PrismaClient, Prisma } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -53,7 +53,7 @@ function buildUpdateData(
   }
 
   if (validated.customFields !== undefined) {
-    updateData.customFields = validated.customFields as Prisma.InputJsonValue;
+    updateData.customFields = validated.customFields;
   }
   if (processedAvatarData !== undefined) {
     updateData.avatarData = new Uint8Array(processedAvatarData);

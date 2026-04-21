@@ -120,12 +120,10 @@ export class NormalizationStep implements IPipelineStep {
     }
 
     const originalValue = msg.createdAt;
-    const normalizedTimestamp = normalizeTimestamp(
-      originalValue as unknown as Date | string | undefined
-    );
+    const normalizedTimestamp = normalizeTimestamp(originalValue);
 
     if (normalizedTimestamp !== undefined && originalValue !== normalizedTimestamp) {
-      (msg as { createdAt?: string }).createdAt = normalizedTimestamp;
+      msg.createdAt = normalizedTimestamp;
       return 1;
     }
 
@@ -146,9 +144,7 @@ export class NormalizationStep implements IPipelineStep {
 
     for (const ref of referencedMessages) {
       if (ref.timestamp !== undefined) {
-        const normalizedTimestamp = normalizeTimestamp(
-          ref.timestamp as unknown as Date | string | undefined
-        );
+        const normalizedTimestamp = normalizeTimestamp(ref.timestamp);
         if (normalizedTimestamp !== undefined && ref.timestamp !== normalizedTimestamp) {
           (ref as { timestamp: string }).timestamp = normalizedTimestamp;
           stats.timestampNormalizations++;

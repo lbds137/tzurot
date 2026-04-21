@@ -89,9 +89,9 @@ export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse
     voiceResponseMode: response.voiceResponseMode,
     voiceTranscriptionEnabled: response.voiceTranscriptionEnabled,
     elevenlabsTtsModel: response.elevenlabsTtsModel,
-    sources: response.sources as Record<keyof ConfigOverrides, ConfigOverrideSource>,
+    sources: response.sources,
   };
-  const userOverrides = (response.userOverrides ?? null) as Partial<ConfigOverrides> | null;
+  const userOverrides = response.userOverrides ?? null;
   return { resolved, userOverrides };
 }
 
@@ -105,7 +105,7 @@ export function buildFallbackSettingsData(): SettingsData {
     result[field] = {
       localValue: null,
       effectiveValue: HARDCODED_CONFIG_DEFAULTS[field],
-      source: 'hardcoded' as ConfigOverrideSource,
+      source: 'hardcoded',
     };
   }
   return result as unknown as SettingsData;

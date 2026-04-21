@@ -142,7 +142,7 @@ export class DiscordResponseSender {
     const sendOpts: ChunkedSendOptions = { chunks, personality, chunkMessageIds, ttsFiles };
 
     if (isWebhookChannel) {
-      await this.sendViaWebhook(message.channel as TextChannel | ThreadChannel, sendOpts);
+      await this.sendViaWebhook(message.channel, sendOpts);
     } else {
       await this.sendViaDM(message.channel as DMChannel, sendOpts);
     }
@@ -341,11 +341,7 @@ export class DiscordResponseSender {
       try {
         if (isWebhookChannel) {
           // Send via webhook (matches personality appearance)
-          await this.webhookManager.sendAsPersonality(
-            message.channel as TextChannel | ThreadChannel,
-            personality,
-            chunkContent
-          );
+          await this.webhookManager.sendAsPersonality(message.channel, personality, chunkContent);
         } else {
           // Send via DM (with personality prefix, no reply indicator)
           await (message.channel as DMChannel).send(

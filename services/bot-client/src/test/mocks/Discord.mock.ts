@@ -334,7 +334,7 @@ export function createMockDMMessage(overrides: MockInput<Message> = EMPTY_OVERRI
  */
 export function createMockThreadMessage(overrides: MockInput<Message> = EMPTY_OVERRIDES): Message {
   return createMockMessage({
-    channel: createMockThreadChannel() as unknown as TextChannel,
+    channel: createMockThreadChannel(),
     ...overrides,
   });
 }

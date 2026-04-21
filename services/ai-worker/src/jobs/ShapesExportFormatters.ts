@@ -135,10 +135,7 @@ export function formatExportAsMarkdown(data: ExportPayload): string {
 
   // User personalization
   if (data.userPersonalization !== null) {
-    const backstory = configString(
-      data.userPersonalization as unknown as Record<string, unknown>,
-      'backstory'
-    );
+    const backstory = configString(data.userPersonalization, 'backstory');
     if (backstory !== undefined) {
       lines.push('## User Personalization', '', backstory, '');
     }

@@ -33,7 +33,7 @@ export function isPrismaUniqueConstraintErrorOn(
   if (meta === null || typeof meta !== 'object' || !('target' in meta)) {
     return false;
   }
-  const target = (meta as { target: unknown }).target;
+  const target = meta.target;
   if (!Array.isArray(target)) {
     return false;
   }
