@@ -12,6 +12,7 @@ import type {
   ModalSubmitInteraction,
   AutocompleteInteraction,
   ButtonInteraction,
+  StringSelectMenuInteraction,
 } from 'discord.js';
 import type { Command } from '../types.js';
 
@@ -545,6 +546,70 @@ describe('CommandHandler', () => {
       } as unknown as ModalSubmitInteraction;
 
       await expect(handler.handleInteraction(mockInteraction)).resolves.toBeUndefined();
+    });
+
+    it('should early-return when command has no handleSelectMenu handler', async () => {
+      // Covers the defensive warn branch when a select-menu interaction's
+      // customId prefix routes to a command that doesn't declare a
+      // handleSelectMenu. Without this guard we'd TypeError on the
+      // undefined call.
+      const mockCommand: Command = {
+        data: {
+          name: 'no-select',
+          description: 'Command with no select menu handler',
+        } as unknown as SlashCommandBuilder,
+        execute: vi.fn(),
+        componentPrefixes: ['no-select'],
+        // Intentionally no handleSelectMenu defined
+      };
+
+      handler.getCommands().set('no-select', mockCommand);
+      (handler as any).prefixToCommand.set('no-select', mockCommand);
+
+      const mockInteraction = {
+        customId: 'no-select::pick::option-1',
+        isStringSelectMenu: () => true,
+        isButton: () => false,
+        reply: vi.fn(),
+        followUp: vi.fn(),
+        replied: false,
+        deferred: false,
+      } as unknown as StringSelectMenuInteraction;
+
+      await expect(handler.handleComponentInteraction(mockInteraction)).resolves.toBeUndefined();
+      // Should not attempt a reply — defensive early return, not an error-to-user case
+      expect(mockInteraction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should early-return when command has no handleButton handler', async () => {
+      // Symmetric to the handleSelectMenu case — a button interaction whose
+      // customId prefix routes to a command without handleButton should
+      // short-circuit rather than TypeError.
+      const mockCommand: Command = {
+        data: {
+          name: 'no-button',
+          description: 'Command with no button handler',
+        } as unknown as SlashCommandBuilder,
+        execute: vi.fn(),
+        componentPrefixes: ['no-button'],
+        // Intentionally no handleButton defined
+      };
+
+      handler.getCommands().set('no-button', mockCommand);
+      (handler as any).prefixToCommand.set('no-button', mockCommand);
+
+      const mockInteraction = {
+        customId: 'no-button::click::123',
+        isStringSelectMenu: () => false,
+        isButton: () => true,
+        reply: vi.fn(),
+        followUp: vi.fn(),
+        replied: false,
+        deferred: false,
+      } as unknown as ButtonInteraction;
+
+      await expect(handler.handleComponentInteraction(mockInteraction)).resolves.toBeUndefined();
+      expect(mockInteraction.reply).not.toHaveBeenCalled();
     });
 
     it('should not throw when component error reply itself fails', async () => {
