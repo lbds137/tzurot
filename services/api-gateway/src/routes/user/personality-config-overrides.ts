@@ -22,10 +22,11 @@ import {
   tryInvalidateCache,
   mergeAndValidateOverrides,
 } from '../../utils/configOverrideHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -70,14 +71,14 @@ export function createPersonalityConfigOverrideRoutes(
    */
   router.patch(
     '/personality/:personalityId',
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
 
       if (!UUID_PATTERN.test(personalityId)) {
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await userService.getOrCreateUserShell(req.userId);
+      const userId = await resolveProvisionedUserId(req, userService, req.userId);
 
       // Verify creator ownership
       const personality = await prisma.personality.findUnique({

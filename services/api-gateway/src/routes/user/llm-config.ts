@@ -27,12 +27,13 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import {
   LlmConfigService,
   AutoSuffixCollisionError,
@@ -135,7 +136,7 @@ function createCreateHandler(
   userService: UserService,
   modelCache?: OpenRouterModelCache
 ) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
     // Validate request body with shared Zod schema from common-types
@@ -149,7 +150,7 @@ function createCreateHandler(
       return;
     }
 
-    const userId = await userService.getOrCreateUserShell(discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
 
     // Duplicate-name check is skipped when the client opts into
     // autoSuffixOnCollision (the preset clone flow): the service will bump

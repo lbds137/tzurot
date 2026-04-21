@@ -27,10 +27,11 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-export');
 
@@ -119,7 +120,7 @@ function createExportHandler(
   userService: UserService,
   baseUrl: string
 ) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const { slug, format: formatRaw } = req.body as { slug?: string; format?: string };
 
@@ -130,7 +131,7 @@ function createExportHandler(
     const normalizedSlug = slug.trim().toLowerCase();
     const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
-    const userId = await userService.getOrCreateUserShell(discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
 
     // Verify credentials exist (don't decrypt — ai-worker does that)
     const credential = await prisma.userCredential.findFirst({

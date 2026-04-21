@@ -20,10 +20,11 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-import');
 
@@ -86,7 +87,7 @@ async function createImportJobOrConflict(
 }
 
 function createImportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const { sourceSlug, importType } = req.body as {
       sourceSlug?: string;
@@ -106,7 +107,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 
     const validImportType = importType === 'memory_only' ? 'memory_only' : 'full';
 
-    const userId = await userService.getOrCreateUserShell(discordUserId);
+    const userId = await resolveProvisionedUserId(req, userService, discordUserId);
 
     // Atomically check for conflicts and create the import job
     let importJobId: string;

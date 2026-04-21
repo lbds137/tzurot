@@ -6,35 +6,46 @@
  */
 
 import { UserService, type PrismaClient } from '@tzurot/common-types';
+import type { ProvisionedRequest } from '../../types.js';
 
 /**
- * Get or create internal user from Discord ID.
+ * Get or create internal user for an HTTP-route handler.
  *
- * HTTP routes don't have Discord username context (auth middleware only passes
- * the discordId), so this creates a **shell user** — User record only, no
- * default persona. The persona is populated later when the user interacts via
- * the bot-client path, which has the real Discord username and can call
- * {@link UserService.getOrCreateUser} with full context (name, displayName, bio).
+ * Prefers the fully-provisioned `{ userId, defaultPersonaId }` attached by the
+ * `requireProvisionedUser` middleware when bot-client passed the
+ * `X-User-Username` / `X-User-DisplayName` headers. Falls back to the legacy
+ * shell path (`UserService.getOrCreateUserShell`) when the middleware shadow-
+ * mode fell through — missing / malformed headers, bot users, or rare
+ * `getOrCreateUser` failures. Once the middleware is tightened to return 400
+ * on missing provisioning, the fallback branch disappears.
  *
- * Previously this method passed `discordUserId` as the username argument to
- * `UserService.getOrCreateUser`, which baked the raw Discord snowflake into
- * `Persona.name` and `Persona.preferredName` — later rendering as the user's
- * identity in system prompts. See the identity-provisioning incident write-up
- * in `docs/incidents/` for the full history.
+ * Historical note: the shell path existed because HTTP routes didn't originally
+ * carry Discord username context, so `Persona.name` / `Persona.preferredName`
+ * couldn't be populated. Passing the raw discord snowflake as the username
+ * argument baked the snowflake into those fields — which later rendered as the
+ * user's identity in system prompts. See `docs/incidents/` for the full
+ * Phase 5 write-up. The fallback here calls `getOrCreateUserShell`, which
+ * intentionally does NOT touch the persona name for that reason.
  *
  * Returns both `id` and `defaultPersonaId`. Callers that require a persona
  * (e.g., for persona CRUD operations) must handle the null case — this can
- * happen if the user has only interacted via HTTP routes and not via Discord.
+ * happen for shell-path users that haven't yet interacted via Discord.
  */
 export async function getOrCreateInternalUser(
   prisma: PrismaClient,
-  discordUserId: string
+  req: ProvisionedRequest
 ): Promise<{ id: string; defaultPersonaId: string | null }> {
-  const userService = new UserService(prisma);
+  // Common path: middleware provisioned successfully, both UUIDs already on req.
+  if (req.provisionedUserId !== undefined) {
+    return {
+      id: req.provisionedUserId,
+      defaultPersonaId: req.provisionedDefaultPersonaId ?? null,
+    };
+  }
 
-  // Shell creation only — we don't have username context here.
-  // Persona backfill happens via bot-client's interaction path.
-  const userId = await userService.getOrCreateUserShell(discordUserId);
+  // Shadow-mode fallthrough: create shell and look up the persona separately.
+  const userService = new UserService(prisma);
+  const userId = await userService.getOrCreateUserShell(req.userId);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
