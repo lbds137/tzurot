@@ -44,7 +44,7 @@ export async function initializeEmbeddingService(): Promise<boolean> {
       if (success) {
         logger.info('Local embedding service initialized successfully');
       } else {
-        logger.warn({}, 'Local embedding service failed to initialize');
+        logger.warn('Local embedding service failed to initialize');
         embeddingService = null;
       }
 
@@ -76,12 +76,12 @@ export function isEmbeddingServiceAvailable(): boolean {
  */
 export async function generateEmbedding(text: string): Promise<number[] | null> {
   if (embeddingService === null || embeddingService.isServiceReady() === false) {
-    logger.warn({}, 'Service not ready - call initializeEmbeddingService first');
+    logger.warn('Service not ready - call initializeEmbeddingService first');
     return null;
   }
 
   if (text.trim().length === 0) {
-    logger.warn({}, 'Empty text provided for embedding');
+    logger.warn('Empty text provided for embedding');
     return null;
   }
 
@@ -90,7 +90,7 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
   const embedding = await embeddingService.getEmbedding(text);
 
   if (embedding === undefined) {
-    logger.warn({}, 'Failed to generate embedding');
+    logger.warn('Failed to generate embedding');
     return null;
   }
 

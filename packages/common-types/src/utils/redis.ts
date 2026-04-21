@@ -19,7 +19,7 @@ const logger = createLogger('RedisUtils');
  */
 function createReconnectStrategy(retries: number): number | Error {
   if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
-    logger.error({}, '[RedisUtils] Max reconnection attempts reached');
+    logger.error('[RedisUtils] Max reconnection attempts reached');
     return new Error('Max reconnection attempts reached');
   }
   const delay = Math.min(

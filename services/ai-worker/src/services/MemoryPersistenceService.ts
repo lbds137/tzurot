@@ -65,7 +65,7 @@ export class MemoryPersistenceService {
         personaResult.personaId
       );
     } else {
-      logger.warn({}, `No persona found for user ${context.userId}, skipping LTM storage`);
+      logger.warn({ userId: context.userId }, 'No persona found, skipping LTM storage');
     }
   }
 
@@ -86,7 +86,7 @@ export class MemoryPersistenceService {
     );
 
     if (personaResult === null) {
-      logger.warn({}, `No persona found for user ${context.userId}, cannot defer LTM`);
+      logger.warn({ userId: context.userId }, 'No persona found, cannot defer LTM');
       return null;
     }
 

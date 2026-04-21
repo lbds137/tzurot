@@ -114,7 +114,7 @@ async function clearPresence(context: DeferredCommandContext): Promise<void> {
     client.user?.setPresence({ activities: [] });
 
     await context.editReply({ content: '✅ Presence cleared.' });
-    logger.info({}, 'Presence cleared');
+    logger.info('Presence cleared');
   } catch (error) {
     logger.error({ err: error }, 'Failed to clear presence');
     await context.editReply({ content: '❌ Failed to clear presence.' });

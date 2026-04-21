@@ -43,7 +43,7 @@ export class PendingMemoryProcessor {
   async processPendingMemories(): Promise<ProcessingStats> {
     const adapter = this.memoryAdapter;
     if (!adapter) {
-      logger.warn({}, 'Memory adapter unavailable, skipping processing');
+      logger.warn('Memory adapter unavailable, skipping processing');
       return { processed: 0, succeeded: 0, failed: 0, skipped: 0 };
     }
 

@@ -53,7 +53,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
   const commands = context.interaction.client.commands;
 
   if (commands === undefined || commands.size === 0) {
-    logger.error({}, 'Commands collection not available on client');
+    logger.error('Commands collection not available on client');
     await context.editReply({
       content: '❌ Unable to load commands list. Please try again later.',
     });

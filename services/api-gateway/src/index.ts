@@ -173,7 +173,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   if (embeddingReady) {
     logger.info('Local embedding service initialized');
   } else {
-    logger.warn({}, 'Local embedding service unavailable - memory search will use text fallback');
+    logger.warn('Local embedding service unavailable - memory search will use text fallback');
   }
 
   // DATABASE_URL is validated in startup.ts, but TypeScript doesn't know that

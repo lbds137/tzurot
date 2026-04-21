@@ -20,7 +20,7 @@ let cleanupService: VerificationMessageCleanup | null = null;
  */
 export function initVerificationCleanupService(client: Client): void {
   if (cleanupService !== null) {
-    logger.warn({}, 'Service already initialized');
+    logger.warn('Service already initialized');
     return;
   }
 
