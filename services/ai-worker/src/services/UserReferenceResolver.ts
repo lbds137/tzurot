@@ -287,7 +287,7 @@ export class UserReferenceResolver {
       if (result.status === 'rejected') {
         failedFields.push(fieldName);
         logger.warn(
-          { field: fieldName, error: result.reason, personalityId: personality.id },
+          { field: fieldName, err: result.reason, personalityId: personality.id },
           'Failed to resolve user references in personality field'
         );
         continue;
