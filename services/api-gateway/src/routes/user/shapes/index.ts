@@ -32,7 +32,7 @@ export function createShapesRoutes(prisma: PrismaClient, queue?: Queue): Router 
     router.use('/import', createShapesImportRoutes(prisma, queue));
     router.use('/export', createShapesExportRoutes(prisma, queue));
   } else {
-    logger.warn({}, '[Shapes] BullMQ queue unavailable — /import and /export routes disabled');
+    logger.warn({}, 'BullMQ queue unavailable — /import and /export routes disabled');
   }
 
   return router;

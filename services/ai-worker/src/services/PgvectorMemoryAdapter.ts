@@ -64,7 +64,7 @@ export class PgvectorMemoryAdapter {
       if (!isValidId(query)) {
         logger.warn(
           { personaId: options.personaId },
-          '[PgvectorMemoryAdapter] Empty or null query provided, returning empty results'
+          'Empty or null query provided, returning empty results'
         );
         return [];
       }
@@ -155,7 +155,7 @@ export class PgvectorMemoryAdapter {
         personaId: data.metadata.personaId,
         personalityId: data.metadata.personalityId,
       },
-      '[PgvectorMemoryAdapter] Splitting oversized memory into chunks'
+      'Splitting oversized memory into chunks'
     );
 
     // Store all chunks in parallel for better performance.
@@ -180,7 +180,7 @@ export class PgvectorMemoryAdapter {
 
     logger.debug(
       { chunkGroupId, storedChunks: chunks.length },
-      '[PgvectorMemoryAdapter] Successfully stored all memory chunks'
+      'Successfully stored all memory chunks'
     );
   }
 
@@ -203,7 +203,7 @@ export class PgvectorMemoryAdapter {
             chunkGroupId: data.metadata.chunkGroupId,
             textLength: data.text.length,
           },
-          '[PgvectorMemoryAdapter] Text exceeds embedding token limit - may fail'
+          'Text exceeds embedding token limit - may fail'
         );
       }
 

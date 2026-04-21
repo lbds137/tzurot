@@ -76,12 +76,9 @@ export function createExportsRouter(prisma: PrismaClient): Router {
 
       res.status(StatusCodes.OK).send(job.fileContent);
 
-      logger.info(
-        { jobId, fileName, fileSizeBytes: job.fileSizeBytes },
-        '[Exports] File downloaded'
-      );
+      logger.info({ jobId, fileName, fileSizeBytes: job.fileSizeBytes }, 'File downloaded');
     } catch (error) {
-      logger.error({ err: error, jobId }, '[Exports] Download error');
+      logger.error({ err: error, jobId }, 'Download error');
       res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'Download failed' });
     }
   });

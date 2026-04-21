@@ -54,7 +54,7 @@ export class OpenRouterModelCache {
   async getModels(): Promise<OpenRouterModel[]> {
     // Check memory cache first (avoids Redis round-trip for rapid requests)
     if (this.memoryCache && Date.now() - this.memoryCacheTimestamp < this.memoryCacheTTL) {
-      logger.debug('[OpenRouterModelCache] Memory cache HIT');
+      logger.debug('Memory cache HIT');
       return this.memoryCache;
     }
 
@@ -63,18 +63,18 @@ export class OpenRouterModelCache {
       const cached = await this.redis.get(REDIS_KEY_PREFIXES.OPENROUTER_MODELS);
       if (cached !== null && cached.length > 0) {
         const models = JSON.parse(cached) as OpenRouterModel[];
-        logger.debug(`[OpenRouterModelCache] Redis cache HIT (${String(models.length)} models)`);
+        logger.debug(`Redis cache HIT (${String(models.length)} models)`);
         // Update memory cache
         this.memoryCache = models;
         this.memoryCacheTimestamp = Date.now();
         return models;
       }
     } catch (error) {
-      logger.warn({ err: error }, '[OpenRouterModelCache] Failed to read Redis cache');
+      logger.warn({ err: error }, 'Failed to read Redis cache');
     }
 
     // Cache miss - fetch from OpenRouter
-    logger.info('[OpenRouterModelCache] Cache MISS, fetching from OpenRouter API');
+    logger.info('Cache MISS, fetching from OpenRouter API');
     const models = await this.fetchFromOpenRouter();
 
     // Store in Redis with TTL
@@ -84,9 +84,9 @@ export class OpenRouterModelCache {
         INTERVALS.OPENROUTER_MODELS_TTL,
         JSON.stringify(models)
       );
-      logger.info(`[OpenRouterModelCache] Cached ${models.length} models in Redis (TTL: 24h)`);
+      logger.info(`Cached ${models.length} models in Redis (TTL: 24h)`);
     } catch (error) {
-      logger.warn({ err: error }, '[OpenRouterModelCache] Failed to write Redis cache');
+      logger.warn({ err: error }, 'Failed to write Redis cache');
     }
 
     // Update memory cache
@@ -178,7 +178,7 @@ export class OpenRouterModelCache {
       }
       return this.toAutocompleteOption(model);
     } catch (error) {
-      logger.warn({ err: error, modelId }, '[OpenRouterModelCache] Cache unavailable for lookup');
+      logger.warn({ err: error, modelId }, 'Cache unavailable for lookup');
       return null;
     }
   }
@@ -225,19 +225,17 @@ export class OpenRouterModelCache {
         throw new Error('Invalid response format from OpenRouter API');
       }
 
-      logger.info(
-        `[OpenRouterModelCache] Fetched ${String(data.data.length)} models from OpenRouter`
-      );
+      logger.info(`Fetched ${String(data.data.length)} models from OpenRouter`);
       return data.data;
     } catch (error) {
       clearTimeout(timeoutId);
 
       if (error instanceof Error && error.name === 'AbortError') {
-        logger.error({ err: error }, '[OpenRouterModelCache] Request to OpenRouter timed out');
+        logger.error({ err: error }, 'Request to OpenRouter timed out');
         throw new Error('OpenRouter API request timed out', { cause: error });
       }
 
-      logger.error({ err: error }, '[OpenRouterModelCache] Failed to fetch from OpenRouter');
+      logger.error({ err: error }, 'Failed to fetch from OpenRouter');
       throw error;
     }
   }

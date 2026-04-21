@@ -132,10 +132,7 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
       select: PERSONALITY_DETAIL_SELECT,
     });
 
-    logger.info(
-      { discordUserId, slug, personalityId: personality.id },
-      '[User] Created personality'
-    );
+    logger.info({ discordUserId, slug, personalityId: personality.id }, 'Created personality');
 
     // Note: personality_default_configs is intentionally NOT populated here.
     // Personalities cascade to the current global default at request time; a

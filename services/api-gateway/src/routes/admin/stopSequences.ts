@@ -49,7 +49,7 @@ export function createStopSequenceRoutes(redis: Redis): Router {
         byModelNums[key] = parseInt(val, 10);
       }
 
-      logger.info({ total }, '[StopSequences] Returned stats');
+      logger.info({ total }, 'Returned stats');
 
       sendCustomSuccess(
         res,

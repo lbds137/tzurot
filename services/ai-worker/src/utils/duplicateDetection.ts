@@ -370,7 +370,7 @@ export function removeDuplicateResponse(content: string): string {
           similarity: similarity.toFixed(3),
           detectionMethod,
         },
-        '[DuplicateDetection] Detected and removed intra-turn duplicate response content. ' +
+        'Detected and removed intra-turn duplicate response content. ' +
           'Model likely experienced stop-token failure.'
       );
 

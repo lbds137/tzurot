@@ -75,17 +75,11 @@ export function createResolveHandler(
         cascadeResolver.resolveOverrides(discordUserId, personalityId, channelId),
       ]);
 
-      logger.debug(
-        { discordUserId, personalityId, source: result.source },
-        '[LlmConfig] Config resolved'
-      );
+      logger.debug({ discordUserId, personalityId, source: result.source }, 'Config resolved');
 
       sendCustomSuccess(res, { ...result, overrides }, StatusCodes.OK);
     } catch (error) {
-      logger.error(
-        { err: error, discordUserId, personalityId },
-        '[LlmConfig] Failed to resolve config'
-      );
+      logger.error({ err: error, discordUserId, personalityId }, 'Failed to resolve config');
       return sendError(res, ErrorResponses.internalError('Failed to resolve config'));
     }
   };

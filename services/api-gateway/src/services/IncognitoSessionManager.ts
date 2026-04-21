@@ -118,7 +118,7 @@ export class IncognitoSessionManager {
         expiresAt,
         key,
       },
-      '[Incognito] Session enabled'
+      'Session enabled'
     );
 
     return session;
@@ -138,7 +138,7 @@ export class IncognitoSessionManager {
     const wasActive = deleted > 0;
     logger.info(
       { userId, personalityId, wasActive },
-      `[Incognito] Session ${wasActive ? 'disabled' : 'not found'}`
+      `Session ${wasActive ? 'disabled' : 'not found'}`
     );
 
     return wasActive;
@@ -164,7 +164,7 @@ export class IncognitoSessionManager {
       // Trust Redis TTL for expiration - if the key exists, the session is active
       return IncognitoSessionSchema.parse(parsed);
     } catch (error) {
-      logger.warn({ error, key }, '[Incognito] Failed to parse session data');
+      logger.warn({ err: error, key }, 'Failed to parse session data');
       // Invalid data - clean it up
       await this.redis.del(key);
       return null;
@@ -232,7 +232,7 @@ export class IncognitoSessionManager {
     if (allKeys.length > IncognitoSessionManager.MAX_SESSIONS_PER_USER) {
       logger.warn(
         { userId, total: allKeys.length, fetched: keys.length },
-        '[Incognito] User has excessive sessions - truncating'
+        'User has excessive sessions - truncating'
       );
     }
 
@@ -278,12 +278,12 @@ export class IncognitoSessionManager {
     if (allKeys.length > IncognitoSessionManager.MAX_SESSIONS_PER_USER) {
       logger.warn(
         { userId, total: allKeys.length, deleting: keys.length },
-        '[Incognito] User has excessive sessions - only deleting first batch'
+        'User has excessive sessions - only deleting first batch'
       );
     }
 
     const deleted = await this.redis.del(...keys);
-    logger.info({ userId, count: deleted }, '[Incognito] All sessions disabled');
+    logger.info({ userId, count: deleted }, 'All sessions disabled');
 
     return deleted;
   }

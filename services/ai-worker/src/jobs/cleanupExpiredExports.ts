@@ -17,7 +17,7 @@ export async function cleanupExpiredExports(prisma: PrismaClient): Promise<{ del
   });
 
   if (result.count > 0) {
-    logger.info({ deleted: result.count }, '[Cleanup] Deleted expired export jobs');
+    logger.info({ deleted: result.count }, 'Deleted expired export jobs');
   }
 
   return { deleted: result.count };

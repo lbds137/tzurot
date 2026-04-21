@@ -263,7 +263,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
       'PURGE completed'
     );
   } catch (error) {
-    logger.error({ error, userId }, 'Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

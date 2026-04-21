@@ -31,7 +31,7 @@ async function deletePendingMemories(
 ): Promise<void> {
   if (count > 0) {
     await prisma.pendingMemory.deleteMany({ where: { personalityId } });
-    logger.debug({ personalityId, count }, '[Personality] Deleted PendingMemory records');
+    logger.debug({ personalityId, count }, 'Deleted PendingMemory records');
   }
 }
 
@@ -45,9 +45,9 @@ async function invalidateCacheSafely(
 
   try {
     await cacheInvalidationService.invalidatePersonality(personalityId);
-    logger.debug({ personalityId }, '[Personality] Invalidated cache after deletion');
+    logger.debug({ personalityId }, 'Invalidated cache after deletion');
   } catch (error) {
-    logger.warn({ err: error, personalityId }, '[Personality] Failed to invalidate cache');
+    logger.warn({ err: error, personalityId }, 'Failed to invalidate cache');
   }
 }
 
@@ -106,7 +106,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     logger.info(
       { discordUserId, slug, personalityId: personality.id, deletedCounts },
-      '[Personality] Starting deletion'
+      'Starting deletion'
     );
 
     await deletePendingMemories(prisma, personality.id, pendingMemoryCount);
@@ -116,7 +116,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     logger.info(
       { discordUserId, slug, deletedCounts },
-      '[Personality] Successfully deleted personality and all related data'
+      'Successfully deleted personality and all related data'
     );
 
     const validated = DeletePersonalityResponseSchema.parse({

@@ -46,7 +46,7 @@ async function tryDeleteFile(filePath: string, filename: string): Promise<boolea
   } catch (error) {
     const errCode = (error as NodeJS.ErrnoException).code;
     if (errCode !== 'ENOENT') {
-      logger.warn({ err: error, filename }, '[Avatar Sync] Failed to delete old version');
+      logger.warn({ err: error, filename }, 'Failed to delete old version');
     }
     return false;
   }
@@ -85,7 +85,7 @@ async function cleanupOldVersionsSync(slug: string, currentTimestamp: number): P
       // Security: filePath comes from glob on a validated pattern (no path traversal)
       if (await tryDeleteFile(filePath, filename)) {
         deletedCount++;
-        logger.debug({ slug, filename }, '[Avatar Sync] Deleted old version');
+        logger.debug({ slug, filename }, 'Deleted old version');
       }
     }
 
@@ -123,7 +123,7 @@ async function syncPersonalityAvatar(personality: {
 }): Promise<SyncResult> {
   // Validate slug for safety
   if (!isValidSlug(personality.slug)) {
-    logger.warn({ slug: personality.slug }, '[Avatar Sync] Skipping invalid slug');
+    logger.warn({ slug: personality.slug }, 'Skipping invalid slug');
     return { synced: false, cleanedCount: 0 };
   }
 
@@ -132,14 +132,14 @@ async function syncPersonalityAvatar(personality: {
 
   // Safety check - getSafeAvatarPath validates the slug
   if (avatarPath === null) {
-    logger.warn({ slug: personality.slug }, '[Avatar Sync] Invalid avatar path');
+    logger.warn({ slug: personality.slug }, 'Invalid avatar path');
     return { synced: false, cleanedCount: 0 };
   }
 
   try {
     // Check if exact versioned file already exists
     await access(avatarPath);
-    logger.debug({ slug: personality.slug, timestamp }, '[Avatar Sync] Versioned avatar exists');
+    logger.debug({ slug: personality.slug, timestamp }, 'Versioned avatar exists');
     return { synced: false, cleanedCount: 0 };
   } catch {
     // File doesn't exist, create it from DB
@@ -163,14 +163,14 @@ async function syncPersonalityAvatar(personality: {
   const sizeKB = (buffer.length / 1024).toFixed(2);
   logger.info(
     { slug: personality.slug, timestamp, sizeKB, cleanedVersions: cleaned },
-    '[Avatar Sync] Synced avatar'
+    'Synced avatar'
   );
 
   return { synced: true, cleanedCount: cleaned };
 }
 
 export async function syncAvatars(): Promise<void> {
-  logger.info('[Avatar Sync] Starting avatar sync from database...');
+  logger.info('Starting avatar sync from database...');
 
   try {
     let syncedCount = 0;
@@ -196,7 +196,7 @@ export async function syncAvatars(): Promise<void> {
       });
 
       if (personalities.length === 0 && totalProcessed === 0) {
-        logger.info('[Avatar Sync] No personalities with avatar data found');
+        logger.info('No personalities with avatar data found');
         return;
       }
 
@@ -221,10 +221,10 @@ export async function syncAvatars(): Promise<void> {
 
     logger.info(
       { synced: syncedCount, skipped: skippedCount, cleaned: cleanedCount, total: totalProcessed },
-      '[Avatar Sync] Complete'
+      'Complete'
     );
   } catch (error) {
-    logger.error({ err: error }, '[Avatar Sync] Failed to sync avatars');
+    logger.error({ err: error }, 'Failed to sync avatars');
     throw error;
   } finally {
     await prisma.$disconnect();

@@ -99,7 +99,7 @@ function filterRestrictedParams(
   if (filtered.length > 0) {
     logger.warn(
       { modelName, filteredParams: filtered },
-      '[ModelFactory] Filtered unsupported params for restricted model to prevent 400 errors'
+      'Filtered unsupported params for restricted model to prevent 400 errors'
     );
   }
 
@@ -167,7 +167,7 @@ function buildReasoningParams(
     if (reasoning.maxTokens !== undefined) {
       logger.warn(
         { effort: reasoning.effort, maxTokens: reasoning.maxTokens },
-        '[ModelFactory] Both reasoning.effort and reasoning.maxTokens set, using effort (maxTokens ignored - OpenRouter constraint)'
+        'Both reasoning.effort and reasoning.maxTokens set, using effort (maxTokens ignored - OpenRouter constraint)'
       );
     }
   } else if (reasoning.maxTokens !== undefined) {
@@ -205,7 +205,7 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   if (modelConfig.reasoning !== undefined && modelConfig.supportsReasoning === false) {
     logger.warn(
       { modelName: modelConfig.modelName, reasoning: modelConfig.reasoning },
-      '[ModelFactory] Model does not support reasoning — skipping reasoning params'
+      'Model does not support reasoning — skipping reasoning params'
     );
   } else {
     addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
@@ -264,7 +264,7 @@ function getEffectiveMaxTokens(
       scaledMaxTokens,
       defaultMaxTokens: AI_DEFAULTS.MAX_TOKENS,
     },
-    '[ModelFactory] Scaling maxTokens for reasoning model based on effort level'
+    'Scaling maxTokens for reasoning model based on effort level'
   );
 
   return scaledMaxTokens;
@@ -377,7 +377,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           reasoningEnabled: hasReasoning,
           customFetch: needsCustomFetch,
         },
-        '[ModelFactory] Creating model'
+        'Creating model'
       );
 
       return {

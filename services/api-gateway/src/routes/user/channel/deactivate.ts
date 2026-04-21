@@ -76,7 +76,7 @@ export function createDeactivateHandler(prisma: PrismaClient): RequestHandler[] 
         channelId,
         personalityName,
       },
-      '[Channel] Deactivated personality from channel'
+      'Deactivated personality from channel'
     );
 
     // Build response matching schema

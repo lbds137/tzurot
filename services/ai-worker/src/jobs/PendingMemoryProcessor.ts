@@ -43,7 +43,7 @@ export class PendingMemoryProcessor {
   async processPendingMemories(): Promise<ProcessingStats> {
     const adapter = this.memoryAdapter;
     if (!adapter) {
-      logger.warn({}, '[PendingMemory] Memory adapter unavailable, skipping processing');
+      logger.warn({}, 'Memory adapter unavailable, skipping processing');
       return { processed: 0, succeeded: 0, failed: 0, skipped: 0 };
     }
 
@@ -52,21 +52,21 @@ export class PendingMemoryProcessor {
       const pendingMemories = await this.fetchPendingMemories();
 
       if (pendingMemories.length === 0) {
-        logger.debug('[PendingMemory] No pending memories to process');
+        logger.debug('No pending memories to process');
         return stats;
       }
 
-      logger.info(`[PendingMemory] Processing ${pendingMemories.length} pending memories`);
+      logger.info(`Processing ${pendingMemories.length} pending memories`);
 
       for (const pending of pendingMemories) {
         stats.processed++;
         await this.processSingleMemory(pending, stats, adapter);
       }
 
-      logger.info({ ...stats }, '[PendingMemory] Batch complete');
+      logger.info({ ...stats }, 'Batch complete');
       return stats;
     } catch (error) {
-      logger.error({ err: error }, '[PendingMemory] Failed to process pending memories');
+      logger.error({ err: error }, 'Failed to process pending memories');
       return { processed: 0, succeeded: 0, failed: 0, skipped: 0 };
     }
   }
@@ -99,7 +99,7 @@ export class PendingMemoryProcessor {
       });
       await this.prisma.pendingMemory.delete({ where: { id: pending.id } });
       stats.succeeded++;
-      logger.debug(`[PendingMemory] Successfully stored pending memory ${pending.id}`);
+      logger.debug(`Successfully stored pending memory ${pending.id}`);
     } catch (error) {
       await this.handleStorageFailure(pending, error);
       stats.failed++;
@@ -112,7 +112,7 @@ export class PendingMemoryProcessor {
   ): Promise<void> {
     logger.error(
       { pendingId: pending.id, validationError: error.flatten(), invalidData: pending.metadata },
-      '[PendingMemory] Metadata validation failed, skipping record'
+      'Metadata validation failed, skipping record'
     );
     await this.prisma.pendingMemory.update({
       where: { id: pending.id },
@@ -140,12 +140,12 @@ export class PendingMemoryProcessor {
     if (shouldGiveUp) {
       logger.error(
         { err: error, pendingId: pending.id, attempts: newAttempts },
-        '[PendingMemory] Gave up on pending memory after max attempts'
+        'Gave up on pending memory after max attempts'
       );
     } else {
       logger.warn(
         { err: error, pendingId: pending.id, attempts: newAttempts },
-        '[PendingMemory] Failed to store pending memory, will retry'
+        'Failed to store pending memory, will retry'
       );
     }
   }
@@ -172,7 +172,7 @@ export class PendingMemoryProcessor {
         byAttempts,
       };
     } catch (error) {
-      logger.error({ err: error }, '[PendingMemory] Failed to get stats');
+      logger.error({ err: error }, 'Failed to get stats');
       return { total: 0, byAttempts: {} };
     }
   }

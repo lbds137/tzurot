@@ -135,7 +135,7 @@ export class AIJobProcessor {
     } else if ((jobType as string) === 'llm-generation') {
       return this.processLLMGenerationJob(job as Job<LLMGenerationJobData>);
     } else {
-      logger.error({ jobType }, '[AIJobProcessor] Unknown job type');
+      logger.error({ jobType }, 'Unknown job type');
       throw new Error(`Unknown job type: ${String(jobType)}`);
     }
   }
@@ -166,7 +166,7 @@ export class AIJobProcessor {
     } catch (error) {
       logger.warn(
         { err: error, userId: job.data.context.userId },
-        '[AIJobProcessor] Failed to resolve ElevenLabs key — falling back to voice-engine STT'
+        'Failed to resolve ElevenLabs key — falling back to voice-engine STT'
       );
     }
 
@@ -176,7 +176,7 @@ export class AIJobProcessor {
     const jobId = job.id ?? job.data.requestId;
     const userId = job.data.context.userId;
     if (!userId) {
-      logger.warn({ jobId }, '[AIJobProcessor] Audio job missing userId - using fallback key');
+      logger.warn({ jobId }, 'Audio job missing userId - using fallback key');
     }
     await redisService.storeJobResult(`${userId || 'unknown'}:${jobId}`, result);
 
@@ -205,7 +205,7 @@ export class AIJobProcessor {
     const jobId = job.id ?? job.data.requestId;
     const userId = job.data.context.userId;
     if (!userId) {
-      logger.warn({ jobId }, '[AIJobProcessor] Image job missing userId - using fallback key');
+      logger.warn({ jobId }, 'Image job missing userId - using fallback key');
     }
     await redisService.storeJobResult(`${userId || 'unknown'}:${jobId}`, result);
 
@@ -231,7 +231,7 @@ export class AIJobProcessor {
         // Message already being processed - return early without publishing to stream
         logger.warn(
           { jobId: job.id, triggerMessageId },
-          '[AIJobProcessor] Skipping duplicate message - already processed'
+          'Skipping duplicate message - already processed'
         );
         return {
           requestId: job.data.requestId,
@@ -265,7 +265,7 @@ export class AIJobProcessor {
       if (lockAcquired && triggerMessageId !== undefined) {
         logger.warn(
           { jobId: job.id, triggerMessageId },
-          '[AIJobProcessor] Job failed, releasing idempotency lock for retry'
+          'Job failed, releasing idempotency lock for retry'
         );
         await redisService.releaseMessageLock(triggerMessageId);
       }
@@ -319,7 +319,7 @@ export class AIJobProcessor {
 
         logger.debug(
           { userId: userInternalId, model: modelUsed, tokensIn, tokensOut },
-          '[AIJobProcessor] Logged usage'
+          'Logged usage'
         );
         return; // Success - exit retry loop
       } catch (error) {
@@ -328,14 +328,14 @@ export class AIJobProcessor {
           const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
           logger.debug(
             { err: error, attempt, maxRetries, delayMs },
-            '[AIJobProcessor] Usage logging failed, retrying...'
+            'Usage logging failed, retrying...'
           );
           await new Promise(resolve => setTimeout(resolve, delayMs));
         } else {
           // Final attempt failed - log warning but don't fail the job
           logger.warn(
             { err: error, userId: userInternalId, attempts: maxRetries },
-            '[AIJobProcessor] Failed to log usage after retries (non-fatal)'
+            'Failed to log usage after retries (non-fatal)'
           );
         }
       }
@@ -380,22 +380,22 @@ export class AIJobProcessor {
         },
       });
 
-      logger.debug({ jobId }, '[AIJobProcessor] Stored result in database');
+      logger.debug({ jobId }, 'Stored result in database');
 
       // 2. Publish to Redis Stream for bot-client to consume
       await redisService.publishJobResult(jobId, result.requestId, result);
 
-      logger.info({ jobId }, '[AIJobProcessor] Result persisted and published to Redis Stream');
+      logger.info({ jobId }, 'Result persisted and published to Redis Stream');
 
       // 3. Opportunistically clean up old delivered results (runs ~5% of the time)
       // Non-blocking - don't await, let it run in background
       void cleanupOldJobResults(this.prisma).catch(err => {
-        logger.error({ err }, '[AIJobProcessor] Background cleanup failed (non-critical)');
+        logger.error({ err }, 'Background cleanup failed (non-critical)');
       });
     } catch (error) {
       logger.error(
         { err: error, jobId },
-        '[AIJobProcessor] Failed to persist/publish result - bot-client may not receive it!'
+        'Failed to persist/publish result - bot-client may not receive it!'
       );
       // Don't throw - we still want BullMQ to mark the job as complete
       // The result is in the job's return value as fallback

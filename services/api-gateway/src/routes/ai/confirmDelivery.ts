@@ -54,7 +54,7 @@ export function createConfirmDeliveryRoute(prisma: PrismaClient): Router {
         }
 
         // Already delivered - this is fine (idempotent)
-        logger.debug({ jobId, status: existing.status }, '[AI] Job already delivered');
+        logger.debug({ jobId, status: existing.status }, 'Job already delivered');
         return sendCustomSuccess(res, {
           jobId,
           status: existing.status,
@@ -62,7 +62,7 @@ export function createConfirmDeliveryRoute(prisma: PrismaClient): Router {
         });
       }
 
-      logger.info({ jobId }, '[AI] Job delivery confirmed');
+      logger.info({ jobId }, 'Job delivery confirmed');
 
       sendCustomSuccess(res, {
         jobId,

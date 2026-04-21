@@ -45,7 +45,7 @@ async function loadTombstonesFromDb(client: PrismaClient, dbName: string): Promi
     }
   }
 
-  logger.debug({ dbName, count: ids.length }, '[Sync] Loaded tombstones from database');
+  logger.debug({ dbName, count: ids.length }, 'Loaded tombstones from database');
   return ids;
 }
 
@@ -71,10 +71,7 @@ export async function loadTombstoneIds(
     tombstoneIds.add(id);
   }
 
-  logger.debug(
-    { count: tombstoneIds.size },
-    '[Sync] Loaded tombstone IDs for conversation history sync'
-  );
+  logger.debug({ count: tombstoneIds.size }, 'Loaded tombstone IDs for conversation history sync');
 
   return tombstoneIds;
 }
@@ -114,7 +111,7 @@ export async function deleteMessagesWithTombstones(
     if (devDeleted > 0 || prodDeleted > 0) {
       logger.info(
         { devDeleted, prodDeleted },
-        '[Sync] Deleted conversation history messages with tombstones'
+        'Deleted conversation history messages with tombstones'
       );
     }
   }

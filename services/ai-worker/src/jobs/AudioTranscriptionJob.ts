@@ -40,7 +40,7 @@ export async function processAudioTranscriptionJob(
         jobId: job.id,
         errors: validation.error.format(),
       },
-      '[AudioTranscriptionJob] Job validation failed'
+      'Job validation failed'
     );
     throw new Error(`Audio transcription job validation failed: ${validation.error.message}`);
   }
@@ -54,7 +54,7 @@ export async function processAudioTranscriptionJob(
       duration: attachment.duration,
       size: attachment.size,
     },
-    '[AudioTranscriptionJob] Processing audio transcription job'
+    'Processing audio transcription job'
   );
 
   try {
@@ -85,7 +85,7 @@ export async function processAudioTranscriptionJob(
         attempts: result.attempts,
         transcriptLength: result.value.length,
       },
-      '[AudioTranscriptionJob] Audio transcription completed'
+      'Audio transcription completed'
     );
 
     return {
@@ -103,10 +103,7 @@ export async function processAudioTranscriptionJob(
   } catch (error) {
     const processingTimeMs = Date.now() - startTime;
 
-    logger.error(
-      { err: error, jobId: job.id, requestId },
-      '[AudioTranscriptionJob] Audio transcription failed'
-    );
+    logger.error({ err: error, jobId: job.id, requestId }, 'Audio transcription failed');
 
     return {
       requestId,

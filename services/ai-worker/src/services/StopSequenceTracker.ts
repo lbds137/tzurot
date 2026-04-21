@@ -54,7 +54,7 @@ export function initStopSequenceRedis(client: Redis): void {
   redisClient = client;
   // Set started_at only if not already set (preserves across restarts)
   client.setnx(REDIS_KEYS.STARTED_AT, new Date().toISOString()).catch(err => {
-    logger.warn({ err }, '[StopSequenceTracker] Failed to set started_at in Redis');
+    logger.warn({ err }, 'Failed to set started_at in Redis');
   });
 }
 
@@ -83,7 +83,7 @@ export function recordStopSequenceActivation(
     pipeline.hincrby(REDIS_KEYS.BY_SEQUENCE, sequence, 1);
     pipeline.hincrby(REDIS_KEYS.BY_MODEL, modelName, 1);
     pipeline.exec().catch(err => {
-      logger.warn({ err }, '[StopSequenceTracker] Failed to persist stats to Redis');
+      logger.warn({ err }, 'Failed to persist stats to Redis');
     });
   }
 
@@ -136,7 +136,7 @@ export function resetStopSequenceStats(): void {
     redisClient
       .del(REDIS_KEYS.TOTAL, REDIS_KEYS.BY_SEQUENCE, REDIS_KEYS.BY_MODEL, REDIS_KEYS.STARTED_AT)
       .catch(err => {
-        logger.warn({ err }, '[StopSequenceTracker] Failed to clear Redis stats');
+        logger.warn({ err }, 'Failed to clear Redis stats');
       });
   }
 }

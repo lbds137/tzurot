@@ -94,7 +94,7 @@ async function fetchSingleVoice(
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      logger.warn({ status: response.status }, '[Voices] ElevenLabs rejected API key');
+      logger.warn({ status: response.status }, 'ElevenLabs rejected API key');
       return {
         errorResponse: ErrorResponses.unauthorized(
           'ElevenLabs API key is invalid or expired. Update it with /settings apikey set'
@@ -106,7 +106,7 @@ async function fetchSingleVoice(
     }
     logger.error(
       { status: response.status, statusText: response.statusText, voiceId },
-      '[Voices] ElevenLabs API error fetching voice'
+      'ElevenLabs API error fetching voice'
     );
     return {
       errorResponse: ErrorResponses.internalError('Failed to fetch voice from ElevenLabs'),
@@ -117,7 +117,7 @@ async function fetchSingleVoice(
   if (!parseResult.success) {
     logger.error(
       { errors: parseResult.error.format(), voiceId },
-      '[Voices] Unexpected voice response format from ElevenLabs'
+      'Unexpected voice response format from ElevenLabs'
     );
     return {
       errorResponse: ErrorResponses.internalError('Unexpected voice response from ElevenLabs'),
@@ -160,10 +160,7 @@ async function handleListVoices(
 
   const { voices, totalVoices } = voicesResult;
 
-  logger.info(
-    { discordUserId, tzurotCount: voices.length, totalVoices },
-    '[Voices] Listed cloned voices'
-  );
+  logger.info({ discordUserId, tzurotCount: voices.length, totalVoices }, 'Listed cloned voices');
 
   sendCustomSuccess(res, {
     voices: voices.map(v => ({
@@ -223,13 +220,13 @@ async function handleDeleteVoice(
         status: deleteResponse.status,
         statusText: deleteResponse.statusText,
       },
-      '[Voices] Failed to delete voice from ElevenLabs'
+      'Failed to delete voice from ElevenLabs'
     );
     sendError(res, ErrorResponses.internalError('Failed to delete voice'));
     return;
   }
 
-  logger.info({ discordUserId, voiceId, voiceName: voice.name }, '[Voices] Deleted voice');
+  logger.info({ discordUserId, voiceId, voiceName: voice.name }, 'Deleted voice');
 
   sendCustomSuccess(res, {
     deleted: true,
@@ -309,7 +306,7 @@ async function handleClearVoices(
 
   logger.info(
     { discordUserId, deleted, total: voices.length, errors: errors.length },
-    '[Voices] Cleared cloned voices'
+    'Cleared cloned voices'
   );
 
   sendCustomSuccess(res, {

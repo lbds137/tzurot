@@ -77,7 +77,7 @@ export async function addValidatedJob<T>(
 
   if (schema === undefined) {
     // This should never happen unless a new JobType is added without updating SCHEMA_MAP
-    logger.warn({ jobType }, '[ValidatedQueue] No schema found for job type - skipping validation');
+    logger.warn({ jobType }, 'No schema found for job type - skipping validation');
     return queue.add(jobType, jobData, opts);
   }
 
@@ -90,7 +90,7 @@ export async function addValidatedJob<T>(
         errors: validation.error.format(),
         jobId: opts?.jobId,
       },
-      '[ValidatedQueue] Job validation failed - refusing to enqueue invalid job'
+      'Job validation failed - refusing to enqueue invalid job'
     );
 
     throw new Error(
@@ -105,7 +105,7 @@ export async function addValidatedJob<T>(
       jobType,
       jobId: opts?.jobId,
     },
-    '[ValidatedQueue] Job validation succeeded - adding to queue'
+    'Job validation succeeded - adding to queue'
   );
 
   return queue.add(jobType, jobData, opts);
@@ -133,10 +133,7 @@ export async function addValidatedJobs(
     const schema = SCHEMA_MAP[jobType];
 
     if (schema === undefined) {
-      logger.warn(
-        { jobType },
-        '[ValidatedQueue] No schema found for job type - skipping validation'
-      );
+      logger.warn({ jobType }, 'No schema found for job type - skipping validation');
       continue;
     }
 
@@ -148,7 +145,7 @@ export async function addValidatedJobs(
           errors: validation.error.format(),
           jobId: opts?.jobId,
         },
-        '[ValidatedQueue] Batch job validation failed'
+        'Batch job validation failed'
       );
 
       throw new Error(`Invalid ${jobType} job data in batch: ${validation.error.message}`);
@@ -156,10 +153,7 @@ export async function addValidatedJobs(
   }
 
   // All validations passed - add all jobs
-  logger.debug(
-    { count: jobs.length },
-    '[ValidatedQueue] Batch validation succeeded - adding jobs to queue'
-  );
+  logger.debug({ count: jobs.length }, 'Batch validation succeeded - adding jobs to queue');
 
   return Promise.all(jobs.map(({ jobType, jobData, opts }) => queue.add(jobType, jobData, opts)));
 }

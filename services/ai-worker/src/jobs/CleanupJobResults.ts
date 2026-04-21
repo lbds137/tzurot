@@ -54,7 +54,7 @@ export async function cleanupOldJobResults(prisma: PrismaClient, force = false):
       if (oldResultsCount > CLEANUP_THRESHOLD) {
         logger.info(
           { oldResultsCount, threshold: CLEANUP_THRESHOLD },
-          '[Cleanup] Forcing cleanup due to threshold exceeded'
+          'Forcing cleanup due to threshold exceeded'
         );
         shouldCleanup = true;
       }
@@ -77,13 +77,13 @@ export async function cleanupOldJobResults(prisma: PrismaClient, force = false):
     if (result.count > 0) {
       logger.info(
         { deletedCount: result.count, cutoffTime },
-        `[Cleanup] Removed ${result.count} old job results delivered before ${cutoffTime.toISOString()}`
+        `Removed ${result.count} old job results delivered before ${cutoffTime.toISOString()}`
       );
     } else {
-      logger.debug({ cutoffTime }, '[Cleanup] No old job results to clean up');
+      logger.debug({ cutoffTime }, 'No old job results to clean up');
     }
   } catch (error) {
-    logger.error({ err: error }, '[Cleanup] Failed to clean up old job results');
+    logger.error({ err: error }, 'Failed to clean up old job results');
     // Don't throw - this is best-effort cleanup
   }
 }

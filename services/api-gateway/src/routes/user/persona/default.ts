@@ -55,10 +55,7 @@ export function addDefaultRoutes(router: Router, prisma: PrismaClient): void {
         });
       }
 
-      logger.info(
-        { userId: user.id, personaId: id, alreadyDefault },
-        '[Persona] Set default persona'
-      );
+      logger.info({ userId: user.id, personaId: id, alreadyDefault }, 'Set default persona');
 
       sendCustomSuccess(res, {
         success: true,

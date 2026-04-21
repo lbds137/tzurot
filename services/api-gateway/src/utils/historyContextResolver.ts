@@ -66,7 +66,7 @@ export async function resolveHistoryContext(
     if (!persona) {
       logger.warn(
         { discordUserId, explicitPersonaId },
-        '[History] Explicit persona not found or not owned by user'
+        'Explicit persona not found or not owned by user'
       );
       return null;
     }
@@ -77,7 +77,7 @@ export async function resolveHistoryContext(
     const personaResolver = new PersonaResolver(prisma);
     const resolved = await personaResolver.resolve(discordUserId, personality.id);
     if (resolved.source === 'system-default' || !resolved.config.personaId) {
-      logger.warn({ discordUserId }, '[History] No persona found for user');
+      logger.warn({ discordUserId }, 'No persona found for user');
       return null;
     }
     personaId = resolved.config.personaId;

@@ -66,7 +66,7 @@ export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
         channelId,
         personalitySlug: settings.activatedPersonality?.slug ?? null,
       },
-      '[Channel] Retrieved channel settings'
+      'Retrieved channel settings'
     );
 
     // Build response matching schema

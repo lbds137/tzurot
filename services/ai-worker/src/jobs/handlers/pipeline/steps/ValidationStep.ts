@@ -31,13 +31,13 @@ export class ValidationStep implements IPipelineStep {
           jobId: job.id,
           errors: validation.error.format(),
         },
-        '[ValidationStep] Job validation failed'
+        'Job validation failed'
       );
 
       throw new Error(`LLM generation job validation failed: ${errors}`);
     }
 
-    logger.debug({ jobId: job.id }, '[ValidationStep] Job validation passed');
+    logger.debug({ jobId: job.id }, 'Job validation passed');
 
     return context;
   }

@@ -50,7 +50,7 @@ export class AuthStep implements IPipelineStep {
             provider: resolvedProvider,
             isGuestMode,
           },
-          '[AuthStep] Resolved API key'
+          'Resolved API key'
         );
 
         // Guest Mode: Enforce free-model-only
@@ -66,7 +66,7 @@ export class AuthStep implements IPipelineStep {
         // We still recover gracefully by falling back to guest mode
         logger.error(
           { err: error, userId: jobContext.userId },
-          '[AuthStep] Failed to resolve API key, falling back to guest mode'
+          'Failed to resolve API key, falling back to guest mode'
         );
         isGuestMode = true;
 
@@ -94,7 +94,7 @@ export class AuthStep implements IPipelineStep {
           elevenlabsApiKey = elResult.apiKey;
           logger.debug(
             { userId: jobContext.userId, source: elResult.source },
-            '[AuthStep] Resolved ElevenLabs API key'
+            'Resolved ElevenLabs API key'
           );
         }
       } catch (error) {
@@ -102,7 +102,7 @@ export class AuthStep implements IPipelineStep {
         // so DB outages/decryption errors are visible, not silently swallowed.
         logger.warn(
           { err: error, userId: jobContext.userId },
-          '[AuthStep] ElevenLabs key resolution failed, falling back to voice-engine'
+          'ElevenLabs key resolution failed, falling back to voice-engine'
         );
       }
     }
@@ -136,10 +136,7 @@ export class AuthStep implements IPipelineStep {
 
     // If current model is already free, no change needed
     if (isFreeModel(currentModel)) {
-      logger.info(
-        { userId, model: personality.model },
-        '[AuthStep] Guest mode active - using free model'
-      );
+      logger.info({ userId, model: personality.model }, 'Guest mode active - using free model');
       return personality;
     }
 
@@ -152,13 +149,10 @@ export class AuthStep implements IPipelineStep {
         const freeConfig = await this.configResolver.getFreeDefaultConfig();
         if (freeConfig !== null) {
           guestModel = freeConfig.model;
-          logger.debug({ model: guestModel }, '[AuthStep] Using database free default config');
+          logger.debug({ model: guestModel }, 'Using database free default config');
         }
       } catch (error) {
-        logger.warn(
-          { err: error },
-          '[AuthStep] Failed to get free default config, using hardcoded fallback'
-        );
+        logger.warn({ err: error }, 'Failed to get free default config, using hardcoded fallback');
       }
     }
 
@@ -168,7 +162,7 @@ export class AuthStep implements IPipelineStep {
         originalModel: currentModel,
         guestModel,
       },
-      '[AuthStep] Guest mode: overriding paid model with free model'
+      'Guest mode: overriding paid model with free model'
     );
 
     return {

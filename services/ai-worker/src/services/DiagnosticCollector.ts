@@ -468,7 +468,7 @@ export class DiagnosticCollector {
           postProcessing: this.postProcessing !== null,
         },
       },
-      '[DiagnosticCollector] Finalized diagnostic payload'
+      'Finalized diagnostic payload'
     );
 
     return payload;

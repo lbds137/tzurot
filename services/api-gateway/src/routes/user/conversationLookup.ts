@@ -62,10 +62,7 @@ export function createConversationLookupRoutes(prisma: PrismaClient): Router {
       const message = await conversationHistoryService.getMessageByDiscordId(discordMessageId);
 
       if (message?.personalityId === undefined) {
-        logger.debug(
-          { discordMessageId },
-          '[ConversationLookup] No message found for Discord message ID'
-        );
+        logger.debug({ discordMessageId }, 'No message found for Discord message ID');
         res.status(StatusCodes.NOT_FOUND).json(null);
         return;
       }
@@ -77,7 +74,7 @@ export function createConversationLookupRoutes(prisma: PrismaClient): Router {
 
       logger.debug(
         { discordMessageId, personalityId: message.personalityId },
-        '[ConversationLookup] Found personality for Discord message'
+        'Found personality for Discord message'
       );
 
       sendCustomSuccess(res, response, StatusCodes.OK);

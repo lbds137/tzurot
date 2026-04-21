@@ -55,7 +55,7 @@ export async function resolveElevenLabsKey(
     });
     return { apiKey };
   } catch (error) {
-    logger.error({ err: error, discordUserId }, '[ElevenLabsKey] Failed to decrypt key');
+    logger.error({ err: error, discordUserId }, 'Failed to decrypt key');
     return { errorResponse: ErrorResponses.internalError('Failed to decrypt stored API key') };
   }
 }

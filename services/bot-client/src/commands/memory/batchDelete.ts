@@ -239,7 +239,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
       });
     }
   } catch (error) {
-    logger.error({ error, userId }, 'Unexpected error');
+    logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

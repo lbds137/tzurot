@@ -181,7 +181,7 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
 
     logger.info(
       { count: logs.length, filters: { personalityId, userId, channelId } },
-      '[AdminDiagnostic] Listed recent diagnostic logs'
+      'Listed recent diagnostic logs'
     );
 
     sendCustomSuccess(res, { logs, count: logs.length }, StatusCodes.OK);
@@ -215,10 +215,7 @@ function handleGetByMessage(prisma: PrismaClient): RequestHandler {
       return;
     }
 
-    logger.info(
-      { messageId, count: logs.length },
-      '[AdminDiagnostic] Retrieved diagnostic logs by message ID'
-    );
+    logger.info({ messageId, count: logs.length }, 'Retrieved diagnostic logs by message ID');
 
     sendCustomSuccess(
       res,
@@ -250,10 +247,7 @@ function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
       return;
     }
 
-    logger.info(
-      { requestId, personalityId: log.personalityId },
-      '[AdminDiagnostic] Retrieved diagnostic log'
-    );
+    logger.info({ requestId, personalityId: log.personalityId }, 'Retrieved diagnostic log');
 
     sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
   });
@@ -293,7 +287,7 @@ function handleGetByResponse(prisma: PrismaClient): RequestHandler {
 
     logger.info(
       { messageId, requestId: log.requestId },
-      '[AdminDiagnostic] Retrieved diagnostic log by response message ID'
+      'Retrieved diagnostic log by response message ID'
     );
 
     sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
@@ -327,10 +321,7 @@ function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
         data: { responseMessageIds },
       });
 
-      logger.info(
-        { requestId, responseMessageIds },
-        '[AdminDiagnostic] Updated response message IDs'
-      );
+      logger.info({ requestId, responseMessageIds }, 'Updated response message IDs');
 
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);
     } catch (error) {

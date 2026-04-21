@@ -64,12 +64,12 @@ export function createRemoveKeyRoute(
       where: { id: existingKey.id },
     });
 
-    logger.info({ provider, discordUserId }, '[Wallet] API key removed');
+    logger.info({ provider, discordUserId }, 'API key removed');
 
     // Publish cache invalidation event for ai-worker instances
     if (apiKeyCacheInvalidation !== undefined) {
       await apiKeyCacheInvalidation.invalidateUserApiKeys(discordUserId);
-      logger.debug({ discordUserId }, '[Wallet] Published API key cache invalidation event');
+      logger.debug({ discordUserId }, 'Published API key cache invalidation event');
     }
 
     sendCustomSuccess(res, {

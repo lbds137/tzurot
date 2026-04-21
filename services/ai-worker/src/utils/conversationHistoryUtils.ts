@@ -102,7 +102,7 @@ export function getRecentAssistantMessages(
   maxMessages = DEFAULT_MAX_ASSISTANT_MESSAGES
 ): string[] {
   if (!history || history.length === 0) {
-    logger.debug('[ConversationHistoryUtils] No history provided for assistant message extraction');
+    logger.debug('No history provided for assistant message extraction');
     return [];
   }
 
@@ -145,7 +145,7 @@ export function getRecentAssistantMessages(
   if (hasLegacyRoles) {
     logger.info(
       { rawRoleDistribution },
-      '[ConversationHistoryUtils] Detected legacy capitalized roles in conversation history'
+      'Detected legacy capitalized roles in conversation history'
     );
   }
 
@@ -176,7 +176,7 @@ export function getRecentAssistantMessages(
         roleDistribution,
         maxMessages,
       },
-      '[ConversationHistoryUtils] Extracted recent assistant messages from history'
+      'Extracted recent assistant messages from history'
     );
   }
 

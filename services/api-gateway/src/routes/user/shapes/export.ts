@@ -168,7 +168,7 @@ function createExportHandler(
       if (isPrismaUniqueConstraintError(error)) {
         logger.warn(
           { discordUserId, sourceSlug: normalizedSlug, format },
-          '[Shapes] P2002 unique constraint — treating as conflict'
+          'P2002 unique constraint — treating as conflict'
         );
         return sendError(
           res,
@@ -209,7 +209,7 @@ function createExportHandler(
 
     logger.info(
       { discordUserId, sourceSlug: normalizedSlug, format, exportJobId },
-      '[Shapes] Export job created'
+      'Export job created'
     );
 
     const downloadUrl = `${baseUrl}/exports/${encodeURIComponent(exportJobId)}`;

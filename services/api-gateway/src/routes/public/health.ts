@@ -41,7 +41,7 @@ export function createHealthRouter(startTime: number): Router {
         const statusCode = queueHealthy ? StatusCodes.OK : StatusCodes.SERVICE_UNAVAILABLE;
         res.status(statusCode).json(health);
       } catch (error) {
-        logger.error({ err: error }, '[Health] Health check failed');
+        logger.error({ err: error }, 'Health check failed');
 
         const health: HealthResponse = {
           status: HealthStatus.Unhealthy,

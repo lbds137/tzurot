@@ -95,7 +95,7 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      logger.info({ discordUserId, timezone }, '[Timezone] Setting user timezone');
+      logger.info({ discordUserId, timezone }, 'Setting user timezone');
 
       const userId = await resolveProvisionedUserId(req, userService);
 

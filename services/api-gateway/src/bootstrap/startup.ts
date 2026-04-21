@@ -41,7 +41,7 @@ export function validateByokConfiguration(): void {
     throw new Error('Invalid API_KEY_ENCRYPTION_KEY: must contain only hexadecimal characters');
   }
 
-  logger.info('[Gateway] BYOK encryption key validated - user API key storage is ENABLED');
+  logger.info('BYOK encryption key validated - user API key storage is ENABLED');
 }
 
 /**
@@ -50,13 +50,13 @@ export function validateByokConfiguration(): void {
 async function ensureDirectory(path: string, name: string): Promise<void> {
   try {
     await access(path);
-    logger.info(`[Gateway] ${name} directory exists`);
+    logger.info(`${name} directory exists`);
   } catch {
     try {
       await mkdir(path, { recursive: true });
-      logger.info(`[Gateway] Created ${name} directory at ${path}`);
+      logger.info(`Created ${name} directory at ${path}`);
     } catch (createError) {
-      logger.error({ err: createError }, `[Gateway] Failed to create ${name} directory`);
+      logger.error({ err: createError }, `Failed to create ${name} directory`);
       throw createError;
     }
   }
@@ -119,7 +119,7 @@ export function validateServiceAuthConfig(): void {
   ) {
     logger.warn(
       {},
-      '[Gateway] INTERNAL_SERVICE_SECRET is not set - all protected endpoints will reject requests. ' +
+      'INTERNAL_SERVICE_SECRET is not set - all protected endpoints will reject requests. ' +
         'Set INTERNAL_SERVICE_SECRET as a shared Railway variable to enable service-to-service auth.'
     );
   }

@@ -35,7 +35,7 @@ export function createInvalidateCacheRoute(
       if (all) {
         // Invalidate all personality caches
         await cacheInvalidationService.invalidateAll();
-        logger.info('[Admin] Invalidated all personality caches');
+        logger.info('Invalidated all personality caches');
 
         sendCustomSuccess(res, {
           success: true,
@@ -45,7 +45,7 @@ export function createInvalidateCacheRoute(
         });
       } else if (personalityId !== undefined) {
         await cacheInvalidationService.invalidatePersonality(personalityId);
-        logger.info(`[Admin] Invalidated cache for personality: ${personalityId}`);
+        logger.info(`Invalidated cache for personality: ${personalityId}`);
 
         sendCustomSuccess(res, {
           success: true,

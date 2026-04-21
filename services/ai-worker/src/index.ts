@@ -98,29 +98,23 @@ async function initializeVectorMemory(
   prisma: PrismaClient,
   embeddingService: LocalEmbeddingService
 ): Promise<PgvectorMemoryAdapter | undefined> {
-  logger.info('[AIWorker] Initializing pgvector memory connection...');
+  logger.info('Initializing pgvector memory connection...');
 
   try {
     const memoryManager = new PgvectorMemoryAdapter(prisma, embeddingService);
     const healthy = await memoryManager.healthCheck();
 
     if (healthy) {
-      logger.info('[AIWorker] Pgvector memory initialized successfully');
+      logger.info('Pgvector memory initialized successfully');
       return memoryManager;
     } else {
-      logger.warn({}, '[AIWorker] Pgvector health check failed');
-      logger.warn(
-        {},
-        '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
-      );
+      logger.warn({}, 'Pgvector health check failed');
+      logger.warn({}, 'Continuing without vector memory - responses will have no long-term memory');
       return undefined;
     }
   } catch (error) {
-    logger.error({ err: error }, '[AIWorker] Failed to initialize pgvector memory');
-    logger.warn(
-      {},
-      '[AIWorker] Continuing without vector memory - responses will have no long-term memory'
-    );
+    logger.error({ err: error }, 'Failed to initialize pgvector memory');
+    logger.warn({}, 'Continuing without vector memory - responses will have no long-term memory');
     return undefined;
   }
 }
@@ -130,29 +124,26 @@ async function initializeVectorMemory(
  * This runs the bge-small-en-v1.5 model in a Worker Thread to avoid blocking
  */
 async function initializeLocalEmbedding(): Promise<LocalEmbeddingService | undefined> {
-  logger.info('[AIWorker] Initializing local embedding service...');
+  logger.info('Initializing local embedding service...');
 
   try {
     const embeddingService = new LocalEmbeddingService();
     const initialized = await embeddingService.initialize();
 
     if (initialized) {
-      logger.info('[AIWorker] Local embedding service initialized successfully');
+      logger.info('Local embedding service initialized successfully');
       return embeddingService;
     } else {
-      logger.warn({}, '[AIWorker] Local embedding service failed to initialize');
+      logger.warn({}, 'Local embedding service failed to initialize');
       logger.warn(
         {},
-        '[AIWorker] Continuing without local embeddings - semantic duplicate detection disabled'
+        'Continuing without local embeddings - semantic duplicate detection disabled'
       );
       return undefined;
     }
   } catch (error) {
-    logger.error({ err: error }, '[AIWorker] Failed to initialize local embedding service');
-    logger.warn(
-      {},
-      '[AIWorker] Continuing without local embeddings - semantic duplicate detection disabled'
-    );
+    logger.error({ err: error }, 'Failed to initialize local embedding service');
+    logger.warn({}, 'Continuing without local embeddings - semantic duplicate detection disabled');
     return undefined;
   }
 }
@@ -177,13 +168,13 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker {
 
   worker.on('ready', () => {
     logger.info(
-      `[AIWorker] Worker ready on queue: ${config.worker.queueName}, concurrency: ${config.worker.concurrency}`
+      `Worker ready on queue: ${config.worker.queueName}, concurrency: ${config.worker.concurrency}`
     );
   });
 
   worker.on('active', (job: Job) => {
     const jobType = (job.data as Record<string, unknown>).jobType ?? job.name;
-    logger.debug({ jobId: job.id ?? 'unknown', jobType }, '[AIWorker] Processing job');
+    logger.debug({ jobId: job.id ?? 'unknown', jobType }, 'Processing job');
   });
 
   worker.on('completed', (job: Job, result: unknown) => {
@@ -194,17 +185,17 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker {
         processingTime: (anyResult?.metadata as Record<string, unknown> | undefined)
           ?.processingTimeMs,
       },
-      `[AIWorker] Job ${job.id ?? 'unknown'} completed`
+      `Job ${job.id ?? 'unknown'} completed`
     );
   });
 
   worker.on('failed', (job: Job | undefined, error: Error) => {
     const jobId = job?.id ?? 'unknown';
-    logger.error({ err: error }, `[AIWorker] Job ${jobId} failed`);
+    logger.error({ err: error }, `Job ${jobId} failed`);
   });
 
   worker.on('error', (error: Error) => {
-    logger.error({ err: error }, '[AIWorker] Worker error');
+    logger.error({ err: error }, 'Worker error');
   });
 
   return worker;
@@ -223,23 +214,23 @@ async function setupScheduledJobs(
     'scheduled-jobs',
     async (job: Job) => {
       if (job.name === SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES) {
-        logger.debug('[Scheduled] Running pending memory processor');
+        logger.debug('Running pending memory processor');
         return pendingMemoryProcessor.processPendingMemories();
       }
       if (job.name === SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS) {
-        logger.debug('[Scheduled] Running diagnostic log cleanup');
+        logger.debug('Running diagnostic log cleanup');
         return cleanupDiagnosticLogs(prisma);
       }
       if (job.name === SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS) {
-        logger.info('[Scheduled] Running stuck import job cleanup');
+        logger.info('Running stuck import job cleanup');
         return cleanupStuckImportJobs(prisma);
       }
       if (job.name === SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS) {
-        logger.info('[Scheduled] Running stuck export job cleanup');
+        logger.info('Running stuck export job cleanup');
         return cleanupStuckExportJobs(prisma);
       }
       if (job.name === SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS) {
-        logger.info('[Scheduled] Running expired export cleanup');
+        logger.info('Running expired export cleanup');
         return cleanupExpiredExports(prisma);
       }
       return null;
@@ -252,11 +243,11 @@ async function setupScheduledJobs(
   );
 
   scheduledWorker.on('completed', (job: Job, result: unknown) => {
-    logger.info({ result }, `[Scheduled] Job ${job.name} completed`);
+    logger.info({ result }, `Job ${job.name} completed`);
   });
 
   scheduledWorker.on('failed', (job: Job | undefined, error: Error) => {
-    logger.error({ err: error }, `[Scheduled] Job ${job?.name} failed`);
+    logger.error({ err: error }, `Job ${job?.name} failed`);
   });
 
   // Add repeatable job for pending memories (every 10 minutes)
@@ -295,7 +286,7 @@ async function setupScheduledJobs(
   );
 
   logger.info(
-    '[AIWorker] Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports/exports: every 15 min, expired exports: hourly)'
+    'Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports/exports: every 15 min, expired exports: hourly)'
   );
 
   return { scheduledQueue, scheduledWorker };
@@ -305,7 +296,7 @@ async function setupScheduledJobs(
  * Initialize the AI worker
  */
 async function main(): Promise<void> {
-  logger.info('[AIWorker] Starting AI Worker service...');
+  logger.info('Starting AI Worker service...');
 
   logger.info(
     {
@@ -316,14 +307,14 @@ async function main(): Promise<void> {
       },
       worker: config.worker,
     },
-    '[AIWorker] Configuration'
+    'Configuration'
   );
 
   // Initialize core infrastructure
   const prisma = getPrismaClient();
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated at startup by validateRequiredEnvVars(), but TypeScript can't track validation across function boundaries
   const cacheRedis = new Redis(envConfig.REDIS_URL!);
-  cacheRedis.on('error', err => logger.error({ err }, '[AIWorker] Cache Redis error'));
+  cacheRedis.on('error', err => logger.error({ err }, 'Cache Redis error'));
 
   // Initialize stop sequence Redis persistence (cross-service stats)
   initStopSequenceRedis(cacheRedis);
@@ -344,7 +335,7 @@ async function main(): Promise<void> {
       : undefined;
 
   if (localEmbeddingService !== undefined && memoryManager === undefined) {
-    logger.warn({}, '[AIWorker] Embedding service ready but vector memory failed');
+    logger.warn({}, 'Embedding service ready but vector memory failed');
   }
 
   // Create job processor and main worker
@@ -362,15 +353,13 @@ async function main(): Promise<void> {
   // Set up pending memory processing
   const pendingMemoryProcessor = new PendingMemoryProcessor(prisma, memoryManager);
   const initialStats = await pendingMemoryProcessor.getStats();
-  logger.info({ stats: initialStats }, '[AIWorker] Initial pending memory stats');
+  logger.info({ stats: initialStats }, 'Initial pending memory stats');
 
   if (initialStats.total > 0) {
     void pendingMemoryProcessor
       .processPendingMemories()
-      .then(stats =>
-        logger.info({ stats }, '[AIWorker] Startup pending memory processing complete')
-      )
-      .catch(err => logger.error({ err }, '[AIWorker] Startup pending memory processing failed'));
+      .then(stats => logger.info({ stats }, 'Startup pending memory processing complete'))
+      .catch(err => logger.error({ err }, 'Startup pending memory processing failed'));
   }
 
   // Set up scheduled jobs
@@ -386,7 +375,7 @@ async function main(): Promise<void> {
 
   // Graceful shutdown handler
   const shutdown = async (): Promise<void> => {
-    logger.info('[AIWorker] Shutting down gracefully...');
+    logger.info('Shutting down gracefully...');
     await worker.close();
     await scheduledWorker.close();
     await scheduledQueue.close();
@@ -396,7 +385,7 @@ async function main(): Promise<void> {
     }
     await Promise.all(cleanupFns.map(fn => fn()));
     cacheRedis.disconnect();
-    logger.info('[AIWorker] All connections closed');
+    logger.info('All connections closed');
     process.exit(0);
   };
 
@@ -406,7 +395,7 @@ async function main(): Promise<void> {
   // Non-blocking voice engine health check (one-shot, no polling)
   void checkVoiceEngineHealth();
 
-  logger.info('[AIWorker] AI Worker is fully operational! 🚀');
+  logger.info('AI Worker is fully operational! 🚀');
 }
 
 /**
@@ -444,12 +433,12 @@ async function startHealthServer(
   });
 
   server.listen(port, () => {
-    logger.info(`[AIWorker] Health check server listening on port ${port}`);
+    logger.info(`Health check server listening on port ${port}`);
   });
 }
 
 // Start the worker
 main().catch((error: unknown) => {
-  logger.fatal({ err: error }, '[AIWorker] Fatal error during startup');
+  logger.fatal({ err: error }, 'Fatal error during startup');
   process.exit(1);
 });

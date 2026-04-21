@@ -75,14 +75,14 @@ export function createSetKeyRoute(
       const { provider, apiKey } = parseResult.data;
       const discordUserId = req.userId;
 
-      logger.info({ provider, discordUserId }, '[Wallet] Validating API key');
+      logger.info({ provider, discordUserId }, 'Validating API key');
 
       // Validate the API key with the provider
       const validation = await validateApiKey(apiKey, provider);
       if (!validation.valid) {
         logger.warn(
           { provider, discordUserId, errorCode: validation.errorCode },
-          '[Wallet] API key validation failed'
+          'API key validation failed'
         );
         return sendError(res, mapValidationErrorToResponse(validation));
       }
@@ -113,13 +113,13 @@ export function createSetKeyRoute(
 
       logger.info(
         { provider, discordUserId, hasCredits: validation.credits !== undefined },
-        '[Wallet] API key stored successfully'
+        'API key stored successfully'
       );
 
       // Publish cache invalidation event for ai-worker instances
       if (apiKeyCacheInvalidation !== undefined) {
         await apiKeyCacheInvalidation.invalidateUserApiKeys(discordUserId);
-        logger.debug({ discordUserId }, '[Wallet] Published API key cache invalidation event');
+        logger.debug({ discordUserId }, 'Published API key cache invalidation event');
       }
 
       sendCustomSuccess(

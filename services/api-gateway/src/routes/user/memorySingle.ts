@@ -143,7 +143,7 @@ export async function handleGetMemory(
     return;
   }
 
-  logger.debug({ discordUserId, memoryId }, '[Memory] Single memory fetched');
+  logger.debug({ discordUserId, memoryId }, 'Single memory fetched');
   sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
 }
 
@@ -197,7 +197,7 @@ export async function handleUpdateMemory(
     include: PERSONALITY_INCLUDE,
   });
 
-  logger.info({ discordUserId, memoryId }, '[Memory] Memory updated');
+  logger.info({ discordUserId, memoryId }, 'Memory updated');
   sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
 }
 
@@ -238,7 +238,7 @@ export async function handleToggleLock(
   });
 
   const action = memory.isLocked ? 'locked' : 'unlocked';
-  logger.info({ discordUserId, memoryId, action }, '[Memory] Memory lock toggled');
+  logger.info({ discordUserId, memoryId, action }, 'Memory lock toggled');
   sendCustomSuccess(res, { memory: transformMemory(memory) }, StatusCodes.OK);
 }
 
@@ -284,6 +284,6 @@ export async function handleDeleteMemory(
     },
   });
 
-  logger.info({ discordUserId, memoryId }, '[Memory] Memory deleted');
+  logger.info({ discordUserId, memoryId }, 'Memory deleted');
   sendCustomSuccess(res, { success: true }, StatusCodes.OK);
 }
