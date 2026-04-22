@@ -199,7 +199,7 @@ describe('Shapes Auth Routes', () => {
       );
     });
 
-    it('should reject a value containing disallowed characters', async () => {
+    it('should reject a value containing cookie-structural separators (whitespace)', async () => {
       // 32 chars of allowed characters + a space → passes the length gate and
       // fails on the token-shape regex. Important that the length passes here
       // so this test exercises the character-class rejection path specifically,
@@ -210,8 +210,23 @@ describe('Shapes Auth Routes', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.stringContaining('alphanumeric') })
+        expect.objectContaining({
+          message: expect.stringContaining('whitespace or cookie separators'),
+        })
       );
+    });
+
+    it('should accept a value with %-encoded characters (real-world Better Auth)', async () => {
+      // Regression test for the overly-strict regex bug: Better Auth
+      // tokens can contain %-encoded bytes, which an earlier narrower
+      // regex rejected at the gateway even though the bot-client modal
+      // accepted them.
+      const { res } = await callStoreHandler({
+        sessionCookie: '__Secure-better-auth.session_token=abc123%2Fdef456%3Dghi789jkl012mno345pq',
+      });
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.userCredential.upsert).toHaveBeenCalled();
     });
 
     it('should reject a value longer than the maximum length', async () => {

@@ -354,15 +354,26 @@ export type ShapesSessionInputResult =
   | { ok: false; reason: 'empty' | 'wrong-cookie' | 'malformed-value' };
 
 /**
- * Regex for a plausible Better Auth session token value. URL-safe base64 /
- * hex / signed-value characters; minimum-length sanity check only.
+ * Regex for a plausible Better Auth session token value.
  *
- * Intentionally permissive: Better Auth tokens are opaque and the format can
- * change. This is a best-effort client-side sanity check, NOT authoritative
- * validation — the gateway should live-preflight against shapes.inc before
- * persisting (tracked separately).
+ * Matches RFC 6265 `cookie-octet` — any visible ASCII character EXCEPT the
+ * structural cookie separators (whitespace, `;`, `,`, `"`, `\`). This is
+ * deliberately broad: Better Auth tokens are opaque from our perspective,
+ * and different implementations produce different encodings (base64-url,
+ * percent-encoded URL-safe, JWT-style dotted segments, etc.).
+ *
+ * Observed formats that must parse: values containing `%` (URL-encoded
+ * payload), `=` (base64 padding), `+`, `/`, and `~`. An earlier narrower
+ * regex (`[A-Za-z0-9._-]`) rejected percent-encoded tokens in the wild;
+ * widening to cookie-octet removes that class of false-negative without
+ * losing the "block obvious paste garbage" protection (whitespace in
+ * particular is almost always a fat-finger paste error).
+ *
+ * This remains a best-effort client-side sanity check, NOT authoritative
+ * validation — the gateway live-preflights against shapes.inc before
+ * persisting, which is the real validity gate.
  */
-const SHAPES_TOKEN_SHAPE = /^[A-Za-z0-9._-]+$/;
+const SHAPES_TOKEN_SHAPE = /^[^\s;,"\\]+$/;
 
 /**
  * Minimum length for a plausible Better Auth session token value.
