@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SHAPES_SESSION_COOKIE_NAME,
   isShapesAllowedCookieName,
+  isPlausibleShapesTokenValue,
   buildSessionCookie,
   parseShapesSessionCookieInput,
 } from './shapes-import.js';
@@ -33,6 +34,33 @@ describe('isShapesAllowedCookieName', () => {
 describe('buildSessionCookie', () => {
   it('prepends the cookie name to a raw token value', () => {
     expect(buildSessionCookie('abc123')).toBe(`${SHAPES_SESSION_COOKIE_NAME}=abc123`);
+  });
+});
+
+describe('isPlausibleShapesTokenValue', () => {
+  it('accepts a 32-char alphanumeric value (exact boundary)', () => {
+    expect(isPlausibleShapesTokenValue('a'.repeat(32))).toBe(true);
+  });
+
+  it('accepts a value mixing allowed characters (letters, digits, dot, underscore, hyphen)', () => {
+    expect(isPlausibleShapesTokenValue('ABC-def_123.xyz-0123456789abcdef')).toBe(true);
+  });
+
+  it('rejects a 31-char value (just under the minimum)', () => {
+    expect(isPlausibleShapesTokenValue('a'.repeat(31))).toBe(false);
+  });
+
+  it('rejects an empty string', () => {
+    expect(isPlausibleShapesTokenValue('')).toBe(false);
+  });
+
+  it('rejects values containing spaces', () => {
+    expect(isPlausibleShapesTokenValue(`${'a'.repeat(20)} ${'b'.repeat(20)}`)).toBe(false);
+  });
+
+  it('rejects values containing special characters outside the allowed set', () => {
+    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)}!@`)).toBe(false);
+    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)}==`)).toBe(false);
   });
 });
 

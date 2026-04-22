@@ -21,6 +21,8 @@ import {
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
   SHAPES_SESSION_COOKIE_NAME,
+  SHAPES_TOKEN_MIN_LENGTH,
+  isPlausibleShapesTokenValue,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -51,17 +53,26 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
 
     // Bot-client's auth modal normalizes input to `name=value` form via
     // parseShapesSessionCookieInput before POSTing here. We accept only that
-    // strict shape: the string must start with the expected cookie name and
-    // have a non-empty value following the `=`.
+    // strict shape: the string must start with the expected cookie name, and
+    // the value portion must pass the same shape gate the parser applies.
+    // Defense-in-depth against direct API callers that skip the bot-client
+    // modal and would otherwise persist a 1-char or obviously-malformed
+    // value that shapes.inc will reject on the next request anyway.
     const expectedPrefix = `${SHAPES_SESSION_COOKIE_NAME}=`;
-    if (
-      !sessionCookie.startsWith(expectedPrefix) ||
-      sessionCookie.length <= expectedPrefix.length
-    ) {
+    if (!sessionCookie.startsWith(expectedPrefix)) {
       return sendError(
         res,
         ErrorResponses.validationError(
           `Session cookie must be in the form '${SHAPES_SESSION_COOKIE_NAME}=<value>'`
+        )
+      );
+    }
+    const tokenValue = sessionCookie.substring(expectedPrefix.length);
+    if (!isPlausibleShapesTokenValue(tokenValue)) {
+      return sendError(
+        res,
+        ErrorResponses.validationError(
+          `Session cookie value must be at least ${SHAPES_TOKEN_MIN_LENGTH} characters and contain only alphanumeric, dot, underscore, or hyphen characters`
         )
       );
     }

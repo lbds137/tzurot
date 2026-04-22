@@ -409,7 +409,7 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
       const name = trimmed.substring(0, eqIdx);
       const value = trimmed.substring(eqIdx + 1);
       if (name === SHAPES_SESSION_COOKIE_NAME) {
-        if (!isPlausibleTokenValue(value)) {
+        if (!isPlausibleShapesTokenValue(value)) {
           return { ok: false, reason: 'malformed-value' };
         }
         return { ok: true, cookie: buildSessionCookie(value) };
@@ -419,7 +419,7 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
   }
 
   // Bare token value path — sanity-check shape and length.
-  if (!isPlausibleTokenValue(input)) {
+  if (!isPlausibleShapesTokenValue(input)) {
     return { ok: false, reason: 'malformed-value' };
   }
   return { ok: true, cookie: buildSessionCookie(input) };
@@ -430,7 +430,12 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
  * `parseShapesSessionCookieInput` so a 16-char bare value and a 16-char
  * `name=value` value both fail the same way — no surprise where a format
  * is permissive in one path and strict in another.
+ *
+ * Also usable directly at trust boundaries (e.g., api-gateway validation)
+ * where callers have already extracted the raw token value from a
+ * `name=value` string and want to apply the same shape gate without
+ * re-routing through the full three-shape parser.
  */
-function isPlausibleTokenValue(value: string): boolean {
+export function isPlausibleShapesTokenValue(value: string): boolean {
   return value.length >= SHAPES_TOKEN_MIN_LENGTH && SHAPES_TOKEN_SHAPE.test(value);
 }
