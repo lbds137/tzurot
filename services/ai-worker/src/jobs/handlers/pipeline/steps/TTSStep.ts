@@ -11,7 +11,12 @@
  * - If voiceResponseMode === 'voice-only', the trigger was a voice message
  */
 
-import { createLogger, isVoiceEnabled, isTransientNetworkError } from '@tzurot/common-types';
+import {
+  createLogger,
+  isVoiceEnabled,
+  isTransientNetworkError,
+  TimeoutError,
+} from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import {
   getVoiceEngineClient,
@@ -23,7 +28,7 @@ import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesize
 import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
 import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
 import { elevenLabsTTS, ElevenLabsApiError } from '../../../../services/voice/ElevenLabsClient.js';
-import { withRetry, RetryError, TimeoutError } from '../../../../utils/retry.js';
+import { withRetry, RetryError } from '../../../../utils/retry.js';
 import { redisService } from '../../../../redis.js';
 
 const logger = createLogger('TTSStep');

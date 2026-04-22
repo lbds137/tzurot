@@ -25,7 +25,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 //     Caveat: also fires on `logger.warn(getMessage(), ...)` where the fn
 //     returns a string. Those rare sites need inline suppressions.
 // Bare string Literals pass through (valid `logger.warn('static msg')`).
-const PINO_LEVELS = ['error', 'warn', 'info', 'debug'];
+const PINO_LEVELS = Object.freeze(['error', 'warn', 'info', 'debug']);
 const PINO_LOGGER_RULES = PINO_LEVELS.map(level => ({
   selector: `CallExpression[callee.property.name="${level}"] > *.arguments:first-child:matches(Identifier, MemberExpression, TemplateLiteral, CallExpression)`,
   message: `logger.${level}() must use pino format: logger.${level}({ err: error }, "message") or logger.${level}({ fields }, "message"). Template-literal messages lose structure — move variables into the fields object. See packages/common-types/src/logger.ts.`,

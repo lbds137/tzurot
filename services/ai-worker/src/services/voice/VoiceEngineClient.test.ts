@@ -11,8 +11,7 @@ import {
   isTransientVoiceEngineError,
 } from './VoiceEngineClient.js';
 import * as commonTypes from '@tzurot/common-types';
-import type { EnvConfig } from '@tzurot/common-types';
-import { TimeoutError } from '../../utils/retry.js';
+import { TimeoutError, type EnvConfig } from '@tzurot/common-types';
 
 // Mock global fetch
 const mockFetch = vi.fn();

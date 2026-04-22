@@ -13,8 +13,7 @@
  * - DELETE /v1/voices/{voice_id} — Delete a cloned voice
  */
 
-import { createLogger, AI_ENDPOINTS } from '@tzurot/common-types';
-import { TimeoutError } from '../../utils/retry.js';
+import { createLogger, AI_ENDPOINTS, TimeoutError } from '@tzurot/common-types';
 
 const logger = createLogger('ElevenLabsClient');
 
