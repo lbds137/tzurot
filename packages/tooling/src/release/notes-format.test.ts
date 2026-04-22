@@ -129,6 +129,21 @@ describe('groupBySections', () => {
     expect(unparseable.map(p => p.number)).toEqual([2, 3]);
   });
 
+  it('routes test: to Tests and docs:/ci:/build: to Chores', () => {
+    const { sections } = groupBySections([
+      pr(1, 'test(coverage): add unit tests'),
+      pr(2, 'docs(readme): update'),
+      pr(3, 'ci(actions): fix workflow'),
+      pr(4, 'build(deps): bump library'),
+    ]);
+    expect(sections.get('Tests')).toEqual(['- **coverage:** add unit tests (#1)']);
+    expect(sections.get('Chores')).toEqual([
+      '- **readme:** update (#2)',
+      '- **actions:** fix workflow (#3)',
+      '- **deps:** bump library (#4)',
+    ]);
+  });
+
   it('preserves input order within each section', () => {
     const { sections } = groupBySections([
       pr(1, 'feat(a): first'),

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 
 vi.mock('node:child_process', () => ({
@@ -12,7 +12,6 @@ import { discoverPrevTag, tagTimestamp, listMergedPrsSince } from './github-prs.
 
 describe('discoverPrevTag', () => {
   beforeEach(() => vi.clearAllMocks());
-  afterEach(() => vi.clearAllMocks());
 
   it('invokes `git describe --tags --abbrev=0` and trims the result', () => {
     mockedExec.mockReturnValueOnce('v3.0.0-beta.103\n');
@@ -37,12 +36,15 @@ describe('discoverPrevTag', () => {
 describe('tagTimestamp', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('invokes `git log -1 --format=%aI <tag>` and trims the result', () => {
+  it('invokes `git for-each-ref` with creatordate and trims the result', () => {
+    // creatordate handles both annotated (tagger date) and lightweight
+    // (committer date) tags, avoiding the author-date bug where PRs merged
+    // between commit-authored-time and tag-creation-time get missed.
     mockedExec.mockReturnValueOnce('2026-04-22T10:00:00-04:00\n');
     expect(tagTimestamp('v3.0.0-beta.103')).toBe('2026-04-22T10:00:00-04:00');
     expect(mockedExec).toHaveBeenCalledWith(
       'git',
-      ['log', '-1', '--format=%aI', 'v3.0.0-beta.103'],
+      ['for-each-ref', '--format=%(creatordate:iso-strict)', 'refs/tags/v3.0.0-beta.103'],
       expect.objectContaining({ encoding: 'utf-8' })
     );
   });

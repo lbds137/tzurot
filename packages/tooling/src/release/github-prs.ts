@@ -29,15 +29,29 @@ export function discoverPrevTag(): string {
 }
 
 /**
- * ISO 8601 timestamp of the commit a tag points at. Used to scope the
- * GitHub `merged:>...` search query.
+ * ISO 8601 creation timestamp of a tag. Used to scope the GitHub
+ * `merged:>...` search query.
+ *
+ * Uses `%(creatordate:iso-strict)` which returns:
+ * - tagger date for annotated tags
+ * - committer date of the target commit for lightweight tags
+ *
+ * This is the correct scope boundary for "PRs merged since the previous
+ * release." Using `git log -1 --format=%aI` (author date) would miss PRs
+ * merged between commit-authored-time and tag-creation-time on annotated
+ * tags — a real issue when tags are cut hours or days after the final
+ * commit is authored.
  */
 export function tagTimestamp(tag: string): string {
   try {
-    return execFileSync('git', ['log', '-1', '--format=%aI', tag], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
+    return execFileSync(
+      'git',
+      ['for-each-ref', '--format=%(creatordate:iso-strict)', `refs/tags/${tag}`],
+      {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }
+    ).trim();
   } catch {
     throw new Error(
       `Could not resolve timestamp for tag '${tag}'. Does the tag exist? Try 'git tag -l' to see available tags.`
