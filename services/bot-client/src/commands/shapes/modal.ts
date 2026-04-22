@@ -141,9 +141,10 @@ function getInputValidationMessage(reason: 'empty' | 'wrong-cookie' | 'malformed
     case 'malformed-value':
       return (
         '❌ **Cookie value looks malformed.**\n\n' +
-        'Better Auth tokens are opaque alphanumeric strings (typically 32+ characters). ' +
+        'Better Auth tokens are opaque strings (typically 32+ characters, no whitespace). ' +
         'Please re-run `/shapes auth` and copy the exact value of ' +
-        '`__Secure-better-auth.session_token` from DevTools.'
+        '`__Secure-better-auth.session_token` from DevTools — make sure you got the ' +
+        '**Value** column, not the whole cookie row.'
       );
   }
 }

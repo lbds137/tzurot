@@ -42,8 +42,22 @@ describe('isPlausibleShapesTokenValue', () => {
     expect(isPlausibleShapesTokenValue('a'.repeat(32))).toBe(true);
   });
 
-  it('accepts a value mixing allowed characters (letters, digits, dot, underscore, hyphen)', () => {
+  it('accepts a value mixing visible ASCII (letters, digits, dot, underscore, hyphen)', () => {
     expect(isPlausibleShapesTokenValue('ABC-def_123.xyz-0123456789abcdef')).toBe(true);
+  });
+
+  it('accepts values with percent-encoded characters (observed in wild 2026-04-22)', () => {
+    // Better Auth can emit tokens with %-encoded payload bytes. Previously
+    // rejected by a too-narrow regex; now accepted per RFC 6265 cookie-octet.
+    expect(isPlausibleShapesTokenValue('abc123%2Fdef456%3Dghi789jkl012mno345pq678')).toBe(true);
+  });
+
+  it('accepts values with base64 padding, plus, and slash characters', () => {
+    // Standard base64 tokens use +/= which cookie-octet allows. URL-safe
+    // variants use - and _ which were already accepted.
+    expect(isPlausibleShapesTokenValue(`${'A'.repeat(30)}+/`)).toBe(true);
+    expect(isPlausibleShapesTokenValue(`${'A'.repeat(30)}==`)).toBe(true);
+    expect(isPlausibleShapesTokenValue(`${'A'.repeat(30)}~=`)).toBe(true);
   });
 
   it('rejects a 31-char value (just under the minimum)', () => {
@@ -70,9 +84,14 @@ describe('isPlausibleShapesTokenValue', () => {
     expect(isPlausibleShapesTokenValue(`${'a'.repeat(20)} ${'b'.repeat(20)}`)).toBe(false);
   });
 
-  it('rejects values containing special characters outside the allowed set', () => {
-    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)}!@`)).toBe(false);
-    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)}==`)).toBe(false);
+  it('rejects values containing cookie-structural separators', () => {
+    // RFC 6265 cookie-octet excludes these because they'd break the
+    // outer `Cookie: name=value; name2=value2` grammar if embedded in a
+    // value. A paste containing any of them is almost certainly garbage.
+    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)};bb`)).toBe(false); // semicolon
+    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)},bb`)).toBe(false); // comma
+    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)}"bb`)).toBe(false); // double-quote
+    expect(isPlausibleShapesTokenValue(`${'a'.repeat(30)}\\bb`)).toBe(false); // backslash
   });
 });
 
