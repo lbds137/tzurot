@@ -37,6 +37,13 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
 }));
 
+// Mock the preflight so tests don't hit shapes.inc. Default to 'valid' so the
+// happy-path tests don't need per-case wiring; error-path tests override per call.
+const mockProbeShapesSession = vi.fn().mockResolvedValue('valid');
+vi.mock('../../../services/ShapesPreflight.js', () => ({
+  probeShapesSession: (...args: unknown[]) => mockProbeShapesSession(...args),
+}));
+
 import { createShapesAuthRoutes } from './auth.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js';
@@ -92,6 +99,8 @@ function createMockReqRes(body: Record<string, unknown> = {}) {
 describe('Shapes Auth Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset preflight mock default after clearAllMocks wipes the implementation.
+    mockProbeShapesSession.mockResolvedValue('valid');
   });
 
   describe('route factory', () => {
@@ -215,6 +224,51 @@ describe('Shapes Auth Routes', () => {
       );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    describe('preflight outcomes', () => {
+      const VALID_COOKIE =
+        '__Secure-better-auth.session_token=opaque-better-auth-token-value-12345';
+
+      it('persists the cookie when preflight returns "valid"', async () => {
+        mockProbeShapesSession.mockResolvedValueOnce('valid');
+        const { res } = await callStoreHandler({ sessionCookie: VALID_COOKIE });
+
+        expect(mockProbeShapesSession).toHaveBeenCalledWith(VALID_COOKIE);
+        expect(mockPrisma.userCredential.upsert).toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('rejects the cookie and does NOT persist when preflight returns "invalid"', async () => {
+        mockProbeShapesSession.mockResolvedValueOnce('invalid');
+        const { res } = await callStoreHandler({ sessionCookie: VALID_COOKIE });
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: expect.stringContaining('shapes.inc rejected this session cookie'),
+          })
+        );
+        expect(mockPrisma.userCredential.upsert).not.toHaveBeenCalled();
+      });
+
+      it('persists the cookie when preflight returns "inconclusive" (graceful degradation)', async () => {
+        // Transient shapes.inc failures must not block saving valid credentials.
+        mockProbeShapesSession.mockResolvedValueOnce('inconclusive');
+        const { res } = await callStoreHandler({ sessionCookie: VALID_COOKIE });
+
+        expect(mockPrisma.userCredential.upsert).toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(200);
+      });
+
+      it('does NOT run the preflight when format validation already rejects', async () => {
+        // tooShort fails the shape check before the preflight would be called.
+        await callStoreHandler({
+          sessionCookie: '__Secure-better-auth.session_token=tooShort',
+        });
+
+        expect(mockProbeShapesSession).not.toHaveBeenCalled();
+      });
     });
   });
 
