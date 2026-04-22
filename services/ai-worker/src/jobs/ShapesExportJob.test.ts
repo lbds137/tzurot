@@ -20,7 +20,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
     decryptApiKey: vi
       .fn()
-      .mockReturnValue('__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq'),
+      .mockReturnValue(
+        '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef'
+      ),
     encryptApiKey: vi
       .fn()
       .mockReturnValue({ iv: 'new-iv', content: 'new-content', tag: 'new-tag' }),

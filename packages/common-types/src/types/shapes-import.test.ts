@@ -94,6 +94,24 @@ describe('parseShapesSessionCookieInput', () => {
         reason: 'malformed-value',
       });
     });
+
+    it('rejects name=value with a value shorter than the minimum length', () => {
+      // 'tooShort' is 8 chars; the min is 32. Same regex+length guard as the
+      // bare-token path must apply here so the parser's contract is uniform.
+      expect(parseShapesSessionCookieInput(`${SHAPES_SESSION_COOKIE_NAME}=tooShort`)).toEqual({
+        ok: false,
+        reason: 'malformed-value',
+      });
+    });
+
+    it('rejects name=value with a value containing disallowed characters', () => {
+      // Spaces fail the token-shape regex even though the length is fine.
+      expect(
+        parseShapesSessionCookieInput(
+          `${SHAPES_SESSION_COOKIE_NAME}=val with spaces and padding xxx`
+        )
+      ).toEqual({ ok: false, reason: 'malformed-value' });
+    });
   });
 
   describe('full Cookie: header paste defense', () => {
@@ -126,6 +144,17 @@ describe('parseShapesSessionCookieInput', () => {
       expect(parseShapesSessionCookieInput(legacy)).toEqual({
         ok: false,
         reason: 'wrong-cookie',
+      });
+    });
+
+    it('rejects a multi-cookie paste where the session cookie value itself is malformed', () => {
+      // Session cookie name is present but its value has disallowed characters
+      // and sub-minimum length. The multi-cookie path must apply the same
+      // shape/length guard as the bare-token and name=value paths.
+      const mixed = `_ga=GA1.1.12345; ${SHAPES_SESSION_COOKIE_NAME}=oops short; theme=dark`;
+      expect(parseShapesSessionCookieInput(mixed)).toEqual({
+        ok: false,
+        reason: 'malformed-value',
       });
     });
   });

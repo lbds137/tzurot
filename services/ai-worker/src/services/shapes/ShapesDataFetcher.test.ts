@@ -130,7 +130,8 @@ describe('ShapesDataFetcher', () => {
       setupSuccessfulFetch();
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
 
       // Advance timers for delays between requests
@@ -150,7 +151,8 @@ describe('ShapesDataFetcher', () => {
       setupSuccessfulFetch();
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(5000);
       await promise;
@@ -159,7 +161,8 @@ describe('ShapesDataFetcher', () => {
         expect.stringContaining('/api/shapes/username/test-shape'),
         expect.objectContaining({
           headers: expect.objectContaining({
-            Cookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+            Cookie:
+              '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
           }),
         })
       );
@@ -178,7 +181,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, SAMPLE_USER_PERSONALIZATION));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(5000);
       const result = await promise;
@@ -197,7 +201,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(5000);
       const result = await promise;
@@ -229,7 +234,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(10000);
       const result = await promise;
@@ -244,7 +250,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(401, { error: 'Unauthorized' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesAuthError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -255,7 +262,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(403, { error: 'Forbidden' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesAuthError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -266,7 +274,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(404, { error: 'Not found' }));
 
       const promise = fetcher.fetchShapeData('nonexistent', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesNotFoundError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -281,7 +290,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesRateLimitError);
       await vi.advanceTimersByTimeAsync(30000);
@@ -295,7 +305,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesServerError);
       await vi.advanceTimersByTimeAsync(30000);
@@ -312,7 +323,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(502, { error: 'Bad Gateway' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesServerError);
       await vi.advanceTimersByTimeAsync(30000);
@@ -326,7 +338,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(422, { error: 'Unprocessable' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesFetchError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -341,7 +354,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(5000);
       const result = await promise;
@@ -359,7 +373,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, SAMPLE_USER_PERSONALIZATION));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(5000);
       const result = await promise;
@@ -384,7 +399,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(30000);
       const result = await promise;
@@ -408,7 +424,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(30000);
       const result = await promise;
@@ -432,7 +449,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(30000);
       const result = await promise;
@@ -444,7 +462,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(401, { error: 'Unauthorized' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesAuthError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -458,7 +477,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(404, { error: 'Not found' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesNotFoundError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -471,7 +491,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(422, { error: 'Unprocessable' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesFetchError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -495,7 +516,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(30000);
       const result = await promise;
@@ -520,7 +542,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(30000);
       const result = await promise;
@@ -533,7 +556,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockRejectedValueOnce(new TypeError('Cannot read properties of undefined'));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(TypeError);
       await vi.advanceTimersByTimeAsync(5000);
@@ -550,7 +574,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesRateLimitError);
       await vi.advanceTimersByTimeAsync(30000);
@@ -567,7 +592,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
         signal: abortController.signal,
       });
       // Attach rejection handler FIRST to prevent unhandled rejection
@@ -591,7 +617,8 @@ describe('ShapesDataFetcher', () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
         signal: abortController.signal,
       });
       // Node.js auto-sets reason to DOMException('This operation was aborted', 'AbortError')
@@ -696,7 +723,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(5000);
       const result = await promise;
@@ -714,7 +742,8 @@ describe('ShapesDataFetcher', () => {
         .mockResolvedValueOnce(createMockResponse(200, {}));
 
       const promise = fetcher.fetchShapeData('test-shape', {
-        sessionCookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
       });
       await vi.advanceTimersByTimeAsync(5000);
       const result = await promise;

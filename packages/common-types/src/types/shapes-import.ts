@@ -363,7 +363,14 @@ export type ShapesSessionInputResult =
  * persisting (tracked separately).
  */
 const SHAPES_TOKEN_SHAPE = /^[A-Za-z0-9._-]+$/;
-const SHAPES_TOKEN_MIN_LENGTH = 32;
+
+/**
+ * Minimum length for a plausible Better Auth session token value.
+ * Exported so UI-layer gates (e.g., Discord modal `.setMinLength()`) can
+ * stay aligned with the parser — otherwise a user whose input passes the
+ * UI gate but fails the parser's check sees a confusing UX mismatch.
+ */
+export const SHAPES_TOKEN_MIN_LENGTH = 32;
 
 /**
  * Parse the user-supplied modal input into a normalized cookie string.
@@ -377,7 +384,8 @@ const SHAPES_TOKEN_MIN_LENGTH = 32;
  * Rejects (returns `{ ok: false }`):
  *  - Empty input
  *  - Any cookie-like input that doesn't include `SHAPES_SESSION_COOKIE_NAME` (user pasted wrong thing)
- *  - Bare values that fail the token-shape regex or minimum length
+ *  - A value (extracted from any of the three paths) that fails the token-shape
+ *    regex or minimum-length check
  *
  * The defense against shape (3) specifically catches the common failure mode
  * where users copy the `Cookie:` request header from the Network tab instead
@@ -401,7 +409,7 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
       const name = trimmed.substring(0, eqIdx);
       const value = trimmed.substring(eqIdx + 1);
       if (name === SHAPES_SESSION_COOKIE_NAME) {
-        if (value.length === 0) {
+        if (!isPlausibleTokenValue(value)) {
           return { ok: false, reason: 'malformed-value' };
         }
         return { ok: true, cookie: buildSessionCookie(value) };
@@ -411,8 +419,18 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
   }
 
   // Bare token value path — sanity-check shape and length.
-  if (input.length < SHAPES_TOKEN_MIN_LENGTH || !SHAPES_TOKEN_SHAPE.test(input)) {
+  if (!isPlausibleTokenValue(input)) {
     return { ok: false, reason: 'malformed-value' };
   }
   return { ok: true, cookie: buildSessionCookie(input) };
+}
+
+/**
+ * Apply the token shape + minimum-length check. Shared by every branch of
+ * `parseShapesSessionCookieInput` so a 16-char bare value and a 16-char
+ * `name=value` value both fail the same way — no surprise where a format
+ * is permissive in one path and strict in another.
+ */
+function isPlausibleTokenValue(value: string): boolean {
+  return value.length >= SHAPES_TOKEN_MIN_LENGTH && SHAPES_TOKEN_SHAPE.test(value);
 }

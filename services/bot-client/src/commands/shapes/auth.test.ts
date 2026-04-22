@@ -122,7 +122,9 @@ describe('buildAuthModal', () => {
     expect(input.data.custom_id).toBe('cookieValue');
     expect(input.data.style).toBe(TextInputStyle.Paragraph);
     expect(input.data.required).toBe(true);
-    expect(input.data.min_length).toBe(16);
+    // Must align with parser's SHAPES_TOKEN_MIN_LENGTH so the UI gate
+    // and the parse-time check agree on the same minimum.
+    expect(input.data.min_length).toBe(32);
     expect(input.data.max_length).toBe(4000);
   });
 });
