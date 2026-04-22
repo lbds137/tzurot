@@ -7,7 +7,7 @@
 
 import type { Message } from 'discord.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
-import { splitMessage, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
+import { splitMessage, createLogger, CONTENT_TYPES, isTimeoutError } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
 
@@ -15,11 +15,6 @@ const logger = createLogger('VoiceTranscriptionService');
 
 /** Interval for refreshing the typing indicator (Discord expires at ~10s, matches JobTracker.ts) */
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
-
-/** Check if an error is a timeout. AbortSignal.timeout() throws DOMException with name 'TimeoutError'. */
-function isTimeoutError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'TimeoutError';
-}
 
 /** Attachment info for transcription */
 interface TranscriptionAttachment {

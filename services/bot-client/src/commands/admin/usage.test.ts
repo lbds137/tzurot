@@ -277,6 +277,24 @@ describe('handleUsage', () => {
     });
   });
 
+  // Defense in depth: even though `timeframe` is enum-bound in the command schema,
+  // removing encodeURIComponent() from the URL construction would let arbitrary
+  // future values pass through unescaped. Asserts that spaces/reserved chars get
+  // percent-encoded.
+  it('URL-encodes the timeframe query parameter', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
+    );
+
+    const context = createMockContext('7d with spaces&foo=bar');
+    await handleUsage(context);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('timeframe=7d%20with%20spaces%26foo%3Dbar'),
+      expect.any(Object)
+    );
+  });
+
   it('should handle 403 unauthorized response', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Unauthorized', { status: 403 }));
 
