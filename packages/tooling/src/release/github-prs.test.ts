@@ -49,10 +49,23 @@ describe('tagTimestamp', () => {
     );
   });
 
-  it('throws a user-facing error when the tag does not exist', () => {
+  it('throws a user-facing error when git exits non-zero (rare)', () => {
+    // Defensive path — in practice for-each-ref exits 0 even on missing
+    // tags, but guard against environmental failures (missing binary, etc.).
     mockedExec.mockImplementationOnce(() => {
-      throw new Error("fatal: bad revision 'v99.99.99'");
+      throw new Error('git: command not found');
     });
+    expect(() => tagTimestamp('v99.99.99')).toThrow(
+      /Could not resolve timestamp for tag 'v99.99.99'/
+    );
+  });
+
+  it('throws a user-facing error when the tag does not exist (empty stdout)', () => {
+    // This is what the real `git for-each-ref refs/tags/<missing>` does:
+    // exits 0, prints nothing. Without the empty-string guard, the caller
+    // would get `""` back and feed it into `gh pr list --search merged:>`
+    // which corrupts the downstream query.
+    mockedExec.mockReturnValueOnce('\n');
     expect(() => tagTimestamp('v99.99.99')).toThrow(
       /Could not resolve timestamp for tag 'v99.99.99'/
     );
