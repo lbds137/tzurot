@@ -75,9 +75,12 @@ const KNOWN_THINKING_TAGS = [
  *
  * The three structural rules that make this safe to extract (not just strip):
  *   1. Start-of-response anchor (`^\s*`) — mid-response matches are left alone.
- *   2. UUID validation (`[a-fA-F0-9\-]{36}`) — no legitimate roleplay output
- *      starts with an invisible 36-char hex-dash block; UUIDs only appear in
- *      our internal assembly format.
+ *   2. UUID validation (RFC 4122 hyphen layout 8-4-4-4-12, hex-only
+ *      character classes) — no legitimate roleplay output starts with an
+ *      invisible UUID-shaped block; UUIDs only appear in our internal
+ *      assembly format. The explicit hyphen positions are load-bearing —
+ *      a loose `[a-fA-F0-9-]{36}` character class would match edge cases
+ *      like 36 hyphens or 36 repeated hex digits.
  *   3. Strict tag sequence (`<from_id>` → `<user>` → `<message>`) — all three
  *      in order with standard whitespace between them.
  *
@@ -96,7 +99,7 @@ const KNOWN_THINKING_TAGS = [
  * response as evidence.
  */
 const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
-  /^\s*<from_id>[a-fA-F0-9-]{36}<\/from_id>\s*<user>[^<]*<\/user>\s*<message>([\s\S]*?)<\/message>\s*/;
+  /^\s*<from_id>[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}<\/from_id>\s*<user>[^<]*<\/user>\s*<message>([\s\S]*?)<\/message>\s*/;
 
 /**
  * Alternation pattern fragment for use in regex: `think|thinking|...`
@@ -354,7 +357,10 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     if (extractedThinking.length > 0) {
       thinkingParts.push(extractedThinking);
     }
-    visibleContent = visibleContent.replace(GLM_FAKE_USER_MESSAGE_ECHO_PATTERN, '');
+    // Slice rather than re-run the regex: the pattern is `^`-anchored so
+    // the match is always at position 0, and `fakeUserMessageMatch[0].length`
+    // is the byte count of the block to consume.
+    visibleContent = visibleContent.slice(fakeUserMessageMatch[0].length);
     logger.warn(
       {
         extractedLength: extractedThinking.length,
