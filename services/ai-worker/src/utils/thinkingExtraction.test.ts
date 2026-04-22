@@ -927,6 +927,33 @@ describe('hasThinkingBlocks', () => {
   it('should NOT detect namespace-prefixed non-thinking tags', () => {
     expect(hasThinkingBlocks('<xml:div>content</xml:div>')).toBe(false);
   });
+
+  it('should detect GLM fake-user-message-echo wrapper as a thinking block', () => {
+    // Prevents a false-negative in DiagnosticRecorders. Without this check,
+    // `hasReasoningTagsInContent` would be `false` for pure-GLM responses
+    // where the fake-user-message wrapper is the only thinking-content
+    // signal — even though `extractThinkingBlocks` would correctly find
+    // and strip the block. Surfaced by PR #875 round 4 review (2026-04-22).
+    const uuid = '62a59660-cd89-51dc-8c54-7100f4e33329';
+    const content = `<from_id>${uuid}</from_id>
+<user>User</user>
+<message>chain of thought</message>
+
+Response.`;
+    expect(hasThinkingBlocks(content)).toBe(true);
+  });
+
+  it('should NOT detect GLM-style scaffolding with invalid UUID (defense alignment with extractor)', () => {
+    // `hasThinkingBlocks` and `extractThinkingBlocks` must agree on what
+    // counts as a thinking block. If one detects the pattern but the other
+    // doesn't, diagnostics drift out of sync with extraction behavior.
+    const content = `<from_id>not-a-uuid</from_id>
+<user>User</user>
+<message>content</message>
+
+Response.`;
+    expect(hasThinkingBlocks(content)).toBe(false);
+  });
 });
 
 describe('extractApiReasoningContent', () => {
