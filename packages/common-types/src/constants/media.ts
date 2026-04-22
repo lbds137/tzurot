@@ -8,9 +8,9 @@
  * Media processing limits and quality settings
  */
 export const MEDIA_LIMITS = {
-  /** Maximum image size before resizing (10MB) */
+  /** Maximum image size before resizing (10 MiB) */
   MAX_IMAGE_SIZE: 10 * 1024 * 1024,
-  /** Target size for resized images (8MB) */
+  /** Target size for resized images (8 MiB) */
   IMAGE_TARGET_SIZE: 8 * 1024 * 1024,
   /** JPEG quality for resized images (0-100) */
   IMAGE_QUALITY: 85,
