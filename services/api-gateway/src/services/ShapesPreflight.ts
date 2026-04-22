@@ -26,12 +26,31 @@ const logger = createLogger('ShapesPreflight');
 const PREFLIGHT_TIMEOUT_MS = 5000;
 
 /**
- * The Better Auth convention is to expose a session-introspection endpoint at
- * `/api/auth/session` that returns the decoded session on valid, or a 401 on
- * invalid/expired. If shapes.inc ever moves it, update this constant — the
- * `inconclusive` outcome on 404 keeps the auth flow working in the meantime.
+ * `/api/users/info` is a known-to-exist endpoint on shapes.inc (typed
+ * response `ShapesIncUserProfile` in `@tzurot/common-types` is already
+ * used by the fetcher flow). Council-recommended over `/api/auth/session`
+ * (Better Auth convention) because:
+ *
+ *  1. **Fate-sharing with the actual fetcher surface.** If shapes.inc ever
+ *     adds a CSRF or secondary-token requirement to user-data endpoints,
+ *     a session-introspection endpoint might still 200 while real imports
+ *     fail — a false-positive preflight. Probing the same surface the
+ *     fetcher hits means "preflight passes" implies "imports will work."
+ *
+ *  2. **API canary.** A spike in 4xx/5xx on this endpoint tells us shapes.inc
+ *     changed something the fetcher will care about, not just that their
+ *     optional session endpoint moved.
+ *
+ *  3. **Known to exist.** No guesswork. The fetcher's type signatures prove
+ *     the endpoint was live at the last observed behavior.
+ *
+ * Known acceptable trade-offs: `GET /users/info` may update `last_active`
+ * timestamps on shapes.inc's side (not strictly read-only), and data
+ * endpoints may have stricter rate limits than session endpoints. Both are
+ * low-severity for our use case — single preflight per user-initiated
+ * `/shapes auth` submit, not a polling loop.
  */
-const PREFLIGHT_ENDPOINT = '/api/auth/session';
+const PREFLIGHT_ENDPOINT = '/api/users/info';
 
 export type PreflightOutcome = 'valid' | 'invalid' | 'inconclusive';
 
