@@ -1,5 +1,63 @@
 import { describe, it, expect } from 'vitest';
-import { findDuplicates } from './verify-notes.js';
+import { findDuplicates, extractPrRefs, classifyRefs } from './verify-notes.js';
+
+describe('extractPrRefs', () => {
+  it('extracts refs from canonical `(#N)` line items', () => {
+    const notes = [
+      '### Features',
+      '- **ai-worker:** thing (#869)',
+      '- **api-gateway:** hardening (#870)',
+    ].join('\n');
+    expect(extractPrRefs(notes)).toEqual([869, 870]);
+  });
+
+  it('returns an empty array when the notes have no PR refs', () => {
+    expect(extractPrRefs('# Release notes\n\nNothing to see.')).toEqual([]);
+  });
+
+  it('matches ALL #N patterns — including non-PR references (known limitation)', () => {
+    // Documented behavior: extractor is greedy on `#N` to keep implementation
+    // simple. False-positives surface as `extra` in classifyRefs, which is
+    // visible and actionable rather than silent.
+    const notes = 'See issue #42 upstream for context. This PR is #869.';
+    expect(extractPrRefs(notes)).toEqual([42, 869]);
+  });
+
+  it('captures duplicates when a ref appears more than once', () => {
+    const notes = 'Mentioned in #869 and also in #869.';
+    expect(extractPrRefs(notes)).toEqual([869, 869]);
+  });
+});
+
+describe('classifyRefs', () => {
+  it('reports all three categories when each is non-empty', () => {
+    const result = classifyRefs([868, 870, 870, 999], new Set([868, 869, 870]));
+    expect(result.missing).toEqual([869]);
+    expect(result.extra).toEqual([999]);
+    expect(result.duplicates).toEqual([870]);
+  });
+
+  it('returns empty arrays when notes match merged set exactly', () => {
+    const result = classifyRefs([868, 869, 870], new Set([868, 869, 870]));
+    expect(result.missing).toEqual([]);
+    expect(result.extra).toEqual([]);
+    expect(result.duplicates).toEqual([]);
+  });
+
+  it('flags every merged PR as missing when notes are empty', () => {
+    const result = classifyRefs([], new Set([868, 869]));
+    expect(result.missing).toEqual([868, 869]);
+    expect(result.extra).toEqual([]);
+    expect(result.duplicates).toEqual([]);
+  });
+
+  it('flags every ref as extra when merged set is empty', () => {
+    const result = classifyRefs([1, 2, 3], new Set());
+    expect(result.missing).toEqual([]);
+    expect(result.extra).toEqual([1, 2, 3]);
+    expect(result.duplicates).toEqual([]);
+  });
+});
 
 describe('findDuplicates', () => {
   it('returns an empty array when all refs are unique', () => {
