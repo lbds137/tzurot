@@ -69,7 +69,7 @@ export const DISCORD_LIMITS = {
   MODAL_TITLE_DYNAMIC_CONTENT: 30,
   /** Timeout for button collector interactions (30 seconds) */
   BUTTON_COLLECTOR_TIMEOUT: 30000,
-  /** Maximum file upload size for non-Nitro servers (8 MB) */
+  /** Maximum file upload size for non-Nitro servers (8 MiB — binary units, matches constant) */
   FILE_UPLOAD_MAX_BYTES: 8 * 1024 * 1024,
 } as const;
 

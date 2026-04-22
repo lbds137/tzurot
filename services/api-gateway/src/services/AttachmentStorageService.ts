@@ -78,10 +78,7 @@ export class AttachmentStorageService {
         throw new Error('Invalid attachment URL: credentials not allowed');
       }
 
-      // Hostname must be from allowed Discord CDN hosts
-      // Normalize: strip trailing dots and ensure lowercase (URL API already lowercases).
-      // Bounded quantifier `{1,16}` prevents polynomial-slide ReDoS; real hostnames
-      // can have at most 1-2 trailing dots (DNS absolute form), 16 is a safe ceiling.
+      // Normalize hostname for CDN allowlist check. ReDoS: {1,16} ceiling; DNS absolute form has ≤2 trailing dots.
       const normalizedHostname = url.hostname.replace(/\.{1,16}$/, '');
 
       // Reject IP addresses (IPv4 and IPv6)

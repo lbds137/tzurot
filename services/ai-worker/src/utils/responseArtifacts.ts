@@ -69,11 +69,7 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
     // XML structure (e.g., </chat_log> from PromptBuilder.ts). Stripped from anywhere in content
     // since they can appear mid-response, not just trailing.
     /<\/(?:chat_log|participants|protocol|memory_archive|contextual_references)>/gi,
-    // Trailing <reactions>...</reactions> block: LLM mimics conversation history metadata
-    // Must be checked before simpler trailing tags since it's multiline
-    // Bounded leading whitespace (`\s{0,64}`) prevents polynomial-slide ReDoS
-    // on long inputs — the trailing `\s*$` is safe (anchored), but an unbounded
-    // leading `\s*` before a literal makes the engine retry from every position.
+    // Trailing <reactions> block: LLM mimics history metadata. ReDoS: leading `\s{0,64}` bounded (unbounded `\s*` before literal retries at every position).
     /\s{0,64}<reactions>[\s\S]*?<\/reactions>\s*$/i,
     // Generic trailing closing tag: catches </message>, </module>, </current_turn>, etc.
     // Models learn XML patterns from training data and append stray closing tags
