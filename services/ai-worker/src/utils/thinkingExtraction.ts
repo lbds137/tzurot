@@ -463,6 +463,16 @@ export function hasThinkingBlocks(content: string): boolean {
     return true;
   }
 
+  // Pass-1 model-specific pattern (GLM-4.5-Air fake-user-message echo).
+  // `extractThinkingBlocks` removes this pattern via Pass 1, so we must
+  // check it here too — otherwise `DiagnosticRecorders.hasReasoningTagsInContent`
+  // would report `false` for pure-GLM responses where the fake wrapper is
+  // the only thinking-content signal, and `/inspect` diagnostics would
+  // under-report GLM reasoning occurrences.
+  if (GLM_FAKE_USER_MESSAGE_ECHO_PATTERN.test(normalized)) {
+    return true;
+  }
+
   return false;
 }
 
