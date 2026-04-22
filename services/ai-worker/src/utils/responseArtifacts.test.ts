@@ -203,6 +203,16 @@ describe('stripResponseArtifacts', () => {
         'Hey there!\n<reactions>\n<reaction from="Lila" from_id="abc">👍</reaction>\n</reactions>\n</message>';
       expect(stripResponseArtifacts(content, 'Emily')).toBe('Hey there!');
     });
+
+    // Regression guard for PR #864 ReDoS fix: the leading `\s{0,64}` bound is
+    // what prevents polynomial-slide backtracking. If someone ever changes the
+    // pattern to unbounded `\s*` or tightens the ceiling below 2 (breaking the
+    // common `\n\n<reactions>` case), this test catches it.
+    it('strips reactions block with multiple leading whitespace chars (bounded-quantifier regression)', () => {
+      const content =
+        'Done!\n\n   \t\n<reactions>\n<reaction from="Lila">🎉</reaction>\n</reactions>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Done!');
+    });
   });
 
   describe('Combined XML artifacts', () => {

@@ -203,6 +203,26 @@ describe('WebhookManager', () => {
       );
     });
 
+    // PR #864 regression guard: discriminator regex is `\s{0,16}#\d{4}$`.
+    // If the whitespace bound were removed/narrowed, a tag with a few leading
+    // spaces before the discriminator would fail to strip.
+    it('strips discriminator even with multiple leading spaces (bounded-quantifier regression)', async () => {
+      const client = createMockClient('BotName   #1234');
+      manager = new WebhookManager(client);
+
+      const personality = createMockPersonality('TestPersonality');
+      const channel = createMockTextChannel('channel-123', 'bot-123');
+
+      const webhook = await manager.getWebhook(channel);
+      await manager.sendAsPersonality(channel, personality, 'Test');
+
+      expect(webhook.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'TestPersonality · BotName',
+        })
+      );
+    });
+
     it('should convert legacy pipe delimiter to middle dot', async () => {
       const client = createMockClient('Rotzot | תשב#0000');
       manager = new WebhookManager(client);
