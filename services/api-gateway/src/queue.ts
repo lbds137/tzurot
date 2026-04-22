@@ -84,7 +84,7 @@ export const queueEvents = new QueueEvents(QUEUE_NAME, {
 
 // Event handlers
 queueEvents.on('completed', ({ jobId }) => {
-  logger.info(`Job ${jobId} completed`);
+  logger.info({ jobId }, 'Job completed');
 
   // Clean up temporary attachments after a short delay
   // This ensures ai-worker has finished all async operations

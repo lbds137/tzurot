@@ -75,7 +75,7 @@ export class GatewayClient {
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl ?? config.GATEWAY_URL;
 
-    logger.info(`Initialized with base URL: ${this.baseUrl}`);
+    logger.info({ baseUrl: this.baseUrl }, 'GatewayClient initialized');
   }
 
   /**
@@ -189,7 +189,7 @@ export class GatewayClient {
         throw new Error('No transcript in job result');
       }
 
-      logger.info(`Transcription completed: ${data.jobId}`);
+      logger.info({ jobId: data.jobId }, 'Transcription completed');
 
       return {
         content: data.result.content,

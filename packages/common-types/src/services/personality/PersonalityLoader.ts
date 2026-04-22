@@ -404,7 +404,7 @@ export class PersonalityLoader {
         take: SYNC_LIMITS.MAX_PERSONALITY_CATALOG,
       });
 
-      logger.info(`Loaded ${dbPersonalities.length} personalities from database`);
+      logger.info({ count: dbPersonalities.length }, 'Loaded personalities from database');
       return dbPersonalities;
     } catch (error) {
       logger.error({ err: error }, 'Failed to load all personalities from database');

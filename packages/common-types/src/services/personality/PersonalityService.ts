@@ -124,7 +124,7 @@ export class PersonalityService {
       this.cache.set(personality.id, personality);
     }
 
-    logger.info(`Loaded ${personalities.length} personalities from database`);
+    logger.info({ count: personalities.length }, 'Loaded personalities from database');
     return personalities;
   }
 

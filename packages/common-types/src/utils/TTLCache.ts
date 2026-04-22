@@ -39,7 +39,7 @@ export class TTLCache<T extends NonNullable<unknown>> {
       ttl: options.ttl ?? 5 * 60 * 1000, // Default: 5 minutes
       updateAgeOnGet: false, // TTL is from set time, not access time
       dispose: (_value, key) => {
-        logger.debug(`Evicted cache entry: ${key}`);
+        logger.debug({ key }, 'Evicted cache entry');
       },
     };
 

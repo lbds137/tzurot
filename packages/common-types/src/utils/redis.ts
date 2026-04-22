@@ -221,16 +221,16 @@ export function createIORedisClient(
   });
 
   client.on('error', (error: Error) => {
-    serviceLogger.error({ err: error }, `[${serviceName}] Redis client error`);
+    serviceLogger.error({ err: error, serviceName }, 'Redis client error');
   });
   client.on('connect', () => {
-    serviceLogger.info(`[${serviceName}] Connected to Redis`);
+    serviceLogger.info({ serviceName }, 'Connected to Redis');
   });
   client.on('ready', () => {
-    serviceLogger.info(`[${serviceName}] Redis client ready`);
+    serviceLogger.info({ serviceName }, 'Redis client ready');
   });
   client.on('reconnecting', () => {
-    serviceLogger.info(`[${serviceName}] Reconnecting to Redis`);
+    serviceLogger.info({ serviceName }, 'Reconnecting to Redis');
   });
 
   return client;

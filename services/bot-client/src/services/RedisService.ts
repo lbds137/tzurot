@@ -31,9 +31,9 @@ export class RedisService {
         ttlSeconds,
         personalityName
       );
-      logger.debug(`Stored webhook message: ${messageId} -> ${personalityName}`);
+      logger.debug({ messageId, personalityName }, 'Stored webhook message');
     } catch (error) {
-      logger.error({ err: error }, `Failed to store webhook message: ${messageId}`);
+      logger.error({ err: error, messageId }, 'Failed to store webhook message');
     }
   }
 
@@ -48,11 +48,11 @@ export class RedisService {
         `${REDIS_KEY_PREFIXES.WEBHOOK_MESSAGE}${messageId}`
       );
       if (personalityName !== undefined && personalityName !== null && personalityName.length > 0) {
-        logger.debug(`Retrieved webhook message: ${messageId} -> ${personalityName}`);
+        logger.debug({ messageId, personalityName }, 'Retrieved webhook message');
       }
       return personalityName;
     } catch (error) {
-      logger.error({ err: error }, `Failed to get webhook message: ${messageId}`);
+      logger.error({ err: error, messageId }, 'Failed to get webhook message');
       return null;
     }
   }

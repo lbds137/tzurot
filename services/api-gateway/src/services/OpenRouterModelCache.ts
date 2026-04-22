@@ -63,7 +63,7 @@ export class OpenRouterModelCache {
       const cached = await this.redis.get(REDIS_KEY_PREFIXES.OPENROUTER_MODELS);
       if (cached !== null && cached.length > 0) {
         const models = JSON.parse(cached) as OpenRouterModel[];
-        logger.debug(`Redis cache HIT (${String(models.length)} models)`);
+        logger.debug({ modelCount: models.length }, 'Redis cache HIT');
         // Update memory cache
         this.memoryCache = models;
         this.memoryCacheTimestamp = Date.now();
@@ -84,7 +84,7 @@ export class OpenRouterModelCache {
         INTERVALS.OPENROUTER_MODELS_TTL,
         JSON.stringify(models)
       );
-      logger.info(`Cached ${models.length} models in Redis (TTL: 24h)`);
+      logger.info({ modelCount: models.length, ttlHours: 24 }, 'Cached models in Redis');
     } catch (error) {
       logger.warn({ err: error }, 'Failed to write Redis cache');
     }
@@ -225,7 +225,7 @@ export class OpenRouterModelCache {
         throw new Error('Invalid response format from OpenRouter API');
       }
 
-      logger.info(`Fetched ${String(data.data.length)} models from OpenRouter`);
+      logger.info({ modelCount: data.data.length }, 'Fetched models from OpenRouter');
       return data.data;
     } catch (error) {
       clearTimeout(timeoutId);

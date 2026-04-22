@@ -221,7 +221,8 @@ export class VoiceTranscriptionService {
       const chunks = splitMessage(response.content);
 
       logger.info(
-        `Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`
+        { chars: response.content.length, chunks: chunks.length },
+        'Transcription complete'
       );
 
       // Cache transcript in Redis BEFORE sending Discord replies to prevent race condition
@@ -231,7 +232,8 @@ export class VoiceTranscriptionService {
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
         await voiceTranscriptCache.store(voiceAttachment.url, response.content);
         logger.debug(
-          `Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`
+          { urlPreview: voiceAttachment.url.substring(0, 50) },
+          'Cached transcript for attachment'
         );
       }
 

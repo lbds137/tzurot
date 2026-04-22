@@ -179,7 +179,7 @@ export class MessageReferenceExtractor {
       }
       return message;
     } catch (error) {
-      logger.debug(`Could not refetch message: ${(error as Error).message}`);
+      logger.debug({ err: error }, 'Could not refetch message');
       return message;
     }
   }

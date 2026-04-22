@@ -84,12 +84,13 @@ export class MemoryRetriever {
   private logRetrievedMemories(memories: MemoryDocument[], personalityName: string): void {
     if (memories.length === 0) {
       logger.debug(
-        `No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`
+        { reason: this.memoryManager !== undefined ? 'no memories found' : 'memory disabled' },
+        'No memory retrieval'
       );
       return;
     }
 
-    logger.info(`Retrieved ${memories.length} relevant memories for ${personalityName}`);
+    logger.info({ count: memories.length, personalityName }, 'Retrieved relevant memories');
 
     memories.forEach((doc, idx) => {
       const id = typeof doc.metadata?.id === 'string' ? doc.metadata.id : 'unknown';
@@ -101,7 +102,14 @@ export class MemoryRetriever {
       const truncated = doc.pageContent.length > 120 ? '...' : '';
 
       logger.info(
-        `Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp ?? 'unknown'} content="${content}${truncated}"`
+        {
+          memoryIndex: idx + 1,
+          memoryId: id,
+          score: Number(score.toFixed(3)),
+          timestamp: timestamp ?? 'unknown',
+          contentPreview: `${content}${truncated}`,
+        },
+        'Memory retrieved'
       );
     });
   }
@@ -246,11 +254,11 @@ export class MemoryRetriever {
     const personaMap = new Map<string, ParticipantInfo>();
 
     if (!context.participants || context.participants.length === 0) {
-      logger.debug(`No participants provided in context`);
+      logger.debug('No participants provided in context');
       return personaMap;
     }
 
-    logger.debug(`Fetching content for ${context.participants.length} participant(s)`);
+    logger.debug({ count: context.participants.length }, 'Fetching participant content');
 
     // Track resolved personaIds to deduplicate participants
     // Same user may appear with different names (persona name vs Discord display name)

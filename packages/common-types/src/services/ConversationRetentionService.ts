@@ -109,15 +109,19 @@ export class ConversationRetentionService {
 
       const count = await this.prisma.$transaction(tx => deleteMessagesWithTombstones(tx, where));
 
-      const scopeInfo =
-        personaId !== undefined && personaId.length > 0
-          ? `channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...`
-          : `channel: ${channelId}, personality: ${personalityId}`;
-
-      logger.info(`Cleared ${count} messages from history with tombstones (${scopeInfo})`);
+      logger.info(
+        {
+          count,
+          channelId,
+          personalityId,
+          personaIdPrefix:
+            personaId !== undefined && personaId.length > 0 ? personaId.substring(0, 8) : null,
+        },
+        'Cleared messages from history with tombstones'
+      );
       return count;
     } catch (error) {
-      logger.error({ err: error }, `Failed to clear conversation history`);
+      logger.error({ err: error }, 'Failed to clear conversation history');
       throw error;
     }
   }
@@ -138,12 +142,10 @@ export class ConversationRetentionService {
         deleteMessagesWithTombstones(tx, { createdAt: { lt: cutoffDate } })
       );
 
-      logger.info(
-        `Cleaned up ${count} old messages with tombstones (older than ${daysToKeep} days)`
-      );
+      logger.info({ count, daysToKeep }, 'Cleaned up old messages with tombstones');
       return count;
     } catch (error) {
-      logger.error({ err: error }, `Failed to cleanup old conversation history`);
+      logger.error({ err: error }, 'Failed to cleanup old conversation history');
       throw error;
     }
   }
@@ -168,10 +170,10 @@ export class ConversationRetentionService {
         },
       });
 
-      logger.info(`Cleaned up ${result.count} old tombstones (older than ${daysToKeep} days)`);
+      logger.info({ count: result.count, daysToKeep }, 'Cleaned up old tombstones');
       return result.count;
     } catch (error) {
-      logger.error({ err: error }, `Failed to cleanup old tombstones`);
+      logger.error({ err: error }, 'Failed to cleanup old tombstones');
       throw error;
     }
   }
@@ -203,9 +205,7 @@ export class ConversationRetentionService {
       });
 
       if (result.count > 0) {
-        logger.info(
-          `Hard deleted ${result.count} soft-deleted messages (deletedAt older than ${daysToKeep} days)`
-        );
+        logger.info({ count: result.count, daysToKeep }, 'Hard deleted soft-deleted messages');
       }
 
       return result.count;

@@ -25,7 +25,12 @@ export function getPrismaClient(): PrismaClient {
     // Debug: Check DATABASE_URL at runtime
     const dbUrl = process.env.DATABASE_URL;
     logger.info(
-      `DATABASE_URL check: ${dbUrl !== null && dbUrl !== undefined && dbUrl.length > 0 ? `set (starts with: ${dbUrl.substring(0, 15)}...)` : 'NOT SET'}`
+      {
+        set: dbUrl !== null && dbUrl !== undefined && dbUrl.length > 0,
+        prefix:
+          dbUrl !== null && dbUrl !== undefined && dbUrl.length > 0 ? dbUrl.substring(0, 15) : null,
+      },
+      'DATABASE_URL check'
     );
 
     // Prisma 7.0: Use driver adapter for PostgreSQL

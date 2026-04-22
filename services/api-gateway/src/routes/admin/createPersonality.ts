@@ -146,7 +146,7 @@ export function createCreatePersonalityRoute(
       });
       const personality = await prisma.personality.create({ data: createData });
 
-      logger.info(`Created personality: ${slug} (${personality.id})`);
+      logger.info({ slug, personalityId: personality.id }, 'Created personality');
 
       // Post-creation tasks.
       // Note: personality_default_configs is intentionally NOT populated here.

@@ -33,10 +33,10 @@ export class ConversationSyncService {
         data: { deletedAt: new Date() },
       });
 
-      logger.debug(`Soft deleted message ${messageId}`);
+      logger.debug({ messageId }, 'Soft deleted message');
       return true;
     } catch (error) {
-      logger.error({ err: error, messageId }, `Failed to soft delete message`);
+      logger.error({ err: error, messageId }, 'Failed to soft delete message');
       return false;
     }
   }
@@ -120,10 +120,10 @@ export class ConversationSyncService {
         },
       });
 
-      logger.debug(`Updated message ${messageId} content (tokens: ${tokenCount})`);
+      logger.debug({ messageId, tokenCount }, 'Updated message content');
       return true;
     } catch (error) {
-      logger.error({ err: error, messageId }, `Failed to update message content`);
+      logger.error({ err: error, messageId }, 'Failed to update message content');
       return false;
     }
   }
@@ -199,11 +199,12 @@ export class ConversationSyncService {
       }
 
       logger.debug(
-        `Found ${resultMap.size} DB messages for ${discordMessageIds.length} Discord IDs`
+        { dbMessageCount: resultMap.size, discordIdCount: discordMessageIds.length },
+        'Found DB messages for Discord IDs'
       );
       return resultMap;
     } catch (error) {
-      logger.error({ err: error }, `Failed to get messages by Discord IDs`);
+      logger.error({ err: error }, 'Failed to get messages by Discord IDs');
       return new Map();
     }
   }
