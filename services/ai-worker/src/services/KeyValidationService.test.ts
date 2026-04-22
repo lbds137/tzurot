@@ -33,9 +33,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
  * Only used in this test file — not a real error from any production code. */
 const MOCK_TIMEOUT_SIGNAL = 'MOCK_TIMEOUT_SIGNAL';
 
-// Mock withTimeout while preserving real TimeoutError class for instanceof checks
+// Mock withTimeout while preserving real TimeoutError class for instanceof checks.
+// TimeoutError moved to @tzurot/common-types in the 2026-04-21 extraction, so we
+// pull it from there rather than re-importing retry.js (which no longer exports it).
 vi.mock('../utils/retry.js', async importOriginal => {
   const actual = await importOriginal<typeof import('../utils/retry.js')>();
+  const { TimeoutError } =
+    await vi.importActual<typeof import('@tzurot/common-types')>('@tzurot/common-types');
   return {
     ...actual,
     withTimeout: async <T>(
@@ -48,7 +52,7 @@ vi.mock('../utils/retry.js', async importOriginal => {
         return await fn(controller.signal);
       } catch (error) {
         if (error instanceof Error && error.message === MOCK_TIMEOUT_SIGNAL) {
-          throw new actual.TimeoutError(timeout, operation, error);
+          throw new TimeoutError(timeout, operation, error);
         }
         throw error;
       }

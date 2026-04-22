@@ -14,9 +14,6 @@
 import type { Logger } from 'pino';
 import { RETRY_CONFIG, TimeoutError, normalizeErrorForLogging } from '@tzurot/common-types';
 
-// Re-export for existing ai-worker callers that imported from this module
-export { TimeoutError, normalizeErrorForLogging };
-
 /**
  * Configuration options for retry behavior
  */

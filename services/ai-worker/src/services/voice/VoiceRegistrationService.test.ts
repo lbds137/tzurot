@@ -6,9 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VoiceRegistrationService } from './VoiceRegistrationService.js';
 import { VoiceEngineError } from './VoiceEngineClient.js';
 import type { VoiceEngineClient } from './VoiceEngineClient.js';
-import type { EnvConfig } from '@tzurot/common-types';
 import * as commonTypes from '@tzurot/common-types';
-import { TimeoutError } from '../../utils/retry.js';
+import { TimeoutError, type EnvConfig } from '@tzurot/common-types';
 
 // Mock global fetch
 const mockFetch = vi.fn();
