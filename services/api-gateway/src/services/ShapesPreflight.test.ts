@@ -86,6 +86,15 @@ describe('probeShapesSession', () => {
     await expect(probeShapesSession(SESSION_COOKIE)).resolves.toBe('inconclusive');
   });
 
+  it('returns "inconclusive" on 429 rate limited', async () => {
+    // Data endpoints (like /api/users/info) can rate-limit independently of
+    // auth validity. A 429 must NOT be treated as "invalid cookie" — the
+    // cookie may be perfectly good, we just hit the rate limiter. Pin this
+    // so nobody later adds 429 to the 401/403 branch "for symmetry."
+    mockFetch.mockResolvedValueOnce(mockResponse(429));
+    await expect(probeShapesSession(SESSION_COOKIE)).resolves.toBe('inconclusive');
+  });
+
   it('returns "inconclusive" on network error (TypeError from undici)', async () => {
     mockFetch.mockRejectedValueOnce(new TypeError('fetch failed'));
     await expect(probeShapesSession(SESSION_COOKIE)).resolves.toBe('inconclusive');
@@ -123,7 +132,10 @@ describe('probeShapesSession', () => {
     await probeShapesSession(SESSION_COOKIE);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/users/info'),
+      // Pin `shapes.inc/api/users/info` rather than the loose `/api/users/info`
+      // — the former prevents a silent match against e.g. `/api/users/info-extended`
+      // if someone ever reshapes PREFLIGHT_ENDPOINT.
+      expect.stringContaining('shapes.inc/api/users/info'),
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
