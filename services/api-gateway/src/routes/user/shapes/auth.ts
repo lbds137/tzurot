@@ -29,6 +29,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { probeShapesSession } from '../../../services/ShapesPreflight.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-auth');
@@ -73,6 +74,22 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
         res,
         ErrorResponses.validationError(
           `Session cookie value must be at least ${SHAPES_TOKEN_MIN_LENGTH} characters and contain only alphanumeric, dot, underscore, or hyphen characters`
+        )
+      );
+    }
+
+    // Preflight the cookie against shapes.inc before persisting. Catches
+    // already-expired cookies at submit time rather than on the user's first
+    // `/shapes import` attempt minutes later. Transient upstream failures
+    // (5xx, network, timeout) produce `inconclusive` and we proceed anyway —
+    // a shapes.inc outage must not block users from saving valid credentials.
+    const preflight = await probeShapesSession(sessionCookie);
+    if (preflight === 'invalid') {
+      logger.info({ discordUserId }, 'Preflight rejected cookie; not persisting');
+      return sendError(
+        res,
+        ErrorResponses.validationError(
+          'shapes.inc rejected this session cookie. It may be expired or from the wrong domain — harvest a fresh cookie from https://shapes.inc/dashboard and try again.'
         )
       );
     }
