@@ -60,6 +60,45 @@ const KNOWN_THINKING_TAGS = [
 ] as const;
 
 /**
+ * GLM-4.5-Air fake-user-message-echo pattern.
+ *
+ * Observed 2026-04-22 (req b533e288-fb07-46c0-a5e2-a0f78883e63e): with
+ * `reasoning.enabled=true` and no OpenRouter-side reasoning extraction,
+ * GLM-4.5-Air improvised a reasoning channel by wrapping its chain-of-thought
+ * in tags that mimic our prompt-assembly format:
+ *
+ *   <from_id>UUID</from_id>
+ *   <user>Display Name</user>
+ *   <message>... chain of thought here ...</message>
+ *
+ *   <actual in-character response>
+ *
+ * The three structural rules that make this safe to extract (not just strip):
+ *   1. Start-of-response anchor (`^\s*`) — mid-response matches are left alone.
+ *   2. UUID validation (`[a-fA-F0-9\-]{36}`) — no legitimate roleplay output
+ *      starts with an invisible 36-char hex-dash block; UUIDs only appear in
+ *      our internal assembly format.
+ *   3. Strict tag sequence (`<from_id>` → `<user>` → `<message>`) — all three
+ *      in order with standard whitespace between them.
+ *
+ * False-positive risk: effectively zero. The UUID shape is the load-bearing
+ * guarantee; the tag names are scaffolding around it.
+ *
+ * Architecture: this is a "model-specific pattern extractor" that runs as a
+ * first pass in `extractThinkingBlocks`, before the generic `KNOWN_THINKING_TAGS`
+ * loop. Council (Gemini 3.1 Pro Preview, 2026-04-22) recommended the
+ * Chain-of-Extractors pattern: complex model-specific regexes first,
+ * simple generic tag patterns second.
+ *
+ * Deletion plan: once OpenRouter's reasoning-extractor middleware handles
+ * this upstream (they actively polyfill similar quirks for DeepSeek/Qwen/Llama),
+ * this pattern can be removed. File an issue with them with the raw API
+ * response as evidence.
+ */
+const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
+  /^\s*<from_id>[a-fA-F0-9-]{36}<\/from_id>\s*<user>[^<]*<\/user>\s*<message>([\s\S]*?)<\/message>\s*/;
+
+/**
  * Alternation pattern fragment for use in regex: `think|thinking|...`
  *
  * Order is safe — all usage sites have structural terminators (`>`, `\b`)
@@ -303,6 +342,29 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
   const normalized = normalizeThinkingTagNamespaces(content);
   let visibleContent = normalized;
 
+  // Pass 1 — model-specific pattern extractors.
+  // Runs before the generic KNOWN_THINKING_TAGS loop so the leading block
+  // is consumed before the simple tag extractors see it. Currently only
+  // handles GLM-4.5-Air's fake-user-message wrapper; add new entries here
+  // for future model-specific leak patterns (see Chain-of-Extractors rationale
+  // on GLM_FAKE_USER_MESSAGE_ECHO_PATTERN).
+  const fakeUserMessageMatch = GLM_FAKE_USER_MESSAGE_ECHO_PATTERN.exec(visibleContent);
+  if (fakeUserMessageMatch !== null) {
+    const extractedThinking = fakeUserMessageMatch[1].trim();
+    if (extractedThinking.length > 0) {
+      thinkingParts.push(extractedThinking);
+    }
+    visibleContent = visibleContent.replace(GLM_FAKE_USER_MESSAGE_ECHO_PATTERN, '');
+    logger.warn(
+      {
+        extractedLength: extractedThinking.length,
+        remainingLength: visibleContent.length,
+      },
+      'Stripped leading fake-user-message wrapper (GLM-4.5-Air reasoning leak)'
+    );
+  }
+
+  // Pass 2 — generic known-thinking-tag extractors.
   // Extract thinking content from ALL patterns and ALWAYS remove from visible content
   // This prevents tag leakage when responses contain multiple tag types
   for (const pattern of THINKING_PATTERNS) {
