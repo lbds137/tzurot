@@ -48,7 +48,8 @@ export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
 
   if (missing.length > 0) {
     process.stderr.write(chalk.red(`\nMissing (${missing.length}) — merged but not in notes:\n`));
-    for (const n of missing.sort((a, b) => a - b)) {
+    // `missing` and `extra` already come sorted from classifyRefs.
+    for (const n of missing) {
       const pr = mergedPrs.find(p => p.number === n);
       process.stderr.write(`  #${n}: ${pr?.title ?? '(title unknown)'}\n`);
     }
@@ -61,7 +62,7 @@ export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
         `\nExtra (${extra.length}) — referenced in notes but not merged in ${fromTag}..HEAD:\n`
       )
     );
-    for (const n of extra.sort((a, b) => a - b)) {
+    for (const n of extra) {
       process.stderr.write(`  #${n}\n`);
     }
     hasIssues = true;
