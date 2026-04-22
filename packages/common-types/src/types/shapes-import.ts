@@ -373,6 +373,16 @@ const SHAPES_TOKEN_SHAPE = /^[A-Za-z0-9._-]+$/;
 export const SHAPES_TOKEN_MIN_LENGTH = 32;
 
 /**
+ * Upper bound for a plausible Better Auth session token value. Typical
+ * tokens are 32–128 characters; 512 is well above any realistic length
+ * while blocking pathological oversize inputs (a malicious or
+ * misconfigured caller could otherwise submit a multi-KB value that
+ * would pass shape validation and balloon the stored ciphertext + the
+ * preflight `Cookie:` header).
+ */
+export const SHAPES_TOKEN_MAX_LENGTH = 512;
+
+/**
  * Parse the user-supplied modal input into a normalized cookie string.
  *
  * Accepts three input shapes, in order of preference:
@@ -437,5 +447,9 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
  * re-routing through the full three-shape parser.
  */
 export function isPlausibleShapesTokenValue(value: string): boolean {
-  return value.length >= SHAPES_TOKEN_MIN_LENGTH && SHAPES_TOKEN_SHAPE.test(value);
+  return (
+    value.length >= SHAPES_TOKEN_MIN_LENGTH &&
+    value.length <= SHAPES_TOKEN_MAX_LENGTH &&
+    SHAPES_TOKEN_SHAPE.test(value)
+  );
 }

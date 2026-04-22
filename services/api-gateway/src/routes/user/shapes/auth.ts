@@ -22,6 +22,7 @@ import {
   CREDENTIAL_TYPES,
   SHAPES_SESSION_COOKIE_NAME,
   SHAPES_TOKEN_MIN_LENGTH,
+  SHAPES_TOKEN_MAX_LENGTH,
   isPlausibleShapesTokenValue,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
@@ -73,7 +74,7 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       return sendError(
         res,
         ErrorResponses.validationError(
-          `Session cookie value must be at least ${SHAPES_TOKEN_MIN_LENGTH} characters and contain only alphanumeric, dot, underscore, or hyphen characters`
+          `Session cookie value must be ${SHAPES_TOKEN_MIN_LENGTH}-${SHAPES_TOKEN_MAX_LENGTH} characters and contain only alphanumeric, dot, underscore, or hyphen characters`
         )
       );
     }
@@ -92,6 +93,9 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
           'shapes.inc rejected this session cookie. It may be expired or from the wrong domain — harvest a fresh cookie from https://shapes.inc/dashboard and try again.'
         )
       );
+    }
+    if (preflight === 'inconclusive') {
+      logger.warn({ discordUserId }, 'Preflight inconclusive; proceeding with persistence');
     }
 
     const userId = await resolveProvisionedUserId(req, userService);

@@ -50,6 +50,18 @@ describe('isPlausibleShapesTokenValue', () => {
     expect(isPlausibleShapesTokenValue('a'.repeat(31))).toBe(false);
   });
 
+  it('accepts a 512-char value (exact upper boundary)', () => {
+    expect(isPlausibleShapesTokenValue('a'.repeat(512))).toBe(true);
+  });
+
+  it('rejects a 513-char value (just over the maximum)', () => {
+    expect(isPlausibleShapesTokenValue('a'.repeat(513))).toBe(false);
+  });
+
+  it('rejects a 10,000-char pathological oversize value', () => {
+    expect(isPlausibleShapesTokenValue('a'.repeat(10_000))).toBe(false);
+  });
+
   it('rejects an empty string', () => {
     expect(isPlausibleShapesTokenValue('')).toBe(false);
   });
