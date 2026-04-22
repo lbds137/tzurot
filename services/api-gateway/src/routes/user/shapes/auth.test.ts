@@ -39,9 +39,14 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 
 // Mock the preflight so tests don't hit shapes.inc. Default to 'valid' so the
 // happy-path tests don't need per-case wiring; error-path tests override per call.
-const mockProbeShapesSession = vi.fn().mockResolvedValue('valid');
+// Strictly typed so a typo in a mockResolvedValueOnce call (e.g., 'inconclusve')
+// would fail type-check rather than silently misdirect the test.
+import type { PreflightOutcome } from '../../../services/ShapesPreflight.js';
+const mockProbeShapesSession = vi
+  .fn<(sessionCookie: string) => Promise<PreflightOutcome>>()
+  .mockResolvedValue('valid');
 vi.mock('../../../services/ShapesPreflight.js', () => ({
-  probeShapesSession: (...args: unknown[]) => mockProbeShapesSession(...args),
+  probeShapesSession: (cookie: string) => mockProbeShapesSession(cookie),
 }));
 
 import { createShapesAuthRoutes } from './auth.js';
@@ -190,7 +195,7 @@ describe('Shapes Auth Routes', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.stringContaining('32 characters') })
+        expect.objectContaining({ message: expect.stringContaining('32-512 characters') })
       );
     });
 
@@ -204,6 +209,17 @@ describe('Shapes Auth Routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: expect.stringContaining('alphanumeric') })
       );
+    });
+
+    it('should reject a value longer than the maximum length', async () => {
+      // Pathological oversize input — 10 KB of alphanumeric passes the shape
+      // regex but must be rejected by the length ceiling so it can't reach
+      // the preflight fetch with a multi-KB Cookie header.
+      const { res } = await callStoreHandler({
+        sessionCookie: `__Secure-better-auth.session_token=${'a'.repeat(10000)}`,
+      });
+
+      expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('should encrypt and upsert a valid Better Auth session cookie', async () => {
