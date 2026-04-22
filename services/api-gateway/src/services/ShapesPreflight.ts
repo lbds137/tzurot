@@ -77,8 +77,11 @@ export async function probeShapesSession(sessionCookie: string): Promise<Preflig
     // We only need the status code, not the body. Cancel the body stream
     // so the socket can return to undici's keep-alive pool immediately
     // instead of waiting for GC. Fire-and-forget: cleanup errors mustn't
-    // affect the preflight classification outcome.
-    void response.body?.cancel();
+    // affect the preflight classification outcome. `void` swallows the
+    // resolved value; the `.catch` swallows any rejection — without it
+    // a cancel-rejection would surface as an unhandled rejection and
+    // (Node 18+ default) crash the process.
+    void response.body?.cancel().catch(() => undefined);
 
     if (response.ok) {
       // Log the happy path at info level so observability grep

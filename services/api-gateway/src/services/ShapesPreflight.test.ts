@@ -22,6 +22,11 @@ import { probeShapesSession } from './ShapesPreflight.js';
 
 const SESSION_COOKIE = '__Secure-better-auth.session_token=abcdef0123456789abcdef0123456789';
 
+// Intentionally minimal — no `body` field. The production code's
+// `response.body?.cancel()` short-circuits on `undefined`, so the cancel
+// path itself is not exercised by these tests. That's intentional: cancel
+// is a pure perf optimization off the observable status → outcome path, so
+// the test contract stays focused on classification behavior.
 function mockResponse(status: number): Response {
   return {
     ok: status >= 200 && status < 300,
