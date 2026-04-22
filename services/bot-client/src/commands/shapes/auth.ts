@@ -27,33 +27,22 @@ import { DISCORD_COLORS } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 
-/** Build the auth modal with cookie input fields */
+/** Build the auth modal with a single cookie input field (Better Auth, 2026-04+) */
 export function buildAuthModal(): ModalBuilder {
   const modal = new ModalBuilder()
     .setCustomId(ShapesCustomIds.auth())
     .setTitle('Shapes.inc Authentication');
 
-  const cookiePart0 = new TextInputBuilder()
-    .setCustomId('cookiePart0')
-    .setLabel('appSession (or appSession.0)')
+  const cookieValue = new TextInputBuilder()
+    .setCustomId('cookieValue')
+    .setLabel('Session cookie value')
     .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Paste your appSession cookie value (or appSession.0 if you have two)')
+    .setPlaceholder('Paste the value of __Secure-better-auth.session_token')
     .setRequired(true)
-    .setMinLength(10)
+    .setMinLength(16)
     .setMaxLength(4000);
 
-  const cookiePart1 = new TextInputBuilder()
-    .setCustomId('cookiePart1')
-    .setLabel('appSession.1 (only if you have two cookies)')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Leave empty if you only have one appSession cookie')
-    .setRequired(false)
-    .setMaxLength(4000);
-
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(cookiePart0),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(cookiePart1)
-  );
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(cookieValue));
 
   return modal;
 }
@@ -73,14 +62,16 @@ export async function handleAuth(context: ModalCommandContext): Promise<void> {
       `To import characters from shapes.inc, ${botName} needs your session cookie.\n\n` +
         '**How to get it:**\n' +
         '1. Log in to [shapes.inc](https://shapes.inc) in your browser\n' +
-        '2. Navigate to [shapes.inc/dashboard](https://shapes.inc/dashboard) ' +
-        '(this avoids the chat UI which rotates your cookie frequently)\n' +
+        '2. Navigate to [shapes.inc/dashboard](https://shapes.inc/dashboard)\n' +
         '3. Press **F12** (or Ctrl+Shift+I) to open Developer Tools\n' +
         '4. Click the **Application** tab (Chrome) or **Storage** tab (Firefox)\n' +
         '5. In the left sidebar, expand **Cookies** → click `https://shapes.inc`\n' +
-        '6. Find `appSession` (or `appSession.0` and `appSession.1`)\n' +
-        '7. Double-click each **Value** cell to select it, then copy\n\n' +
-        `*Your cookie is encrypted and stored securely. ` +
+        '6. Find the cookie named `__Secure-better-auth.session_token` ' +
+        '(sort by the HttpOnly column to find it faster — it has that flag set)\n' +
+        '7. Double-click the **Value** cell to select it, then copy\n\n' +
+        '⚠️ **Must be from `shapes.inc`, not `talk.shapes.inc`.** ' +
+        "The chat subdomain is a separate app with its own auth and its cookie won't work here.\n\n" +
+        `*Your cookie is encrypted at rest with AES-256-GCM. ` +
         `${botName} never sees your shapes.inc password.*`
     );
 

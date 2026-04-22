@@ -21,7 +21,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    decryptApiKey: vi.fn().mockReturnValue('appSession.0=abc; appSession.1=def'),
+    decryptApiKey: vi
+      .fn()
+      .mockReturnValue('__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq'),
     encryptApiKey: vi
       .fn()
       .mockReturnValue({ iv: 'new-iv', content: 'new-content', tag: 'new-tag' }),
