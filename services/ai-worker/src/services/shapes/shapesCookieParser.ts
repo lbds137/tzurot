@@ -1,48 +1,61 @@
 /**
  * Cookie Parser for Shapes.inc API
  *
- * Shapes.inc rotates the appSession cookie on every API call. This module
- * parses set-cookie response headers and merges them into the existing
- * cookie string, keeping the cookie jar up to date across requests.
+ * Merges Set-Cookie response headers into the existing cookie jar, narrowed
+ * by `isShapesAllowedCookieName`. Cookies outside the allowlist (analytics,
+ * WAF routing, CSRF tokens, etc.) are discarded rather than retained in the
+ * jar — mixing unrelated cookies into subsequent requests adds risk without
+ * benefit.
+ *
+ * Under Better Auth, the session cookie rotates rarely (within a ~1-day
+ * `updateAge` window inside a 7-day session), so in the common case
+ * `updateCookieFromResponse` is a no-op and returns the existing cookie
+ * string unchanged.
  */
+
+import { isShapesAllowedCookieName } from '@tzurot/common-types';
 
 /**
- * Parse set-cookie headers and merge fresh session values into the existing
- * cookie string. Returns the updated cookie string.
+ * Parse Set-Cookie headers and merge allowlisted values into the existing
+ * cookie string. Returns the updated cookie string containing ONLY cookies
+ * that pass `isShapesAllowedCookieName`.
  *
- * @param currentCookie - The current cookie string (semicolon-delimited key=value pairs)
- * @param response - The HTTP response whose set-cookie headers should be merged
- * @returns The updated cookie string with any rotated values applied
+ * @param currentCookie - The current cookie string (semicolon-delimited name=value pairs)
+ * @param response - The HTTP response whose Set-Cookie headers should be merged
+ * @returns The updated cookie string, filtered to the allowlist
  */
 export function updateCookieFromResponse(currentCookie: string, response: Response): string {
-  const setCookieHeaders = response.headers.getSetCookie();
-  if (setCookieHeaders.length === 0) {
-    return currentCookie;
-  }
-
-  // Parse current cookies into a map
+  // Parse current jar, filtering to allowlisted names.
   const cookieMap = new Map<string, string>();
   for (const part of currentCookie.split(';')) {
     const trimmed = part.trim();
     const eqIdx = trimmed.indexOf('=');
-    if (eqIdx > 0) {
-      cookieMap.set(trimmed.substring(0, eqIdx), trimmed.substring(eqIdx + 1));
+    if (eqIdx <= 0) {
+      continue;
+    }
+    const name = trimmed.substring(0, eqIdx);
+    if (isShapesAllowedCookieName(name)) {
+      cookieMap.set(name, trimmed.substring(eqIdx + 1));
     }
   }
 
-  // Update with new cookies from response
+  // Merge allowlisted Set-Cookie entries from the response.
+  const setCookieHeaders = response.headers.getSetCookie();
   for (const header of setCookieHeaders) {
-    // set-cookie: name=value; Path=/; ...
-    const cookiePart = header.split(';')[0].trim();
-    const eqIdx = cookiePart.indexOf('=');
-    if (eqIdx > 0) {
-      const name = cookiePart.substring(0, eqIdx);
-      const value = cookiePart.substring(eqIdx + 1);
-      cookieMap.set(name, value);
+    // Set-Cookie: name=value; Path=/; HttpOnly; ...
+    const firstPart = header.split(';')[0].trim();
+    const eqIdx = firstPart.indexOf('=');
+    if (eqIdx <= 0) {
+      continue;
     }
+    const name = firstPart.substring(0, eqIdx);
+    if (!isShapesAllowedCookieName(name)) {
+      continue;
+    }
+    cookieMap.set(name, firstPart.substring(eqIdx + 1));
   }
 
-  // Rebuild cookie string
+  // Rebuild the cookie string from the filtered map.
   const parts: string[] = [];
   for (const [name, value] of cookieMap) {
     parts.push(`${name}=${value}`);

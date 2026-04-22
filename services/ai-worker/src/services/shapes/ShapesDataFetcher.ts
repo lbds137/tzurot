@@ -5,7 +5,9 @@
  * memories (paginated), stories/knowledge, and user personalization.
  *
  * Key behaviors:
- * - Stateful cookie management (shapes.inc rotates cookies on each request)
+ * - Stateful cookie management (shapes.inc occasionally rotates the Better Auth
+ *   session cookie within its updateAge window; the jar is refreshed when a
+ *   Set-Cookie header for an allowlisted name is present on a response)
  * - Rate-limited requests (1s delay between calls)
  * - Per-request retry with exponential backoff (429, 5xx, network errors)
  * - AbortController timeouts per request
@@ -47,7 +49,13 @@ const RETRY_BASE_DELAY_MS = 2000;
 // ============================================================================
 
 interface FetchOptions {
-  /** Initial session cookie (full cookie string with both appSession parts) */
+  /**
+   * Initial session cookie string in the form
+   * `__Secure-better-auth.session_token=<value>`. Harvest this from an
+   * authenticated browser session on https://shapes.inc/dashboard by
+   * copying the httpOnly cookie of that name from
+   * DevTools → Application → Cookies.
+   */
   sessionCookie: string;
   /** AbortSignal for external cancellation */
   signal?: AbortSignal;

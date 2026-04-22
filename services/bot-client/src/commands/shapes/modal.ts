@@ -12,7 +12,7 @@
 
 import type { ModalSubmitInteraction } from 'discord.js';
 import { MessageFlags, EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, parseShapesSessionCookieInput } from '@tzurot/common-types';
 import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 
@@ -48,19 +48,15 @@ export async function handleShapesModalSubmit(interaction: ModalSubmitInteractio
 async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const cookiePart0 = interaction.fields.getTextInputValue('cookiePart0').trim();
-  const cookiePart1 = interaction.fields.getTextInputValue('cookiePart1').trim();
+  const rawInput = interaction.fields.getTextInputValue('cookieValue');
+  const parsed = parseShapesSessionCookieInput(rawInput);
 
-  if (cookiePart0.length === 0) {
-    await interaction.editReply('❌ Cookie value is required.');
+  if (!parsed.ok) {
+    await interaction.editReply(getInputValidationMessage(parsed.reason));
     return;
   }
 
-  // Build cookie string based on whether user has one or two cookies
-  const sessionCookie =
-    cookiePart1.length > 0
-      ? `appSession.0=${cookiePart0}; appSession.1=${cookiePart1}`
-      : `appSession=${cookiePart0}`;
+  const sessionCookie = parsed.cookie;
 
   try {
     const result = await callGatewayApi<{ success: boolean }>('/user/shapes/auth', {
@@ -112,12 +108,42 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
 function getAuthErrorMessage(status: number): string {
   switch (status) {
     case 400:
-      return '❌ **Invalid Cookie**\n\nThe session cookie format is invalid. Please check that you copied both parts correctly.';
+      return (
+        '❌ **Invalid Cookie**\n\n' +
+        'The session cookie format is invalid. Please re-run `/shapes auth` and paste the value ' +
+        'of `__Secure-better-auth.session_token` from your browser DevTools.'
+      );
     case 500:
     case 502:
     case 503:
       return '❌ **Server Error**\n\nThe server encountered an error. Please try again in a few minutes.';
     default:
       return '❌ **Unable to Save Credentials**\n\nAn unexpected error occurred. Please try again later.';
+  }
+}
+
+/**
+ * Map a parser rejection reason to a user-facing message.
+ * Each reason gets a distinct hint so users can self-diagnose the paste mistake.
+ */
+function getInputValidationMessage(reason: 'empty' | 'wrong-cookie' | 'malformed-value'): string {
+  switch (reason) {
+    case 'empty':
+      return '❌ Cookie value is required.';
+    case 'wrong-cookie':
+      return (
+        "❌ **That doesn't look like the right cookie.**\n\n" +
+        'The input contained cookies, but not `__Secure-better-auth.session_token`. ' +
+        'Common mistake: copying the whole `Cookie:` header from the Network tab instead ' +
+        'of a single cookie value from the Application tab. ' +
+        'Please re-run `/shapes auth` and follow steps 4–7.'
+      );
+    case 'malformed-value':
+      return (
+        '❌ **Cookie value looks malformed.**\n\n' +
+        'Better Auth tokens are opaque alphanumeric strings (typically 32+ characters). ' +
+        'Please re-run `/shapes auth` and copy the exact value of ' +
+        '`__Secure-better-auth.session_token` from DevTools.'
+      );
   }
 }
