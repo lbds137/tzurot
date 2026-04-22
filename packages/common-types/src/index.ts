@@ -38,6 +38,7 @@ export {
   type CoreRedisServices,
 } from './utils/redis.js';
 export * from './utils/dateFormatting.js';
+export * from './utils/errors.js';
 export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';

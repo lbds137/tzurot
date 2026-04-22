@@ -12,7 +12,10 @@
  */
 
 import type { Logger } from 'pino';
-import { RETRY_CONFIG } from '@tzurot/common-types';
+import { RETRY_CONFIG, TimeoutError, normalizeErrorForLogging } from '@tzurot/common-types';
+
+// Re-export for existing ai-worker callers that imported from this module
+export { TimeoutError, normalizeErrorForLogging };
 
 /**
  * Configuration options for retry behavior
@@ -71,49 +74,6 @@ export class RetryError extends Error {
     super(message);
     this.name = 'RetryError';
   }
-}
-
-/** Typed sentinel for {@link withTimeout} — replaces fragile message-string
- * matching (`error.message.includes('timed out')`) with `instanceof` checks.
- * Preserves the original `AbortError` as `cause` for debugging when available. */
-export class TimeoutError extends Error {
-  constructor(
-    public readonly timeoutMs: number,
-    public readonly operationName: string,
-    cause?: Error
-  ) {
-    // Error superclass ignores undefined cause, so passing { cause } is safe either way
-    super(`${operationName} timed out after ${timeoutMs}ms`, { cause });
-    this.name = 'TimeoutError';
-  }
-}
-
-/**
- * Normalize a caught error for Pino logging.
- *
- * LangChain/OpenAI SDK sometimes throws plain objects (e.g., literal `{}`)
- * instead of Error instances. Pino's error serializer can't extract useful
- * info from these — they serialize as `{ _nonErrorObject: true, raw: "{}" }`.
- *
- * This wraps non-Error values in a real Error with context, so the log
- * includes the operation name and a stringified snapshot of what was thrown.
- */
-function normalizeErrorForLogging(error: unknown, operationName: string): Error {
-  if (error instanceof Error) {
-    return error;
-  }
-
-  let detail: string;
-  try {
-    const str = JSON.stringify(error);
-    detail = str.length > 500 ? str.substring(0, 500) + '...' : str;
-  } catch {
-    detail = String(error);
-  }
-
-  const normalized = new Error(`[${operationName}] Non-Error object thrown: ${detail}`);
-  normalized.name = 'NormalizedError';
-  return normalized;
 }
 
 /**
