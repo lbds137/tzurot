@@ -74,6 +74,12 @@ export async function probeShapesSession(sessionCookie: string): Promise<Preflig
       signal: controller.signal,
     });
 
+    // We only need the status code, not the body. Cancel the body stream
+    // so the socket can return to undici's keep-alive pool immediately
+    // instead of waiting for GC. Fire-and-forget: cleanup errors mustn't
+    // affect the preflight classification outcome.
+    void response.body?.cancel();
+
     if (response.ok) {
       // Log the happy path at info level so observability grep
       // (`| grep ShapesPreflight`) can distinguish "ran and passed" from
