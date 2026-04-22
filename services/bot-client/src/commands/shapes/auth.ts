@@ -23,7 +23,7 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS, SHAPES_TOKEN_MIN_LENGTH } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 
@@ -39,7 +39,7 @@ export function buildAuthModal(): ModalBuilder {
     .setStyle(TextInputStyle.Paragraph)
     .setPlaceholder('Paste the value of __Secure-better-auth.session_token')
     .setRequired(true)
-    .setMinLength(16)
+    .setMinLength(SHAPES_TOKEN_MIN_LENGTH)
     .setMaxLength(4000);
 
   modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(cookieValue));

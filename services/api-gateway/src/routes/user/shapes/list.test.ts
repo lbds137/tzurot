@@ -18,7 +18,9 @@ vi.mock('@tzurot/common-types', async () => {
     }),
     decryptApiKey: vi
       .fn()
-      .mockReturnValue('__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq'),
+      .mockReturnValue(
+        '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef'
+      ),
   };
 });
 
@@ -124,7 +126,8 @@ describe('Shapes List Routes', () => {
         expect.stringContaining('shapes.inc/api/shapes'),
         expect.objectContaining({
           headers: expect.objectContaining({
-            Cookie: '__Secure-better-auth.session_token=abc123def456ghi789jkl012mno345pq',
+            Cookie:
+              '__Secure-better-auth.session_token=TEST-FIXTURE-not-a-real-session-token-abcdef',
           }),
         })
       );
