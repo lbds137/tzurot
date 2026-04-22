@@ -776,6 +776,57 @@ Final response.`;
       expect(result.visibleContent).toBe('Final response.');
     });
 
+    it('strips the wrapper but yields null thinkingContent when <message> is empty', () => {
+      // The `extractedThinking.length > 0` guard skips empty blocks so they
+      // don't pollute thinkingContent with empty strings, but the scaffolding
+      // must still be stripped from visibleContent. Pins the contract so
+      // the guard can't regress to "push empty strings into thinkingParts".
+      const content = `<from_id>${VALID_UUID}</from_id>
+<user>User</user>
+<message></message>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.blockCount).toBe(0);
+      expect(result.visibleContent).toBe('Response.');
+      expect(result.visibleContent).not.toContain('<from_id>');
+    });
+
+    it('rejects edge-case UUID-shaped strings (all hyphens, repeated hex digits)', () => {
+      // RFC 4122 hyphen-layout enforcement: a character class [a-fA-F0-9-]{36}
+      // would match "------------------------------------" or
+      // "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" — neither is a valid UUID
+      // shape. The strict 8-4-4-4-12 pattern rejects the former outright;
+      // the latter is structurally valid-shaped so it still matches (same
+      // as any real UUID with all-a hex).
+      const allHyphens = '------------------------------------';
+      const contentAllHyphens = `<from_id>${allHyphens}</from_id>
+<user>User</user>
+<message>content</message>
+
+Response.`;
+      const resultAllHyphens = extractThinkingBlocks(contentAllHyphens);
+      expect(resultAllHyphens.thinkingContent).toBeNull();
+      expect(resultAllHyphens.visibleContent).toContain('<from_id>');
+
+      // Control: a structurally-valid UUID shape (8-4-4-4-12) with all-a
+      // hex digits does match — this is intentional. Real UUIDs can
+      // contain any hex digits; the safety guarantee is the SHAPE, not
+      // the entropy of the bytes.
+      const allA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      const contentAllA = `<from_id>${allA}</from_id>
+<user>User</user>
+<message>content</message>
+
+Response.`;
+      const resultAllA = extractThinkingBlocks(contentAllA);
+      expect(resultAllA.thinkingContent).toBe('content');
+      expect(resultAllA.visibleContent).toBe('Response.');
+    });
+
     it('handles uppercase UUIDs (case-insensitivity on hex digits)', () => {
       const upperUuid = VALID_UUID.toUpperCase();
       const content = `<from_id>${upperUuid}</from_id>
