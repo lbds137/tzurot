@@ -84,6 +84,18 @@ export function listMergedPrsSince(since: string): MergedPr[] {
       'Failed to query merged PRs. Is `gh` installed and authenticated? Run `gh auth status` to check.'
     );
   }
-  const parsed = JSON.parse(raw) as MergedPr[];
+
+  // gh can exit 0 while writing an error message to stdout instead of JSON
+  // (version drift, transient auth issues). Wrap the parse so the user gets
+  // a useful error rather than a bare SyntaxError stack.
+  let parsed: MergedPr[];
+  try {
+    parsed = JSON.parse(raw) as MergedPr[];
+  } catch {
+    throw new Error(
+      `Failed to parse \`gh pr list\` output as JSON. Response was:\n${raw.slice(0, 200)}${raw.length > 200 ? '…' : ''}`
+    );
+  }
+
   return parsed.sort((a, b) => a.mergedAt.localeCompare(b.mergedAt));
 }
