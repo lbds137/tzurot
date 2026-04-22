@@ -4,9 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { transcribeAudio } from './AudioProcessor.js';
-import type { AttachmentMetadata } from '@tzurot/common-types';
-import { CONTENT_TYPES } from '@tzurot/common-types';
-import { TimeoutError } from '../../utils/retry.js';
+import { CONTENT_TYPES, TimeoutError, type AttachmentMetadata } from '@tzurot/common-types';
 
 // Create mock functions
 const mockVoiceTranscriptCacheGet = vi.fn().mockResolvedValue(null);

@@ -10,8 +10,14 @@
  * - Errors are specific to help users understand failures
  */
 
-import { createLogger, AIProvider, AI_ENDPOINTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
-import { withTimeout, TimeoutError } from '../utils/retry.js';
+import {
+  createLogger,
+  AIProvider,
+  AI_ENDPOINTS,
+  VALIDATION_TIMEOUTS,
+  TimeoutError,
+} from '@tzurot/common-types';
+import { withTimeout } from '../utils/retry.js';
 
 const logger = createLogger('KeyValidationService');
 

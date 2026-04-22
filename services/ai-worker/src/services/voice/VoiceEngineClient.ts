@@ -5,8 +5,13 @@
  * Uses the native /v1/transcribe endpoint (richer metadata than OpenAI-compatible).
  */
 
-import { createLogger, getConfig, TIMEOUTS, isTransientNetworkError } from '@tzurot/common-types';
-import { TimeoutError } from '../../utils/retry.js';
+import {
+  createLogger,
+  getConfig,
+  TIMEOUTS,
+  isTransientNetworkError,
+  TimeoutError,
+} from '@tzurot/common-types';
 
 const logger = createLogger('VoiceEngineClient');
 

@@ -11,9 +11,10 @@ import {
   createLogger,
   TIMEOUTS,
   isTransientNetworkError,
+  TimeoutError,
   type AttachmentMetadata,
 } from '@tzurot/common-types';
-import { withRetry, RetryError, TimeoutError } from '../../utils/retry.js';
+import { withRetry, RetryError } from '../../utils/retry.js';
 import {
   VoiceEngineError,
   getVoiceEngineClient,

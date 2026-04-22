@@ -6,8 +6,7 @@
  * VoiceRegistrationService (self-hosted voice-engine registration).
  */
 
-import { createLogger, getConfig } from '@tzurot/common-types';
-import { TimeoutError } from '../../utils/retry.js';
+import { createLogger, getConfig, TimeoutError } from '@tzurot/common-types';
 
 const logger = createLogger('VoiceReferenceHelper');
 
