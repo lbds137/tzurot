@@ -1,5 +1,117 @@
-import { describe, it, expect } from 'vitest';
-import { findDuplicates, extractPrRefs, classifyRefs } from './verify-notes.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('./github-prs.js', () => ({
+  discoverPrevTag: vi.fn(),
+  tagTimestamp: vi.fn(),
+  listMergedPrsSince: vi.fn(),
+}));
+
+import { findDuplicates, extractPrRefs, classifyRefs, verifyNotes } from './verify-notes.js';
+import { discoverPrevTag, tagTimestamp, listMergedPrsSince } from './github-prs.js';
+
+const mockedDiscoverPrevTag = vi.mocked(discoverPrevTag);
+const mockedTagTimestamp = vi.mocked(tagTimestamp);
+const mockedListMergedPrsSince = vi.mocked(listMergedPrsSince);
+
+/**
+ * Mock process.stdin as an async iterable that yields the given input chunks.
+ * Restore is handled by the afterEach in the describe block below.
+ */
+function mockStdin(chunks: string[]): void {
+  const iterable = {
+    [Symbol.asyncIterator]() {
+      let i = 0;
+      return {
+        next() {
+          if (i < chunks.length) {
+            return Promise.resolve({ value: chunks[i++], done: false });
+          }
+          return Promise.resolve({ value: undefined, done: true });
+        },
+      };
+    },
+  };
+  Object.defineProperty(process, 'stdin', {
+    configurable: true,
+    get: () =>
+      Object.assign(iterable, {
+        setEncoding: vi.fn(),
+      }),
+  });
+}
+
+describe('verifyNotes (orchestrator)', () => {
+  let stderr: string;
+  let stderrSpy: ReturnType<typeof vi.spyOn>;
+  let exitSpy: ReturnType<typeof vi.spyOn>;
+  const originalStdin = process.stdin;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stderr = '';
+    stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(chunk => {
+      stderr += String(chunk);
+      return true;
+    });
+    // Mock process.exit to throw a sentinel we can assert on, so the test
+    // flow doesn't actually terminate the test runner.
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(code => {
+      throw new Error(`PROCESS_EXIT:${code ?? ''}`);
+    });
+  });
+
+  afterEach(() => {
+    stderrSpy.mockRestore();
+    exitSpy.mockRestore();
+    // Restore stdin so later tests don't see the mock.
+    Object.defineProperty(process, 'stdin', {
+      configurable: true,
+      value: originalStdin,
+      writable: true,
+    });
+  });
+
+  it('returns cleanly (no exit call) when notes match merged PRs exactly', async () => {
+    mockStdin(['### Features\n- **ai:** X (#869)\n- **bot:** Y (#870)\n']);
+    mockedDiscoverPrevTag.mockReturnValueOnce('v3.0.0-beta.103');
+    mockedTagTimestamp.mockReturnValueOnce('2026-04-22T10:00:00Z');
+    mockedListMergedPrsSince.mockReturnValueOnce([
+      { number: 869, title: 'feat(ai): X', mergedAt: '2026-04-22T11:00:00Z' },
+      { number: 870, title: 'fix(bot): Y', mergedAt: '2026-04-22T12:00:00Z' },
+    ]);
+
+    await verifyNotes({});
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(stderr).toContain('✅');
+    expect(stderr).toContain('all 2 merged PRs');
+  });
+
+  it('reports missing PRs and exits 1 when notes are incomplete', async () => {
+    mockStdin(['### Features\n- **ai:** X (#869)\n']); // note: PR 870 missing
+    mockedDiscoverPrevTag.mockReturnValueOnce('v3.0.0-beta.103');
+    mockedTagTimestamp.mockReturnValueOnce('2026-04-22T10:00:00Z');
+    mockedListMergedPrsSince.mockReturnValueOnce([
+      { number: 869, title: 'feat(ai): X', mergedAt: '2026-04-22T11:00:00Z' },
+      { number: 870, title: 'fix(bot): Y', mergedAt: '2026-04-22T12:00:00Z' },
+    ]);
+
+    await expect(verifyNotes({})).rejects.toThrow('PROCESS_EXIT:1');
+    expect(stderr).toContain('Missing');
+    expect(stderr).toContain('#870');
+    expect(stderr).toContain('fix(bot): Y'); // title surfaced in missing list
+  });
+
+  it('exits 1 with a clear error when stdin is empty', async () => {
+    mockStdin(['']);
+
+    await expect(verifyNotes({})).rejects.toThrow('PROCESS_EXIT:1');
+    expect(stderr).toContain('no input on stdin');
+    // Should NOT reach the shell-out helpers when input is empty.
+    expect(mockedDiscoverPrevTag).not.toHaveBeenCalled();
+    expect(mockedListMergedPrsSince).not.toHaveBeenCalled();
+  });
+});
 
 describe('extractPrRefs', () => {
   it('extracts refs from canonical `(#N)` line items', () => {
