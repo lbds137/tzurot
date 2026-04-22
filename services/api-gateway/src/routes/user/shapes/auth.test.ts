@@ -172,6 +172,31 @@ describe('Shapes Auth Routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
+    it('should reject a value shorter than the minimum length', async () => {
+      // 8-char value; the min is 32. Matches bot-client modal's parse-time
+      // check so there's no gate that accepts what the other rejects.
+      const { res } = await callStoreHandler({
+        sessionCookie: '__Secure-better-auth.session_token=tooShort',
+      });
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringContaining('32 characters') })
+      );
+    });
+
+    it('should reject a value containing disallowed characters', async () => {
+      // Spaces fail the token-shape regex even though the length is fine.
+      const { res } = await callStoreHandler({
+        sessionCookie: '__Secure-better-auth.session_token=val with spaces and padding xxx',
+      });
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringContaining('alphanumeric') })
+      );
+    });
+
     it('should encrypt and upsert a valid Better Auth session cookie', async () => {
       const { res } = await callStoreHandler({
         sessionCookie: '__Secure-better-auth.session_token=opaque-better-auth-token-value-12345',
