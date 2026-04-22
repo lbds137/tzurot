@@ -90,18 +90,18 @@ export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
 }
 
 /**
- * Extract PR refs (`#<digits>`) from notes markdown.
+ * Extract PR refs from notes markdown.
  *
- * Known limitation: this also matches issue refs, upstream-repo references,
- * and any other `#<number>` pattern in prose (e.g., "fixes #45 in upstream").
- * Those will surface as `extra` in the classification step. Accepted as
- * noise for now — tightening would require parsing markdown structure or
- * requiring a specific syntax like `(#N)` at line-end. Documenting explicitly
- * so reviewers don't spend time debugging a false-positive "extra" entry.
+ * Matches the canonical `(#N)` format emitted by `release:draft-notes` at
+ * line-end of each bullet item. This deliberately narrow pattern avoids
+ * false positives on prose `#N` references (e.g., "fixes #45 in upstream")
+ * that would otherwise surface as spurious `extra` entries. If future
+ * release-notes prose needs bare `#N` refs to count as PR refs, widen the
+ * regex here.
  */
 export function extractPrRefs(notes: string): number[] {
   const refs: number[] = [];
-  for (const match of notes.matchAll(/#(\d+)/g)) {
+  for (const match of notes.matchAll(/\(#(\d+)\)/g)) {
     refs.push(parseInt(match[1], 10));
   }
   return refs;
@@ -120,12 +120,17 @@ export interface RefClassification {
  * Classify extracted PR refs against the merged-PR set for the range.
  * Pure function — extracted from the orchestrator so the diff logic is
  * unit-testable without mocking `process.exit`.
+ *
+ * Returned arrays are sorted ascending so callers get a stable order
+ * regardless of Set iteration order (Set iterates in insertion order,
+ * which could be chronological-by-merge rather than numerical depending
+ * on how the caller built `mergedNumbers`).
  */
 export function classifyRefs(notesRefs: number[], mergedNumbers: Set<number>): RefClassification {
   const duplicates = findDuplicates(notesRefs);
   const notesPrSet = new Set(notesRefs);
-  const missing = [...mergedNumbers].filter(n => !notesPrSet.has(n));
-  const extra = [...notesPrSet].filter(n => !mergedNumbers.has(n));
+  const missing = [...mergedNumbers].filter(n => !notesPrSet.has(n)).sort((a, b) => a - b);
+  const extra = [...notesPrSet].filter(n => !mergedNumbers.has(n)).sort((a, b) => a - b);
   return { missing, extra, duplicates };
 }
 

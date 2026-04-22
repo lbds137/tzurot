@@ -15,16 +15,17 @@ describe('extractPrRefs', () => {
     expect(extractPrRefs('# Release notes\n\nNothing to see.')).toEqual([]);
   });
 
-  it('matches ALL #N patterns — including non-PR references (known limitation)', () => {
-    // Documented behavior: extractor is greedy on `#N` to keep implementation
-    // simple. False-positives surface as `extra` in classifyRefs, which is
-    // visible and actionable rather than silent.
-    const notes = 'See issue #42 upstream for context. This PR is #869.';
-    expect(extractPrRefs(notes)).toEqual([42, 869]);
+  it('ignores bare `#N` references in prose (parens-only match)', () => {
+    // Tight regex is the fix for the prior "known limitation" — prose refs
+    // like "fixes #45 in upstream" no longer surface as spurious `extra`
+    // entries. Only `(#N)` at bullet-end matches, matching the draft-notes
+    // generator output format.
+    const notes = 'See issue #42 upstream. Referencing #43 in passing. This PR is (#869).';
+    expect(extractPrRefs(notes)).toEqual([869]);
   });
 
-  it('captures duplicates when a ref appears more than once', () => {
-    const notes = 'Mentioned in #869 and also in #869.';
+  it('captures duplicates when the same `(#N)` appears more than once', () => {
+    const notes = 'Mentioned in (#869) and also in (#869).';
     expect(extractPrRefs(notes)).toEqual([869, 869]);
   });
 });

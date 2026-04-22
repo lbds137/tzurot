@@ -28,8 +28,9 @@ describe('discoverPrevTag', () => {
     mockedExec.mockImplementationOnce(() => {
       throw new Error('fatal: No names found, cannot describe anything.');
     });
-    expect(() => discoverPrevTag()).toThrow(/Could not discover a previous tag/);
-    expect(() => discoverPrevTag()).toThrow(/--from <tag>/);
+    // Single assertion so `mockImplementationOnce` isn't consumed twice —
+    // the `/s` flag lets `.` span the newline between clauses.
+    expect(() => discoverPrevTag()).toThrow(/Could not discover a previous tag.*--from <tag>/s);
   });
 });
 
@@ -103,5 +104,20 @@ describe('listMergedPrsSince', () => {
       throw new Error('command not found: gh');
     });
     expect(() => listMergedPrsSince('2026-04-21T00:00:00Z')).toThrow(/gh auth status/);
+  });
+
+  it('throws a user-facing error when gh returns non-JSON (parse failure)', () => {
+    // gh can exit 0 while writing a plaintext error to stdout — the JSON.parse
+    // failure must surface a useful message, not a raw SyntaxError.
+    mockedExec.mockReturnValueOnce('error: graphql request failed\n');
+    expect(() => listMergedPrsSince('2026-04-21T00:00:00Z')).toThrow(
+      /Failed to parse.*output as JSON/
+    );
+  });
+
+  it('truncates overly long non-JSON responses in the parse error', () => {
+    const longResponse = 'x'.repeat(500);
+    mockedExec.mockReturnValueOnce(longResponse);
+    expect(() => listMergedPrsSince('2026-04-21T00:00:00Z')).toThrow(/…$/);
   });
 });
