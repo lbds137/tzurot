@@ -827,6 +827,46 @@ Response.`;
       expect(resultAllA.visibleContent).toBe('Response.');
     });
 
+    it('pins the Pass-1/Pass-2 double-extraction edge case for nested <think> tags', () => {
+      // Reviewer flagged (PR #875 round 3, 2026-04-22): Pass 2 reads from
+      // `normalized` (pre-Pass-1-strip), so if a Pass-1 <message> block
+      // contains a Pass-2 tag (like <think>), the inner content ends up in
+      // `thinkingParts` twice — once as part of the whole <message> block
+      // (Pass 1), once as its own tag match (Pass 2).
+      //
+      // Not user-visible (only affects `showThinking` output) and requires
+      // a pathological input shape. Left as-is intentionally; this test
+      // PINS the current behavior so any future refactor explicitly chooses
+      // whether to preserve or fix it.
+      //
+      // Contract pinned here:
+      //   - Pass 1 extracts the full <message> content (including the literal
+      //     <think> tags) into thinkingParts[0].
+      //   - Pass 2 finds the <think> in the pre-strip `normalized` content
+      //     and extracts the inner thinking into thinkingParts[1].
+      //   - visibleContent has the wrapper stripped (Pass 1) and any
+      //     remaining <think> tags stripped (Pass 2).
+      //   - `thinkingContent` joins both parts with the `---` separator.
+      const content = `<from_id>${VALID_UUID}</from_id>
+<user>User</user>
+<message>outer planning <think>nested reasoning</think> more planning</message>
+
+Final response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).not.toBeNull();
+      // Both the outer <message> content (with nested <think> tags literal)
+      // and the separately-extracted nested <think> inner are present.
+      expect(result.thinkingContent).toContain('outer planning');
+      expect(result.thinkingContent).toContain('nested reasoning');
+      expect(result.thinkingContent).toContain('---'); // Part separator
+      // visibleContent is clean — no scaffolding, no think tags.
+      expect(result.visibleContent).toBe('Final response.');
+      expect(result.visibleContent).not.toContain('<from_id>');
+      expect(result.visibleContent).not.toContain('<think>');
+    });
+
     it('handles uppercase UUIDs (case-insensitivity on hex digits)', () => {
       const upperUuid = VALID_UUID.toUpperCase();
       const content = `<from_id>${upperUuid}</from_id>
