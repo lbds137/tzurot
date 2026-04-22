@@ -130,10 +130,17 @@ describe('extractPrRefs', () => {
   it('ignores bare `#N` references in prose (parens-only match)', () => {
     // Tight regex is the fix for the prior "known limitation" — prose refs
     // like "fixes #45 in upstream" no longer surface as spurious `extra`
-    // entries. Only `(#N)` at bullet-end matches, matching the draft-notes
-    // generator output format.
+    // entries. Only paren-wrapped `(#N)` counts as a PR ref.
     const notes = 'See issue #42 upstream. Referencing #43 in passing. This PR is (#869).';
     expect(extractPrRefs(notes)).toEqual([869]);
+  });
+
+  it('also matches `(#N)` mid-sentence (documented behavior, not line-end-anchored)', () => {
+    // The regex is paren-anchored but not line-end-anchored — a hand-edited
+    // draft that weaves a ref into prose will count it too. Pinning this
+    // behavior so future readers don't assume line-end exclusivity.
+    const notes = 'This supersedes (#869) and adds (#870) for the cookie migration.';
+    expect(extractPrRefs(notes)).toEqual([869, 870]);
   });
 
   it('captures duplicates when the same `(#N)` appears more than once', () => {

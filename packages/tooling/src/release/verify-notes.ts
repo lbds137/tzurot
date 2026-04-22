@@ -93,12 +93,15 @@ export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
 /**
  * Extract PR refs from notes markdown.
  *
- * Matches the canonical `(#N)` format emitted by `release:draft-notes` at
- * line-end of each bullet item. This deliberately narrow pattern avoids
- * false positives on prose `#N` references (e.g., "fixes #45 in upstream")
- * that would otherwise surface as spurious `extra` entries. If future
- * release-notes prose needs bare `#N` refs to count as PR refs, widen the
- * regex here.
+ * Matches the `(#N)` format emitted by `release:draft-notes`. Deliberately
+ * paren-wrapped to filter out bare `#N` references in prose (e.g., "fixes
+ * #45 in upstream") — those no longer surface as spurious `extra` entries.
+ *
+ * Does NOT require line-end: `(#N)` mid-sentence still matches. In the
+ * generator's canonical output that's a non-issue (every `(#N)` is
+ * line-terminal), but a hand-edited draft that weaves a ref into prose
+ * will count it too. Accepted: hand-edits citing a merged PR mid-sentence
+ * should be classified as a legitimate reference, not noise.
  */
 export function extractPrRefs(notes: string): number[] {
   const refs: number[] = [];

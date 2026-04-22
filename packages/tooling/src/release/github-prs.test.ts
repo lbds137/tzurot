@@ -135,4 +135,15 @@ describe('listMergedPrsSince', () => {
     mockedExec.mockReturnValueOnce(longResponse);
     expect(() => listMergedPrsSince('2026-04-21T00:00:00Z')).toThrow(/…$/);
   });
+
+  it('throws a user-facing error when gh returns valid JSON that is not an array', () => {
+    // Transient GraphQL failures can produce `{"errors": [...]}` — valid
+    // JSON but not the array shape we need. The `as MergedPr[]` cast
+    // would otherwise let this through and `.sort()` would throw an
+    // unhelpful TypeError downstream.
+    mockedExec.mockReturnValueOnce('{"errors": [{"message": "GraphQL error"}]}');
+    expect(() => listMergedPrsSince('2026-04-21T00:00:00Z')).toThrow(
+      /Expected a JSON array.*got object/
+    );
+  });
 });
