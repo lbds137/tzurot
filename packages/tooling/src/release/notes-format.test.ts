@@ -202,6 +202,27 @@ describe('renderMarkdown', () => {
     expect(md).not.toContain('### Breaking Changes');
   });
 
+  it('uses the custom repoUrl in the Full Changelog trailer when provided', () => {
+    const grouped = groupBySections([pr(1, 'feat(a): X')]);
+    const md = renderMarkdown(grouped, {
+      fromTag: 'v1.0.0',
+      fromTimestamp: '2026-04-22T10:00:00Z',
+      repoUrl: 'https://github.com/some-fork/tzurot',
+    });
+    expect(md).toContain(
+      '**Full Changelog**: https://github.com/some-fork/tzurot/compare/v1.0.0...HEAD'
+    );
+  });
+
+  it('falls back to the default repo URL when repoUrl is omitted', () => {
+    const grouped = groupBySections([pr(1, 'feat(a): X')]);
+    const md = renderMarkdown(grouped, {
+      fromTag: 'v1.0.0',
+      fromTimestamp: '2026-04-22T10:00:00Z',
+    });
+    expect(md).toContain('https://github.com/lbds137/tzurot/compare/v1.0.0...HEAD');
+  });
+
   it('emits an Unparseable section when present', () => {
     const grouped = groupBySections([pr(1, 'feat(a): normal'), pr(2, 'WIP: unparseable')]);
     const md = renderMarkdown(grouped, OPTIONS);

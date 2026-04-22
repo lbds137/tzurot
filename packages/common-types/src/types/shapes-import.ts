@@ -418,7 +418,26 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
     return { ok: false, reason: 'empty' };
   }
 
-  const looksLikeCookieString = input.includes('=') || input.includes(';');
+  // Distinguish "bare token with trailing `=` padding" (e.g., base64
+  // `AAAA==`) from "cookie-string with structural `=` separator" (e.g.,
+  // `appSession=val` or `__Secure-better-auth.session_token=val`).
+  //
+  // Three signals, any of which routes to the cookie-string path:
+  //   1. Contains the expected cookie name → definitely intended as a
+  //      session-cookie (may have wrong value shape, but that's the
+  //      parser's job to distinguish from a bare token)
+  //   2. Has a `=` that isn't part of a trailing `=` padding run
+  //      (via `hasNonTrailingEquals` — O(n) scan, no regex).
+  //   3. Contains `;` → multi-cookie Cookie: header paste
+  //
+  // `AAAA==` matches none → bare-token path (correct).
+  // `NAME=` (empty value) matches signal 1 → cookie-string path, empty
+  // value then rejected as malformed (correct).
+  // `appSession=val` matches signal 2 → cookie-string path, wrong name
+  // then rejected as wrong-cookie (correct).
+  const hasStructuralEquals = hasNonTrailingEquals(input);
+  const looksLikeCookieString =
+    input.includes(SHAPES_SESSION_COOKIE_NAME) || hasStructuralEquals || input.includes(';');
   if (looksLikeCookieString) {
     // Parse as semicolon-delimited cookie pairs and extract the expected name.
     for (const part of input.split(';')) {
@@ -444,6 +463,21 @@ export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionIn
     return { ok: false, reason: 'malformed-value' };
   }
   return { ok: true, cookie: buildSessionCookie(input) };
+}
+
+/**
+ * Returns `true` if `input` contains a `=` that is NOT part of a trailing
+ * run of `=` padding characters. Used by `parseShapesSessionCookieInput`
+ * to distinguish structural `name=value` separators from base64-style
+ * padding. Plain O(n) scan — avoids the ReDoS class that `/=+$/`-style
+ * regexes are flagged for.
+ */
+function hasNonTrailingEquals(input: string): boolean {
+  let nonPaddingEnd = input.length;
+  while (nonPaddingEnd > 0 && input[nonPaddingEnd - 1] === '=') {
+    nonPaddingEnd--;
+  }
+  return input.substring(0, nonPaddingEnd).includes('=');
 }
 
 /**
