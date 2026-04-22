@@ -122,11 +122,20 @@ export function groupBySections(prs: MergedPr[]): GroupedSections {
   return { sections, unparseable };
 }
 
+/** Default repo URL for the "Full Changelog" trailer. Overridable via RenderOptions.repoUrl. */
+export const DEFAULT_REPO_URL = 'https://github.com/lbds137/tzurot';
+
 export interface RenderOptions {
   /** The previous release tag (e.g., `v3.0.0-beta.103`). */
   fromTag: string;
   /** ISO timestamp of `fromTag` (used in the banner comment). */
   fromTimestamp: string;
+  /**
+   * GitHub repo URL for the "Full Changelog" trailer (without trailing slash).
+   * Defaults to `DEFAULT_REPO_URL`. Override for forks or if the tool is
+   * lifted into another project.
+   */
+  repoUrl?: string;
 }
 
 /**
@@ -169,9 +178,8 @@ export function renderMarkdown(grouped: GroupedSections, options: RenderOptions)
 
   // Placeholder compare URL — the human replaces `HEAD` with the new
   // release tag before publishing the GitHub Release.
-  lines.push(
-    `**Full Changelog**: https://github.com/lbds137/tzurot/compare/${options.fromTag}...HEAD`
-  );
+  const repoUrl = options.repoUrl ?? DEFAULT_REPO_URL;
+  lines.push(`**Full Changelog**: ${repoUrl}/compare/${options.fromTag}...HEAD`);
 
   return lines.join('\n');
 }

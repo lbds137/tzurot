@@ -25,10 +25,12 @@ export function registerReleaseCommands(cli: CAC): void {
       'Draft release-notes skeleton from PRs merged since the previous tag'
     )
     .option('--from <tag>', 'Previous release tag (auto-discovered via `git describe` if omitted)')
+    .option('--base <branch>', 'Base branch to query for merged PRs (default: develop)')
+    .option('--repo-url <url>', 'GitHub repo URL for the compare-link trailer')
     .example('pnpm ops release:draft-notes')
     .example('pnpm ops release:draft-notes --from v3.0.0-beta.103')
     .example('pnpm ops release:draft-notes > /tmp/notes.md')
-    .action(async (options: { from?: string }) => {
+    .action(async (options: { from?: string; base?: string; repoUrl?: string }) => {
       const { draftNotes } = await import('../release/draft-notes.js');
       draftNotes(options);
     });
@@ -40,9 +42,10 @@ export function registerReleaseCommands(cli: CAC): void {
       'Verify release notes (on stdin) reference all merged PRs in the range exactly once'
     )
     .option('--from <tag>', 'Previous release tag (auto-discovered via `git describe` if omitted)')
+    .option('--base <branch>', 'Base branch to query for merged PRs (default: develop)')
     .example('cat /tmp/notes.md | pnpm ops release:verify-notes')
     .example('cat /tmp/notes.md | pnpm ops release:verify-notes --from v3.0.0-beta.103')
-    .action(async (options: { from?: string }) => {
+    .action(async (options: { from?: string; base?: string }) => {
       const { verifyNotes } = await import('../release/verify-notes.js');
       await verifyNotes(options);
     });

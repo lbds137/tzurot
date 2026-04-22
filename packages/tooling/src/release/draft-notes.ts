@@ -17,12 +17,16 @@ import { groupBySections, renderMarkdown } from './notes-format.js';
 export interface DraftNotesOptions {
   /** Previous release tag to diff against. Auto-discovered via `git describe` if omitted. */
   from?: string;
+  /** Base branch to query for merged PRs. Defaults to `develop`. */
+  base?: string;
+  /** GitHub repo URL for the "Full Changelog" trailer. Defaults to tzurot's. */
+  repoUrl?: string;
 }
 
 export function draftNotes(options: DraftNotesOptions): void {
   const fromTag = options.from ?? discoverPrevTag();
   const fromTimestamp = tagTimestamp(fromTag);
-  const prs = listMergedPrsSince(fromTimestamp);
+  const prs = listMergedPrsSince(fromTimestamp, options.base);
 
   if (prs.length === 0) {
     // Stderr so redirecting stdout to a notes file doesn't inherit this message.
@@ -33,7 +37,11 @@ export function draftNotes(options: DraftNotesOptions): void {
   }
 
   const grouped = groupBySections(prs);
-  const markdown = renderMarkdown(grouped, { fromTag, fromTimestamp });
+  const markdown = renderMarkdown(grouped, {
+    fromTag,
+    fromTimestamp,
+    repoUrl: options.repoUrl,
+  });
   process.stdout.write(markdown);
   process.stdout.write('\n');
 

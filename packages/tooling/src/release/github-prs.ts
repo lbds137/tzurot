@@ -69,7 +69,15 @@ export function tagTimestamp(tag: string): string {
 }
 
 /**
- * List PRs merged into `develop` after `since` (ISO timestamp), sorted
+ * Default base branch for PR queries. Matches the repo's current
+ * develop-as-integration-branch workflow; override via the `base`
+ * parameter of `listMergedPrsSince` if the target branch is different
+ * (e.g., fork with a different default, or main-branch workflow).
+ */
+export const DEFAULT_BASE_BRANCH = 'develop';
+
+/**
+ * List PRs merged into `base` after `since` (ISO timestamp), sorted
  * chronologically. Uses `gh pr list --search` which queries the GitHub
  * search API — server-side filtering avoids pulling every closed PR.
  *
@@ -81,7 +89,7 @@ export function tagTimestamp(tag: string): string {
  * Throws a user-facing error if `gh` is missing / unauthenticated — the
  * raw `spawnSync` error otherwise exposes internal paths without guidance.
  */
-export function listMergedPrsSince(since: string): MergedPr[] {
+export function listMergedPrsSince(since: string, base: string = DEFAULT_BASE_BRANCH): MergedPr[] {
   let raw: string;
   try {
     raw = execFileSync(
@@ -92,7 +100,7 @@ export function listMergedPrsSince(since: string): MergedPr[] {
         '--state',
         'merged',
         '--base',
-        'develop',
+        base,
         '--search',
         `merged:>${since}`,
         '--limit',

@@ -56,6 +56,11 @@ export async function probeShapesSession(sessionCookie: string): Promise<Preflig
     });
 
     if (response.ok) {
+      // Log the happy path at info level so observability grep
+      // (`| grep ShapesPreflight`) can distinguish "ran and passed" from
+      // "never ran." Without this log, a silent `valid` outcome is
+      // indistinguishable from the function never firing at all.
+      logger.info({ status: response.status }, 'Preflight valid');
       return 'valid';
     }
 
