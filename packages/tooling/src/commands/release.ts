@@ -30,8 +30,6 @@ export function registerReleaseCommands(cli: CAC): void {
     .example('pnpm ops release:draft-notes > /tmp/notes.md')
     .action(async (options: { from?: string }) => {
       const { draftNotes } = await import('../release/draft-notes.js');
-      // `async` on the closure is required by the dynamic import above;
-      // `draftNotes` itself is synchronous, so no await on this line.
       draftNotes(options);
     });
 

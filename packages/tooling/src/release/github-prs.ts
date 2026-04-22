@@ -111,14 +111,26 @@ export function listMergedPrsSince(since: string): MergedPr[] {
   // gh can exit 0 while writing an error message to stdout instead of JSON
   // (version drift, transient auth issues). Wrap the parse so the user gets
   // a useful error rather than a bare SyntaxError stack.
-  let parsed: MergedPr[];
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw) as MergedPr[];
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error(
       `Failed to parse \`gh pr list\` output as JSON. Response was:\n${raw.slice(0, 200)}${raw.length > 200 ? '…' : ''}`
     );
   }
 
-  return parsed.sort((a, b) => new Date(a.mergedAt).getTime() - new Date(b.mergedAt).getTime());
+  // Shape guard: a transient GraphQL failure can produce a non-array JSON
+  // object (e.g., `{"errors": [...]}`) that parses successfully but would
+  // throw an unhelpful "sort is not a function" downstream. Fail early
+  // with the offending payload quoted.
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      `Expected a JSON array from \`gh pr list\`, got ${typeof parsed}. Response was:\n${raw.slice(0, 200)}${raw.length > 200 ? '…' : ''}`
+    );
+  }
+
+  return (parsed as MergedPr[]).sort(
+    (a, b) => new Date(a.mergedAt).getTime() - new Date(b.mergedAt).getTime()
+  );
 }
