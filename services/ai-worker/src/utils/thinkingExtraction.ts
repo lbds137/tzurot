@@ -361,18 +361,34 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     // the match is always at position 0, and `fakeUserMessageMatch[0].length`
     // is the byte count of the block to consume.
     visibleContent = visibleContent.slice(fakeUserMessageMatch[0].length);
+    // "Scaffolding" (not "reasoning leak") covers both: the standard case
+    // where the block contains a CoT dump, AND the empty-<message> edge case
+    // where nothing was extracted but the input-format wrapper still got
+    // stripped. `extractedLength: 0` paired with "reasoning leak" wording
+    // was misleading in logs.
     logger.warn(
       {
         extractedLength: extractedThinking.length,
         remainingLength: visibleContent.length,
       },
-      'Stripped leading fake-user-message wrapper (GLM-4.5-Air reasoning leak)'
+      'Stripped leading fake-user-message scaffolding (GLM-4.5-Air input-format echo)'
     );
   }
 
   // Pass 2 — generic known-thinking-tag extractors.
   // Extract thinking content from ALL patterns and ALWAYS remove from visible content
   // This prevents tag leakage when responses contain multiple tag types
+  //
+  // Note: this loop reads from `normalized` (pre-Pass-1-strip), not from
+  // `visibleContent` (post-Pass-1-strip), for match enumeration. The
+  // `visibleContent.replace` below removes matched patterns from the
+  // post-Pass-1 content, which is the user-visible output. Consequence:
+  // if a Pass-1 `<message>` block happened to contain a Pass-2 tag
+  // (`<think>`/`<understanding>`/etc.), the inner content would be added
+  // to `thinkingParts` twice — once as part of the whole `<message>` block
+  // in Pass 1, once as its own tag match in Pass 2. Edge case is not
+  // user-visible (it only affects `showThinking` output) and would require
+  // a pathological input shape. Left as-is intentionally.
   for (const pattern of THINKING_PATTERNS) {
     pattern.lastIndex = 0;
     const matches = normalized.matchAll(pattern);
