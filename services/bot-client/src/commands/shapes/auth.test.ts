@@ -75,7 +75,10 @@ describe('handleAuth', () => {
     expect(embed.data.title).toBe('Shapes.inc Authentication');
     expect(embed.data.description).toContain('Developer Tools');
     expect(embed.data.description).toContain('Application');
-    expect(embed.data.description).toContain('appSession');
+    expect(embed.data.description).toContain('__Secure-better-auth.session_token');
+    // Domain distinction must remain in the instructions (talk.shapes.inc is
+    // a separate auth instance and cookies from it will not work)
+    expect(embed.data.description).toContain('talk.shapes.inc');
   });
 
   it('should use correct custom IDs for buttons', async () => {
@@ -108,24 +111,18 @@ describe('buildAuthModal', () => {
     expect(modal.data.title).toBe('Shapes.inc Authentication');
   });
 
-  it('should have two text inputs for cookie parts', () => {
+  it('should have a single required text input for the Better Auth cookie value', () => {
     const modal = buildAuthModal();
-    expect(modal.components).toHaveLength(2);
+    expect(modal.components).toHaveLength(1);
 
     // Cast to access nested components — union type includes LabelBuilder without .components
     const rows = modal.components as { components: { data: Record<string, unknown> }[] }[];
-    const part0 = rows[0].components[0];
-    const part1 = rows[1].components[0];
+    const input = rows[0].components[0];
 
-    expect(part0.data.custom_id).toBe('cookiePart0');
-    expect(part0.data.style).toBe(TextInputStyle.Paragraph);
-    expect(part0.data.required).toBe(true);
-    expect(part0.data.min_length).toBe(10);
-    expect(part0.data.max_length).toBe(4000);
-
-    expect(part1.data.custom_id).toBe('cookiePart1');
-    expect(part1.data.style).toBe(TextInputStyle.Paragraph);
-    expect(part1.data.required).toBe(false);
-    expect(part1.data.max_length).toBe(4000);
+    expect(input.data.custom_id).toBe('cookieValue');
+    expect(input.data.style).toBe(TextInputStyle.Paragraph);
+    expect(input.data.required).toBe(true);
+    expect(input.data.min_length).toBe(16);
+    expect(input.data.max_length).toBe(4000);
   });
 });

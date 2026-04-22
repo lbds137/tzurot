@@ -20,6 +20,7 @@ import {
   generateUserCredentialUuid,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
+  SHAPES_SESSION_COOKIE_NAME,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -48,15 +49,19 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       return sendError(res, ErrorResponses.validationError('sessionCookie is required'));
     }
 
-    const hasSingleCookie = sessionCookie.includes('appSession=');
-    const hasChunkedCookies =
-      sessionCookie.includes('appSession.0=') && sessionCookie.includes('appSession.1=');
-
-    if (!hasSingleCookie && !hasChunkedCookies) {
+    // Bot-client's auth modal normalizes input to `name=value` form via
+    // parseShapesSessionCookieInput before POSTing here. We accept only that
+    // strict shape: the string must start with the expected cookie name and
+    // have a non-empty value following the `=`.
+    const expectedPrefix = `${SHAPES_SESSION_COOKIE_NAME}=`;
+    if (
+      !sessionCookie.startsWith(expectedPrefix) ||
+      sessionCookie.length <= expectedPrefix.length
+    ) {
       return sendError(
         res,
         ErrorResponses.validationError(
-          'Session cookie must contain appSession or both appSession.0 and appSession.1 values'
+          `Session cookie must be in the form '${SHAPES_SESSION_COOKIE_NAME}=<value>'`
         )
       );
     }

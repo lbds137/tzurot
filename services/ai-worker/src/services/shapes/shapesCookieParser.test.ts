@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SHAPES_SESSION_COOKIE_NAME } from '@tzurot/common-types';
 import { updateCookieFromResponse } from './shapesCookieParser.js';
 
 /**
@@ -12,50 +13,68 @@ function makeResponse(setCookieHeaders: string[]): Response {
   return { headers } as unknown as Response;
 }
 
+const VALID_TOKEN_A = 'token-value-a1b2c3d4e5f6g7h8i9j0';
+const VALID_TOKEN_B = 'token-value-z9y8x7w6v5u4t3s2r1q0';
+const INITIAL_COOKIE = `${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_A}`;
+
 describe('updateCookieFromResponse', () => {
-  it('should return current cookie unchanged when no set-cookie headers', () => {
+  it('returns the current cookie unchanged when the response has no Set-Cookie headers', () => {
     const response = makeResponse([]);
-    const result = updateCookieFromResponse('appSession.0=abc; appSession.1=def', response);
-    expect(result).toBe('appSession.0=abc; appSession.1=def');
+    expect(updateCookieFromResponse(INITIAL_COOKIE, response)).toBe(INITIAL_COOKIE);
   });
 
-  it('should merge new cookie values into existing cookie string', () => {
+  it('replaces the allowlisted cookie when shapes.inc rotates it', () => {
     const response = makeResponse([
-      'appSession.0=new-value-0; Path=/; HttpOnly',
-      'appSession.1=new-value-1; Path=/; HttpOnly',
+      `${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_B}; Path=/; HttpOnly; Secure; SameSite=Lax`,
     ]);
-    const result = updateCookieFromResponse('appSession.0=old-0; appSession.1=old-1', response);
-    expect(result).toContain('appSession.0=new-value-0');
-    expect(result).toContain('appSession.1=new-value-1');
-    expect(result).not.toContain('old-0');
-    expect(result).not.toContain('old-1');
+    const result = updateCookieFromResponse(INITIAL_COOKIE, response);
+    expect(result).toBe(`${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_B}`);
+    expect(result).not.toContain(VALID_TOKEN_A);
   });
 
-  it('should preserve cookies not present in set-cookie headers', () => {
-    const response = makeResponse(['appSession.0=rotated; Path=/']);
-    const result = updateCookieFromResponse('appSession.0=old; otherCookie=keep-me', response);
-    expect(result).toContain('appSession.0=rotated');
-    expect(result).toContain('otherCookie=keep-me');
+  it('discards unrelated cookies served alongside the allowlisted one', () => {
+    const response = makeResponse([
+      '_ga=GA1.1.12345; Path=/; Domain=.shapes.inc',
+      'cf_clearance=someWafToken; Path=/; Secure',
+      `${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_B}; Path=/; HttpOnly; Secure`,
+    ]);
+    const result = updateCookieFromResponse(INITIAL_COOKIE, response);
+    expect(result).toBe(`${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_B}`);
+    expect(result).not.toContain('_ga');
+    expect(result).not.toContain('cf_clearance');
   });
 
-  it('should add new cookies not in the original string', () => {
-    const response = makeResponse(['newCookie=hello; Path=/']);
-    const result = updateCookieFromResponse('appSession.0=abc', response);
-    expect(result).toContain('appSession.0=abc');
-    expect(result).toContain('newCookie=hello');
+  it('discards a response that contains only unrelated cookies', () => {
+    const response = makeResponse(['_ga=GA1.1.12345; Path=/', 'x-datadome=ddToken; Path=/']);
+    const result = updateCookieFromResponse(INITIAL_COOKIE, response);
+    expect(result).toBe(INITIAL_COOKIE);
   });
 
-  it('should handle empty current cookie string', () => {
-    const response = makeResponse(['appSession.0=fresh; Path=/']);
+  it('accepts an empty initial jar and bootstraps from the response', () => {
+    const response = makeResponse([
+      `${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_A}; Path=/; HttpOnly; Secure`,
+    ]);
+    expect(updateCookieFromResponse('', response)).toBe(
+      `${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_A}`
+    );
+  });
+
+  it('strips cookie attributes (Path, HttpOnly, Expires, SameSite) from the jar', () => {
+    const response = makeResponse([
+      `${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_A}; Path=/; Expires=Wed, 21 Oct 2026 07:28:00 GMT; HttpOnly; Secure; SameSite=Lax`,
+    ]);
     const result = updateCookieFromResponse('', response);
-    expect(result).toContain('appSession.0=fresh');
+    // Exact equality is the tightest check — the rebuilt jar contains ONLY `name=value`.
+    // Individual `.not.toContain()` checks for attribute names would produce false
+    // negatives here because the cookie name itself contains "Secure" as a substring.
+    expect(result).toBe(`${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_A}`);
   });
 
-  it('should strip set-cookie attributes (Path, HttpOnly, etc.)', () => {
-    const response = makeResponse(['token=abc123; Path=/; HttpOnly; Secure; SameSite=Lax']);
-    const result = updateCookieFromResponse('', response);
-    expect(result).toBe('token=abc123');
-    expect(result).not.toContain('Path');
-    expect(result).not.toContain('HttpOnly');
+  it('drops non-allowlisted cookies that were somehow present in the initial jar', () => {
+    // Defense-in-depth: even if a stale jar has extraneous entries, the parser
+    // narrows them on merge rather than perpetuating them.
+    const pollutedInitial = `_ga=junk; ${SHAPES_SESSION_COOKIE_NAME}=${VALID_TOKEN_A}; theme=dark`;
+    const response = makeResponse([]);
+    expect(updateCookieFromResponse(pollutedInitial, response)).toBe(INITIAL_COOKIE);
   });
 });

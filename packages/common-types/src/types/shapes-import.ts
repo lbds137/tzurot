@@ -303,3 +303,116 @@ export const SHAPES_BASE_URL = 'https://shapes.inc';
  */
 export const SHAPES_USER_AGENT =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
+
+/**
+ * Name of the shapes.inc session cookie (Better Auth, as of 2026-04).
+ * The `__Secure-` prefix is a browser-enforced rule: the cookie is only set/sent
+ * over HTTPS, which matches our traffic since `SHAPES_BASE_URL` is HTTPS.
+ */
+export const SHAPES_SESSION_COOKIE_NAME = '__Secure-better-auth.session_token';
+
+/**
+ * Predicate: is `name` a cookie the shapes fetcher should accept in its jar?
+ *
+ * Scoped to just the Better Auth session cookie today. This prevents analytics
+ * (GA, Datadome) or bot-protection (Cloudflare `cf_clearance`) cookies served by
+ * shapes.inc from being echoed back on subsequent requests. If shapes.inc ever
+ * adds a required WAF-routing cookie, add the case here — do not broaden the
+ * fetcher to accept arbitrary names.
+ *
+ * Exposed as a predicate function rather than an exported Set so callers cannot
+ * accidentally mutate the allowlist at runtime.
+ */
+export function isShapesAllowedCookieName(name: string): boolean {
+  return name === SHAPES_SESSION_COOKIE_NAME;
+}
+
+/**
+ * Build a cookie string suitable for the `Cookie:` request header from a raw
+ * Better Auth session token value.
+ *
+ * Callers outside this module should not need to know the cookie-name format —
+ * they hand in the opaque token value, this returns `name=value`.
+ */
+export function buildSessionCookie(tokenValue: string): string {
+  return `${SHAPES_SESSION_COOKIE_NAME}=${tokenValue}`;
+}
+
+/**
+ * Outcome of parsing user-supplied cookie input at the auth modal boundary.
+ *
+ * - `ok: true, cookie` — normalized `name=value` string ready for the fetcher jar
+ * - `ok: false, reason: 'empty'` — input was blank after trimming
+ * - `ok: false, reason: 'wrong-cookie'` — input looked like a cookie string
+ *   (contained `=` or `;`) but did not include `SHAPES_SESSION_COOKIE_NAME`.
+ *   Classic "user pasted the whole Request Headers Cookie: line" mistake.
+ * - `ok: false, reason: 'malformed-value'` — input looked like a bare token
+ *   value but failed the basic shape check (regex/length).
+ */
+export type ShapesSessionInputResult =
+  | { ok: true; cookie: string }
+  | { ok: false; reason: 'empty' | 'wrong-cookie' | 'malformed-value' };
+
+/**
+ * Regex for a plausible Better Auth session token value. URL-safe base64 /
+ * hex / signed-value characters; minimum-length sanity check only.
+ *
+ * Intentionally permissive: Better Auth tokens are opaque and the format can
+ * change. This is a best-effort client-side sanity check, NOT authoritative
+ * validation — the gateway should live-preflight against shapes.inc before
+ * persisting (tracked separately).
+ */
+const SHAPES_TOKEN_SHAPE = /^[A-Za-z0-9._-]+$/;
+const SHAPES_TOKEN_MIN_LENGTH = 32;
+
+/**
+ * Parse the user-supplied modal input into a normalized cookie string.
+ *
+ * Accepts three input shapes, in order of preference:
+ *  1. Bare token value: `"abc123...xyz"` → prepended with the cookie name.
+ *  2. Single `name=value` pair: `"__Secure-better-auth.session_token=abc..."` → normalized to that form.
+ *  3. Full `Cookie:` header: `"_ga=1; __Secure-better-auth.session_token=abc; theme=dark"` →
+ *     extract just the expected cookie and discard the rest.
+ *
+ * Rejects (returns `{ ok: false }`):
+ *  - Empty input
+ *  - Any cookie-like input that doesn't include `SHAPES_SESSION_COOKIE_NAME` (user pasted wrong thing)
+ *  - Bare values that fail the token-shape regex or minimum length
+ *
+ * The defense against shape (3) specifically catches the common failure mode
+ * where users copy the `Cookie:` request header from the Network tab instead
+ * of a single cookie value from the Application tab.
+ */
+export function parseShapesSessionCookieInput(rawInput: string): ShapesSessionInputResult {
+  const input = rawInput.trim();
+  if (input.length === 0) {
+    return { ok: false, reason: 'empty' };
+  }
+
+  const looksLikeCookieString = input.includes('=') || input.includes(';');
+  if (looksLikeCookieString) {
+    // Parse as semicolon-delimited cookie pairs and extract the expected name.
+    for (const part of input.split(';')) {
+      const trimmed = part.trim();
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx <= 0) {
+        continue;
+      }
+      const name = trimmed.substring(0, eqIdx);
+      const value = trimmed.substring(eqIdx + 1);
+      if (name === SHAPES_SESSION_COOKIE_NAME) {
+        if (value.length === 0) {
+          return { ok: false, reason: 'malformed-value' };
+        }
+        return { ok: true, cookie: buildSessionCookie(value) };
+      }
+    }
+    return { ok: false, reason: 'wrong-cookie' };
+  }
+
+  // Bare token value path — sanity-check shape and length.
+  if (input.length < SHAPES_TOKEN_MIN_LENGTH || !SHAPES_TOKEN_SHAPE.test(input)) {
+    return { ok: false, reason: 'malformed-value' };
+  }
+  return { ok: true, cookie: buildSessionCookie(input) };
+}

@@ -1,0 +1,142 @@
+import { describe, it, expect } from 'vitest';
+import {
+  SHAPES_SESSION_COOKIE_NAME,
+  isShapesAllowedCookieName,
+  buildSessionCookie,
+  parseShapesSessionCookieInput,
+} from './shapes-import.js';
+
+describe('SHAPES_SESSION_COOKIE_NAME', () => {
+  it('is the Better Auth cookie name (case-sensitive, __Secure- prefix, dotted)', () => {
+    expect(SHAPES_SESSION_COOKIE_NAME).toBe('__Secure-better-auth.session_token');
+  });
+});
+
+describe('isShapesAllowedCookieName', () => {
+  it('accepts the session cookie name', () => {
+    expect(isShapesAllowedCookieName(SHAPES_SESSION_COOKIE_NAME)).toBe(true);
+  });
+
+  it('rejects legacy Auth0 cookie names', () => {
+    expect(isShapesAllowedCookieName('appSession')).toBe(false);
+    expect(isShapesAllowedCookieName('appSession.0')).toBe(false);
+    expect(isShapesAllowedCookieName('appSession.1')).toBe(false);
+  });
+
+  it('rejects arbitrary analytics / WAF cookie names', () => {
+    expect(isShapesAllowedCookieName('_ga')).toBe(false);
+    expect(isShapesAllowedCookieName('cf_clearance')).toBe(false);
+    expect(isShapesAllowedCookieName('x-datadome')).toBe(false);
+  });
+});
+
+describe('buildSessionCookie', () => {
+  it('prepends the cookie name to a raw token value', () => {
+    expect(buildSessionCookie('abc123')).toBe(`${SHAPES_SESSION_COOKIE_NAME}=abc123`);
+  });
+});
+
+describe('parseShapesSessionCookieInput', () => {
+  // A plausible Better Auth token value — 40 chars of allowed characters.
+  const validToken = 'a1b2c3d4e5f6g7h8.i9j0k1l2m3n4o5p6q7r8s9t0';
+  const expectedCookie = `${SHAPES_SESSION_COOKIE_NAME}=${validToken}`;
+
+  describe('bare token value path', () => {
+    it('normalizes a bare token value to name=value form', () => {
+      expect(parseShapesSessionCookieInput(validToken)).toEqual({
+        ok: true,
+        cookie: expectedCookie,
+      });
+    });
+
+    it('trims surrounding whitespace from bare tokens', () => {
+      expect(parseShapesSessionCookieInput(`   ${validToken}\n`)).toEqual({
+        ok: true,
+        cookie: expectedCookie,
+      });
+    });
+
+    it('rejects bare values shorter than the minimum length', () => {
+      expect(parseShapesSessionCookieInput('tooShort')).toEqual({
+        ok: false,
+        reason: 'malformed-value',
+      });
+    });
+
+    it('rejects bare values containing characters outside the allowed set', () => {
+      // 40 chars with a disallowed space embedded.
+      const badValue = 'a1b2c3d4e5f6g7h8 i9j0k1l2m3n4o5p6q7r8s9t0';
+      expect(parseShapesSessionCookieInput(badValue)).toEqual({
+        ok: false,
+        reason: 'malformed-value',
+      });
+    });
+  });
+
+  describe('single name=value pair path', () => {
+    it('accepts the expected name=value pair verbatim', () => {
+      expect(parseShapesSessionCookieInput(expectedCookie)).toEqual({
+        ok: true,
+        cookie: expectedCookie,
+      });
+    });
+
+    it('rejects a name=value pair with a different cookie name', () => {
+      expect(parseShapesSessionCookieInput(`appSession=${validToken}`)).toEqual({
+        ok: false,
+        reason: 'wrong-cookie',
+      });
+    });
+
+    it('rejects name=value with an empty value', () => {
+      expect(parseShapesSessionCookieInput(`${SHAPES_SESSION_COOKIE_NAME}=`)).toEqual({
+        ok: false,
+        reason: 'malformed-value',
+      });
+    });
+  });
+
+  describe('full Cookie: header paste defense', () => {
+    it('extracts the session cookie from a multi-cookie header string', () => {
+      const fullHeader = `_ga=GA1.1.12345; ${SHAPES_SESSION_COOKIE_NAME}=${validToken}; theme=dark`;
+      expect(parseShapesSessionCookieInput(fullHeader)).toEqual({
+        ok: true,
+        cookie: expectedCookie,
+      });
+    });
+
+    it('handles extra whitespace around semicolons in a header paste', () => {
+      const messy = `  _ga=GA1.1.12345  ;  ${SHAPES_SESSION_COOKIE_NAME}=${validToken}  ;  theme=dark `;
+      expect(parseShapesSessionCookieInput(messy)).toEqual({
+        ok: true,
+        cookie: expectedCookie,
+      });
+    });
+
+    it('rejects a multi-cookie header that lacks the session cookie name', () => {
+      const wrong = '_ga=GA1.1.12345; cf_clearance=abc123; theme=dark';
+      expect(parseShapesSessionCookieInput(wrong)).toEqual({
+        ok: false,
+        reason: 'wrong-cookie',
+      });
+    });
+
+    it('rejects a legacy Auth0 cookie paste (appSession.0 + appSession.1)', () => {
+      const legacy = 'appSession.0=part0value; appSession.1=part1value';
+      expect(parseShapesSessionCookieInput(legacy)).toEqual({
+        ok: false,
+        reason: 'wrong-cookie',
+      });
+    });
+  });
+
+  describe('empty input', () => {
+    it('rejects the empty string', () => {
+      expect(parseShapesSessionCookieInput('')).toEqual({ ok: false, reason: 'empty' });
+    });
+
+    it('rejects a whitespace-only string', () => {
+      expect(parseShapesSessionCookieInput('   \n\t ')).toEqual({ ok: false, reason: 'empty' });
+    });
+  });
+});

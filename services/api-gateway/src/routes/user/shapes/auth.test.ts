@@ -135,7 +135,7 @@ describe('Shapes Auth Routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('should reject cookie missing appSession prefix', async () => {
+    it('should reject a cookie with an unexpected name', async () => {
       const { res } = await callStoreHandler({
         sessionCookie: 'randomCookie=value',
       });
@@ -143,22 +143,38 @@ describe('Shapes Auth Routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('appSession'),
+          message: expect.stringContaining('__Secure-better-auth.session_token'),
         })
       );
     });
 
-    it('should reject chunked cookie with only one part', async () => {
+    it('should reject a cookie whose name is embedded but not at the start (prefix defense)', async () => {
       const { res } = await callStoreHandler({
-        sessionCookie: 'appSession.0=value',
+        sessionCookie: 'fake-prefix__Secure-better-auth.session_token=value',
       });
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('should encrypt and upsert valid chunked cookie', async () => {
+    it('should reject a legacy Auth0 cookie (appSession format)', async () => {
       const { res } = await callStoreHandler({
-        sessionCookie: 'appSession.0=part0; appSession.1=part1',
+        sessionCookie: 'appSession=legacy-value',
+      });
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should reject the expected cookie name with an empty value', async () => {
+      const { res } = await callStoreHandler({
+        sessionCookie: '__Secure-better-auth.session_token=',
+      });
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should encrypt and upsert a valid Better Auth session cookie', async () => {
+      const { res } = await callStoreHandler({
+        sessionCookie: '__Secure-better-auth.session_token=opaque-better-auth-token-value-12345',
       });
 
       expect(mockPrisma.userCredential.upsert).toHaveBeenCalledWith(
@@ -172,16 +188,6 @@ describe('Shapes Auth Routes', () => {
           }),
         })
       );
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
-    });
-
-    it('should encrypt and upsert valid single cookie', async () => {
-      const { res } = await callStoreHandler({
-        sessionCookie: 'appSession=single-session-value',
-      });
-
-      expect(mockPrisma.userCredential.upsert).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
