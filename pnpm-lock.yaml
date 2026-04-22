@@ -204,6 +204,9 @@ importers:
 
   packages/test-utils:
     dependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.4.4
+        version: 0.4.4
       ioredis:
         specifier: ^5.10.0
         version: 5.10.1

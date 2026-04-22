@@ -12,6 +12,9 @@
  * - This ensures PGLite always matches the current Prisma schema
  */
 
+import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
+import { citext } from '@electric-sql/pglite/contrib/citext';
 import { Redis as IORedis } from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -43,6 +46,30 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
+ * Create a PGLite instance pre-configured with the project's standard
+ * Postgres extension set (`vector`, `citext`).
+ *
+ * Prefer this over `new PGlite({ extensions: { vector, citext } })` in
+ * `.int.test.ts` / `.e2e.test.ts` files — when a new extension is added
+ * to the standard set, the change lands here once instead of at every call site.
+ *
+ * @example
+ * ```typescript
+ * import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
+ * import { PrismaPGlite } from 'pglite-prisma-adapter';
+ * import { PrismaClient } from '@tzurot/common-types';
+ *
+ * const pglite = createTestPGlite();
+ * await pglite.exec(loadPGliteSchema());
+ * const adapter = new PrismaPGlite(pglite);
+ * const prisma = new PrismaClient({ adapter });
+ * ```
+ */
+export function createTestPGlite(): PGlite {
+  return new PGlite({ extensions: { vector, citext } });
+}
+
+/**
  * Load the pre-generated PGLite schema SQL.
  * This SQL is generated from Prisma schema using `prisma migrate diff`.
  * Regenerate with: ./scripts/testing/regenerate-pglite-schema.sh
@@ -66,14 +93,15 @@ export function loadPGliteSchema(): string {
  * @example
  * ```typescript
  * import { PrismaClient } from '@tzurot/common-types';
- * import { PGlite } from '@electric-sql/pglite';
- * import { vector } from '@electric-sql/pglite/vector';
- * import { citext } from '@electric-sql/pglite/contrib/citext';
  * import { PrismaPGlite } from 'pglite-prisma-adapter';
- * import { setupTestEnvironment, loadPGliteSchema } from '@tzurot/test-utils';
+ * import {
+ *   setupTestEnvironment,
+ *   createTestPGlite,
+ *   loadPGliteSchema,
+ * } from '@tzurot/test-utils';
  *
  * let testEnv = await setupTestEnvironment();
- * const pglite = new PGlite({ extensions: { vector, citext } });
+ * const pglite = createTestPGlite();
  * await pglite.exec(loadPGliteSchema());
  * const adapter = new PrismaPGlite(pglite);
  * testEnv.prisma = new PrismaClient({ adapter });
@@ -99,7 +127,7 @@ export function setupTestEnvironment(): Promise<TestEnvironment> {
     });
   } else {
     // Local: use Redis mock
-    const redis: IORedis = createRedisClientMock() as unknown as IORedis;
+    const redis: IORedis = createRedisClientMock();
 
     return Promise.resolve({
       redis,

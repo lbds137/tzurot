@@ -16,9 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import { citext } from '@electric-sql/pglite/contrib/citext';
+import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import {
   PrismaClient,
@@ -31,7 +29,7 @@ import {
 } from '@tzurot/common-types';
 import { isRecentDuplicate } from '../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
-import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
 describe('Duplicate Detection Data Flow', () => {
   let pglite: PGlite;
@@ -48,7 +46,7 @@ describe('Duplicate Detection Data Flow', () => {
 
   beforeAll(async () => {
     // Initialize PGLite with pgvector
-    pglite = new PGlite({ extensions: { vector, citext } });
+    pglite = createTestPGlite();
     await pglite.exec(loadPGliteSchema());
 
     // Create Prisma client with PGLite adapter

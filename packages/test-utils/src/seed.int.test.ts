@@ -14,12 +14,10 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import { citext } from '@electric-sql/pglite/contrib/citext';
+import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '@tzurot/common-types';
-import { loadPGliteSchema } from './setup-pglite.js';
+import { createTestPGlite, loadPGliteSchema } from './setup-pglite.js';
 import { seedUserWithPersona } from './seed.js';
 
 describe('seedUserWithPersona (integration)', () => {
@@ -27,7 +25,7 @@ describe('seedUserWithPersona (integration)', () => {
   let prisma: PrismaClient;
 
   beforeAll(async () => {
-    pglite = new PGlite({ extensions: { vector, citext } });
+    pglite = createTestPGlite();
     await pglite.exec(loadPGliteSchema());
     const adapter = new PrismaPGlite(pglite);
     prisma = new PrismaClient({ adapter }) as PrismaClient;
