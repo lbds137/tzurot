@@ -335,14 +335,14 @@ export class LLMInvoker {
 
     if (finishReason === FINISH_REASONS.LENGTH) {
       logger.info(
-        logContext,
+        { ...logContext },
         'WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
       );
     } else if (stoppedAt !== null) {
       const sequenceStr = typeof stoppedAt === 'string' ? stoppedAt : JSON.stringify(stoppedAt);
       recordStopSequenceActivation(sequenceStr, modelName);
       logger.info(
-        logContext,
+        { ...logContext },
         'Stop sequence triggered - prevented potential identity bleeding or hallucination'
       );
     } else if (
@@ -351,13 +351,13 @@ export class LLMInvoker {
     ) {
       recordStopSequenceActivation('inferred:non-xml-stop', modelName);
       logger.info(
-        logContext,
+        { ...logContext },
         'Possible stop sequence activation — response ended without </message> (heuristic, may be a false positive)'
       );
     } else if (isNaturalStop(finishReason)) {
-      logger.debug(logContext, 'Model completed naturally');
+      logger.debug({ ...logContext }, 'Model completed naturally');
     } else {
-      logger.info(logContext, 'Model completion with non-standard finish_reason');
+      logger.info({ ...logContext }, 'Model completion with non-standard finish_reason');
     }
   }
 

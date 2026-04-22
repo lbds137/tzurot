@@ -245,7 +245,7 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
       const logContext = this.logOptions?.getLogContext?.(event) ?? {};
       const description = this.logOptions?.getEventDescription?.(event) ?? `type: ${event.type}`;
 
-      this.logger.info(logContext, `Published cache invalidation event: ${description}`);
+      this.logger.info({ ...logContext, description }, 'Published cache invalidation event');
     } catch (error) {
       this.logger.error({ err: error, event }, 'Failed to publish cache invalidation event');
       throw error;
@@ -259,7 +259,7 @@ export abstract class BaseCacheInvalidationService<TEvent extends BaseInvalidati
     const logContext = this.logOptions?.getLogContext?.(event) ?? {};
     const description = this.logOptions?.getEventDescription?.(event) ?? `type: ${event.type}`;
 
-    this.logger.info(logContext, `Received cache invalidation event: ${description}`);
+    this.logger.info({ ...logContext, description }, 'Received cache invalidation event');
 
     // Notify all registered callbacks
     for (const callback of this.callbacks) {

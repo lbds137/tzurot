@@ -108,7 +108,7 @@ export function logRetrySuccess(opts: {
   emptyRetries: number;
   leakedThinkingRetries: number;
 }): void {
-  logger.info(opts, 'Retry succeeded - got valid unique response');
+  logger.info({ ...opts }, 'Retry succeeded - got valid unique response');
 }
 
 /** Options for empty response check */

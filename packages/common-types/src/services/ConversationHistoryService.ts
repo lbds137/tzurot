@@ -115,10 +115,21 @@ export class ConversationHistoryService {
       });
 
       logger.debug(
-        `Added ${role} message to history (channel: ${channelId}, guild: ${guildId ?? 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${messageIds.length > 0 ? `${messageIds.length} ID(s)` : 'none'}, timestamp: ${timestamp !== undefined ? 'explicit' : 'default'}, tokens: ${tokenCount}, hasMetadata: ${messageMetadata !== undefined})`
+        {
+          role,
+          channelId,
+          guildId: guildId ?? 'DM',
+          personalityId,
+          personaIdPrefix: personaId.substring(0, 8),
+          discordIdCount: messageIds.length,
+          timestampKind: timestamp !== undefined ? 'explicit' : 'default',
+          tokenCount,
+          hasMetadata: messageMetadata !== undefined,
+        },
+        'Added message to history'
       );
     } catch (error) {
-      logger.error({ err: error }, `Failed to add message to conversation history`);
+      logger.error({ err: error }, 'Failed to add message to conversation history');
       throw error;
     }
   }
@@ -176,11 +187,12 @@ export class ConversationHistoryService {
       });
 
       logger.debug(
-        `Updated user message ${lastMessage.id} with enriched content (tokens: ${tokenCount}, hasMetadata: ${newMetadata !== undefined})`
+        { messageId: lastMessage.id, tokenCount, hasMetadata: newMetadata !== undefined },
+        'Updated user message with enriched content'
       );
       return true;
     } catch (error) {
-      logger.error({ err: error }, `Failed to update user message`);
+      logger.error({ err: error }, 'Failed to update user message');
       return false;
     }
   }
@@ -304,11 +316,12 @@ export class ConversationHistoryService {
       });
 
       logger.debug(
-        `Updated assistant message ${lastMessage.id} with ${discordMessageIds.length} Discord chunk ID(s)`
+        { messageId: lastMessage.id, discordIdCount: discordMessageIds.length },
+        'Updated assistant message with Discord chunk IDs'
       );
       return true;
     } catch (error) {
-      logger.error({ err: error }, `Failed to update assistant message with Discord IDs`);
+      logger.error({ err: error }, 'Failed to update assistant message with Discord IDs');
       return false;
     }
   }
@@ -378,11 +391,12 @@ export class ConversationHistoryService {
       const history = mapToConversationMessages(messages.reverse());
 
       logger.debug(
-        `Retrieved ${history.length} messages from channel history (channel: ${channelId}, all personalities)`
+        { count: history.length, channelId },
+        'Retrieved channel history across all personalities'
       );
       return history;
     } catch (error) {
-      logger.error({ err: error }, `Failed to get channel conversation history`);
+      logger.error({ err: error }, 'Failed to get channel conversation history');
       return [];
     }
   }

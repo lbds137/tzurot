@@ -73,7 +73,8 @@ export class RedisDeduplicationCache {
       const timeSinceRequest = Date.now() - data.timestamp;
 
       logger.info(
-        `Found duplicate request, returning cached job ${data.jobId} (${timeSinceRequest}ms ago)`
+        { jobId: data.jobId, timeSinceRequestMs: timeSinceRequest },
+        'Found duplicate request, returning cached job'
       );
 
       return data;
@@ -102,7 +103,7 @@ export class RedisDeduplicationCache {
     try {
       // Use SETEX for atomic set + expiry
       await this.redis.setex(key, this.duplicateWindowSeconds, JSON.stringify(data));
-      logger.debug(`Cached request ${requestId} with job ${jobId}`);
+      logger.debug({ requestId, jobId }, 'Cached request');
     } catch (error) {
       // Log error but don't fail the request
       logger.error({ err: error }, 'Failed to cache request');

@@ -165,7 +165,7 @@ export function createUpdatePersonalityRoute(
         data: updateData,
       });
 
-      logger.info(`Updated personality: ${slug} (${personality.id})`);
+      logger.info({ slug, personalityId: personality.id }, 'Updated personality');
 
       // Invalidate cache with visibility-aware logic
       const wasPublic = existing.isPublic;

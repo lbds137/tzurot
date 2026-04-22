@@ -14,24 +14,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // the UserService/persona-crud override block (which otherwise resets the
 // full `no-restricted-syntax` array and would drop these rules for those
 // files). Extracted to avoid silent drift if the selectors change.
-// Fires on error-variable shapes (Identifier like `error`, MemberExpression like
-// `result.error`) AND TemplateLiteral — the latter catches `logger.warn(`msg ${var}`)`
-// which loses structure per 02-code-standards.md. Bare string Literals pass through
-// (covers valid `logger.warn('static message')` calls).
-const PINO_LOGGER_RULES = [
-  {
-    selector:
-      'CallExpression[callee.property.name="error"] > *.arguments:first-child:matches(Identifier, MemberExpression, TemplateLiteral)',
-    message:
-      'logger.error() must use pino format: logger.error({ err: error }, "message") or logger.error({ fields }, "message"). Template-literal messages lose structure — move variables into the fields object. See packages/common-types/src/logger.ts.',
-  },
-  {
-    selector:
-      'CallExpression[callee.property.name="warn"] > *.arguments:first-child:matches(Identifier, MemberExpression, TemplateLiteral)',
-    message:
-      'logger.warn() must use pino format: logger.warn({ err: error }, "message") or logger.warn({ fields }, "message"). Template-literal messages lose structure — move variables into the fields object. See packages/common-types/src/logger.ts.',
-  },
-];
+//
+// Fires on shapes that lose structured-field discipline:
+//   - Identifier (e.g. `error`) / MemberExpression (e.g. `result.error`) —
+//     wanted `{ err: error }` instead of passing the raw error/value as msg
+//   - TemplateLiteral — catches `logger.warn(`msg ${var}`)` which loses
+//     structure per 02-code-standards.md
+//   - CallExpression — catches `logger.warn(buildError(), 'msg')` where a
+//     fn-call returns an Error/object that should be wrapped in `{ err: … }`.
+//     Caveat: also fires on `logger.warn(getMessage(), ...)` where the fn
+//     returns a string. Those rare sites need inline suppressions.
+// Bare string Literals pass through (valid `logger.warn('static msg')`).
+const PINO_LEVELS = ['error', 'warn', 'info', 'debug'];
+const PINO_LOGGER_RULES = PINO_LEVELS.map(level => ({
+  selector: `CallExpression[callee.property.name="${level}"] > *.arguments:first-child:matches(Identifier, MemberExpression, TemplateLiteral, CallExpression)`,
+  message: `logger.${level}() must use pino format: logger.${level}({ err: error }, "message") or logger.${level}({ fields }, "message"). Template-literal messages lose structure — move variables into the fields object. See packages/common-types/src/logger.ts.`,
+}));
 
 export default tseslint.config(
   // Base configurations

@@ -55,7 +55,7 @@ export class WebhookManager {
     }
 
     const botTag = clientUser.tag;
-    logger.debug(`Extracting suffix from bot tag: ${botTag}`);
+    logger.debug({ botTag }, 'Extracting suffix from bot tag');
 
     // Check for delimiters: prefer " · " (middle dot), fallback to " | " (pipe)
     // Always output with " · " regardless of input format
@@ -72,7 +72,7 @@ export class WebhookManager {
     }
 
     this.botSuffix = ` · ${suffix}`;
-    logger.debug(`Using bot suffix: "${this.botSuffix}"`);
+    logger.debug({ suffix: this.botSuffix }, 'Using bot suffix');
     return this.botSuffix;
   }
 
@@ -118,7 +118,7 @@ export class WebhookManager {
     const cacheKey = targetChannel.id;
     const cached = this.webhookCache.get(cacheKey);
     if (cached !== undefined && Date.now() - cached.lastUsed < this.cacheTimeout) {
-      logger.debug(`Using cached webhook for channel ${cacheKey}`);
+      logger.debug({ channelId: cacheKey }, 'Using cached webhook');
       cached.lastUsed = Date.now();
       return cached.webhook;
     }
@@ -129,7 +129,7 @@ export class WebhookManager {
 
     // Create new webhook if none exists
     if (webhook === undefined) {
-      logger.info(`Creating new webhook for channel ${cacheKey}`);
+      logger.info({ channelId: cacheKey }, 'Creating new webhook');
       webhook = await targetChannel.createWebhook({
         name: 'Tzurot Personalities',
         reason: 'Multi-personality bot system',
@@ -196,15 +196,18 @@ export class WebhookManager {
     // For threads, add threadId parameter (Discord.js v14 official API)
     if (channel.isThread()) {
       webhookOptions.threadId = channel.id;
-      logger.info(`Sending to thread ${channel.id} as ${standardizedName}`);
+      logger.info({ threadId: channel.id, username: standardizedName }, 'Sending to thread');
     }
 
     // Debug logging for avatar URL (log the actual URL with cache-busting)
-    logger.debug(`Sending with avatar: ${avatarURL ?? 'UNDEFINED'}`);
+    logger.debug({ avatarURL: avatarURL ?? null }, 'Sending with avatar');
 
     // Send via webhook and return message
     const sentMessage = await webhook.send(webhookOptions);
-    logger.info(`Sent message as ${standardizedName} in ${channel.id}`);
+    logger.info(
+      { username: standardizedName, channelId: channel.id },
+      'Sent message as personality'
+    );
     return sentMessage;
   }
 
@@ -235,7 +238,7 @@ export class WebhookManager {
     }
 
     if (cleanedCount > 0) {
-      logger.debug(`Cleaned up ${cleanedCount} expired webhook cache entries`);
+      logger.debug({ count: cleanedCount }, 'Cleaned up expired webhook cache entries');
     }
   }
 
@@ -259,7 +262,8 @@ export class WebhookManager {
     }
 
     logger.debug(
-      `Evicted ${entriesToRemove} least recently used webhook cache entries (limit: ${this.maxCacheSize})`
+      { evicted: entriesToRemove, limit: this.maxCacheSize },
+      'Evicted least recently used webhook cache entries'
     );
   }
 

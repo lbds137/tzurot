@@ -105,7 +105,12 @@ export class PgvectorMemoryAdapter {
       }
 
       logger.debug(
-        `Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${isValidId(options.personalityId) ? options.personalityId : 'all'})`
+        {
+          count: documents.length,
+          personaId: options.personaId,
+          personalityId: isValidId(options.personalityId) ? options.personalityId : 'all',
+        },
+        'Retrieved memories for query'
       );
       return documents;
     } catch (error) {

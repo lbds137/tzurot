@@ -57,7 +57,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
       const deduplicationCache = getDeduplicationCache();
       const duplicate = await deduplicationCache.checkDuplicate(request);
       if (duplicate !== null) {
-        logger.info(`Returning cached job ${duplicate.jobId} for duplicate request`);
+        logger.info({ jobId: duplicate.jobId }, 'Returning cached job for duplicate request');
         return sendSuccess(res, {
           jobId: duplicate.jobId,
           requestId: duplicate.requestId,
@@ -105,7 +105,8 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
         await deduplicationCache.cacheRequest(request, requestId, jobId);
         const creationTime = Date.now() - startTime;
         logger.info(
-          `Created job chain with main job ${jobId} for ${request.personality.name} (${creationTime}ms)`
+          { jobId, personalityName: request.personality.name, creationTimeMs: creationTime },
+          'Created job chain'
         );
 
         sendCustomSuccess(res, { jobId, requestId, status: JobStatus.Queued }, 202);

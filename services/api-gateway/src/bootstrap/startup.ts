@@ -50,11 +50,11 @@ export function validateByokConfiguration(): void {
 async function ensureDirectory(path: string, name: string): Promise<void> {
   try {
     await access(path);
-    logger.info(`${name} directory exists`);
+    logger.info({ name }, 'Directory exists');
   } catch {
     try {
       await mkdir(path, { recursive: true });
-      logger.info(`Created ${name} directory at ${path}`);
+      logger.info({ name, path }, 'Created directory');
     } catch (createError) {
       logger.error({ err: createError }, `Failed to create ${name} directory`);
       throw createError;

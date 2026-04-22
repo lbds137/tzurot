@@ -148,7 +148,7 @@ export class CommandHandler {
       }
     }
 
-    logger.info(`Loaded command: ${commandName}`);
+    logger.info({ commandName }, 'Loaded command');
   }
 
   /**
@@ -158,18 +158,18 @@ export class CommandHandler {
     const commandsPath = join(__dirname, '../commands');
     const commandFiles = getCommandFiles(commandsPath);
 
-    logger.info(`Loading ${commandFiles.length} command files...`);
+    logger.info({ count: commandFiles.length }, 'Loading command files');
 
     for (const filePath of commandFiles) {
       try {
         await this.loadSingleCommand(filePath, commandsPath);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error({ err: error, filePath, errorMessage }, `Failed to load command: ${filePath}`);
+        logger.error({ err: error, filePath, errorMessage }, 'Failed to load command');
       }
     }
 
-    logger.info(`Loaded ${this.commands.size} commands`);
+    logger.info({ count: this.commands.size }, 'Loaded commands');
   }
 
   /**
@@ -198,14 +198,14 @@ export class CommandHandler {
     }
 
     try {
-      logger.info(`Executing command: ${commandName}`);
+      logger.info({ commandName }, 'Executing command');
       // Type assertion for legacy commands that receive raw interaction
       // New commands with deferralMode are handled by index.ts directly
       type LegacyExecute = (interaction: ChatInputCommandInteraction) => Promise<void>;
       const execute = command.execute as LegacyExecute;
       await execute(interaction);
     } catch (error) {
-      logger.error({ err: error }, `Error executing command: ${commandName}`);
+      logger.error({ err: error, commandName }, 'Error executing command');
       try {
         await this.sendErrorReply(interaction, 'There was an error executing this command!');
       } catch (replyError) {
@@ -239,7 +239,7 @@ export class CommandHandler {
     try {
       // Commands must export handleModal to handle modal submissions
       if (command.handleModal !== undefined) {
-        logger.info(`Executing modal handler: ${commandName}`);
+        logger.info({ commandName }, 'Executing modal handler');
         await command.handleModal(interaction);
       } else {
         logger.warn(
@@ -322,14 +322,14 @@ export class CommandHandler {
           logger.warn({ customId, commandName }, 'No select menu handler for command');
           return;
         }
-        logger.info(`Executing select menu handler: ${commandName}`);
+        logger.info({ commandName }, 'Executing select menu handler');
         await command.handleSelectMenu(interaction);
       } else if (interaction.isButton()) {
         if (!command.handleButton) {
           logger.warn({ customId, commandName }, 'No button handler for command');
           return;
         }
-        logger.info(`Executing button handler: ${commandName}`);
+        logger.info({ commandName }, 'Executing button handler');
         await command.handleButton(interaction);
       }
     } catch (error) {

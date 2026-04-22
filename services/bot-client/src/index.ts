@@ -410,8 +410,8 @@ async function handleCommandWithContext(
 
 // Ready event
 client.once(Events.ClientReady, () => {
-  logger.info(`Logged in as ${client.user?.tag ?? 'unknown'}`);
-  logger.info(`Gateway URL: ${config.gatewayUrl}`);
+  logger.info({ botTag: client.user?.tag ?? 'unknown' }, 'Logged in');
+  logger.info({ gatewayUrl: config.gatewayUrl }, 'Gateway URL configured');
 
   // Initialize verification message cleanup service and start scheduler
   initVerificationCleanupService(client);
@@ -486,7 +486,7 @@ async function verifyDatabaseConnection(): Promise<void> {
   const tempPrisma = getPrismaClient();
   const tempPersonalityService = new PersonalityService(tempPrisma);
   const personalityList = await tempPersonalityService.loadAllPersonalities();
-  logger.info(`Found ${personalityList.length} personalities in database`);
+  logger.info({ count: personalityList.length }, 'Found personalities in database');
 }
 
 /**

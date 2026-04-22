@@ -104,11 +104,10 @@ export class ConversationalRAGService {
       personality.id
     );
     if (participantPersonas.size > 0) {
-      logger.info(
-        `Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`
-      );
+      const names = Array.from(participantPersonas.keys());
+      logger.info({ count: participantPersonas.size, names }, 'Loaded participant personas');
     } else {
-      logger.debug(`No participant personas found in conversation history`);
+      logger.debug('No participant personas found in conversation history');
     }
 
     // Resolve user references across all personality text fields (shapes.inc format mentions)
@@ -133,7 +132,7 @@ export class ConversationalRAGService {
         }
       }
 
-      logger.info(`Resolved ${resolvedPersonas.length} user reference(s) in personality fields`);
+      logger.info({ count: resolvedPersonas.length }, 'Resolved user refs in personality fields');
     }
 
     return { participantPersonas, processedPersonality };
@@ -297,7 +296,8 @@ export class ConversationalRAGService {
     );
 
     logger.info(
-      `Generated ${cleanedContent.length} chars for ${personality.name} using model: ${modelName}`
+      { charCount: cleanedContent.length, personalityName: personality.name, modelName },
+      'Generated response'
     );
 
     return {
@@ -379,9 +379,9 @@ export class ConversationalRAGService {
         await this.loadPersonasAndResolveReferences(personality, context);
 
       // Step 3: Retrieve relevant memories
-      logger.info(
-        `Memory search query: "${inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
-      );
+      const qPreview = inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW);
+      const qTruncated = inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW;
+      logger.info({ queryPreview: qPreview, truncated: qTruncated }, 'Memory search query');
       diagnosticCollector?.markMemoryRetrievalStart();
       const { memories: retrievedMemories, focusModeEnabled } =
         await this.memoryRetriever.retrieveRelevantMemories(

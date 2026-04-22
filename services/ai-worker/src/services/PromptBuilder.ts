@@ -198,7 +198,8 @@ export class PromptBuilder {
       context.discordUsername
     );
     logger.debug(
-      `Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
+      { personaLength: persona.length, protocolLength: protocol.length },
+      'Persona and protocol lengths'
     );
 
     // Build <system_identity> section
@@ -251,7 +252,10 @@ ${locationXml}
         : '';
 
     if (referencesContext.length > 0) {
-      logger.info(`referencesContext length after formatting: ${referencesContext.length}`);
+      logger.info(
+        { referencesContextLength: referencesContext.length },
+        'Formatted referencesContext'
+      );
     }
 
     // Conversation history as XML
@@ -274,9 +278,20 @@ ${serializedHistory}
 
     // Basic prompt composition logging
     const historyLength = serializedHistory?.length ?? 0;
-    logger.info(
-      `Prompt composition: identity=${identitySection.length} identityConstraints=${identityConstraintsSection.length} platformConstraints=${PLATFORM_CONSTRAINTS.length} context=${contextSection.length} participants=${participantsContext.length} memories=${memoryContext.length} references=${referencesContext.length} history=${historyLength} protocol=${protocolSection.length} outputConstraints=${outputConstraintsSection.length} total=${fullSystemPrompt.length} chars`
-    );
+    const promptLengths = {
+      identity: identitySection.length,
+      identityConstraints: identityConstraintsSection.length,
+      platformConstraints: PLATFORM_CONSTRAINTS.length,
+      context: contextSection.length,
+      participants: participantsContext.length,
+      memories: memoryContext.length,
+      references: referencesContext.length,
+      history: historyLength,
+      protocol: protocolSection.length,
+      outputConstraints: outputConstraintsSection.length,
+      total: fullSystemPrompt.length,
+    };
+    logger.info({ ...promptLengths }, 'Prompt composition');
 
     // Detailed prompt assembly logging (development only)
     logDetailedPromptAssembly({
