@@ -60,10 +60,7 @@ export async function probeShapesSession(sessionCookie: string): Promise<Preflig
     }
 
     if (response.status === 401 || response.status === 403) {
-      logger.info(
-        { status: response.status },
-        '[ShapesPreflight] shapes.inc rejected submitted cookie'
-      );
+      logger.info({ status: response.status }, 'shapes.inc rejected submitted cookie');
       return 'invalid';
     }
 
@@ -72,7 +69,7 @@ export async function probeShapesSession(sessionCookie: string): Promise<Preflig
     // and always-inconclusive becomes the norm.
     logger.warn(
       { status: response.status, endpoint: PREFLIGHT_ENDPOINT },
-      '[ShapesPreflight] Inconclusive preflight — persisting cookie anyway'
+      'Inconclusive preflight — persisting cookie anyway'
     );
     return 'inconclusive';
   } catch (error) {
@@ -81,7 +78,7 @@ export async function probeShapesSession(sessionCookie: string): Promise<Preflig
     // users from saving valid credentials.
     logger.warn(
       { err: error instanceof Error ? error : new Error(String(error)) },
-      '[ShapesPreflight] Preflight fetch failed — persisting cookie anyway'
+      'Preflight fetch failed — persisting cookie anyway'
     );
     return 'inconclusive';
   } finally {
