@@ -379,6 +379,31 @@ describe('personalityMentionParser', () => {
       expect(result?.cleanContent).toBe('are you there');
     });
 
+    // PR #864 bounded-quantifier regression: the trailing-punctuation strip
+    // is `[.,!?;:)"'*_~|\`]{1,16}$`. If the bound were narrowed to `{1,2}`,
+    // "!!!" and "..." would stop matching as a full strip.
+    it('strips multi-char trailing punctuation (bounded-quantifier regression)', async () => {
+      const result = await findPersonalityMention(
+        '@Lilith!!!',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+    });
+
+    it('strips ellipsis-style trailing punctuation', async () => {
+      const result = await findPersonalityMention(
+        '@Lilith...',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+    });
+
     it('should handle mention with asterisk (Discord italic/bold markdown)', async () => {
       // User scenario: *action text with @Mention* more text
       const result = await findPersonalityMention(

@@ -50,6 +50,26 @@ describe('parseApiError', () => {
       const error2 = new Error('status=403');
       expect(parseApiError(error2).statusCode).toBe(403);
     });
+
+    // PR #864 bounded-quantifier regression guards. `statusPattern` uses
+    // `\s{0,8}` / `\s{1,8}` after the ReDoS fix. If bounds were narrowed to
+    // `\s{1,2}`, multi-space variants would stop matching.
+    it('parses status with multi-space variants (bounded-quantifier regression)', () => {
+      // Up to ~8 spaces between tokens — upper bound of \s{1,8}
+      expect(parseApiError(new Error('status    code    429')).statusCode).toBe(429);
+      expect(parseApiError(new Error('status        code        429')).statusCode).toBe(429);
+    });
+
+    it('parses status with tab/newline whitespace variants', () => {
+      expect(parseApiError(new Error('status\tcode\t500')).statusCode).toBe(500);
+    });
+
+    it('does NOT fire on unbounded whitespace gaps (sanity — way past ceiling)', () => {
+      // More than 8 spaces: pattern should not match, returning undefined status.
+      // This isn't a strict requirement but confirms the cap works as a ceiling.
+      const tooMany = 'status' + ' '.repeat(20) + 'code' + ' '.repeat(20) + '429';
+      expect(parseApiError(new Error(tooMany)).statusCode).toBeUndefined();
+    });
   });
 
   describe('error classification', () => {

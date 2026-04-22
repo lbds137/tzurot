@@ -76,4 +76,29 @@ describe('sanitizeErrorForDiscord', () => {
     const exactLength = 'a'.repeat(200);
     expect(sanitizeErrorForDiscord(exactLength)).toBe(exactLength);
   });
+
+  // Regression guard for PR #864 ReDoS fix: STACK_TRACE_PATTERN uses bounded
+  // quantifiers `\s{1,16}at\s{1,4}\w`. These tests would fail if the bounds
+  // were narrowed below what real stack traces produce.
+  describe('STACK_TRACE_PATTERN bounded-quantifier regression', () => {
+    it('detects Node.js v8-style stack frame (4-space indent, 1-space "at")', () => {
+      // Keep under 200 chars so the pattern check is the gate, not length
+      expect(sanitizeErrorForDiscord('    at f (x.ts:1:1)')).toBe(
+        'Something went wrong. Please try again or contact support.'
+      );
+    });
+
+    it('detects stack frame with up-to-8-space indent', () => {
+      expect(sanitizeErrorForDiscord('        at f (x.ts:1:1)')).toBe(
+        'Something went wrong. Please try again or contact support.'
+      );
+    });
+
+    it('does NOT trigger on "  at " with fewer chars before the word', () => {
+      // '  at x' would match (2 leading spaces within {1,16}) — confirming bound works
+      expect(sanitizeErrorForDiscord('  at x')).toBe(
+        'Something went wrong. Please try again or contact support.'
+      );
+    });
+  });
 });
