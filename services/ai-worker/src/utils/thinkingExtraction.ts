@@ -87,6 +87,21 @@ const KNOWN_THINKING_TAGS = [
  * False-positive risk: effectively zero. The UUID shape is the load-bearing
  * guarantee; the tag names are scaffolding around it.
  *
+ * Interaction with `normalizeThinkingTagNamespaces`: the upstream namespace
+ * normalization only rewrites tags whose name is in `KNOWN_THINKING_TAGS`
+ * (think/thinking/ant_thinking/reasoning/thought/reflection/scratchpad/
+ * character_analysis/understanding). `<from_id>`, `<user>`, and `<message>`
+ * are not in that list, so normalization will not rewrite them and this
+ * pattern is safe against a `<ns:from_id>`-style future leak. If the
+ * `KNOWN_THINKING_TAGS` list is ever expanded to include overlap with these
+ * scaffolding tag names, re-verify.
+ *
+ * `^` anchor is intentional absolute start-of-string (no `m` flag). The
+ * pattern must only fire when the wrapper dominates the whole response;
+ * an `m`-flagged `^` would match any line start and would incorrectly
+ * strip mid-response occurrences of the format (e.g. in meta-conversation
+ * about the format).
+ *
  * Architecture: this is a "model-specific pattern extractor" that runs as a
  * first pass in `extractThinkingBlocks`, before the generic `KNOWN_THINKING_TAGS`
  * loop. Council (Gemini 3.1 Pro Preview, 2026-04-22) recommended the
