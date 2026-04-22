@@ -12,11 +12,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import { citext } from '@electric-sql/pglite/contrib/citext';
+import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
@@ -75,9 +73,7 @@ describe('LongTermMemoryService', () => {
 
   beforeAll(async () => {
     // Set up PGlite with pgvector extension
-    pglite = new PGlite({
-      extensions: { vector, citext },
-    });
+    pglite = createTestPGlite();
 
     // Load and execute the pre-generated schema
     const schemaSql = loadPGliteSchema();

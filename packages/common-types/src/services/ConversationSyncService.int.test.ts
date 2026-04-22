@@ -11,11 +11,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PrismaClient } from './prisma.js';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import { citext } from '@electric-sql/pglite/contrib/citext';
+import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { ConversationSyncService } from './ConversationSyncService.js';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { MessageRole } from '../constants/index.js';
@@ -35,9 +33,7 @@ describe('ConversationSyncService Integration Test', () => {
 
   beforeAll(async () => {
     // Set up PGlite with pgvector extension (required by schema)
-    pglite = new PGlite({
-      extensions: { vector, citext },
-    });
+    pglite = createTestPGlite();
 
     // Load and execute the pre-generated schema from Prisma
     const schemaSql = loadPGliteSchema();

@@ -30,11 +30,9 @@ import {
 } from '@tzurot/common-types';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import { citext } from '@electric-sql/pglite/contrib/citext';
+import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 
 // Mock Redis service to avoid real Redis dependency
 vi.mock('../redis.js', () => ({
@@ -59,9 +57,7 @@ describe('AIJobProcessor Component Test', () => {
     // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
     // Note: PGlite initialization is CPU-intensive and may be slow when running
     // in parallel with other tests, hence the extended timeout
-    pglite = new PGlite({
-      extensions: { vector, citext },
-    });
+    pglite = createTestPGlite();
 
     // Load the complete schema from the shared schema file
     // This ensures integration tests stay in sync with migrations
