@@ -43,8 +43,24 @@ describe('HardcodedConstraints', () => {
       expect(OUTPUT_CONSTRAINTS).toContain('do not include name labels');
     });
 
-    it('should prohibit XML tags in output', () => {
-      expect(OUTPUT_CONSTRAINTS).toContain('Never output XML tags');
+    it('should sanction <think> tags as the only permitted XML output channel', () => {
+      // Path-of-less-resistance for models that hallucinate prompt-assembly
+      // scaffolding when reasoning is enabled — gives them a sanctioned
+      // thinking channel that the generic KNOWN_THINKING_TAGS extractor
+      // already handles cleanly.
+      expect(OUTPUT_CONSTRAINTS).toContain('<think>');
+      expect(OUTPUT_CONSTRAINTS).toContain('sole XML you may emit');
+    });
+
+    it('should prohibit leaking specific input-format scaffolding tags', () => {
+      // Concrete named prohibitions land harder than abstract "XML" for
+      // RLHF-fighting models (validated via MCP council, 2026-04-22).
+      // Addresses the GLM-4.5-Air fake-user-message-echo quirk observed
+      // in req b533e288-fb07-46c0-a5e2-a0f78883e63e.
+      expect(OUTPUT_CONSTRAINTS).toContain('<from_id>');
+      expect(OUTPUT_CONSTRAINTS).toContain('<user>');
+      expect(OUTPUT_CONSTRAINTS).toContain('<message>');
+      expect(OUTPUT_CONSTRAINTS).toContain('assembly artifacts');
     });
 
     it('should prohibit parroting', () => {
