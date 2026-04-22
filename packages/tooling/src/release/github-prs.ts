@@ -43,8 +43,11 @@ export function discoverPrevTag(): string {
  * commit is authored.
  */
 export function tagTimestamp(tag: string): string {
+  const notFoundMessage = `Could not resolve timestamp for tag '${tag}'. Does the tag exist? Try 'git tag -l' to see available tags.`;
+
+  let result: string;
   try {
-    return execFileSync(
+    result = execFileSync(
       'git',
       ['for-each-ref', '--format=%(creatordate:iso-strict)', `refs/tags/${tag}`],
       {
@@ -53,10 +56,16 @@ export function tagTimestamp(tag: string): string {
       }
     ).trim();
   } catch {
-    throw new Error(
-      `Could not resolve timestamp for tag '${tag}'. Does the tag exist? Try 'git tag -l' to see available tags.`
-    );
+    throw new Error(notFoundMessage);
   }
+
+  // `git for-each-ref refs/tags/<nonexistent>` exits 0 with empty stdout —
+  // it doesn't throw. Empty-string guard catches the missing-tag case that
+  // the try/catch above cannot.
+  if (result === '') {
+    throw new Error(notFoundMessage);
+  }
+  return result;
 }
 
 /**
@@ -111,5 +120,5 @@ export function listMergedPrsSince(since: string): MergedPr[] {
     );
   }
 
-  return parsed.sort((a, b) => a.mergedAt.localeCompare(b.mergedAt));
+  return parsed.sort((a, b) => new Date(a.mergedAt).getTime() - new Date(b.mergedAt).getTime());
 }
