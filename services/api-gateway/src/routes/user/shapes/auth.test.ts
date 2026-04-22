@@ -200,9 +200,12 @@ describe('Shapes Auth Routes', () => {
     });
 
     it('should reject a value containing disallowed characters', async () => {
-      // Spaces fail the token-shape regex even though the length is fine.
+      // 32 chars of allowed characters + a space → passes the length gate and
+      // fails on the token-shape regex. Important that the length passes here
+      // so this test exercises the character-class rejection path specifically,
+      // not the length path (which has its own test above).
       const { res } = await callStoreHandler({
-        sessionCookie: '__Secure-better-auth.session_token=val with spaces and padding xxx',
+        sessionCookie: `__Secure-better-auth.session_token=${'a'.repeat(30)} bb`,
       });
 
       expect(res.status).toHaveBeenCalledWith(400);
