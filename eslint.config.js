@@ -15,21 +15,34 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // full `no-restricted-syntax` array and would drop these rules for those
 // files). Extracted to avoid silent drift if the selectors change.
 //
-// Fires on shapes that lose structured-field discipline:
-//   - Identifier (e.g. `error`) / MemberExpression (e.g. `result.error`) —
-//     wanted `{ err: error }` instead of passing the raw error/value as msg
-//   - TemplateLiteral — catches `logger.warn(`msg ${var}`)` which loses
-//     structure per 02-code-standards.md
-//   - CallExpression — catches `logger.warn(buildError(), 'msg')` where a
-//     fn-call returns an Error/object that should be wrapped in `{ err: … }`.
-//     Caveat: also fires on `logger.warn(getMessage(), ...)` where the fn
-//     returns a string. Those rare sites need inline suppressions.
-// Bare string Literals pass through (valid `logger.warn('static msg')`).
+// Two rule shapes per level:
+//
+//   1. Single-arg Identifier/MemberExpression/CallExpression → fires.
+//      Catches `logger.warn(error)` and `logger.warn(buildError())` where
+//      the error variable is being used as both first-arg fields and msg,
+//      losing any explicit message context. Doesn't fire on two-arg form
+//      `logger.info(prebuiltFields, 'msg')` — that's legitimate Pino usage
+//      where the Identifier is a prebuilt fields object. The arity guard
+//      eliminates the false-positive that otherwise forces `{ ...opts }`
+//      spread workarounds.
+//
+//   2. Any-arity TemplateLiteral first-arg → fires.
+//      Catches `logger.warn(`msg ${var}`)` regardless of arity. Template
+//      literals always lose structure per 02-code-standards.md — the
+//      variable should move into the fields object.
+//
+// Bare string Literals pass through at any arity (valid `logger.warn('msg')`).
 const PINO_LEVELS = Object.freeze(['error', 'warn', 'info', 'debug']);
-const PINO_LOGGER_RULES = PINO_LEVELS.map(level => ({
-  selector: `CallExpression[callee.property.name="${level}"] > *.arguments:first-child:matches(Identifier, MemberExpression, TemplateLiteral, CallExpression)`,
-  message: `logger.${level}() must use pino format: logger.${level}({ err: error }, "message") or logger.${level}({ fields }, "message"). Template-literal messages lose structure — move variables into the fields object. See packages/common-types/src/logger.ts.`,
-}));
+const PINO_LOGGER_RULES = PINO_LEVELS.flatMap(level => [
+  {
+    selector: `CallExpression[callee.property.name="${level}"][arguments.length=1] > *.arguments:first-child:matches(Identifier, MemberExpression, CallExpression)`,
+    message: `logger.${level}() with a single non-string argument loses message context. Use logger.${level}({ err: error }, "message") or logger.${level}({ fields }, "message"). See packages/common-types/src/logger.ts.`,
+  },
+  {
+    selector: `CallExpression[callee.property.name="${level}"] > *.arguments:first-child:matches(TemplateLiteral)`,
+    message: `logger.${level}() template-literal messages lose structure — move interpolated variables into the fields object: logger.${level}({ fields }, "static message"). See packages/common-types/src/logger.ts.`,
+  },
+]);
 
 export default tseslint.config(
   // Base configurations

@@ -291,7 +291,7 @@ ${serializedHistory}
       outputConstraints: outputConstraintsSection.length,
       total: fullSystemPrompt.length,
     };
-    logger.info({ ...promptLengths }, 'Prompt composition');
+    logger.info(promptLengths, 'Prompt composition');
 
     // Detailed prompt assembly logging (development only)
     logDetailedPromptAssembly({
