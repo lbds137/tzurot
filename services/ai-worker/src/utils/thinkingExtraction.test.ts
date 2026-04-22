@@ -672,6 +672,124 @@ def hello():
       expect(result.blockCount).toBe(1);
     });
   });
+
+  describe('GLM-4.5-Air fake-user-message-echo pattern', () => {
+    // Observed 2026-04-22 (req b533e288-fb07-46c0-a5e2-a0f78883e63e).
+    // Model emitted chain-of-thought wrapped in tags that mimic our
+    // prompt-assembly format. Three structural rules protect extraction
+    // safety: start-of-response anchor, UUID shape, strict tag sequence.
+    const VALID_UUID = '62a59660-cd89-51dc-8c54-7100f4e33329';
+
+    it('extracts the leading fake-user-message block as thinking content', () => {
+      const content = `
+<from_id>${VALID_UUID}</from_id>
+<user>Test User (L432)</user>
+<message>As the character, I should respond thoughtfully.
+I need to acknowledge their question and stay in voice.</message>
+
+*The actual in-character response begins here.*`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('As the character, I should respond thoughtfully.');
+      expect(result.thinkingContent).toContain('I need to acknowledge their question');
+      expect(result.visibleContent).toBe('*The actual in-character response begins here.*');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('strips the wrapper from visible content without leaking scaffolding tags', () => {
+      const content = `<from_id>${VALID_UUID}</from_id>
+<user>User</user>
+<message>reasoning here</message>
+
+Real response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).not.toContain('<from_id>');
+      expect(result.visibleContent).not.toContain('</message>');
+      expect(result.visibleContent).not.toContain(VALID_UUID);
+      expect(result.visibleContent).toBe('Real response.');
+    });
+
+    it('does NOT match when the block is mid-response rather than leading', () => {
+      // Position anchor is load-bearing — a character discussing this format
+      // mid-response (hypothetical meta-conversation) must not get stripped.
+      const content = `Here is my response. Later I will show you:
+<from_id>${VALID_UUID}</from_id>
+<user>Example</user>
+<message>example content</message>
+That is what the format looks like.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Nothing extracted — mid-response occurrence left intact
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<from_id>');
+      expect(result.blockCount).toBe(0);
+    });
+
+    it('does NOT match when the from_id lacks a valid UUID', () => {
+      // UUID validation is the primary safety guarantee against false-positives.
+      // Random prose content between `<from_id>` tags must not trigger extraction.
+      const content = `<from_id>not-a-uuid</from_id>
+<user>User</user>
+<message>content</message>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<from_id>');
+    });
+
+    it('does NOT match when a UUID is present but the tag sequence is incomplete', () => {
+      // Missing <user> tag — structural sequence check protects extraction.
+      const content = `<from_id>${VALID_UUID}</from_id>
+<message>content without user tag</message>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<from_id>');
+    });
+
+    it('composes with standard <think> tag extraction on the remaining content', () => {
+      // Chain-of-Extractors: model-specific pattern runs first (pass 1),
+      // standard KNOWN_THINKING_TAGS runs second (pass 2). Both should fire
+      // when a response contains both patterns.
+      const content = `<from_id>${VALID_UUID}</from_id>
+<user>User</user>
+<message>first-pass thinking</message>
+
+<think>second-pass thinking</think>
+
+Final response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('first-pass thinking');
+      expect(result.thinkingContent).toContain('second-pass thinking');
+      expect(result.visibleContent).toBe('Final response.');
+    });
+
+    it('handles uppercase UUIDs (case-insensitivity on hex digits)', () => {
+      const upperUuid = VALID_UUID.toUpperCase();
+      const content = `<from_id>${upperUuid}</from_id>
+<user>User</user>
+<message>reasoning</message>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('reasoning');
+      expect(result.visibleContent).toBe('Response.');
+    });
+  });
 });
 
 describe('hasThinkingBlocks', () => {

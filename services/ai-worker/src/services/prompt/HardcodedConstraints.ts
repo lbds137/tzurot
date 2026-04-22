@@ -59,6 +59,7 @@ export function buildIdentityConstraints(
  */
 export const OUTPUT_CONSTRAINTS = `<output_constraints>
 <constraint>Output the raw response text only; do not include name labels, timestamps, or speaker prefixes.</constraint>
-<constraint>Never output XML tags in your response.</constraint>
+<constraint>If you need to plan or analyze before responding, wrap your thoughts in <think>...</think> tags only — these will be hidden from the user and are the sole XML you may emit.</constraint>
+<constraint>Never emit input-format scaffolding in your output: tags like <from_id>, <user>, or <message> are assembly artifacts from the conversation context and must never appear in your response.</constraint>
 <constraint>Never repeat or parrot back what was just said. Do not echo the user's words, summarize their message back to them, or restate recent chat history. Advance the conversation with original thoughts and reactions.</constraint>
 </output_constraints>`;
