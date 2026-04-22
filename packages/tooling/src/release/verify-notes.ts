@@ -19,10 +19,13 @@ export interface VerifyNotesOptions {
 }
 
 export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
-  // Read notes from stdin.
+  // Read notes from stdin. `setEncoding('utf-8')` makes each chunk a string;
+  // without it, chunks are `Buffer` objects and `+= chunk` only works via
+  // implicit coercion.
+  process.stdin.setEncoding('utf-8');
   let input = '';
   for await (const chunk of process.stdin) {
-    input += chunk as string;
+    input += chunk;
   }
 
   if (input.trim().length === 0) {
@@ -32,22 +35,14 @@ export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
     process.exit(1);
   }
 
-  // Extract PR refs from notes — match `#<digits>` anywhere in the text.
-  const notesRefs: number[] = [];
-  for (const match of input.matchAll(/#(\d+)/g)) {
-    notesRefs.push(parseInt(match[1], 10));
-  }
-
-  const duplicates = findDuplicates(notesRefs);
-  const notesPrSet = new Set(notesRefs);
+  const notesRefs = extractPrRefs(input);
 
   const fromTag = options.from ?? discoverPrevTag();
   const fromTimestamp = tagTimestamp(fromTag);
   const mergedPrs = listMergedPrsSince(fromTimestamp);
   const mergedNumbers = new Set(mergedPrs.map(p => p.number));
 
-  const missing = [...mergedNumbers].filter(n => !notesPrSet.has(n));
-  const extra = [...notesPrSet].filter(n => !mergedNumbers.has(n));
+  const { missing, extra, duplicates } = classifyRefs(notesRefs, mergedNumbers);
 
   let hasIssues = false;
 
@@ -95,9 +90,47 @@ export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
 }
 
 /**
+ * Extract PR refs (`#<digits>`) from notes markdown.
+ *
+ * Known limitation: this also matches issue refs, upstream-repo references,
+ * and any other `#<number>` pattern in prose (e.g., "fixes #45 in upstream").
+ * Those will surface as `extra` in the classification step. Accepted as
+ * noise for now — tightening would require parsing markdown structure or
+ * requiring a specific syntax like `(#N)` at line-end. Documenting explicitly
+ * so reviewers don't spend time debugging a false-positive "extra" entry.
+ */
+export function extractPrRefs(notes: string): number[] {
+  const refs: number[] = [];
+  for (const match of notes.matchAll(/#(\d+)/g)) {
+    refs.push(parseInt(match[1], 10));
+  }
+  return refs;
+}
+
+export interface RefClassification {
+  /** PRs merged in range but absent from notes. */
+  missing: number[];
+  /** Refs in notes but not in the merged-PR set for the range. */
+  extra: number[];
+  /** Refs appearing more than once in notes. */
+  duplicates: number[];
+}
+
+/**
+ * Classify extracted PR refs against the merged-PR set for the range.
+ * Pure function — extracted from the orchestrator so the diff logic is
+ * unit-testable without mocking `process.exit`.
+ */
+export function classifyRefs(notesRefs: number[], mergedNumbers: Set<number>): RefClassification {
+  const duplicates = findDuplicates(notesRefs);
+  const notesPrSet = new Set(notesRefs);
+  const missing = [...mergedNumbers].filter(n => !notesPrSet.has(n));
+  const extra = [...notesPrSet].filter(n => !mergedNumbers.has(n));
+  return { missing, extra, duplicates };
+}
+
+/**
  * Return the set of numbers that appear more than once in `refs`.
- * Exported for colocated testing without needing the verify-notes
- * orchestrator to be invoked.
  */
 export function findDuplicates(refs: number[]): number[] {
   const counts = new Map<number, number>();
