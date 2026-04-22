@@ -11,11 +11,21 @@ import type { MergedPr } from './notes-format.js';
 /**
  * Return the most recent tag reachable from HEAD. Typical output:
  * `v3.0.0-beta.103`.
+ *
+ * Throws a user-facing error if the repo has no tags — `git describe`'s
+ * raw stderr is unhelpful for a first-time user of this command.
  */
 export function discoverPrevTag(): string {
-  return execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
-    encoding: 'utf-8',
-  }).trim();
+  try {
+    return execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    throw new Error(
+      'Could not discover a previous tag. Create a release tag first, or pass --from <tag> explicitly.'
+    );
+  }
 }
 
 /**
@@ -23,9 +33,16 @@ export function discoverPrevTag(): string {
  * GitHub `merged:>...` search query.
  */
 export function tagTimestamp(tag: string): string {
-  return execFileSync('git', ['log', '-1', '--format=%aI', tag], {
-    encoding: 'utf-8',
-  }).trim();
+  try {
+    return execFileSync('git', ['log', '-1', '--format=%aI', tag], {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    throw new Error(
+      `Could not resolve timestamp for tag '${tag}'. Does the tag exist? Try 'git tag -l' to see available tags.`
+    );
+  }
 }
 
 /**
@@ -37,26 +54,36 @@ export function tagTimestamp(tag: string): string {
  * 200 PRs would be a yearly-scale bundle, well outside the weekly
  * cadence this tool is built for. If we ever hit that cap, we'll see a
  * truncated output and can decide whether to raise the limit or split.
+ *
+ * Throws a user-facing error if `gh` is missing / unauthenticated — the
+ * raw `spawnSync` error otherwise exposes internal paths without guidance.
  */
 export function listMergedPrsSince(since: string): MergedPr[] {
-  const raw = execFileSync(
-    'gh',
-    [
-      'pr',
-      'list',
-      '--state',
-      'merged',
-      '--base',
-      'develop',
-      '--search',
-      `merged:>${since}`,
-      '--limit',
-      '200',
-      '--json',
-      'number,title,mergedAt',
-    ],
-    { encoding: 'utf-8' }
-  );
+  let raw: string;
+  try {
+    raw = execFileSync(
+      'gh',
+      [
+        'pr',
+        'list',
+        '--state',
+        'merged',
+        '--base',
+        'develop',
+        '--search',
+        `merged:>${since}`,
+        '--limit',
+        '200',
+        '--json',
+        'number,title,mergedAt',
+      ],
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+  } catch {
+    throw new Error(
+      'Failed to query merged PRs. Is `gh` installed and authenticated? Run `gh auth status` to check.'
+    );
+  }
   const parsed = JSON.parse(raw) as MergedPr[];
   return parsed.sort((a, b) => a.mergedAt.localeCompare(b.mergedAt));
 }
