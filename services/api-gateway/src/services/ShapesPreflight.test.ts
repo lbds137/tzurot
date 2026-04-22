@@ -123,7 +123,7 @@ describe('probeShapesSession', () => {
     await probeShapesSession(SESSION_COOKIE);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/auth/session'),
+      expect.stringContaining('/api/users/info'),
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
