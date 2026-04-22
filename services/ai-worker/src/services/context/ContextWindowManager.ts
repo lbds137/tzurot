@@ -236,9 +236,9 @@ export class ContextWindowManager {
       const overrunPercent = historyBudget > 0 ? overrun / historyBudget : 0;
       const logData = { actualTokens: totalTokens, historyBudget, overrun };
       if (overrunPercent > 0.05) {
-        logger.info({ ...logData }, 'Cross-channel budget overrun >5% (bounded)');
+        logger.info(logData, 'Cross-channel budget overrun >5% (bounded)');
       } else {
-        logger.debug({ ...logData }, 'Cross-channel budget overrun (bounded)');
+        logger.debug(logData, 'Cross-channel budget overrun (bounded)');
       }
     }
 
