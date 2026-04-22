@@ -94,8 +94,10 @@ describe('sanitizeErrorForDiscord', () => {
       );
     });
 
-    it('does NOT trigger on "  at " with fewer chars before the word', () => {
-      // '  at x' would match (2 leading spaces within {1,16}) — confirming bound works
+    it('triggers on 2-space-indented "at" frame (within {1,16} ceiling)', () => {
+      // 2 leading spaces are within the `\s{1,16}` bound — confirms the lower
+      // range of the quantifier matches, and that a minimal real-world frame
+      // ("  at x") still gets classified as a stack trace.
       expect(sanitizeErrorForDiscord('  at x')).toBe(
         'Something went wrong. Please try again or contact support.'
       );

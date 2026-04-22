@@ -5,7 +5,11 @@
  * Prevents leaking Prisma errors, stack traces, or internal details.
  */
 
-/** Matches stack trace lines like "    at SomeClass.method". ReDoS: {1,16} ceiling; indentation is 4-8 spaces in practice. */
+/** Matches stack trace lines like "    at SomeClass.method (file.ts:42:15)".
+ * Bounded leading `\s{1,16}` prevents polynomial-slide ReDoS on long error
+ * bodies — real stack trace indentation is at most 4-8 spaces in practice.
+ * An unbounded `\s+` (or `\s*`) would let the engine retry from every
+ * whitespace position in a pathological input. */
 const STACK_TRACE_PATTERN = /\s{1,16}at\s{1,4}\w/;
 
 /** Map known internal error patterns to user-friendly messages */
