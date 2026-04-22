@@ -74,7 +74,7 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       return sendError(
         res,
         ErrorResponses.validationError(
-          `Session cookie value must be ${SHAPES_TOKEN_MIN_LENGTH}-${SHAPES_TOKEN_MAX_LENGTH} characters and contain only alphanumeric, dot, underscore, or hyphen characters`
+          `Session cookie value must be ${SHAPES_TOKEN_MIN_LENGTH}-${SHAPES_TOKEN_MAX_LENGTH} characters and not contain whitespace or cookie separators (;, comma, quote, backslash)`
         )
       );
     }
