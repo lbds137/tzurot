@@ -7,5 +7,10 @@
  * - CI environment detection
  */
 
-export { loadPGliteSchema, setupTestEnvironment, type TestEnvironment } from './setup-pglite.js';
+export {
+  createTestPGlite,
+  loadPGliteSchema,
+  setupTestEnvironment,
+  type TestEnvironment,
+} from './setup-pglite.js';
 export { seedUserWithPersona, type SeedUserWithPersonaOptions } from './seed.js';

@@ -14,13 +14,11 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { PrismaClient } from './prisma.js';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import { citext } from '@electric-sql/pglite/contrib/citext';
+import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { UserService } from './UserService.js';
 import { generatePersonaUuid } from '../utils/deterministicUuid.js';
-import { loadPGliteSchema } from '@tzurot/test-utils';
+import { createTestPGlite, loadPGliteSchema } from '@tzurot/test-utils';
 
 // Mock isBotOwner - will be configured per test
 vi.mock('../utils/ownerMiddleware.js', () => ({
@@ -42,9 +40,7 @@ describe('UserService', () => {
 
   beforeAll(async () => {
     // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
-    pglite = new PGlite({
-      extensions: { vector, citext },
-    });
+    pglite = createTestPGlite();
 
     // Load and execute the pre-generated schema
     const schemaSql = loadPGliteSchema();

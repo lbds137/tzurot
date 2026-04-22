@@ -12,11 +12,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PrismaClient } from '@tzurot/common-types';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import { citext } from '@electric-sql/pglite/contrib/citext';
+import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
+import { createTestPGlite, loadPGliteSchema, seedUserWithPersona } from '@tzurot/test-utils';
 import { PgvectorMemoryAdapter, type MemoryMetadata } from './PgvectorMemoryAdapter.js';
 import type { IEmbeddingService } from '@tzurot/embeddings';
 
@@ -65,9 +63,7 @@ describe('PgvectorMemoryAdapter Component Test', () => {
 
   beforeAll(async () => {
     // Set up PGlite with pgvector extension
-    pglite = new PGlite({
-      extensions: { vector, citext },
-    });
+    pglite = createTestPGlite();
 
     // Load the complete schema from the shared schema file
     // This ensures integration tests stay in sync with migrations
