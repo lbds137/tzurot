@@ -246,6 +246,22 @@ The answer is 42.`;
       expect(result.blockCount).toBe(1);
     });
 
+    it('should extract <understanding> tags (GLM 4.5 Air, observed 2026-04-22)', () => {
+      // Real prod incident: GLM 4.5 Air with reasoning=medium emitted its
+      // internal analysis as <understanding>...</understanding> instead of the
+      // usual <character_analysis>, <think>, or reasoning_details. The block
+      // leaked into the Discord reply. Req deb8b063-ea7e-40c3-be96-4bdcfc32c453.
+      const content =
+        "<understanding>\nLaranthras is asking for courage. As Lilith I embody fierce independence...\n</understanding>\n\n*My gaze sharpens.* Courage against management isn't about being liked.";
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('Laranthras is asking for courage');
+      expect(result.visibleContent).toBe(
+        "*My gaze sharpens.* Courage against management isn't about being liked."
+      );
+      expect(result.blockCount).toBe(1);
+    });
+
     it('should extract real GLM 4.5 Air output with character_analysis + response', () => {
       // Real-world pattern from production: model dumps full response planning
       const content = [

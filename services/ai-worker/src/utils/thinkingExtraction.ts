@@ -56,6 +56,7 @@ const KNOWN_THINKING_TAGS = [
   'reflection', // Reflection AI
   'scratchpad', // Legacy research models
   'character_analysis', // GLM 4.5 Air internal chain-of-thought
+  'understanding', // GLM 4.5 Air (observed 2026-04-22, reasoning=medium, req deb8b063)
 ] as const;
 
 /**
