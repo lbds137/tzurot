@@ -247,7 +247,7 @@ async function fetchGlobalConfigs(): Promise<GlobalConfigEntry[] | null> {
 
   // Store in cache
   cache.set(GLOBAL_CONFIG_CACHE_KEY, data.configs);
-  logger.debug(`Cached ${data.configs.length} global configs`);
+  logger.debug({ count: data.configs.length }, 'Cached global configs');
 
   return data.configs;
 }

@@ -122,7 +122,7 @@ export async function optimizeAvatar(
     const originalBuffer = Buffer.from(base64Data, 'base64');
     const originalSizeKB = originalBuffer.length / 1024;
 
-    logger.info(`Original avatar size: ${originalSizeKB.toFixed(2)} KB`);
+    logger.info({ originalSizeKB: Number(originalSizeKB.toFixed(2)) }, 'Original avatar size');
 
     // Start with initial quality
     let quality = opts.initialQuality;
@@ -149,7 +149,10 @@ export async function optimizeAvatar(
     const processedSizeKB = processed.length / 1024;
     const exceedsTarget = processed.length > opts.maxSizeBytes;
 
-    logger.info(`Processed avatar size: ${processedSizeKB.toFixed(2)} KB (quality: ${quality})`);
+    logger.info(
+      { processedSizeKB: Number(processedSizeKB.toFixed(2)), quality },
+      'Processed avatar size'
+    );
 
     if (exceedsTarget) {
       logger.warn(

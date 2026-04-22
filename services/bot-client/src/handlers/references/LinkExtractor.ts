@@ -60,7 +60,8 @@ export class LinkExtractor {
         // Skip if this exact message was already extracted (e.g., from reply)
         if (extractedMessageIds.has(referencedMessage.id)) {
           logger.debug(
-            `Skipping duplicate link reference ${referencedMessage.id} - already extracted from reply`
+            { messageId: referencedMessage.id },
+            'Skipping duplicate link reference - already extracted from reply'
           );
           continue;
         }
@@ -74,7 +75,8 @@ export class LinkExtractor {
           )
         ) {
           logger.debug(
-            `Skipping link reference ${referencedMessage.id} - already in conversation history`
+            { messageId: referencedMessage.id },
+            'Skipping link reference - already in conversation history'
           );
           continue;
         }
@@ -262,10 +264,10 @@ export class LinkExtractor {
 
       if (errorCode === 10008) {
         // Unknown Message - deleted or never existed (expected)
-        logger.debug(`Message ${link.messageId} not found (deleted or inaccessible)`);
+        logger.debug({ messageId: link.messageId }, 'Message not found (deleted or inaccessible)');
       } else if (errorCode === 50001 || errorCode === 50013) {
         // Missing Access / Missing Permissions (expected)
-        logger.debug(`No permission to access message ${link.messageId}`);
+        logger.debug({ messageId: link.messageId }, 'No permission to access message');
       } else {
         // Unexpected error - log at WARN level for investigation
         logger.warn(

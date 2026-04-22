@@ -58,7 +58,13 @@ export function extractParticipants(
       m.personaName.length > 0
   ).length;
   logger.debug(
-    `Extracting participants: activePersonaId=${activePersonaId ?? 'undefined'}, activePersonaName=${activePersonaName ?? 'undefined'}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`
+    {
+      activePersonaId: activePersonaId ?? null,
+      activePersonaName: activePersonaName ?? null,
+      historyLength: history.length,
+      userMessagesWithPersona,
+    },
+    'Extracting participants'
   );
 
   // Extract from history
@@ -87,7 +93,7 @@ export function extractParticipants(
   // Single summary log instead of per-iteration logging
   if (uniquePersonas.size > 0) {
     const participantNames = Array.from(uniquePersonas.values()).join(', ');
-    logger.debug(`Found ${uniquePersonas.size} participant(s): ${participantNames}`);
+    logger.debug({ count: uniquePersonas.size, participantNames }, 'Found participants');
   }
 
   // Convert to array with isActive flag

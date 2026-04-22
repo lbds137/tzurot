@@ -255,7 +255,8 @@ export function extractRecentHistoryWindow(
     .join('\n');
 
   logger.debug(
-    `Extracted ${recentMessages.length} messages (${Math.ceil(recentMessages.length / 2)} turns) for LTM search context`
+    { messageCount: recentMessages.length, turnCount: Math.ceil(recentMessages.length / 2) },
+    'Extracted messages for LTM search context'
   );
 
   return formatted;

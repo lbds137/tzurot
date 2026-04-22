@@ -33,7 +33,7 @@ export function buildSearchQuery(
   // This helps resolve pronouns like "that", "it", "he" by embedding the recent topic
   if (recentHistoryWindow !== undefined && recentHistoryWindow.length > 0) {
     parts.push(recentHistoryWindow);
-    logger.info(`Including ${recentHistoryWindow.length} chars of recent history in memory search`);
+    logger.info({ chars: recentHistoryWindow.length }, 'Including recent history in memory search');
   }
 
   // Add user message (if not just the "Hello" fallback)

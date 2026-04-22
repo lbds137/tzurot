@@ -380,8 +380,8 @@ async function main(): Promise<void> {
       logger.error({ err }, 'Failed to start server');
       process.exit(1);
     }
-    logger.info(`Server listening on port ${config.port}`);
-    logger.info(`Health check: http://localhost:${config.port}/health`);
+    logger.info({ port: config.port }, 'Server listening');
+    logger.info({ url: `http://localhost:${config.port}/health` }, 'Health check URL');
   });
 
   server.on('error', (err: Error) => {

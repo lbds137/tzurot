@@ -171,7 +171,12 @@ export class ReferenceEnrichmentService {
       if (personaName !== undefined && personaName !== null && personaName.length > 0) {
         reference.authorDisplayName = personaName;
         logger.debug(
-          `Enriched reference ${reference.referenceNumber}: ${reference.authorUsername} -> ${personaName}`
+          {
+            referenceNumber: reference.referenceNumber,
+            authorUsername: reference.authorUsername,
+            personaName,
+          },
+          'Enriched reference'
         );
       } else {
         logger.warn(

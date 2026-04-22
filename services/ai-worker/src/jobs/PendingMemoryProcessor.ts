@@ -56,7 +56,7 @@ export class PendingMemoryProcessor {
         return stats;
       }
 
-      logger.info(`Processing ${pendingMemories.length} pending memories`);
+      logger.info({ count: pendingMemories.length }, 'Processing pending memories');
 
       for (const pending of pendingMemories) {
         stats.processed++;
@@ -99,7 +99,7 @@ export class PendingMemoryProcessor {
       });
       await this.prisma.pendingMemory.delete({ where: { id: pending.id } });
       stats.succeeded++;
-      logger.debug(`Successfully stored pending memory ${pending.id}`);
+      logger.debug({ pendingMemoryId: pending.id }, 'Successfully stored pending memory');
     } catch (error) {
       await this.handleStorageFailure(pending, error);
       stats.failed++;

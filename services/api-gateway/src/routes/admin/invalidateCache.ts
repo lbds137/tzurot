@@ -45,7 +45,7 @@ export function createInvalidateCacheRoute(
         });
       } else if (personalityId !== undefined) {
         await cacheInvalidationService.invalidatePersonality(personalityId);
-        logger.info(`Invalidated cache for personality: ${personalityId}`);
+        logger.info({ personalityId }, 'Invalidated cache for personality');
 
         sendCustomSuccess(res, {
           success: true,

@@ -35,7 +35,8 @@ export class VoiceTranscriptCache {
         transcript
       );
       logger.debug(
-        `[VoiceTranscriptCache] Stored transcript for: ${attachmentUrl.substring(0, 50)}...`
+        { urlPreview: attachmentUrl.substring(0, 50) },
+        '[VoiceTranscriptCache] Stored transcript'
       );
     } catch (error) {
       logger.error({ err: error }, '[VoiceTranscriptCache] Failed to store transcript');
@@ -54,11 +55,17 @@ export class VoiceTranscriptCache {
       );
 
       if (transcript !== null && transcript.length > 0) {
-        logger.debug(`[VoiceTranscriptCache] Cache HIT for: ${attachmentUrl.substring(0, 50)}...`);
+        logger.debug(
+          { urlPreview: attachmentUrl.substring(0, 50) },
+          '[VoiceTranscriptCache] Cache HIT'
+        );
         return transcript;
       }
 
-      logger.debug(`[VoiceTranscriptCache] Cache MISS for: ${attachmentUrl.substring(0, 50)}...`);
+      logger.debug(
+        { urlPreview: attachmentUrl.substring(0, 50) },
+        '[VoiceTranscriptCache] Cache MISS'
+      );
       return null;
     } catch (error) {
       logger.error({ err: error }, '[VoiceTranscriptCache] Failed to get transcript');

@@ -42,7 +42,7 @@ async function loadCommandFile(filePath: string): Promise<unknown> {
     return null;
   }
 
-  logger.info(`Loaded: /${command.data.name}`);
+  logger.info({ commandName: command.data.name }, 'Loaded command');
   return (command.data as CommandJson).toJSON();
 }
 
@@ -74,7 +74,7 @@ export async function deployCommands(global = true): Promise<void> {
     const commandsPath = join(__dirname, '../commands');
 
     const commandFiles = getCommandFiles(commandsPath);
-    logger.info(`Loading ${commandFiles.length} command files...`);
+    logger.info({ count: commandFiles.length }, 'Loading command files');
 
     const commands: unknown[] = [];
     for (const filePath of commandFiles) {
@@ -84,20 +84,20 @@ export async function deployCommands(global = true): Promise<void> {
       }
     }
 
-    logger.info(`Deploying ${commands.length} commands to Discord...`);
+    logger.info({ count: commands.length }, 'Deploying commands to Discord');
 
     const rest = new REST().setToken(token);
 
     if (global !== true && guildId !== undefined && guildId !== null && guildId.length > 0) {
       // Guild-specific deployment (dev/testing)
-      logger.info(`Deploying to guild: ${guildId}`);
+      logger.info({ guildId }, 'Deploying to guild');
       await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
-      logger.info(`Successfully deployed ${commands.length} commands to guild ${guildId}`);
+      logger.info({ count: commands.length, guildId }, 'Successfully deployed commands to guild');
     } else {
       // Global deployment (production)
       logger.info('Deploying globally (this may take up to an hour to propagate)');
       await rest.put(Routes.applicationCommands(clientId), { body: commands });
-      logger.info(`Successfully deployed ${commands.length} commands globally`);
+      logger.info({ count: commands.length }, 'Successfully deployed commands globally');
     }
   } catch (error) {
     logger.error({ err: error }, 'Error deploying commands');

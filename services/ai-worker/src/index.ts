@@ -165,7 +165,8 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker {
 
   worker.on('ready', () => {
     logger.info(
-      `Worker ready on queue: ${config.worker.queueName}, concurrency: ${config.worker.concurrency}`
+      { queueName: config.worker.queueName, concurrency: config.worker.concurrency },
+      'Worker ready'
     );
   });
 
@@ -430,7 +431,7 @@ async function startHealthServer(
   });
 
   server.listen(port, () => {
-    logger.info(`Health check server listening on port ${port}`);
+    logger.info({ port }, 'Health check server listening');
   });
 }
 
