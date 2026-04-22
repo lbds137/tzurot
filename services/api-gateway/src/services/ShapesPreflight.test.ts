@@ -28,12 +28,14 @@ describe('probeShapesSession', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     mockFetch = vi.fn();
     global.fetch = mockFetch as unknown as typeof fetch;
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('returns "valid" when shapes.inc returns 2xx', async () => {
@@ -80,6 +82,27 @@ describe('probeShapesSession', () => {
     const abortError = new DOMException('The user aborted a request.', 'AbortError');
     mockFetch.mockRejectedValueOnce(abortError);
     await expect(probeShapesSession(SESSION_COOKIE)).resolves.toBe('inconclusive');
+  });
+
+  it('returns "inconclusive" when the preflight times out (setTimeout → abort)', async () => {
+    // Simulate shapes.inc hanging: fetch receives the abort signal and rejects
+    // with AbortError once `controller.abort()` fires via the internal timer.
+    mockFetch.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          const signal = init.signal;
+          if (signal !== undefined && signal !== null) {
+            signal.addEventListener('abort', () => {
+              reject(new DOMException('The user aborted a request.', 'AbortError'));
+            });
+          }
+        })
+    );
+
+    const promise = probeShapesSession(SESSION_COOKIE);
+    // Advance past the 5s internal timeout so the AbortController fires.
+    await vi.advanceTimersByTimeAsync(6000);
+    await expect(promise).resolves.toBe('inconclusive');
   });
 
   it('sends the submitted cookie and a Chrome-style User-Agent', async () => {
