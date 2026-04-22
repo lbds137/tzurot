@@ -114,6 +114,18 @@ describe('listMergedPrsSince', () => {
     expect(listMergedPrsSince('2026-04-22T00:00:00Z')).toEqual([]);
   });
 
+  it('uses a custom base branch when the `base` arg is provided', () => {
+    // Default is `develop`; overriding to e.g. `main` should reach the
+    // underlying gh invocation as the `--base` value.
+    mockedExec.mockReturnValueOnce('[]');
+    listMergedPrsSince('2026-04-21T00:00:00Z', 'main');
+    expect(mockedExec).toHaveBeenCalledWith(
+      'gh',
+      expect.arrayContaining(['--base', 'main']),
+      expect.anything()
+    );
+  });
+
   it('throws a user-facing error when gh is missing / unauthenticated', () => {
     mockedExec.mockImplementationOnce(() => {
       throw new Error('command not found: gh');

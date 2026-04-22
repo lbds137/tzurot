@@ -16,6 +16,8 @@ import { discoverPrevTag, tagTimestamp, listMergedPrsSince } from './github-prs.
 
 export interface VerifyNotesOptions {
   from?: string;
+  /** Base branch to query for merged PRs. Defaults to `develop`. */
+  base?: string;
 }
 
 export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
@@ -39,7 +41,7 @@ export async function verifyNotes(options: VerifyNotesOptions): Promise<void> {
 
   const fromTag = options.from ?? discoverPrevTag();
   const fromTimestamp = tagTimestamp(fromTag);
-  const mergedPrs = listMergedPrsSince(fromTimestamp);
+  const mergedPrs = listMergedPrsSince(fromTimestamp, options.base);
   const mergedNumbers = new Set(mergedPrs.map(p => p.number));
 
   const { missing, extra, duplicates } = classifyRefs(notesRefs, mergedNumbers);

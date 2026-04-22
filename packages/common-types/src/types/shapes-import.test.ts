@@ -135,20 +135,16 @@ describe('parseShapesSessionCookieInput', () => {
       });
     });
 
-    it('mis-routes bare base64-padded tokens to wrong-cookie (known limitation)', () => {
-      // `looksLikeCookieString` returns true for any input containing `=`,
-      // so a bare token ending in `==` (standard base64 padding) enters the
-      // cookie-string parse path, fails to find the expected name prefix,
-      // and returns `wrong-cookie` instead of succeeding. The produced user-
-      // facing error message is misleading — it says the wrong cookie name
-      // was pasted when the real issue is the heuristic.
-      //
-      // Tracked in BACKLOG; test locked in here so the routing behavior is
-      // self-documenting and future changes are intentional.
+    it('accepts bare base64-padded tokens (regression guard for the `==` routing fix)', () => {
+      // Previous heuristic (`input.includes('=')`) routed bare tokens ending
+      // in `==` (standard base64 padding) into the cookie-string parse path,
+      // where they failed as `wrong-cookie`. Current heuristic keys off the
+      // cookie NAME, so a bare padded token falls through to the bare-token
+      // validation path correctly.
       const paddedBareToken = 'A'.repeat(30) + '==';
       expect(parseShapesSessionCookieInput(paddedBareToken)).toEqual({
-        ok: false,
-        reason: 'wrong-cookie',
+        ok: true,
+        cookie: `${SHAPES_SESSION_COOKIE_NAME}=${paddedBareToken}`,
       });
     });
   });

@@ -15,16 +15,25 @@ import {
 } from './ttsSynthesizer.js';
 import type { VoiceEngineClient, SynthesisResult } from './VoiceEngineClient.js';
 
+// Shared logger singleton so tests can assert on warn/error calls made by
+// the module under test. createLogger is called once at module import time;
+// every downstream `logger.warn(...)` lands on the same spy.
+//
+// `vi.hoisted` is required because `vi.mock` calls are hoisted to the top
+// of the file, and a module-scope `const mockLogger = {...}` would be in
+// the temporal dead zone when the mock factory runs.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types', async importActual => {
   const actual = await importActual<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -427,6 +436,52 @@ describe('synthesizeWithChunking', () => {
     // Final result is whatever transcode returned — Opus in the happy path
     expect(result.contentType).toBe('audio/ogg');
     expect(result.audioBuffer).toBe(opusBuffer);
+  });
+
+  it('should warn (not throw) when chunks return mismatched sample rates', async () => {
+    // Voice-engine uses a single model so this shouldn't happen in practice,
+    // but the code emits a soft warn + best-effort concatenation rather than
+    // hard-failing. This test pins that contract: two chunks, two different
+    // rates, the warn fires with the expected fields, and synthesis still
+    // returns audio.
+    mockLogger.warn.mockClear();
+
+    const chunk1Text = 'A'.repeat(1500) + '.';
+    const chunk2Text = 'B'.repeat(1500) + '.';
+    const longText = `${chunk1Text} ${chunk2Text}`;
+    expect(longText.length).toBeGreaterThan(2000);
+
+    const pcm1 = Buffer.alloc(80, 0xaa);
+    const pcm2 = Buffer.alloc(80, 0xbb);
+
+    let callIndex = 0;
+    vi.mocked(mockClient.synthesize).mockImplementation(async () => {
+      // First chunk at 22050 Hz (expected), second at 16000 Hz (mismatch).
+      const isFirst = callIndex === 0;
+      callIndex++;
+      return {
+        audioBuffer: createFakeWav(isFirst ? pcm1 : pcm2, isFirst ? 22050 : 16000),
+        contentType: 'audio/wav',
+      };
+    });
+
+    vi.mocked(mockClient.transcode).mockResolvedValue({
+      audioBuffer: Buffer.from('OggS\0'),
+      contentType: 'audio/ogg',
+    });
+
+    const result = await synthesizeWithChunking(mockClient, longText, 'voice-1');
+
+    // The mismatch warn must fire with the structured fields so ops can
+    // grep for it by field rather than by message-string.
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ chunkIndex: 1, expected: 22050, got: 16000 }),
+      expect.stringContaining('Sample rate mismatch')
+    );
+
+    // Best-effort output — synthesis still completes with the first chunk's
+    // sample rate baked into the combined WAV header.
+    expect(result.contentType).toBe('audio/ogg');
   });
 
   it('should produce combined WAV with correct total PCM length before transcoding', async () => {
