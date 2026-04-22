@@ -15,6 +15,7 @@ import {
   createLogger,
   CONTENT_TYPES,
   GATEWAY_TIMEOUTS,
+  isTimeoutError,
   type ApiErrorSubcode,
   type GatewayUser,
 } from '@tzurot/common-types';
@@ -219,7 +220,7 @@ export async function callGatewayApi<T>(
     return { ok: true, data };
   } catch (error) {
     // Extract useful error info for logging
-    const isAbortError = error instanceof DOMException && error.name === 'TimeoutError';
+    const isAbortError = isTimeoutError(error);
     const errorMessage = isAbortError
       ? 'Request timeout (gateway slow or unavailable)'
       : error instanceof Error

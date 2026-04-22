@@ -108,6 +108,25 @@ describe('fetchPreset', () => {
       })
     ).rejects.toThrow('Failed to fetch preset: 500');
   });
+
+  // Defense in depth for the SSRF-prevention encoding: if someone removes the
+  // encodeURIComponent() from the URL construction, this test fails. Asserts
+  // that slashes + reserved chars in the presetId are percent-encoded before
+  // being interpolated into the path.
+  it('URL-encodes the presetId in the gateway path', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { config: mockPresetData } });
+
+    await fetchPreset('preset/with/slash?x=1', {
+      discordId: 'user-456',
+      username: 'testuser',
+      displayName: 'testuser',
+    });
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/llm-config/preset%2Fwith%2Fslash%3Fx%3D1',
+      expect.any(Object)
+    );
+  });
 });
 
 describe('fetchGlobalPreset', () => {
@@ -160,6 +179,17 @@ describe('fetchGlobalPreset', () => {
     await expect(fetchGlobalPreset('preset-123')).rejects.toThrow(
       'Failed to fetch global preset: 500'
     );
+  });
+
+  it('URL-encodes the presetId in the admin path', async () => {
+    mockAdminFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ config: mockPresetData }),
+    });
+
+    await fetchGlobalPreset('preset/with/slash?x=1');
+
+    expect(mockAdminFetch).toHaveBeenCalledWith('/admin/llm-config/preset%2Fwith%2Fslash%3Fx%3D1');
   });
 });
 
@@ -222,6 +252,21 @@ describe('updatePreset', () => {
         { discordId: 'user-456', username: 'testuser', displayName: 'testuser' }
       )
     ).rejects.toThrow('Failed to update preset: 500 - Unknown');
+  });
+
+  it('URL-encodes the presetId in the PUT path', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { config: mockPresetData } });
+
+    await updatePreset(
+      'preset/with/slash',
+      { name: 'x' },
+      { discordId: 'user-456', username: 'testuser', displayName: 'testuser' }
+    );
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/llm-config/preset%2Fwith%2Fslash',
+      expect.objectContaining({ method: 'PUT' })
+    );
   });
 });
 
@@ -296,6 +341,19 @@ describe('updateGlobalPreset', () => {
     await expect(updateGlobalPreset('preset-123', {})).rejects.toThrow(
       'Failed to update global preset: 400 - Unknown'
     );
+  });
+
+  it('URL-encodes the presetId in the admin PUT path', async () => {
+    mockAdminPutJson.mockResolvedValue({
+      ok: true,
+      json: async () => ({ config: mockPresetData }),
+    });
+
+    await updateGlobalPreset('preset/with/slash', { name: 'x' });
+
+    expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/llm-config/preset%2Fwith%2Fslash', {
+      name: 'x',
+    });
   });
 });
 
