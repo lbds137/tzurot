@@ -49,7 +49,11 @@ describe('isPlausibleShapesTokenValue', () => {
   it('accepts values with percent-encoded characters (observed in wild 2026-04-22)', () => {
     // Better Auth can emit tokens with %-encoded payload bytes. Previously
     // rejected by a too-narrow regex; now accepted per RFC 6265 cookie-octet.
-    expect(isPlausibleShapesTokenValue('abc123%2Fdef456%3Dghi789jkl012mno345pq678')).toBe(true);
+    // Fixture is deliberately obvious-fake (TEST-FIXTURE prefix) to avoid
+    // tripping high-entropy secret detectors.
+    expect(
+      isPlausibleShapesTokenValue('TEST-FIXTURE-%2F-and-%3D-encoded-chars-not-a-real-token')
+    ).toBe(true);
   });
 
   it('accepts values with base64 padding, plus, and slash characters', () => {

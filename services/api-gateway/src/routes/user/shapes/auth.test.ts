@@ -220,9 +220,11 @@ describe('Shapes Auth Routes', () => {
       // Regression test for the overly-strict regex bug: Better Auth
       // tokens can contain %-encoded bytes, which an earlier narrower
       // regex rejected at the gateway even though the bot-client modal
-      // accepted them.
+      // accepted them. Fixture is obvious-fake (TEST-FIXTURE prefix) so
+      // secret-scanning doesn't flag it.
       const { res } = await callStoreHandler({
-        sessionCookie: '__Secure-better-auth.session_token=abc123%2Fdef456%3Dghi789jkl012mno345pq',
+        sessionCookie:
+          '__Secure-better-auth.session_token=TEST-FIXTURE-%2F-and-%3D-encoded-chars-not-a-real-token',
       });
 
       expect(res.status).toHaveBeenCalledWith(200);
