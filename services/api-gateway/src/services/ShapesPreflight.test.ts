@@ -1,15 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// Shared logger singleton so tests can assert on info/warn/error calls.
+// `vi.hoisted` is required because `vi.mock` is hoisted above module-scope
+// `const`, which would otherwise leave `mockLogger` in the temporal dead zone.
+const mockLogger = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
   };
 });
 
@@ -39,8 +44,16 @@ describe('probeShapesSession', () => {
   });
 
   it('returns "valid" when shapes.inc returns 2xx', async () => {
+    mockLogger.info.mockClear();
     mockFetch.mockResolvedValueOnce(mockResponse(200));
     await expect(probeShapesSession(SESSION_COOKIE)).resolves.toBe('valid');
+    // Pin the 'Preflight valid' log — observability contract for post-deploy
+    // endpoint verification. Silent removal of this log would make the grep
+    // procedure return nothing even when the preflight is firing correctly.
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 200 }),
+      'Preflight valid'
+    );
   });
 
   it('returns "valid" for non-200 2xx codes (e.g., 204)', async () => {
