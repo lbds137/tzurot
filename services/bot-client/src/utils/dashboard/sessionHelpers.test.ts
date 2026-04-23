@@ -10,6 +10,7 @@ import {
   requireDeferredSession,
   getSessionOrExpired,
   getSessionDataOrReply,
+  getSessionDataOrFollowUp,
 } from './sessionHelpers.js';
 import * as SessionManagerModule from './SessionManager.js';
 
@@ -244,6 +245,59 @@ describe('sessionHelpers', () => {
         content: '⏰ Session expired. Please run the command again.',
         flags: MessageFlags.Ephemeral,
       });
+    });
+  });
+
+  describe('getSessionDataOrFollowUp', () => {
+    // Sibling of getSessionDataOrReply for already-deferred interactions.
+    // Mirrors the test pair above: the two helpers must behave identically
+    // on the happy path and only differ on the expired branch (reply vs
+    // followUp). Any drift between them would produce silent runtime errors
+    // (InteractionAlreadyReplied on the wrong call shape).
+    it('should return session data when it exists', async () => {
+      const sessionData = { name: 'Test' };
+      mockSessionManager.get.mockResolvedValue({ data: sessionData });
+      const interaction = {
+        user: { id: 'user-123' },
+        followUp: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      const result = await getSessionDataOrFollowUp(interaction, 'preset', 'preset-123');
+
+      expect(result).toEqual(sessionData);
+      expect(interaction.followUp).not.toHaveBeenCalled();
+    });
+
+    it('should follow up with error and return null when session is missing', async () => {
+      mockSessionManager.get.mockResolvedValue(null);
+      const interaction = {
+        user: { id: 'user-123' },
+        followUp: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      const result = await getSessionDataOrFollowUp(interaction, 'preset', 'preset-123');
+
+      expect(result).toBeNull();
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: '⏰ Session expired. Please run the command again.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should NOT call reply (would throw on already-deferred interactions)', async () => {
+      // Pins the whole purpose of this sibling helper. If someone later
+      // mistakenly changes followUp → reply, this test breaks and surfaces
+      // the regression before it hits prod as InteractionAlreadyReplied.
+      mockSessionManager.get.mockResolvedValue(null);
+      const interaction = {
+        user: { id: 'user-123' },
+        followUp: vi.fn(),
+        reply: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      await getSessionDataOrFollowUp(interaction, 'preset', 'preset-123');
+
+      expect(interaction.reply).not.toHaveBeenCalled();
     });
   });
 });
