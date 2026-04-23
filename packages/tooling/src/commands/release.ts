@@ -50,10 +50,8 @@ export function registerReleaseCommands(cli: CAC): void {
       await verifyNotes(options);
     });
 
-  // Rebase develop onto main after a release PR merges (final step of
-  // the release flow). Previously manual + sometimes skipped; automation
-  // prevents the develop-vs-main SHA drift that surfaces as apparent
-  // "conflicts with main" on the next release PR.
+  // Rebase develop onto main after a release PR merges. Full rationale
+  // + safety details in `finalize.ts` module-level JSDoc.
   cli
     .command(
       'release:finalize',
