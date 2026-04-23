@@ -32,8 +32,8 @@ function mockGit(overrides: Record<string, string | (() => string)> = {}): void 
       const v = overrides[subKey];
       return typeof v === 'function' ? v() : v;
     }
-    // Defaults: clean working tree, zero-commit rev-list output.
-    if (key === 'status --porcelain') return '';
+    // Defaults: clean working tree (tracked-only check), zero-commit rev-list.
+    if (subKey === 'status') return '';
     if (key === 'rev-list --count') return '0\n';
     return '';
   }) as unknown as typeof execFileSync);
@@ -74,10 +74,10 @@ describe('finalizeRelease', () => {
       // checkouts and MUST precede the push.
       const fetchIdx = invocations.indexOf('fetch --all');
       const checkoutMainIdx = invocations.indexOf('checkout main');
-      const pullMainIdx = invocations.indexOf('pull --ff-only');
+      const pullMainIdx = invocations.indexOf('pull --ff-only origin main');
       const checkoutDevIdx = invocations.indexOf('checkout develop');
       const rebaseIdx = invocations.indexOf('rebase origin/main');
-      const pushIdx = invocations.indexOf('push --force-with-lease');
+      const pushIdx = invocations.indexOf('push --force-with-lease origin develop');
 
       expect(fetchIdx).toBeGreaterThanOrEqual(0);
       expect(checkoutMainIdx).toBeGreaterThan(fetchIdx);
@@ -89,20 +89,38 @@ describe('finalizeRelease', () => {
   });
 
   describe('dirty working tree', () => {
-    it('refuses to run if git status shows uncommitted changes', async () => {
-      mockGit({ 'status --porcelain': 'M some-file.ts\n' });
+    it('refuses to run if git status shows uncommitted tracked changes', async () => {
+      mockGit({ status: 'M some-file.ts\n' });
 
-      await expect(finalizeRelease({ yes: true })).rejects.toThrow(/Working tree is not clean/);
+      await expect(finalizeRelease({ yes: true })).rejects.toThrow(
+        /tracked changes.*Commit or stash/
+      );
 
       // Should have bailed before fetch.
       const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
       expect(invocations).not.toContain('fetch --all');
     });
 
+    it('uses --untracked-files=no so stray untracked files do not block', async () => {
+      // The default mock returns '' from `status`, so this test locks
+      // in the flag shape rather than the behavior. `git status
+      // --porcelain --untracked-files=no` excludes ??-prefixed lines,
+      // meaning a stray notes.txt or .env.local is ignored — matches
+      // the actual risk surface (git checkout tolerates untracked files
+      // in the 99% case).
+      mockGit({ status: '' });
+
+      await finalizeRelease({ yes: true });
+
+      const statusCall = mockedExec.mock.calls.find(c => (c[1] as string[])[0] === 'status');
+      expect(statusCall).toBeDefined();
+      expect(statusCall![1]).toEqual(['status', '--porcelain', '--untracked-files=no']);
+    });
+
     it('skips the clean-tree check in dry-run mode', async () => {
       // Dry-run is preview-only — inspecting state while mid-work should
       // be allowed. Zero commits to rebase so we exit on the no-op path.
-      mockGit({ 'status --porcelain': 'M some-file.ts\n', 'rev-list --count': '0\n' });
+      mockGit({ status: 'M some-file.ts\n', 'rev-list --count': '0\n' });
 
       await expect(finalizeRelease({ dryRun: true, yes: true })).resolves.toBeUndefined();
     });
@@ -165,7 +183,7 @@ describe('finalizeRelease', () => {
       expect(invocations).not.toContain('checkout main');
       expect(invocations).not.toContain('checkout develop');
       expect(invocations).not.toContain('rebase origin/main');
-      expect(invocations).not.toContain('push --force-with-lease');
+      expect(invocations).not.toContain('push --force-with-lease origin develop');
     });
   });
 
@@ -187,7 +205,7 @@ describe('finalizeRelease', () => {
         await finalizeRelease({});
 
         const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
-        expect(invocations).not.toContain('push --force-with-lease');
+        expect(invocations).not.toContain('push --force-with-lease origin develop');
       } finally {
         Object.defineProperty(process.stdin, 'isTTY', {
           value: originalIsTTY,
