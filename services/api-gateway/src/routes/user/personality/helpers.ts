@@ -169,7 +169,7 @@ interface ResolvePersonalityForEditParams {
  */
 export async function resolvePersonalityForEdit<T extends { id: string; ownerId: string }>(
   params: ResolvePersonalityForEditParams
-): Promise<{ user: { id: string }; personality: T } | null> {
+): Promise<{ personality: T } | null> {
   const { prisma, userService, req, slug, res, options } = params;
   const { select, action = 'edit' } = options;
   const discordUserId = req.userId;
@@ -198,5 +198,5 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
 
   // Cast through unknown: Prisma's full model type doesn't structurally overlap with T,
   // but the select clause ensures only the requested fields are present at runtime.
-  return { user: { id: userId }, personality: personality as unknown as T };
+  return { personality: personality as unknown as T };
 }
