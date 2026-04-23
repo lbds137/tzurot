@@ -13,6 +13,7 @@ import {
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
 
 // Valid UUIDs for tests
@@ -47,7 +48,7 @@ const mockGetSessionOrExpired = vi
     const session = await mockSessionGet(interaction.user.id, entityType, entityId);
     if (session === null) {
       await interaction.editReply({
-        content: 'Session expired. Please run /persona browse to try again.',
+        content: formatSessionExpiredMessage('/persona browse'),
         embeds: [],
         components: [],
       });
@@ -80,8 +81,8 @@ const mockGetSessionDataOrReply = vi
     const session = await mockSessionGet(interaction.user.id, entityType, entityId);
     if (session === null) {
       await interaction.reply({
-        content: 'Session expired. Please try again.',
-        flags: 64,
+        content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+        flags: MessageFlags.Ephemeral,
       });
       return null;
     }
@@ -472,7 +473,7 @@ describe('handleButton', () => {
       const session = await mockSessionGet(interaction.user.id, entityType, entityId);
       if (session === null) {
         await interaction.editReply({
-          content: 'Session expired. Please run /persona browse to try again.',
+          content: formatSessionExpiredMessage('/persona browse'),
           embeds: [],
           components: [],
         });
@@ -483,8 +484,8 @@ describe('handleButton', () => {
       const session = await mockSessionGet(interaction.user.id, entityType, entityId);
       if (session === null) {
         await interaction.reply({
-          content: 'Session expired. Please try again.',
-          flags: 64,
+          content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+          flags: MessageFlags.Ephemeral,
         });
         return null;
       }

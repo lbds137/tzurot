@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction, Message } from 'discord.js';
 
 // Mock the logger using vi.hoisted to ensure proper initialization order
@@ -75,7 +76,7 @@ describe('wrapDeferredInteraction', () => {
 
     it('should pass through ephemeral flag (already set by deferReply)', async () => {
       const wrapped = wrapDeferredInteraction(mockInteraction);
-      const options = { content: 'Secret', flags: 64 }; // Ephemeral flag
+      const options = { content: 'Secret', flags: MessageFlags.Ephemeral } as const;
 
       await wrapped.reply(options);
 

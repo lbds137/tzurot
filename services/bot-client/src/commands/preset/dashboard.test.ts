@@ -11,6 +11,7 @@ import {
   isPresetDashboardInteraction,
 } from './dashboard.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
+import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { PresetData } from './config.js';
 import { GatewayApiError } from '../../utils/userGatewayClient.js';
 
@@ -89,7 +90,7 @@ const mockGetSessionOrExpired = vi
     if (session === null) {
       // Mimic real behavior: call editReply with expired message
       await interaction.editReply({
-        content: 'Session expired. Please run /preset browse to try again.',
+        content: formatSessionExpiredMessage('/preset browse'),
         embeds: [],
         components: [],
       });
@@ -110,8 +111,8 @@ const mockGetSessionDataOrReply = vi
     if (session === null) {
       // Mimic real behavior: call reply with expired message
       await interaction.reply({
-        content: 'Session expired. Please try again.',
-        flags: 64, // MessageFlags.Ephemeral
+        content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+        flags: MessageFlags.Ephemeral,
       });
       return null;
     }

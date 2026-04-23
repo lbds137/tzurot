@@ -6,7 +6,13 @@
  * scope changes, and persisting edits via the gateway API.
  */
 
-import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
+import {
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
+  MessageFlags,
+} from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
@@ -28,7 +34,10 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
   );
 
   if (session === null) {
-    await interaction.followUp({ content: DASHBOARD_MESSAGES.SESSION_EXPIRED, flags: 64 });
+    await interaction.followUp({
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -99,7 +108,10 @@ export async function handleEditModal(
   );
 
   if (session === null) {
-    await interaction.reply({ content: DASHBOARD_MESSAGES.SESSION_EXPIRED, flags: 64 });
+    await interaction.reply({
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
