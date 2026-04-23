@@ -8,42 +8,9 @@
  */
 
 import type { Response } from 'express';
-import {
-  type PrismaClient,
-  type UserService,
-  Duration,
-  DurationParseError,
-} from '@tzurot/common-types';
+import { type PrismaClient, Duration, DurationParseError } from '@tzurot/common-types';
 import { sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
-import type { ProvisionedRequest } from '../../types.js';
-
-/**
- * Resolve the provisioned user's internal UUID for the current request,
- * mirroring the legacy `getUserByDiscordId` signature so existing memory
- * handlers only need to thread `req`/`userService` instead of
- * `(prisma, discordUserId)`. The `res` parameter is retained so callers
- * can keep their early-return shape; in practice the resolver will
- * either return the provisioned UUID or create a shell user, so this
- * function effectively never returns null. The null path is preserved
- * as a defensive guard for the rare case where shell creation fails
- * and propagates as a thrown error handled upstream — see
- * `resolveProvisionedUserId` for details.
- */
-export async function getProvisionedUserId(
-  req: ProvisionedRequest,
-  userService: UserService,
-  res: Response
-): Promise<{ id: string } | null> {
-  try {
-    const id = await resolveProvisionedUserId(req, userService);
-    return { id };
-  } catch {
-    sendError(res, ErrorResponses.notFound('User'));
-    return null;
-  }
-}
 
 /**
  * Get user's default persona ID.

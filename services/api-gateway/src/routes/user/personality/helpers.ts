@@ -153,6 +153,19 @@ interface ResolvePersonalityForEditParams {
  *
  * Callers specify a Prisma select clause; the result personality is cast to T.
  * The select MUST include `id` and `ownerId` — enforced at the type level.
+ *
+ * Contract change vs. pre-Phase-5c: this helper used to return a deliberate
+ * HTTP 403 ("User not found") when the caller's Discord ID didn't resolve to
+ * a users row. Post-Phase-5c, every user-scoped route runs behind
+ * `requireProvisionedUser`, which either attaches `req.provisionedUserId`
+ * directly or (during the shadow-mode window) delegates to
+ * `getOrCreateUserShell` — both of which guarantee the user exists by the
+ * time this helper runs. The only remaining path where `resolveProvisionedUserId`
+ * could throw is infrastructure (DB down, $executeRaw failure during shell
+ * creation). Those correctly surface as HTTP 500 via `asyncHandler`, which
+ * is the right shape for infra errors; a 403 would misrepresent them as an
+ * auth problem. If this guarantee ever changes (e.g., `requireProvisionedUser`
+ * is loosened), this helper must grow its own try/catch again.
  */
 export async function resolvePersonalityForEdit<T extends { id: string; ownerId: string }>(
   params: ResolvePersonalityForEditParams

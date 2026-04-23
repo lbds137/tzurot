@@ -8,7 +8,8 @@ import { StatusCodes } from 'http-status-codes';
 import { createLogger, type PrismaClient, type UserService } from '@tzurot/common-types';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
-import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-list');
 
@@ -82,13 +83,10 @@ export async function handleList(
   const effectiveOrder: SortOrder = order === 'asc' ? 'asc' : 'desc';
 
   // Get user
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   // Get persona
-  const personaId = await getDefaultPersonaId(prisma, user.id);
+  const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {
     sendCustomSuccess(
       res,

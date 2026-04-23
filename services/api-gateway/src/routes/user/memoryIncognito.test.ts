@@ -543,29 +543,6 @@ describe('/user/memory/incognito routes', () => {
       );
     });
 
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const router = createIncognitoRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockRedis as unknown as Redis
-      );
-      const handler = getHandler(router, 'post', '/forget');
-      const { req, res } = createMockReqRes({
-        personalityId: TEST_PERSONALITY_ID,
-        timeframe: '15m',
-      });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'NOT_FOUND',
-        })
-      );
-    });
-
     it('should return zero count when no persona', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: TEST_USER_ID,

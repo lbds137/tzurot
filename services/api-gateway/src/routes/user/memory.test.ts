@@ -179,18 +179,6 @@ describe('/user/memory routes', () => {
       );
     });
 
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'get', '/stats');
-      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
@@ -297,18 +285,6 @@ describe('/user/memory routes', () => {
       );
     });
 
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'get', '/focus');
-      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
     it('should return focusModeEnabled false when no config exists', async () => {
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
 
@@ -390,21 +366,6 @@ describe('/user/memory routes', () => {
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'post', '/focus');
-      const { req, res } = createMockReqRes({
-        personalityId: TEST_PERSONALITY_ID,
-        enabled: true,
-      });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should return 404 when personality not found', async () => {
@@ -603,18 +564,6 @@ describe('/user/memory routes', () => {
           message: expect.stringContaining('exceeds maximum length'),
         })
       );
-    });
-
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'post', '/search');
-      const { req, res } = createMockReqRes({ query: 'test search' }, {});
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should return empty results when user has no persona', async () => {
@@ -861,18 +810,6 @@ describe('/user/memory routes', () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
 
       expect(findRoute(router, 'get', '/list')).toBeDefined();
-    });
-
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'get', '/list');
-      const { req, res } = createMockReqRes({}, {});
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should return empty list when user has no persona', async () => {

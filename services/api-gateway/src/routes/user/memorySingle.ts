@@ -16,7 +16,8 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { ProvisionedRequest } from '../../types.js';
-import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-single');
 
@@ -47,12 +48,9 @@ async function verifyMemoryOwnership(
 ): Promise<{ id: string; isLocked: boolean } | null> {
   const { prisma, userService, req, memoryId, res } = context;
 
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return null;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
-  const personaId = await getDefaultPersonaId(prisma, user.id);
+  const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {
     sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
     return null;
@@ -125,12 +123,9 @@ export async function handleGetMemory(
     return;
   }
 
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
-  const personaId = await getDefaultPersonaId(prisma, user.id);
+  const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {
     sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
     return;
