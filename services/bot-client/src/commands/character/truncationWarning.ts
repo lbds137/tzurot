@@ -79,10 +79,9 @@ export interface OverLengthField {
  * Scan a section's fields and report any whose current value exceeds
  * the modal's maxLength constraint.
  *
- * `maxLength` is required on every `FieldDefinition` (type-level
- * invariant since 2026-04-22 — see `utils/dashboard/types.ts`), so every
- * field always has an explicit cap to check against. The prior
- * `undefined` escape hatch was removed along with the optional type.
+ * `maxLength` is a required field on `FieldDefinition` (see
+ * `utils/dashboard/types.ts`), so every field always has an explicit
+ * cap to check against.
  */
 export function detectOverLengthFields(
   section: SectionDefinition<CharacterData>,
