@@ -61,10 +61,18 @@ export async function handlePersonaAutocomplete(
 
   try {
     // Use cached data to avoid HTTP requests on every keystroke
-    const personas = await getCachedPersonas(toGatewayUser(interaction.user));
+    const result = await getCachedPersonas(toGatewayUser(interaction.user));
+    if (result.kind === 'error') {
+      // Backend failed AND no stale cache to fall back on — render a visible
+      // error choice rather than an empty list that reads as "you have no personas."
+      await interaction.respond([
+        { name: '[Unable to load personas — try again]', value: '__autocomplete_error__' },
+      ]);
+      return true;
+    }
 
     // Filter by query
-    const filtered = personas
+    const filtered = result.value
       .filter(p => {
         if (query.length === 0) {
           return true;

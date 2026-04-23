@@ -75,9 +75,17 @@ export async function handlePersonalityAutocomplete(
 
   try {
     // Use cached data to avoid HTTP requests on every keystroke
-    const personalities = await getCachedPersonalities(toGatewayUser(interaction.user));
+    const result = await getCachedPersonalities(toGatewayUser(interaction.user));
+    if (result.kind === 'error') {
+      // Backend failed AND no stale cache to fall back on — render a visible
+      // error choice rather than an empty list that reads as "you have no personalities."
+      await interaction.respond([
+        { name: '[Unable to load personalities — try again]', value: '__autocomplete_error__' },
+      ]);
+      return true;
+    }
 
-    if (personalities.length === 0) {
+    if (result.value.length === 0) {
       await interaction.respond([]);
       return true;
     }
@@ -85,7 +93,7 @@ export async function handlePersonalityAutocomplete(
     const query = focusedOption.value.toLowerCase();
 
     // Filter personalities based on options and query
-    const filtered = personalities
+    const filtered = result.value
       .filter(p => {
         // Filter by edit permission if required (for edit/delete/avatar commands)
         // Uses permissions.canEdit instead of isOwned to support admin access

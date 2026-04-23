@@ -78,22 +78,25 @@ describe('handleAutocomplete', () => {
   });
 
   it('should return owned characters for edit subcommand', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'my-char',
-        name: 'MyChar',
-        displayName: 'My Character',
-        isOwned: true,
-        isPublic: false,
-      }),
-      createMockPersonality({
-        slug: 'public-char',
-        name: 'PublicChar',
-        displayName: null,
-        isOwned: false,
-        isPublic: true,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'my-char',
+          name: 'MyChar',
+          displayName: 'My Character',
+          isOwned: true,
+          isPublic: false,
+        }),
+        createMockPersonality({
+          slug: 'public-char',
+          name: 'PublicChar',
+          displayName: null,
+          isOwned: false,
+          isPublic: true,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', '', 'edit'));
 
@@ -103,22 +106,25 @@ describe('handleAutocomplete', () => {
   });
 
   it('should return owned characters for avatar subcommand', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'my-char',
-        name: 'MyChar',
-        displayName: null,
-        isOwned: true,
-        isPublic: true,
-      }),
-      createMockPersonality({
-        slug: 'other',
-        name: 'Other',
-        displayName: null,
-        isOwned: false,
-        isPublic: true,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'my-char',
+          name: 'MyChar',
+          displayName: null,
+          isOwned: true,
+          isPublic: true,
+        }),
+        createMockPersonality({
+          slug: 'other',
+          name: 'Other',
+          displayName: null,
+          isOwned: false,
+          isPublic: true,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', '', 'avatar'));
 
@@ -126,22 +132,25 @@ describe('handleAutocomplete', () => {
   });
 
   it('should return all characters for view subcommand', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'my-char',
-        name: 'MyChar',
-        displayName: null,
-        isOwned: true,
-        isPublic: false,
-      }),
-      createMockPersonality({
-        slug: 'public-char',
-        name: 'PublicChar',
-        displayName: 'Public Bot',
-        isOwned: false,
-        isPublic: true,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'my-char',
+          name: 'MyChar',
+          displayName: null,
+          isOwned: true,
+          isPublic: false,
+        }),
+        createMockPersonality({
+          slug: 'public-char',
+          name: 'PublicChar',
+          displayName: 'Public Bot',
+          isOwned: false,
+          isPublic: true,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', '', 'view'));
 
@@ -152,22 +161,25 @@ describe('handleAutocomplete', () => {
   });
 
   it('should filter by query matching name', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'luna',
-        name: 'Luna',
-        displayName: null,
-        isOwned: true,
-        isPublic: true,
-      }),
-      createMockPersonality({
-        slug: 'lilith',
-        name: 'Lilith',
-        displayName: null,
-        isOwned: true,
-        isPublic: true,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'luna',
+          name: 'Luna',
+          displayName: null,
+          isOwned: true,
+          isPublic: true,
+        }),
+        createMockPersonality({
+          slug: 'lilith',
+          name: 'Lilith',
+          displayName: null,
+          isOwned: true,
+          isPublic: true,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', 'lun', 'edit'));
 
@@ -175,22 +187,25 @@ describe('handleAutocomplete', () => {
   });
 
   it('should filter by query matching slug', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'my-bot-123',
-        name: 'Bot',
-        displayName: null,
-        isOwned: true,
-        isPublic: false,
-      }),
-      createMockPersonality({
-        slug: 'other',
-        name: 'Other',
-        displayName: null,
-        isOwned: true,
-        isPublic: false,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'my-bot-123',
+          name: 'Bot',
+          displayName: null,
+          isOwned: true,
+          isPublic: false,
+        }),
+        createMockPersonality({
+          slug: 'other',
+          name: 'Other',
+          displayName: null,
+          isOwned: true,
+          isPublic: false,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', 'bot-123', 'edit'));
 
@@ -200,22 +215,25 @@ describe('handleAutocomplete', () => {
   });
 
   it('should filter by query matching displayName', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'char-1',
-        name: 'Internal',
-        displayName: 'Fancy Display Name',
-        isOwned: true,
-        isPublic: true,
-      }),
-      createMockPersonality({
-        slug: 'char-2',
-        name: 'Other',
-        displayName: null,
-        isOwned: true,
-        isPublic: true,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'char-1',
+          name: 'Internal',
+          displayName: 'Fancy Display Name',
+          isOwned: true,
+          isPublic: true,
+        }),
+        createMockPersonality({
+          slug: 'char-2',
+          name: 'Other',
+          displayName: null,
+          isOwned: true,
+          isPublic: true,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', 'fancy', 'edit'));
 
@@ -225,15 +243,18 @@ describe('handleAutocomplete', () => {
   });
 
   it('should handle case-insensitive query', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'luna',
-        name: 'Luna',
-        displayName: null,
-        isOwned: true,
-        isPublic: true,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'luna',
+          name: 'Luna',
+          displayName: null,
+          isOwned: true,
+          isPublic: true,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', 'LUNA', 'edit'));
 
@@ -241,7 +262,7 @@ describe('handleAutocomplete', () => {
   });
 
   it('should return empty array when cache returns empty', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([]);
+    mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: [] });
 
     await handleAutocomplete(createMockInteraction('character', ''));
 
@@ -268,7 +289,7 @@ describe('handleAutocomplete', () => {
       })
     );
 
-    mockGetCachedPersonalities.mockResolvedValue(personalities);
+    mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: personalities });
 
     await handleAutocomplete(createMockInteraction('character', '', 'edit'));
 
@@ -277,29 +298,32 @@ describe('handleAutocomplete', () => {
   });
 
   it('should show correct visibility icons', async () => {
-    mockGetCachedPersonalities.mockResolvedValue([
-      createMockPersonality({
-        slug: 'private-owned',
-        name: 'Private',
-        displayName: null,
-        isOwned: true,
-        isPublic: false,
-      }),
-      createMockPersonality({
-        slug: 'public-owned',
-        name: 'Public',
-        displayName: null,
-        isOwned: true,
-        isPublic: true,
-      }),
-      createMockPersonality({
-        slug: 'public-other',
-        name: 'Other',
-        displayName: null,
-        isOwned: false,
-        isPublic: true,
-      }),
-    ]);
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        createMockPersonality({
+          slug: 'private-owned',
+          name: 'Private',
+          displayName: null,
+          isOwned: true,
+          isPublic: false,
+        }),
+        createMockPersonality({
+          slug: 'public-owned',
+          name: 'Public',
+          displayName: null,
+          isOwned: true,
+          isPublic: true,
+        }),
+        createMockPersonality({
+          slug: 'public-other',
+          name: 'Other',
+          displayName: null,
+          isOwned: false,
+          isPublic: true,
+        }),
+      ],
+    });
 
     await handleAutocomplete(createMockInteraction('character', '', 'view'));
 
