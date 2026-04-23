@@ -185,6 +185,9 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
   console.log(chalk.dim('Syncing develop and rebasing onto main...'));
   planStep(['checkout', 'develop'], dryRun);
   planStep(['pull', '--ff-only', 'origin', 'develop'], dryRun);
+  // Can't use planStep here: rebase needs try/catch for --abort teardown
+  // on conflicts. The dry-run branch mirrors planStep's output format
+  // manually to keep the preview consistent.
   if (dryRun) {
     console.log(chalk.dim('  [dry-run] git rebase origin/main'));
   } else {
