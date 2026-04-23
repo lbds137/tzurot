@@ -34,6 +34,12 @@ export type ApiCheck<T> = { kind: 'ok'; value: T } | { kind: 'error'; error: str
  *   range: rate limits self-resolve without any user action, and the user's
  *   data hasn't changed — only the server's willingness to respond has.
  *   Serving stale data through a rate-limit window is the right UX.
+ *
+ * Scope: this classification is tuned for the serve-stale-fallback question,
+ * not for retry decisions. It treats all 5xx as transient (including 501
+ * Not Implemented, which is technically permanent server-side) because
+ * serving last-known-good data is the right fallback for any 5xx. If this
+ * helper is reused for retry logic, revisit the 5xx bucket.
  */
 export function isTransientHttpStatus(status: number): boolean {
   return status === 0 || status === 429 || status >= 500;
