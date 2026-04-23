@@ -529,7 +529,7 @@ export function extractApiReasoningContent(reasoningDetails: unknown): string | 
     }
 
     const typedDetail = detail as ReasoningDetail;
-    const extracted = processReasoningDetail(typedDetail, parts);
+    const extracted = processReasoningDetail(typedDetail);
     if (extracted !== null) {
       parts.push(extracted);
     }
@@ -556,7 +556,7 @@ export function extractApiReasoningContent(reasoningDetails: unknown): string | 
 /**
  * Process a single reasoning detail and return extracted content.
  */
-function processReasoningDetail(detail: ReasoningDetail, _parts: string[]): string | null {
+function processReasoningDetail(detail: ReasoningDetail): string | null {
   switch (detail.type) {
     case 'reasoning.text':
     case 'reasoning.summary':
