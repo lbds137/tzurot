@@ -229,6 +229,14 @@ function readEncodedHeader(req: Request, headerName: string): string | undefined
 //     const userService = getOrCreateUserService(prisma);  // NOT `new UserService(prisma)`
 //     ...
 //   }
+//
+// Test-author note: because the WeakMap is module-scoped, reusing the same
+// `PrismaClient` object (or the same mock cast) across multiple `it()`
+// blocks in a vitest worker will share the cached UserService — and any
+// state accumulated on it — across those tests. Construct a fresh prisma
+// object per test (or reset via `beforeEach`) if cross-test isolation
+// matters. Current tests construct fresh `{} as unknown as PrismaClient`
+// references per assertion, which is why they don't collide.
 const userServiceByPrisma = new WeakMap<PrismaClient, UserService>();
 
 export function getOrCreateUserService(prisma: PrismaClient): UserService {
