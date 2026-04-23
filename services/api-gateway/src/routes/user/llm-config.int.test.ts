@@ -37,16 +37,24 @@ const TEST_DISCORD_ID = '12345678901234567890';
 // Personality ID must be a valid UUID for the database
 const TEST_PERSONALITY_ID = generatePersonalityUuid('test-personality');
 
-// Mock the auth middleware to pass through with our test user ID
-vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireUserAuth: vi.fn(() => (req: Request, _res: Response, next: NextFunction) => {
-    (req as Request & { userId: string }).userId = TEST_DISCORD_ID;
-    next();
-  }),
-  requireProvisionedUser: vi.fn(
-    () => (_req: Request, _res: Response, next: NextFunction) => next()
-  ),
-}));
+// Mock the auth middleware to pass through with our test user ID.
+// Spread `importActual` so `getOrCreateUserService` (consumed by the route
+// factory post-PR-#883) passes through to the real implementation.
+vi.mock('../../services/AuthMiddleware.js', async () => {
+  const actual = await vi.importActual<typeof import('../../services/AuthMiddleware.js')>(
+    '../../services/AuthMiddleware.js'
+  );
+  return {
+    ...actual,
+    requireUserAuth: vi.fn(() => (req: Request, _res: Response, next: NextFunction) => {
+      (req as Request & { userId: string }).userId = TEST_DISCORD_ID;
+      next();
+    }),
+    requireProvisionedUser: vi.fn(
+      () => (_req: Request, _res: Response, next: NextFunction) => next()
+    ),
+  };
+});
 
 // Import after mocking
 const { createLlmConfigRoutes } = await import('./llm-config.js');
