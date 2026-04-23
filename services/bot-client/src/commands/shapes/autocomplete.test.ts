@@ -120,6 +120,20 @@ describe('handleShapesSlugAutocomplete', () => {
     expect(mockRespond).toHaveBeenCalledWith([]);
   });
 
+  it('should render error placeholder when cache returns { kind: "error" }', async () => {
+    // Cache's own error path (transient with no stale fallback, or permanent)
+    // vs. the throw path above: the handler should respond with a visible
+    // placeholder so the user doesn't see an empty list that reads as
+    // "you have no shapes" during a backend outage.
+    mockGetCachedShapes.mockResolvedValue({ kind: 'error', error: 'Backend down' });
+
+    await handleShapesSlugAutocomplete(createMockInteraction('test'));
+
+    expect(mockRespond).toHaveBeenCalledWith([
+      { name: '[Unable to load shapes — try again]', value: '__autocomplete_error__' },
+    ]);
+  });
+
   it('should format name with dot separator', async () => {
     mockGetCachedShapes.mockResolvedValue({
       kind: 'ok',

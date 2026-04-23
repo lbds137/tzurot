@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ApiCheck } from './apiCheck.js';
+import { isTransientHttpStatus, type ApiCheck } from './apiCheck.js';
 
 describe('ApiCheck', () => {
   it('exhaustively discriminates ok vs error (exhaustiveness-checked via never)', () => {
@@ -22,5 +22,29 @@ describe('ApiCheck', () => {
 
     expect(describeCheck<number>({ kind: 'ok', value: 42 })).toBe('ok: 42');
     expect(describeCheck<string>({ kind: 'error', error: 'timeout' })).toBe('error: timeout');
+  });
+});
+
+describe('isTransientHttpStatus', () => {
+  // Transient boundary: status 0 is the gateway client's sentinel for
+  // timeouts / network errors where no HTTP response was received.
+  // 5xx is classic server-side transient. 599 is the ceiling of 5xx.
+  it.each([0, 500, 502, 503, 504, 599])('returns true for transient status %i', status => {
+    expect(isTransientHttpStatus(status)).toBe(true);
+  });
+
+  // Permanent boundary: 4xx is client-side and won't resolve without a
+  // caller fix. 499 is a deliberate call-out — it's the top of the client
+  // error range and must NOT be treated as transient despite being
+  // numerically adjacent to 500.
+  it.each([400, 401, 403, 404, 429, 499])('returns false for permanent status %i', status => {
+    expect(isTransientHttpStatus(status)).toBe(false);
+  });
+
+  // 2xx / 3xx shouldn't reach this helper in practice (those are success
+  // paths that don't need classification), but pin the behavior anyway
+  // so a caller who passes a 200 doesn't silently get treated as transient.
+  it.each([200, 204, 301, 302])('returns false for non-error status %i', status => {
+    expect(isTransientHttpStatus(status)).toBe(false);
   });
 });
