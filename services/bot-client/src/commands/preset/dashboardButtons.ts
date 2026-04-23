@@ -17,7 +17,7 @@ import {
   handleDashboardClose,
   getSessionManager,
   requireDeferredSession,
-  getSessionDataOrReply,
+  getSessionDataOrFollowUp,
   checkOwnership,
   DASHBOARD_MESSAGES,
   formatSuccessBanner,
@@ -206,13 +206,20 @@ export async function handleToggleGlobalButton(
 
 /**
  * Handle delete button - show confirmation dialog.
+ *
+ * Defers first (`deferUpdate`) to protect Discord's 3-second interaction
+ * budget against a slow Redis session lookup. Subsequent responses use
+ * `editReply` / `followUp` since the interaction is already acked.
+ * See `.claude/rules/04-discord.md` § "defer first, then process."
  */
 export async function handleDeleteButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  // Get session data or reply with expired message (non-deferred)
-  const data = await getSessionDataOrReply<FlattenedPresetData>(interaction, 'preset', entityId);
+  await interaction.deferUpdate();
+
+  // Get session data or follow up with expired message (interaction already deferred)
+  const data = await getSessionDataOrFollowUp<FlattenedPresetData>(interaction, 'preset', entityId);
   if (data === null) {
     return;
   }
@@ -222,7 +229,7 @@ export async function handleDeleteButton(
   // was UI-only and wouldn't honor the admin override from
   // computeLlmConfigPermissions.
   if (!data.canDelete) {
-    await interaction.reply({
+    await interaction.followUp({
       content: DASHBOARD_MESSAGES.NO_PERMISSION('delete presets'),
       flags: MessageFlags.Ephemeral,
     });
@@ -237,7 +244,10 @@ export async function handleDeleteButton(
     cancelCustomId: `preset::cancel-delete::${entityId}`,
   });
 
-  await interaction.update({ embeds: [embed], components });
+  // `editReply` replaces the dashboard message in place — same visual effect
+  // as the prior `interaction.update`, but the interaction has already been
+  // acked via `deferUpdate` above so `update` would throw.
+  await interaction.editReply({ embeds: [embed], components });
 }
 
 /**
