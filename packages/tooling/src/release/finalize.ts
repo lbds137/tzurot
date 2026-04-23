@@ -1,32 +1,8 @@
 /**
- * Release Finalize
- *
- * Automates step 5 of the release flow: rebase develop onto main after a
- * release PR merges.
- *
- * The problem: the git-workflow skill documents "rebase develop onto main"
- * as the final step of a release, but nothing enforced it. Skipping it
- * left develop with the pre-rebase SHAs of the release commits while main
- * had the post-rebase versions — surfacing ~24 hours later as apparent
- * "conflicts with main" on the next release PR. The content was identical
- * (git auto-skips via `--reapply-cherry-picks`), but the diff looked
- * frightening until diagnosed.
- *
- * This command runs the full sequence:
- *   1. `git fetch --all`
- *   2. Checkout main, pull
- *   3. Checkout develop, pull
- *   4. `git rebase origin/main`
- *   5. `git push --force-with-lease`
- *
- * Safety:
- *   - Refuses to run with a dirty working tree
- *   - Skips the whole thing when main and develop already share the same
- *     tip (no-op path — "already finalized")
- *   - Requires `--yes` (or an interactive TTY) before the force-push step
- *   - On rebase conflicts, aborts cleanly and exits non-zero (leaves the
- *     user on develop at the original tip, nothing lost)
- *   - `--dry-run` prints the planned steps without executing
+ * Automates step 6 of the release flow (rebase develop onto main after a
+ * release PR merges). See `.claude/skills/tzurot-git-workflow/SKILL.md`
+ * for the release flow context and why skipping this step causes phantom
+ * "conflicts with main" on the next release PR.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -83,15 +59,19 @@ async function confirmOrAbort(prompt: string): Promise<boolean> {
 }
 
 /**
- * Assert the working tree is clean. `git status --porcelain` is empty
- * when clean; any output means there are uncommitted/unstaged changes or
- * untracked files we'd risk losing during the checkout dance.
+ * Assert tracked files are clean. Uses `--untracked-files=no` so stray
+ * untracked files (scratch notes, build artifacts, `.env.local`) don't
+ * block the command — git checkout only fails on untracked files when
+ * one would collide with a tracked file in the target branch, which is
+ * rare and git will refuse loudly if it happens anyway. The 99% case is
+ * "untracked file sits there harmlessly," so scoping to tracked-only
+ * makes the check match the actual risk surface.
  */
 function assertCleanWorkingTree(): void {
-  const status = git(['status', '--porcelain']);
+  const status = git(['status', '--porcelain', '--untracked-files=no']);
   if (status.length > 0) {
     throw new Error(
-      'Working tree is not clean. Commit or stash changes before running release:finalize.'
+      'Working tree has uncommitted or unstaged tracked changes. Commit or stash them before running release:finalize.'
     );
   }
 }
@@ -174,7 +154,11 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
       );
       return;
     }
-    console.log(chalk.yellow(`(preview) main ahead of develop by ${ahead} commit(s)`));
+    console.log(
+      chalk.yellow(
+        `(preview, local refs — may be stale) main ahead of develop by ${ahead} commit(s)`
+      )
+    );
   } else {
     console.log(chalk.yellow(`main ahead of develop — rebase needed`));
   }
@@ -188,17 +172,19 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
 
   // Step 4: sync main locally. Nice-to-have: keeps local main pointer
   // matching origin/main; not strictly required since rebase uses the
-  // remote-tracking ref.
+  // remote-tracking ref. Explicit `origin main` avoids depending on
+  // upstream tracking being configured (it usually is, but a fresh
+  // clone or a manually-reset branch can be missing the link).
   console.log(chalk.dim('Syncing main...'));
   planStep(['checkout', 'main'], dryRun);
-  planStep(['pull', '--ff-only'], dryRun);
+  planStep(['pull', '--ff-only', 'origin', 'main'], dryRun);
 
   // Step 5: switch back to develop, pull, rebase. The ff-only pull fails
   // loudly if the local tip has diverged from origin/develop — better
   // than a surprise mid-rebase.
   console.log(chalk.dim('Syncing develop and rebasing onto main...'));
   planStep(['checkout', 'develop'], dryRun);
-  planStep(['pull', '--ff-only'], dryRun);
+  planStep(['pull', '--ff-only', 'origin', 'develop'], dryRun);
   if (dryRun) {
     console.log(chalk.dim('  [dry-run] git rebase origin/main'));
   } else {
@@ -207,8 +193,11 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
 
   // Step 6: force-push. --force-with-lease (never raw --force) so a
   // concurrent push from someone else refuses instead of clobbering it.
+  // Explicit `origin develop` refspec guards against the unlikely case
+  // where `checkout develop` landed on an unexpected branch — the push
+  // refuses rather than silently pushing the wrong tracking branch.
   console.log(chalk.dim('Force-pushing develop...'));
-  planStep(['push', '--force-with-lease'], dryRun);
+  planStep(['push', '--force-with-lease', 'origin', 'develop'], dryRun);
 
   console.log(
     chalk.green(
