@@ -126,6 +126,14 @@ describe('/user/timezone routes', () => {
   });
 
   describe('GET /user/timezone', () => {
+    // Each GET/PUT handler here issues TWO `user.findUnique` calls in sequence:
+    //   1. Inside `getOrCreateUserShell` (shadow-mode UUID resolution) — returns { id }
+    //   2. The handler's actual data read — returns the row (or null for the 404 branch)
+    // The `mockResolvedValueOnce` pairs below mirror that call order. If
+    // `resolveProvisionedUserId`'s shadow-mode path ever changes (e.g., swaps
+    // `findUnique` for `findFirst`, or adds an intermediate query), these
+    // pairs need to match the new sequence.
+
     it('should return 404 when user row is missing', async () => {
       // Simulate both the shadow-fallback resolver read AND the timezone
       // read failing to find a row — exercises the defensive 404 branch.
