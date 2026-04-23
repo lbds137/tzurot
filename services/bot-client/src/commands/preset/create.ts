@@ -16,7 +16,7 @@ import {
   MessageFlags,
 } from 'discord.js';
 import type { ModalSubmitInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -54,7 +54,7 @@ export async function handleCreate(context: ModalCommandContext): Promise<void> 
       .setPlaceholder(field.placeholder ?? '')
       .setStyle(TextInputStyle.Short)
       .setRequired(field.required ?? false)
-      .setMaxLength(field.maxLength ?? DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
+      .setMaxLength(field.maxLength);
 
     const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
     modal.addComponents(row);

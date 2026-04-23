@@ -83,7 +83,7 @@ function buildTextInput<T extends Record<string, unknown>>(
   // fallback is needed — every field provides its own cap. A `maxLength: 0`
   // typo would cause Discord to reject the modal at render time (API
   // requires 1–4000), which is the intended fail-fast behavior; the
-  // `> 0` guard in `validateModalSubmission` is defense-in-depth for
+  // `> 0` guard in `validateModalValues` is defense-in-depth for
   // post-submission validation paths that run on pre-existing data.
   input.setMaxLength(field.maxLength);
 

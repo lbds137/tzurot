@@ -21,7 +21,6 @@ import {
   isBotOwner,
   normalizeSlugForUser,
   type EnvConfig,
-  DISCORD_LIMITS,
 } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -59,7 +58,7 @@ export async function handleCreate(context: ModalCommandContext): Promise<void> 
       .setPlaceholder(field.placeholder ?? '')
       .setStyle(field.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
       .setRequired(field.required ?? false)
-      .setMaxLength(field.maxLength ?? DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
+      .setMaxLength(field.maxLength);
 
     const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
     modal.addComponents(row);
