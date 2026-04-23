@@ -111,18 +111,18 @@ const staleCache = new Map<string, UserAutocompleteData>();
 
 /**
  * Update the stale entry for a user. Re-inserts the key to move it to the
- * end of the Map's iteration order (newest-inserted tail), then trims
- * oldest entries if the Map has grown past the bound.
+ * end of the Map's iteration order (newest-inserted tail), then trims the
+ * single oldest entry if the Map has grown past the bound. Since each call
+ * adds exactly one entry, at most one eviction is ever needed per call.
  */
 function updateStale(userId: string, data: UserAutocompleteData): void {
   staleCache.delete(userId);
   staleCache.set(userId, data);
-  while (staleCache.size > CACHE_MAX_SIZE) {
+  if (staleCache.size > CACHE_MAX_SIZE) {
     const oldest = staleCache.keys().next().value;
-    if (oldest === undefined) {
-      break;
+    if (oldest !== undefined) {
+      staleCache.delete(oldest);
     }
-    staleCache.delete(oldest);
   }
 }
 
