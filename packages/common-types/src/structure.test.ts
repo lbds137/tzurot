@@ -46,6 +46,7 @@ const EXCLUDE_PATTERNS = [
   // Test infrastructure (mocks, fixtures, setup, test utilities)
   /\/test\//,
   /\/mocks\//,
+  /\/__mocks__\//, // vitest/jest auto-discovered manual mocks
   /\/fixtures\//,
   /test-utils\.ts$/,
   // Infrastructure singletons (Redis, Queue - tested via integration)
