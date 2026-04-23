@@ -33,6 +33,9 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+// Intentionally uses the inline `importActual` + spread pattern (not the
+// shared `__mocks__/AuthMiddleware.ts` auto-discovery) because this file
+// also stubs `requireServiceAuth`, which the shared mock omits.
 vi.mock('../../../services/AuthMiddleware.js', async () => {
   const actual = await vi.importActual<typeof import('../../../services/AuthMiddleware.js')>(
     '../../../services/AuthMiddleware.js'
