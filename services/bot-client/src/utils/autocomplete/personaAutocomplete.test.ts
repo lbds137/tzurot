@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handlePersonaAutocomplete, CREATE_NEW_PERSONA_VALUE } from './personaAutocomplete.js';
 import type { PersonaSummary } from './autocompleteCache.js';
+import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
 
 // Test UUIDs for personas (must be valid UUID format: 4th segment starts with 8/9/a/b)
 const PERSONA_ID_1 = '11111111-1111-4111-8111-111111111111';
@@ -154,7 +155,7 @@ describe('handlePersonaAutocomplete', () => {
       expect(mockRespond).toHaveBeenCalledWith([
         {
           name: '[Unable to load personas — try again]',
-          value: '__autocomplete_error__',
+          value: AUTOCOMPLETE_ERROR_SENTINEL,
         },
       ]);
     });

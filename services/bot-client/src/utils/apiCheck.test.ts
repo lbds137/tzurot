@@ -26,18 +26,22 @@ describe('ApiCheck', () => {
 });
 
 describe('isTransientHttpStatus', () => {
-  // Transient boundary: status 0 is the gateway client's sentinel for
-  // timeouts / network errors where no HTTP response was received.
-  // 5xx is classic server-side transient. 599 is the ceiling of 5xx.
-  it.each([0, 500, 502, 503, 504, 599])('returns true for transient status %i', status => {
+  // Transient status set:
+  //   - 0 is the gateway client's sentinel for timeouts / network errors
+  //     where no HTTP response was received.
+  //   - 5xx is classic server-side transient. 599 is the ceiling.
+  //   - 429 is transient DESPITE being 4xx: rate limits self-resolve
+  //     without user action and the user's data hasn't changed. Serving
+  //     stale data through a rate-limit window is the right UX.
+  it.each([0, 429, 500, 502, 503, 504, 599])('returns true for transient status %i', status => {
     expect(isTransientHttpStatus(status)).toBe(true);
   });
 
-  // Permanent boundary: 4xx is client-side and won't resolve without a
-  // caller fix. 499 is a deliberate call-out — it's the top of the client
-  // error range and must NOT be treated as transient despite being
-  // numerically adjacent to 500.
-  it.each([400, 401, 403, 404, 429, 499])('returns false for permanent status %i', status => {
+  // Permanent status set: 4xx (except 429, above) is client-side and
+  // won't resolve without a caller fix. 499 is a deliberate call-out —
+  // it's the top of the client error range and must NOT be treated as
+  // transient despite being numerically adjacent to 500.
+  it.each([400, 401, 403, 404, 499])('returns false for permanent status %i', status => {
     expect(isTransientHttpStatus(status)).toBe(false);
   });
 

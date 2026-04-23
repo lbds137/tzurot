@@ -12,6 +12,7 @@ import { createLogger } from '@tzurot/common-types';
 import { getCachedShapes } from '../../utils/autocomplete/autocompleteCache.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import { truncateForSelect } from '../../utils/browse/truncation.js';
+import { AUTOCOMPLETE_ERROR_SENTINEL } from '../../utils/apiCheck.js';
 
 const logger = createLogger('shapes-autocomplete');
 
@@ -34,7 +35,7 @@ export async function handleShapesSlugAutocomplete(
       // error choice instead of an empty list — an empty list reads as
       // "you have no shapes," which is a silent lie during a backend outage.
       await interaction.respond([
-        { name: '[Unable to load shapes — try again]', value: '__autocomplete_error__' },
+        { name: '[Unable to load shapes — try again]', value: AUTOCOMPLETE_ERROR_SENTINEL },
       ]);
       return;
     }
