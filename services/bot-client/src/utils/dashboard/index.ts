@@ -91,6 +91,7 @@ export {
   requireDeferredSession,
   getSessionOrExpired,
   getSessionDataOrReply,
+  getSessionDataOrFollowUp,
 } from './sessionHelpers.js';
 
 // Modal Helpers

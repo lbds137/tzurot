@@ -89,6 +89,21 @@ const mockGetSessionDataOrReply = vi
     }
     return session.data;
   });
+// Sibling of getSessionDataOrReply for already-deferred interactions.
+// Uses followUp because reply would throw on an acked interaction.
+const mockGetSessionDataOrFollowUp = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId) => {
+    const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      await interaction.followUp({
+        content: 'Session expired. Please try again.',
+        flags: 64, // MessageFlags.Ephemeral
+      });
+      return null;
+    }
+    return session.data;
+  });
 // Mock requireDeferredSession: deferUpdate + getSessionOrExpired
 const mockRequireDeferredSession = vi
   .fn()
@@ -117,6 +132,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
+    getSessionDataOrFollowUp: (...args: unknown[]) => mockGetSessionDataOrFollowUp(...args),
     checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),
     renderTerminalScreen: (...args: unknown[]) => mockRenderTerminalScreen(...args),
     renderPostActionScreen: (...args: unknown[]) => mockRenderPostActionScreen(...args),
@@ -485,7 +501,32 @@ describe('Preset Dashboard Buttons', () => {
   });
 
   describe('handleDeleteButton', () => {
-    it('should show confirmation dialog when canDelete is true', async () => {
+    it('should defer the interaction before touching Redis session lookup', async () => {
+      // Regression guard for the defer-first refactor (BACKLOG 2026-04-22):
+      // deferUpdate MUST fire before the session lookup so Discord's 3-second
+      // interaction budget is protected even under a slow Redis round-trip.
+      const mockInteraction = createMockButtonInteraction('preset::delete::preset-123');
+      let deferCallOrder = -1;
+      let sessionLookupCallOrder = -1;
+      let counter = 0;
+      mockInteraction.deferUpdate = vi.fn().mockImplementation(() => {
+        deferCallOrder = ++counter;
+        return Promise.resolve();
+      });
+      mockSessionManager.get.mockImplementation(() => {
+        sessionLookupCallOrder = ++counter;
+        return Promise.resolve({
+          data: createMockFlattenedPreset({ isOwned: true, canDelete: true }),
+        });
+      });
+
+      await handleDeleteButton(mockInteraction, 'preset-123');
+
+      expect(deferCallOrder).toBeGreaterThan(0);
+      expect(sessionLookupCallOrder).toBeGreaterThan(deferCallOrder);
+    });
+
+    it('should show confirmation dialog via editReply when canDelete is true', async () => {
       const mockInteraction = createMockButtonInteraction('preset::delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
@@ -494,7 +535,9 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleDeleteButton(mockInteraction, 'preset-123');
 
-      expect(mockInteraction.update).toHaveBeenCalledWith({
+      // Uses editReply because deferUpdate was called first — calling
+      // interaction.update on an acked interaction would throw.
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([
           expect.objectContaining({
             data: expect.objectContaining({
@@ -504,6 +547,7 @@ describe('Preset Dashboard Buttons', () => {
         ]),
         components: expect.any(Array),
       });
+      expect(mockInteraction.update).not.toHaveBeenCalled();
     });
 
     it('should show confirmation dialog for admin deleting a non-owned preset', async () => {
@@ -517,11 +561,11 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleDeleteButton(mockInteraction, 'preset-123');
 
-      expect(mockInteraction.update).toHaveBeenCalled();
+      expect(mockInteraction.editReply).toHaveBeenCalled();
       expect(mockInteraction.reply).not.toHaveBeenCalled();
     });
 
-    it('should reject when canDelete is false', async () => {
+    it('should follow up with no-permission error when canDelete is false', async () => {
       const mockInteraction = createMockButtonInteraction('preset::delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
@@ -530,27 +574,30 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleDeleteButton(mockInteraction, 'preset-123');
 
-      // Direct canDelete guard replies with the NO_PERMISSION message; the
-      // confirmation dialog update must not fire.
-      expect(mockInteraction.update).not.toHaveBeenCalled();
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
+      // Interaction is already deferred, so we followUp (not reply) and the
+      // confirmation dialog editReply must not fire.
+      expect(mockInteraction.editReply).not.toHaveBeenCalled();
+      expect(mockInteraction.reply).not.toHaveBeenCalled();
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
         content: expect.stringContaining('delete presets'),
         flags: expect.any(Number),
       });
     });
 
-    it('should show error if session expired', async () => {
+    it('should follow up with session-expired error if session is null', async () => {
       const mockInteraction = createMockButtonInteraction('preset::delete::preset-123');
 
       mockSessionManager.get.mockResolvedValue(null);
 
       await handleDeleteButton(mockInteraction, 'preset-123');
 
-      // getSessionDataOrReply handles the error reply
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
+      // getSessionDataOrFollowUp handles the expired branch via followUp
+      // (reply would throw on the deferred interaction).
+      expect(mockInteraction.followUp).toHaveBeenCalledWith({
         content: expect.stringContaining('Session expired'),
         flags: expect.any(Number),
       });
+      expect(mockInteraction.reply).not.toHaveBeenCalled();
     });
   });
 
