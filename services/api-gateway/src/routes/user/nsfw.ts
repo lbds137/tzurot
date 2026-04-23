@@ -6,8 +6,12 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, UserService, type PrismaClient } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -17,7 +21,7 @@ const logger = createLogger('user-nsfw');
 
 export function createNsfwRoutes(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   /**
    * GET /user/nsfw

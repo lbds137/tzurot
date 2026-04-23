@@ -219,9 +219,19 @@ function readEncodedHeader(req: Request, headerName: string): string | undefined
 // across endpoints for the same user. WeakMap lets the instance be GC'd
 // if/when the PrismaClient it was built against is released (not expected
 // in prod, but correct for test fixtures that spin up short-lived clients).
+//
+// Exported so every api-gateway route factory goes through the same registry
+// — `new UserService(prisma)` in a route file creates an independent cache
+// that never shares hits with the middleware's instance, which defeats the
+// sharing the registry was built to provide. The canonical pattern is:
+//
+//   export function createFooRoutes(prisma: PrismaClient): Router {
+//     const userService = getOrCreateUserService(prisma);  // NOT `new UserService(prisma)`
+//     ...
+//   }
 const userServiceByPrisma = new WeakMap<PrismaClient, UserService>();
 
-function getOrCreateUserService(prisma: PrismaClient): UserService {
+export function getOrCreateUserService(prisma: PrismaClient): UserService {
   let service = userServiceByPrisma.get(prisma);
   if (service === undefined) {
     service = new UserService(prisma);

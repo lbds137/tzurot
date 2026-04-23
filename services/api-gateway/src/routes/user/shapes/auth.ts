@@ -15,7 +15,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   encryptApiKey,
-  UserService,
+  type UserService,
   type PrismaClient,
   generateUserCredentialUuid,
   CREDENTIAL_SERVICES,
@@ -25,7 +25,11 @@ import {
   SHAPES_TOKEN_MAX_LENGTH,
   isPlausibleShapesTokenValue,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -181,7 +185,7 @@ function createStatusHandler(prisma: PrismaClient, userService: UserService) {
 
 export function createShapesAuthRoutes(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   router.post(
     '/',

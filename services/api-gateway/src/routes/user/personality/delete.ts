@@ -7,12 +7,16 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  UserService,
+  type UserService,
   type PrismaClient,
   type CacheInvalidationService,
   DeletePersonalityResponseSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -147,7 +151,7 @@ export function createDeleteHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   return [
     requireUserAuth(),
     requireProvisionedUser(prisma),

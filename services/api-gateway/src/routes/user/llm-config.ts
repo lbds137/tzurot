@@ -14,7 +14,7 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  UserService,
+  type UserService,
   isBotOwner,
   type PrismaClient,
   type LlmConfigSummary,
@@ -25,7 +25,11 @@ import {
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -356,7 +360,7 @@ export function createLlmConfigRoutes(
 
   // Instantiate services with dependencies
   const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   router.get(
     '/',

@@ -14,13 +14,17 @@ import type { Redis } from 'ioredis';
 import {
   createLogger,
   getDurationLabel,
-  UserService,
+  type UserService,
   type PrismaClient,
   EnableIncognitoRequestSchema,
   DisableIncognitoRequestSchema,
   IncognitoForgetRequestSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -312,7 +316,7 @@ async function handleForget(
 export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Router {
   const router = Router();
   const manager = new IncognitoSessionManager(redis);
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   // GET /user/memory/incognito - Get status
   router.get(

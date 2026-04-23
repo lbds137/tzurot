@@ -19,12 +19,18 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-vi.mock('../../../services/AuthMiddleware.js', () => ({
-  requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
-  requireProvisionedUser: vi.fn(() =>
-    vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
-  ),
-}));
+vi.mock('../../../services/AuthMiddleware.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../services/AuthMiddleware.js')>(
+    '../../../services/AuthMiddleware.js'
+  );
+  return {
+    ...actual,
+    requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
+    requireProvisionedUser: vi.fn(() =>
+      vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
+    ),
+  };
+});
 
 vi.mock('../../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),

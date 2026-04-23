@@ -14,7 +14,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  UserService,
+  type UserService,
   generateExportJobUuid,
   IMPORT_SOURCES,
   JobType,
@@ -25,7 +25,11 @@ import {
   getConfig,
   Prisma,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -275,7 +279,7 @@ function createListExportJobsHandler(
 
 export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   const envConfig = getConfig();
   const baseUrl = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
 

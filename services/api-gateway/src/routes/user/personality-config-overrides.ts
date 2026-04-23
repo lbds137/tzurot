@@ -11,12 +11,15 @@
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
-  UserService,
   ConfigCascadeResolver,
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -35,7 +38,7 @@ export function createPersonalityConfigOverrideRoutes(
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService
 ): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
   router.use(requireUserAuth());

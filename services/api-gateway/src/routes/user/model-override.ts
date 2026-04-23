@@ -16,7 +16,6 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
-  UserService,
   type PrismaClient,
   type ModelOverrideSummary,
   type LlmConfigCacheInvalidationService,
@@ -24,7 +23,11 @@ import {
   SetModelOverrideSchema,
   SetDefaultConfigSchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -60,7 +63,7 @@ export function createModelOverrideRoutes(
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   /**
    * GET /user/model-override

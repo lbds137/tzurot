@@ -7,14 +7,17 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  UserService,
   type PrismaClient,
   type PersonalitySummary,
   isBotOwner,
   computePersonalityPermissions,
   PERSONALITY_LIST_SELECT,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -131,7 +134,7 @@ async function fetchUserPersonalities(
  * - User-owned personalities (ownerId = user.id OR PersonalityOwner entry)
  */
 export function createListHandler(prisma: PrismaClient): RequestHandler[] {
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const isAdmin = isBotOwner(discordUserId);
