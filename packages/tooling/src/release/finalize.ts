@@ -18,6 +18,13 @@ export interface FinalizeOptions {
  * Run a git subcommand with array args (no shell interpolation — see
  * `.claude/rules/00-critical.md` § "Shell Command Safety"). Returns
  * trimmed stdout; throws on non-zero exit.
+ *
+ * `execFileSync` defaults to `stdio: 'pipe'` for both streams, so git's
+ * own progress output (`Fetching origin...`, `Successfully rebased...`)
+ * is captured rather than shown to the user. Deliberate — our own
+ * `console.log` status lines cover the same ground with consistent
+ * formatting. On non-zero exit, the captured stderr is included in the
+ * thrown `Error.message` so the user still sees git's diagnostic text.
  */
 function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf-8' }).trim();
@@ -264,6 +271,12 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
   try {
     runCheckoutRebasePushSequence(dryRun);
   } catch (err) {
+    // Outer guard handles "no useful startBranch" (detached HEAD, or
+    // rev-parse failed entirely); inner guard inside `reportBranchDrift`
+    // handles "we can't discover currentBranch post-failure." Both are
+    // load-bearing — without the outer guard, a detached-HEAD start
+    // followed by ending on a real branch would emit a misleading
+    // "you started on '' but are now on 'main'" message.
     if (startBranch !== '') {
       reportBranchDrift(startBranch);
     }
