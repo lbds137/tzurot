@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-04-21 → 2026-04-22 (wrapped; v3.0.0-beta.103 shipped)
-> **Version**: v3.0.0-beta.103 (released 2026-04-22 — everything below shipped to prod)
+> **Session**: 2026-04-22 → 2026-04-23 (wrapped; v3.0.0-beta.104 shipped)
+> **Version**: v3.0.0-beta.104 (released 2026-04-23 — everything below shipped to prod)
 
 ---
 
@@ -94,7 +94,7 @@ Three smoke tests passed on dev before prod release:
 
 ---
 
-## Unreleased on Develop (since beta.103)
+## Unreleased on Develop (since beta.104)
 
 _Nothing yet — just shipped._
 
@@ -112,6 +112,7 @@ _Nothing yet — just shipped._
 
 ## Recent Releases
 
+- **v3.0.0-beta.104** (2026-04-23) — shapes.inc cookie migrated Auth0 → Better Auth (users must re-auth via `/shapes auth`); cookie-submit preflight now validates against shapes.inc before persisting; preflight endpoint swapped to `/api/users/info` for fate-sharing with the import fetcher; GLM-4.5-air chain-of-thought no longer leaks to users via fake-user-message XML wrapper (Chain-of-Extractors pattern); new release tooling — `release:draft-notes`, `release:verify-notes`, `release:finalize` commands; bot-client submit-job timeout 10s → 60s (mitigation for attachment-heavy requests; structural fix tracked in Inbox); preset delete defer-first; `maxLength` required at type level on dashboard fields; `createTestPGlite` factory across 16 call sites. **No migrations**.
 - **v3.0.0-beta.103** (2026-04-22) — Identity Epic Phase 5c PR C cutover (all 14 shell-path callers migrated to req.provisionedUserId), voice multi-chunk TTS Opus fix (closes 8 MiB attachment limit on long replies), `ApiCheck<T>` tri-state type fixes transient-as-definitive-denial, extensive tech-debt paydown (112-site log migration, ReDoS lint adoption, TimeoutError extraction, SSRF encoding hardening, depcruise CI enforcement). GLM 4.5 Air `<understanding>` reasoning-tag variant patched. Migration: partial unique index on `llm_configs(name) WHERE is_global = true`.
 - **v3.0.0-beta.102** (2026-04-20) — Hybrid post-action UX, Kimi K2.5 routing fix, CITEXT name uniqueness.
 - **v3.0.0-beta.101** (2026-04-20) — Preset clone PK fix, TTS Opus transcode default, Phase 5c PR A/B.
