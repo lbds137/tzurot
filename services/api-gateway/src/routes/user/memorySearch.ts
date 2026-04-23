@@ -21,7 +21,8 @@ import {
   isEmbeddingServiceAvailable,
 } from '../../services/EmbeddingService.js';
 import type { ProvisionedRequest } from '../../types.js';
-import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-search');
 
@@ -305,12 +306,9 @@ export async function handleSearch(
   );
   const effectiveOffset = Math.max(0, offset ?? 0);
 
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
-  const personaId = await getDefaultPersonaId(prisma, user.id);
+  const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {
     sendCustomSuccess(res, { results: [], count: 0, hasMore: false }, StatusCodes.OK);
     return;

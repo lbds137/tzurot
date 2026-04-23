@@ -26,7 +26,8 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { IncognitoSessionManager } from '../../services/IncognitoSessionManager.js';
-import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-incognito');
 
@@ -218,13 +219,10 @@ async function handleForget(
 
   const { personalityId, timeframe } = parseResult.data;
 
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   // Get persona ID for the user
-  const personaId = await getDefaultPersonaId(prisma, user.id);
+  const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {
     sendCustomSuccess(
       res,

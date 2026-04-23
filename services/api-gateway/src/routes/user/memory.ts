@@ -49,7 +49,8 @@ import {
 } from './memorySingle.js';
 import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
 import { createIncognitoRoutes } from './memoryIncognito.js';
-import { getProvisionedUserId, getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory');
 
@@ -70,10 +71,7 @@ async function handleGetStats(
     return;
   }
 
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
@@ -81,11 +79,11 @@ async function handleGetStats(
   }
 
   const config = await prisma.userPersonalityConfig.findUnique({
-    where: { userId_personalityId: { userId: user.id, personalityId } },
+    where: { userId_personalityId: { userId, personalityId } },
     select: { personaId: true, configOverrides: true },
   });
 
-  const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, user.id));
+  const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, userId));
 
   if (personaId === null || personaId === undefined) {
     sendCustomSuccess(
@@ -160,13 +158,10 @@ async function handleGetFocus(
     return;
   }
 
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   const config = await prisma.userPersonalityConfig.findUnique({
-    where: { userId_personalityId: { userId: user.id, personalityId } },
+    where: { userId_personalityId: { userId, personalityId } },
     select: { configOverrides: true },
   });
 
@@ -200,10 +195,7 @@ async function handleSetFocus(
 
   const { personalityId, enabled } = parseResult.data;
 
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
@@ -211,7 +203,7 @@ async function handleSetFocus(
   }
 
   // Read existing configOverrides to merge focusModeEnabled into JSONB
-  const upcId = generateUserPersonalityConfigUuid(user.id, personalityId);
+  const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
   const existing = await prisma.userPersonalityConfig.findUnique({
     where: { id: upcId },
     select: { configOverrides: true },
@@ -239,11 +231,11 @@ async function handleSetFocus(
       : Prisma.JsonNull;
 
   await prisma.userPersonalityConfig.upsert({
-    where: { userId_personalityId: { userId: user.id, personalityId } },
+    where: { userId_personalityId: { userId, personalityId } },
     update: { configOverrides: configOverridesValue },
     create: {
       id: upcId,
-      userId: user.id,
+      userId,
       personalityId,
       configOverrides: configOverridesValue,
     },

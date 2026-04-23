@@ -1,20 +1,14 @@
 /**
  * Tests for shared memory route helpers
  *
- * Tests getProvisionedUserId, getDefaultPersonaId, getPersonalityById, and parseTimeframeFilter.
+ * Tests getDefaultPersonaId, getPersonalityById, and parseTimeframeFilter.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Response } from 'express';
-import type { PrismaClient, UserService } from '@tzurot/common-types';
-import type { ProvisionedRequest } from '../../types.js';
+import type { PrismaClient } from '@tzurot/common-types';
 
-import {
-  getProvisionedUserId,
-  getDefaultPersonaId,
-  getPersonalityById,
-  parseTimeframeFilter,
-} from './memoryHelpers.js';
+import { getDefaultPersonaId, getPersonalityById, parseTimeframeFilter } from './memoryHelpers.js';
 
 // Mock Prisma
 const mockPrisma = {
@@ -42,52 +36,6 @@ describe('memoryHelpers', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-  });
-
-  describe('getProvisionedUserId', () => {
-    it('should return provisioned UUID from request when middleware attached it', async () => {
-      const getOrCreateUserShell = vi.fn();
-      const userService = { getOrCreateUserShell } as unknown as UserService;
-      const req = { provisionedUserId: 'user-uuid' } as unknown as ProvisionedRequest;
-      const res = createMockRes();
-
-      const result = await getProvisionedUserId(req, userService, res);
-
-      expect(result).toEqual({ id: 'user-uuid' });
-      expect(getOrCreateUserShell).not.toHaveBeenCalled();
-      expect(res.status).not.toHaveBeenCalled();
-    });
-
-    it('should fall back to shell provisioning when middleware did not attach UUID', async () => {
-      const getOrCreateUserShell = vi.fn().mockResolvedValue('shell-uuid');
-      const userService = { getOrCreateUserShell } as unknown as UserService;
-      const req = { userId: 'discord-123' } as unknown as ProvisionedRequest;
-      const res = createMockRes();
-
-      const result = await getProvisionedUserId(req, userService, res);
-
-      expect(result).toEqual({ id: 'shell-uuid' });
-      expect(getOrCreateUserShell).toHaveBeenCalledWith('discord-123');
-      expect(res.status).not.toHaveBeenCalled();
-    });
-
-    it('should return null and send 404 when shell provisioning throws', async () => {
-      const getOrCreateUserShell = vi.fn().mockRejectedValue(new Error('boom'));
-      const userService = { getOrCreateUserShell } as unknown as UserService;
-      const req = { userId: 'discord-unknown' } as unknown as ProvisionedRequest;
-      const res = createMockRes();
-
-      const result = await getProvisionedUserId(req, userService, res);
-
-      expect(result).toBeNull();
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'NOT_FOUND',
-          message: 'User not found',
-        })
-      );
-    });
   });
 
   describe('getDefaultPersonaId', () => {

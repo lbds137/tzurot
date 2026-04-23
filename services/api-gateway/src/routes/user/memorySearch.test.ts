@@ -25,8 +25,12 @@ vi.mock('@tzurot/common-types', async () => {
 
 // Mock memory helpers
 vi.mock('./memoryHelpers.js', () => ({
-  getProvisionedUserId: vi.fn(),
   getDefaultPersonaId: vi.fn(),
+}));
+
+// Mock resolveProvisionedUserId
+vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
+  resolveProvisionedUserId: vi.fn(),
 }));
 
 // Mock embedding service
@@ -37,14 +41,15 @@ vi.mock('../../services/EmbeddingService.js', () => ({
 }));
 
 import { handleSearch } from './memorySearch.js';
-import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
+import { getDefaultPersonaId } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import {
   isEmbeddingServiceAvailable,
   generateEmbedding,
   formatAsVector,
 } from '../../services/EmbeddingService.js';
 
-const mockGetProvisionedUserId = vi.mocked(getProvisionedUserId);
+const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 
 const mockUserService = {} as unknown as UserService;
@@ -102,21 +107,8 @@ describe('memorySearch', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('should return 404 when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const res = createMockRes();
-
-      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
-
-      expect(mockGetProvisionedUserId).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: TEST_DISCORD_USER_ID }),
-        mockUserService,
-        res
-      );
-    });
-
     it('should return empty results when user has no default persona', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const res = createMockRes();
 
@@ -129,7 +121,7 @@ describe('memorySearch', () => {
     });
 
     it('should return validation error for invalid date filters', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       const res = createMockRes();
 
@@ -149,7 +141,7 @@ describe('memorySearch', () => {
     });
 
     it('should perform text search when preferTextSearch is true', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       (mockPrisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([
         {
@@ -185,7 +177,7 @@ describe('memorySearch', () => {
     });
 
     it('should perform semantic search and fall back to text on empty results', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
       mockFormatAsVector.mockReturnValue('[0.1,0.2,0.3]');
@@ -213,7 +205,7 @@ describe('memorySearch', () => {
     });
 
     it('should return error when embedding generation fails', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockRejectedValue(new Error('embedding error'));
       const res = createMockRes();
@@ -224,7 +216,7 @@ describe('memorySearch', () => {
     });
 
     it('should return error when embedding returns null', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockResolvedValue(null);
       const res = createMockRes();
@@ -235,7 +227,7 @@ describe('memorySearch', () => {
     });
 
     it('should return semantic results with similarity scores', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
       mockFormatAsVector.mockReturnValue('[0.1,0.2,0.3]');
@@ -271,7 +263,7 @@ describe('memorySearch', () => {
     });
 
     it('should set hasMore when results exceed limit', async () => {
-      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+      mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       // Generate limit + 1 results to trigger hasMore
       const results = Array.from({ length: 11 }, (_, i) => ({
