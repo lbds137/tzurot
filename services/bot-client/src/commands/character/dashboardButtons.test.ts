@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, Client } from 'discord.js';
 import { handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
+import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 
 // Mock dependencies
 const mockFetchCharacter = vi.fn();
@@ -31,7 +32,7 @@ const mockGetSessionOrExpired = vi
     const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
     if (session === null) {
       await interaction.editReply({
-        content: 'Session expired. Please run /character browse to try again.',
+        content: formatSessionExpiredMessage('/character browse'),
         embeds: [],
         components: [],
       });
@@ -89,7 +90,7 @@ describe('Character Dashboard Buttons', () => {
         const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
         if (session === null) {
           await interaction.editReply({
-            content: 'Session expired. Please run /character browse to try again.',
+            content: formatSessionExpiredMessage('/character browse'),
             embeds: [],
             components: [],
           });
