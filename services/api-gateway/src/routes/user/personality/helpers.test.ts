@@ -414,7 +414,6 @@ describe('personality route helpers', () => {
       });
 
       expect(result).not.toBeNull();
-      expect(result!.user).toEqual({ id: 'user-id' });
       expect(result!.personality).toEqual({ id: 'pers-id', ownerId: 'user-id', name: 'Test' });
       expect(res.status).not.toHaveBeenCalled();
     });
@@ -438,7 +437,7 @@ describe('personality route helpers', () => {
       });
 
       expect(result).not.toBeNull();
-      expect(result!.user).toEqual({ id: 'provisioned-id' });
+      expect(result!.personality).toEqual({ id: 'pers-id', ownerId: 'provisioned-id' });
       expect(shellSpy).not.toHaveBeenCalled();
     });
   });
