@@ -6,7 +6,11 @@
  */
 
 import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
-import { type DashboardConfig, type ActionButtonOptions } from '../../utils/dashboard/index.js';
+import {
+  type DashboardConfig,
+  type ActionButtonOptions,
+  type FieldDefinition,
+} from '../../utils/dashboard/index.js';
 import {
   identitySection,
   biographySection,
@@ -144,7 +148,7 @@ export function getCharacterDashboardConfig(
  * Seed modal field definitions for creating a new character
  * Minimal fields required to create a character
  */
-export const characterSeedFields = [
+export const characterSeedFields: FieldDefinition[] = [
   {
     id: 'name',
     label: 'Character Name',

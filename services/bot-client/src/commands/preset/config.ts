@@ -5,7 +5,7 @@
  * Uses the Dashboard Framework pattern for consistent UX.
  */
 
-import type { DashboardConfig } from '../../utils/dashboard/types.js';
+import type { DashboardConfig, FieldDefinition } from '../../utils/dashboard/types.js';
 import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { PresetData, FlattenedPresetData } from './types.js';
 
@@ -250,7 +250,7 @@ export function buildPresetDashboardOptions(data: FlattenedPresetData): ActionBu
  * Seed modal field definitions for creating a new preset
  * Minimal fields required to create a preset - user can configure more via dashboard
  */
-export const presetSeedFields = [
+export const presetSeedFields: FieldDefinition[] = [
   {
     id: 'name',
     label: 'Preset Name',

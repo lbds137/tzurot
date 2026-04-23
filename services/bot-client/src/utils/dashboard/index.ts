@@ -26,6 +26,7 @@ export {
   type SectionDefinition,
   type DashboardConfig,
   type BrowseContext,
+  type FieldDefinition,
   isDashboardInteraction,
   parseDashboardCustomId,
   buildDashboardCustomId,
