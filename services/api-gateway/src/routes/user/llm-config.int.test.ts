@@ -38,8 +38,9 @@ const TEST_DISCORD_ID = '12345678901234567890';
 const TEST_PERSONALITY_ID = generatePersonalityUuid('test-personality');
 
 // Mock the auth middleware to pass through with our test user ID.
-// Spread `importActual` so `getOrCreateUserService` (consumed by the route
-// factory post-PR-#883) passes through to the real implementation.
+// `importActual` + spread passes the real UserService registry through so
+// the route factory's `getOrCreateUserService` call hits the actual
+// WeakMap-cached instance rather than an undefined mock stub.
 vi.mock('../../services/AuthMiddleware.js', async () => {
   const actual = await vi.importActual<typeof import('../../services/AuthMiddleware.js')>(
     '../../services/AuthMiddleware.js'
