@@ -205,10 +205,11 @@ describe('finalizeRelease', () => {
   });
 
   describe('non-TTY safety', () => {
-    it('requires --yes when stdin is non-TTY to run the force-push path', async () => {
-      // Simulate non-TTY by stubbing isTTY. In practice vitest's stdin
-      // is already non-TTY, but asserting explicitly keeps the test
-      // robust against future vitest changes.
+    it('throws when stdin is non-TTY and --yes is omitted', async () => {
+      // A CI pipeline that forgets --yes must fail LOUDLY (non-zero exit)
+      // rather than silently "abort" and exit 0 — otherwise a missing
+      // flag looks indistinguishable from a successful run. Throwing
+      // surfaces the misuse so the pipeline step fails.
       const originalIsTTY = process.stdin.isTTY;
       Object.defineProperty(process.stdin, 'isTTY', {
         value: false,
@@ -218,10 +219,11 @@ describe('finalizeRelease', () => {
       try {
         mockGit({ 'rev-list --count': '3\n' });
 
-        // No --yes — should bail before force-push.
-        await finalizeRelease({});
+        await expect(finalizeRelease({})).rejects.toThrow(/Non-TTY stdin requires --yes/);
 
+        // Neither the rebase nor the force-push should have run.
         const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
+        expect(invocations).not.toContain('rebase origin/main');
         expect(invocations).not.toContain('push --force-with-lease origin develop');
       } finally {
         Object.defineProperty(process.stdin, 'isTTY', {

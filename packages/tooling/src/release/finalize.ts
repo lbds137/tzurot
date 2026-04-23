@@ -37,18 +37,12 @@ function planStep(args: string[], dryRun: boolean): void {
 }
 
 /**
- * Prompt for y/N confirmation. Returns false on non-TTY stdin so
- * automated callers without `--yes` fail safe rather than hanging.
+ * Prompt for y/N confirmation interactively. Caller must guarantee a
+ * TTY stdin — the non-TTY safety check lives in `shouldProceedWithForcePush`
+ * so the error surfaces as a thrown Error (non-zero exit) rather than a
+ * silent "returned false → Aborted" that looks like success in CI.
  */
-async function confirmOrAbort(prompt: string): Promise<boolean> {
-  if (!process.stdin.isTTY) {
-    console.error(
-      chalk.red(
-        'Refusing to force-push on non-TTY stdin without --yes. Re-run with --yes to confirm.'
-      )
-    );
-    return false;
-  }
+async function confirmInteractively(prompt: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     const answer = await rl.question(`${prompt} [y/N] `);
@@ -71,7 +65,7 @@ function assertCleanWorkingTree(): void {
   const status = git(['status', '--porcelain', '--untracked-files=no']);
   if (status.length > 0) {
     throw new Error(
-      'Working tree has uncommitted or unstaged tracked changes. Commit or stash them before running release:finalize.'
+      'Working tree has uncommitted tracked changes (staged or unstaged). Commit or stash them before running release:finalize.'
     );
   }
 }
@@ -111,12 +105,19 @@ function rebaseOrAbortCleanly(): void {
 }
 
 /**
- * Decide whether to proceed with the force-push. Returns true if the
- * user confirmed interactively or passed `--yes`, false otherwise.
+ * Decide whether to proceed with the force-push. Three paths:
+ *   - `--yes` passed → return true (skip prompt).
+ *   - Non-TTY stdin without `--yes` → throw. A caller in CI that forgot
+ *     `--yes` must fail loudly (non-zero exit); silently "aborting" would
+ *     look like success and mask the missing flag.
+ *   - Interactive TTY → prompt for y/N, return the user's answer.
  */
 async function shouldProceedWithForcePush(yes: boolean): Promise<boolean> {
   if (yes) return true;
-  return confirmOrAbort('This will rebase develop onto main and force-push. Proceed?');
+  if (!process.stdin.isTTY) {
+    throw new Error('Non-TTY stdin requires --yes. Re-run with --yes to confirm the force-push.');
+  }
+  return confirmInteractively('This will rebase develop onto main and force-push. Proceed?');
 }
 
 /**
