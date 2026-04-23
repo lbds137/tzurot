@@ -126,11 +126,6 @@ describe('ModalFactory', () => {
       expect(getModalComponents(modal)).toHaveLength(5);
     });
 
-    // The "should use default max lengths for short vs paragraph" test was
-    // removed when `maxLength` became a required field on `FieldDefinition`
-    // (2026-04-22). The fallback behavior it tested is no longer reachable —
-    // every field must now supply its own cap explicitly.
-
     it('should respect custom max/min lengths', () => {
       const config = createTestConfig<Record<string, string>>('test');
 

@@ -89,13 +89,11 @@ export interface FieldDefinition {
   /**
    * Maximum length (required).
    *
-   * Every Discord modal text input needs an explicit cap — leaving it to a
-   * default means the silent-truncate path at `ModalFactory.ts` would fire
-   * without the user being warned via `detectOverLengthFields`, which is
-   * the class of bug PR #825 fixed. Making this required at the type level
-   * prevents the bug class from re-opening if a new section field lands
-   * without an explicit cap. See BACKLOG "Add lint/test assertion that
-   * dashboard section fields declare `maxLength`" (shipped 2026-04-22).
+   * Every Discord modal text input needs an explicit cap. Leaving it to a
+   * default means the silent-truncate path in `ModalFactory.ts` fires
+   * without the user being warned via `detectOverLengthFields`. Making
+   * this required at the type level prevents that bug class from
+   * re-opening when new section fields are added.
    */
   maxLength: number;
   /** Hide this field from the modal (context-aware: can be boolean or function) */
