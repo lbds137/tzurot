@@ -97,6 +97,14 @@ describe('Memory Autocomplete', () => {
       // Should find the original 'aria' by slug first
       expect(result).toBe('uuid-2');
     });
+
+    it('should return null when cache returns error', async () => {
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'error', error: 'Backend down' });
+
+      const result = await resolvePersonalityId(mkUser(), 'lilith');
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('getPersonalityName', () => {
@@ -132,6 +140,14 @@ describe('Memory Autocomplete', () => {
 
     it('should return null for unknown personality', async () => {
       const result = await getPersonalityName(mkUser(), 'unknown-uuid');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when cache returns error', async () => {
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'error', error: 'Backend down' });
+
+      const result = await getPersonalityName(mkUser(), 'uuid-1');
 
       expect(result).toBeNull();
     });
