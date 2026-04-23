@@ -10,27 +10,30 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   decryptApiKey,
+  UserService,
   type PrismaClient,
   TestWalletKeySchema,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { validateApiKey } from '../../utils/apiKeyValidation.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-test-key');
 
 export function createTestKeyRoute(prisma: PrismaClient): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const parseResult = TestWalletKeySchema.safeParse(req.body);
       if (!parseResult.success) {
         return sendZodError(res, parseResult.error);
@@ -39,21 +42,12 @@ export function createTestKeyRoute(prisma: PrismaClient): Router {
       const { provider } = parseResult.data;
       const discordUserId = req.userId;
 
-      // Find user by Discord ID
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      if (!user) {
-        sendError(res, ErrorResponses.notFound(`API key for ${provider}`));
-        return;
-      }
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Get the stored API key
       const storedKey = await prisma.userApiKey.findFirst({
         where: {
-          userId: user.id,
+          userId,
           provider,
         },
         select: {
@@ -109,7 +103,7 @@ export function createTestKeyRoute(prisma: PrismaClient): Router {
       // Update lastUsedAt since we just validated
       await prisma.userApiKey.updateMany({
         where: {
-          userId: user.id,
+          userId,
           provider,
         },
         data: {

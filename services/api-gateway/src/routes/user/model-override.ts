@@ -32,7 +32,7 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
-import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('user-model-override');
 
@@ -70,23 +70,15 @@ export function createModelOverrideRoutes(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      // Get user ID
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      if (user === null) {
-        return sendCustomSuccess(res, { overrides: [] }, StatusCodes.OK);
-      }
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Get all overrides with personality and config names
       const overrides = await prisma.userPersonalityConfig.findMany({
         where: {
-          userId: user.id,
+          userId,
           llmConfigId: { not: null },
         },
         select: {
@@ -209,11 +201,13 @@ export function createModelOverrideRoutes(
     '/default',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
+      const userId = await resolveProvisionedUserId(req, userService);
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
         select: {
           defaultLlmConfigId: true,
           defaultLlmConfig: { select: { name: true } },
@@ -292,12 +286,14 @@ export function createModelOverrideRoutes(
     '/default',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true, defaultLlmConfigId: true },
+      const userId = await resolveProvisionedUserId(req, userService);
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { defaultLlmConfigId: true },
       });
 
       if (user === null) {
@@ -314,7 +310,7 @@ export function createModelOverrideRoutes(
       }
 
       await prisma.user.update({
-        where: { id: user.id },
+        where: { id: userId },
         data: { defaultLlmConfigId: null },
       });
 
@@ -346,24 +342,16 @@ export function createModelOverrideRoutes(
     '/:personalityId',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
       const personalityId = getParam(req.params.personalityId);
 
-      // Get user ID
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      if (user === null) {
-        return sendError(res, ErrorResponses.notFound('User'));
-      }
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Find the override
       const override = await prisma.userPersonalityConfig.findFirst({
         where: {
-          userId: user.id,
+          userId,
           personalityId,
         },
         select: { id: true, llmConfigId: true, personality: { select: { name: true } } },

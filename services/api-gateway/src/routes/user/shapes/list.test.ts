@@ -41,12 +41,17 @@ import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js'
 
 const mockPrisma = {
   user: {
-    findFirst: vi.fn().mockResolvedValue(null),
+    // getOrCreateUserShell reads the user by discordId; default to an existing user.
+    findUnique: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    findFirst: vi.fn(),
+    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
   },
   userCredential: {
     findFirst: vi.fn().mockResolvedValue(null),
     updateMany: vi.fn().mockResolvedValue({ count: 1 }),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
 function createMockReqRes() {
@@ -87,15 +92,7 @@ describe('Shapes List Routes', () => {
       return { req, res };
     }
 
-    it('should return 401 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      const { res } = await callListHandler();
-
-      expect(res.status).toHaveBeenCalledWith(403);
-    });
-
     it('should return 403 when credential not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callListHandler();
 
@@ -103,7 +100,6 @@ describe('Shapes List Routes', () => {
     });
 
     it('should decrypt cookie and fetch from shapes.inc', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userCredential.findFirst.mockResolvedValue({
         iv: 'iv',
         content: 'content',

@@ -56,18 +56,6 @@ describe('PATCH /user/personality/:slug/visibility', () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it('should return 403 when user not found', async () => {
-    mockPrisma.user.findFirst.mockResolvedValue(null);
-
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
-    const handler = getHandler(router, 'patch', '/:slug/visibility');
-    const { req, res } = createMockReqRes({ isPublic: true }, { slug: 'test-char' });
-
-    await handler(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(403);
-  });
-
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 

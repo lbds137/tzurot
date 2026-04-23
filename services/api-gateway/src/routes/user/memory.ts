@@ -28,6 +28,7 @@ import type { Redis } from 'ioredis';
 import {
   createLogger,
   Prisma,
+  UserService,
   type PrismaClient,
   generateUserPersonalityConfigUuid,
   FocusModeSchema,
@@ -37,7 +38,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 import { handleSearch } from './memorySearch.js';
 import { handleList } from './memoryList.js';
 import {
@@ -48,7 +49,7 @@ import {
 } from './memorySingle.js';
 import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
 import { createIncognitoRoutes } from './memoryIncognito.js';
-import { getUserByDiscordId, getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
+import { getProvisionedUserId, getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory');
 
@@ -57,7 +58,8 @@ const logger = createLogger('user-memory');
  */
 async function handleGetStats(
   prisma: PrismaClient,
-  req: AuthenticatedRequest,
+  userService: UserService,
+  req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
@@ -68,7 +70,7 @@ async function handleGetStats(
     return;
   }
 
-  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  const user = await getProvisionedUserId(req, userService, res);
   if (!user) {
     return;
   }
@@ -147,10 +149,10 @@ async function handleGetStats(
  */
 async function handleGetFocus(
   prisma: PrismaClient,
-  req: AuthenticatedRequest,
+  userService: UserService,
+  req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
-  const discordUserId = req.userId;
   const { personalityId } = req.query as { personalityId?: string };
 
   if (personalityId === undefined || personalityId === '') {
@@ -158,7 +160,7 @@ async function handleGetFocus(
     return;
   }
 
-  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  const user = await getProvisionedUserId(req, userService, res);
   if (!user) {
     return;
   }
@@ -184,7 +186,8 @@ async function handleGetFocus(
  */
 async function handleSetFocus(
   prisma: PrismaClient,
-  req: AuthenticatedRequest,
+  userService: UserService,
+  req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
@@ -197,7 +200,7 @@ async function handleSetFocus(
 
   const { personalityId, enabled } = parseResult.data;
 
-  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  const user = await getProvisionedUserId(req, userService, res);
   if (!user) {
     return;
   }
@@ -265,101 +268,77 @@ async function handleSetFocus(
   );
 }
 
+/**
+ * Handler signature common to every memory route: takes prisma + userService +
+ * the provisioned request, returns a promise. Defined locally to avoid
+ * exporting the shape.
+ */
+type MemoryHandler = (
+  prisma: PrismaClient,
+  userService: UserService,
+  req: ProvisionedRequest,
+  res: Response
+) => Promise<void>;
+
+interface RegisterRouteParams {
+  router: Router;
+  prisma: PrismaClient;
+  userService: UserService;
+  method: 'get' | 'post' | 'patch' | 'delete';
+  path: string;
+  handler: MemoryHandler;
+}
+
+function registerMemoryRoute(params: RegisterRouteParams): void {
+  const { router, prisma, userService, method, path, handler } = params;
+  router[method](
+    path,
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler((req: ProvisionedRequest, res: Response) => handler(prisma, userService, req, res))
+  );
+}
+
 export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   // Incognito mode routes (requires Redis)
   if (redis !== undefined) {
     router.use('/incognito', createIncognitoRoutes(prisma, redis));
   }
 
-  router.get(
-    '/stats',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetStats(prisma, req, res))
-  );
+  const routes: {
+    method: RegisterRouteParams['method'];
+    path: string;
+    handler: MemoryHandler;
+  }[] = [
+    { method: 'get', path: '/stats', handler: handleGetStats },
+    { method: 'get', path: '/list', handler: handleList },
+    { method: 'get', path: '/focus', handler: handleGetFocus },
+    { method: 'post', path: '/focus', handler: handleSetFocus },
+    { method: 'post', path: '/search', handler: handleSearch },
+    // Batch operations — must come before /:id routes
+    { method: 'get', path: '/delete/preview', handler: handleBatchDeletePreview },
+    { method: 'post', path: '/delete', handler: handleBatchDelete },
+    { method: 'post', path: '/purge', handler: handlePurge },
+    // Single memory operations — must come after specific routes
+    { method: 'get', path: '/:id', handler: handleGetMemory },
+    { method: 'patch', path: '/:id', handler: handleUpdateMemory },
+    { method: 'delete', path: '/:id', handler: handleDeleteMemory },
+    { method: 'post', path: '/:id/lock', handler: handleToggleLock },
+  ];
 
-  router.get(
-    '/list',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleList(prisma, req, res))
-  );
-
-  router.get(
-    '/focus',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetFocus(prisma, req, res))
-  );
-
-  router.post(
-    '/focus',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleSetFocus(prisma, req, res))
-  );
-
-  router.post(
-    '/search',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleSearch(prisma, req, res))
-  );
-
-  // Batch operations - must come before /:id routes
-  router.get(
-    '/delete/preview',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleBatchDeletePreview(prisma, req, res)
-    )
-  );
-
-  router.post(
-    '/delete',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleBatchDelete(prisma, req, res))
-  );
-
-  router.post(
-    '/purge',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handlePurge(prisma, req, res))
-  );
-
-  // Single memory operations - must come after specific routes like /stats, /list, /search, /delete, /purge
-  router.get(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetMemory(prisma, req, res))
-  );
-
-  router.patch(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleUpdateMemory(prisma, req, res))
-  );
-
-  router.delete(
-    '/:id',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleDeleteMemory(prisma, req, res))
-  );
-
-  router.post(
-    '/:id/lock',
-    requireUserAuth(),
-    requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleToggleLock(prisma, req, res))
-  );
+  for (const route of routes) {
+    registerMemoryRoute({
+      router,
+      prisma,
+      userService,
+      method: route.method,
+      path: route.path,
+      handler: route.handler,
+    });
+  }
 
   return router;
 }

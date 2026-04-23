@@ -39,7 +39,10 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 const mockPrisma = {
   user: {
     findFirst: vi.fn(),
-    findUnique: vi.fn().mockResolvedValue(null), // No existing user - triggers create
+    // findUnique is called by BOTH getOrCreateUserShell (select: { id }) and
+    // the timezone handler (select: { timezone }). Default returns a user with
+    // both fields so either call shape resolves; individual tests override.
+    findUnique: vi.fn().mockResolvedValue({ id: 'user-uuid-123', timezone: 'UTC' }),
     create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     upsert: vi.fn(),
@@ -95,7 +98,7 @@ function getHandler(
 describe('/user/timezone routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.user.findFirst.mockResolvedValue({ timezone: 'UTC' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-123', timezone: 'UTC' });
   });
 
   describe('route factory', () => {
@@ -123,8 +126,11 @@ describe('/user/timezone routes', () => {
   });
 
   describe('GET /user/timezone', () => {
-    it('should return default UTC when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+    it('should return 404 when user row is missing', async () => {
+      // Simulate both the shadow-fallback resolver read AND the timezone
+      // read failing to find a row — exercises the defensive 404 branch.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/');
@@ -132,17 +138,12 @@ describe('/user/timezone routes', () => {
 
       await handler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          timezone: 'UTC',
-          isDefault: true,
-        })
-      );
+      expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should return user timezone', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ timezone: 'America/New_York' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'America/New_York' });
 
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/');
@@ -160,7 +161,8 @@ describe('/user/timezone routes', () => {
     });
 
     it('should return isDefault=true for UTC timezone', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ timezone: 'UTC' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'UTC' });
 
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/');
@@ -176,15 +178,19 @@ describe('/user/timezone routes', () => {
       );
     });
 
-    it('should query user by Discord ID', async () => {
+    it('should query user timezone by internal UUID', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'UTC' });
+
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/');
       const { req, res } = createMockReqRes();
 
       await handler(req, res);
 
-      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
-        where: { discordId: 'discord-user-123' },
+      // Second findUnique call (after the shadow-resolver one) queries by UUID
+      expect(mockPrisma.user.findUnique).toHaveBeenNthCalledWith(2, {
+        where: { id: 'user-uuid-123' },
         select: { timezone: true },
       });
     });
@@ -274,20 +280,22 @@ describe('/user/timezone routes', () => {
       );
     });
 
-    it('should create user via UserService and update timezone', async () => {
+    it('should resolve user via provisioning fallback and update timezone', async () => {
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({ timezone: 'Europe/London' });
 
       await handler(req, res);
 
-      // Phase 2: HTTP routes go through getOrCreateUserShell which calls
-      // prisma.user.create directly (no $transaction, no persona creation).
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
+      // Shadow-mode fallback: resolveProvisionedUserId calls
+      // getOrCreateUserShell which reads the user by discordId.
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
+      );
 
-      // Timezone is then updated via direct update
+      // Timezone is then updated via direct update by internal UUID.
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: expect.any(String) }, // Deterministic UUID
+        where: { id: 'user-uuid-123' },
         data: { timezone: 'Europe/London' },
       });
     });

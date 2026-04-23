@@ -48,12 +48,16 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 // Mock Prisma
 const mockPrisma = {
   user: {
+    findUnique: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     findFirst: vi.fn(),
+    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
   },
   userApiKey: {
     findFirst: vi.fn(),
     updateMany: vi.fn(),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
 import { createTestKeyRoute } from './testKey.js';
@@ -155,23 +159,7 @@ describe('POST /wallet/test', () => {
   });
 
   describe('user and key lookup', () => {
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
-      const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'NOT_FOUND',
-        })
-      );
-    });
-
     it('should return 404 when API key not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
 
       const { req, res } = createMockReqRes({ provider: AIProvider.OpenRouter });

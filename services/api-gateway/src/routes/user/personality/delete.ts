@@ -7,6 +7,7 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  UserService,
   type PrismaClient,
   type CacheInvalidationService,
   DeletePersonalityResponseSchema,
@@ -16,7 +17,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { resolvePersonalityForEdit } from './helpers.js';
 
@@ -53,8 +54,12 @@ async function invalidateCacheSafely(
 
 // --- Handler Factory ---
 
-function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+function createHandler(
+  prisma: PrismaClient,
+  userService: UserService,
+  cacheInvalidationService?: CacheInvalidationService
+) {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
     if (slug === undefined || slug === '') {
@@ -71,21 +76,28 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
         channelSettings: number;
         aliases: number;
       };
-    }>(prisma, slug, discordUserId, res, {
-      select: {
-        id: true,
-        name: true,
-        ownerId: true,
-        _count: {
-          select: {
-            conversationHistory: true,
-            memories: true,
-            channelSettings: true,
-            aliases: true,
+    }>({
+      prisma,
+      userService,
+      req,
+      slug,
+      res,
+      options: {
+        select: {
+          id: true,
+          name: true,
+          ownerId: true,
+          _count: {
+            select: {
+              conversationHistory: true,
+              memories: true,
+              channelSettings: true,
+              aliases: true,
+            },
           },
         },
+        action: 'delete',
       },
-      action: 'delete',
     });
     if (resolved === null) {
       return;
@@ -135,9 +147,10 @@ export function createDeleteHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
+  const userService = new UserService(prisma);
   return [
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createHandler(prisma, cacheInvalidationService)),
+    asyncHandler(createHandler(prisma, userService, cacheInvalidationService)),
   ];
 }

@@ -8,6 +8,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   isBotOwner,
+  UserService,
   type PrismaClient,
   type CacheInvalidationService,
   PersonalityUpdateSchema,
@@ -24,7 +25,7 @@ import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { processVoiceReferenceData } from '../../../utils/voiceReferenceProcessor.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { resolvePersonalityForEdit } from './helpers.js';
 import { formatPersonalityResponse } from './formatters.js';
@@ -152,22 +153,32 @@ async function processMediaUploads(
 
 // --- Handler Factory ---
 
-function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
+// eslint-disable-next-line max-lines-per-function -- Returned async handler has ~15 optional fields, ownership verification, slug uniqueness check, media processing, and cache invalidation
+function createHandler(
+  prisma: PrismaClient,
+  userService: UserService,
+  cacheInvalidationService?: CacheInvalidationService
+) {
   // eslint-disable-next-line sonarjs/cognitive-complexity -- Personality update handler with ~15 optional fields, ownership verification, slug uniqueness check, and cache invalidation
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
     if (slug === undefined || slug === '') {
       return sendError(res, ErrorResponses.validationError('slug is required'));
     }
 
-    const resolved = await resolvePersonalityForEdit<{ id: string; ownerId: string; name: string }>(
+    const resolved = await resolvePersonalityForEdit<{
+      id: string;
+      ownerId: string;
+      name: string;
+    }>({
       prisma,
+      userService,
+      req,
       slug,
-      discordUserId,
       res,
-      { select: { id: true, ownerId: true, name: true } }
-    );
+      options: { select: { id: true, ownerId: true, name: true } },
+    });
     if (resolved === null) {
       return;
     }
@@ -278,9 +289,10 @@ export function createUpdateHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
+  const userService = new UserService(prisma);
   return [
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createHandler(prisma, cacheInvalidationService)),
+    asyncHandler(createHandler(prisma, userService, cacheInvalidationService)),
   ];
 }

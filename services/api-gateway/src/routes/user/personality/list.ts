@@ -7,6 +7,7 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  UserService,
   type PrismaClient,
   type PersonalitySummary,
   isBotOwner,
@@ -15,8 +16,9 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('user-personality-list');
 
@@ -134,18 +136,15 @@ async function fetchUserPersonalities(
  * - User-owned personalities (ownerId = user.id OR PersonalityOwner entry)
  */
 export function createListHandler(prisma: PrismaClient): RequestHandler[] {
-  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const userService = new UserService(prisma);
+  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const isAdmin = isBotOwner(discordUserId);
 
-    // Get user's internal ID
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
+    const userId = await resolveProvisionedUserId(req, userService);
 
     if (isAdmin) {
-      const personalities = await fetchAdminPersonalities(prisma, user?.id ?? null, discordUserId);
+      const personalities = await fetchAdminPersonalities(prisma, userId, discordUserId);
       logger.info(
         { discordUserId, isAdmin: true, totalCount: personalities.length },
         'Listed all personalities (admin)'
@@ -153,7 +152,7 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
       return sendCustomSuccess(res, { personalities }, StatusCodes.OK);
     }
 
-    const personalities = await fetchUserPersonalities(prisma, user?.id, discordUserId);
+    const personalities = await fetchUserPersonalities(prisma, userId, discordUserId);
     logger.info({ discordUserId, totalCount: personalities.length }, 'Listed personalities');
     sendCustomSuccess(res, { personalities }, StatusCodes.OK);
   });

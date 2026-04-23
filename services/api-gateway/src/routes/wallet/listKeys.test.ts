@@ -36,11 +36,16 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 // Mock Prisma
 const mockPrisma = {
   user: {
+    // getOrCreateUserShell reads user by discordId; default to existing user.
+    findUnique: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     findFirst: vi.fn(),
+    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
   },
   userApiKey: {
     findMany: vi.fn(),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
 import { createListKeysRoute } from './listKeys.js';
@@ -98,41 +103,21 @@ describe('GET /wallet/list', () => {
   });
 
   describe('user lookup', () => {
-    it('should query user by Discord ID', async () => {
+    it('should resolve provisioned user and scope query to internal UUID', async () => {
       const { req, res } = createMockReqRes();
 
       await callHandler(mockPrisma, req, res);
 
-      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
-        where: { discordId: 'discord-user-123' },
-        select: { id: true },
-      });
-    });
-
-    it('should return empty list when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
-      const { req, res } = createMockReqRes();
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
+      // Shadow fallback reads user row by discordId to resolve the UUID.
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
+      );
+      // API keys are fetched by internal UUID, not discordId.
+      expect(mockPrisma.userApiKey.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          keys: [],
-          timestamp: expect.any(String),
+          where: { userId: 'user-uuid-123' },
         })
       );
-    });
-
-    it('should not query userApiKey when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
-      const { req, res } = createMockReqRes();
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(mockPrisma.userApiKey.findMany).not.toHaveBeenCalled();
     });
   });
 

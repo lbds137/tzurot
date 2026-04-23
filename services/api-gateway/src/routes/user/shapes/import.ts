@@ -24,7 +24,7 @@ import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserI
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
-import type { AuthenticatedRequest, ProvisionedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-import');
 
@@ -184,24 +184,15 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
   };
 }
 
-function createListImportJobsHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
+function createListImportJobsHandler(prisma: PrismaClient, userService: UserService) {
+  return async (req: ProvisionedRequest, res: Response) => {
     const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
 
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      sendCustomSuccess(res, { jobs: [] });
-      return;
-    }
+    const userId = await resolveProvisionedUserId(req, userService);
 
     const jobs = await prisma.importJob.findMany({
       where: {
-        userId: user.id,
+        userId,
         sourceService: IMPORT_SOURCES.SHAPES_INC,
         ...(slug !== undefined ? { sourceSlug: slug } : {}),
       },
@@ -239,7 +230,7 @@ export function createShapesImportRoutes(prisma: PrismaClient, queue: Queue): Ro
     '/jobs',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListImportJobsHandler(prisma))
+    asyncHandler(createListImportJobsHandler(prisma, userService))
   );
 
   return router;

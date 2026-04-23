@@ -11,7 +11,7 @@ import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMidd
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
-import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('user-nsfw');
 
@@ -27,16 +27,16 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+      const userId = await resolveProvisionedUserId(req, userService);
 
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
         select: { nsfwVerified: true, nsfwVerifiedAt: true },
       });
 
       if (user === null) {
-        // User doesn't exist yet, not verified
+        // User row doesn't exist yet, not verified
         return sendCustomSuccess(
           res,
           {

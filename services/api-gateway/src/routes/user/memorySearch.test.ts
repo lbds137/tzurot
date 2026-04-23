@@ -6,8 +6,8 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Response } from 'express';
-import type { PrismaClient } from '@tzurot/common-types';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { PrismaClient, UserService } from '@tzurot/common-types';
+import type { ProvisionedRequest } from '../../types.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -25,7 +25,7 @@ vi.mock('@tzurot/common-types', async () => {
 
 // Mock memory helpers
 vi.mock('./memoryHelpers.js', () => ({
-  getUserByDiscordId: vi.fn(),
+  getProvisionedUserId: vi.fn(),
   getDefaultPersonaId: vi.fn(),
 }));
 
@@ -37,15 +37,17 @@ vi.mock('../../services/EmbeddingService.js', () => ({
 }));
 
 import { handleSearch } from './memorySearch.js';
-import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
+import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
 import {
   isEmbeddingServiceAvailable,
   generateEmbedding,
   formatAsVector,
 } from '../../services/EmbeddingService.js';
 
-const mockGetUserByDiscordId = vi.mocked(getUserByDiscordId);
+const mockGetProvisionedUserId = vi.mocked(getProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
+
+const mockUserService = {} as unknown as UserService;
 const mockIsEmbeddingAvailable = vi.mocked(isEmbeddingServiceAvailable);
 const mockGenerateEmbedding = vi.mocked(generateEmbedding);
 const mockFormatAsVector = vi.mocked(formatAsVector);
@@ -59,11 +61,11 @@ const mockPrisma = {
   $queryRaw: vi.fn(),
 } as unknown as PrismaClient;
 
-function createMockReq(body: Record<string, unknown> = {}): AuthenticatedRequest {
+function createMockReq(body: Record<string, unknown> = {}): ProvisionedRequest {
   return {
     userId: TEST_DISCORD_USER_ID,
     body,
-  } as unknown as AuthenticatedRequest;
+  } as unknown as ProvisionedRequest;
 }
 
 function createMockRes() {
@@ -84,7 +86,7 @@ describe('memorySearch', () => {
       mockIsEmbeddingAvailable.mockReturnValue(false);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(503);
       expect(res.json).toHaveBeenCalledWith(
@@ -95,26 +97,30 @@ describe('memorySearch', () => {
     it('should return validation error for missing query', async () => {
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({}), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({}), res);
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('should return 404 when user not found', async () => {
-      mockGetUserByDiscordId.mockResolvedValue(null);
+      mockGetProvisionedUserId.mockResolvedValue(null);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
 
-      expect(mockGetUserByDiscordId).toHaveBeenCalledWith(mockPrisma, TEST_DISCORD_USER_ID, res);
+      expect(mockGetProvisionedUserId).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: TEST_DISCORD_USER_ID }),
+        mockUserService,
+        res
+      );
     });
 
     it('should return empty results when user has no default persona', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -123,11 +129,16 @@ describe('memorySearch', () => {
     });
 
     it('should return validation error for invalid date filters', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test', dateFrom: 'not-a-date' }), res);
+      await handleSearch(
+        mockPrisma,
+        mockUserService,
+        createMockReq({ query: 'test', dateFrom: 'not-a-date' }),
+        res
+      );
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -138,7 +149,7 @@ describe('memorySearch', () => {
     });
 
     it('should perform text search when preferTextSearch is true', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       (mockPrisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([
         {
@@ -153,7 +164,12 @@ describe('memorySearch', () => {
       ]);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test', preferTextSearch: true }), res);
+      await handleSearch(
+        mockPrisma,
+        mockUserService,
+        createMockReq({ query: 'test', preferTextSearch: true }),
+        res
+      );
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -169,7 +185,7 @@ describe('memorySearch', () => {
     });
 
     it('should perform semantic search and fall back to text on empty results', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
       mockFormatAsVector.mockReturnValue('[0.1,0.2,0.3]');
@@ -188,7 +204,7 @@ describe('memorySearch', () => {
         ]); // Text fallback returns results
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -197,29 +213,29 @@ describe('memorySearch', () => {
     });
 
     it('should return error when embedding generation fails', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockRejectedValue(new Error('embedding error'));
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(500);
     });
 
     it('should return error when embedding returns null', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockResolvedValue(null);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(503);
     });
 
     it('should return semantic results with similarity scores', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       mockGenerateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
       mockFormatAsVector.mockReturnValue('[0.1,0.2,0.3]');
@@ -237,7 +253,7 @@ describe('memorySearch', () => {
       ]);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test' }), res);
+      await handleSearch(mockPrisma, mockUserService, createMockReq({ query: 'test' }), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -255,7 +271,7 @@ describe('memorySearch', () => {
     });
 
     it('should set hasMore when results exceed limit', async () => {
-      mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
+      mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
       mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
       // Generate limit + 1 results to trigger hasMore
       const results = Array.from({ length: 11 }, (_, i) => ({
@@ -270,7 +286,12 @@ describe('memorySearch', () => {
       (mockPrisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue(results);
       const res = createMockRes();
 
-      await handleSearch(mockPrisma, createMockReq({ query: 'test', preferTextSearch: true }), res);
+      await handleSearch(
+        mockPrisma,
+        mockUserService,
+        createMockReq({ query: 'test', preferTextSearch: true }),
+        res
+      );
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasMore: true, count: 10 }));
     });

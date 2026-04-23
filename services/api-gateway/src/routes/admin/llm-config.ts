@@ -87,6 +87,7 @@ function createCreateConfigHandler(
 
     // Get admin user's internal ID for ownership
     const adminUser = await prisma.user.findUnique({
+      // eslint-disable-next-line no-restricted-syntax -- Admin owner lookup: route is behind requireOwnerAuth, not requireProvisionedUser, so provisionedUserId is not attached; the Discord ID comes from the X-Owner-Id header and the internal UUID is needed for LlmConfig.ownerId FK
       where: { discordId: discordUserId },
       select: { id: true },
     });

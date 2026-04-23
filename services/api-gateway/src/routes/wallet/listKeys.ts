@@ -8,43 +8,31 @@
  */
 
 import { Router, type Response } from 'express';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, UserService, type PrismaClient } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-list-keys');
 
 export function createListKeysRoute(prisma: PrismaClient): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   router.get(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      // Find user by Discord ID
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      if (!user) {
-        // User doesn't exist yet - they have no keys
-        logger.info({ discordUserId }, 'User not found, returning empty list');
-        sendCustomSuccess(res, {
-          keys: [],
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
+      const userId = await resolveProvisionedUserId(req, userService);
 
       // Get all API keys for this user (without the actual key data)
       const keys = await prisma.userApiKey.findMany({
-        where: { userId: user.id },
+        where: { userId },
         select: {
           provider: true,
           isActive: true,
