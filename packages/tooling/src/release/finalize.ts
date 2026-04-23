@@ -120,6 +120,70 @@ async function shouldProceedWithForcePush(yes: boolean): Promise<boolean> {
 }
 
 /**
+ * If an error left us on a different branch than we started on, log a
+ * hint so the user can orient themselves quickly. Git's own error
+ * messages say nothing about HEAD position, and `git status` after an
+ * unexpected failure is easy to miss. Best-effort: rev-parse failures
+ * are swallowed so this helper never shadows the primary error.
+ */
+function reportBranchDrift(startBranch: string): void {
+  try {
+    const currentBranch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
+    if (currentBranch !== startBranch) {
+      console.error(
+        chalk.yellow(
+          `Note: you started on '${startBranch}' but are now on '${currentBranch}'. ` +
+            `Run \`git checkout ${startBranch}\` to return.`
+        )
+      );
+    }
+  } catch {
+    // Weird git state — don't clobber the primary error with a secondary
+    // rev-parse failure. The user's own `git status` will still work.
+  }
+}
+
+/**
+ * The sequence of writes that the finalize runs (or previews, in dry-run):
+ * sync main locally, switch to develop, pull, rebase onto main, force-push.
+ *
+ * Explicit `origin <branch>` refspecs on pulls avoid depending on upstream
+ * tracking being configured (usually is, but a fresh clone or manually-reset
+ * branch can be missing the link). Explicit `origin develop` on push guards
+ * against the unlikely case where `checkout develop` landed on an unexpected
+ * branch — push refuses rather than silently pushing the wrong tracking ref.
+ */
+function runCheckoutRebasePushSequence(dryRun: boolean): void {
+  // Sync main locally. Nice-to-have: keeps the local main pointer matching
+  // origin/main; not strictly required since rebase uses the remote-tracking
+  // ref directly.
+  console.log(chalk.dim('Syncing main...'));
+  planStep(['checkout', 'main'], dryRun);
+  planStep(['pull', '--ff-only', 'origin', 'main'], dryRun);
+
+  // Switch back to develop and pull. The ff-only pull fails loudly if the
+  // local tip has diverged from origin/develop — better than a surprise
+  // mid-rebase.
+  console.log(chalk.dim('Syncing develop and rebasing onto main...'));
+  planStep(['checkout', 'develop'], dryRun);
+  planStep(['pull', '--ff-only', 'origin', 'develop'], dryRun);
+
+  // Can't use planStep for rebase: it needs try/catch for --abort teardown
+  // on conflicts. Dry-run branch mirrors planStep's output format manually
+  // to keep the preview consistent.
+  if (dryRun) {
+    console.log(chalk.dim('  [dry-run] git rebase origin/main'));
+  } else {
+    rebaseOrAbortCleanly();
+  }
+
+  // Force-push with --force-with-lease (never raw --force) so a concurrent
+  // push from someone else refuses instead of clobbering it.
+  console.log(chalk.dim('Force-pushing develop...'));
+  planStep(['push', '--force-with-lease', 'origin', 'develop'], dryRun);
+}
+
+/**
  * Execute or preview the finalize sequence. When `dryRun` is true, all
  * git commands are printed instead of executed — useful for reviewing
  * what the command will do before committing to the force-push.
@@ -130,6 +194,21 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
   if (!dryRun) {
     assertCleanWorkingTree();
   }
+
+  // Capture the starting branch so we can emit a "you're now on X" hint
+  // if any of the checkout/pull steps fail mid-sequence. In dry-run we
+  // skip this since no writes happen. Best-effort: if rev-parse fails
+  // (detached HEAD with no upstream, etc.) we fall back to an empty
+  // string and the drift hint simply won't fire.
+  const startBranch = dryRun
+    ? ''
+    : (() => {
+        try {
+          return git(['rev-parse', '--abbrev-ref', 'HEAD']);
+        } catch {
+          return '';
+        }
+      })();
 
   console.log(chalk.cyan(dryRun ? '[dry-run] Finalizing release' : 'Finalizing release'));
 
@@ -170,37 +249,19 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
     return;
   }
 
-  // Step 4: sync main locally. Nice-to-have: keeps local main pointer
-  // matching origin/main; not strictly required since rebase uses the
-  // remote-tracking ref. Explicit `origin main` avoids depending on
-  // upstream tracking being configured (it usually is, but a fresh
-  // clone or a manually-reset branch can be missing the link).
-  console.log(chalk.dim('Syncing main...'));
-  planStep(['checkout', 'main'], dryRun);
-  planStep(['pull', '--ff-only', 'origin', 'main'], dryRun);
-
-  // Step 5: switch back to develop, pull, rebase. The ff-only pull fails
-  // loudly if the local tip has diverged from origin/develop — better
-  // than a surprise mid-rebase.
-  console.log(chalk.dim('Syncing develop and rebasing onto main...'));
-  planStep(['checkout', 'develop'], dryRun);
-  planStep(['pull', '--ff-only', 'origin', 'develop'], dryRun);
-  // Can't use planStep here: rebase needs try/catch for --abort teardown
-  // on conflicts. The dry-run branch mirrors planStep's output format
-  // manually to keep the preview consistent.
-  if (dryRun) {
-    console.log(chalk.dim('  [dry-run] git rebase origin/main'));
-  } else {
-    rebaseOrAbortCleanly();
+  // Any failure in the checkout/pull/rebase/push dance may have left
+  // the user on a different branch than they started on. Log the drift
+  // (git's own error says nothing about HEAD) then re-throw to preserve
+  // the non-zero exit code. `startBranch` is empty in dry-run, so the
+  // hint is skipped there.
+  try {
+    runCheckoutRebasePushSequence(dryRun);
+  } catch (err) {
+    if (startBranch !== '') {
+      reportBranchDrift(startBranch);
+    }
+    throw err;
   }
-
-  // Step 6: force-push. --force-with-lease (never raw --force) so a
-  // concurrent push from someone else refuses instead of clobbering it.
-  // Explicit `origin develop` refspec guards against the unlikely case
-  // where `checkout develop` landed on an unexpected branch — the push
-  // refuses rather than silently pushing the wrong tracking branch.
-  console.log(chalk.dim('Force-pushing develop...'));
-  planStep(['push', '--force-with-lease', 'origin', 'develop'], dryRun);
 
   console.log(
     chalk.green(
