@@ -22,15 +22,6 @@ import {
 } from './types.js';
 
 /**
- * Default field constraints
- */
-const DEFAULT_CONSTRAINTS = {
-  SHORT_MAX_LENGTH: 100,
-  PARAGRAPH_MAX_LENGTH: 4000,
-  MIN_LENGTH: 0,
-};
-
-/**
  * Build a modal for editing a dashboard section
  *
  * @param config - Dashboard configuration
@@ -88,14 +79,10 @@ function buildTextInput<T extends Record<string, unknown>>(
     input.setPlaceholder(field.placeholder);
   }
 
-  // Set length constraints
-  const maxLength =
-    field.maxLength ??
-    (field.style === 'paragraph'
-      ? DEFAULT_CONSTRAINTS.PARAGRAPH_MAX_LENGTH
-      : DEFAULT_CONSTRAINTS.SHORT_MAX_LENGTH);
-
-  input.setMaxLength(maxLength);
+  // Set length constraints. maxLength is required on FieldDefinition
+  // (type-level invariant since 2026-04-22 — see types.ts) so no fallback
+  // needed; every field provides an explicit cap.
+  input.setMaxLength(field.maxLength);
 
   if (field.minLength !== undefined && field.minLength > 0) {
     input.setMinLength(field.minLength);
@@ -105,7 +92,7 @@ function buildTextInput<T extends Record<string, unknown>>(
   const currentValue = currentData[field.id];
   if (currentValue !== undefined && currentValue !== null && typeof currentValue === 'string') {
     // Discord modals require value to be within length constraints
-    const truncatedValue = currentValue.slice(0, maxLength);
+    const truncatedValue = currentValue.slice(0, field.maxLength);
     input.setValue(truncatedValue);
   }
 
@@ -139,13 +126,7 @@ export function buildSimpleModal(
       input.setPlaceholder(field.placeholder);
     }
 
-    const maxLength =
-      field.maxLength ??
-      (field.style === 'paragraph'
-        ? DEFAULT_CONSTRAINTS.PARAGRAPH_MAX_LENGTH
-        : DEFAULT_CONSTRAINTS.SHORT_MAX_LENGTH);
-
-    input.setMaxLength(maxLength);
+    input.setMaxLength(field.maxLength);
 
     if (field.minLength !== undefined && field.minLength > 0) {
       input.setMinLength(field.minLength);
@@ -154,7 +135,7 @@ export function buildSimpleModal(
     // Pre-fill if initial value provided
     const initialValue = initialValues?.[field.id];
     if (initialValue !== undefined && initialValue.length > 0) {
-      input.setValue(initialValue.slice(0, maxLength));
+      input.setValue(initialValue.slice(0, field.maxLength));
     }
 
     const row = new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(input);
@@ -215,11 +196,12 @@ export function validateModalValues(
       errors.push(`${field.label} must be at least ${field.minLength} characters`);
     }
 
-    // Check max length (only if value is provided)
+    // Check max length (only if value is provided). `maxLength > 0` guard
+    // stays as defense against a `maxLength: 0` typo — the type requires
+    // the field but doesn't range-check it.
     if (
       value !== undefined &&
       value.length > 0 &&
-      field.maxLength !== undefined &&
       field.maxLength > 0 &&
       value.length > field.maxLength
     ) {

@@ -79,11 +79,10 @@ export interface OverLengthField {
  * Scan a section's fields and report any whose current value exceeds
  * the modal's maxLength constraint.
  *
- * Fields with `field.maxLength === undefined` are treated as unconstrained —
- * the ModalFactory applies default caps only when showing the modal, but
- * for warning purposes we only flag explicit user-visible caps. If a
- * field intentionally uses the default cap without declaring it, the
- * silent-truncate path for that field remains unchanged by this module.
+ * `maxLength` is required on every `FieldDefinition` (type-level
+ * invariant since 2026-04-22 — see `utils/dashboard/types.ts`), so every
+ * field always has an explicit cap to check against. The prior
+ * `undefined` escape hatch was removed along with the optional type.
  */
 export function detectOverLengthFields(
   section: SectionDefinition<CharacterData>,
@@ -91,9 +90,6 @@ export function detectOverLengthFields(
 ): OverLengthField[] {
   const over: OverLengthField[] = [];
   for (const field of section.fields) {
-    if (field.maxLength === undefined) {
-      continue;
-    }
     const raw = (data as Record<string, unknown>)[field.id];
     if (typeof raw !== 'string') {
       continue;
