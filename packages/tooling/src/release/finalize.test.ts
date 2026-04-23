@@ -117,10 +117,13 @@ describe('finalizeRelease', () => {
       expect(statusCall![1]).toEqual(['status', '--porcelain', '--untracked-files=no']);
     });
 
-    it('skips the clean-tree check in dry-run mode', async () => {
+    it('skips the clean-tree check in dry-run mode even when rebase is needed', async () => {
       // Dry-run is preview-only — inspecting state while mid-work should
-      // be allowed. Zero commits to rebase so we exit on the no-op path.
-      mockGit({ status: 'M some-file.ts\n', 'rev-list --count': '0\n' });
+      // be allowed. Use count = 3 so dry-run actually traverses the
+      // full preview path (not just the no-op exit); this proves the
+      // clean-tree check is truly bypassed, not just sidestepped by
+      // the no-op early-return.
+      mockGit({ status: 'M some-file.ts\n', 'rev-list --count': '3\n' });
 
       await expect(finalizeRelease({ dryRun: true, yes: true })).resolves.toBeUndefined();
     });
@@ -212,6 +215,43 @@ describe('finalizeRelease', () => {
           configurable: true,
         });
       }
+    });
+  });
+
+  describe('edge cases', () => {
+    it('throws a descriptive error on malformed rev-list output', async () => {
+      // If git's rev-list returns something un-parseable as an integer
+      // (shouldn't happen in practice, but a helpful error beats a silent
+      // NaN propagating through the rest of the flow).
+      mockGit({ 'rev-list --count': 'not-a-number\n' });
+
+      await expect(finalizeRelease({ yes: true })).rejects.toThrow(/Unexpected rev-list output/);
+    });
+
+    it('propagates pull errors without attempting recovery (intentional)', async () => {
+      // If `pull --ff-only origin main` fails (e.g., local main has
+      // diverged from origin/main), the error surfaces as-is. The user
+      // may be left on `main` rather than their starting branch. This
+      // is intentional: attempting rollback for every pre-rebase step
+      // adds complexity for an edge case where git's own error message
+      // is already clear. This test pins the behavior so any future
+      // refactor that adds rollback logic breaks it on purpose.
+      mockGit({
+        'rev-list --count': '3\n',
+        pull: () => {
+          throw new Error('fatal: Not possible to fast-forward, aborting.');
+        },
+      });
+
+      await expect(finalizeRelease({ yes: true })).rejects.toThrow(/Not possible to fast-forward/);
+
+      // Document what DID run: fetch, status, rev-list, checkout main,
+      // pull main (threw). Did NOT reach: checkout develop, rebase, push.
+      const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
+      expect(invocations).toContain('checkout main');
+      expect(invocations).not.toContain('checkout develop');
+      expect(invocations).not.toContain('rebase origin/main');
+      expect(invocations).not.toContain('push --force-with-lease origin develop');
     });
   });
 });
