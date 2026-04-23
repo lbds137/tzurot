@@ -31,7 +31,7 @@ import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserI
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { probeShapesSession } from '../../../services/ShapesPreflight.js';
-import type { AuthenticatedRequest, ProvisionedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-auth');
 
@@ -131,21 +131,13 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
   };
 }
 
-function createDeleteHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+function createDeleteHandler(prisma: PrismaClient, userService: UserService) {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
-
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      return sendError(res, ErrorResponses.notFound('Shapes.inc credentials'));
-    }
+    const userId = await resolveProvisionedUserId(req, userService);
 
     const existing = await prisma.userCredential.findFirst({
-      where: { userId: user.id, ...SHAPES_CREDENTIAL_WHERE },
+      where: { userId, ...SHAPES_CREDENTIAL_WHERE },
     });
 
     if (existing === null) {
@@ -163,22 +155,12 @@ function createDeleteHandler(prisma: PrismaClient) {
   };
 }
 
-function createStatusHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
-
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      sendCustomSuccess(res, { hasCredentials: false, service: CREDENTIAL_SERVICES.SHAPES_INC });
-      return;
-    }
+function createStatusHandler(prisma: PrismaClient, userService: UserService) {
+  return async (req: ProvisionedRequest, res: Response) => {
+    const userId = await resolveProvisionedUserId(req, userService);
 
     const credential = await prisma.userCredential.findFirst({
-      where: { userId: user.id, ...SHAPES_CREDENTIAL_WHERE },
+      where: { userId, ...SHAPES_CREDENTIAL_WHERE },
       select: { createdAt: true, lastUsedAt: true, expiresAt: true },
     });
 
@@ -211,13 +193,13 @@ export function createShapesAuthRoutes(prisma: PrismaClient): Router {
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(prisma))
+    asyncHandler(createDeleteHandler(prisma, userService))
   );
   router.get(
     '/status',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createStatusHandler(prisma))
+    asyncHandler(createStatusHandler(prisma, userService))
   );
 
   return router;
