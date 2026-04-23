@@ -126,14 +126,25 @@ Fetch and analyze Railway service logs:
 
 ## Release Commands
 
-Version management:
+Cover the full release lifecycle: bump versions before the release PR, draft and verify release notes, and finalize develop-vs-main alignment after the release merges.
 
-| Command                                 | Description                 |
-| --------------------------------------- | --------------------------- |
-| `pnpm ops release:bump 3.0.0-beta.49`   | Bump all package.json files |
-| `pnpm ops release:bump 3.0.0 --dry-run` | Preview without changes     |
+| Command                                               | Description                                                                                                       |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `pnpm ops release:bump 3.0.0-beta.49`                 | Bump version in all package.json files                                                                            |
+| `pnpm ops release:bump 3.0.0 --dry-run`               | Preview bump without writing                                                                                      |
+| `pnpm ops release:draft-notes`                        | Draft release-notes skeleton from PRs merged since the previous tag                                               |
+| `pnpm ops release:draft-notes --from v3.0.0-beta.103` | Draft starting from a specific tag (else auto-discovered via `git describe`)                                      |
+| `cat /tmp/notes.md \| pnpm ops release:verify-notes`  | Verify a notes draft references every merged PR in range exactly once (exits 1 on missing/extra/duplicate refs)   |
+| `pnpm ops release:finalize`                           | Rebase develop onto main after a release PR merges (step 6 of the git-workflow release flow). Interactive prompt. |
+| `pnpm ops release:finalize --yes`                     | Skip the force-push confirmation prompt (required on non-TTY stdin)                                               |
+| `pnpm ops release:finalize --dry-run`                 | Preview the finalize steps without executing                                                                      |
 
-**Use case:** Bump version across monorepo before release.
+**Use cases:**
+
+- `release:bump` — before cutting the release PR, bump the monorepo version so it ships tagged correctly.
+- `release:draft-notes` — generate the skeleton for the release PR body; edit as needed before submitting.
+- `release:verify-notes` — CI/pre-publish gate: confirms every merged PR in the tag-to-HEAD range appears in the notes exactly once.
+- `release:finalize` — run after the release PR merges to main. Keeps develop's SHAs aligned with main's so the next release PR doesn't show phantom "conflicts with main."
 
 ## GitHub Commands
 

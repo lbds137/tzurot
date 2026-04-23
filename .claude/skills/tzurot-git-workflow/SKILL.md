@@ -201,6 +201,20 @@ Skip this step if the release contains no migration. Verify with `git log v<prev
 
 ### 6. After Merge to Main
 
+Rebase develop onto main so their SHAs stay aligned. Skipping this step causes the next release PR to show apparent "conflicts with main" that aren't real (content is identical, just different SHAs).
+
+**Preferred — automated:**
+
+```bash
+pnpm ops release:finalize           # Interactive: prompts before force-push
+pnpm ops release:finalize --yes     # Skip the prompt (non-TTY safe)
+pnpm ops release:finalize --dry-run # Preview the steps without executing
+```
+
+The command runs the full `fetch → checkout main → pull → checkout develop → pull → rebase origin/main → push --force-with-lease` sequence with safety rails: refuses on dirty working tree, no-op exit when already aligned, aborts rebase cleanly on conflicts.
+
+**Manual fallback (if the tool is broken or you need step-by-step debugging):**
+
 ```bash
 git fetch --all
 git checkout main && git pull origin main
