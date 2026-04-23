@@ -10,7 +10,9 @@ import {
   getCachedShapes,
   invalidateUserCache,
   _clearCacheForTesting,
+  _clearFreshCacheForTesting,
   _getCacheSizeForTesting,
+  _getStaleCacheSizeForTesting,
 } from './autocompleteCache.js';
 import type { PersonalitySummary } from '@tzurot/common-types';
 import type { PersonaSummary, ShapesSummary } from './autocompleteCache.js';
@@ -95,7 +97,7 @@ describe('autocompleteCache', () => {
       const result = await getCachedPersonalities(testUser);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality', { user: testUser });
-      expect(result).toEqual(mockPersonalities);
+      expect(result).toEqual({ kind: 'ok', value: mockPersonalities });
     });
 
     it('should return cached data on cache hit', async () => {
@@ -111,7 +113,7 @@ describe('autocompleteCache', () => {
       // Second call - cache hit
       const result = await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call
-      expect(result).toEqual(mockPersonalities);
+      expect(result).toEqual({ kind: 'ok', value: mockPersonalities });
     });
 
     it('should cache empty personality list (not treat as cache miss)', async () => {
@@ -127,26 +129,27 @@ describe('autocompleteCache', () => {
       // Second call - should be cache hit even with empty list
       const result = await getCachedPersonalities(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'ok', value: [] });
     });
 
-    it('should return empty array on gateway error', async () => {
+    it('should return error on gateway error', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: false,
         error: 'Gateway error',
+        status: 500,
       });
 
       const result = await getCachedPersonalities(testUser);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'error', error: 'Gateway error' });
     });
 
-    it('should return empty array on exception', async () => {
+    it('should return error on exception', async () => {
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
       const result = await getCachedPersonalities(testUser);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'error', error: 'Unknown error' });
     });
 
     it('should cache per user', async () => {
@@ -188,7 +191,7 @@ describe('autocompleteCache', () => {
       const result = await getCachedPersonas(testUser);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', { user: testUser });
-      expect(result).toEqual(mockPersonas);
+      expect(result).toEqual({ kind: 'ok', value: mockPersonas });
     });
 
     it('should return cached data on cache hit', async () => {
@@ -204,7 +207,7 @@ describe('autocompleteCache', () => {
       // Second call - cache hit
       const result = await getCachedPersonas(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call
-      expect(result).toEqual(mockPersonas);
+      expect(result).toEqual({ kind: 'ok', value: mockPersonas });
     });
 
     /**
@@ -225,26 +228,27 @@ describe('autocompleteCache', () => {
       // Second call - should be cache hit even with empty list
       const result = await getCachedPersonas(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1); // Still only 1 call!
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'ok', value: [] });
     });
 
-    it('should return empty array on gateway error', async () => {
+    it('should return error on gateway error', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: false,
         error: 'Gateway error',
+        status: 500,
       });
 
       const result = await getCachedPersonas(testUser);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'error', error: 'Gateway error' });
     });
 
-    it('should return empty array on exception', async () => {
+    it('should return error on exception', async () => {
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
       const result = await getCachedPersonas(testUser);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'error', error: 'Unknown error' });
     });
   });
 
@@ -265,7 +269,7 @@ describe('autocompleteCache', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/shapes/list', {
         user: testUser,
       });
-      expect(result).toEqual(mockShapes);
+      expect(result).toEqual({ kind: 'ok', value: mockShapes });
     });
 
     it('should return cached data on cache hit', async () => {
@@ -279,7 +283,7 @@ describe('autocompleteCache', () => {
 
       const result = await getCachedShapes(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(mockShapes);
+      expect(result).toEqual({ kind: 'ok', value: mockShapes });
     });
 
     it('should cache empty shapes list (not treat as cache miss)', async () => {
@@ -293,26 +297,27 @@ describe('autocompleteCache', () => {
 
       const result = await getCachedShapes(testUser);
       expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'ok', value: [] });
     });
 
-    it('should return empty array on gateway error', async () => {
+    it('should return error on gateway error', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: false,
         error: 'Gateway error',
+        status: 500,
       });
 
       const result = await getCachedShapes(testUser);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'error', error: 'Gateway error' });
     });
 
-    it('should return empty array on exception', async () => {
+    it('should return error on exception', async () => {
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
       const result = await getCachedShapes(testUser);
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ kind: 'error', error: 'Unknown error' });
     });
   });
 
@@ -390,8 +395,8 @@ describe('autocompleteCache', () => {
       const personas = await getCachedPersonas(testUser);
 
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
-      expect(personalities).toEqual(mockPersonalities);
-      expect(personas).toEqual(mockPersonas);
+      expect(personalities).toEqual({ kind: 'ok', value: mockPersonalities });
+      expect(personas).toEqual({ kind: 'ok', value: mockPersonas });
     });
 
     it('should preserve personalities and personas when fetching shapes', async () => {
@@ -430,8 +435,108 @@ describe('autocompleteCache', () => {
       const shapes = await getCachedShapes(testUser);
 
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
-      expect(personalities).toEqual(mockPersonalities);
-      expect(shapes).toEqual(mockShapes);
+      expect(personalities).toEqual({ kind: 'ok', value: mockPersonalities });
+      expect(shapes).toEqual({ kind: 'ok', value: mockShapes });
+    });
+  });
+
+  describe('stale cache fallback', () => {
+    const mockPersonalities: PersonalitySummary[] = [
+      {
+        id: 'personality-1',
+        name: 'Lilith',
+        displayName: 'Lilith the Succubus',
+        slug: 'lilith',
+        isPublic: true,
+        isOwned: true,
+        ownerId: 'owner-1',
+        ownerDiscordId: 'discord-123',
+        permissions: { canEdit: true, canDelete: true },
+      },
+    ];
+
+    /**
+     * Helper: populate both fresh and stale with a successful fetch, then
+     * clear only the fresh tier so the next call exercises the fetch/fallback
+     * path with stale still primed.
+     *
+     * We use this instead of `vi.advanceTimersByTime(CACHE_TTL_MS + 1)`
+     * because TTLCache relies on lru-cache's module-cached `performance.now`,
+     * which doesn't respond to vitest fake timers without extra wiring.
+     * Clearing fresh directly is functionally equivalent and simpler.
+     */
+    async function primeStaleOnly(): Promise<void> {
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: { personalities: mockPersonalities },
+      });
+      await getCachedPersonalities(testUser);
+      _clearFreshCacheForTesting();
+      expect(_getCacheSizeForTesting()).toBe(0);
+      expect(_getStaleCacheSizeForTesting()).toBe(1);
+    }
+
+    it('serves stale data on transient error (5xx) after initial success', async () => {
+      await primeStaleOnly();
+
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: false,
+        error: 'Backend down',
+        status: 503,
+      });
+      const result = await getCachedPersonalities(testUser);
+
+      expect(result).toEqual({ kind: 'ok', value: mockPersonalities });
+    });
+
+    it('does NOT serve stale on permanent error (4xx), returns error instead', async () => {
+      await primeStaleOnly();
+
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: false,
+        error: 'Forbidden',
+        status: 403,
+      });
+      const result = await getCachedPersonalities(testUser);
+
+      expect(result).toEqual({ kind: 'error', error: 'Forbidden' });
+    });
+
+    it('returns error on transient error when no stale cache exists', async () => {
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: false,
+        error: 'Backend down',
+        status: 503,
+      });
+      const result = await getCachedPersonalities(testUser);
+
+      expect(result).toEqual({ kind: 'error', error: 'Backend down' });
+    });
+
+    it('falls back to stale on thrown fetch error (transient-by-default)', async () => {
+      await primeStaleOnly();
+
+      mockCallGatewayApi.mockRejectedValueOnce(new Error('Network meltdown'));
+      const result = await getCachedPersonalities(testUser);
+
+      expect(result).toEqual({ kind: 'ok', value: mockPersonalities });
+    });
+
+    it('invalidateUserCache clears stale tier too', async () => {
+      await primeStaleOnly();
+
+      invalidateUserCache(testUserId);
+      expect(_getStaleCacheSizeForTesting()).toBe(0);
+
+      // Stale is gone, so transient error surfaces as error (no fallback)
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: false,
+        error: 'Backend down',
+        status: 503,
+      });
+      const result = await getCachedPersonalities(testUser);
+
+      expect(result).toEqual({ kind: 'error', error: 'Backend down' });
     });
   });
 });

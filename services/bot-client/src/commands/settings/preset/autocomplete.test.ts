@@ -114,24 +114,27 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: 'test',
       } as unknown as string);
-      mockGetCachedPersonalities.mockResolvedValue([
-        mockPersonality({
-          id: 'p1',
-          name: 'TestBot',
-          displayName: 'Test Bot',
-          slug: 'testbot',
-          isOwned: true,
-          isPublic: false,
-        }),
-        mockPersonality({
-          id: 'p2',
-          name: 'OtherBot',
-          displayName: null,
-          slug: 'otherbot',
-          isOwned: false,
-          isPublic: true,
-        }),
-      ]);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          mockPersonality({
+            id: 'p1',
+            name: 'TestBot',
+            displayName: 'Test Bot',
+            slug: 'testbot',
+            isOwned: true,
+            isPublic: false,
+          }),
+          mockPersonality({
+            id: 'p2',
+            name: 'OtherBot',
+            displayName: null,
+            slug: 'otherbot',
+            isOwned: false,
+            isPublic: true,
+          }),
+        ],
+      });
 
       await handleAutocomplete(mockInteraction);
 
@@ -152,16 +155,19 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: '',
       } as unknown as string);
-      mockGetCachedPersonalities.mockResolvedValue([
-        mockPersonality({
-          id: 'p1',
-          name: 'TestBot',
-          displayName: null,
-          slug: 'testbot',
-          isOwned: true,
-          isPublic: false,
-        }),
-      ]);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          mockPersonality({
+            id: 'p1',
+            name: 'TestBot',
+            displayName: null,
+            slug: 'testbot',
+            isOwned: true,
+            isPublic: false,
+          }),
+        ],
+      });
 
       await handleAutocomplete(mockInteraction);
 
@@ -175,24 +181,27 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: 'lil',
       } as unknown as string);
-      mockGetCachedPersonalities.mockResolvedValue([
-        mockPersonality({
-          id: 'p1',
-          name: 'Lilith',
-          displayName: 'Lilith Bot',
-          slug: 'lilith',
-          isOwned: true,
-          isPublic: true,
-        }),
-        mockPersonality({
-          id: 'p2',
-          name: 'Other',
-          displayName: 'Other Bot',
-          slug: 'other',
-          isOwned: false,
-          isPublic: true,
-        }),
-      ]);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          mockPersonality({
+            id: 'p1',
+            name: 'Lilith',
+            displayName: 'Lilith Bot',
+            slug: 'lilith',
+            isOwned: true,
+            isPublic: true,
+          }),
+          mockPersonality({
+            id: 'p2',
+            name: 'Other',
+            displayName: 'Other Bot',
+            slug: 'other',
+            isOwned: false,
+            isPublic: true,
+          }),
+        ],
+      });
 
       await handleAutocomplete(mockInteraction);
 
@@ -208,16 +217,19 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: '',
       } as unknown as string);
-      mockGetCachedPersonalities.mockResolvedValue([
-        mockPersonality({
-          id: 'p1',
-          name: 'SharedBot',
-          displayName: 'Shared Bot',
-          slug: 'sharedbot',
-          isOwned: false,
-          isPublic: true,
-        }),
-      ]);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          mockPersonality({
+            id: 'p1',
+            name: 'SharedBot',
+            displayName: 'Shared Bot',
+            slug: 'sharedbot',
+            isOwned: false,
+            isPublic: true,
+          }),
+        ],
+      });
 
       await handleAutocomplete(mockInteraction);
 
@@ -256,7 +268,7 @@ describe('handleAutocomplete', () => {
           isPublic: false,
         })
       );
-      mockGetCachedPersonalities.mockResolvedValue(manyPersonalities);
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: manyPersonalities });
 
       await handleAutocomplete(mockInteraction);
 

@@ -55,7 +55,7 @@ describe('Memory Autocomplete', () => {
     ];
 
     beforeEach(() => {
-      mockGetCachedPersonalities.mockResolvedValue(mockPersonalities);
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: mockPersonalities });
     });
 
     it('should resolve personality by slug', async () => {
@@ -86,10 +86,10 @@ describe('Memory Autocomplete', () => {
 
     it('should prefer slug match over name match', async () => {
       // Add a personality where slug differs from name
-      mockGetCachedPersonalities.mockResolvedValue([
-        ...mockPersonalities,
-        { id: 'uuid-special', slug: 'aria', name: 'Different Name' },
-      ]);
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [...mockPersonalities, { id: 'uuid-special', slug: 'aria', name: 'Different Name' }],
+      });
 
       // First match by slug wins
       const result = await resolvePersonalityId(mkUser(), 'aria');
@@ -107,7 +107,7 @@ describe('Memory Autocomplete', () => {
     ];
 
     beforeEach(() => {
-      mockGetCachedPersonalities.mockResolvedValue(mockPersonalities);
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: mockPersonalities });
     });
 
     it('should return displayName when available', async () => {
