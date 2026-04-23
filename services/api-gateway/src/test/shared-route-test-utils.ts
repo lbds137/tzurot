@@ -48,6 +48,64 @@ export function createMockReqRes(
   return { req, res };
 }
 
+/**
+ * Create a mock request with `provisionedUserId` + `provisionedDefaultPersonaId`
+ * already attached — the post-middleware state of a user-scoped route.
+ *
+ * This is the migration target for the ~35 route test files that currently
+ * mock `requireProvisionedUser` as a no-op `vi.fn((_req, _res, next) => next())`
+ * and therefore exercise the shadow-mode fallback branch of
+ * `resolveProvisionedUserId` / `getOrCreateInternalUser` rather than the
+ * common provisioned path. When the middleware is tightened from shadow-
+ * mode-fallthrough to strict-400 (tracked in BACKLOG.md Phase 5c work
+ * items), those no-op mocks will produce 400s at the middleware layer and
+ * every one of the 35 test files will break en masse.
+ *
+ * To migrate a test: replace `createMockReqRes(body, params, query)` with
+ * `createProvisionedMockReqRes(body, params, query)`, and the route handler
+ * will see the same shape it would in prod post-middleware. Handlers that
+ * call `resolveProvisionedUserId(req, userService)` will hit the
+ * common-path short-circuit and return the `provisionedUserId` directly,
+ * without exercising `UserService.getOrCreateUserShell`.
+ *
+ * See `routes/user/shapes/auth.test.ts` for a reference caller using this
+ * helper and the "migrate-this-file" TODO pattern.
+ */
+export function createProvisionedMockReqRes(
+  body: Record<string, unknown> = {},
+  params: Record<string, string> = {},
+  query: Record<string, string> = {},
+  options: { provisionedUserId?: string; provisionedDefaultPersonaId?: string } = {}
+): {
+  req: Request & {
+    userId: string;
+    provisionedUserId: string;
+    provisionedDefaultPersonaId: string;
+  };
+  res: Response;
+} {
+  const req = {
+    body,
+    params,
+    query,
+    userId: 'discord-user-123',
+    provisionedUserId: options.provisionedUserId ?? '00000000-0000-0000-0000-000000000001',
+    provisionedDefaultPersonaId:
+      options.provisionedDefaultPersonaId ?? '00000000-0000-0000-0000-000000000002',
+  } as unknown as Request & {
+    userId: string;
+    provisionedUserId: string;
+    provisionedDefaultPersonaId: string;
+  };
+
+  const res = {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+  } as unknown as Response;
+
+  return { req, res };
+}
+
 /** Typed route handler extracted from Express router */
 export type RouteHandler = (req: Request & { userId: string }, res: Response) => Promise<void>;
 
