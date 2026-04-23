@@ -36,7 +36,11 @@ export async function resolvePersonalityId(
   user: GatewayUser,
   slugOrId: string
 ): Promise<string | null> {
-  const personalities = await getCachedPersonalities(user);
+  const result = await getCachedPersonalities(user);
+  if (result.kind === 'error') {
+    return null;
+  }
+  const personalities = result.value;
 
   // Try to find by slug first (most common case from autocomplete)
   const bySlug = personalities.find(p => p.slug === slugOrId);
@@ -70,9 +74,12 @@ export async function getPersonalityName(
   user: GatewayUser,
   personalityId: string
 ): Promise<string | null> {
-  const personalities = await getCachedPersonalities(user);
+  const result = await getCachedPersonalities(user);
+  if (result.kind === 'error') {
+    return null;
+  }
 
-  const personality = personalities.find(p => p.id === personalityId);
+  const personality = result.value.find(p => p.id === personalityId);
   if (personality === undefined) {
     return null;
   }

@@ -28,9 +28,18 @@ export async function handleShapesSlugAutocomplete(
   const userId = interaction.user.id;
 
   try {
-    const shapes = await getCachedShapes(toGatewayUser(interaction.user));
+    const result = await getCachedShapes(toGatewayUser(interaction.user));
+    if (result.kind === 'error') {
+      // Backend failed AND no stale cache to fall back on. Render a visible
+      // error choice instead of an empty list — an empty list reads as
+      // "you have no shapes," which is a silent lie during a backend outage.
+      await interaction.respond([
+        { name: '[Unable to load shapes — try again]', value: '__autocomplete_error__' },
+      ]);
+      return;
+    }
 
-    const filtered = shapes
+    const filtered = result.value
       .filter(s => s.name.toLowerCase().includes(query) || s.username.toLowerCase().includes(query))
       .slice(0, MAX_AUTOCOMPLETE_RESULTS);
 

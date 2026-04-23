@@ -42,10 +42,13 @@ describe('handleShapesSlugAutocomplete', () => {
   }
 
   it('should return matching shapes by name', async () => {
-    mockGetCachedShapes.mockResolvedValue([
-      { name: 'My Bot', username: 'my-bot' },
-      { name: 'Test Shape', username: 'test-shape' },
-    ]);
+    mockGetCachedShapes.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        { name: 'My Bot', username: 'my-bot' },
+        { name: 'Test Shape', username: 'test-shape' },
+      ],
+    });
 
     await handleShapesSlugAutocomplete(createMockInteraction('bot'));
 
@@ -53,10 +56,13 @@ describe('handleShapesSlugAutocomplete', () => {
   });
 
   it('should return matching shapes by username', async () => {
-    mockGetCachedShapes.mockResolvedValue([
-      { name: 'My Bot', username: 'my-bot' },
-      { name: 'Test Shape', username: 'test-shape' },
-    ]);
+    mockGetCachedShapes.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        { name: 'My Bot', username: 'my-bot' },
+        { name: 'Test Shape', username: 'test-shape' },
+      ],
+    });
 
     await handleShapesSlugAutocomplete(createMockInteraction('test-s'));
 
@@ -64,10 +70,13 @@ describe('handleShapesSlugAutocomplete', () => {
   });
 
   it('should return all shapes when query is empty', async () => {
-    mockGetCachedShapes.mockResolvedValue([
-      { name: 'Alpha', username: 'alpha' },
-      { name: 'Beta', username: 'beta' },
-    ]);
+    mockGetCachedShapes.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        { name: 'Alpha', username: 'alpha' },
+        { name: 'Beta', username: 'beta' },
+      ],
+    });
 
     await handleShapesSlugAutocomplete(createMockInteraction(''));
 
@@ -80,7 +89,10 @@ describe('handleShapesSlugAutocomplete', () => {
   });
 
   it('should be case-insensitive', async () => {
-    mockGetCachedShapes.mockResolvedValue([{ name: 'My Bot', username: 'my-bot' }]);
+    mockGetCachedShapes.mockResolvedValue({
+      kind: 'ok',
+      value: [{ name: 'My Bot', username: 'my-bot' }],
+    });
 
     await handleShapesSlugAutocomplete(createMockInteraction('MY BOT'));
 
@@ -92,7 +104,7 @@ describe('handleShapesSlugAutocomplete', () => {
       name: `Shape ${String(i)}`,
       username: `shape-${String(i)}`,
     }));
-    mockGetCachedShapes.mockResolvedValue(shapes);
+    mockGetCachedShapes.mockResolvedValue({ kind: 'ok', value: shapes });
 
     await handleShapesSlugAutocomplete(createMockInteraction(''));
 
@@ -109,7 +121,10 @@ describe('handleShapesSlugAutocomplete', () => {
   });
 
   it('should format name with dot separator', async () => {
-    mockGetCachedShapes.mockResolvedValue([{ name: 'My Bot', username: 'my-bot' }]);
+    mockGetCachedShapes.mockResolvedValue({
+      kind: 'ok',
+      value: [{ name: 'My Bot', username: 'my-bot' }],
+    });
 
     await handleShapesSlugAutocomplete(createMockInteraction(''));
 

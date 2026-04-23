@@ -1,16 +1,48 @@
 /**
  * Autocomplete Data Cache
  *
- * Caches personality and persona lists to avoid HTTP requests on every keystroke.
- * Discord autocomplete fires on each character typed, so without caching we'd
- * flood the gateway API and potentially saturate HTTP connections.
+ * Caches personality, persona, and shapes lists to avoid HTTP requests on
+ * every keystroke. Discord autocomplete fires on each character typed, so
+ * without caching we'd flood the gateway API and potentially saturate HTTP
+ * connections.
  *
- * TTL: 60 seconds - balances freshness with performance
- * Max entries: 500 users - prevents unbounded memory growth
+ * Two-tier design:
+ *
+ *   - `freshCache` (TTLCache, 60s TTL, LRU-bounded): the happy-path cache.
+ *     Serves recently-fetched data to subsequent keystrokes within the TTL
+ *     window.
+ *
+ *   - `staleCache` (Map, no TTL, manually LRU-bounded): last-known-good
+ *     fallback. Populated on every successful fetch in parallel with
+ *     `freshCache`. Used ONLY when a subsequent fetch fails with a
+ *     transient error (5xx / network / timeout). Protects users from
+ *     seeing empty autocompletes during backend instability — they'd
+ *     reasonably conclude "I have no personalities/personas/shapes" from
+ *     an empty list, which is a silent lie.
+ *
+ * Permanent errors (4xx) intentionally skip the stale fallback: a 403 or
+ * 404 from the backend usually means the user's authorization state
+ * changed (the item was deleted, their access was revoked), and serving
+ * stale data would mask that real-world change. Permanent errors
+ * surface as `{ kind: 'error' }` so autocomplete handlers render an
+ * error placeholder.
+ *
+ * Handlers consume `ApiCheck<T[]>` results:
+ *
+ *   - `{ kind: 'ok' }` → render choices normally. The cache's internal
+ *     stale-vs-fresh distinction is opaque to handlers — from their
+ *     perspective, any data served is authoritative-enough for
+ *     autocomplete hinting. Submission-time handlers still validate
+ *     against current state.
+ *
+ *   - `{ kind: 'error' }` → render a single non-selectable placeholder
+ *     choice ("Unable to load — try again"). Clearer than showing an
+ *     empty list.
  */
 
 import { createLogger, TTLCache, type PersonalitySummary } from '@tzurot/common-types';
 import { callGatewayApi, type GatewayUser } from '../userGatewayClient.js';
+import { isTransientHttpStatus, type ApiCheck } from '../apiCheck.js';
 
 const logger = createLogger('autocomplete-cache');
 
@@ -45,38 +77,103 @@ interface UserAutocompleteData {
   shapes: ShapesSummary[] | undefined;
 }
 
-/**
- * Cache configuration
- */
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds
-const CACHE_MAX_SIZE = 500; // Max users to cache
+const CACHE_TTL_MS = 60 * 1000;
+const CACHE_MAX_SIZE = 500;
+
+/** Sentinel error used by the catch-path when the gateway client throws before producing an HTTP response. */
+const UNKNOWN_FETCH_ERROR = 'Unknown error';
 
 /**
- * User-scoped cache for autocomplete data
- * Key: Discord user ID
- * Value: Cached personality and persona lists
+ * Fresh cache: 60s TTL, LRU-bounded. Hit here → return immediately.
  */
-const userCache = new TTLCache<UserAutocompleteData>({
+const freshCache = new TTLCache<UserAutocompleteData>({
   ttl: CACHE_TTL_MS,
   maxSize: CACHE_MAX_SIZE,
 });
 
 /**
- * Get cached personalities for a user, fetching from gateway if cache miss
+ * Stale cache: last-known-good per user, no TTL, manually LRU-bounded via
+ * insertion-order tracking. Consulted only when `freshCache` misses AND the
+ * refetch fails with a transient error.
  *
- * @param userId - Discord user ID
- * @returns Array of personality summaries, or empty array on error
+ * Using a plain Map because TTLCache would expire stale entries — we want
+ * stale data to outlive `CACHE_TTL_MS` specifically so it can serve as a
+ * fallback during backend outages that last longer than the TTL.
  */
-export async function getCachedPersonalities(user: GatewayUser): Promise<PersonalitySummary[]> {
+const staleCache = new Map<string, UserAutocompleteData>();
+
+/**
+ * Update the stale entry for a user. Re-inserts the key to move it to the
+ * end of the Map's iteration order (LRU tail), then trims oldest entries if
+ * the Map has grown past the bound.
+ */
+function updateStale(userId: string, data: UserAutocompleteData): void {
+  staleCache.delete(userId);
+  staleCache.set(userId, data);
+  while (staleCache.size > CACHE_MAX_SIZE) {
+    const oldest = staleCache.keys().next().value;
+    if (oldest === undefined) {
+      break;
+    }
+    staleCache.delete(oldest);
+  }
+}
+
+/**
+ * Merge a successfully-fetched field into both caches, preserving the other
+ * two fields' existing values from whichever cache has them (fresh wins over
+ * stale for reads).
+ */
+function commitFetchedField<K extends keyof UserAutocompleteData>(
+  userId: string,
+  field: K,
+  value: NonNullable<UserAutocompleteData[K]>
+): void {
+  const existingFresh = freshCache.get(userId);
+  const existingStale = staleCache.get(userId);
+  const carryOver = {
+    personalities: existingFresh?.personalities ?? existingStale?.personalities,
+    personas: existingFresh?.personas ?? existingStale?.personas,
+    shapes: existingFresh?.shapes ?? existingStale?.shapes,
+  };
+  const next: UserAutocompleteData = { ...carryOver, [field]: value };
+  freshCache.set(userId, next);
+  updateStale(userId, next);
+}
+
+/**
+ * Handle the transient-error path: return stale data if present, else error.
+ */
+function fallbackToStale<K extends keyof UserAutocompleteData>(
+  userId: string,
+  field: K,
+  error: string,
+  httpStatus: number
+): ApiCheck<NonNullable<UserAutocompleteData[K]>> {
+  const stale = staleCache.get(userId)?.[field];
+  if (stale !== undefined) {
+    logger.warn(
+      { userId, field, error, httpStatus },
+      'Serving stale autocomplete data (transient fetch error)'
+    );
+    return { kind: 'ok', value: stale };
+  }
+  return { kind: 'error', error };
+}
+
+/**
+ * Get cached personalities for a user. Cache miss triggers a gateway fetch.
+ */
+export async function getCachedPersonalities(
+  user: GatewayUser
+): Promise<ApiCheck<PersonalitySummary[]>> {
   const userId = user.discordId;
-  // Check cache first - undefined means "not fetched yet"
-  const cached = userCache.get(userId);
+  const cached = freshCache.get(userId);
   if (cached?.personalities !== undefined) {
     logger.debug({ userId }, 'Personality cache hit');
-    return cached.personalities;
+    return { kind: 'ok', value: cached.personalities };
   }
 
-  // Cache miss - fetch from gateway
   logger.debug({ userId }, 'Personality cache miss, fetching');
 
   try {
@@ -85,46 +182,39 @@ export async function getCachedPersonalities(user: GatewayUser): Promise<Persona
       { user }
     );
 
-    if (!result.ok) {
-      logger.warn({ userId, error: result.error }, 'Failed to fetch personalities');
-      return [];
+    if (result.ok) {
+      commitFetchedField(userId, 'personalities', result.data.personalities);
+      logger.debug({ userId, count: result.data.personalities.length }, 'Cached personalities');
+      return { kind: 'ok', value: result.data.personalities };
     }
 
-    // Get existing cached data or create new entry
-    // Preserve undefined for personas/shapes if not yet fetched
-    const existingData = userCache.get(userId);
-    const newData: UserAutocompleteData = {
-      personalities: result.data.personalities,
-      personas: existingData?.personas,
-      shapes: existingData?.shapes,
-    };
-
-    userCache.set(userId, newData);
-    logger.debug({ userId, count: result.data.personalities.length }, 'Cached personalities');
-
-    return result.data.personalities;
+    logger.warn(
+      { userId, error: result.error, httpStatus: result.status },
+      'Failed to fetch personalities'
+    );
+    if (isTransientHttpStatus(result.status)) {
+      return fallbackToStale(userId, 'personalities', result.error, result.status);
+    }
+    return { kind: 'error', error: result.error };
   } catch (error) {
     logger.error({ err: error, userId }, 'Error fetching personalities');
-    return [];
+    // Thrown errors from the gateway client bypass the ok/status discriminator
+    // entirely; treat as transient since we can't prove otherwise.
+    return fallbackToStale(userId, 'personalities', UNKNOWN_FETCH_ERROR, 0);
   }
 }
 
 /**
- * Get cached personas for a user, fetching from gateway if cache miss
- *
- * @param userId - Discord user ID
- * @returns Array of persona summaries, or empty array on error
+ * Get cached personas for a user. Cache miss triggers a gateway fetch.
  */
-export async function getCachedPersonas(user: GatewayUser): Promise<PersonaSummary[]> {
+export async function getCachedPersonas(user: GatewayUser): Promise<ApiCheck<PersonaSummary[]>> {
   const userId = user.discordId;
-  // Check cache first - undefined means "not fetched yet"
-  const cached = userCache.get(userId);
+  const cached = freshCache.get(userId);
   if (cached?.personas !== undefined) {
     logger.debug({ userId }, 'Persona cache hit');
-    return cached.personas;
+    return { kind: 'ok', value: cached.personas };
   }
 
-  // Cache miss - fetch from gateway
   logger.debug({ userId }, 'Persona cache miss, fetching');
 
   try {
@@ -132,87 +222,72 @@ export async function getCachedPersonas(user: GatewayUser): Promise<PersonaSumma
       user,
     });
 
-    if (!result.ok) {
-      logger.warn({ userId, error: result.error }, 'Failed to fetch personas');
-      return [];
+    if (result.ok) {
+      commitFetchedField(userId, 'personas', result.data.personas);
+      logger.debug({ userId, count: result.data.personas.length }, 'Cached personas');
+      return { kind: 'ok', value: result.data.personas };
     }
 
-    // Get existing cached data or create new entry
-    // Preserve undefined for personalities/shapes if not yet fetched
-    const existingData = userCache.get(userId);
-    const newData: UserAutocompleteData = {
-      personalities: existingData?.personalities,
-      personas: result.data.personas,
-      shapes: existingData?.shapes,
-    };
-
-    userCache.set(userId, newData);
-    logger.debug({ userId, count: result.data.personas.length }, 'Cached personas');
-
-    return result.data.personas;
+    logger.warn(
+      { userId, error: result.error, httpStatus: result.status },
+      'Failed to fetch personas'
+    );
+    if (isTransientHttpStatus(result.status)) {
+      return fallbackToStale(userId, 'personas', result.error, result.status);
+    }
+    return { kind: 'error', error: result.error };
   } catch (error) {
     logger.error({ err: error, userId }, 'Error fetching personas');
-    return [];
+    return fallbackToStale(userId, 'personas', UNKNOWN_FETCH_ERROR, 0);
   }
 }
 
 /**
- * Get cached shapes for a user, fetching from gateway if cache miss
- *
- * @param userId - Discord user ID
- * @returns Array of shape summaries, or empty array on error
+ * Get cached shapes for a user. Cache miss triggers a gateway fetch.
  */
-export async function getCachedShapes(user: GatewayUser): Promise<ShapesSummary[]> {
+export async function getCachedShapes(user: GatewayUser): Promise<ApiCheck<ShapesSummary[]>> {
   const userId = user.discordId;
-  // Check cache first - undefined means "not fetched yet"
-  const cached = userCache.get(userId);
+  const cached = freshCache.get(userId);
   if (cached?.shapes !== undefined) {
     logger.debug({ userId }, 'Shapes cache hit');
-    return cached.shapes;
+    return { kind: 'ok', value: cached.shapes };
   }
 
-  // Cache miss - fetch from gateway
   logger.debug({ userId }, 'Shapes cache miss, fetching');
 
   try {
     const result = await callGatewayApi<{ shapes: ShapesSummary[] }>('/user/shapes/list', {
       user,
-      // Explicit: default is AUTOCOMPLETE (2500ms), fits Discord's 3s autocomplete window
     });
 
-    if (!result.ok) {
-      logger.warn({ userId, error: result.error }, 'Failed to fetch shapes');
-      return [];
+    if (result.ok) {
+      commitFetchedField(userId, 'shapes', result.data.shapes);
+      logger.debug({ userId, count: result.data.shapes.length }, 'Cached shapes');
+      return { kind: 'ok', value: result.data.shapes };
     }
 
-    // Get existing cached data or create new entry
-    // Preserve undefined for personalities/personas if not yet fetched
-    const existingData = userCache.get(userId);
-    const newData: UserAutocompleteData = {
-      personalities: existingData?.personalities,
-      personas: existingData?.personas,
-      shapes: result.data.shapes,
-    };
-
-    userCache.set(userId, newData);
-    logger.debug({ userId, count: result.data.shapes.length }, 'Cached shapes');
-
-    return result.data.shapes;
+    logger.warn(
+      { userId, error: result.error, httpStatus: result.status },
+      'Failed to fetch shapes'
+    );
+    if (isTransientHttpStatus(result.status)) {
+      return fallbackToStale(userId, 'shapes', result.error, result.status);
+    }
+    return { kind: 'error', error: result.error };
   } catch (error) {
     logger.error({ err: error, userId }, 'Error fetching shapes');
-    return [];
+    return fallbackToStale(userId, 'shapes', UNKNOWN_FETCH_ERROR, 0);
   }
 }
 
 /**
- * Invalidate cache for a specific user.
- * Call this when personalities or personas are created/updated/deleted.
- *
- * @param userId - Discord user ID
+ * Invalidate cache for a specific user. Clears both fresh and stale tiers —
+ * a create/update/delete means the stale entry is also wrong.
  */
 export function invalidateUserCache(userId: string): void {
-  userCache.delete(userId);
-  logger.debug({ userId }, 'Invalidated user cache');
+  freshCache.delete(userId);
+  staleCache.delete(userId);
+  logger.debug({ userId }, 'Invalidated user cache (fresh + stale)');
 }
 
 /**
@@ -220,13 +295,32 @@ export function invalidateUserCache(userId: string): void {
  * @internal For testing only
  */
 export function _clearCacheForTesting(): void {
-  userCache.clear();
+  freshCache.clear();
+  staleCache.clear();
 }
 
 /**
- * Get cache size.
+ * Get cache size (fresh tier only).
  * @internal For testing only
  */
 export function _getCacheSizeForTesting(): number {
-  return userCache.size();
+  return freshCache.size();
+}
+
+/**
+ * Clear ONLY the fresh tier, leaving stale intact. Lets tests exercise the
+ * stale-fallback path without depending on fake-timer TTL expiry (TTLCache
+ * doesn't react to vi.useFakeTimers without extra wiring).
+ * @internal For testing only
+ */
+export function _clearFreshCacheForTesting(): void {
+  freshCache.clear();
+}
+
+/**
+ * Get stale cache size.
+ * @internal For testing only
+ */
+export function _getStaleCacheSizeForTesting(): number {
+  return staleCache.size;
 }

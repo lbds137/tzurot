@@ -74,7 +74,7 @@ describe('handlePersonaAutocomplete', () => {
     });
 
     it('should return true for "profile" option name by default', async () => {
-      mockGetCachedPersonas.mockResolvedValue([]);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: [] });
 
       const interaction = createMockInteraction('profile', '');
       const handled = await handlePersonaAutocomplete(interaction);
@@ -84,7 +84,7 @@ describe('handlePersonaAutocomplete', () => {
     });
 
     it('should match custom option name', async () => {
-      mockGetCachedPersonas.mockResolvedValue([]);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: [] });
 
       const interaction = createMockInteraction('persona', '');
       const handled = await handlePersonaAutocomplete(interaction, {
@@ -107,7 +107,7 @@ describe('handlePersonaAutocomplete', () => {
 
   describe('cache usage', () => {
     it('should call cache with correct user ID', async () => {
-      mockGetCachedPersonas.mockResolvedValue([]);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: [] });
 
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
@@ -120,7 +120,7 @@ describe('handlePersonaAutocomplete', () => {
     });
 
     it('should return empty array when cache returns empty', async () => {
-      mockGetCachedPersonas.mockResolvedValue([]);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: [] });
 
       const interaction = createMockInteraction('profile', '');
       const handled = await handlePersonaAutocomplete(interaction);
@@ -142,14 +142,17 @@ describe('handlePersonaAutocomplete', () => {
 
   describe('persona display', () => {
     it('should use preferredName when available', async () => {
-      mockGetCachedPersonas.mockResolvedValue([
-        createMockPersona({
-          id: PERSONA_ID_1,
-          name: 'Work',
-          preferredName: 'Professional Me',
-          isDefault: false,
-        }),
-      ]);
+      mockGetCachedPersonas.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          createMockPersona({
+            id: PERSONA_ID_1,
+            name: 'Work',
+            preferredName: 'Professional Me',
+            isDefault: false,
+          }),
+        ],
+      });
 
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
@@ -161,14 +164,17 @@ describe('handlePersonaAutocomplete', () => {
     });
 
     it('should fall back to name when preferredName is null', async () => {
-      mockGetCachedPersonas.mockResolvedValue([
-        createMockPersona({
-          id: PERSONA_ID_1,
-          name: 'WorkProfile',
-          preferredName: null,
-          isDefault: false,
-        }),
-      ]);
+      mockGetCachedPersonas.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          createMockPersona({
+            id: PERSONA_ID_1,
+            name: 'WorkProfile',
+            preferredName: null,
+            isDefault: false,
+          }),
+        ],
+      });
 
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
@@ -178,20 +184,23 @@ describe('handlePersonaAutocomplete', () => {
     });
 
     it('should mark default profile with star indicator', async () => {
-      mockGetCachedPersonas.mockResolvedValue([
-        createMockPersona({
-          id: PERSONA_ID_1,
-          name: 'Default',
-          preferredName: 'My Default',
-          isDefault: true,
-        }),
-        createMockPersona({
-          id: PERSONA_ID_2,
-          name: 'Other',
-          preferredName: null,
-          isDefault: false,
-        }),
-      ]);
+      mockGetCachedPersonas.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          createMockPersona({
+            id: PERSONA_ID_1,
+            name: 'Default',
+            preferredName: 'My Default',
+            isDefault: true,
+          }),
+          createMockPersona({
+            id: PERSONA_ID_2,
+            name: 'Other',
+            preferredName: null,
+            isDefault: false,
+          }),
+        ],
+      });
 
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
@@ -227,7 +236,7 @@ describe('handlePersonaAutocomplete', () => {
     ];
 
     beforeEach(() => {
-      mockGetCachedPersonas.mockResolvedValue(testPersonas);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: testPersonas });
     });
 
     it('should return all personas when query is empty', async () => {
@@ -275,14 +284,17 @@ describe('handlePersonaAutocomplete', () => {
 
   describe('create new option', () => {
     beforeEach(() => {
-      mockGetCachedPersonas.mockResolvedValue([
-        createMockPersona({
-          id: PERSONA_ID_1,
-          name: 'Existing',
-          preferredName: null,
-          isDefault: false,
-        }),
-      ]);
+      mockGetCachedPersonas.mockResolvedValue({
+        kind: 'ok',
+        value: [
+          createMockPersona({
+            id: PERSONA_ID_1,
+            name: 'Existing',
+            preferredName: null,
+            isDefault: false,
+          }),
+        ],
+      });
     });
 
     it('should include "Create new profile" option when includeCreateNew is true', async () => {
@@ -307,7 +319,7 @@ describe('handlePersonaAutocomplete', () => {
     });
 
     it('should filter "Create new profile" option based on query - matches "create"', async () => {
-      mockGetCachedPersonas.mockResolvedValue([]);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: [] });
 
       const interaction = createMockInteraction('profile', 'create');
       await handlePersonaAutocomplete(interaction, { includeCreateNew: true });
@@ -318,7 +330,7 @@ describe('handlePersonaAutocomplete', () => {
     });
 
     it('should filter "Create new profile" option based on query - no match', async () => {
-      mockGetCachedPersonas.mockResolvedValue([]);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: [] });
 
       const interaction = createMockInteraction('profile', 'xyz');
       await handlePersonaAutocomplete(interaction, { includeCreateNew: true });
@@ -339,7 +351,7 @@ describe('handlePersonaAutocomplete', () => {
         })
       );
 
-      mockGetCachedPersonas.mockResolvedValue(manyPersonas);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: manyPersonas });
 
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
@@ -359,7 +371,7 @@ describe('handlePersonaAutocomplete', () => {
         })
       );
 
-      mockGetCachedPersonas.mockResolvedValue(manyPersonas);
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'ok', value: manyPersonas });
 
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction, { includeCreateNew: true });
