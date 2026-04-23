@@ -49,4 +49,23 @@ export function registerReleaseCommands(cli: CAC): void {
       const { verifyNotes } = await import('../release/verify-notes.js');
       await verifyNotes(options);
     });
+
+  // Rebase develop onto main after a release PR merges (final step of
+  // the release flow). Previously manual + sometimes skipped; automation
+  // prevents the develop-vs-main SHA drift that surfaces as apparent
+  // "conflicts with main" on the next release PR.
+  cli
+    .command(
+      'release:finalize',
+      'Rebase develop onto main after a release PR merges (step 5 of the release flow)'
+    )
+    .option('--dry-run', 'Preview the planned steps without executing')
+    .option('--yes', 'Skip the force-push confirmation prompt (required on non-TTY stdin)')
+    .example('pnpm ops release:finalize')
+    .example('pnpm ops release:finalize --dry-run')
+    .example('pnpm ops release:finalize --yes')
+    .action(async (options: { dryRun?: boolean; yes?: boolean }) => {
+      const { finalizeRelease } = await import('../release/finalize.js');
+      await finalizeRelease(options);
+    });
 }
