@@ -319,15 +319,7 @@ describe('Shapes Auth Routes', () => {
       return { req, res };
     }
 
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      const { res } = await callDeleteHandler();
-
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
     it('should return 404 when credential not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callDeleteHandler();
 
@@ -335,7 +327,6 @@ describe('Shapes Auth Routes', () => {
     });
 
     it('should delete credential and return success', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userCredential.findFirst.mockResolvedValue({ id: 'cred-uuid-123' });
 
       const { res } = await callDeleteHandler();
@@ -359,25 +350,16 @@ describe('Shapes Auth Routes', () => {
       return { req, res };
     }
 
-    it('should return hasCredentials: false when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+    it('should return hasCredentials: false when credential not found', async () => {
+      mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callStatusHandler();
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasCredentials: false }));
     });
 
-    it('should return hasCredentials: false when credential not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
-      mockPrisma.userCredential.findFirst.mockResolvedValue(null);
-      const { res } = await callStatusHandler();
-
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasCredentials: false }));
-    });
-
     it('should return hasCredentials: true with timestamps', async () => {
       const now = new Date('2026-02-16T12:00:00Z');
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userCredential.findFirst.mockResolvedValue({
         createdAt: now,
         lastUsedAt: null,
