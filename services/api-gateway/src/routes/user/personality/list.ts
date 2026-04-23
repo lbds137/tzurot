@@ -67,7 +67,7 @@ function toSummary(
  */
 async function fetchAdminPersonalities(
   prisma: PrismaClient,
-  requestingUserId: string | null,
+  requestingUserId: string,
   discordUserId: string
 ): Promise<PersonalitySummary[]> {
   const all = await prisma.personality.findMany({
@@ -83,7 +83,7 @@ async function fetchAdminPersonalities(
  */
 async function fetchUserPersonalities(
   prisma: PrismaClient,
-  userId: string | undefined,
+  userId: string,
   discordUserId: string
 ): Promise<PersonalitySummary[]> {
   // Get public personalities
@@ -94,38 +94,33 @@ async function fetchUserPersonalities(
     take: 500, // Bounded query - prevents OOM with large datasets
   });
 
-  // Get user-owned private personalities (if user exists)
-  let userOwnedPersonalities: RawPersonality[] = [];
+  const ownedIds = await prisma.personalityOwner.findMany({
+    where: { userId },
+    select: { personalityId: true },
+    take: 100, // Bounded query - users rarely own many personalities
+  });
 
-  if (userId !== undefined) {
-    const ownedIds = await prisma.personalityOwner.findMany({
-      where: { userId },
-      select: { personalityId: true },
-      take: 100, // Bounded query - users rarely own many personalities
-    });
+  const ownedIdSet = new Set(ownedIds.map(o => o.personalityId));
 
-    const ownedIdSet = new Set(ownedIds.map(o => o.personalityId));
-
-    userOwnedPersonalities = await prisma.personality.findMany({
-      where: {
-        isPublic: false,
-        OR: [{ ownerId: userId }, { id: { in: Array.from(ownedIdSet) } }],
-      },
-      select: PERSONALITY_LIST_SELECT,
-      orderBy: { name: 'asc' },
-      take: 100, // Bounded query - users rarely own many private personalities
-    });
-  }
+  const userOwnedPersonalities = await prisma.personality.findMany({
+    where: {
+      isPublic: false,
+      OR: [{ ownerId: userId }, { id: { in: Array.from(ownedIdSet) } }],
+    },
+    select: PERSONALITY_LIST_SELECT,
+    orderBy: { name: 'asc' },
+    take: 100, // Bounded query - users rarely own many private personalities
+  });
 
   // Combine and format results
   const publicIds = new Set(publicPersonalities.map(p => p.id));
 
   return [
-    ...publicPersonalities.map(p => toSummary(p, userId ?? null, discordUserId)),
+    ...publicPersonalities.map(p => toSummary(p, userId, discordUserId)),
     // Add user-owned private personalities that aren't already in the public list
     ...userOwnedPersonalities
       .filter(p => !publicIds.has(p.id))
-      .map(p => toSummary(p, userId ?? null, discordUserId)),
+      .map(p => toSummary(p, userId, discordUserId)),
   ];
 }
 
