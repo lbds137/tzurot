@@ -92,9 +92,16 @@ const freshCache = new TTLCache<UserAutocompleteData>({
 });
 
 /**
- * Stale cache: last-known-good per user, no TTL, manually LRU-bounded via
+ * Stale cache: last-known-good per user, no TTL, FIFO-bounded via
  * insertion-order tracking. Consulted only when `freshCache` misses AND the
  * refetch fails with a transient error.
+ *
+ * FIFO not LRU: eviction removes the oldest-inserted entry, not the
+ * least-recently-accessed one. A plain Map's iteration order is insertion
+ * order and there's no access tracking here. For a fallback store this is
+ * the right tradeoff — we want to prefer recently-populated entries and
+ * accept that an entry accessed many times will still age out if a newer
+ * entry displaces it.
  *
  * Using a plain Map because TTLCache would expire stale entries — we want
  * stale data to outlive `CACHE_TTL_MS` specifically so it can serve as a
@@ -104,8 +111,8 @@ const staleCache = new Map<string, UserAutocompleteData>();
 
 /**
  * Update the stale entry for a user. Re-inserts the key to move it to the
- * end of the Map's iteration order (LRU tail), then trims oldest entries if
- * the Map has grown past the bound.
+ * end of the Map's iteration order (newest-inserted tail), then trims
+ * oldest entries if the Map has grown past the bound.
  */
 function updateStale(userId: string, data: UserAutocompleteData): void {
   staleCache.delete(userId);
@@ -123,6 +130,15 @@ function updateStale(userId: string, data: UserAutocompleteData): void {
  * Merge a successfully-fetched field into both caches, preserving the other
  * two fields' existing values from whichever cache has them (fresh wins over
  * stale for reads).
+ *
+ * Tradeoff worth understanding: when the other fields are ONLY in the stale
+ * tier (their fresh entry has expired), this carries them up into the new
+ * fresh entry, effectively resetting their TTL for another 60s. That's
+ * intentional — autocomplete data is low-stakes and keeping a user's full
+ * personality/persona/shapes bundle cohesive in one cache tier avoids
+ * cache misses on the next keystroke for an unrelated field. If autocomplete
+ * data ever becomes higher-stakes (e.g., billing-sensitive), this merge
+ * would need a per-field TTL or a last-modified timestamp instead.
  */
 function commitFetchedField<K extends keyof UserAutocompleteData>(
   userId: string,

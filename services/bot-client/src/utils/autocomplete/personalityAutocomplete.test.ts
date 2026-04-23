@@ -161,6 +161,26 @@ describe('handlePersonalityAutocomplete', () => {
       expect(handled).toBe(true);
       expect(mockRespond).toHaveBeenCalledWith([]);
     });
+
+    it('should render error placeholder when cache returns { kind: "error" }', async () => {
+      // Cache's own error path (transient with no stale fallback, or
+      // permanent) — distinct from the throw path above. The handler must
+      // respond with a visible placeholder so the user doesn't see an
+      // empty list that reads as "you have no personalities" during a
+      // backend outage.
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'error', error: 'Backend down' });
+
+      const interaction = createMockInteraction('personality', '');
+      const handled = await handlePersonalityAutocomplete(interaction);
+
+      expect(handled).toBe(true);
+      expect(mockRespond).toHaveBeenCalledWith([
+        {
+          name: '[Unable to load personalities — try again]',
+          value: '__autocomplete_error__',
+        },
+      ]);
+    });
   });
 
   describe('filtering by ownership', () => {

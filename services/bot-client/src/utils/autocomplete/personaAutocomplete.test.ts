@@ -138,6 +138,26 @@ describe('handlePersonaAutocomplete', () => {
       expect(handled).toBe(true);
       expect(mockRespond).toHaveBeenCalledWith([]);
     });
+
+    it('should render error placeholder when cache returns { kind: "error" }', async () => {
+      // Cache's own error path (transient with no stale fallback, or
+      // permanent) — distinct from the throw path above. The handler must
+      // respond with a visible placeholder so the user doesn't see an
+      // empty list that reads as "you have no personas" during a backend
+      // outage.
+      mockGetCachedPersonas.mockResolvedValue({ kind: 'error', error: 'Backend down' });
+
+      const interaction = createMockInteraction('profile', '');
+      const handled = await handlePersonaAutocomplete(interaction);
+
+      expect(handled).toBe(true);
+      expect(mockRespond).toHaveBeenCalledWith([
+        {
+          name: '[Unable to load personas — try again]',
+          value: '__autocomplete_error__',
+        },
+      ]);
+    });
   });
 
   describe('persona display', () => {
