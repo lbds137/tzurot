@@ -52,14 +52,14 @@ export function createMockReqRes(
  * Create a mock request with `provisionedUserId` + `provisionedDefaultPersonaId`
  * already attached — the post-middleware state of a user-scoped route.
  *
- * This is the migration target for the ~35 route test files that currently
+ * This is the migration target for the route test files that currently
  * mock `requireProvisionedUser` as a no-op `vi.fn((_req, _res, next) => next())`
  * and therefore exercise the shadow-mode fallback branch of
  * `resolveProvisionedUserId` / `getOrCreateInternalUser` rather than the
  * common provisioned path. When the middleware is tightened from shadow-
  * mode-fallthrough to strict-400 (tracked in BACKLOG.md Phase 5c work
  * items), those no-op mocks will produce 400s at the middleware layer and
- * every one of the 35 test files will break en masse.
+ * every unmigrated test file will break en masse.
  *
  * To migrate a test: replace `createMockReqRes(body, params, query)` with
  * `createProvisionedMockReqRes(body, params, query)`, and the route handler

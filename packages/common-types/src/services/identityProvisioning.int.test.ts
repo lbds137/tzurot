@@ -97,10 +97,21 @@ describe('Identity provisioning integration (c88ae5b7 regression guard)', () => 
 
   beforeEach(async () => {
     // Each test creates its own user. Preserve the bot-owner seeded in beforeAll.
+    // Relies on `personas.owner_id → users.id` being `ON DELETE CASCADE` so
+    // deleting the user transitively cleans up owned personas; the user row's
+    // own `default_persona_id → personas.id` RESTRICT check passes because the
+    // referencing row is being deleted in the same statement.
     await prisma.$executeRawUnsafe(`
       DELETE FROM users WHERE discord_id != 'owner-discord-id'
     `);
   });
+
+  // Note: "HTTP-first" and "Discord-first" below exercise the same
+  // `UserService.getOrCreateUser` entry point — both provisioning paths
+  // converge on that method in prod. The labels document intent (which
+  // side initiated the provisioning flow) rather than separate code paths.
+  // The cross-path-consistency block below is what verifies ordering doesn't
+  // matter at the data level.
 
   describe('HTTP-first provisioning path', () => {
     // Simulates api-gateway's requireProvisionedUser middleware: a user who
