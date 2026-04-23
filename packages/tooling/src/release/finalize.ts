@@ -124,10 +124,16 @@ async function shouldProceedWithForcePush(yes: boolean): Promise<boolean> {
  * Return the current branch name, or `''` if git can't resolve it
  * (detached HEAD, missing upstream, etc.). Best-effort — callers treat
  * `''` as "no branch info available" and silently skip downstream uses.
+ *
+ * Note: `git rev-parse --abbrev-ref HEAD` does NOT throw in detached
+ * HEAD state — it outputs the literal string `HEAD`. Translate that to
+ * `''` so downstream drift messages don't recommend `git checkout HEAD`
+ * (which means something different from "return to your previous branch").
  */
 function captureCurrentBranch(): string {
   try {
-    return git(['rev-parse', '--abbrev-ref', 'HEAD']);
+    const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
+    return branch === 'HEAD' ? '' : branch;
   } catch {
     return '';
   }
@@ -150,6 +156,26 @@ function reportBranchDrift(startBranch: string): void {
       )
     );
   }
+}
+
+/**
+ * Check whether main has commits ahead of develop. Returns `'noop'` when
+ * develop already contains every main commit (exit early) or `'proceed'`
+ * when a rebase is needed. Logs the appropriate status message in both
+ * cases — dry-run gets a "(preview, local refs — may be stale)" prefix
+ * since `fetch --all` was only printed, not executed.
+ */
+function checkAheadCount(dryRun: boolean): 'noop' | 'proceed' {
+  const ahead = commitsMainAheadOfDevelop();
+  if (ahead === 0) {
+    console.log(chalk.green('✓ develop already contains every main commit — nothing to finalize'));
+    return 'noop';
+  }
+  const note = dryRun
+    ? `(preview, local refs — may be stale) main ahead of develop by ${ahead} commit(s)`
+    : `main ahead of develop — rebase needed`;
+  console.log(chalk.yellow(note));
+  return 'proceed';
 }
 
 /**
@@ -216,29 +242,11 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
   console.log(chalk.dim('Fetching remote refs...'));
   planStep(['fetch', '--all'], dryRun);
 
-  // Step 2: detect no-op. In dry-run this also runs so users see real state.
-  // In real mode we already fetched so the ref is current.
-  if (!dryRun && commitsMainAheadOfDevelop() === 0) {
-    console.log(chalk.green('✓ develop already contains every main commit — nothing to finalize'));
+  // Step 2: detect no-op. In dry-run we're reading local refs (fetch
+  // was printed, not executed) so the count may be stale — the helper
+  // flags that in the status message.
+  if (checkAheadCount(dryRun) === 'noop') {
     return;
-  }
-  if (dryRun) {
-    // In dry-run we need the count without having fetched first; check with
-    // whatever refs we have locally so the preview is still informative.
-    const ahead = commitsMainAheadOfDevelop();
-    if (ahead === 0) {
-      console.log(
-        chalk.green('✓ develop already contains every main commit — nothing to finalize')
-      );
-      return;
-    }
-    console.log(
-      chalk.yellow(
-        `(preview, local refs — may be stale) main ahead of develop by ${ahead} commit(s)`
-      )
-    );
-  } else {
-    console.log(chalk.yellow(`main ahead of develop — rebase needed`));
   }
 
   // Step 3: confirm the force-push branch. Rebase itself is safe (local

@@ -296,6 +296,44 @@ describe('finalizeRelease', () => {
     });
   });
 
+  describe('detached HEAD', () => {
+    it('treats rev-parse returning "HEAD" as no branch info (detached state)', async () => {
+      // `git rev-parse --abbrev-ref HEAD` outputs the literal string
+      // "HEAD" in detached HEAD state — it does NOT throw. Without the
+      // HEAD→'' translation in captureCurrentBranch, the drift message
+      // would read "you started on 'HEAD' but are now on 'main'. Run
+      // `git checkout HEAD` to return." — which is misleading at best.
+      // This test pins the translation so detached HEAD falls into the
+      // "no drift hint" branch.
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockGit({
+        'rev-list --count': '3\n',
+        'rev-parse': 'HEAD\n', // Simulate detached HEAD
+        pull: () => {
+          throw new Error('fatal: Not possible to fast-forward');
+        },
+      });
+
+      await expect(finalizeRelease({ yes: true })).rejects.toThrow(/Not possible to fast-forward/);
+
+      // No "you started on" drift message — startBranch was '' (detached)
+      // so reportBranchDrift early-exits.
+      const driftMessage = errorSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(driftMessage).not.toContain('you started on');
+      expect(driftMessage).not.toContain('checkout HEAD');
+    });
+  });
+
+  // Interactive-abort path (TTY + user types 'n') is not directly
+  // tested: mocking readline reliably requires either module-level
+  // `vi.mock` (affecting every test in the file) or `vi.resetModules` +
+  // dynamic import (brittle against module-cache state). The two
+  // endpoints of the confirmation-gate branching ARE pinned — `--yes`
+  // → skip prompt (happy path), non-TTY no-yes → throw (non-TTY safety).
+  // The middle path is a straightforward readline round-trip between
+  // those two and doesn't meaningfully exercise finalize.ts logic.
+
   describe('edge cases', () => {
     it('throws a descriptive error on malformed rev-list output', async () => {
       // If git's rev-list returns something un-parseable as an integer
