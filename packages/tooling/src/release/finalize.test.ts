@@ -70,12 +70,14 @@ describe('finalizeRelease', () => {
       await finalizeRelease({ yes: true });
 
       const invocations = mockedExec.mock.calls.map(c => (c[1] as string[]).join(' '));
-      // Sequence is load-bearing — the rebase MUST come after both
-      // checkouts and MUST precede the push.
+      // Sequence is load-bearing — both pulls must happen between their
+      // checkouts and the rebase, and the rebase must precede the push.
+      // Asserting every adjacent pair pins the full sequence.
       const fetchIdx = invocations.indexOf('fetch --all');
       const checkoutMainIdx = invocations.indexOf('checkout main');
       const pullMainIdx = invocations.indexOf('pull --ff-only origin main');
       const checkoutDevIdx = invocations.indexOf('checkout develop');
+      const pullDevIdx = invocations.indexOf('pull --ff-only origin develop');
       const rebaseIdx = invocations.indexOf('rebase origin/main');
       const pushIdx = invocations.indexOf('push --force-with-lease origin develop');
 
@@ -83,7 +85,8 @@ describe('finalizeRelease', () => {
       expect(checkoutMainIdx).toBeGreaterThan(fetchIdx);
       expect(pullMainIdx).toBeGreaterThan(checkoutMainIdx);
       expect(checkoutDevIdx).toBeGreaterThan(pullMainIdx);
-      expect(rebaseIdx).toBeGreaterThan(checkoutDevIdx);
+      expect(pullDevIdx).toBeGreaterThan(checkoutDevIdx);
+      expect(rebaseIdx).toBeGreaterThan(pullDevIdx);
       expect(pushIdx).toBeGreaterThan(rebaseIdx);
     });
   });
