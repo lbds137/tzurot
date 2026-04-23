@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
 import {
   buildPresetDashboardOptions,
@@ -16,6 +17,7 @@ import {
 import { generateClonedName } from './cloneName.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
+import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import type { FlattenedPresetData } from './config.js';
 
 const TEST_USER = {
@@ -68,7 +70,7 @@ const mockGetSessionOrExpired = vi
     if (session === null) {
       // Mimic real behavior: call editReply with expired message
       await interaction.editReply({
-        content: 'Session expired. Please run /preset browse to try again.',
+        content: formatSessionExpiredMessage('/preset browse'),
         embeds: [],
         components: [],
       });
@@ -82,8 +84,8 @@ const mockGetSessionDataOrReply = vi
     if (session === null) {
       // Mimic real behavior: call reply with expired message
       await interaction.reply({
-        content: 'Session expired. Please try again.',
-        flags: 64, // MessageFlags.Ephemeral
+        content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+        flags: MessageFlags.Ephemeral,
       });
       return null;
     }
@@ -97,8 +99,8 @@ const mockGetSessionDataOrFollowUp = vi
     const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
     if (session === null) {
       await interaction.followUp({
-        content: 'Session expired. Please try again.',
-        flags: 64, // MessageFlags.Ephemeral
+        content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+        flags: MessageFlags.Ephemeral,
       });
       return null;
     }
