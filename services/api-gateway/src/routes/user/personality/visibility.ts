@@ -5,13 +5,12 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { createLogger, type PrismaClient, SetVisibilitySchema } from '@tzurot/common-types';
 import {
-  createLogger,
-  UserService,
-  type PrismaClient,
-  SetVisibilitySchema,
-} from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -27,7 +26,7 @@ const logger = createLogger('user-personality-visibility');
  * Toggle visibility of an owned personality
  */
 export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] {
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);

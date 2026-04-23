@@ -10,7 +10,7 @@ import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  UserService,
+  type UserService,
   type PrismaClient,
   generateImportJobUuid,
   IMPORT_SOURCES,
@@ -18,7 +18,11 @@ import {
   JOB_PREFIXES,
   type ShapesImportJobData,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -218,7 +222,7 @@ function createListImportJobsHandler(prisma: PrismaClient, userService: UserServ
 
 export function createShapesImportRoutes(prisma: PrismaClient, queue: Queue): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   router.post(
     '/',

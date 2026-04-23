@@ -11,14 +11,18 @@ import { Router, type Response } from 'express';
 import {
   createLogger,
   decryptApiKey,
-  UserService,
+  type UserService,
   type PrismaClient,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
   SHAPES_BASE_URL,
   SHAPES_USER_AGENT,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -141,7 +145,7 @@ function createListHandler(prisma: PrismaClient, userService: UserService) {
 
 export function createShapesListRoutes(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   router.get(
     '/',

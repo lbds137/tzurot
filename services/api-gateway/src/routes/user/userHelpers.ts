@@ -5,7 +5,8 @@
  * personality, channel, and other route modules.
  */
 
-import { UserService, type PrismaClient } from '@tzurot/common-types';
+import { type PrismaClient } from '@tzurot/common-types';
+import { getOrCreateUserService } from '../../services/AuthMiddleware.js';
 import type { ProvisionedRequest } from '../../types.js';
 
 /**
@@ -44,7 +45,7 @@ export async function getOrCreateInternalUser(
   }
 
   // Shadow-mode fallthrough: create shell and look up the persona separately.
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   const userId = await userService.getOrCreateUserShell(req.userId);
 
   const user = await prisma.user.findUnique({
