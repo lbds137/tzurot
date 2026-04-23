@@ -28,21 +28,21 @@ vi.mock('@tzurot/common-types', async () => {
 
 // Mock memory helpers
 vi.mock('./memoryHelpers.js', () => ({
-  getProvisionedUserId: vi.fn(),
   getDefaultPersonaId: vi.fn(),
   getPersonalityById: vi.fn(),
   parseTimeframeFilter: vi.fn(),
 }));
 
-import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
-import {
-  getProvisionedUserId,
-  getDefaultPersonaId,
-  getPersonalityById,
-  parseTimeframeFilter,
-} from './memoryHelpers.js';
+// Mock resolveProvisionedUserId
+vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
+  resolveProvisionedUserId: vi.fn(),
+}));
 
-const mockGetProvisionedUserId = vi.mocked(getProvisionedUserId);
+import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
+import { getDefaultPersonaId, getPersonalityById, parseTimeframeFilter } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+
+const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 const mockGetPersonalityById = vi.mocked(getPersonalityById);
 const mockParseTimeframeFilter = vi.mocked(parseTimeframeFilter);
@@ -118,7 +118,7 @@ describe('memoryBatch handlers', () => {
     vi.clearAllMocks();
 
     // Default successful mocks
-    mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+    mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
     mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
     mockGetPersonalityById.mockResolvedValue(defaultPersonality);
     mockParseTimeframeFilter.mockReturnValue({ filter: null });
@@ -158,20 +158,6 @@ describe('memoryBatch handlers', () => {
       );
 
       expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('should return early when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const { req, res } = createMockQueryReq({ personalityId: TEST_PERSONALITY_ID });
-
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockUserService,
-        req,
-        res
-      );
-
-      expect(mockGetPersonalityById).not.toHaveBeenCalled();
     });
 
     it('should return early when personality not found', async () => {
@@ -375,15 +361,6 @@ describe('memoryBatch handlers', () => {
       );
     });
 
-    it('should return early when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-
-      await handleBatchDelete(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
-
-      expect(mockGetPersonalityById).not.toHaveBeenCalled();
-    });
-
     it('should return early when personality not found', async () => {
       mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
@@ -575,15 +552,6 @@ describe('memoryBatch handlers', () => {
           message: expect.stringContaining('personalityId'),
         })
       );
-    });
-
-    it('should return early when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
-
-      await handlePurge(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
-
-      expect(mockGetPersonalityById).not.toHaveBeenCalled();
     });
 
     it('should return early when personality not found', async () => {

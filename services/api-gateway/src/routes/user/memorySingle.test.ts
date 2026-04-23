@@ -29,8 +29,12 @@ vi.mock('@tzurot/common-types', async () => {
 
 // Mock memory helpers
 vi.mock('./memoryHelpers.js', () => ({
-  getProvisionedUserId: vi.fn(),
   getDefaultPersonaId: vi.fn(),
+}));
+
+// Mock resolveProvisionedUserId
+vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
+  resolveProvisionedUserId: vi.fn(),
 }));
 
 import {
@@ -39,7 +43,8 @@ import {
   handleToggleLock,
   handleDeleteMemory,
 } from './memorySingle.js';
-import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
+import { getDefaultPersonaId } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -56,7 +61,7 @@ const mockPrisma = {
   },
 };
 
-const mockGetProvisionedUserId = vi.mocked(getProvisionedUserId);
+const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 
 // Stub UserService — all accesses are routed through mocked helpers.
@@ -94,7 +99,7 @@ describe('memorySingle handlers', () => {
     vi.clearAllMocks();
 
     // Default successful mocks
-    mockGetProvisionedUserId.mockResolvedValue({ id: TEST_USER_ID });
+    mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
     mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
     mockPrisma.memory.findFirst.mockResolvedValue(defaultMemory);
     mockPrisma.memory.update.mockResolvedValue(defaultMemory);
@@ -121,15 +126,6 @@ describe('memorySingle handlers', () => {
       await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('should return early when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
-
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
-
-      expect(mockGetDefaultPersonaId).not.toHaveBeenCalled();
     });
 
     it('should return 404 when user has no persona', async () => {
@@ -271,15 +267,6 @@ describe('memorySingle handlers', () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should return early when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
-
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
-
-      expect(mockGetDefaultPersonaId).not.toHaveBeenCalled();
-    });
-
     it('should return 404 when user has no persona', async () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
@@ -374,15 +361,6 @@ describe('memorySingle handlers', () => {
           message: expect.stringContaining('Memory ID'),
         })
       );
-    });
-
-    it('should return early when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
-
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
-
-      expect(mockGetDefaultPersonaId).not.toHaveBeenCalled();
     });
 
     it('should return 404 when user has no persona', async () => {
@@ -493,15 +471,6 @@ describe('memorySingle handlers', () => {
           message: expect.stringContaining('Memory ID'),
         })
       );
-    });
-
-    it('should return early when user not found', async () => {
-      mockGetProvisionedUserId.mockResolvedValue(null);
-      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
-
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
-
-      expect(mockGetDefaultPersonaId).not.toHaveBeenCalled();
     });
 
     it('should return 404 when user has no persona', async () => {

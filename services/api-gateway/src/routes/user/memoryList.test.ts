@@ -26,14 +26,19 @@ vi.mock('@tzurot/common-types', async () => {
 
 // Mock memory helpers
 vi.mock('./memoryHelpers.js', () => ({
-  getProvisionedUserId: vi.fn(),
   getDefaultPersonaId: vi.fn(),
 }));
 
-import { handleList } from './memoryList.js';
-import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
+// Mock resolveProvisionedUserId
+vi.mock('../../utils/resolveProvisionedUserId.js', () => ({
+  resolveProvisionedUserId: vi.fn(),
+}));
 
-const mockGetProvisionedUserId = vi.mocked(getProvisionedUserId);
+import { handleList } from './memoryList.js';
+import { getDefaultPersonaId } from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+
+const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 
 const mockUserService = {} as unknown as UserService;
@@ -88,7 +93,7 @@ function createMockMemory(
 describe('handleList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetProvisionedUserId.mockResolvedValue({ id: 'user-uuid-123' });
+    mockResolveProvisionedUserId.mockResolvedValue('user-uuid-123');
     mockGetDefaultPersonaId.mockResolvedValue('persona-uuid-456');
     (mockPrisma.memory.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
     (mockPrisma.memory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
@@ -237,16 +242,6 @@ describe('handleList', () => {
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ memories: [], total: 0 }));
-    expect(mockPrisma.memory.findMany).not.toHaveBeenCalled();
-  });
-
-  it('should return early when user not found', async () => {
-    mockGetProvisionedUserId.mockResolvedValue(null);
-    const { req, res } = createMockReqRes();
-
-    await handleList(mockPrisma, mockUserService, req, res);
-
-    // getUserByDiscordId handles the error response
     expect(mockPrisma.memory.findMany).not.toHaveBeenCalled();
   });
 

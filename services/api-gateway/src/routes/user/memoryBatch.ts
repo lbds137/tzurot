@@ -20,12 +20,8 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
-import {
-  getProvisionedUserId,
-  getDefaultPersonaId,
-  getPersonalityById,
-  parseTimeframeFilter,
-} from './memoryHelpers.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
+import { getDefaultPersonaId, getPersonalityById, parseTimeframeFilter } from './memoryHelpers.js';
 
 const logger = createLogger('memory-batch');
 
@@ -51,10 +47,7 @@ export async function handleBatchDelete(
   const { personalityId, personaId: requestedPersonaId, timeframe } = parseResult.data;
 
   // Get user
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   // Validate personality exists
   const personality = await getPersonalityById(prisma, personalityId, res);
@@ -65,7 +58,7 @@ export async function handleBatchDelete(
   // Determine persona ID
   let personaId = requestedPersonaId;
   if (personaId === undefined || personaId === '') {
-    const defaultPersonaId = await getDefaultPersonaId(prisma, user.id);
+    const defaultPersonaId = await getDefaultPersonaId(prisma, userId);
     if (defaultPersonaId === null) {
       sendError(res, ErrorResponses.validationError('No persona found. Create one first.'));
       return;
@@ -79,7 +72,7 @@ export async function handleBatchDelete(
     select: { id: true, ownerId: true },
   });
 
-  if (persona?.ownerId !== user.id) {
+  if (persona?.ownerId !== userId) {
     sendError(res, ErrorResponses.forbidden('Persona not found or does not belong to you'));
     return;
   }
@@ -187,10 +180,7 @@ export async function handlePurge(
   const { personalityId, confirmationPhrase } = parseResult.data;
 
   // Get user
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   // Validate personality exists
   const personality = await getPersonalityById(prisma, personalityId, res);
@@ -211,7 +201,7 @@ export async function handlePurge(
   }
 
   // Get user's persona
-  const defaultPersonaId = await getDefaultPersonaId(prisma, user.id);
+  const defaultPersonaId = await getDefaultPersonaId(prisma, userId);
   if (defaultPersonaId === null) {
     sendError(res, ErrorResponses.validationError('No persona found. Create one first.'));
     return;
@@ -305,10 +295,7 @@ export async function handleBatchDeletePreview(
   }
 
   // Get user
-  const user = await getProvisionedUserId(req, userService, res);
-  if (!user) {
-    return;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   // Validate personality exists
   const personality = await getPersonalityById(prisma, personalityId, res);
@@ -319,7 +306,7 @@ export async function handleBatchDeletePreview(
   // Determine persona ID
   let personaId = requestedPersonaId;
   if (personaId === undefined || personaId === '') {
-    const defaultPersonaId = await getDefaultPersonaId(prisma, user.id);
+    const defaultPersonaId = await getDefaultPersonaId(prisma, userId);
     if (defaultPersonaId === null) {
       sendCustomSuccess(
         res,
