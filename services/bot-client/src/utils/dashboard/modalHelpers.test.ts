@@ -27,8 +27,8 @@ const testSection: SectionDefinition<TestData> = {
   label: '🏷️ Identity',
   fieldIds: ['name', 'description'],
   fields: [
-    { id: 'name', label: 'Name', style: 'short' as const, required: true },
-    { id: 'description', label: 'Description', style: 'paragraph' as const },
+    { id: 'name', label: 'Name', style: 'short' as const, required: true, maxLength: 100 },
+    { id: 'description', label: 'Description', style: 'paragraph' as const, maxLength: 4000 },
   ],
   getStatus: () => SectionStatus.COMPLETE,
   getPreview: (data: TestData) => data.name,

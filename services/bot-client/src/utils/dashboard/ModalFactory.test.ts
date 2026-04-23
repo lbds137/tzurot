@@ -68,7 +68,7 @@ describe('ModalFactory', () => {
       const config = createTestConfig<{ name: string }>('character');
 
       const section = createTestSection<{ name: string }>('basic', '📝 Basic Info', [
-        { id: 'name', label: 'Name', style: 'short' },
+        { id: 'name', label: 'Name', style: 'short', maxLength: 100 },
       ]);
 
       const modal = buildSectionModal(config, section, 'char-123', { name: 'Test' });
@@ -88,6 +88,7 @@ describe('ModalFactory', () => {
           style: 'paragraph',
           placeholder: 'Enter description...',
           required: true,
+          maxLength: 4000,
         },
       ]);
 
@@ -111,13 +112,13 @@ describe('ModalFactory', () => {
       const config = createTestConfig<Record<string, string>>('test');
 
       const section = createTestSection<Record<string, string>>('many', 'Many Fields', [
-        { id: 'f1', label: 'Field 1', style: 'short' },
-        { id: 'f2', label: 'Field 2', style: 'short' },
-        { id: 'f3', label: 'Field 3', style: 'short' },
-        { id: 'f4', label: 'Field 4', style: 'short' },
-        { id: 'f5', label: 'Field 5', style: 'short' },
-        { id: 'f6', label: 'Field 6', style: 'short' }, // Should be excluded
-        { id: 'f7', label: 'Field 7', style: 'short' }, // Should be excluded
+        { id: 'f1', label: 'Field 1', style: 'short', maxLength: 100 },
+        { id: 'f2', label: 'Field 2', style: 'short', maxLength: 100 },
+        { id: 'f3', label: 'Field 3', style: 'short', maxLength: 100 },
+        { id: 'f4', label: 'Field 4', style: 'short', maxLength: 100 },
+        { id: 'f5', label: 'Field 5', style: 'short', maxLength: 100 },
+        { id: 'f6', label: 'Field 6', style: 'short', maxLength: 100 }, // Should be excluded
+        { id: 'f7', label: 'Field 7', style: 'short', maxLength: 100 }, // Should be excluded
       ]);
 
       const modal = buildSectionModal(config, section, 'test-1', {});
@@ -125,22 +126,10 @@ describe('ModalFactory', () => {
       expect(getModalComponents(modal)).toHaveLength(5);
     });
 
-    it('should use default max lengths for short vs paragraph', () => {
-      const config = createTestConfig<Record<string, string>>('test');
-
-      const section = createTestSection<Record<string, string>>('mixed', 'Mixed', [
-        { id: 'short', label: 'Short Field', style: 'short' },
-        { id: 'para', label: 'Paragraph Field', style: 'paragraph' },
-      ]);
-
-      const modal = buildSectionModal(config, section, 'test-1', {});
-
-      const shortInput = getTextInput(modal, 0);
-      const paraInput = getTextInput(modal, 1);
-
-      expect(shortInput.max_length).toBe(100); // DEFAULT_CONSTRAINTS.SHORT_MAX_LENGTH
-      expect(paraInput.max_length).toBe(4000); // DEFAULT_CONSTRAINTS.PARAGRAPH_MAX_LENGTH
-    });
+    // The "should use default max lengths for short vs paragraph" test was
+    // removed when `maxLength` became a required field on `FieldDefinition`
+    // (2026-04-22). The fallback behavior it tested is no longer reachable —
+    // every field must now supply its own cap explicitly.
 
     it('should respect custom max/min lengths', () => {
       const config = createTestConfig<Record<string, string>>('test');
@@ -181,8 +170,8 @@ describe('ModalFactory', () => {
       const config = createTestConfig<{ num: number; missing: string }>('test');
 
       const section = createTestSection<{ num: number; missing: string }>('types', 'Types', [
-        { id: 'num', label: 'Number', style: 'short' },
-        { id: 'missing', label: 'Missing', style: 'short' },
+        { id: 'num', label: 'Number', style: 'short', maxLength: 100 },
+        { id: 'missing', label: 'Missing', style: 'short', maxLength: 100 },
       ]);
 
       // @ts-expect-error - intentionally passing wrong type for test
@@ -203,11 +192,12 @@ describe('ModalFactory', () => {
         const config = createTestConfig<Record<string, string>>('test');
 
         const section = createTestSection<Record<string, string>>('admin', 'Admin Section', [
-          { id: 'visible', label: 'Visible', style: 'short' },
+          { id: 'visible', label: 'Visible', style: 'short', maxLength: 100 },
           {
             id: 'adminOnly',
             label: 'Admin Only',
             style: 'short',
+            maxLength: 100,
             hidden: (ctx: DashboardContext) => !ctx.isAdmin,
           },
         ]);
@@ -221,8 +211,8 @@ describe('ModalFactory', () => {
         const config = createTestConfig<Record<string, string>>('test');
 
         const section = createTestSection<Record<string, string>>('test', 'Test Section', [
-          { id: 'visible', label: 'Visible', style: 'short' },
-          { id: 'hidden', label: 'Hidden', style: 'short', hidden: true },
+          { id: 'visible', label: 'Visible', style: 'short', maxLength: 100 },
+          { id: 'hidden', label: 'Hidden', style: 'short', maxLength: 100, hidden: true },
         ]);
 
         const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
@@ -236,7 +226,7 @@ describe('ModalFactory', () => {
         const config = createTestConfig<Record<string, string>>('test');
 
         const section = createTestSection<Record<string, string>>('test', 'Test Section', [
-          { id: 'visible', label: 'Visible', style: 'short', hidden: false },
+          { id: 'visible', label: 'Visible', style: 'short', maxLength: 100, hidden: false },
         ]);
 
         const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
@@ -247,11 +237,12 @@ describe('ModalFactory', () => {
         const config = createTestConfig<Record<string, string>>('test');
 
         const section = createTestSection<Record<string, string>>('admin', 'Admin Section', [
-          { id: 'public', label: 'Public Field', style: 'short' },
+          { id: 'public', label: 'Public Field', style: 'short', maxLength: 100 },
           {
             id: 'adminOnly',
             label: 'Admin Only',
             style: 'short',
+            maxLength: 100,
             hidden: (ctx: DashboardContext) => !ctx.isAdmin,
           },
         ]);
@@ -268,11 +259,12 @@ describe('ModalFactory', () => {
         const config = createTestConfig<Record<string, string>>('test');
 
         const section = createTestSection<Record<string, string>>('admin', 'Admin Section', [
-          { id: 'public', label: 'Public Field', style: 'short' },
+          { id: 'public', label: 'Public Field', style: 'short', maxLength: 100 },
           {
             id: 'adminOnly',
             label: 'Admin Only',
             style: 'short',
+            maxLength: 100,
             hidden: (ctx: DashboardContext) => !ctx.isAdmin,
           },
         ]);
@@ -288,14 +280,14 @@ describe('ModalFactory', () => {
         const config = createTestConfig<Record<string, string>>('test');
 
         const section = createTestSection<Record<string, string>>('many', 'Many Fields', [
-          { id: 'f1', label: 'Field 1', style: 'short' },
-          { id: 'f2', label: 'Field 2', style: 'short', hidden: true },
-          { id: 'f3', label: 'Field 3', style: 'short' },
-          { id: 'f4', label: 'Field 4', style: 'short', hidden: true },
-          { id: 'f5', label: 'Field 5', style: 'short' },
-          { id: 'f6', label: 'Field 6', style: 'short' },
-          { id: 'f7', label: 'Field 7', style: 'short' },
-          { id: 'f8', label: 'Field 8', style: 'short' },
+          { id: 'f1', label: 'Field 1', style: 'short', maxLength: 100 },
+          { id: 'f2', label: 'Field 2', style: 'short', maxLength: 100, hidden: true },
+          { id: 'f3', label: 'Field 3', style: 'short', maxLength: 100 },
+          { id: 'f4', label: 'Field 4', style: 'short', maxLength: 100, hidden: true },
+          { id: 'f5', label: 'Field 5', style: 'short', maxLength: 100 },
+          { id: 'f6', label: 'Field 6', style: 'short', maxLength: 100 },
+          { id: 'f7', label: 'Field 7', style: 'short', maxLength: 100 },
+          { id: 'f8', label: 'Field 8', style: 'short', maxLength: 100 },
         ]);
 
         // After filtering, we have 6 visible fields, but should only show 5
@@ -308,7 +300,7 @@ describe('ModalFactory', () => {
   describe('buildSimpleModal', () => {
     it('should create a modal with given custom ID and title', () => {
       const modal = buildSimpleModal('my-modal', 'My Modal', [
-        { id: 'field1', label: 'Field 1', style: 'short' },
+        { id: 'field1', label: 'Field 1', style: 'short', maxLength: 100 },
       ]);
       const json = modal.toJSON();
 
@@ -318,8 +310,14 @@ describe('ModalFactory', () => {
 
     it('should add fields with initial values', () => {
       const fields: FieldDefinition[] = [
-        { id: 'name', label: 'Name', style: 'short', required: true },
-        { id: 'bio', label: 'Bio', style: 'paragraph', placeholder: 'Tell us about yourself' },
+        { id: 'name', label: 'Name', style: 'short', required: true, maxLength: 100 },
+        {
+          id: 'bio',
+          label: 'Bio',
+          style: 'paragraph',
+          placeholder: 'Tell us about yourself',
+          maxLength: 4000,
+        },
       ];
 
       const modal = buildSimpleModal('test', 'Test', fields, {
@@ -343,7 +341,7 @@ describe('ModalFactory', () => {
       const modal = buildSimpleModal(
         'test',
         'Test',
-        [{ id: 'field', label: 'Field', style: 'short' }],
+        [{ id: 'field', label: 'Field', style: 'short', maxLength: 100 }],
         { field: '' }
       );
 
@@ -356,6 +354,7 @@ describe('ModalFactory', () => {
         id: `f${i}`,
         label: `Field ${i}`,
         style: 'short' as const,
+        maxLength: 100,
       }));
 
       const modal = buildSimpleModal('test', 'Test', fields);
@@ -420,8 +419,8 @@ describe('ModalFactory', () => {
   describe('validateModalValues', () => {
     it('should return valid for correct values', () => {
       const fields: FieldDefinition[] = [
-        { id: 'name', label: 'Name', style: 'short', required: true },
-        { id: 'bio', label: 'Bio', style: 'paragraph' },
+        { id: 'name', label: 'Name', style: 'short', required: true, maxLength: 100 },
+        { id: 'bio', label: 'Bio', style: 'paragraph', maxLength: 4000 },
       ];
 
       const result = validateModalValues({ name: 'John', bio: 'Developer' }, fields);
@@ -432,7 +431,7 @@ describe('ModalFactory', () => {
 
     it('should fail for missing required fields', () => {
       const fields: FieldDefinition[] = [
-        { id: 'name', label: 'Name', style: 'short', required: true },
+        { id: 'name', label: 'Name', style: 'short', required: true, maxLength: 100 },
       ];
 
       const result = validateModalValues({ name: '' }, fields);
@@ -443,7 +442,7 @@ describe('ModalFactory', () => {
 
     it('should fail for whitespace-only required fields', () => {
       const fields: FieldDefinition[] = [
-        { id: 'name', label: 'Name', style: 'short', required: true },
+        { id: 'name', label: 'Name', style: 'short', required: true, maxLength: 100 },
       ];
 
       const result = validateModalValues({ name: '   ' }, fields);
@@ -454,7 +453,7 @@ describe('ModalFactory', () => {
 
     it('should fail for values below minLength', () => {
       const fields: FieldDefinition[] = [
-        { id: 'name', label: 'Name', style: 'short', minLength: 5 },
+        { id: 'name', label: 'Name', style: 'short', minLength: 5, maxLength: 100 },
       ];
 
       const result = validateModalValues({ name: 'abc' }, fields);
@@ -476,7 +475,7 @@ describe('ModalFactory', () => {
 
     it('should not validate length for empty optional fields', () => {
       const fields: FieldDefinition[] = [
-        { id: 'optional', label: 'Optional', style: 'short', minLength: 5 },
+        { id: 'optional', label: 'Optional', style: 'short', minLength: 5, maxLength: 100 },
       ];
 
       const result = validateModalValues({ optional: '' }, fields);
@@ -486,8 +485,8 @@ describe('ModalFactory', () => {
 
     it('should collect multiple errors', () => {
       const fields: FieldDefinition[] = [
-        { id: 'name', label: 'Name', style: 'short', required: true },
-        { id: 'code', label: 'Code', style: 'short', minLength: 3 },
+        { id: 'name', label: 'Name', style: 'short', required: true, maxLength: 100 },
+        { id: 'code', label: 'Code', style: 'short', minLength: 3, maxLength: 100 },
       ];
 
       const result = validateModalValues({ name: '', code: 'ab' }, fields);
