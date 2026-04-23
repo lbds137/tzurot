@@ -10,11 +10,14 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   decryptApiKey,
-  UserService,
   type PrismaClient,
   TestWalletKeySchema,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -27,7 +30,7 @@ const logger = createLogger('wallet-test-key');
 
 export function createTestKeyRoute(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
 
   router.post(
     '/',

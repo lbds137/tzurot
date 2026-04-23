@@ -8,7 +8,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   isBotOwner,
-  UserService,
+  type UserService,
   type PrismaClient,
   type CacheInvalidationService,
   PersonalityUpdateSchema,
@@ -16,7 +16,11 @@ import {
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
 import { Prisma } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
@@ -289,7 +293,7 @@ export function createUpdateHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   return [
     requireUserAuth(),
     requireProvisionedUser(prisma),

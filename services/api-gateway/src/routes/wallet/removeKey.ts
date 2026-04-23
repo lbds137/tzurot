@@ -7,11 +7,14 @@ import { type Response, type RequestHandler } from 'express';
 import {
   createLogger,
   AIProvider,
-  UserService,
   type PrismaClient,
   type ApiKeyCacheInvalidationService,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -28,7 +31,7 @@ export function createRemoveKeyRoute(
   prisma: PrismaClient,
   apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
 ): RequestHandler[] {
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const provider = req.params.provider as AIProvider;

@@ -7,12 +7,16 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  UserService,
+  type UserService,
   type PrismaClient,
   isBotOwner,
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
-import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
+import {
+  requireUserAuth,
+  requireProvisionedUser,
+  getOrCreateUserService,
+} from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -95,7 +99,7 @@ function createHandler(prisma: PrismaClient, userService: UserService) {
 // --- Route Factory ---
 
 export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
-  const userService = new UserService(prisma);
+  const userService = getOrCreateUserService(prisma);
   return [
     requireUserAuth(),
     requireProvisionedUser(prisma),
