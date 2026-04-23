@@ -87,6 +87,14 @@ const mockPrisma = {
   }),
 };
 
+// TODO(Phase-5c-strict-cutover): migrate this helper to
+// `createProvisionedMockReqRes` from `src/test/shared-route-test-utils.ts`
+// as part of the shadow-mode → strict-400 flip. This file is tagged as the
+// reference migration site for the ~35 route test files that currently
+// mock `requireProvisionedUser` as a no-op. See BACKLOG.md Phase 5c work
+// items → "Tighten `requireProvisionedUser` shadow-mode to strict 400"
+// for the full migration plan — the strict-mode PR must apply this
+// helper to every `createMockReqRes` caller before flipping the middleware.
 function createMockReqRes(body: Record<string, unknown> = {}) {
   const req = {
     body,
