@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handlePersonalityAutocomplete, getVisibilityIcon } from './personalityAutocomplete.js';
 import type { PersonalitySummary } from '@tzurot/common-types';
+import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
 
 // Mock the autocomplete cache
 const mockGetCachedPersonalities = vi.fn();
@@ -177,7 +178,7 @@ describe('handlePersonalityAutocomplete', () => {
       expect(mockRespond).toHaveBeenCalledWith([
         {
           name: '[Unable to load personalities — try again]',
-          value: '__autocomplete_error__',
+          value: AUTOCOMPLETE_ERROR_SENTINEL,
         },
       ]);
     });

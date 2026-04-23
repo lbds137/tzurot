@@ -14,6 +14,7 @@ import {
 } from '@tzurot/common-types';
 import { getCachedPersonas } from './autocompleteCache.js';
 import { toGatewayUser } from '../userGatewayClient.js';
+import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
 
 const logger = createLogger('persona-autocomplete');
 
@@ -66,7 +67,7 @@ export async function handlePersonaAutocomplete(
       // Backend failed AND no stale cache to fall back on — render a visible
       // error choice rather than an empty list that reads as "you have no personas."
       await interaction.respond([
-        { name: '[Unable to load personas — try again]', value: '__autocomplete_error__' },
+        { name: '[Unable to load personas — try again]', value: AUTOCOMPLETE_ERROR_SENTINEL },
       ]);
       return true;
     }

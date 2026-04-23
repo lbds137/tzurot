@@ -464,6 +464,9 @@ describe('autocompleteCache', () => {
      * because TTLCache relies on lru-cache's module-cached `performance.now`,
      * which doesn't respond to vitest fake timers without extra wiring.
      * Clearing fresh directly is functionally equivalent and simpler.
+     *
+     * Personas and shapes share the same `fallbackToStale` code path, so
+     * exercising `personalities` alone is sufficient coverage.
      */
     async function primeStaleOnly(): Promise<void> {
       mockCallGatewayApi.mockResolvedValueOnce({
