@@ -53,7 +53,7 @@ export async function getOrCreateInternalUser(
   });
 
   if (user === null) {
-    throw new Error('User not found after creation');
+    throw new Error(`User not found after creation (userId=${userId}, discordId=${req.userId})`);
   }
 
   return user;
