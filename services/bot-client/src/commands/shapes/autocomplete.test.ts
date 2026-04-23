@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AutocompleteInteraction } from 'discord.js';
 import { handleShapesSlugAutocomplete } from './autocomplete.js';
+import { AUTOCOMPLETE_ERROR_SENTINEL } from '../../utils/apiCheck.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -130,7 +131,7 @@ describe('handleShapesSlugAutocomplete', () => {
     await handleShapesSlugAutocomplete(createMockInteraction('test'));
 
     expect(mockRespond).toHaveBeenCalledWith([
-      { name: '[Unable to load shapes — try again]', value: '__autocomplete_error__' },
+      { name: '[Unable to load shapes — try again]', value: AUTOCOMPLETE_ERROR_SENTINEL },
     ]);
   });
 

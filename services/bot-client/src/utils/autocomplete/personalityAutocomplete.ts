@@ -19,6 +19,7 @@ import {
 } from '@tzurot/common-types';
 import { getCachedPersonalities } from './autocompleteCache.js';
 import { toGatewayUser } from '../userGatewayClient.js';
+import { AUTOCOMPLETE_ERROR_SENTINEL } from '../apiCheck.js';
 
 const logger = createLogger('personality-autocomplete');
 
@@ -80,7 +81,7 @@ export async function handlePersonalityAutocomplete(
       // Backend failed AND no stale cache to fall back on — render a visible
       // error choice rather than an empty list that reads as "you have no personalities."
       await interaction.respond([
-        { name: '[Unable to load personalities — try again]', value: '__autocomplete_error__' },
+        { name: '[Unable to load personalities — try again]', value: AUTOCOMPLETE_ERROR_SENTINEL },
       ]);
       return true;
     }
