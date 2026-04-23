@@ -11,6 +11,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
+  type UserService,
   Prisma,
   BatchDeleteSchema,
   PurgeMemoriesSchema,
@@ -18,9 +19,9 @@ import {
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 import {
-  getUserByDiscordId,
+  getProvisionedUserId,
   getDefaultPersonaId,
   getPersonalityById,
   parseTimeframeFilter,
@@ -35,7 +36,8 @@ const logger = createLogger('memory-batch');
 // eslint-disable-next-line max-lines-per-function -- Procedural handler with sequential validation steps and timeframe parsing
 export async function handleBatchDelete(
   prisma: PrismaClient,
-  req: AuthenticatedRequest,
+  userService: UserService,
+  req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
@@ -49,7 +51,7 @@ export async function handleBatchDelete(
   const { personalityId, personaId: requestedPersonaId, timeframe } = parseResult.data;
 
   // Get user
-  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  const user = await getProvisionedUserId(req, userService, res);
   if (!user) {
     return;
   }
@@ -170,7 +172,8 @@ export async function handleBatchDelete(
  */
 export async function handlePurge(
   prisma: PrismaClient,
-  req: AuthenticatedRequest,
+  userService: UserService,
+  req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
@@ -184,7 +187,7 @@ export async function handlePurge(
   const { personalityId, confirmationPhrase } = parseResult.data;
 
   // Get user
-  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  const user = await getProvisionedUserId(req, userService, res);
   if (!user) {
     return;
   }
@@ -281,10 +284,10 @@ export async function handlePurge(
  */
 export async function handleBatchDeletePreview(
   prisma: PrismaClient,
-  req: AuthenticatedRequest,
+  userService: UserService,
+  req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
-  const discordUserId = req.userId;
   const {
     personalityId,
     personaId: requestedPersonaId,
@@ -302,7 +305,7 @@ export async function handleBatchDeletePreview(
   }
 
   // Get user
-  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  const user = await getProvisionedUserId(req, userService, res);
   if (!user) {
     return;
   }

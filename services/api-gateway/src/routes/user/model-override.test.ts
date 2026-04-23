@@ -394,21 +394,6 @@ describe('/user/model-override routes', () => {
   });
 
   describe('DELETE /user/model-override/:personalityId', () => {
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
-      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'delete', '/:personalityId');
-      const { req, res } = createMockReqRes(
-        {},
-        { personalityId: '11111111-1111-4111-a111-111111111111' }
-      );
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
     it('should return 200 (idempotent) when override not found', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
 
@@ -479,8 +464,14 @@ describe('/user/model-override routes', () => {
   });
 
   describe('GET /user/model-override/default', () => {
-    it('should return null default when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+    it('should return null default when user has none set', async () => {
+      // getOrCreateUserShell resolves the UUID; subsequent findUnique for default
+      // returns a user with no default config.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        defaultLlmConfigId: null,
+        defaultLlmConfig: null,
+      });
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/default');
@@ -500,7 +491,9 @@ describe('/user/model-override routes', () => {
     });
 
     it('should return user default config when set', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
+      // UserService.getOrCreateUserShell first, then the handler's own findUnique by id.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
         defaultLlmConfig: { name: 'My Default Config' },
       });
@@ -677,8 +670,11 @@ describe('/user/model-override routes', () => {
   });
 
   describe('DELETE /user/model-override/default', () => {
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+    it('should return 404 when user lookup returns null after provisioning', async () => {
+      // Defensive 404 path: shell returns UUID, but the subsequent handler-level
+      // findUnique returns null (e.g., race with user deletion).
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/default');
@@ -690,8 +686,8 @@ describe('/user/model-override routes', () => {
     });
 
     it('should return 200 (idempotent) when no default config set', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
-        id: 'user-uuid-123',
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: null,
       });
 
@@ -711,8 +707,8 @@ describe('/user/model-override routes', () => {
     });
 
     it('should clear default config successfully', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
-        id: 'user-uuid-123',
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });
 
@@ -737,8 +733,8 @@ describe('/user/model-override routes', () => {
 
   describe('DELETE /user/model-override/default cache invalidation', () => {
     it('should call invalidateUserLlmConfig on success', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
-        id: 'user-uuid-123',
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });
       const mockInvalidation = {

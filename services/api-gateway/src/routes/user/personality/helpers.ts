@@ -4,7 +4,9 @@
  */
 
 import type { Response } from 'express';
-import { Prisma, type PrismaClient, isBotOwner } from '@tzurot/common-types';
+import { Prisma, type PrismaClient, type UserService, isBotOwner } from '@tzurot/common-types';
+import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 
@@ -76,22 +78,6 @@ export async function canUserEditPersonality(
 }
 
 /**
- * Look up the internal user ID for a Discord user.
- * Returns the user ID or null if not found.
- *
- * Extracted from personality route handlers to reduce duplication.
- */
-async function findInternalUser(
-  prisma: PrismaClient,
-  discordUserId: string
-): Promise<{ id: string } | null> {
-  return prisma.user.findFirst({
-    where: { discordId: discordUserId },
-    select: { id: true },
-  });
-}
-
-/**
  * Check if user has view access to a personality
  * Access is granted if:
  * - User is bot owner (admin bypass)
@@ -151,27 +137,31 @@ interface ResolvePersonalityOptions {
   action?: string;
 }
 
+interface ResolvePersonalityForEditParams {
+  prisma: PrismaClient;
+  userService: UserService;
+  req: ProvisionedRequest;
+  slug: string;
+  res: Response;
+  options: ResolvePersonalityOptions;
+}
+
 /**
- * Look up user, personality by slug, and verify edit permission.
- * Sends appropriate error responses and returns null if any check fails.
+ * Resolve the current user's internal UUID, look up a personality by slug,
+ * and verify edit permission. Sends appropriate error responses and returns
+ * null if any check fails.
  *
  * Callers specify a Prisma select clause; the result personality is cast to T.
  * The select MUST include `id` and `ownerId` — enforced at the type level.
  */
 export async function resolvePersonalityForEdit<T extends { id: string; ownerId: string }>(
-  prisma: PrismaClient,
-  slug: string,
-  discordUserId: string,
-  res: Response,
-  options: ResolvePersonalityOptions
+  params: ResolvePersonalityForEditParams
 ): Promise<{ user: { id: string }; personality: T } | null> {
+  const { prisma, userService, req, slug, res, options } = params;
   const { select, action = 'edit' } = options;
+  const discordUserId = req.userId;
 
-  const user = await findInternalUser(prisma, discordUserId);
-  if (user === null) {
-    sendError(res, ErrorResponses.unauthorized('User not found'));
-    return null;
-  }
+  const userId = await resolveProvisionedUserId(req, userService);
 
   const personality = await prisma.personality.findUnique({ where: { slug }, select });
   if (personality === null) {
@@ -181,7 +171,7 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
 
   const canEdit = await canUserEditPersonality(
     prisma,
-    user.id,
+    userId,
     (personality as { id: string }).id,
     discordUserId
   );
@@ -195,5 +185,5 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
 
   // Cast through unknown: Prisma's full model type doesn't structurally overlap with T,
   // but the select clause ensures only the requested fields are present at runtime.
-  return { user, personality: personality as unknown as T };
+  return { user: { id: userId }, personality: personality as unknown as T };
 }

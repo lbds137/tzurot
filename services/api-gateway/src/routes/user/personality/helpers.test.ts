@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, UserService } from '@tzurot/common-types';
+import type { ProvisionedRequest } from '../../../types.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 const mockIsBotOwner = vi.fn().mockReturnValue(false);
@@ -311,34 +312,31 @@ describe('personality route helpers', () => {
       } as unknown as Response;
     }
 
-    it('should return 403 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      const res = createMockRes();
+    function createMockReq(discordId: string, provisionedUserId?: string): ProvisionedRequest {
+      return {
+        userId: discordId,
+        provisionedUserId,
+      } as unknown as ProvisionedRequest;
+    }
 
-      const result = await resolvePersonalityForEdit(
-        mockPrisma as unknown as PrismaClient,
-        'test-slug',
-        'discord-unknown',
-        res,
-        { select: { id: true, ownerId: true } }
-      );
-
-      expect(result).toBeNull();
-      expect(res.status).toHaveBeenCalledWith(403);
-    });
+    function createUserService(userId: string): UserService {
+      return {
+        getOrCreateUserShell: vi.fn().mockResolvedValue(userId),
+      } as unknown as UserService;
+    }
 
     it('should return 404 when personality not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
       mockPrisma.personality.findUnique.mockResolvedValue(null);
       const res = createMockRes();
 
-      const result = await resolvePersonalityForEdit(
-        mockPrisma as unknown as PrismaClient,
-        'nonexistent-slug',
-        'discord-123',
+      const result = await resolvePersonalityForEdit({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userService: createUserService('user-id'),
+        req: createMockReq('discord-123'),
+        slug: 'nonexistent-slug',
         res,
-        { select: { id: true, ownerId: true } }
-      );
+        options: { select: { id: true, ownerId: true } },
+      });
 
       expect(result).toBeNull();
       expect(res.status).toHaveBeenCalledWith(404);
@@ -348,7 +346,6 @@ describe('personality route helpers', () => {
     });
 
     it('should return 403 when user lacks edit permission', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'pers-id',
         ownerId: 'other-user-id',
@@ -356,13 +353,14 @@ describe('personality route helpers', () => {
       mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
       const res = createMockRes();
 
-      const result = await resolvePersonalityForEdit(
-        mockPrisma as unknown as PrismaClient,
-        'test-slug',
-        'discord-123',
+      const result = await resolvePersonalityForEdit({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userService: createUserService('user-id'),
+        req: createMockReq('discord-123'),
+        slug: 'test-slug',
         res,
-        { select: { id: true, ownerId: true } }
-      );
+        options: { select: { id: true, ownerId: true } },
+      });
 
       expect(result).toBeNull();
       expect(res.status).toHaveBeenCalledWith(403);
@@ -374,7 +372,6 @@ describe('personality route helpers', () => {
     });
 
     it('should use custom action verb in permission error message', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'pers-id',
         ownerId: 'other-user-id',
@@ -382,13 +379,14 @@ describe('personality route helpers', () => {
       mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
       const res = createMockRes();
 
-      const result = await resolvePersonalityForEdit(
-        mockPrisma as unknown as PrismaClient,
-        'test-slug',
-        'discord-123',
+      const result = await resolvePersonalityForEdit({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userService: createUserService('user-id'),
+        req: createMockReq('discord-123'),
+        slug: 'test-slug',
         res,
-        { select: { id: true, ownerId: true }, action: 'delete' }
-      );
+        options: { select: { id: true, ownerId: true }, action: 'delete' },
+      });
 
       expect(result).toBeNull();
       expect(res.json).toHaveBeenCalledWith(
@@ -399,7 +397,6 @@ describe('personality route helpers', () => {
     });
 
     it('should return user and personality on success', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'pers-id',
         ownerId: 'user-id',
@@ -407,18 +404,42 @@ describe('personality route helpers', () => {
       });
       const res = createMockRes();
 
-      const result = await resolvePersonalityForEdit(
-        mockPrisma as unknown as PrismaClient,
-        'test-slug',
-        'discord-123',
+      const result = await resolvePersonalityForEdit({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userService: createUserService('user-id'),
+        req: createMockReq('discord-123'),
+        slug: 'test-slug',
         res,
-        { select: { id: true, ownerId: true, name: true } }
-      );
+        options: { select: { id: true, ownerId: true, name: true } },
+      });
 
       expect(result).not.toBeNull();
       expect(result!.user).toEqual({ id: 'user-id' });
       expect(result!.personality).toEqual({ id: 'pers-id', ownerId: 'user-id', name: 'Test' });
       expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('should prefer provisionedUserId over shell fallback', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'pers-id',
+        ownerId: 'provisioned-id',
+      });
+      const res = createMockRes();
+      const shellSpy = vi.fn().mockResolvedValue('shell-id');
+      const userService = { getOrCreateUserShell: shellSpy } as unknown as UserService;
+
+      const result = await resolvePersonalityForEdit({
+        prisma: mockPrisma as unknown as PrismaClient,
+        userService,
+        req: createMockReq('discord-123', 'provisioned-id'),
+        slug: 'test-slug',
+        res,
+        options: { select: { id: true, ownerId: true } },
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.user).toEqual({ id: 'provisioned-id' });
+      expect(shellSpy).not.toHaveBeenCalled();
     });
   });
 });

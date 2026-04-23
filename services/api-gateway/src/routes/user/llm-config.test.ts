@@ -279,24 +279,6 @@ describe('/user/llm-config routes', () => {
         })
       );
     });
-
-    it('should return empty user configs when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      mockPrisma.llmConfig.findMany.mockResolvedValue([]);
-
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'get', '/');
-      const { req, res } = createMockReqRes();
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          configs: [],
-        })
-      );
-    });
   });
 
   describe('GET /user/llm-config/:id', () => {
@@ -613,21 +595,6 @@ describe('/user/llm-config routes', () => {
 
       expect(mockValidateLlmConfigModelFields).toHaveBeenCalled();
       expect(mockPrisma.llmConfig.update).not.toHaveBeenCalled();
-    });
-
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
-      const handler = getHandler(router, 'put', '/:id');
-      const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should return 404 when config not found', async () => {

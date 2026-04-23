@@ -78,6 +78,7 @@ function buildResponse(settings: Prisma.AdminSettingsGetPayload<object>): GetAdm
 /** Resolve Discord ID → User UUID for the updatedBy FK */
 async function resolveUserUuid(prisma: PrismaClient, discordId: string): Promise<string | null> {
   const user = await prisma.user.findFirst({
+    // eslint-disable-next-line no-restricted-syntax -- Admin audit FK: route is behind requireOwnerAuth/service auth, not requireProvisionedUser; the Discord ID comes from the X-Owner-Id / X-User-Id header and the internal UUID is needed for AdminSettings.updatedBy FK attribution
     where: { discordId },
     select: { id: true },
   });

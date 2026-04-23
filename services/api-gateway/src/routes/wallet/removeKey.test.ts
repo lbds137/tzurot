@@ -36,12 +36,16 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 // Mock Prisma
 const mockPrisma = {
   user: {
+    findUnique: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     findFirst: vi.fn(),
+    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
   },
   userApiKey: {
     findFirst: vi.fn(),
     delete: vi.fn(),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
 import { createRemoveKeyRoute } from './removeKey.js';
@@ -135,30 +139,21 @@ describe('DELETE /wallet/:provider', () => {
   });
 
   describe('user lookup', () => {
-    it('should return 404 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
+    it('should resolve user via provisioning and scope API key lookup to UUID', async () => {
       const { req, res } = createMockReqRes(AIProvider.OpenRouter);
 
       await callHandler(mockPrisma, req, res);
 
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
+      // Shadow fallback reads by discordId to resolve the UUID.
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
+      );
+      // API keys are queried by internal UUID.
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          error: 'NOT_FOUND',
+          where: expect.objectContaining({ userId: 'user-uuid-123' }),
         })
       );
-    });
-
-    it('should query user by Discord ID', async () => {
-      const { req, res } = createMockReqRes(AIProvider.OpenRouter);
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
-        where: { discordId: 'discord-user-123' },
-        select: { id: true },
-      });
     });
   });
 

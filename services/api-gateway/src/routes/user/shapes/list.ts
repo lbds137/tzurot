@@ -11,6 +11,7 @@ import { Router, type Response } from 'express';
 import {
   createLogger,
   decryptApiKey,
+  UserService,
   type PrismaClient,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
@@ -19,9 +20,10 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-list');
 
@@ -35,23 +37,15 @@ interface ShapesListItem {
   created_ts?: number;
 }
 
-function createListHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+function createListHandler(prisma: PrismaClient, userService: UserService) {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
-    // Look up user and credential
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      return sendError(res, ErrorResponses.unauthorized('No shapes.inc credentials found'));
-    }
+    const userId = await resolveProvisionedUserId(req, userService);
 
     const credential = await prisma.userCredential.findFirst({
       where: {
-        userId: user.id,
+        userId,
         service: CREDENTIAL_SERVICES.SHAPES_INC,
         credentialType: CREDENTIAL_TYPES.SESSION_COOKIE,
       },
@@ -117,7 +111,7 @@ function createListHandler(prisma: PrismaClient) {
       // Update lastUsedAt
       await prisma.userCredential.updateMany({
         where: {
-          userId: user.id,
+          userId,
           service: CREDENTIAL_SERVICES.SHAPES_INC,
           credentialType: CREDENTIAL_TYPES.SESSION_COOKIE,
         },
@@ -147,12 +141,13 @@ function createListHandler(prisma: PrismaClient) {
 
 export function createShapesListRoutes(prisma: PrismaClient): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   router.get(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(prisma))
+    asyncHandler(createListHandler(prisma, userService))
   );
 
   return router;
