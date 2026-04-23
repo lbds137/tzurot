@@ -57,7 +57,7 @@ export function registerReleaseCommands(cli: CAC): void {
   cli
     .command(
       'release:finalize',
-      'Rebase develop onto main after a release PR merges (step 5 of the release flow)'
+      'Rebase develop onto main after a release PR merges (step 6 of the release flow)'
     )
     .option('--dry-run', 'Preview the planned steps without executing')
     .option('--yes', 'Skip the force-push confirmation prompt (required on non-TTY stdin)')
