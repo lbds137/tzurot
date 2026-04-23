@@ -115,8 +115,15 @@ export class GatewayClient {
             conversationHistory: context.conversationHistory ?? [],
           },
         }),
-        // Short timeout - we're just submitting the job
-        signal: AbortSignal.timeout(10000), // 10s
+        // "Just submitting" is misleading: api-gateway currently downloads
+        // all extended-context attachments synchronously inside the
+        // /ai/generate handler before responding, so response time scales
+        // with attachment payload size. Observed timeouts in prod with
+        // 12-attachment requests (~several MB total) taking >10s. 60s
+        // accommodates heavy-attachment cases; structural fix (move
+        // downloads to ai-worker lazy-load) tracked in BACKLOG.md
+        // § Production Issues.
+        signal: AbortSignal.timeout(60000), // 60s
       });
 
       if (!response.ok) {
