@@ -7,15 +7,17 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  UserService,
   type PrismaClient,
   isBotOwner,
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
-import type { AuthenticatedRequest } from '../../../types.js';
+import type { ProvisionedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { canUserEditPersonality } from './helpers.js';
 import { formatPersonalityResponse } from './formatters.js';
@@ -54,15 +56,12 @@ async function checkUserAccess(
 
 // --- Handler Factory ---
 
-function createHandler(prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+function createHandler(prisma: PrismaClient, userService: UserService) {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
 
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
+    const userId = await resolveProvisionedUserId(req, userService);
 
     const personality = await prisma.personality.findUnique({
       where: { slug },
@@ -73,7 +72,7 @@ function createHandler(prisma: PrismaClient) {
       return sendError(res, ErrorResponses.notFound('Personality'));
     }
 
-    const hasAccess = await checkUserAccess(prisma, user?.id, personality, discordUserId);
+    const hasAccess = await checkUserAccess(prisma, userId, personality, discordUserId);
     if (!hasAccess) {
       return sendError(
         res,
@@ -81,9 +80,7 @@ function createHandler(prisma: PrismaClient) {
       );
     }
 
-    const canEdit =
-      user !== null &&
-      (await canUserEditPersonality(prisma, user.id, personality.id, discordUserId));
+    const canEdit = await canUserEditPersonality(prisma, userId, personality.id, discordUserId);
 
     logger.info({ discordUserId, slug, canEdit }, 'Retrieved personality');
 
@@ -98,5 +95,10 @@ function createHandler(prisma: PrismaClient) {
 // --- Route Factory ---
 
 export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
-  return [requireUserAuth(), requireProvisionedUser(prisma), asyncHandler(createHandler(prisma))];
+  const userService = new UserService(prisma);
+  return [
+    requireUserAuth(),
+    requireProvisionedUser(prisma),
+    asyncHandler(createHandler(prisma, userService)),
+  ];
 }

@@ -87,9 +87,9 @@ describe('NSFW Routes', () => {
   describe('GET /nsfw', () => {
     it('should return verified status for verified user', async () => {
       const verifiedAt = new Date('2024-01-15T10:00:00Z');
-      // Mock UserService.getOrCreateUser - returns existing user
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'test-uuid' });
-      mockPrisma.user.findFirst.mockResolvedValue({
+      // First findUnique: getOrCreateUserShell lookup by discordId.
+      // Second findUnique: handler's own read by UUID for the NSFW fields.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'test-uuid' }).mockResolvedValueOnce({
         nsfwVerified: true,
         nsfwVerifiedAt: verifiedAt,
       });
@@ -104,9 +104,7 @@ describe('NSFW Routes', () => {
     });
 
     it('should return not verified for non-verified user', async () => {
-      // Mock UserService.getOrCreateUser - returns existing user
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'test-uuid' });
-      mockPrisma.user.findFirst.mockResolvedValue({
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'test-uuid' }).mockResolvedValueOnce({
         nsfwVerified: false,
         nsfwVerifiedAt: null,
       });
@@ -120,10 +118,10 @@ describe('NSFW Routes', () => {
       });
     });
 
-    it('should return not verified for non-existent user', async () => {
-      // Mock UserService.getOrCreateUser - returns existing user
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'test-uuid' });
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+    it('should return not verified when user row missing after provisioning', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ id: 'test-uuid' })
+        .mockResolvedValueOnce(null);
 
       const response = await request(app).get('/nsfw');
 

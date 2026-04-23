@@ -33,7 +33,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
-import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 import {
   LlmConfigService,
   AutoSuffixCollisionError,
@@ -56,32 +56,27 @@ const CONFIG_RESOURCE = 'Config';
 
 // --- Handler Factories ---
 
-function createListHandler(service: LlmConfigService, prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+function createListHandler(service: LlmConfigService, userService: UserService) {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
-
-    // Get user's internal ID for scope
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Admin sees all presets (same pattern as character browse)
     // Regular users see global + their own
     const isAdmin = isBotOwner(discordUserId);
     const scope: LlmConfigScope = isAdmin
       ? { type: 'GLOBAL' }
-      : { type: 'USER', userId: user?.id ?? 'anonymous', discordId: discordUserId };
+      : { type: 'USER', userId, discordId: discordUserId };
 
     const rawConfigs = await service.list(scope);
 
     // Enrich with ownership and permissions (user-specific)
     const configs: LlmConfigSummary[] = rawConfigs.map(c => ({
       ...c,
-      isOwned: user !== null && c.ownerId === user.id,
+      isOwned: c.ownerId === userId,
       permissions: computeLlmConfigPermissions(
         { ownerId: c.ownerId, isGlobal: c.isGlobal },
-        user?.id ?? null,
+        userId,
         discordUserId
       ),
     }));
@@ -93,10 +88,10 @@ function createListHandler(service: LlmConfigService, prisma: PrismaClient) {
 
 function createGetHandler(
   service: LlmConfigService,
-  prisma: PrismaClient,
+  userService: UserService,
   modelCache?: OpenRouterModelCache
 ) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
@@ -106,19 +101,15 @@ function createGetHandler(
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
 
-    // Get user for ownership/permission check
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Determine if user owns this config
-    const isOwned = config.ownerId !== null && user !== null && config.ownerId === user.id;
+    const isOwned = config.ownerId !== null && config.ownerId === userId;
 
     // Compute permissions
     const permissions = computeLlmConfigPermissions(
       { ownerId: config.ownerId, isGlobal: config.isGlobal },
-      user?.id ?? null,
+      userId,
       discordUserId
     );
 
@@ -232,10 +223,10 @@ function createCreateHandler(
 
 function createUpdateHandler(
   service: LlmConfigService,
-  prisma: PrismaClient,
+  userService: UserService,
   modelCache?: OpenRouterModelCache
 ) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
@@ -257,14 +248,7 @@ function createUpdateHandler(
       return;
     }
 
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      return sendError(res, ErrorResponses.notFound('User'));
-    }
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Get existing config using service
     const config = await service.getById(configId);
@@ -273,7 +257,7 @@ function createUpdateHandler(
     }
 
     // Users can only edit configs they own (including their own global presets)
-    if (config.ownerId !== user.id) {
+    if (config.ownerId !== userId) {
       return sendError(res, ErrorResponses.unauthorized('You can only edit your own configs'));
     }
 
@@ -281,7 +265,7 @@ function createUpdateHandler(
     if (body.name !== undefined) {
       const nameCheck = await service.checkNameExists(
         body.name,
-        { type: 'USER', userId: user.id, discordId: discordUserId },
+        { type: 'USER', userId, discordId: discordUserId },
         configId
       );
       if (nameCheck.exists) {
@@ -301,8 +285,8 @@ function createUpdateHandler(
 
     // User always owns their own updated config (we already checked ownership above)
     const permissions = computeLlmConfigPermissions(
-      { ownerId: user.id, isGlobal: updated.isGlobal },
-      user.id,
+      { ownerId: userId, isGlobal: updated.isGlobal },
+      userId,
       discordUserId
     );
 
@@ -323,19 +307,12 @@ function createUpdateHandler(
   };
 }
 
-function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
-  return async (req: AuthenticatedRequest, res: Response) => {
+function createDeleteHandler(service: LlmConfigService, userService: UserService) {
+  return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      return sendError(res, ErrorResponses.notFound('User'));
-    }
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Get config using service
     const config = await service.getById(configId);
@@ -346,7 +323,7 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
     // Use centralized permission computation for consistency
     const permissions = computeLlmConfigPermissions(
       { ownerId: config.ownerId, isGlobal: config.isGlobal },
-      user.id,
+      userId,
       discordUserId
     );
     if (!permissions.canDelete) {
@@ -385,13 +362,13 @@ export function createLlmConfigRoutes(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(service, prisma))
+    asyncHandler(createListHandler(service, userService))
   );
   router.get(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createGetHandler(service, prisma, modelCache))
+    asyncHandler(createGetHandler(service, userService, modelCache))
   );
   router.post(
     '/',
@@ -409,13 +386,13 @@ export function createLlmConfigRoutes(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createUpdateHandler(service, prisma, modelCache))
+    asyncHandler(createUpdateHandler(service, userService, modelCache))
   );
   router.delete(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(service, prisma))
+    asyncHandler(createDeleteHandler(service, userService))
   );
 
   return router;

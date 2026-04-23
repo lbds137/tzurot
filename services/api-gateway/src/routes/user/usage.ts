@@ -7,15 +7,17 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  UserService,
   type PrismaClient,
   type UsagePeriod,
   type UsageStats,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('user-usage');
 
@@ -49,6 +51,7 @@ function getPeriodStartDate(period: UsagePeriod): Date | null {
 
 export function createUsageRoutes(prisma: PrismaClient): Router {
   const router = Router();
+  const userService = new UserService(prisma);
 
   /**
    * GET /user/usage
@@ -61,7 +64,7 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
       const period = (req.query.period as UsagePeriod) ?? 'month';
 
@@ -73,34 +76,13 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      // Get user ID
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
-        select: { id: true },
-      });
-
-      if (user === null) {
-        // No user = no usage
-        const emptyStats: UsageStats = {
-          period,
-          periodStart: getPeriodStartDate(period)?.toISOString() ?? null,
-          periodEnd: new Date().toISOString(),
-          totalRequests: 0,
-          totalTokensIn: 0,
-          totalTokensOut: 0,
-          totalTokens: 0,
-          byProvider: {},
-          byModel: {},
-          byRequestType: {},
-        };
-        return sendCustomSuccess(res, emptyStats, StatusCodes.OK);
-      }
+      const userId = await resolveProvisionedUserId(req, userService);
 
       const periodStart = getPeriodStartDate(period);
 
       // Build where clause
       const where: { userId: string; createdAt?: { gte: Date } } = {
-        userId: user.id,
+        userId,
       };
       if (periodStart !== null) {
         where.createdAt = { gte: periodStart };

@@ -14,6 +14,7 @@ import type { Redis } from 'ioredis';
 import {
   createLogger,
   getDurationLabel,
+  UserService,
   type PrismaClient,
   EnableIncognitoRequestSchema,
   DisableIncognitoRequestSchema,
@@ -23,9 +24,9 @@ import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMidd
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
 import { IncognitoSessionManager } from '../../services/IncognitoSessionManager.js';
-import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
+import { getProvisionedUserId, getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-incognito');
 
@@ -203,7 +204,8 @@ async function handleDisable(
  */
 async function handleForget(
   prisma: PrismaClient,
-  req: AuthenticatedRequest,
+  userService: UserService,
+  req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
@@ -216,7 +218,7 @@ async function handleForget(
 
   const { personalityId, timeframe } = parseResult.data;
 
-  const user = await getUserByDiscordId(prisma, discordUserId, res);
+  const user = await getProvisionedUserId(req, userService, res);
   if (!user) {
     return;
   }
@@ -312,6 +314,7 @@ async function handleForget(
 export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Router {
   const router = Router();
   const manager = new IncognitoSessionManager(redis);
+  const userService = new UserService(prisma);
 
   // GET /user/memory/incognito - Get status
   router.get(
@@ -346,7 +349,9 @@ export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Route
     '/forget',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler((req: AuthenticatedRequest, res: Response) => handleForget(prisma, req, res))
+    asyncHandler((req: ProvisionedRequest, res: Response) =>
+      handleForget(prisma, userService, req, res)
+    )
   );
 
   return router;

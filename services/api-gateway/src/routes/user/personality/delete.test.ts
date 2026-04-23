@@ -75,18 +75,6 @@ describe('DELETE /user/personality/:slug', () => {
     mockMkdir.mockResolvedValue(undefined);
   });
 
-  it('should return 403 when user not found', async () => {
-    mockPrisma.user.findFirst.mockResolvedValue(null);
-
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
-    const handler = getHandler(router, 'delete', '/:slug');
-    const { req, res } = createMockReqRes({}, { slug: 'test-char' });
-
-    await handler(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(403);
-  });
-
   it('should return 404 when personality not found', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue(null);
 

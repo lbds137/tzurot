@@ -44,6 +44,56 @@ const PINO_LOGGER_RULES = PINO_LEVELS.flatMap(level => [
   },
 ]);
 
+// Identity & Provisioning Hardening (epic Phase 2): all User creation must
+// route through UserService. Shared across the main block and the route-level
+// override so it stays enforced even when the routes override replaces the
+// `no-restricted-syntax` rule wholesale.
+const IDENTITY_PROVISIONING_RULES = [
+  {
+    selector:
+      "CallExpression[callee.property.name=/^(create|upsert|createMany)$/][callee.object.property.name='user']",
+    message:
+      'Direct prisma.user.create/upsert/createMany is banned outside UserService. Use userService.getOrCreateUser (for Discord-interaction paths with username) or userService.getOrCreateUserShell (for HTTP routes). See epic-identity-hardening.md Phase 2.',
+  },
+  {
+    selector:
+      "CallExpression[callee.property.name=/^(create|upsert|createMany)$/][callee.object.property.name='persona']",
+    message:
+      'Direct prisma.persona.create/upsert/createMany is banned outside UserService and persona/crud.ts. Persona lifecycle must go through the centralized service to preserve the userId+personaId deterministic-UUID invariant.',
+  },
+  {
+    selector: "CallExpression[callee.name='generateLlmConfigUuid']",
+    message:
+      'generateLlmConfigUuid is deprecated for prod callers — it caused phantom PK collisions when users cloned+renamed LlmConfigs (bug 2026-04-19). Use `newLlmConfigId()` for new rows and rely on the `@@unique([ownerId, name])` DB constraint for name uniqueness. See the @deprecated docstring in packages/common-types/src/utils/deterministicUuid.ts. Test fixtures are allowed; if your file is test-adjacent, add eslint-disable with a concrete justification.',
+  },
+];
+
+// Identity Epic Phase 6: handlers mounted behind `requireProvisionedUser` must
+// read the internal UUID from `req.provisionedUserId` (or via the
+// `resolveProvisionedUserId` helper), NOT re-derive it by querying the users
+// table by the Discord snowflake. The middleware has already done that lookup.
+// Querying `user.find*({ where: { discordId } })` in a route handler is either
+// (a) a redundant DB round-trip, or (b) a sign the handler is working with the
+// wrong identity — the exact class of drift that shipped as the 2026-04-23
+// auth.ts regression (PR #880) and the 2026-04-22 createStoreHandler-vs-
+// siblings inconsistency that surfaced on PR #879.
+//
+// Scope: only routes under `services/api-gateway/src/routes/**/*.ts`. Other
+// locations (UserService, AuthMiddleware) legitimately look users up by
+// Discord ID and are excluded by the `files:` glob on the override below.
+const PROVISIONED_USER_ROUTE_RULES = [
+  {
+    // Only fire when `discordId` appears inside a `where` clause of a
+    // prisma.user.* query — that's the identity-lookup pattern. A column
+    // selection like `select: { discordId: true }` on an already-joined user
+    // row is not an identity lookup and must not trip the rule.
+    selector:
+      "CallExpression[callee.property.name=/^(findFirst|findUnique|findMany|count|delete|deleteMany|update|updateMany)$/][callee.object.property.name='user'] Property[key.name='where'] ObjectExpression Property[key.name='discordId']",
+    message:
+      'Route handlers under `requireProvisionedUser` must not query the users table by discordId — the middleware has already attached the internal UUID to `req.provisionedUserId`. Use `resolveProvisionedUserId(req, userService)` instead. See epic-identity-hardening.md Phase 5c/6 and BACKLOG.md (Phase 5c work items). If you have a legitimate cross-user lookup (e.g., admin routes under requireOwnerAuth), add an eslint-disable with a concrete justification.',
+  },
+];
+
 export default tseslint.config(
   // Base configurations
   js.configs.recommended,
@@ -193,40 +243,7 @@ export default tseslint.config(
       // syntactic rule is a strong first line of defense. If that changes,
       // either stop the destructure in review or extend this with a
       // dependency-cruiser rule that catches the import-level pattern.
-      'no-restricted-syntax': [
-        'error',
-        ...PINO_LOGGER_RULES,
-        // Identity & Provisioning Hardening (epic Phase 2): all User creation
-        // must route through UserService so deterministic UUIDs, race handling,
-        // and persona backfill stay in one place. Direct prisma.user.create
-        // (and upsert/createMany) is how the snowflake-as-Persona.name bug
-        // shipped in PR #803 — see docs/reference/architecture/epic-identity-hardening.md.
-        {
-          selector:
-            "CallExpression[callee.property.name=/^(create|upsert|createMany)$/][callee.object.property.name='user']",
-          message:
-            'Direct prisma.user.create/upsert/createMany is banned outside UserService. Use userService.getOrCreateUser (for Discord-interaction paths with username) or userService.getOrCreateUserShell (for HTTP routes). See epic-identity-hardening.md Phase 2.',
-        },
-        {
-          selector:
-            "CallExpression[callee.property.name=/^(create|upsert|createMany)$/][callee.object.property.name='persona']",
-          message:
-            'Direct prisma.persona.create/upsert/createMany is banned outside UserService and persona/crud.ts. Persona lifecycle must go through the centralized service to preserve the userId+personaId deterministic-UUID invariant.',
-        },
-        // Phantom-PK Protection: generateLlmConfigUuid derives a UUIDv5 from
-        // the config's user-editable name — clone-then-rename-then-re-clone
-        // produced phantom PK collisions (bug 2026-04-19). Prod creates now
-        // use newLlmConfigId (UUIDv7) + DB `@@unique([ownerId, name])`. The
-        // sole remaining prod caller is ShapesPersonalityMapper, which needs
-        // a deterministic upsert key for idempotent shape re-import — marked
-        // with an eslint-disable-next-line at that site. Any new prod caller
-        // is almost certainly reintroducing the phantom-PK class of bug.
-        {
-          selector: "CallExpression[callee.name='generateLlmConfigUuid']",
-          message:
-            'generateLlmConfigUuid is deprecated for prod callers — it caused phantom PK collisions when users cloned+renamed LlmConfigs (bug 2026-04-19). Use `newLlmConfigId()` for new rows and rely on the `@@unique([ownerId, name])` DB constraint for name uniqueness. See the @deprecated docstring in packages/common-types/src/utils/deterministicUuid.ts. Test fixtures are allowed; if your file is test-adjacent, add eslint-disable with a concrete justification.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...PINO_LOGGER_RULES, ...IDENTITY_PROVISIONING_RULES],
 
       // ============================================================================
       // MODULE SIZE & COMPLEXITY RULES
@@ -331,9 +348,28 @@ export default tseslint.config(
     },
   },
 
+  // Identity Epic Phase 6: route handlers must not query users by discordId.
+  // Replicates the main block's `no-restricted-syntax` rules and adds the
+  // routes-only discordId-query ban. Placed BEFORE the persona/crud.ts +
+  // UserService exemption below so that exemption wins for those files
+  // (ESLint flat config merges rules in file order, last match wins).
+  {
+    files: ['services/api-gateway/src/routes/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...PINO_LOGGER_RULES,
+        ...IDENTITY_PROVISIONING_RULES,
+        ...PROVISIONED_USER_ROUTE_RULES,
+      ],
+    },
+  },
+
   // Files exempt from the prisma.user/persona.create ban (epic Phase 2).
   // These ARE the canonical creation sites — the ban exists to funnel every
   // other caller through them. Logger rules still apply via PINO_LOGGER_RULES.
+  // Must come AFTER the routes-scoped identity override above so this
+  // exemption wins for persona/crud.ts.
   {
     files: [
       'packages/common-types/src/services/UserService.ts',

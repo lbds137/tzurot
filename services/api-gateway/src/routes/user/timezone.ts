@@ -20,7 +20,7 @@ import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.j
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
-import type { AuthenticatedRequest, ProvisionedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('user-timezone');
 
@@ -36,24 +36,16 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
+    asyncHandler(async (req: ProvisionedRequest, res: Response) => {
+      const userId = await resolveProvisionedUserId(req, userService);
 
-      const user = await prisma.user.findFirst({
-        where: { discordId: discordUserId },
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
         select: { timezone: true },
       });
 
       if (user === null) {
-        // User doesn't exist yet, return default
-        return sendCustomSuccess(
-          res,
-          {
-            timezone: 'UTC',
-            isDefault: true,
-          },
-          StatusCodes.OK
-        );
+        return sendError(res, ErrorResponses.notFound('User'));
       }
 
       sendCustomSuccess(

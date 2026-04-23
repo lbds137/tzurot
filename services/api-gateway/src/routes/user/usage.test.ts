@@ -36,11 +36,16 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 // Mock Prisma
 const mockPrisma = {
   user: {
+    // getOrCreateUserShell reads user by discordId; default to existing user.
+    findUnique: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
     findFirst: vi.fn(),
+    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
   },
   usageLog: {
     findMany: vi.fn(),
   },
+  $executeRaw: vi.fn().mockResolvedValue(1),
 };
 
 import { createUsageRoutes } from './usage.js';
@@ -159,46 +164,21 @@ describe('/user/usage routes', () => {
   });
 
   describe('user lookup', () => {
-    it('should query user by Discord ID', async () => {
+    it('should resolve user via provisioning and query usage logs by UUID', async () => {
       const { req, res } = createMockReqRes({});
 
       await callHandler(mockPrisma, req, res);
 
-      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
-        where: { discordId: 'discord-user-123' },
-        select: { id: true },
-      });
-    });
-
-    it('should return empty stats when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
-      const { req, res } = createMockReqRes({});
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
+      // Shadow fallback reads by discordId to resolve the UUID.
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
+      );
+      // Usage is queried by internal UUID, not by discordId.
+      expect(mockPrisma.usageLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          totalRequests: 0,
-          totalTokensIn: 0,
-          totalTokensOut: 0,
-          totalTokens: 0,
-          byProvider: {},
-          byModel: {},
-          byRequestType: {},
+          where: expect.objectContaining({ userId: 'user-uuid-123' }),
         })
       );
-    });
-
-    it('should not query usageLog when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-
-      const { req, res } = createMockReqRes({});
-
-      await callHandler(mockPrisma, req, res);
-
-      expect(mockPrisma.usageLog.findMany).not.toHaveBeenCalled();
     });
   });
 

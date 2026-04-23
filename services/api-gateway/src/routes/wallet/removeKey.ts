@@ -7,14 +7,16 @@ import { type Response, type RequestHandler } from 'express';
 import {
   createLogger,
   AIProvider,
+  UserService,
   type PrismaClient,
   type ApiKeyCacheInvalidationService,
 } from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import type { AuthenticatedRequest } from '../../types.js';
+import type { ProvisionedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-remove-key');
 
@@ -26,7 +28,8 @@ export function createRemoveKeyRoute(
   prisma: PrismaClient,
   apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
 ): RequestHandler[] {
-  const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const userService = new UserService(prisma);
+  const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const provider = req.params.provider as AIProvider;
 
@@ -36,21 +39,12 @@ export function createRemoveKeyRoute(
       return;
     }
 
-    // Find user by Discord ID
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      sendError(res, ErrorResponses.notFound(`API key for ${provider}`));
-      return;
-    }
+    const userId = await resolveProvisionedUserId(req, userService);
 
     // Find and delete the API key
     const existingKey = await prisma.userApiKey.findFirst({
       where: {
-        userId: user.id,
+        userId,
         provider,
       },
     });
