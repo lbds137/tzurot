@@ -63,18 +63,11 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-vi.mock('../../services/AuthMiddleware.js', async () => {
-  const actual = await vi.importActual<typeof import('../../services/AuthMiddleware.js')>(
-    '../../services/AuthMiddleware.js'
-  );
-  return {
-    ...actual,
-    requireUserAuth: vi.fn(() => vi.fn((_req: unknown, _res: unknown, next: () => void) => next())),
-    requireProvisionedUser: vi.fn(() =>
-      vi.fn((_req: unknown, _res: unknown, next: () => void) => next())
-    ),
-  };
-});
+// Uses the shared mock at `src/services/__mocks__/AuthMiddleware.ts`
+// (auto-discovered by vitest). Passes `getOrCreateUserService` through to
+// the real implementation and stubs `requireUserAuth` / `requireProvisionedUser`
+// as passthrough middleware.
+vi.mock('../../services/AuthMiddleware.js');
 
 vi.mock('../../utils/asyncHandler.js', () => ({
   asyncHandler: vi.fn(fn => fn),
