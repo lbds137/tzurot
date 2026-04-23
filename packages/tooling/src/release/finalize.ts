@@ -120,6 +120,19 @@ async function shouldProceedWithForcePush(yes: boolean): Promise<boolean> {
 }
 
 /**
+ * Return the current branch name, or `''` if git can't resolve it
+ * (detached HEAD, missing upstream, etc.). Best-effort — callers treat
+ * `''` as "no branch info available" and silently skip downstream uses.
+ */
+function captureCurrentBranch(): string {
+  try {
+    return git(['rev-parse', '--abbrev-ref', 'HEAD']);
+  } catch {
+    return '';
+  }
+}
+
+/**
  * If an error left us on a different branch than we started on, log a
  * hint so the user can orient themselves quickly. Git's own error
  * messages say nothing about HEAD position, and `git status` after an
@@ -127,19 +140,14 @@ async function shouldProceedWithForcePush(yes: boolean): Promise<boolean> {
  * are swallowed so this helper never shadows the primary error.
  */
 function reportBranchDrift(startBranch: string): void {
-  try {
-    const currentBranch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
-    if (currentBranch !== startBranch) {
-      console.error(
-        chalk.yellow(
-          `Note: you started on '${startBranch}' but are now on '${currentBranch}'. ` +
-            `Run \`git checkout ${startBranch}\` to return.`
-        )
-      );
-    }
-  } catch {
-    // Weird git state — don't clobber the primary error with a secondary
-    // rev-parse failure. The user's own `git status` will still work.
+  const currentBranch = captureCurrentBranch();
+  if (currentBranch !== '' && currentBranch !== startBranch) {
+    console.error(
+      chalk.yellow(
+        `Note: you started on '${startBranch}' but are now on '${currentBranch}'. ` +
+          `Run \`git checkout ${startBranch}\` to return.`
+      )
+    );
   }
 }
 
@@ -196,19 +204,9 @@ export async function finalizeRelease(options: FinalizeOptions): Promise<void> {
   }
 
   // Capture the starting branch so we can emit a "you're now on X" hint
-  // if any of the checkout/pull steps fail mid-sequence. In dry-run we
-  // skip this since no writes happen. Best-effort: if rev-parse fails
-  // (detached HEAD with no upstream, etc.) we fall back to an empty
-  // string and the drift hint simply won't fire.
-  const startBranch = dryRun
-    ? ''
-    : (() => {
-        try {
-          return git(['rev-parse', '--abbrev-ref', 'HEAD']);
-        } catch {
-          return '';
-        }
-      })();
+  // if any of the checkout/pull steps fail mid-sequence. Skipped in
+  // dry-run since no writes happen there.
+  const startBranch = dryRun ? '' : captureCurrentBranch();
 
   console.log(chalk.cyan(dryRun ? '[dry-run] Finalizing release' : 'Finalizing release'));
 
