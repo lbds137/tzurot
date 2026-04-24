@@ -274,6 +274,8 @@ export async function getCachedShapes(user: GatewayUser): Promise<ApiCheck<Shape
   try {
     const result = await callGatewayApi<{ shapes: ShapesSummary[] }>('/user/shapes/list', {
       user,
+      // Implicit: callGatewayApi defaults to AUTOCOMPLETE timeout (2500ms),
+      // which fits inside Discord's 3-second autocomplete budget.
     });
 
     if (result.ok) {
