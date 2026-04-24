@@ -46,6 +46,41 @@ const CHECK_CONSTRAINT_REGEX = /^ALTER\s+TABLE\s+"[^"]+"\s+ADD\s+CONSTRAINT\s+"[
  * Statements are returned normalized to single-line form, each terminated
  * with a semicolon.
  */
+interface ExtractedCheck {
+  name: string | undefined;
+  statement: string;
+}
+
+/**
+ * Parse one migration.sql file and return its CHECK-constraint statements.
+ * Strips both line-comments and block-comments before splitting on `;` —
+ * block comments matter because a block-comment body can contain a raw `;`
+ * that would split the surrounding statement in half and silently drop the
+ * CHECK that followed.
+ */
+function extractCheckStatementsFromFile(sqlPath: string): ExtractedCheck[] {
+  const raw = readFileSync(sqlPath, 'utf-8');
+  const uncommented = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--[^\n]*/g, '');
+  const results: ExtractedCheck[] = [];
+
+  // Prisma migrations use ; as the unambiguous statement terminator even
+  // across line breaks. CHECK expressions can contain nested parens but never
+  // a raw ;. Splitting here is safer than a multi-line regex that has to
+  // balance parens.
+  for (const stmt of uncommented.split(';')) {
+    const trimmed = stmt.trim();
+    if (trimmed.length === 0) continue;
+    if (!CHECK_CONSTRAINT_REGEX.test(trimmed)) continue;
+
+    const nameMatch = /ADD\s+CONSTRAINT\s+"([^"]+)"/i.exec(trimmed);
+    results.push({
+      name: nameMatch?.[1],
+      statement: normalizeStatement(trimmed) + ';',
+    });
+  }
+  return results;
+}
+
 export function extractCheckConstraints(migrationsDir: string): string[] {
   if (!existsSync(migrationsDir)) {
     return [];
@@ -57,29 +92,22 @@ export function extractCheckConstraints(migrationsDir: string): string[] {
     .sort();
 
   const checkStatements: string[] = [];
+  // Dedup by constraint name: same name appearing in two migrations (unlikely
+  // with Prisma's workflow, but possible if a CHECK is dropped and re-added)
+  // would produce duplicate `ADD CONSTRAINT` statements, which PGLite rejects
+  // with a confusing runtime error. First occurrence wins — chronological
+  // sort above ensures this matches Postgres's own "last write wins" (the
+  // later migration has already overwritten the earlier one in prod).
+  const seenNames = new Set<string>();
 
   for (const folder of migrationFolders) {
     const sqlPath = join(migrationsDir, folder, 'migration.sql');
-    if (!existsSync(sqlPath)) {
-      continue;
-    }
+    if (!existsSync(sqlPath)) continue;
 
-    const raw = readFileSync(sqlPath, 'utf-8');
-    // Strip single-line -- comments before splitting on ; so a commented-out
-    // statement doesn't leak into extraction and the following real statement
-    // doesn't get prefixed with comment text.
-    const uncommented = raw.replace(/--[^\n]*/g, '');
-
-    // Prisma migrations use ; as the unambiguous statement terminator even
-    // across line breaks. CHECK expressions can contain nested parens but never
-    // a raw ;. Splitting here is safer than a multi-line regex that has to
-    // balance parens.
-    for (const stmt of uncommented.split(';')) {
-      const trimmed = stmt.trim();
-      if (trimmed.length === 0) continue;
-      if (CHECK_CONSTRAINT_REGEX.test(trimmed)) {
-        checkStatements.push(normalizeStatement(trimmed) + ';');
-      }
+    for (const { name, statement } of extractCheckStatementsFromFile(sqlPath)) {
+      if (name !== undefined && seenNames.has(name)) continue;
+      if (name !== undefined) seenNames.add(name);
+      checkStatements.push(statement);
     }
   }
 
