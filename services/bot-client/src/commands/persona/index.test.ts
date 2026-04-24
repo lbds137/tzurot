@@ -193,6 +193,20 @@ describe('Persona Command Index', () => {
       expect(handleEditPersona).toHaveBeenCalledWith(context, 'persona-123');
     });
 
+    it('rejects the autocomplete-error sentinel for /persona edit before dispatching', async () => {
+      const { handleEditPersona } = await import('./edit.js');
+      const context = createMockContext('edit', null, {
+        getString: () => '__autocomplete_error__',
+      });
+
+      await execute(context);
+
+      expect(handleEditPersona).not.toHaveBeenCalled();
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+    });
+
     it('should route to create handler for /persona create', async () => {
       const { handleCreatePersona } = await import('./create.js');
       const context = createMockContext('create');

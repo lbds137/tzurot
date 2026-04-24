@@ -135,4 +135,16 @@ describe('handleExport', () => {
     const lastCall = mockEditReply.mock.calls[mockEditReply.mock.calls.length - 1][0];
     expect(lastCall.content).toContain('unexpected error');
   });
+
+  it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+    mockGetString.mockReturnValue('__autocomplete_error__');
+
+    const context = createMockContext();
+    await handleExport(context);
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
 });

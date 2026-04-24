@@ -243,4 +243,15 @@ describe('/channel activate', () => {
 
     expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
   });
+
+  it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+    const context = createMockContext({ personalitySlug: '__autocomplete_error__' });
+
+    await handleActivate(context);
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
 });

@@ -160,4 +160,13 @@ describe('handleSetDefaultPersona', () => {
       content: expect.stringContaining('Failed to set default'),
     });
   });
+
+  it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+    await handleSetDefaultPersona(createMockContext('__autocomplete_error__'));
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
 });
