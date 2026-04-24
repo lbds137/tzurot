@@ -46,7 +46,7 @@ const logger = createLogger('DownloadAttachmentsStep');
  * that still lets pathological backpressure surface cleanly instead of
  * silently producing 403s from the CDN.
  */
-const MAX_QUEUE_AGE_MS = 12 * 60 * 60 * 1000;
+export const MAX_QUEUE_AGE_MS = 12 * 60 * 60 * 1000;
 
 export class DownloadAttachmentsStep implements IPipelineStep {
   readonly name = 'DownloadAttachments';
@@ -140,8 +140,13 @@ export class DownloadAttachmentsStep implements IPipelineStep {
     attachment: AttachmentMetadata,
     jobId: string | undefined
   ): Promise<AttachmentMetadata> {
-    // Idempotent: if a prior step already converted this to a data URL (or the
-    // upstream producer did), skip the network round-trip entirely.
+    // Defensive: if the upstream producer pre-populated a data URL, or the
+    // step were ever invoked twice inside a single pipeline execution, skip
+    // the network round-trip. This does NOT protect against BullMQ retries —
+    // those re-deserialize job.data from Redis, which still holds the original
+    // Discord CDN URLs, so the queue-age gate and full download run on each
+    // retry. Safety boundary is "within one pipeline execution," not "across
+    // job retries."
     if (isDataUrl(attachment.url)) {
       return attachment;
     }
