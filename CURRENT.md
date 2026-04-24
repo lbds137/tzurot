@@ -1,101 +1,89 @@
 # Current
 
-> **Session**: 2026-04-23 (wrapped; Identity Epic CLOSED, ApiCheck autocomplete cache shipped, Inbox triaged)
-> **Version**: v3.0.0-beta.104 (released 2026-04-23 — unreleased commits ahead on develop)
+> **Session**: 2026-04-24 (in progress — two remaining Quick Wins + TTS Epic pending; substantial rule-infra work done)
+> **Version**: v3.0.0-beta.104 (released 2026-04-23 — substantial unreleased commits ahead on develop)
 
 ---
 
 ## Next Session Goal
 
-_Clean state. Pick based on energy:_
+_Pick based on energy:_
 
 1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs. See `BACKLOG.md § 🏗 Active Epic: TTS Engine Upgrade`.
-2. **Attachment-download lift to ai-worker** — newly promoted to Current Focus. Active production issue (user hit the timeout twice on 2026-04-23). Structural fix: api-gateway enqueues with raw URLs, ai-worker downloads at job-run time. See `BACKLOG.md § Current Focus`.
-3. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. **Gated on canary window**: earliest safe start ~2026-04-25 (48-72h after epic close on 2026-04-23). See `BACKLOG.md § Current Focus`.
-4. **Post-deploy DM subscription loss fix** — HIGH priority, two-layer warmer. See `BACKLOG.md § Current Focus`.
-5. **Quick Wins** — 5 items ready, all with concrete starts: `test:generate-schema` CHECK extension, `__autocomplete_error__` submission guards, typing-indicator error differentiation (investigation step 1), timezone 404 release note, inadequate-LLM-response detection. See `BACKLOG.md § ⚡️ Quick Wins`.
+2. **Attachment-download lift to ai-worker** — still in Current Focus. Active production issue. Structural fix: api-gateway enqueues with raw URLs, ai-worker downloads at job-run time. See `BACKLOG.md § Current Focus`.
+3. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. Canary window closed (~2026-04-25 earliest), safe to start anytime now. See `BACKLOG.md § Current Focus`.
+4. **Post-deploy DM subscription loss fix** — HIGH priority, two-layer warmer spec-ready. See `BACKLOG.md § Current Focus`.
+5. **Remaining Quick Wins** — inadequate-LLM-response detection (4-6hr, moved to Logging theme) is the only one left. Three shipped today (PR #885 autocomplete sentinel guards, PR #886 typing-indicator classifier, PR #887 schema CHECK constraints). Timezone 404 release-note addenda staged in `Unreleased on Develop` section below.
 
 ## Active Task
 
-_None. Session ended clean._
+_None. Session paused mid-stride after PR #888 merged and rule-refinement follow-up committed._
 
 ---
 
-## Completed This Session (2026-04-23)
+## Completed This Session (2026-04-24)
 
-### Morning: Identity & Provisioning Hardening Epic CLOSED
+### Morning: three Quick Wins shipped
 
-All six phases shipped across three months.
+- **PR #885** (merged): autocomplete sentinel guards across **19 consumer sites**. `__autocomplete_error__` sentinel from PR #884 was passing through to gateway as a real slug, producing generic 404s. Added `isAutocompleteErrorSentinel` predicate + `AUTOCOMPLETE_UNAVAILABLE_MESSAGE`, wired into every command that reads autocomplete-backed options (memory, history, persona, shapes, character, settings, channel). 5 review rounds. Reviewer caught sprawl I missed — original scope was "shapes/persona/personality" but full grep surfaced 19 sites; first miss was reviewer catching `deny/add` + `deny/remove` using `context.getOption<T>()` idiom I hadn't searched for.
+- **PR #886** (merged): typing-indicator error classifier. New `typingErrorClassifier.ts` util with `classifyTypingError` + `handleTypingError` — turns single-bucket "Failed to send typing indicator" warn into differentiated rate-limit/channel-unreachable/network/unknown logs with structural level choices (error triggers interval cleanup, info suppresses network noise). Wired into 3 catch sites in JobTracker + VoiceTranscriptionService. 5 review rounds.
+- **PR #887** (merged): schema CHECK-constraint preservation in pglite generator. Prisma's `migrate diff --from-empty` has no CHECK-constraint representation, so any CHECK added via hand-written migration (birthday range, persona name invariants) silently dropped from the PGLite test schema. New `extractCheckConstraints()` sweeps `prisma/migrations/**/migration.sql`, preserves 5 existing constraints. Round 3 caught a semantic bug: my original dedup comment claimed "first wins = matches Postgres's last-write-wins" — self-contradictory. Fixed with `Map<name,statement>.set()` overwrite, last-wins to match prod after drop+re-add. 5 review rounds.
 
-- **PR #880** (merged): three quick wins — `_parts` param removal, `auth.ts` Phase 5c pattern regression fix, MessageFlags.Ephemeral test-mock sweep.
-- **PR #881** (merged): Phase 6 Part 1 — ESLint `no-restricted-syntax` rule banning `prisma.user.*({ where: { discordId }})` in api-gateway route handlers + 24 pre-existing drift fixes. Three rounds of review.
-- **PR #882** (merged): Phase 6 Part 2 — `identityProvisioning.int.test.ts` pinning the `UserService ↔ PersonaResolver` integration contract with real PGLite, plus `createProvisionedMockReqRes` helper for Phase 5c strict-mode cutover.
-- **PR #883** (merged): UserService instantiation harmonization via `getOrCreateUserService` registry. CPD 119 → 118. Mock convention split (`.mock.ts` libraries vs `__mocks__/` auto-discovery) documented with a backlog audit item.
-- **`bac61af85`** (direct to develop): PR #882 review nitpicks.
+### Afternoon: rule infra + GLM-4.7 production bug
 
-### Afternoon / evening: ApiCheck autocomplete cache
+- **Rule change**: `.claude/rules/08-review-response.md` created via three-model council (Gemini 3.1 Pro → Kimi K2.6 → GLM-5.1). Replaces step 4 of PR-monitoring ("do not fix anything, report only") with a tiered procedure auto-applying trivial edit shapes via `--fixup` commits, test-gated. Ships with edit-shape whitelist (trivial + always-ASK), round-3 convergence cap, prescribed batch-summary format. GLM-5.1 contributed the "conflict → ASK" dissolve + edit-shape whitelist + tests-as-safety-net; Gemini drafted initial "structural override" proposal; Kimi's critique surfaced fatal asymmetry + atomic-commit workflow mismatch.
+- **Rule refinement `c9341035b`**: first application of the rule (PR #888 round 1) immediately exposed that documentation-file edits triggered scope-expansion concern. Added "Documentation-only addition" to trivial-shape whitelist (BACKLOG.md / release notes / CHANGELOG / docs/) with explicit `.claude/rules/` + `.claude/skills/` carve-out.
+- **PR #888** (merged): GLM-4.7 meta-preamble leak fix. User's personality ("Lilith") emitted `<user>...</user><character>...</character><analysis>...</analysis>` preamble before in-character response, reviewer-captured in a debug dump. Same bug class as GLM-4.5-Air (PR #875) with new tag vocabulary. Gemini council-reviewed the regex shape — caught truncation pathology (`max_tokens` mid-reasoning → full XML leak) my original regex missed. Fixed with permutation-tolerant + truncation-tolerant pattern (`(?:<\/analysis>|$)`). First real application of the new review-response rule: 5 rounds, **3 user-attention decisions** across 12 reviewer findings (under old rule would have been ~12 rubber-stamp asks).
+- **Rule refinement `15fef2d51`**: second pass, from PR #888 iteration learnings. Added reviewer-self-contradiction row to signal-conflict table (round 3 said drop `?? ''`, round 4 said add it back — dismiss with prior-round citation). Clarified "user intervention" wording on rule 5 (must be explicit ASK answer / approval / directive, not passive acknowledgment).
 
-- **PR #884** (merged): `ApiCheck<T>` return-type widening + two-tier (fresh TTLCache + stale Map) autocomplete cache with stale-fallback on transient HTTP errors. Four review rounds converged; the structural fix for "empty autocomplete list looks like user has no data" during backend blips.
+### Direct-to-develop commits (chronological)
 
-### Post-merge follow-ups direct to develop
+- **`8150da2b4`** — Quick Win #1: timezone 404 release-note addenda staged in "Unreleased on Develop"
+- **`cbbdd25fd`** — Icebox entry for structural follow-up to PR #885 (sentinelSafe schema field on `defineTypedOptions`)
+- **`03b2e4a53`** — Trim 6-line test comment to zero lines per PR #885 round-5 nit
+- **`0f9b4d2c0`** — Delete stale `scripts/testing/regenerate-pglite-schema.sh` + update 4 referencing files; shell script output diverged from ops-CLI generator post-PR-#887
+- **`2b3dbb2a9`** — New rule `08-review-response.md`
+- **`c9341035b`** — Rule refinement: docs-only edits are trivial-shape
+- **`15fef2d51`** — Rule refinement: self-contradiction + user-intervention wording
 
-- **`d95c98110`** — 429 cache-level stale-fallback boundary test. Pins the 4xx/transient boundary so a future naive refactor to `status >= 500` would be caught.
-- **`0bf9fc92a`** — removed shipped ApiCheck entry from Quick Wins (rot-cleanup).
-- **`349e91123`** — ESLint `no-restricted-syntax` ban on `new UserService(prisma)` in api-gateway route files. Zero existing violations; purely preventive. Synthetic spike verified the selector fires with the intended message.
-- **`9b928927d`** — removed the shipped UserService-ban entry from Quick Wins (second rot-cleanup pass; caught one I missed in `0bf9fc92a`).
-- **`86f55583f`** — Inbox triage: 8 items redistributed across tiers. Attachment-download lift → Current Focus; 4 items → Quick Wins; 2 items → Future Themes; 3 items → Icebox. Two items split into immediate-action piece + broader category (timezone 404 release note vs. lie-on-error audit; typing-indicator step 1 vs. full investigation).
-- **`a62635828`** — shrunk Identity cleanup bundle 3 → 2 items. Item #3 (ESLint rule banning `UserService.getOrCreateUserShell`) was redundant: once item #2 deletes the method, TypeScript already errors on any call site. User caught this.
+### Auto-memory saved today
 
-### Backlog hygiene
+- `project_glm_47_quirks.md` — GLM-4.7 meta-preamble leak pattern, structurally similar to 4.5-Air but new tag vocabulary. Expect next GLM revision to ship another variant; each needs its own extractor, don't try prompt-level "don't use XML" instructions (fights RL training). MEMORY.md index updated.
 
-- Inbox went from 8 items → 0 (empty state labeled with triage date).
-- Quick Wins went from 1 item → 5 (concrete-start, bounded-scope items each).
-- Current Focus went from 2 clusters → 3 (added attachment-download lift).
-- New Future Theme: "Typing Indicator Reliability" — prerequisite Quick Win ships error-differentiation logging first.
-- New subsection in Logging & Error Observability theme: "Lie-on-Error Fallback Audit (api-gateway category sweep)."
-- 2 items removed from Quick Wins as shipped (ApiCheck autocomplete, UserService ban).
-- Identity cleanup bundle reflects actual state: strict-400 cutover gated on ~2026-04-25 canary window; method-delete item now also covers the `eslint.config.js:56` reference update.
+### Council used today
 
-### Council review used
-
-Gemini 3.1 Pro Preview (morning) pressure-tested the Phase 6 plan — shifted Tier 1 to ESLint `no-restricted-syntax`, flagged the proxy trap, correctly scoped out CHECK constraint tests from Phase 6.
-
-Kimi K2.6 + GLM-5.1 (afternoon) used for ApiCheck Option A/B tradeoffs on stale-cache behavior. Option B (stale-with-TTL-reset on transient only, sentinel placeholder on permanent) was council-blessed across both models.
-
----
-
-## Scratchpad
-
-### Patterns worth remembering from today
-
-- **PR #884 converged faster with each round** (1 blocking + 2 non-blocking → 1 blocking + 2 non-blocking → 1 non-blocking + approve). Rounds 2 and 3 were roughly same-shape (medium + minors) but the fix quality improved — carrying a behavioral test for `commitFetchedField` was exactly the kind of invariant-pin that answers "how do I know this didn't regress?" Good to remember: behavioral tests beat implementation tests when the cost is the same.
-- **Removals gate is the gate that rots.** Shipped the ApiCheck ban entry but missed removing the UserService ban entry in the same session. Second-pass grep caught it. Pattern: after shipping a backlog item, grep BACKLOG.md for BOTH the feature name AND any sibling items — the "same Quick Wins section I'm about to add to" is a common blind spot.
-- **"Block reintroduction" ESLint rules are often redundant with TypeScript.** Item #3 of Identity cleanup (ban `UserService.getOrCreateUserShell` calls) added no value over TypeScript's "property does not exist" error. General filter: ESLint bans earn keep when types can't distinguish context (legal in X, banned in Y); not when the banned thing is being deleted globally.
-- **Commitlint enforces 100-char headers.** Husky `commit-msg` hook rejected a 120-char heredoc title before it touched the repo. Good guardrail; remember for future long titles.
-
-### PR #884 post-merge state
-
-All behavior is stable. Diagnostic/investigation PRs for `glm-4.5-air:free` near-duplicate replies remain in Icebox/Latent awaiting next incident. The observability PR from 2026-04-19 is live in prod — next duplicate report gives us ground-truth data.
-
-### Feedback memories saved today
-
-- `feedback_no_polling_loop_stacking.md` — don't stack `until`-loop polling when commands auto-background. Use Monitor tool or single Bash with timeout.
-- `feedback_avoid_opaque_sugar.md` — prefer explicit enumeration over `...spread` / `export *` when readers need to track what's stubbed vs. passed through. Shared infra reads >> author keystrokes.
+- **Three-model rule-change design**: Gemini 3.1 Pro → Kimi K2.6 → GLM-5.1. Each model meaningfully upgraded the prior's proposal. GLM's "agent-reviewer symmetry" frame dissolved several disagreements the prior two models had debated as binary.
+- **Gemini 3.1 Pro**: PR #888 regex design. Caught truncation pathology my original draft missed.
+- **Kimi K2.6**: PR #888 round 3 sanity-check on reviewer's two asks (truncation case-sensitivity + `{0,2}` edge case). Confirmed both calls; flagged "don't second-guess it" on the quality-over-velocity trade-off.
 
 ---
 
 ## Unreleased on Develop (since beta.104)
 
-Substantial work pending release:
+Substantial work pending release. Covers three calendar days of merged work:
 
-- PR #880, #881, #882, #883, #884 (all merged) — Identity Epic close, UserService harmonization, ApiCheck autocomplete cache.
-- `bac61af85` — PR #882 round-2 nitpicks.
-- `d95c98110` — 429 stale-fallback boundary test.
-- `349e91123` — ESLint ban on direct `new UserService(prisma)` in route files.
-- `0bf9fc92a`, `9b928927d`, `86f55583f`, `a62635828` — backlog hygiene (rot-cleanup + triage + Identity cleanup bundle tightening).
+**From 2026-04-23:**
+
+- PR #880, #881, #882, #883, #884 — Identity Epic close, UserService harmonization, ApiCheck autocomplete cache
+- `bac61af85`, `d95c98110`, `349e91123` — post-merge follow-ups
+- `0bf9fc92a`, `9b928927d`, `86f55583f`, `a62635828` — backlog hygiene + Identity cleanup bundle tightening
+
+**From 2026-04-24 (today):**
+
+- PR #885 — autocomplete sentinel guards (19 consumer sites)
+- PR #886 — typing-indicator error classifier
+- PR #887 — schema CHECK-constraint preservation in pglite generator
+- PR #888 — GLM-4.7 meta-preamble leak fix (Chain-of-Extractors extension)
+- `8150da2b4` — beta.105 release-note addenda for timezone 404 contract
+- `cbbdd25fd` — icebox entry for sentinelSafe structural follow-up
+- `03b2e4a53` — trim sentinel-test comment
+- `0f9b4d2c0` — delete stale `regenerate-pglite-schema.sh` + update referencing files
+- `2b3dbb2a9` — new rule `08-review-response.md`
+- `c9341035b` — rule refinement: docs-only trivial-shape
+- `15fef2d51` — rule refinement: self-contradiction + user-intervention wording
 - This CURRENT.md update (about to ship).
 
-Next release will be substantial — likely beta.105 when the DM subscription fix or a TTS milestone lands.
+Next release will be beta.105 when the DM subscription fix or a TTS milestone lands. Substantial enough that release notes will span two days of work — `pnpm ops release:draft-notes` will generate most of it automatically; paste the timezone 404 addendum below at draft time.
 
 ### Release-note addenda (manual — paste at beta.105 draft time)
 
@@ -111,7 +99,8 @@ Context: PR #881 replaced the old "silently default to UTC" handler with a prope
 
 ## Previous Sessions
 
-- **2026-04-23** (this session): Identity Epic CLOSED + ApiCheck autocomplete cache + Inbox triage.
+- **2026-04-24** (this session, in progress): three Quick Wins shipped (PRs #885, #886, #887) + GLM-4.7 leak fix (PR #888) + new review-response rule designed via three-model council + two rule refinements from first-application learnings.
+- **2026-04-23**: Identity Epic CLOSED + ApiCheck autocomplete cache + Inbox triage.
 - **2026-04-22 → 2026-04-23**: v3.0.0-beta.104 released. Phase 5c PR C cutover + tech-debt sweep PR #866.
 - **2026-04-21**: Tech-debt sweep PR #866 (9 commits, 4 review rounds).
 - **2026-04-20**: v3.0.0-beta.102 released — Kimi K2.5 routing fix, hybrid post-action UX, CITEXT name uniqueness.
