@@ -9,6 +9,7 @@
 import { createLogger, type TypingChannel } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { Message } from 'discord.js';
+import { handleTypingError } from '../utils/typingErrorClassifier.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 
 const logger = createLogger('JobTracker');
@@ -155,15 +156,24 @@ export class JobTracker {
           await channel.sendTyping();
           logger.debug({ jobId }, 'Sent typing indicator');
         } catch (error) {
-          logger.error({ err: error, jobId }, 'Failed to send typing indicator');
-          // Don't clear interval - channel might be temporarily unavailable
+          handleTypingError(error, {
+            logger,
+            context: { jobId, source: 'interval-refresh' },
+            typingInterval,
+          });
         }
       })();
     }, TYPING_INDICATOR_INTERVAL_MS);
 
-    // Send initial typing indicator immediately
+    // Send initial typing indicator immediately. Channel-unreachable at this
+    // stage clears the interval we just armed so we don't wait a full
+    // TYPING_INDICATOR_INTERVAL_MS for the next tick to discover the same.
     channel.sendTyping().catch(error => {
-      logger.error({ err: error, jobId }, 'Failed to send initial typing indicator');
+      handleTypingError(error, {
+        logger,
+        context: { jobId, source: 'initial' },
+        typingInterval,
+      });
     });
 
     this.activeJobs.set(jobId, {
