@@ -36,24 +36,22 @@ interface GenerateSchemaOptions {
 }
 
 /**
- * Match an ALTER TABLE … ADD CONSTRAINT … CHECK (…) statement.
+ * Matches an `ALTER TABLE ... ADD CONSTRAINT "<name>" CHECK (...)` statement
+ * and captures the constraint name.
  *
- * Prisma's `migrate diff --from-empty` is based on schema introspection, which
- * has no representation for CHECK constraints — so any CHECK added via a
- * hand-written migration is silently dropped from the generated SQL. Without
- * this extractor, integration tests against PGLite would permit values prod
- * Postgres rejects (empty persona names, snowflake-shaped names, etc.). We
- * sweep migrations for CHECK statements and append them to the output.
+ * Why this extractor exists: Prisma's `migrate diff --from-empty` is
+ * introspection-based and has no representation for CHECK constraints — so
+ * any CHECK added via a hand-written migration is silently dropped from the
+ * generated SQL. Without this harvest, integration tests against PGLite
+ * would permit values prod Postgres rejects (empty persona names,
+ * snowflake-shaped names, birthday out-of-range, etc.).
  *
  * The regex is intentionally permissive about whitespace/newlines between
  * tokens (some migrations wrap after `ALTER TABLE`, others are single-line).
- * Case-insensitive to match either SQL convention.
- */
-/**
- * Matches an `ALTER TABLE ... ADD CONSTRAINT "<name>" CHECK (...)` statement
- * and captures the constraint name. Because `"[^"]+"` requires at least one
- * character inside the quotes, a successful match guarantees group 1 is a
- * non-empty string — see type narrowing in `extractCheckStatementsFromFile`.
+ * Case-insensitive to match either SQL convention. `"[^"]+"` requires at
+ * least one character inside the quotes, so a successful match guarantees
+ * group 1 is a non-empty string (see narrowing in
+ * `extractCheckStatementsFromFile`).
  */
 const CHECK_CONSTRAINT_REGEX = /^ALTER\s+TABLE\s+"[^"]+"\s+ADD\s+CONSTRAINT\s+"([^"]+)"\s+CHECK\b/i;
 
