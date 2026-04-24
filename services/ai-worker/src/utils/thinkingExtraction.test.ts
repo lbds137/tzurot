@@ -1052,6 +1052,40 @@ Response.`;
       expect(result.visibleContent).toContain('<user>Lila</character>');
     });
 
+    it('documents the known {0,2} preamble limit: 3+ preamble tags cause full leak', () => {
+      // Known structural limitation: `{0,2}` quantifier caps the preamble at
+      // at most two `<user>`/`<character>` tags. A future model variant that
+      // emits 3+ preamble tags before `<analysis>` would cause the regex to
+      // fail entirely, leaving the whole block in visibleContent.
+      //
+      // We intentionally don't raise the cap preemptively — that's guessing
+      // at the next model's output shape without evidence, and the cap would
+      // still break at cap+1. Instead, the BACKLOG entry "GLM-family
+      // meta-preamble pattern drift" documents the watch-item for new
+      // vocabularies. When a 3+ preamble variant is observed, promote that
+      // entry and extend the pattern with the actual observed shape.
+      //
+      // This test pins the current behavior so future maintainers know the
+      // limit is intentional (not an oversight) and can reach for the right
+      // lever (extend pattern, don't just bump the cap) when drift surfaces.
+      const content = `<user>A</user>
+<character>B</character>
+<character>C</character>
+<analysis>reasoning</analysis>
+
+Real response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Pattern fails to match → Pass 1 doesn't fire → <analysis> isn't in
+      // KNOWN_THINKING_TAGS → Pass 2 doesn't strip it either. Full leak.
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<user>A</user>');
+      expect(result.visibleContent).toContain('<character>C</character>');
+      expect(result.visibleContent).toContain('<analysis>reasoning</analysis>');
+      expect(result.visibleContent).toContain('Real response.');
+    });
+
     it('composes with standard <think> tag extraction on the remaining content', () => {
       // Chain-of-Extractors: Pass 1 consumes the preamble, Pass 2 finds the
       // <think> block in what remains. Both contribute to thinkingParts.
