@@ -118,6 +118,19 @@ export function handleTypingError(
       // stack/shape to extend the classifier when a new shape surfaces.
       logger.warn({ ...context, err: error }, 'Typing indicator failed (unclassified)');
       break;
+    default: {
+      // Exhaustiveness guard: if a new variant is added to `TypingErrorClass`
+      // and a case isn't added above, `_exhaustive: never` fails compilation.
+      // Without this, the switch would silently drop the new kind — no log,
+      // no error, a dark metric. The runtime warn mirrors the `unknown` arm
+      // so production keeps some visibility while the code path is unreachable
+      // unless the type check has been bypassed.
+      const _exhaustive: never = classification;
+      logger.warn(
+        { ...context, err: error, unhandledKind: _exhaustive },
+        'Typing indicator failed (unhandled classification kind)'
+      );
+    }
   }
 
   return classification;
