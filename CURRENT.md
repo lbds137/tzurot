@@ -1,71 +1,86 @@
 # Current
 
-> **Session**: 2026-04-23 (wrapped; Identity & Provisioning Hardening Epic CLOSED)
+> **Session**: 2026-04-23 (wrapped; Identity Epic CLOSED, ApiCheck autocomplete cache shipped, Inbox triaged)
 > **Version**: v3.0.0-beta.104 (released 2026-04-23 — unreleased commits ahead on develop)
 
 ---
 
 ## Next Session Goal
 
-_Identity Epic closed this session. Pick based on energy:_
+_Clean state. Pick based on energy:_
 
-1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs. See `BACKLOG.md § 🏗 Active Epic: TTS Engine Upgrade` for the candidate list and hands-on eval plan.
-2. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`; add ESLint rule banning reintroduction. Prerequisite migration helper already landed (PR #882). See `BACKLOG.md § Current Focus`.
-3. **Post-deploy DM subscription loss fix** — HIGH priority, two-layer warmer. See `BACKLOG.md § Current Focus`.
-4. **Inbox triage** — fresh items accumulated this session: "lie-on-error" audit, UserService instantiation harmonization, `pnpm ops test:generate-schema` CHECK-constraint drop.
+1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs. See `BACKLOG.md § 🏗 Active Epic: TTS Engine Upgrade`.
+2. **Attachment-download lift to ai-worker** — newly promoted to Current Focus. Active production issue (user hit the timeout twice on 2026-04-23). Structural fix: api-gateway enqueues with raw URLs, ai-worker downloads at job-run time. See `BACKLOG.md § Current Focus`.
+3. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. **Gated on canary window**: earliest safe start ~2026-04-25 (48-72h after epic close on 2026-04-23). See `BACKLOG.md § Current Focus`.
+4. **Post-deploy DM subscription loss fix** — HIGH priority, two-layer warmer. See `BACKLOG.md § Current Focus`.
+5. **Quick Wins** — 5 items ready, all with concrete starts: `test:generate-schema` CHECK extension, `__autocomplete_error__` submission guards, typing-indicator error differentiation (investigation step 1), timezone 404 release note, inadequate-LLM-response detection. See `BACKLOG.md § ⚡️ Quick Wins`.
 
 ## Active Task
 
-🏗 **TTS Engine Upgrade** (newly active — Identity Epic just closed).
-
-Status: research done 2026-04-12, Chatterbox Turbo primary. No candidate committed yet; hands-on eval is the gate. Start with `docker compose -f docker/docker-compose.cpu.yml up -d` from [devnen/Chatterbox-TTS-Server](https://github.com/devnen/Chatterbox-TTS-Server).
+_None. Session ended clean._
 
 ---
 
 ## Completed This Session (2026-04-23)
 
-### Identity & Provisioning Hardening Epic CLOSED
+### Morning: Identity & Provisioning Hardening Epic CLOSED
 
-All six phases shipped across three months. Final session deliverables:
+All six phases shipped across three months.
 
 - **PR #880** (merged): three quick wins — `_parts` param removal, `auth.ts` Phase 5c pattern regression fix, MessageFlags.Ephemeral test-mock sweep.
-- **PR #881** (merged): Phase 6 Part 1 — ESLint `no-restricted-syntax` rule banning `prisma.user.*({ where: { discordId }})` in api-gateway route handlers + 24 pre-existing drift fixes. Three rounds of claude-bot review feedback addressed (wrapper deletion, dead-field cleanup, test-comment pattern). 46 files, net -80 lines.
-- **PR #882** (merged): Phase 6 Part 2 — `identityProvisioning.int.test.ts` pinning the `UserService.getOrCreateUser` ↔ `PersonaResolver.resolve` integration contract with real PGLite. Would fail loudly on the original `c88ae5b7` regression. Plus `createProvisionedMockReqRes` migration helper for the Phase 5c strict-mode cutover (reference TODO in `auth.test.ts`).
-- **`bac61af85`** (direct commit to develop): nitpick fixes from PR #882 review — FK cascade comment in `beforeEach`, clarify HTTP-first/Discord-first labeling, drop staleable file-count from helper JSDoc.
+- **PR #881** (merged): Phase 6 Part 1 — ESLint `no-restricted-syntax` rule banning `prisma.user.*({ where: { discordId }})` in api-gateway route handlers + 24 pre-existing drift fixes. Three rounds of review.
+- **PR #882** (merged): Phase 6 Part 2 — `identityProvisioning.int.test.ts` pinning the `UserService ↔ PersonaResolver` integration contract with real PGLite, plus `createProvisionedMockReqRes` helper for Phase 5c strict-mode cutover.
+- **PR #883** (merged): UserService instantiation harmonization via `getOrCreateUserService` registry. CPD 119 → 118. Mock convention split (`.mock.ts` libraries vs `__mocks__/` auto-discovery) documented with a backlog audit item.
+- **`bac61af85`** (direct to develop): PR #882 review nitpicks.
 
-### Other wins shipped this session
+### Afternoon / evening: ApiCheck autocomplete cache
 
-- **`userId` context on `getOrCreateInternalUser` shadow-mode throw** — quick win from Inbox.
-- **Phase 5 CHECK-constraint structural guard** — new `schemaInvariants.int.test.ts` pins the Phase 5 DDL against migration drift. Descoped from Phase 6 per council review; landed as a quick win.
+- **PR #884** (merged): `ApiCheck<T>` return-type widening + two-tier (fresh TTLCache + stale Map) autocomplete cache with stale-fallback on transient HTTP errors. Four review rounds converged; the structural fix for "empty autocomplete list looks like user has no data" during backend blips.
+
+### Post-merge follow-ups direct to develop
+
+- **`d95c98110`** — 429 cache-level stale-fallback boundary test. Pins the 4xx/transient boundary so a future naive refactor to `status >= 500` would be caught.
+- **`0bf9fc92a`** — removed shipped ApiCheck entry from Quick Wins (rot-cleanup).
+- **`349e91123`** — ESLint `no-restricted-syntax` ban on `new UserService(prisma)` in api-gateway route files. Zero existing violations; purely preventive. Synthetic spike verified the selector fires with the intended message.
+- **`9b928927d`** — removed the shipped UserService-ban entry from Quick Wins (second rot-cleanup pass; caught one I missed in `0bf9fc92a`).
+- **`86f55583f`** — Inbox triage: 8 items redistributed across tiers. Attachment-download lift → Current Focus; 4 items → Quick Wins; 2 items → Future Themes; 3 items → Icebox. Two items split into immediate-action piece + broader category (timezone 404 release note vs. lie-on-error audit; typing-indicator step 1 vs. full investigation).
+- **`a62635828`** — shrunk Identity cleanup bundle 3 → 2 items. Item #3 (ESLint rule banning `UserService.getOrCreateUserShell`) was redundant: once item #2 deletes the method, TypeScript already errors on any call site. User caught this.
 
 ### Backlog hygiene
 
-- Identity & Provisioning Hardening Epic section removed from BACKLOG (docs live in `docs/reference/architecture/epic-identity-hardening.md`).
-- Phase 5c follow-ups (3 items) moved to Current Focus as an atomic bundle.
-- Phase 6 work items section removed (shipped).
-- TTS Engine Upgrade promoted Next Epic → Active Epic.
-- 5 shipped items removed per session-end removals gate: `_parts` param, auth.ts Phase 5c regression, MessageFlags.Ephemeral sweep, Phase 6 route-level tests, CHECK constraint tests (partially — upgraded to structural-guard form).
-- 5 new Inbox entries added from the session's review-surfaced follow-ups: lie-on-error audit, UserService instantiation harmonization, PGLite schema CHECK-constraint drop, plus two others from prior sessions.
+- Inbox went from 8 items → 0 (empty state labeled with triage date).
+- Quick Wins went from 1 item → 5 (concrete-start, bounded-scope items each).
+- Current Focus went from 2 clusters → 3 (added attachment-download lift).
+- New Future Theme: "Typing Indicator Reliability" — prerequisite Quick Win ships error-differentiation logging first.
+- New subsection in Logging & Error Observability theme: "Lie-on-Error Fallback Audit (api-gateway category sweep)."
+- 2 items removed from Quick Wins as shipped (ApiCheck autocomplete, UserService ban).
+- Identity cleanup bundle reflects actual state: strict-400 cutover gated on ~2026-04-25 canary window; method-delete item now also covers the `eslint.config.js:56` reference update.
 
 ### Council review used
 
-Gemini 3.1 Pro Preview pressure-tested the Phase 6 plan before start (2026-04-23). Shifted Tier 1 from grep → ESLint `no-restricted-syntax`, flagged the "proxy trap" on Tier 2 (which later combined with the MessageContextBuilder-in-bot-client discovery to land the test at `UserService ↔ PersonaResolver` seam instead), correctly identified CHECK constraint tests as scope creep for Phase 6.
+Gemini 3.1 Pro Preview (morning) pressure-tested the Phase 6 plan — shifted Tier 1 to ESLint `no-restricted-syntax`, flagged the proxy trap, correctly scoped out CHECK constraint tests from Phase 6.
+
+Kimi K2.6 + GLM-5.1 (afternoon) used for ApiCheck Option A/B tradeoffs on stale-cache behavior. Option B (stale-with-TTL-reset on transient only, sentinel placeholder on permanent) was council-blessed across both models.
 
 ---
 
 ## Scratchpad
 
-### Identity Epic closure notes
+### Patterns worth remembering from today
 
-Epic spanned 2026-01 through 2026-04-23. Seven PRs across six numbered phases (plus sub-PRs for 5c), two structural cleanups still pending (Phase 5c strict-mode cutover, then shell-path deletion). The original `c88ae5b7` regression class now has author-time prevention (PR #881's ESLint rule catching 25 drift sites on first run) + runtime regression guard (PR #882's integration test pinning the UserService/PersonaResolver contract).
+- **PR #884 converged faster with each round** (1 blocking + 2 non-blocking → 1 blocking + 2 non-blocking → 1 non-blocking + approve). Rounds 2 and 3 were roughly same-shape (medium + minors) but the fix quality improved — carrying a behavioral test for `commitFetchedField` was exactly the kind of invariant-pin that answers "how do I know this didn't regress?" Good to remember: behavioral tests beat implementation tests when the cost is the same.
+- **Removals gate is the gate that rots.** Shipped the ApiCheck ban entry but missed removing the UserService ban entry in the same session. Second-pass grep caught it. Pattern: after shipping a backlog item, grep BACKLOG.md for BOTH the feature name AND any sibling items — the "same Quick Wins section I'm about to add to" is a common blind spot.
+- **"Block reintroduction" ESLint rules are often redundant with TypeScript.** Item #3 of Identity cleanup (ban `UserService.getOrCreateUserShell` calls) added no value over TypeScript's "property does not exist" error. General filter: ESLint bans earn keep when types can't distinguish context (legal in X, banned in Y); not when the banned thing is being deleted globally.
+- **Commitlint enforces 100-char headers.** Husky `commit-msg` hook rejected a 120-char heredoc title before it touched the repo. Good guardrail; remember for future long titles.
 
-### TTS Epic entry point
+### PR #884 post-merge state
 
-See `BACKLOG.md § 🏗 Active Epic: TTS Engine Upgrade` and Claude auto-memory `project_voice_tts_research.md` + `project_tts_additive_design.md`. Hands-on eval of Chatterbox Turbo is the next action.
+All behavior is stable. Diagnostic/investigation PRs for `glm-4.5-air:free` near-duplicate replies remain in Icebox/Latent awaiting next incident. The observability PR from 2026-04-19 is live in prod — next duplicate report gives us ground-truth data.
 
-### Observed pattern worth remembering
+### Feedback memories saved today
 
-PR #881 took three review rounds to converge (review caught bugs the refactor introduced). PR #882 converged in one round (test-only PRs have less behavior-under-change). For future refactor-heavy PRs: do a deliberate self-review pass before the first push to preempt the wave-2 cleanup (dead fields, stale types, docstring contradictions).
+- `feedback_no_polling_loop_stacking.md` — don't stack `until`-loop polling when commands auto-background. Use Monitor tool or single Bash with timeout.
+- `feedback_avoid_opaque_sugar.md` — prefer explicit enumeration over `...spread` / `export *` when readers need to track what's stubbed vs. passed through. Shared infra reads >> author keystrokes.
 
 ---
 
@@ -73,12 +88,12 @@ PR #881 took three review rounds to converge (review caught bugs the refactor in
 
 Substantial work pending release:
 
-- PR #880 (merged) — three quick wins
-- PR #881 (merged) — Phase 6 Part 1 (ESLint rule + 24 drift fixes)
-- PR #882 (merged) — Phase 6 Part 2 (integration test + migration helper)
-- `bac61af85` — round-2 nitpicks
-- `userHelpers.ts` userId context + `schemaInvariants.int.test.ts` (this session, about to ship)
-- Backlog hygiene + CURRENT.md (this session, about to ship)
+- PR #880, #881, #882, #883, #884 (all merged) — Identity Epic close, UserService harmonization, ApiCheck autocomplete cache.
+- `bac61af85` — PR #882 round-2 nitpicks.
+- `d95c98110` — 429 stale-fallback boundary test.
+- `349e91123` — ESLint ban on direct `new UserService(prisma)` in route files.
+- `0bf9fc92a`, `9b928927d`, `86f55583f`, `a62635828` — backlog hygiene (rot-cleanup + triage + Identity cleanup bundle tightening).
+- This CURRENT.md update (about to ship).
 
 Next release will be substantial — likely beta.105 when the DM subscription fix or a TTS milestone lands.
 
@@ -86,6 +101,7 @@ Next release will be substantial — likely beta.105 when the DM subscription fi
 
 ## Previous Sessions
 
+- **2026-04-23** (this session): Identity Epic CLOSED + ApiCheck autocomplete cache + Inbox triage.
 - **2026-04-22 → 2026-04-23**: v3.0.0-beta.104 released. Phase 5c PR C cutover + tech-debt sweep PR #866.
 - **2026-04-21**: Tech-debt sweep PR #866 (9 commits, 4 review rounds).
 - **2026-04-20**: v3.0.0-beta.102 released — Kimi K2.5 routing fix, hybrid post-action UX, CITEXT name uniqueness.
