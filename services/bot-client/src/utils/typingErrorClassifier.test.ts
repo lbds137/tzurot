@@ -13,10 +13,18 @@ function buildMockLogger(): Logger {
 }
 
 /**
- * Intervals created inside `handleTypingError` tests must be cleaned up even
- * when the test body throws mid-assertion. Tracking them here and clearing in
- * afterEach prevents leaking timers across tests (which would keep the vitest
- * process alive and distort timing for downstream suites).
+ * These tests intentionally use real `setInterval` instead of `vi.useFakeTimers()`
+ * even though 02-code-standards.md says "ALWAYS Use fake timers." Reason: the
+ * assertion under test is `vi.spyOn(globalThis, 'clearInterval').toHaveBeenCalledWith(handle)`,
+ * which requires a real `NodeJS.Timeout` reference to pass into `handleTypingError`.
+ * Fake timers replace the timer implementation with numeric IDs, and `clearInterval`
+ * calls with those fake IDs would still be observable via the spy — but the
+ * semantic test ("we passed the same handle we were given") becomes weaker
+ * because both production and test are using the same fake primitives.
+ *
+ * The intervals never have time to fire (callback is `() => undefined` + 1s
+ * period, tests run in microseconds), and `afterEach` unconditionally clears
+ * any that were created, so no real delays or timer leaks result.
  */
 const intervalsToCleanup: NodeJS.Timeout[] = [];
 afterEach(() => {
@@ -24,6 +32,7 @@ afterEach(() => {
     const interval = intervalsToCleanup.pop();
     if (interval !== undefined) clearInterval(interval);
   }
+  vi.restoreAllMocks();
 });
 
 function trackInterval(interval: NodeJS.Timeout): NodeJS.Timeout {
@@ -142,7 +151,6 @@ describe('handleTypingError', () => {
     // Rate-limit is explicitly NOT channel-unreachable: the interval must keep
     // firing so the next tick can retry once the rate-limit window passes.
     expect(clearSpy).not.toHaveBeenCalledWith(typingInterval);
-    clearSpy.mockRestore();
   });
 
   it('logs channel-unreachable at error level AND clears the interval', () => {
@@ -166,7 +174,6 @@ describe('handleTypingError', () => {
     // sendTyping against a dead channel. Previously commented as "can't assert"
     // but `vi.spyOn(clearInterval)` catches it cleanly.
     expect(clearSpy).toHaveBeenCalledWith(typingInterval);
-    clearSpy.mockRestore();
   });
 
   it('does not call clearInterval when no typingInterval was provided', () => {
