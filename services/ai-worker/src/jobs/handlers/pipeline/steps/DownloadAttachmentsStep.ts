@@ -149,8 +149,15 @@ export class DownloadAttachmentsStep implements IPipelineStep {
     const sanitizedUrl = validateAttachmentUrl(attachment.url);
 
     const buffer = await this.fetchWithRetry(sanitizedUrl, attachment.name, jobId);
-    const finalBuffer = await resizeImageIfNeeded(buffer, attachment.contentType);
-    const dataUrl = bufferToDataUrl(finalBuffer, attachment.contentType);
+    // Use the *output* contentType from resize when building the data URL —
+    // resize always produces JPEG, so the data URL's MIME must reflect that
+    // even if the original upload was PNG. attachment.contentType (the metadata
+    // field) stays as the original upload type for downstream bookkeeping.
+    const { buffer: finalBuffer, contentType: finalContentType } = await resizeImageIfNeeded(
+      buffer,
+      attachment.contentType
+    );
+    const dataUrl = bufferToDataUrl(finalBuffer, finalContentType);
 
     logger.debug(
       {

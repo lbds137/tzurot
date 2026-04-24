@@ -232,13 +232,14 @@ describe('resizeImageIfNeeded', () => {
   // The real prod thresholds (10 MiB cap, 8 MiB target) are tested indirectly
   // via the threshold-comparison logic that these small values exercise.
 
-  it('passes non-image content types through unchanged', async () => {
+  it('passes non-image content types through unchanged, preserving contentType', async () => {
     const buf = Buffer.from('not an image at all');
     const result = await resizeImageIfNeeded(buf, 'application/pdf');
-    expect(result).toBe(buf); // same buffer reference — no copy, no resize
+    expect(result.buffer).toBe(buf); // same buffer reference — no copy, no resize
+    expect(result.contentType).toBe('application/pdf');
   });
 
-  it('passes small images under the size threshold through unchanged', async () => {
+  it('passes small images under the size threshold through unchanged, preserving contentType', async () => {
     // A 2x2 solid-color PNG is a handful of bytes — well under 10 MiB.
     const smallPng = await sharp({
       create: { width: 2, height: 2, channels: 3, background: { r: 128, g: 128, b: 128 } },
@@ -247,10 +248,11 @@ describe('resizeImageIfNeeded', () => {
       .toBuffer();
 
     const result = await resizeImageIfNeeded(smallPng, 'image/png');
-    expect(result).toBe(smallPng); // identity — resize branch not taken
+    expect(result.buffer).toBe(smallPng); // identity — resize branch not taken
+    expect(result.contentType).toBe('image/png'); // input MIME preserved when no resize
   });
 
-  it('resizes images over the size threshold and returns a smaller buffer', async () => {
+  it('resizes images over the threshold and switches contentType to image/jpeg', async () => {
     // Generate a high-entropy (incompressible) PNG that exceeds MAX_IMAGE_SIZE.
     // 2400x1800 RGB with pseudorandom bytes and compressionLevel 0 yields
     // ~13 MiB, reliably above the 10 MiB threshold.
@@ -268,7 +270,10 @@ describe('resizeImageIfNeeded', () => {
     expect(largePng.byteLength).toBeGreaterThan(10 * 1024 * 1024); // sanity check
 
     const result = await resizeImageIfNeeded(largePng, 'image/png');
-    expect(result.byteLength).toBeLessThan(largePng.byteLength); // actually shrunk
-    expect(result).not.toBe(largePng); // a new buffer was produced
+    expect(result.buffer.byteLength).toBeLessThan(largePng.byteLength); // actually shrunk
+    expect(result.buffer).not.toBe(largePng); // a new buffer was produced
+    // Resize always emits JPEG; the data URL built from the result must use
+    // 'image/jpeg' so LLM providers don't see a MIME/bytes mismatch.
+    expect(result.contentType).toBe('image/jpeg');
   }, 15_000); // sharp work on constrained runners needs more headroom than vitest's 5s default
 });

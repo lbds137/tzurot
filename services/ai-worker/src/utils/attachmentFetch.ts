@@ -188,22 +188,39 @@ export async function fetchAttachmentBytes(
 }
 
 /**
+ * Result of a resize operation. `contentType` reflects the *output* MIME type,
+ * which differs from the input when resize fires (always produces JPEG). The
+ * caller is responsible for using this contentType in the downstream data URL
+ * or HTTP header — mixing input MIME with post-resize bytes would produce a
+ * payload like `data:image/png;base64,<JPEG bytes>`, which is technically
+ * wrong even though major LLM providers auto-detect from bytes.
+ */
+export interface ResizeResult {
+  buffer: Buffer;
+  contentType: string;
+}
+
+/**
  * Resize an image buffer if it exceeds MEDIA_LIMITS.MAX_IMAGE_SIZE.
- * Non-images are returned as-is.
+ * Non-images are returned as-is. When resize fires, the output is always JPEG.
  *
  * Lifted from api-gateway's AttachmentStorageService.resizeImageIfNeeded —
  * same algorithm, same JPEG output. Moved here so ai-worker owns the whole
- * download + resize pipeline.
+ * download + resize pipeline. Return type widened to carry the output MIME
+ * so callers can build correctly-typed data URLs.
  */
-export async function resizeImageIfNeeded(buffer: Buffer, contentType: string): Promise<Buffer> {
+export async function resizeImageIfNeeded(
+  buffer: Buffer,
+  contentType: string
+): Promise<ResizeResult> {
   if (!contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    return buffer;
+    return { buffer, contentType };
   }
 
   const originalSize = buffer.byteLength;
   if (originalSize <= MEDIA_LIMITS.MAX_IMAGE_SIZE) {
     logger.info({ originalSize }, 'Image within size limit, no resize needed');
-    return buffer;
+    return { buffer, contentType };
   }
 
   logger.info(
@@ -234,7 +251,7 @@ export async function resizeImageIfNeeded(buffer: Buffer, contentType: string): 
     'Image resized successfully'
   );
 
-  return resized;
+  return { buffer: resized, contentType: CONTENT_TYPES.IMAGE_JPG };
 }
 
 /**

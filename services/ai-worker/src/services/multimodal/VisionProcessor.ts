@@ -156,7 +156,13 @@ async function invokeVisionModel(
     ? attachment.url
     : validateAttachmentUrl(attachment.url);
 
-  logger.info({ url: attachment.url, modelName }, 'Invoking vision model');
+  // Redact data URLs in logs: after DownloadAttachmentsStep runs, attachment.url
+  // is a 1-2 MiB base64 string. Emitting that at info level saturates log
+  // aggregators and buries other messages. Remote URLs are log-safe (short,
+  // useful forensically).
+  const logUrl = isDataUrl(attachment.url) ? '<data-url>' : imageUrl;
+
+  logger.info({ url: logUrl, modelName }, 'Invoking vision model');
 
   messages.push(
     new HumanMessage({

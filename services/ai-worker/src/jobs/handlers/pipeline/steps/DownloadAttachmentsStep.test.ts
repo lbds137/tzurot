@@ -30,7 +30,12 @@ const { fetchAttachmentBytesMock, validateAttachmentUrlMock, resizeImageIfNeeded
   () => ({
     fetchAttachmentBytesMock: vi.fn(),
     validateAttachmentUrlMock: vi.fn((url: string) => url),
-    resizeImageIfNeededMock: vi.fn((buffer: Buffer) => Promise.resolve(buffer)),
+    // Default: pass-through — returns { buffer, contentType } matching the real
+    // function's no-resize branch. Individual tests override to simulate the
+    // JPEG-conversion path when they want to exercise it.
+    resizeImageIfNeededMock: vi.fn((buffer: Buffer, contentType: string) =>
+      Promise.resolve({ buffer, contentType })
+    ),
   })
 );
 
@@ -94,7 +99,9 @@ describe('DownloadAttachmentsStep', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     validateAttachmentUrlMock.mockImplementation((url: string) => url);
-    resizeImageIfNeededMock.mockImplementation((buffer: Buffer) => Promise.resolve(buffer));
+    resizeImageIfNeededMock.mockImplementation((buffer: Buffer, contentType: string) =>
+      Promise.resolve({ buffer, contentType })
+    );
     // retryDelayMs = 0 so the retry test finishes instantly instead of waiting
     // on a real 500ms setTimeout. Production uses the 500ms default.
     step = new DownloadAttachmentsStep(/* retryDelayMs= */ 0);
@@ -178,14 +185,18 @@ describe('DownloadAttachmentsStep', () => {
     expect(job.data.context.extendedContextAttachments![0].url).toMatch(/^data:/);
   });
 
-  it('invokes resize and reflects the smaller size in the output', async () => {
+  it('invokes resize and reflects the smaller size + JPEG mime in the output', async () => {
     // Use small synthetic buffers — the test verifies the resize helper is
     // called and its output flows to `size`; it does not need to exercise
     // the real sharp resize or allocate multi-MiB memory under vitest workers.
     const large = Buffer.from('original-bytes-stand-in');
     const resized = Buffer.from('resized');
     fetchAttachmentBytesMock.mockResolvedValueOnce(large);
-    resizeImageIfNeededMock.mockResolvedValueOnce(resized);
+    // Simulate the real resize path: when resize fires, the helper returns
+    // both the shrunken buffer and the switched-to JPEG contentType. The
+    // caller must use the returned contentType for the data URL so the MIME
+    // reflects the actual bytes, not the original upload type.
+    resizeImageIfNeededMock.mockResolvedValueOnce({ buffer: resized, contentType: 'image/jpeg' });
 
     const job = createJob([
       { url: 'https://cdn.discordapp.com/big.png', contentType: 'image/png' },
@@ -194,6 +205,10 @@ describe('DownloadAttachmentsStep', () => {
 
     expect(resizeImageIfNeededMock).toHaveBeenCalledWith(large, 'image/png');
     expect(job.data.context.attachments![0].size).toBe(resized.byteLength);
+    // Load-bearing assertion: the data URL MIME must match the resized bytes,
+    // even though attachment.contentType metadata stays as the original input type.
+    expect(job.data.context.attachments![0].url).toMatch(/^data:image\/jpeg;base64,/);
+    expect(job.data.context.attachments![0].contentType).toBe('image/png');
   });
 
   it('fails the step on size-cap exceeded (no retry)', async () => {
