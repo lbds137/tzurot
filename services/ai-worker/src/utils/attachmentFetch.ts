@@ -242,6 +242,10 @@ export async function resizeImageIfNeeded(
 
   const scaleFactor = Math.sqrt(MEDIA_LIMITS.IMAGE_TARGET_SIZE / originalSize);
   const metadata = await sharp(buffer).metadata();
+  // 2048 fallback: sharp couldn't read dimensions (malformed/truncated image).
+  // Buffer is already size-capped at MAX_ATTACHMENT_BYTES and allowlist-checked,
+  // so this is a safety net, not a security concern. 2048px is roughly the
+  // median width of Discord screenshot/image uploads we see in practice.
   const newWidth = Math.floor((metadata.width ?? 2048) * scaleFactor);
 
   const resized = await sharp(buffer)
