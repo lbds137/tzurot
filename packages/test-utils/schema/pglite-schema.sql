@@ -799,3 +799,11 @@ ALTER TABLE "import_jobs" ADD CONSTRAINT "import_jobs_personality_id_fkey" FOREI
 -- AddForeignKey
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- CHECK constraints harvested from prisma/migrations/**/migration.sql
+-- (Prisma's schema-diff generator has no CHECK-constraint representation,
+-- so they're merged back in here at schema-generation time.)
+ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_month" CHECK ("birth_month" IS NULL OR ("birth_month" >= 1 AND "birth_month" <= 12));
+ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_day" CHECK ("birth_day" IS NULL OR ("birth_day" >= 1 AND "birth_day" <= 31));
+ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_year" CHECK ("birth_year" IS NULL OR ("birth_year" >= 1 AND "birth_year" <= 9999));
+ALTER TABLE "personas" ADD CONSTRAINT "personas_name_non_empty" CHECK (LENGTH(TRIM("name")) > 0);
+ALTER TABLE "personas" ADD CONSTRAINT "personas_name_not_snowflake" CHECK ("name" !~ '^\d{17,19}$');
