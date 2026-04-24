@@ -471,7 +471,11 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
       {
         extractedLength: extractedThinking.length,
         remainingLength: visibleContent.length,
-        truncated: !glm47MetaMatch[0].includes('</analysis>'),
+        // Case-insensitive check mirrors the outer regex's `/i` flag. A plain
+        // `.includes('</analysis>')` would miss uppercased closing tags (e.g.
+        // `</ANALYSIS>`) and falsely log `truncated: true` even when the model
+        // successfully closed the block.
+        truncated: !/<\/analysis>/i.test(glm47MetaMatch[0]),
       },
       'Stripped leading meta-preamble scaffolding (GLM-4.7 user/character/analysis echo)'
     );
