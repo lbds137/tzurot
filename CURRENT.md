@@ -97,6 +97,16 @@ Substantial work pending release:
 
 Next release will be substantial — likely beta.105 when the DM subscription fix or a TTS milestone lands.
 
+### Release-note addenda (manual — paste at beta.105 draft time)
+
+The auto-generated notes from `pnpm ops release:draft-notes` will not surface the following behavior-visible change. Paste this line under **Improvements** (or **Breaking Changes** if any downstream caller is confirmed to rely on the old response) in the beta.105 draft:
+
+```markdown
+- **api-gateway:** `GET /user/timezone` now returns `404` instead of `{ timezone: 'UTC', isDefault: true }` when the user row is missing (PR #881). Graceful-degradation callers should handle 404 explicitly; bot-client was already updated to treat 404 as the missing-user signal.
+```
+
+Context: PR #881 replaced the old "silently default to UTC" handler with a proper 404 when `requireProvisionedUser` guarantees the user row should exist but doesn't. Architecturally correct but it's a contract change on a rarely-exercised error path.
+
 ---
 
 ## Previous Sessions
