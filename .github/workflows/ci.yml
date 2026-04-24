@@ -68,22 +68,23 @@ jobs:
           # Verify schema file exists
           if [ ! -f "packages/test-utils/schema/pglite-schema.sql" ]; then
             echo "❌ ERROR: packages/test-utils/schema/pglite-schema.sql not found"
-            echo "Run: ./scripts/testing/regenerate-pglite-schema.sh"
+            echo "Run: pnpm ops test:generate-schema"
             exit 1
           fi
 
-          # Generate fresh schema from Prisma (no DB connection needed)
-          npx prisma migrate diff \
-            --from-empty \
-            --to-schema ./prisma/schema.prisma \
-            --script > /tmp/fresh-pglite-schema.sql
+          # Use the ops generator so CI matches what developers run locally.
+          # The generator appends CHECK constraints harvested from migration SQL
+          # (Prisma's schema-diff has no CHECK representation), so a raw
+          # `prisma migrate diff` would produce a different file and always
+          # flag drift.
+          pnpm ops test:generate-schema --output /tmp/fresh-pglite-schema.sql > /dev/null
 
           # Compare with committed schema
           if ! diff -q packages/test-utils/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql > /dev/null 2>&1; then
             echo "❌ ERROR: pglite-schema.sql is out of sync with prisma/schema.prisma"
             echo ""
             echo "The integration test schema must match the Prisma schema."
-            echo "Run: ./scripts/testing/regenerate-pglite-schema.sh"
+            echo "Run: pnpm ops test:generate-schema"
             echo ""
             echo "Diff:"
             diff packages/test-utils/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql || true
