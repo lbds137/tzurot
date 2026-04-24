@@ -28,16 +28,19 @@ Line count is not a classifier. A one-line regex-flag change is semantic; a 20-l
 
 Compare the reviewer's severity label against the edit shape from rule 1:
 
-| Reviewer says                    | Agent classifies | Result                             |
-| -------------------------------- | ---------------- | ---------------------------------- |
-| "nit / minor / not blocking"     | trivial          | **Continue** (aligned)             |
-| "nit / minor / not blocking"     | semantic         | **ASK** (disagreement)             |
-| "medium / blocking / must fix"   | trivial          | **ASK** (disagreement)             |
-| "medium / blocking / must fix"   | semantic         | **ASK** (aligned on severity)      |
-| Self-dismisses ("actually fine") | Agent agrees     | **DISMISS** (note in summary)      |
-| Self-dismisses                   | Agent disagrees  | **ASK** (with dissenting analysis) |
+| Reviewer says                                 | Agent classifies | Result                                     |
+| --------------------------------------------- | ---------------- | ------------------------------------------ |
+| "nit / minor / not blocking"                  | trivial          | **Continue** (aligned)                     |
+| "nit / minor / not blocking"                  | semantic         | **ASK** (disagreement)                     |
+| "medium / blocking / must fix"                | trivial          | **ASK** (disagreement)                     |
+| "medium / blocking / must fix"                | semantic         | **ASK** (aligned on severity)              |
+| Self-dismisses ("actually fine")              | Agent agrees     | **DISMISS** (note in summary)              |
+| Self-dismisses                                | Agent disagrees  | **ASK** (with dissenting analysis)         |
+| Contradicts own round-(N-1) call on same item | Any              | **DISMISS** (cite prior round's rationale) |
 
 **Any disagreement between reviewer and agent defaults to ASK.** Neither side has special authority, and uncertainty is the honest state when signals conflict.
+
+**Reviewer self-contradiction across rounds**: when round-N reviewer reverses its round-(N-1) stance on the same item (e.g., round 3 says "drop the `?? ''` as unreachable," round 4 says "add `?? ''` back for defensive typing"), the reviewer is not authoritative on its own prior disagreement. Dismiss and cite the earlier round's reasoning in the summary. Don't ping-pong. This is distinct from genuine new information surfacing — a round-N reviewer observation that _builds on_ round-(N-1) (adds context, corrects an error) is normal; a direct reversal on the same fact-pattern is noise.
 
 ### 3. Apply with test-suite gating
 
@@ -107,7 +110,7 @@ Each round's fixes have surfaced new findings. Options:
 
 Long review loops are almost always a convergence failure, not genuine quality refinement. The user is better positioned than the agent to decide whether to merge, rewrite, or abandon. Forcing the decision at round 4 prevents the agent and reviewer from indefinitely discovering new nits.
 
-The cap resets on user intervention. If the user explicitly answers an ASK, that round counts toward user-attention time and the round counter may continue.
+The cap resets on user intervention. **"User intervention" means the user explicitly answered an ASK, approved/rejected an auto-apply call, or directed the agent to take a specific action.** Merely reading a round summary without a response, acknowledging with a thumbs-up emoji, or a "continue" that doesn't address an open ASK does not count — those are light-touch signals the user is still present, but the decision-fatigue pressure the round cap exists to bound is about _active_ user engagement, not _passive_ presence. When in doubt: if the user said something that would differently route an item (answered an ASK, amended a fix, told the agent to do X), reset the counter; if they didn't, don't reset.
 
 ### 6. Reviewer mode decay across rounds (aspirational)
 
