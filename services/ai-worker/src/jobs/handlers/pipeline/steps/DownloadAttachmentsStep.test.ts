@@ -228,6 +228,34 @@ describe('DownloadAttachmentsStep', () => {
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(1);
   });
 
+  it('aggregates partial failures, naming the failing attachment while other succeeds', async () => {
+    // Pins the `Promise.allSettled` aggregation path in `downloadAll`. Uses a
+    // URL-keyed mock so the test is order-independent — `downloadOne` calls
+    // run in parallel, so mockResolvedValueOnce/mockRejectedValueOnce chaining
+    // would be brittle against interleaved fetch invocations.
+    fetchAttachmentBytesMock.mockImplementation(async (url: string) => {
+      if (url.includes('good.png')) return Buffer.from('ok');
+      throw new Error('ECONNRESET');
+    });
+
+    const job = createJob([
+      {
+        url: 'https://cdn.discordapp.com/good.png',
+        contentType: 'image/png',
+        name: 'good.png',
+      },
+      { url: 'https://cdn.discordapp.com/bad.png', contentType: 'image/png', name: 'bad.png' },
+    ]);
+
+    // Error names the failing attachment AND the aggregation prefix, so the
+    // user-facing message isn't an opaque "some attachment failed".
+    await expect(step.process(createContext(job))).rejects.toThrow(
+      /Failed to download 1 attachment.*bad\.png/s
+    );
+    // 3 calls: good.png succeeds once, bad.png fails + retries once.
+    expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(3);
+  });
+
   it('retries once on transient network error, then fails cleanly', async () => {
     const transient = new Error('network: ECONNRESET');
     fetchAttachmentBytesMock.mockRejectedValueOnce(transient).mockRejectedValueOnce(transient);

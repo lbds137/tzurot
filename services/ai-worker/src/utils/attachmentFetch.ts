@@ -160,7 +160,12 @@ export async function fetchAttachmentBytes(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    // redirect: 'error' closes an SSRF gap: validateAttachmentUrl only guards
+    // the initial URL, so a 302 response from the CDN to an internal address
+    // would sneak past the allowlist. Discord's CDN doesn't redirect in
+    // practice today — if that ever changes, we'd rather hard-fail than
+    // silently follow the redirect out of the allowlist.
+    const response = await fetch(url, { signal: controller.signal, redirect: 'error' });
     if (!response.ok) {
       // Do not let CDN 403s trip any future outbound-HTTP circuit breaker —
       // this is a per-URL lifetime issue, not a Discord availability issue.
@@ -219,7 +224,10 @@ export async function resizeImageIfNeeded(
 
   const originalSize = buffer.byteLength;
   if (originalSize <= MEDIA_LIMITS.MAX_IMAGE_SIZE) {
-    logger.info({ originalSize }, 'Image within size limit, no resize needed');
+    // debug, not info: fires on every non-oversized image; a typical message
+    // with several attachments would produce one of these lines per image
+    // at info level and bury more important signals in the log aggregator.
+    logger.debug({ originalSize }, 'Image within size limit, no resize needed');
     return { buffer, contentType };
   }
 
