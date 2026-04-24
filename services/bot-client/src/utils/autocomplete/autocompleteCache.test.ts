@@ -505,6 +505,25 @@ describe('autocompleteCache', () => {
       expect(result).toEqual({ kind: 'error', error: 'Forbidden' });
     });
 
+    /**
+     * 429 sits at the 4xx/transient boundary — it's the most likely status
+     * to be accidentally regressed if someone changes the transient condition
+     * to a naive `status >= 500`. Pinning end-to-end stale-fallback for 429
+     * here ensures the boundary survives such refactors.
+     */
+    it('serves stale data on rate-limit error (429) after initial success', async () => {
+      await primeStaleOnly();
+
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: false,
+        error: 'Rate limited',
+        status: 429,
+      });
+      const result = await getCachedPersonalities(testUser);
+
+      expect(result).toEqual({ kind: 'ok', value: mockPersonalities });
+    });
+
     it('returns error on transient error when no stale cache exists', async () => {
       mockCallGatewayApi.mockResolvedValueOnce({
         ok: false,
