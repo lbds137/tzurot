@@ -53,6 +53,18 @@ For items that passed rules 1 and 2 (trivial-shape + no conflict):
 
 Fixup commits autosquash naturally on the next `git rebase -i --autosquash`. This is the correct escape valve for a rebase-only workflow — `git revert` is not available on rewritten-history branches, but fixup-drop during interactive rebase is cheap and native.
 
+**When is "the next rebase"?** At **final-merge time**, not after each round. Keep fixup commits visible through review iteration and just `git push` them — do not `rebase --autosquash` and do not force-push between rounds. Fixup commits sitting on the branch as `fixup! <target message>` are fine; reviewers and CI can read them, and they'll squash into their target commits automatically at merge via `gh pr merge --rebase`.
+
+Mid-PR rebase is reserved for three specific cases, all of which should be rare:
+
+- The user explicitly asks for clean history before merge approval.
+- A fixup breaks a semantic commit in a way that needs `rebase --edit` to amend (not just autosquash).
+- The underlying commit structure itself needs restructuring (splitting a commit, reordering, etc.) — not cosmetic polish.
+
+**"Tidy history for its own sake" is not on that list.** Force-push per round costs ~4 min of pre-push hook + full CI re-run + claude-review re-run per cycle — the cumulative wait time compounds across rounds for zero functional benefit. It also risks losing reviewer inline-comment anchors when history rewrites.
+
+Do not conflate "rebase-only merge strategy" (the project's convention — no merge commits, no squash-on-merge, use `gh pr merge --rebase`) with "rebase before every push" (a habit some contributors carry in from other projects). The first is required; the second is drift.
+
 For items escalated to ASK: do not apply. Skip to rule 4.
 
 ### 4. Batch-present at end of round
