@@ -179,12 +179,6 @@ describe('handleImport', () => {
     });
   });
 
-  // The autocomplete handler emits `__autocomplete_error__` as the `value`
-  // of its "[Unable to load shapes — try again]" placeholder choice when its
-  // backend check fails. If the user selects the placeholder (or types the
-  // sentinel directly), the handler must short-circuit with an
-  // "autocomplete unavailable" reply instead of submitting the sentinel
-  // as a real slug to the gateway.
   it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
     mockGetString.mockImplementation((name: string) => {
       if (name === 'slug') return '__autocomplete_error__';
