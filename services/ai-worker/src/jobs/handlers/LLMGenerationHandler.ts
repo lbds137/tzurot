@@ -58,8 +58,13 @@ const logger = createLogger('LLMGenerationHandler');
  * 8. GenerationStep - Calls RAG service to generate response
  * 9. TTSStep - Synthesizes audio from response text (non-critical, graceful degradation)
  *
- * Each step is stateless - context flows through as function arguments,
- * ensuring thread safety when handling concurrent jobs.
+ * Most steps are stateless - context flows through as function arguments,
+ * ensuring thread safety when handling concurrent jobs. One exception:
+ * DownloadAttachmentsStep rewrites `job.data.context.attachments[].url` to
+ * data URLs in-place so every later step sees the pre-downloaded bytes
+ * without a new cross-step contract. Safe because `job.data` is this
+ * worker's own deserialized copy of the BullMQ payload; the mutation is
+ * not visible to Redis or to other workers.
  *
  * ## Error Handling / Failure Behavior
  *
