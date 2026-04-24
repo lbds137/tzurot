@@ -92,6 +92,17 @@ const PROVISIONED_USER_ROUTE_RULES = [
     message:
       'Route handlers under `requireProvisionedUser` must not query the users table by discordId — the middleware has already attached the internal UUID to `req.provisionedUserId`. Use `resolveProvisionedUserId(req, userService)` instead. See epic-identity-hardening.md Phase 5c/6 and BACKLOG.md (Phase 5c work items). If you have a legitimate cross-user lookup (e.g., admin routes under requireOwnerAuth), add an eslint-disable with a concrete justification.',
   },
+  {
+    // Ban direct `new UserService(prisma)` in route files. PR #883 harmonized
+    // instantiation through `getOrCreateUserService` (AuthMiddleware.ts), which
+    // keys by PrismaClient so all routes sharing a client share one UserService
+    // instance — direct instantiation in a route factory defeats that cache.
+    // AuthMiddleware.ts itself lives outside routes/**, so it's automatically
+    // exempt from this scope.
+    selector: "NewExpression[callee.name='UserService']",
+    message:
+      'Route files must not instantiate UserService directly. Use `getOrCreateUserService(prisma)` from `../services/AuthMiddleware.js` — it keys by PrismaClient so all routes share one instance and its caches. Direct construction creates orphan UserService instances that duplicate TTLCache state (user/persona lookups) and bypass registry-wide invalidation. If you have a legitimate reason (e.g., a test fixture that survives the ESLint test-file ignore), add an eslint-disable with a concrete justification.',
+  },
 ];
 
 export default tseslint.config(
