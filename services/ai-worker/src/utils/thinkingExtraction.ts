@@ -158,6 +158,16 @@ const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
  * with no preamble tags" test case. Do that rather than weakening the
  * start-of-response anchor, which is the primary safety guarantee.
  *
+ * Interaction with `normalizeThinkingTagNamespaces` and Pass 2: `user`,
+ * `character`, and `analysis` must NOT appear in `KNOWN_THINKING_TAGS`.
+ * Adding bare `analysis` to that list (natural-seeming given
+ * `character_analysis` is already there) would cause Pass 2 to double-
+ * extract the `<analysis>` body into `thinkingParts` from `normalized`
+ * (which still holds the original content). Not user-visible since Pass 1
+ * already strips it from `visibleContent`, but inflates thinking output.
+ * If `KNOWN_THINKING_TAGS` is ever extended with an overlapping name,
+ * re-verify.
+ *
  * Structural flexibility vs. the 4.5-Air pattern:
  *   - `<user>` and `<character>` are OPTIONAL preamble — either, both, or
  *     neither may appear, in any order. Observed variant had all three; future
@@ -462,7 +472,7 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
   if (glm47MetaMatch !== null) {
     // Group 2 is the <analysis> body (group 1 is the preamble tag name used
     // for backreference closure matching).
-    const extractedThinking = (glm47MetaMatch[2] ?? '').trim();
+    const extractedThinking = glm47MetaMatch[2].trim();
     if (extractedThinking.length > 0) {
       thinkingParts.push(extractedThinking);
     }
