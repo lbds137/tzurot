@@ -67,8 +67,8 @@ describe('AudioProcessor', () => {
     describe('Redis caching', () => {
       it('should return cached transcript when available', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://cdn.discord.com/attachments/123/456/audio.ogg',
-          originalUrl: 'https://cdn.discord.com/attachments/123/456/audio.ogg',
+          url: 'https://cdn.discordapp.com/attachments/123/456/audio.ogg',
+          originalUrl: 'https://cdn.discordapp.com/attachments/123/456/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -85,7 +85,7 @@ describe('AudioProcessor', () => {
 
       it('should skip cache when originalUrl is not provided', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -107,7 +107,7 @@ describe('AudioProcessor', () => {
 
       it('should skip cache when originalUrl is empty string', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           originalUrl: '',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
@@ -130,8 +130,8 @@ describe('AudioProcessor', () => {
 
       it('should proceed with transcription if cache check fails', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          originalUrl: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
+          originalUrl: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -155,8 +155,8 @@ describe('AudioProcessor', () => {
 
       it('should skip cache when cached value is null', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          originalUrl: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
+          originalUrl: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -179,8 +179,8 @@ describe('AudioProcessor', () => {
 
       it('should skip cache when cached value is empty string', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
-          originalUrl: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
+          originalUrl: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -205,7 +205,7 @@ describe('AudioProcessor', () => {
     describe('voice-engine integration', () => {
       it('should use voice-engine when configured and healthy', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -227,7 +227,7 @@ describe('AudioProcessor', () => {
 
       it('should return empty string from voice-engine without falling back', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -249,7 +249,7 @@ describe('AudioProcessor', () => {
 
       it('should throw when voice-engine fails and no other provider available', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -268,7 +268,7 @@ describe('AudioProcessor', () => {
 
       it('should throw when no STT provider is configured', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -287,7 +287,7 @@ describe('AudioProcessor', () => {
 
     describe('voice-engine warm-up', () => {
       const warmupAttachment: AttachmentMetadata = {
-        url: 'https://example.com/audio.ogg',
+        url: 'https://cdn.discordapp.com/audio.ogg',
         name: 'audio.ogg',
         contentType: CONTENT_TYPES.AUDIO_OGG,
         size: 1024,
@@ -335,7 +335,7 @@ describe('AudioProcessor', () => {
     describe('audio fetching', () => {
       it('should fetch audio successfully', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 2048,
@@ -362,7 +362,7 @@ describe('AudioProcessor', () => {
 
       it('should handle fetch failure', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -375,7 +375,7 @@ describe('AudioProcessor', () => {
 
       it('should handle HTTP error responses', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -393,7 +393,7 @@ describe('AudioProcessor', () => {
 
       it('should throw TimeoutError on fetch abort', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/audio.ogg',
+          url: 'https://cdn.discordapp.com/audio.ogg',
           name: 'audio.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 1024,
@@ -430,7 +430,7 @@ describe('AudioProcessor', () => {
     describe('voice message handling', () => {
       it('should handle voice messages with duration', async () => {
         const attachment: AttachmentMetadata = {
-          url: 'https://example.com/voice.ogg',
+          url: 'https://cdn.discordapp.com/voice.ogg',
           name: 'voice.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 8192,
@@ -455,7 +455,7 @@ describe('AudioProcessor', () => {
 
     describe('voice-engine retry on transient errors', () => {
       const retryAttachment: AttachmentMetadata = {
-        url: 'https://example.com/audio.ogg',
+        url: 'https://cdn.discordapp.com/audio.ogg',
         name: 'audio.ogg',
         contentType: CONTENT_TYPES.AUDIO_OGG,
         size: 1024,
@@ -506,7 +506,7 @@ describe('AudioProcessor', () => {
 
     describe('ElevenLabs STT integration', () => {
       const audioAttachment: AttachmentMetadata = {
-        url: 'https://example.com/audio.ogg',
+        url: 'https://cdn.discordapp.com/audio.ogg',
         name: 'audio.ogg',
         contentType: CONTENT_TYPES.AUDIO_OGG,
         size: 2048,
