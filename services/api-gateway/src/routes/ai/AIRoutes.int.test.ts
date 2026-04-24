@@ -14,7 +14,6 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import type { Queue, QueueEvents } from 'bullmq';
-import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { PrismaClient } from '@tzurot/common-types';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
@@ -88,12 +87,8 @@ describe('AI Routes Integration', () => {
       once: () => {},
     } as unknown as QueueEvents;
 
-    const mockAttachmentStorage = {
-      downloadAndStoreAttachment: async () => '/tmp/mock-file',
-    } as unknown as AttachmentStorageService;
-
     // Mount AI router
-    const aiRouter = createAIRouter(prisma, mockQueue, mockQueueEvents, mockAttachmentStorage);
+    const aiRouter = createAIRouter(prisma, mockQueue, mockQueueEvents);
     app.use('/ai', aiRouter);
   }, 30000);
 

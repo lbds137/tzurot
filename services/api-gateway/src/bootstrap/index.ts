@@ -7,7 +7,6 @@
 export {
   validateByokConfiguration,
   ensureAvatarDirectory,
-  ensureTempAttachmentDirectory,
   validateRequiredEnvVars,
   validateServiceAuthConfig,
 } from './startup.js';

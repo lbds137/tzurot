@@ -7,7 +7,6 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { createGenerateRoute } from './generate.js';
 import { JobStatus } from '@tzurot/common-types';
-import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 
 // Mock dependencies
 vi.mock('../../utils/deduplicationCache.js', () => ({
@@ -20,29 +19,16 @@ vi.mock('../../utils/jobChainOrchestrator.js', () => ({
   createJobChain: vi.fn().mockResolvedValue('llm-req-123'),
 }));
 
-// Create mock AttachmentStorageService
-const createMockAttachmentStorage = () => ({
-  downloadAndStore: vi.fn().mockImplementation(async (_requestId, attachments) => attachments),
-  cleanup: vi.fn().mockResolvedValue(undefined),
-});
-
 describe('POST /generate', () => {
   let app: Express;
-  let attachmentStorage: ReturnType<typeof createMockAttachmentStorage>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Create mocks
-    attachmentStorage = createMockAttachmentStorage();
-
     // Create Express app with generate router
     app = express();
     app.use(express.json());
-    app.use(
-      '/generate',
-      createGenerateRoute(attachmentStorage as unknown as AttachmentStorageService)
-    );
+    app.use('/generate', createGenerateRoute());
   });
 
   it('should create a job and return 202 Accepted', async () => {

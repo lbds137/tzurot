@@ -9,21 +9,13 @@ import {
   createLogger,
   getConfig,
   TIMEOUTS,
-  INTERVALS,
   QUEUE_CONFIG,
   parseRedisUrl,
   createBullMQRedisConfig,
-  JOB_PREFIXES,
 } from '@tzurot/common-types';
-import { AttachmentStorageService } from './services/AttachmentStorageService.js';
 
 const logger = createLogger('Queue');
 const config = getConfig();
-
-// Create attachment storage service for cleanup
-const attachmentStorage = new AttachmentStorageService({
-  gatewayUrl: config.PUBLIC_GATEWAY_URL ?? config.GATEWAY_URL,
-});
 
 // Get Redis connection config from environment
 if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
@@ -85,28 +77,10 @@ export const queueEvents = new QueueEvents(QUEUE_NAME, {
 // Event handlers
 queueEvents.on('completed', ({ jobId }) => {
   logger.info({ jobId }, 'Job completed');
-
-  // Clean up temporary attachments after a short delay
-  // This ensures ai-worker has finished all async operations
-  // Job ID format is llm-{requestId} for main generation jobs
-  if (jobId.startsWith(JOB_PREFIXES.LLM_GENERATION)) {
-    const requestId = jobId.substring(JOB_PREFIXES.LLM_GENERATION.length);
-    setTimeout(() => {
-      void attachmentStorage.cleanup(requestId);
-    }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
-  }
 });
 
 queueEvents.on('failed', ({ jobId, failedReason }) => {
   logger.error({ failedReason }, `Job ${jobId} failed:`);
-
-  // Clean up temporary attachments even on failure
-  if (jobId.startsWith(JOB_PREFIXES.LLM_GENERATION)) {
-    const requestId = jobId.substring(JOB_PREFIXES.LLM_GENERATION.length);
-    setTimeout(() => {
-      void attachmentStorage.cleanup(requestId);
-    }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
-  }
 });
 
 queueEvents.on('error', error => {
