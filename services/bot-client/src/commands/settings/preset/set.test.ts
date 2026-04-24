@@ -283,5 +283,14 @@ describe('Me Preset Set Handler', () => {
       // But since config check also needs to find the config, it will proceed
       expect(mockEditReply).toHaveBeenCalled();
     });
+
+    it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+      await handleSet(createMockContext('__autocomplete_error__', 'config-1'));
+
+      expect(callGatewayApi).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+    });
   });
 });

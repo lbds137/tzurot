@@ -441,5 +441,16 @@ describe('handleBatchDelete', () => {
         content: expect.stringContaining('unexpected error'),
       });
     });
+
+    it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
+      const context = createMockContext('__autocomplete_error__');
+      await handleBatchDelete(context);
+
+      expect(mockResolvePersonalityId).not.toHaveBeenCalled();
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+    });
   });
 });

@@ -129,6 +129,16 @@ describe('handleHardDelete', () => {
       content: '❌ An error occurred. Please try again later.',
     });
   });
+
+  it('rejects the autocomplete-error sentinel before building the warning', async () => {
+    const context = createMockContext('__autocomplete_error__');
+    await handleHardDelete(context);
+
+    expect(mockBuildDestructiveWarning).not.toHaveBeenCalled();
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
 });
 
 describe('parseHardDeleteEntityId', () => {

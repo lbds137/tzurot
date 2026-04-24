@@ -137,4 +137,13 @@ describe('handleOverrideClear', () => {
       content: expect.stringContaining('Failed to clear persona override'),
     });
   });
+
+  it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+    await handleOverrideClear(createMockContext('__autocomplete_error__'));
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
 });

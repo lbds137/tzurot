@@ -69,7 +69,7 @@ async function handleVoiceUpload(
   const interaction = context.interaction;
   const slug = interaction.options.getString('character', true);
   if (isAutocompleteErrorSentinel(slug)) {
-    await context.editReply(AUTOCOMPLETE_UNAVAILABLE_MESSAGE);
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return;
   }
   const attachment = interaction.options.getAttachment('audio', true);
@@ -166,7 +166,7 @@ async function handleVoiceClear(context: DeferredCommandContext, config: EnvConf
   const interaction = context.interaction;
   const slug = interaction.options.getString('character', true);
   if (isAutocompleteErrorSentinel(slug)) {
-    await context.editReply(AUTOCOMPLETE_UNAVAILABLE_MESSAGE);
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return;
   }
   const userId = context.user.id;
