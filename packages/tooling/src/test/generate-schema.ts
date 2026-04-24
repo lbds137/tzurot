@@ -19,6 +19,18 @@ import chalk from 'chalk';
  */
 const DUMMY_DATABASE_URL = 'postgres://x:x@x/x';
 
+/**
+ * Header preceding appended CHECK statements in the generated schema. Spelled
+ * out as a constant (rather than inlined into the template literal) so a
+ * reader scanning `generateSchema()` sees the intent immediately instead of
+ * parsing an escaped-newline blob.
+ */
+const CHECK_CONSTRAINT_BANNER = [
+  '-- CHECK constraints harvested from prisma/migrations/**/migration.sql',
+  "-- (Prisma's schema-diff generator has no CHECK-constraint representation,",
+  "-- so they're merged back in here at schema-generation time.)",
+].join('\n');
+
 interface GenerateSchemaOptions {
   output?: string;
 }
@@ -37,17 +49,16 @@ interface GenerateSchemaOptions {
  * tokens (some migrations wrap after `ALTER TABLE`, others are single-line).
  * Case-insensitive to match either SQL convention.
  */
-const CHECK_CONSTRAINT_REGEX = /^ALTER\s+TABLE\s+"[^"]+"\s+ADD\s+CONSTRAINT\s+"[^"]+"\s+CHECK\b/i;
-
 /**
- * Extract all `ADD CONSTRAINT ... CHECK (...)` statements from every
- * `migration.sql` under `migrationsDir`, returned in chronological order
- * (sorted by directory name — Prisma's YYYYMMDDHHMMSS_ prefix sorts correctly).
- * Statements are returned normalized to single-line form, each terminated
- * with a semicolon.
+ * Matches an `ALTER TABLE ... ADD CONSTRAINT "<name>" CHECK (...)` statement
+ * and captures the constraint name. Because `"[^"]+"` requires at least one
+ * character inside the quotes, a successful match guarantees group 1 is a
+ * non-empty string — see type narrowing in `extractCheckStatementsFromFile`.
  */
+const CHECK_CONSTRAINT_REGEX = /^ALTER\s+TABLE\s+"[^"]+"\s+ADD\s+CONSTRAINT\s+"([^"]+)"\s+CHECK\b/i;
+
 interface ExtractedCheck {
-  name: string | undefined;
+  name: string;
   statement: string;
 }
 
@@ -70,17 +81,32 @@ function extractCheckStatementsFromFile(sqlPath: string): ExtractedCheck[] {
   for (const stmt of uncommented.split(';')) {
     const trimmed = stmt.trim();
     if (trimmed.length === 0) continue;
-    if (!CHECK_CONSTRAINT_REGEX.test(trimmed)) continue;
+    const match = CHECK_CONSTRAINT_REGEX.exec(trimmed);
+    if (match === null) continue;
+    const name = match[1];
+    // Unreachable per regex (`"[^"]+"` requires the capture), but TS sees
+    // match[1] as string | undefined.
+    if (name === undefined) continue;
 
-    const nameMatch = /ADD\s+CONSTRAINT\s+"([^"]+)"/i.exec(trimmed);
     results.push({
-      name: nameMatch?.[1],
+      name,
       statement: normalizeStatement(trimmed) + ';',
     });
   }
   return results;
 }
 
+/**
+ * Extract all `ADD CONSTRAINT ... CHECK (...)` statements from every
+ * `migration.sql` under `migrationsDir`. When the same constraint name
+ * appears in multiple migrations (drop + re-add across two files), the
+ * **last** migration's definition wins — this matches Postgres's own
+ * semantics: after migration B drops and re-adds `c1`, prod enforces
+ * migration B's CHECK expression, not migration A's. First-wins would
+ * silently ship migration A's (stale) definition into PGLite while prod
+ * runs migration B's, re-introducing the fidelity gap this extractor
+ * was built to eliminate.
+ */
 export function extractCheckConstraints(migrationsDir: string): string[] {
   if (!existsSync(migrationsDir)) {
     return [];
@@ -91,27 +117,21 @@ export function extractCheckConstraints(migrationsDir: string): string[] {
     .map(d => d.name)
     .sort();
 
-  const checkStatements: string[] = [];
-  // Dedup by constraint name: same name appearing in two migrations (unlikely
-  // with Prisma's workflow, but possible if a CHECK is dropped and re-added)
-  // would produce duplicate `ADD CONSTRAINT` statements, which PGLite rejects
-  // with a confusing runtime error. First occurrence wins — chronological
-  // sort above ensures this matches Postgres's own "last write wins" (the
-  // later migration has already overwritten the earlier one in prod).
-  const seenNames = new Set<string>();
+  // Map.set overwrites existing entries while preserving insertion order.
+  // Iterating chronologically means later migrations replace earlier ones
+  // by name while the overall emission order stays deterministic.
+  const byName = new Map<string, string>();
 
   for (const folder of migrationFolders) {
     const sqlPath = join(migrationsDir, folder, 'migration.sql');
     if (!existsSync(sqlPath)) continue;
 
     for (const { name, statement } of extractCheckStatementsFromFile(sqlPath)) {
-      if (name !== undefined && seenNames.has(name)) continue;
-      if (name !== undefined) seenNames.add(name);
-      checkStatements.push(statement);
+      byName.set(name, statement);
     }
   }
 
-  return checkStatements;
+  return Array.from(byName.values());
 }
 
 /** Collapse internal whitespace so each statement ends up on one line. */
@@ -157,7 +177,7 @@ export async function generateSchema(options: GenerateSchemaOptions = {}): Promi
     const checkStatements = extractCheckConstraints(migrationsDir);
     const sql =
       checkStatements.length > 0
-        ? `${baseSql.trimEnd()}\n\n-- CHECK constraints harvested from prisma/migrations/**/migration.sql\n-- (Prisma's schema-diff generator has no CHECK-constraint representation,\n-- so they're merged back in here at schema-generation time.)\n${checkStatements.join('\n')}\n`
+        ? `${baseSql.trimEnd()}\n\n${CHECK_CONSTRAINT_BANNER}\n${checkStatements.join('\n')}\n`
         : baseSql;
 
     // Write output
