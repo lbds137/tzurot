@@ -151,7 +151,12 @@ const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
  * UUID validation as an additional bedrock guarantee. The tag vocabulary
  * here is load-bearing — a legitimate response rarely starts with
  * `<analysis>`. If that assumption breaks (e.g., a personality is prompted
- * to output `<analysis>` as a structured-output format), shrink this pattern.
+ * to output `<analysis>` as a structured-output format), shrink this
+ * pattern. Concretely: change `{0,2}` to `{1,2}` so the regex requires at
+ * least one `<user>` or `<character>` preamble tag — this eliminates bare-
+ * `<analysis>` matches at the cost of breaking the "handles bare <analysis>
+ * with no preamble tags" test case. Do that rather than weakening the
+ * start-of-response anchor, which is the primary safety guarantee.
  *
  * Structural flexibility vs. the 4.5-Air pattern:
  *   - `<user>` and `<character>` are OPTIONAL preamble — either, both, or
