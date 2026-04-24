@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
 import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
-import { DownloadAttachmentsStep } from './DownloadAttachmentsStep.js';
+import { DownloadAttachmentsStep, MAX_QUEUE_AGE_MS } from './DownloadAttachmentsStep.js';
 import { AttachmentTooLargeError, HttpError } from '../../../../utils/attachmentFetch.js';
 import type { GenerationContext } from '../types.js';
 
@@ -117,12 +117,15 @@ describe('DownloadAttachmentsStep', () => {
     expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
   });
 
-  it('fails fast with ExpiredJobError when queue-age exceeds 12h, without fetching', async () => {
-    const thirteenHoursAgo = Date.now() - 13 * 60 * 60 * 1000;
+  it('fails fast with ExpiredJobError when queue-age exceeds threshold, without fetching', async () => {
+    // +1min over the threshold — tests the actual boundary rather than a
+    // hardcoded "way over" value. If MAX_QUEUE_AGE_MS changes, this test
+    // continues to pin the boundary instead of silently over-testing.
+    const justOverThreshold = Date.now() - MAX_QUEUE_AGE_MS - 60_000;
     const job = createJob(
       [{ url: 'https://cdn.discordapp.com/a/b/c.png', contentType: 'image/png', name: 'c.png' }],
       [],
-      thirteenHoursAgo
+      justOverThreshold
     );
 
     await expect(step.process(createContext(job))).rejects.toThrow(/URLs have likely expired/);
@@ -136,8 +139,8 @@ describe('DownloadAttachmentsStep', () => {
     // exists to guard against 403s from expired CDN URLs, so it should not
     // fire when there are no URLs. A text-only message queued through a
     // multi-hour backpressure incident must complete cleanly.
-    const thirteenHoursAgo = Date.now() - 13 * 60 * 60 * 1000;
-    const job = createJob([], [], thirteenHoursAgo);
+    const justOverThreshold = Date.now() - MAX_QUEUE_AGE_MS - 60_000;
+    const job = createJob([], [], justOverThreshold);
 
     await expect(step.process(createContext(job))).resolves.toBeDefined();
     expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
@@ -183,6 +186,14 @@ describe('DownloadAttachmentsStep', () => {
     expect(job.data.context.attachments![0].url).toMatch(/^data:/);
     expect(job.data.context.attachments![1].url).toMatch(/^data:/);
     expect(job.data.context.extendedContextAttachments![0].url).toMatch(/^data:/);
+    // originalUrl must be preserved on every group — VisionDescriptionCache
+    // keys off this field for both trigger and extended-context arrays, so the
+    // invariant needs to hold across both paths inside downloadAll.
+    expect(job.data.context.attachments![0].originalUrl).toBe('https://cdn.discordapp.com/1.png');
+    expect(job.data.context.attachments![1].originalUrl).toBe('https://cdn.discordapp.com/2.png');
+    expect(job.data.context.extendedContextAttachments![0].originalUrl).toBe(
+      'https://cdn.discordapp.com/3.png'
+    );
   });
 
   it('invokes resize and reflects the smaller size + JPEG mime in the output', async () => {
