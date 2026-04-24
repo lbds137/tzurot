@@ -113,6 +113,8 @@ export function extractCheckConstraints(migrationsDir: string): string[] {
   const migrationFolders = readdirSync(migrationsDir, { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => d.name)
+    // Prisma prefixes folders with `YYYYMMDDHHMMSS_`, so lexicographic sort
+    // matches chronological sort — essential for the last-wins dedup below.
     .sort();
 
   // Map.set overwrites existing entries while preserving insertion order.
