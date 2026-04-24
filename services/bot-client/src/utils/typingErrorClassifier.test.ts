@@ -13,18 +13,14 @@ function buildMockLogger(): Logger {
 }
 
 /**
- * These tests intentionally use real `setInterval` instead of `vi.useFakeTimers()`
- * even though 02-code-standards.md says "ALWAYS Use fake timers." Reason: the
- * assertion under test is `vi.spyOn(globalThis, 'clearInterval').toHaveBeenCalledWith(handle)`,
- * which requires a real `NodeJS.Timeout` reference to pass into `handleTypingError`.
- * Fake timers replace the timer implementation with numeric IDs, and `clearInterval`
- * calls with those fake IDs would still be observable via the spy — but the
- * semantic test ("we passed the same handle we were given") becomes weaker
- * because both production and test are using the same fake primitives.
- *
- * The intervals never have time to fire (callback is `() => undefined` + 1s
- * period, tests run in microseconds), and `afterEach` unconditionally clears
- * any that were created, so no real delays or timer leaks result.
+ * These tests use real `setInterval` instead of `vi.useFakeTimers()` because
+ * the assertion-under-test is `vi.spyOn(clearInterval).toHaveBeenCalledWith(handle)`,
+ * and the test just needs *a* valid `NodeJS.Timeout` reference to pass into
+ * `handleTypingError`. The callbacks are no-ops and the 1s period means they
+ * never have time to fire during test execution (tests run in microseconds).
+ * `afterEach` unconditionally clears any intervals that were created, so no
+ * real delays or timer leaks result — meeting the spirit of
+ * 02-code-standards.md's "ALWAYS Use fake timers" rule without the ceremony.
  */
 const intervalsToCleanup: NodeJS.Timeout[] = [];
 afterEach(() => {
@@ -188,9 +184,15 @@ describe('handleTypingError', () => {
 
   it('logs network errors at info level (transient, verbose suppressed)', () => {
     const logger = buildMockLogger();
+    const typingInterval = trackInterval(setInterval(() => undefined, 1000));
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval');
     const err = Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' });
 
-    const result = handleTypingError(err, { logger, context: { jobId: 'job-4' } });
+    const result = handleTypingError(err, {
+      logger,
+      context: { jobId: 'job-4' },
+      typingInterval,
+    });
 
     expect(result.kind).toBe('network');
     expect(logger.info).toHaveBeenCalledWith(
@@ -199,6 +201,10 @@ describe('handleTypingError', () => {
     );
     expect(logger.warn).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
+    // Parity with the rate-limit test: if the switch ever misroutes `network`
+    // through the channel-unreachable arm, the interval would be cleared and
+    // this assertion would catch it.
+    expect(clearSpy).not.toHaveBeenCalledWith(typingInterval);
   });
 
   it('logs unclassified errors at warn with full error object for future extension', () => {
