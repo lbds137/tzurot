@@ -93,8 +93,6 @@ const EXCLUDE_PATTERNS = [
   /asyncHandler\.ts$/,
   // Pure re-export barrel (no logic)
   /\/routes\/user\/persona\.ts$/,
-  // Temp storage (infrastructure, tested via integration)
-  /tempAttachmentStorage\.ts$/,
   // Base classes (tested via concrete implementations)
   /Base[A-Z].*\.ts$/,
   // Job utils (tested via integration in conversationUtils.test.ts)

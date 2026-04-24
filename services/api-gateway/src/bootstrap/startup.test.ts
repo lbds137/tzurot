@@ -123,25 +123,6 @@ describe('Startup Utilities', () => {
     });
   });
 
-  describe('ensureTempAttachmentDirectory', () => {
-    it('should succeed when directory exists', async () => {
-      vi.mocked(access).mockResolvedValue(undefined);
-
-      const { ensureTempAttachmentDirectory } = await import('./startup.js');
-      await expect(ensureTempAttachmentDirectory()).resolves.toBeUndefined();
-      expect(mkdir).not.toHaveBeenCalled();
-    });
-
-    it('should create directory when it does not exist', async () => {
-      vi.mocked(access).mockRejectedValue(new Error('ENOENT'));
-      vi.mocked(mkdir).mockResolvedValue(undefined);
-
-      const { ensureTempAttachmentDirectory } = await import('./startup.js');
-      await expect(ensureTempAttachmentDirectory()).resolves.toBeUndefined();
-      expect(mkdir).toHaveBeenCalledWith('/data/temp-attachments', { recursive: true });
-    });
-  });
-
   describe('checkAvatarStorage', () => {
     it('should return Ok status with file count when directory is accessible', async () => {
       vi.mocked(access).mockResolvedValue(undefined);
