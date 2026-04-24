@@ -110,7 +110,7 @@ describe('MultimodalProcessor', () => {
 
   describe('describeImage', () => {
     const mockAttachment = {
-      url: 'https://example.com/image.png',
+      url: 'https://cdn.discordapp.com/image.png',
       contentType: 'image/png',
       name: 'image.png',
     };
@@ -147,7 +147,7 @@ describe('MultimodalProcessor', () => {
   describe('transcribeAudio', () => {
     it('should transcribe audio successfully', async () => {
       const attachment: AttachmentMetadata = {
-        url: 'https://example.com/audio.ogg',
+        url: 'https://cdn.discordapp.com/audio.ogg',
         name: 'audio.ogg',
         contentType: CONTENT_TYPES.AUDIO_OGG,
         size: 1024,
@@ -161,7 +161,7 @@ describe('MultimodalProcessor', () => {
 
     it('should handle transcription errors', async () => {
       const attachment: AttachmentMetadata = {
-        url: 'https://example.com/audio.ogg',
+        url: 'https://cdn.discordapp.com/audio.ogg',
         name: 'audio.ogg',
         contentType: CONTENT_TYPES.AUDIO_OGG,
         size: 1024,
@@ -185,7 +185,7 @@ describe('MultimodalProcessor', () => {
     it('should process single image attachment successfully', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image1.png',
+          url: 'https://cdn.discordapp.com/image1.png',
           name: 'image1.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -203,7 +203,7 @@ describe('MultimodalProcessor', () => {
       expect(results[0]).toMatchObject({
         type: AttachmentType.Image,
         description: 'Mocked image description',
-        originalUrl: 'https://example.com/image1.png',
+        originalUrl: 'https://cdn.discordapp.com/image1.png',
       });
     });
 
@@ -213,7 +213,7 @@ describe('MultimodalProcessor', () => {
 
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/audio1.ogg',
+          url: 'https://cdn.discordapp.com/audio1.ogg',
           name: 'audio1.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 2048,
@@ -224,7 +224,7 @@ describe('MultimodalProcessor', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].type).toBe(AttachmentType.Audio);
-      expect(results[0].originalUrl).toBe('https://example.com/audio1.ogg');
+      expect(results[0].originalUrl).toBe('https://cdn.discordapp.com/audio1.ogg');
 
       // Restore fake timers for subsequent tests
       vi.useFakeTimers();
@@ -236,19 +236,19 @@ describe('MultimodalProcessor', () => {
 
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image1.png',
+          url: 'https://cdn.discordapp.com/image1.png',
           name: 'image1.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
         },
         {
-          url: 'https://example.com/image2.png',
+          url: 'https://cdn.discordapp.com/image2.png',
           name: 'image2.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
         },
         {
-          url: 'https://example.com/audio1.ogg',
+          url: 'https://cdn.discordapp.com/audio1.ogg',
           name: 'audio1.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 2048,
@@ -269,7 +269,7 @@ describe('MultimodalProcessor', () => {
     it('should retry failed attachments and eventually succeed', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image1.png',
+          url: 'https://cdn.discordapp.com/image1.png',
           name: 'image1.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -296,7 +296,7 @@ describe('MultimodalProcessor', () => {
     it('should provide fallback description with error category for permanently failed attachments', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image1.png',
+          url: 'https://cdn.discordapp.com/image1.png',
           name: 'image1.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -315,7 +315,7 @@ describe('MultimodalProcessor', () => {
       expect(results).toHaveLength(1);
       expect(results[0]).toMatchObject({
         type: AttachmentType.Image,
-        originalUrl: 'https://example.com/image1.png',
+        originalUrl: 'https://cdn.discordapp.com/image1.png',
       });
       // Fallback now includes attempt count and error category
       expect(results[0].description).toMatch(/Image processing failed after \d+ attempts \(/);
@@ -326,13 +326,13 @@ describe('MultimodalProcessor', () => {
     it('should handle mixed success and failure in parallel processing', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image1.png',
+          url: 'https://cdn.discordapp.com/image1.png',
           name: 'image1.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
         },
         {
-          url: 'https://example.com/image2.png',
+          url: 'https://cdn.discordapp.com/image2.png',
           name: 'image2.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -369,7 +369,7 @@ describe('MultimodalProcessor', () => {
     it('should handle audio attachment failures with appropriate fallback', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/audio1.ogg',
+          url: 'https://cdn.discordapp.com/audio1.ogg',
           name: 'audio1.ogg',
           contentType: CONTENT_TYPES.AUDIO_OGG,
           size: 2048,
@@ -387,7 +387,7 @@ describe('MultimodalProcessor', () => {
       expect(results).toHaveLength(1);
       expect(results[0]).toMatchObject({
         type: AttachmentType.Audio,
-        originalUrl: 'https://example.com/audio1.ogg',
+        originalUrl: 'https://cdn.discordapp.com/audio1.ogg',
       });
       // Fallback includes error category
       expect(results[0].description).toMatch(/Audio transcription failed after \d+ attempts \(/);
@@ -420,7 +420,7 @@ describe('MultimodalProcessor', () => {
 
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image.png',
+          url: 'https://cdn.discordapp.com/image.png',
           name: 'image.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -451,7 +451,7 @@ describe('MultimodalProcessor', () => {
     it('should pass userApiKey to createChatModel for image processing', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image.png',
+          url: 'https://cdn.discordapp.com/image.png',
           name: 'image.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -475,7 +475,7 @@ describe('MultimodalProcessor', () => {
     it('should use system key when userApiKey is undefined', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image.png',
+          url: 'https://cdn.discordapp.com/image.png',
           name: 'image.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -496,7 +496,7 @@ describe('MultimodalProcessor', () => {
     it('should pass isGuestMode flag through for guest users', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image.png',
+          url: 'https://cdn.discordapp.com/image.png',
           name: 'image.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
@@ -516,7 +516,7 @@ describe('MultimodalProcessor', () => {
     it('should use BYOK key even when isGuestMode is false', async () => {
       const attachments: AttachmentMetadata[] = [
         {
-          url: 'https://example.com/image.png',
+          url: 'https://cdn.discordapp.com/image.png',
           name: 'image.png',
           contentType: CONTENT_TYPES.IMAGE_PNG,
           size: 1024,
