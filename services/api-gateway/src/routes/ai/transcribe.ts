@@ -16,7 +16,6 @@ import {
   TranscribeRequestSchema,
 } from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -24,11 +23,7 @@ import { addValidatedJob } from '../../utils/validatedQueue.js';
 
 const logger = createLogger('AIRouter');
 
-export function createTranscribeRoute(
-  aiQueue: Queue,
-  queueEvents: QueueEvents,
-  attachmentStorage: AttachmentStorageService
-): Router {
+export function createTranscribeRoute(aiQueue: Queue, queueEvents: QueueEvents): Router {
   const router = Router();
 
   /**
@@ -56,15 +51,13 @@ export function createTranscribeRoute(
       const { attachments, userId } = parseResult.data;
       const requestId = randomUUID();
 
-      // Download attachments to local storage
-      const localAttachments = await attachmentStorage.downloadAndStore(requestId, attachments);
-
-      if (localAttachments.length === 0) {
-        return sendError(res, ErrorResponses.internalError('Failed to download audio attachment'));
+      if (attachments.length === 0) {
+        return sendError(res, ErrorResponses.internalError('No audio attachment provided'));
       }
 
-      // Use first audio attachment (transcribe endpoint expects single audio file)
-      const audioAttachment = localAttachments[0];
+      // Attachment URL flows through unchanged — ai-worker's AudioProcessor
+      // fetches the Discord CDN URL directly (with SSRF validation).
+      const audioAttachment = attachments[0];
 
       // Create audio transcription job using new job type
       const jobData = {

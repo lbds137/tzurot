@@ -51,7 +51,6 @@ import { createCorsMiddleware, notFoundHandler, globalErrorHandler } from './mid
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
 import { requireServiceAuth } from './services/AuthMiddleware.js';
-import { AttachmentStorageService } from './services/AttachmentStorageService.js';
 import {
   initializeEmbeddingService,
   shutdownEmbeddingService,
@@ -61,7 +60,6 @@ import {
 import {
   validateByokConfiguration,
   ensureAvatarDirectory,
-  ensureTempAttachmentDirectory,
   validateRequiredEnvVars,
   validateServiceAuthConfig,
 } from './bootstrap/index.js';
@@ -100,7 +98,6 @@ interface ServicesContext {
   denylistInvalidation: DenylistCacheInvalidationService;
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
   cascadeResolver: ConfigCascadeResolver;
-  attachmentStorage: AttachmentStorageService;
   modelCache: OpenRouterModelCache;
   dbNotificationListener: DatabaseNotificationListener;
 }
@@ -162,10 +159,6 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   });
   logger.info('ConfigCascadeResolver initialized with cache invalidation');
 
-  const attachmentStorage = new AttachmentStorageService({
-    gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
-  });
-
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
   // Initialize local embedding service for memory search
@@ -197,7 +190,6 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
-    attachmentStorage,
     modelCache,
     dbNotificationListener,
   };
@@ -216,7 +208,6 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
-    attachmentStorage,
     modelCache,
   } = services;
 
@@ -227,23 +218,12 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   app.use('/voice-references', createVoiceReferenceRouter(prisma));
   app.use('/exports', createExportsRouter(prisma));
 
-  // Serve temporary attachments from Railway volume
-  app.use(
-    '/temp-attachments',
-    express.static('/data/temp-attachments', {
-      maxAge: 0,
-      etag: false,
-      lastModified: false,
-      fallthrough: false,
-    })
-  );
-
   // PROTECTED ROUTES (require service authentication)
   validateServiceAuthConfig();
   app.use(requireServiceAuth());
   logger.info('Service authentication middleware applied globally');
 
-  app.use('/ai', createAIRouter(prisma, aiQueue, queueEvents, attachmentStorage));
+  app.use('/ai', createAIRouter(prisma, aiQueue, queueEvents));
   logger.info('AI routes registered');
 
   app.use('/wallet', createWalletRouter(prisma, cacheRedis, apiKeyCacheInvalidation));
@@ -354,7 +334,6 @@ async function main(): Promise<void> {
   validateByokConfiguration();
   validateRequiredEnvVars();
   await ensureAvatarDirectory();
-  await ensureTempAttachmentDirectory();
   await syncAvatars();
 
   // Create Express app with base middleware

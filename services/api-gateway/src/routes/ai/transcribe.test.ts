@@ -8,7 +8,6 @@ import request from 'supertest';
 import { createTranscribeRoute } from './transcribe.js';
 import type { Queue, QueueEvents, Job } from 'bullmq';
 import { JobStatus } from '@tzurot/common-types';
-import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 
 // Create mock BullMQ queue
 const createMockQueue = () => ({
@@ -26,36 +25,22 @@ const createMockQueueEvents = () => ({
   off: vi.fn(),
 });
 
-// Create mock AttachmentStorageService
-const createMockAttachmentStorage = () => ({
-  downloadAndStore: vi.fn().mockImplementation(async (_requestId, attachments) => attachments),
-  cleanup: vi.fn().mockResolvedValue(undefined),
-});
-
 describe('POST /transcribe', () => {
   let app: Express;
   let aiQueue: ReturnType<typeof createMockQueue>;
   let queueEvents: ReturnType<typeof createMockQueueEvents>;
-  let attachmentStorage: ReturnType<typeof createMockAttachmentStorage>;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Create mocks
     aiQueue = createMockQueue();
     queueEvents = createMockQueueEvents();
-    attachmentStorage = createMockAttachmentStorage();
 
-    // Create Express app with transcribe router
     app = express();
     app.use(express.json());
     app.use(
       '/transcribe',
-      createTranscribeRoute(
-        aiQueue as unknown as Queue,
-        queueEvents as unknown as QueueEvents,
-        attachmentStorage as unknown as AttachmentStorageService
-      )
+      createTranscribeRoute(aiQueue as unknown as Queue, queueEvents as unknown as QueueEvents)
     );
   });
 
