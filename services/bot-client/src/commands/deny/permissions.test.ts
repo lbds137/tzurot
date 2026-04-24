@@ -221,6 +221,23 @@ describe('checkDenyPermission', () => {
         '❌ Personality scope requires the `personality` option.'
       );
     });
+
+    it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+      const context = createMockContext();
+
+      const result = await checkDenyPermission(
+        context,
+        'PERSONALITY',
+        null,
+        '__autocomplete_error__'
+      );
+
+      expect(result.allowed).toBe(false);
+      expect(callGatewayApi).not.toHaveBeenCalled();
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+    });
   });
 
   describe('invalid scope', () => {
