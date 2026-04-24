@@ -24,13 +24,12 @@ pnpm ops test:audit
 ## Scripts
 
 - **check-untested-files.js** - Find source files without corresponding tests
-- **regenerate-pglite-schema.sh** - Regenerate PGLite schema for tests
 
 ## Usage
 
 ```bash
-# Regenerate PGLite schema for tests
-./scripts/testing/regenerate-pglite-schema.sh
+# Regenerate PGLite schema for tests (use ops CLI, not a shell script)
+pnpm ops test:generate-schema
 ```
 
 **See:** `tzurot-testing` skill for comprehensive testing patterns and best practices
