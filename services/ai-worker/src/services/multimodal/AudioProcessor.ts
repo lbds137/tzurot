@@ -15,6 +15,7 @@ import {
   type AttachmentMetadata,
 } from '@tzurot/common-types';
 import { withRetry, RetryError } from '../../utils/retry.js';
+import { validateAttachmentUrl, isDataUrl } from '../../utils/attachmentFetch.js';
 import {
   VoiceEngineError,
   getVoiceEngineClient,
@@ -50,12 +51,16 @@ function isTransientElevenLabsError(error: unknown): boolean {
  * Shared by both ElevenLabs and voice-engine paths.
  */
 async function fetchAudioBuffer(url: string): Promise<ArrayBuffer> {
+  // SSRF guard. Data URLs (from DownloadAttachmentsStep) short-circuit validation —
+  // Node's fetch handles `data:` natively and the bytes are already trusted.
+  const fetchUrl = isDataUrl(url) ? url : validateAttachmentUrl(url);
+
   const controller = new AbortController();
   const fetchTimeout = setTimeout(() => controller.abort(), TIMEOUTS.AUDIO_FETCH);
 
   try {
-    logger.debug({ url }, 'Fetching audio');
-    const response = await fetch(url, { signal: controller.signal });
+    logger.debug({ url: fetchUrl }, 'Fetching audio');
+    const response = await fetch(fetchUrl, { signal: controller.signal });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch audio: ${response.statusText}`);

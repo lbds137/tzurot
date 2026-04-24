@@ -23,6 +23,7 @@ import {
 import { createChatModel } from '../ModelFactory.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
+import { validateAttachmentUrl, isDataUrl } from '../../utils/attachmentFetch.js';
 
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
@@ -143,7 +144,25 @@ async function invokeVisionModel(
     messages.push(new SystemMessage(systemPrompt));
   }
 
-  logger.info({ url: attachment.url, modelName }, 'Invoking vision model');
+  // SSRF guard: the URL flows through LangChain into the upstream LLM provider,
+  // which may fetch it server-side. Validate before trust. Data URLs (from
+  // DownloadAttachmentsStep) carry inline bytes and don't need validation.
+  //
+  // Do not remove this guard assuming DownloadAttachmentsStep already handled
+  // it — preprocessing jobs (ImageDescriptionJob) hit this code path without
+  // running DownloadAttachmentsStep first. Removing the guard here would open
+  // an SSRF surface on the preprocessing path.
+  const imageUrl = isDataUrl(attachment.url)
+    ? attachment.url
+    : validateAttachmentUrl(attachment.url);
+
+  // Redact data URLs in logs: after DownloadAttachmentsStep runs, attachment.url
+  // is a 1-2 MiB base64 string. Emitting that at info level saturates log
+  // aggregators and buries other messages. Remote URLs are log-safe (short,
+  // useful forensically).
+  const logUrl = isDataUrl(attachment.url) ? '<data-url>' : imageUrl;
+
+  logger.info({ url: logUrl, modelName }, 'Invoking vision model');
 
   messages.push(
     new HumanMessage({
@@ -151,7 +170,7 @@ async function invokeVisionModel(
         {
           type: 'image_url',
           image_url: {
-            url: attachment.url,
+            url: imageUrl,
           },
         },
         {
