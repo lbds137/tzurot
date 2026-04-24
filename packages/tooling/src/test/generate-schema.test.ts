@@ -266,25 +266,35 @@ describe('generateSchema', () => {
       expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "c" CHECK ("n" > 0);');
     });
 
-    // If a CHECK constraint name appears in two migrations (e.g., dropped and
-    // re-added), both would land in the output and PGLite would reject the
-    // duplicate `ADD CONSTRAINT` at setup time. First occurrence wins —
-    // chronological ordering above means this matches Postgres's "last write
-    // wins" semantics for the prod database.
-    it('deduplicates CHECK constraints by name across migrations', async () => {
+    // Realistic "same name appears twice" shape: migration B drops the
+    // constraint, then re-adds it with a different expression. Without the
+    // dedup, both ADDs would land in the output and PGLite would reject the
+    // second. With dedup, the **last** migration's version must win — that's
+    // what prod Postgres enforces after applying both migrations.
+    //
+    // Two ADDs with no intervening DROP would fail `prisma migrate deploy`
+    // in real Postgres ("constraint already exists"), so we don't test that
+    // shape — it can't appear in a valid migration history.
+    it('keeps the last migration definition when a CHECK is dropped and re-added', async () => {
       mockMigrations({
-        '20251127110000_first': 'ALTER TABLE "t" ADD CONSTRAINT "dup_name" CHECK ("n" > 0);',
-        '20260501000000_second': 'ALTER TABLE "t" ADD CONSTRAINT "dup_name" CHECK ("n" > 100);',
+        '20251127110000_first': 'ALTER TABLE "t" ADD CONSTRAINT "c1" CHECK ("n" > 0);',
+        '20260501000000_second': `
+          ALTER TABLE "t" DROP CONSTRAINT "c1";
+          ALTER TABLE "t" ADD CONSTRAINT "c1" CHECK ("n" > 100);
+        `,
       });
 
       const { generateSchema } = await import('./generate-schema.js');
       await generateSchema();
 
       const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
-      // First occurrence is kept; later duplicate is silently skipped.
-      const matches = content.match(/ADD CONSTRAINT "dup_name"/g) ?? [];
+      // Only one definition of c1 in the output.
+      const matches = content.match(/ADD CONSTRAINT "c1"/g) ?? [];
       expect(matches).toHaveLength(1);
-      expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "dup_name" CHECK ("n" > 0);');
+      // The winning definition is the later one (n > 100), matching the
+      // state prod Postgres is in after applying both migrations.
+      expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "c1" CHECK ("n" > 100);');
+      expect(content).not.toContain('CHECK ("n" > 0)');
     });
 
     it('processes migration folders in chronological order', async () => {
