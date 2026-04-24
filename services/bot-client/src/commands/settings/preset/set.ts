@@ -6,6 +6,10 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, settingsPresetSetOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 
@@ -28,6 +32,11 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
   const options = settingsPresetSetOptions(context.interaction);
   const personalityId = options.personality();
   const configId = options.preset();
+
+  if (isAutocompleteErrorSentinel(personalityId)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {
     return;

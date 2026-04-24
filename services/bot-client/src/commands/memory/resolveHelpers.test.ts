@@ -4,6 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveOptionalPersonality, resolveRequiredPersonality } from './resolveHelpers.js';
+import {
+  AUTOCOMPLETE_ERROR_SENTINEL,
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+} from '../../utils/apiCheck.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { GatewayUser } from '../../utils/userGatewayClient.js';
 
@@ -71,6 +75,20 @@ describe('resolveOptionalPersonality', () => {
         '❌ Personality "unknown" not found. Use autocomplete to select a valid personality.',
     });
   });
+
+  // Guards the sentinel path so the user gets "autocomplete unavailable"
+  // wording (which suggests retrying) instead of the generic "not found"
+  // message (which suggests the personality doesn't exist). The predicate
+  // must short-circuit BEFORE `resolvePersonalityId` — otherwise the sentinel
+  // flows through, fails the slug lookup, and the user sees the wrong error.
+  it('returns null and sends autocomplete-unavailable reply when input is the sentinel', async () => {
+    const result = await resolveOptionalPersonality(context, mkUser(), AUTOCOMPLETE_ERROR_SENTINEL);
+    expect(result).toBeNull();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+    });
+    expect(mockResolvePersonalityId).not.toHaveBeenCalled();
+  });
 });
 
 describe('resolveRequiredPersonality', () => {
@@ -110,5 +128,14 @@ describe('resolveRequiredPersonality', () => {
 
     await resolveRequiredPersonality(context, mkUser(), 'my-persona');
     expect(mockEditReply).not.toHaveBeenCalled();
+  });
+
+  it('returns null and sends autocomplete-unavailable reply when input is the sentinel', async () => {
+    const result = await resolveRequiredPersonality(context, mkUser(), AUTOCOMPLETE_ERROR_SENTINEL);
+    expect(result).toBeNull();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+    });
+    expect(mockResolvePersonalityId).not.toHaveBeenCalled();
   });
 });

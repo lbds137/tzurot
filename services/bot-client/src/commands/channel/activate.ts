@@ -15,6 +15,10 @@ import {
   channelActivateOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
@@ -45,6 +49,11 @@ export async function handleActivate(context: DeferredCommandContext): Promise<v
   const options = channelActivateOptions(context.interaction);
   const personalitySlug = options.personality();
   const { channelId, guildId } = context;
+
+  if (isAutocompleteErrorSentinel(personalitySlug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   // Check permission using context-aware utility
   if (!(await requireManageMessagesContext(context))) {

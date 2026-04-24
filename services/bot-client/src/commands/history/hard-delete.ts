@@ -15,6 +15,10 @@
 import { createLogger, historyHardDeleteOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
+import {
   buildDestructiveWarning,
   createHardDeleteConfig,
 } from '../../utils/destructiveConfirmation.js';
@@ -30,6 +34,11 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
   const channelId = context.channelId;
   const options = historyHardDeleteOptions(context.interaction);
   const personalitySlug = options.personality();
+
+  if (isAutocompleteErrorSentinel(personalitySlug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     // Create the destructive confirmation config

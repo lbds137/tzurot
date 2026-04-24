@@ -5,6 +5,10 @@
 
 import { createLogger, settingsPresetResetOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
@@ -22,6 +26,11 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const options = settingsPresetResetOptions(context.interaction);
   const personalityId = options.personality();
+
+  if (isAutocompleteErrorSentinel(personalityId)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     const result = await callGatewayApi<ResetResponse>(

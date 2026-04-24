@@ -9,6 +9,10 @@
 
 import { createLogger, personaOverrideClearOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-override-clear');
@@ -31,6 +35,11 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
   const discordId = context.user.id;
   const options = personaOverrideClearOptions(context.interaction);
   const personalitySlug = options.personality();
+
+  if (isAutocompleteErrorSentinel(personalitySlug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     // Clear override via gateway

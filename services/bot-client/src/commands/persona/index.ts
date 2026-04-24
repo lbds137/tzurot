@@ -32,6 +32,10 @@ import type {
   DeferredCommandContext,
 } from '../../utils/commandContext/types.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 
 // Persona handlers
@@ -107,6 +111,12 @@ async function execute(context: SafeCommandContext): Promise<void> {
   } else if (subcommand === 'edit') {
     // Edit opens the persona dashboard (deferred command)
     const personaId = personaEditOptions(context.interaction).persona();
+    if (personaId !== null && isAutocompleteErrorSentinel(personaId)) {
+      await (context as DeferredCommandContext).editReply({
+        content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+      });
+      return;
+    }
     await handleEditPersona(context as DeferredCommandContext, personaId);
   } else if (subcommand === 'default') {
     // Default needs the persona ID (deferred command)
