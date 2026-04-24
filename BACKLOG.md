@@ -850,6 +850,10 @@ _Codebase-wide decisions on retry counts, timeouts, cache TTLs, rate limits, and
 
 _Ideas for later. Resist the shiny object._
 
+### Surfaced 2026-04-24
+
+- 🏗️ `[LIFT]` **Stronger structural guard: `sentinelSafe` field on typed-options schema** — Companion to PR #885 (autocomplete sentinel guards, shipped 2026-04-24). That PR protects all 19 known consumer sites with inline `isAutocompleteErrorSentinel(x)` early-returns. Works, but every new autocomplete-backed command is another place to forget the guard. The structural fix lives one layer down, in the typed-options accessor (`packages/common-types/src/utils/typedOptions.ts` + generated `packages/common-types/src/generated/commandOptions.ts`): add a `sentinelSafe: true` field on autocomplete-backed option schemas so the generated accessor itself throws a typed `AutocompleteSentinelError` when the sentinel is read. Each consumer then catches (or lets a top-level handler in `CommandHandler` catch) and renders the standard "Autocomplete was unavailable" reply — the guard becomes impossible to forget. **Why not bundled into PR #885**: would have expanded the quick-win scope into (a) generator changes for `commandOptions.ts`, (b) new error type + catch conventions, (c) removing the 19 inline guards in favor of the centralized one, (d) deciding how `CommandHandler` / modal-context handlers catch and reply. Each of those is its own design call. **Start**: `packages/common-types/src/utils/typedOptions.ts` (schema type + accessor switch); `packages/tooling/src/*/generate-command-types*` (wherever `commandOptions.ts` is generated from); `services/bot-client/src/CommandHandler.ts` for the catch-and-reply boundary. **Exit criterion**: all 19 inline sentinel guards from PR #885 deleted; adding a new autocomplete-backed command cannot silently skip the guard.
+
 ### Triaged from Inbox 2026-04-22
 
 _Second backlog-shrink pass. Same preservation principle — full prose retained._
