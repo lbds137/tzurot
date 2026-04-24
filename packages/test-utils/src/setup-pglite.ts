@@ -7,8 +7,10 @@
  *
  * PGLite Schema Management:
  * - Schema SQL is auto-generated from Prisma using `prisma migrate diff`
+ *   plus a sweep of migration SQL for CHECK constraints (which Prisma's
+ *   schema-diff can't represent on its own)
  * - Stored in packages/test-utils/schema/pglite-schema.sql
- * - Regenerate with: ./scripts/testing/regenerate-pglite-schema.sh
+ * - Regenerate with: pnpm ops test:generate-schema
  * - This ensures PGLite always matches the current Prisma schema
  */
 
@@ -71,8 +73,10 @@ export function createTestPGlite(): PGlite {
 
 /**
  * Load the pre-generated PGLite schema SQL.
- * This SQL is generated from Prisma schema using `prisma migrate diff`.
- * Regenerate with: ./scripts/testing/regenerate-pglite-schema.sh
+ * This SQL is generated from Prisma schema using `prisma migrate diff`
+ * plus a sweep of migration SQL for CHECK constraints (see
+ * `packages/tooling/src/test/generate-schema.ts`).
+ * Regenerate with: pnpm ops test:generate-schema
  */
 export function loadPGliteSchema(): string {
   const schemaPath = join(__dirname, '../schema/pglite-schema.sql');
@@ -81,7 +85,7 @@ export function loadPGliteSchema(): string {
   } catch {
     throw new Error(
       `Failed to load PGLite schema from ${schemaPath}. ` +
-        `Run ./scripts/testing/regenerate-pglite-schema.sh to generate it.`
+        `Run pnpm ops test:generate-schema to generate it.`
     );
   }
 }

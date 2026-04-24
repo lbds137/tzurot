@@ -3,8 +3,6 @@
  *
  * Regenerate PGLite schema SQL from Prisma schema.
  * Run this whenever you change prisma/schema.prisma.
- *
- * Ported from scripts/testing/regenerate-pglite-schema.sh
  */
 
 import { execFileSync } from 'node:child_process';

@@ -9,15 +9,15 @@ Integration tests in Tzurot v3 use PGLite (in-memory PostgreSQL with pgvector) f
 pnpm test:int
 
 # Schema is auto-generated from Prisma
-./scripts/testing/regenerate-pglite-schema.sh
+pnpm ops test:generate-schema
 ```
 
 ## Schema Management (CRITICAL)
 
 - Schema SQL is auto-generated from `prisma/schema.prisma`
-- Stored in `tests/schema/pglite-schema.sql`
-- **Regenerate after Prisma migrations**: `./scripts/testing/regenerate-pglite-schema.sh`
-- Uses `prisma migrate diff --from-empty --to-schema` - never write SQL manually
+- Stored in `packages/test-utils/schema/pglite-schema.sql`
+- **Regenerate after Prisma migrations**: `pnpm ops test:generate-schema`
+- Uses `prisma migrate diff --from-empty --to-schema` plus a sweep of migration SQL for CHECK constraints (Prisma's schema-diff can't represent CHECKs) — never write SQL manually
 
 ## Environment Detection
 
@@ -84,6 +84,6 @@ afterAll(async () => {
 
 ## Files
 
-- Setup: `tests/helpers/setup-pglite.ts`
-- Schema: `tests/schema/pglite-schema.sql`
-- Regeneration script: `scripts/testing/regenerate-pglite-schema.sh`
+- Setup: `packages/test-utils/src/setup-pglite.ts`
+- Schema: `packages/test-utils/schema/pglite-schema.sql`
+- Generator: `packages/tooling/src/test/generate-schema.ts` (invoked via `pnpm ops test:generate-schema`)
