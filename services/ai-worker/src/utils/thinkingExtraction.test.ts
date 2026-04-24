@@ -1042,6 +1042,12 @@ Response.`;
       // The outer pattern fails → Pass 2 takes over → <analysis> isn't in
       // KNOWN_THINKING_TAGS so it also doesn't match there. Content is
       // preserved for user to investigate.
+      //
+      // UX consequence: the crossed closure appears verbatim in the Discord
+      // message the user sees. Rare enough in practice (would require the
+      // model to cross tags on its own) that the mild leak is preferable to
+      // eagerly stripping malformed content and potentially eating real
+      // response body. Fails open, not closed to obscurity.
       expect(result.thinkingContent).toBeNull();
       expect(result.visibleContent).toContain('<user>Lila</character>');
     });
