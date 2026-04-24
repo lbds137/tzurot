@@ -36,6 +36,7 @@ import {
   ConfigStep,
   AuthStep,
   ContextStep,
+  DownloadAttachmentsStep,
   GenerationStep,
   TTSStep,
 } from './pipeline/index.js';
@@ -50,10 +51,12 @@ const logger = createLogger('LLMGenerationHandler');
  * 2. NormalizationStep - Normalizes legacy data formats (roles, timestamps)
  * 3. ConfigStep - Resolves LLM config with user overrides
  * 4. AuthStep - Resolves API key (BYOK) and handles guest mode
- * 5. DependencyStep - Fetches preprocessing results (audio/image) from Redis
- * 6. ContextStep - Prepares conversation history and participants
- * 7. GenerationStep - Calls RAG service to generate response
- * 8. TTSStep - Synthesizes audio from response text (non-critical, graceful degradation)
+ * 5. DownloadAttachmentsStep - Fetches attachment bytes from Discord CDN and
+ *    embeds them as data URLs (replaces the old sync download in api-gateway)
+ * 6. DependencyStep - Fetches preprocessing results (audio/image) from Redis
+ * 7. ContextStep - Prepares conversation history and participants
+ * 8. GenerationStep - Calls RAG service to generate response
+ * 9. TTSStep - Synthesizes audio from response text (non-critical, graceful degradation)
  *
  * Each step is stateless - context flows through as function arguments,
  * ensuring thread safety when handling concurrent jobs.
@@ -98,6 +101,9 @@ export class LLMGenerationHandler {
     //   Must run before any step that processes conversation history.
     // - ConfigStep: Resolves LLM config (needed by AuthStep for BYOK validation)
     // - AuthStep: Resolves API key (BYOK/system) and guest mode flags
+    // - DownloadAttachmentsStep: Fetches Discord CDN bytes and embeds them as data: URLs.
+    //   Runs before DependencyStep so extended-context vision processing consumes
+    //   pre-downloaded bytes instead of re-fetching per attachment.
     // - DependencyStep: Fetches preprocessing results AND processes extended context attachments.
     //   Runs after AuthStep because extended context vision processing needs the user's BYOK key
     //   to avoid leaking system API keys (see PR #447 for BYOK security fix).
@@ -110,6 +116,7 @@ export class LLMGenerationHandler {
       new NormalizationStep(),
       new ConfigStep(configResolver, cascadeResolver),
       new AuthStep(apiKeyResolver, configResolver),
+      new DownloadAttachmentsStep(),
       new DependencyStep(),
       new ContextStep(),
       new GenerationStep(ragService, embeddingService),
