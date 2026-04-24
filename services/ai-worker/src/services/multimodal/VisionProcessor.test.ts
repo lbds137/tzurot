@@ -133,7 +133,7 @@ describe('VisionProcessor', () => {
   describe('describeImage', () => {
     const mockAttachment: AttachmentMetadata = {
       id: '123456789012345678',
-      url: 'https://example.com/test-image.png',
+      url: 'https://cdn.discordapp.com/test-image.png',
       name: 'test-image.png',
       contentType: 'image/png',
       size: 1024,
