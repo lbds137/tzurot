@@ -408,6 +408,23 @@ describe('AudioProcessor', () => {
         expect(error.operationName).toBe('audio file download');
         expect(error.timeoutMs).toBe(30_000);
       });
+
+      it('should reject non-allowlisted URLs with SSRF guard error before fetching', async () => {
+        // Pins the invariant that validateAttachmentUrl runs before any network
+        // work inside fetchAudioBuffer. A future refactor that moves the guard
+        // to run after fetch (or removes it entirely) would fail this test,
+        // even though the happy-path tests above use pre-validated fixtures.
+        const attachment: AttachmentMetadata = {
+          url: 'https://evil.example.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 1024,
+        };
+
+        await expect(transcribeAudio(attachment)).rejects.toThrow(/must be from Discord CDN/);
+        // Load-bearing: the SSRF guard short-circuits before fetch is invoked.
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
     });
 
     describe('voice message handling', () => {
