@@ -88,8 +88,6 @@ _None beyond the above. TTS Engine Upgrade is Active Epic._
 
 _Small tasks that can be done between major features. Good for momentum._
 
-_Empty — both entries shipped (CHECK extractor in this PR, typing-error classifier in PR #886)._
-
 - 🧹 `[CHORE]` **Handle `DROP CONSTRAINT` in pglite CHECK extractor** — Surfaced 2026-04-24 by PR #887 review. `extractCheckConstraints` in `packages/tooling/src/test/generate-schema.ts` tracks ADD statements in a `Map<name, statement>` but ignores `DROP CONSTRAINT` entirely. The drop-and-re-add case works (second ADD overwrites first), but a future migration that drops a CHECK **without re-adding it** would leave the original ADD in the extracted output — PGLite would then enforce a constraint prod Postgres no longer has, causing integration-test false-positives with confusing symptoms. **Fix shape**: extend `extractCheckStatementsFromFile` to emit a tagged union `{ kind: 'add' | 'drop'; name: string; statement?: string }`, and have the outer loop in `extractCheckConstraints` call `byName.delete(name)` on DROP entries. Add a test with `migration_A: ADD "c1"` + `migration_B: DROP "c1"` (no re-add) asserting "c1" is absent from output. **Not a current regression**: all 5 emitted constraints are active in prod. Would bite once confusingly when the first CHECK is eventually retired.
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
