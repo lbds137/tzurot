@@ -10,6 +10,10 @@
 import { isBotOwner, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 
 interface PermissionResult {
@@ -86,6 +90,11 @@ async function checkPersonalityPermission(
 ): Promise<PermissionResult> {
   if (personalitySlug === null || personalitySlug.length === 0) {
     await context.editReply('❌ Personality scope requires the `personality` option.');
+    return DENIED;
+  }
+
+  if (isAutocompleteErrorSentinel(personalitySlug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
     return DENIED;
   }
 
