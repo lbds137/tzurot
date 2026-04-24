@@ -9,6 +9,10 @@
 
 import { createLogger, personaDefaultOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-default');
@@ -31,6 +35,11 @@ export async function handleSetDefaultPersona(context: DeferredCommandContext): 
   const discordId = context.user.id;
   const options = personaDefaultOptions(context.interaction);
   const personaId = options.persona();
+
+  if (isAutocompleteErrorSentinel(personaId)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     // Set default via gateway API

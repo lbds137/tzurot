@@ -19,6 +19,10 @@ import {
   memoryDeleteOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
@@ -73,6 +77,11 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
   const options = memoryDeleteOptions(context.interaction);
   const personalityInput = options.personality();
   const timeframe = options.timeframe();
+
+  if (isAutocompleteErrorSentinel(personalityInput)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     // Resolve personality slug to ID

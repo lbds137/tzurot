@@ -8,6 +8,10 @@
 
 import { createLogger, historyClearOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
@@ -29,6 +33,14 @@ export async function handleClear(context: DeferredCommandContext): Promise<void
   const options = historyClearOptions(context.interaction);
   const personalitySlug = options.personality();
   const personaId = options.persona(); // Optional profile/persona
+
+  if (
+    isAutocompleteErrorSentinel(personalitySlug) ||
+    (personaId !== null && isAutocompleteErrorSentinel(personaId))
+  ) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     // Build request body, only include personaId if explicitly provided

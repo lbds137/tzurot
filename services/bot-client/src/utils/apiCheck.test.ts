@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isTransientHttpStatus, type ApiCheck } from './apiCheck.js';
+import {
+  AUTOCOMPLETE_ERROR_SENTINEL,
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+  isTransientHttpStatus,
+  type ApiCheck,
+} from './apiCheck.js';
 
 describe('ApiCheck', () => {
   it('exhaustively discriminates ok vs error (exhaustiveness-checked via never)', () => {
@@ -50,5 +56,37 @@ describe('isTransientHttpStatus', () => {
   // so a caller who passes a 200 doesn't silently get treated as transient.
   it.each([200, 204, 301, 302])('returns false for non-error status %i', status => {
     expect(isTransientHttpStatus(status)).toBe(false);
+  });
+});
+
+describe('isAutocompleteErrorSentinel', () => {
+  it('returns true for the exact sentinel string', () => {
+    expect(isAutocompleteErrorSentinel(AUTOCOMPLETE_ERROR_SENTINEL)).toBe(true);
+  });
+
+  // A user typing the sentinel with leading/trailing whitespace, wrong casing,
+  // or partial substring must NOT trip the guard. The autocomplete UI only
+  // ever submits the exact literal — any deviation is a legitimate user
+  // search string and should flow through to the normal "not found" path.
+  it.each([
+    ['leading space', ' __autocomplete_error__'],
+    ['trailing space', '__autocomplete_error__ '],
+    ['uppercase', '__AUTOCOMPLETE_ERROR__'],
+    ['substring prefix', '__autocomplete_error'],
+    ['substring containing', 'foo__autocomplete_error__bar'],
+    ['empty', ''],
+    ['unrelated', 'my-character-slug'],
+  ])('returns false for %s', (_description, value) => {
+    expect(isAutocompleteErrorSentinel(value)).toBe(false);
+  });
+});
+
+describe('AUTOCOMPLETE_UNAVAILABLE_MESSAGE', () => {
+  it('is a non-empty user-facing string', () => {
+    // Pin the invariant that the message has content and a user-readable prefix
+    // without over-specifying the wording. A future copy-edit should not break
+    // this test; changing the message to empty or a raw error code should.
+    expect(AUTOCOMPLETE_UNAVAILABLE_MESSAGE.length).toBeGreaterThan(0);
+    expect(AUTOCOMPLETE_UNAVAILABLE_MESSAGE.toLowerCase()).toContain('autocomplete');
   });
 });

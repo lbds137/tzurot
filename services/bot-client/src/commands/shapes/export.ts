@@ -13,6 +13,10 @@ import { EmbedBuilder, type MessageComponentInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 import { buildBackToBrowseRow } from './errorRecovery.js';
 
@@ -90,7 +94,12 @@ export async function startExport(
  */
 export async function handleExport(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const slug = context.interaction.options.getString('slug', true).trim().toLowerCase();
+  const rawSlug = context.interaction.options.getString('slug', true);
+  if (isAutocompleteErrorSentinel(rawSlug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
+  const slug = rawSlug.trim().toLowerCase();
   const formatRaw = context.interaction.options.getString('format') ?? 'json';
   const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
