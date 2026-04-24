@@ -190,7 +190,10 @@ export class VoiceTranscriptionService {
           void (channel as { sendTyping: () => Promise<void> }).sendTyping().catch(err => {
             handleTypingError(err, {
               logger,
-              context: { channelId: message.channelId, source: 'voice-transcription' },
+              context: {
+                channelId: message.channelId,
+                source: 'voice-transcription-interval',
+              },
               typingInterval,
             });
           });
