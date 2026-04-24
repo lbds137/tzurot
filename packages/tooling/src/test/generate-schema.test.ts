@@ -246,6 +246,47 @@ describe('generateSchema', () => {
       expect(content).toContain('ALTER TABLE "real" ADD CONSTRAINT "real_check" CHECK ("n" > 0);');
     });
 
+    // Block comments matter because `/* foo; bar */` contains a raw `;` that
+    // would split the surrounding statement in half. Without the block-comment
+    // strip, the CHECK after a block-commented prologue would be silently
+    // dropped — the exact failure mode this PR was built to prevent.
+    it('strips /* */ block comments before splitting on ;', async () => {
+      mockMigrations({
+        '20251127110000_block_commented': `
+          /* Drops the old check;
+             a new one follows. */
+          ALTER TABLE "t" ADD CONSTRAINT "c" CHECK ("n" > 0);
+        `,
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "c" CHECK ("n" > 0);');
+    });
+
+    // If a CHECK constraint name appears in two migrations (e.g., dropped and
+    // re-added), both would land in the output and PGLite would reject the
+    // duplicate `ADD CONSTRAINT` at setup time. First occurrence wins —
+    // chronological ordering above means this matches Postgres's "last write
+    // wins" semantics for the prod database.
+    it('deduplicates CHECK constraints by name across migrations', async () => {
+      mockMigrations({
+        '20251127110000_first': 'ALTER TABLE "t" ADD CONSTRAINT "dup_name" CHECK ("n" > 0);',
+        '20260501000000_second': 'ALTER TABLE "t" ADD CONSTRAINT "dup_name" CHECK ("n" > 100);',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      // First occurrence is kept; later duplicate is silently skipped.
+      const matches = content.match(/ADD CONSTRAINT "dup_name"/g) ?? [];
+      expect(matches).toHaveLength(1);
+      expect(content).toContain('ALTER TABLE "t" ADD CONSTRAINT "dup_name" CHECK ("n" > 0);');
+    });
+
     it('processes migration folders in chronological order', async () => {
       // Later migrations may override/refine earlier ones. Deterministic
       // ordering (by folder name, which carries the YYYYMMDDHHMMSS prefix)
