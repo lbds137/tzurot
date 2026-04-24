@@ -88,7 +88,7 @@ _None beyond the above. TTS Engine Upgrade is Active Epic._
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🧹 `[CHORE]` **Extend `pnpm ops test:generate-schema` to preserve CHECK constraints** — The PGLite schema file at `packages/test-utils/schema/pglite-schema.sql` has zero `CHECK` constraint DDL despite Phase 5 adding two (`personas_name_non_empty`, `personas_name_not_snowflake`). Root cause: the schema generator builds from Prisma introspection, which has no CHECK-constraint representation, so those DDL lines don't round-trip. Consequence: integration tests against PGLite can't exercise CHECK-constraint rejection behavior — the test harness silently permits values prod Postgres would reject. **Fix shape**: extend the generator to parse `prisma/migrations/**/migration.sql` for `ADD CONSTRAINT "..." CHECK (...)` patterns and append them to the generated schema. One-shot sweep + regeneration. **Once fixed**: `schemaInvariants.int.test.ts` can upgrade from structural (greps migration SQL) to behavioral (inserts bad values and asserts rejection). **Start**: `packages/tooling/src/commands/test.ts` or wherever `test:generate-schema` lives. Surfaced 2026-04-23.
+_Empty — both entries shipped (CHECK extractor in this PR, typing-error classifier in PR #886)._
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
