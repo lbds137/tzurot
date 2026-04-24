@@ -246,6 +246,13 @@ export async function resizeImageIfNeeded(
   // Buffer is already size-capped at MAX_ATTACHMENT_BYTES and allowlist-checked,
   // so this is a safety net, not a security concern. 2048px is roughly the
   // median width of Discord screenshot/image uploads we see in practice.
+  // Warn so post-deploy debugging can trace which image triggered the fallback.
+  if (metadata.width === undefined) {
+    logger.warn(
+      { originalSize, contentType },
+      'Could not read image width from metadata; using 2048 fallback for resize'
+    );
+  }
   const newWidth = Math.floor((metadata.width ?? 2048) * scaleFactor);
 
   const resized = await sharp(buffer)
