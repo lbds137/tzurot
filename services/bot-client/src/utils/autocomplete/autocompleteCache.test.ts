@@ -541,5 +541,57 @@ describe('autocompleteCache', () => {
 
       expect(result).toEqual({ kind: 'error', error: 'Backend down' });
     });
+
+    /**
+     * Pins the `commitFetchedField` carry-over invariant: when a single field
+     * is fetched, the other two fields are carried from stale into the new
+     * fresh entry (effectively resetting their TTL). This is intentional —
+     * keeps a user's autocomplete bundle cohesive in one tier — but trivially
+     * easy to break by removing the `...carryOver` spread in commitFetchedField.
+     * Behavioral proof: after the carry-over, reads of the other fields hit
+     * fresh and do not trigger a new gateway call.
+     */
+    it('carries other fields from stale into fresh when one field is fetched', async () => {
+      const mockPersonas: PersonaSummary[] = [
+        { id: 'persona-1', name: 'Default', preferredName: null, isDefault: true },
+      ];
+      const mockShapes: ShapesSummary[] = [{ name: 'Shape', username: 'shape' }];
+
+      // 1. Prime personalities + personas into fresh (and stale via commitFetchedField)
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: { personalities: mockPersonalities },
+      });
+      await getCachedPersonalities(testUser);
+
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: { personas: mockPersonas },
+      });
+      await getCachedPersonas(testUser);
+
+      // 2. Demote both to stale-only by clearing fresh
+      _clearFreshCacheForTesting();
+      expect(_getCacheSizeForTesting()).toBe(0);
+      expect(_getStaleCacheSizeForTesting()).toBe(1);
+
+      // 3. Fetch shapes — carry-over should pull personalities + personas into fresh
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: { shapes: mockShapes },
+      });
+      await getCachedShapes(testUser);
+
+      // 4. Behavioral proof: subsequent reads of the carried-over fields
+      //    must not trigger a gateway call (they're now in fresh).
+      mockCallGatewayApi.mockClear();
+
+      const personalitiesResult = await getCachedPersonalities(testUser);
+      const personasResult = await getCachedPersonas(testUser);
+
+      expect(personalitiesResult).toEqual({ kind: 'ok', value: mockPersonalities });
+      expect(personasResult).toEqual({ kind: 'ok', value: mockPersonas });
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    });
   });
 });
