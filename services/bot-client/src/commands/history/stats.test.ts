@@ -54,7 +54,8 @@ describe('handleStats', () => {
    */
   function createMockContext(
     personalitySlug: string = 'lilith',
-    channelId: string = 'channel-123'
+    channelId: string = 'channel-123',
+    personaId: string | null = null
   ): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
@@ -63,7 +64,7 @@ describe('handleStats', () => {
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'personality') return personalitySlug;
-            if (name === 'persona') return null;
+            if (name === 'persona') return personaId;
             return null;
           }),
           getBoolean: vi.fn(() => null),
@@ -322,8 +323,18 @@ describe('handleStats', () => {
     });
   });
 
-  it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+  it('rejects the autocomplete-error sentinel in personalitySlug before calling the gateway', async () => {
     const context = createMockContext('__autocomplete_error__');
+    await handleStats(context);
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
+
+  it('rejects the autocomplete-error sentinel in personaId before calling the gateway', async () => {
+    const context = createMockContext('lilith', 'channel-123', '__autocomplete_error__');
     await handleStats(context);
 
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
