@@ -21,79 +21,9 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
-- 🧹 `[CHORE]` **Guard `__autocomplete_error__` sentinel at slash-command option-read sites** — PR #884 introduced the `__autocomplete_error__` sentinel value as the `value` field of the `[Unable to load — try again]` placeholder choice rendered when the autocomplete cache returns `{ kind: 'error' }`. Discord's autocomplete UI doesn't prevent free-form text submission, so a user who types `__autocomplete_error__` literally (or selects the placeholder) can submit that as the option value. Command handlers currently pass it through as if it were a real slug/id, which will fail at the gateway with a generic not-found error — graceful but confusing. **Fix shape**: at each command handler's option-read site that can receive a slug/id from these autocomplete handlers (shapes/import, persona picker, personality picker, etc.), check for the sentinel and respond with a clearer message like "Autocomplete was unavailable — please try again in a moment." **Scope**: grep `interaction.options.getString` sites in shapes/persona/personality command files; probably 5-8 sites. ~1h. Surfaced by claude-bot review on PR #884. Non-blocking for #884 merge.
+_Empty — triaged 2026-04-23._
 
-- 🧹 `[CHORE]` **Mock convention unification — audit `.mock.ts` library files for `__mocks__/` migration candidacy** — The codebase has two mock conventions side-by-side: `src/test/mocks/*.mock.ts` explicit-import libraries (~10 files in ai-worker + bot-client, pre-existing) and `src/services/__mocks__/AuthMiddleware.ts` vitest auto-discovery (1 file, added in PR #883). The split serves two real mechanisms — factory-libraries that can't be tied to a specific module path vs. module-replacement mocks that vitest auto-resolves — but nobody audited which existing `.mock.ts` files actually need the explicit-import flexibility vs. which are single-module replacements that could migrate to `__mocks__/` for DRY. **Scope**: ~10 files to audit, ~5-7 likely migrate, ~2-3 stay as factory libraries. **Initial-skim candidates for migration**: `ai-worker/src/test/mocks/{LLMInvoker,PromptBuilder,ContextWindowManager,LongTermMemoryService,MemoryRetriever,ReferencedMessageFormatter,UserReferenceResolver}.mock.ts` + `bot-client/src/test/mocks/PersonalityService.mock.ts`. **Stay as-is**: `bot-client/src/test/mocks/Discord.mock.ts` + `ai-worker/src/test/mocks/utils.mock.ts` are factory libraries, not module replacements. **Deliverables**: (a) per-file audit notes; (b) migrations for qualifying files; (c) caller updates (`vi.mock(path)` with no factory); (d) rule in `.claude/rules/02-code-standards.md` documenting "use `__mocks__/` for module replacement; use `.mock.ts` library for reusable factories not tied to a single module." **Tried and rejected on PR #883**: explicit `vi.mock(path, () => import('./.mock.ts'))` pattern with an imported factory — fails with circular-mock reentry when the mock file uses `export *` AND with `ReferenceError: Cannot access '__vi_import_0__' before initialization` when the factory is an imported symbol (vitest hoists `vi.mock` above imports). `vi.hoisted()` workaround reconstructs per-file boilerplate. The `__mocks__/` auto-discovery is vitest's purpose-built escape hatch for the same-package DRY case. ~2-3h. Surfaced 2026-04-23.
-
-- 🧹 `[CHORE]` **`pnpm ops test:generate-schema` drops CHECK constraints** — Surfaced while writing the Phase 5 structural guard test (2026-04-23): the PGLite schema file at `packages/test-utils/schema/pglite-schema.sql` has zero `CHECK` constraint DDL despite Phase 5 adding two (`personas_name_non_empty`, `personas_name_not_snowflake`). Root cause: the schema generator appears to build from Prisma introspection, which has no CHECK-constraint representation, so those DDL lines don't round-trip. Consequence: integration tests against PGLite can't exercise CHECK-constraint rejection behavior (the test harness silently permits values that prod Postgres would reject). **Fix shape**: extend the generator to parse `prisma/migrations/**/migration.sql` for `ADD CONSTRAINT "..." CHECK (...)` patterns and append them to the generated schema. One-shot sweep + regeneration. **Impact once fixed**: the current `schemaInvariants.int.test.ts` could be upgraded from structural (greps migration SQL) to behavioral (inserts bad values and asserts rejection). **Start**: `packages/tooling/src/commands/test.ts` or wherever `test:generate-schema` lives. Surfaced 2026-04-23.
-
-- 🐛 `[FIX]` **Audit bot-client for "lie-on-error" fallback patterns; release-note the `timezone.ts` 404 change** — PR #881 surfaced that the old `GET /user/timezone` handler returned `{ timezone: 'UTC', isDefault: true }` when the user row didn't exist — the Phase 5c refactor correctly replaces that with a 404 since `requireProvisionedUser` guarantees the row exists in happy flow. Architecturally correct, but it's a contract change on a rarely-exercised error path. **Risks**: bot-client might have `if (response.isDefault) { show UTC fallback UI }` logic that no longer triggers correctly. **Action**: (1) grep bot-client for `isDefault`, `timezone: 'UTC'`, and similar "graceful degradation" patterns hitting user-scoped endpoints; (2) add a release note for the upcoming beta.105 noting the breaking contract change on `GET /user/timezone` for missing-user (race) case — "now returns 404 instead of silently defaulting to UTC"; (3) **broader audit worth considering**: this class of bug — endpoints that silently degrade-to-defaults on state errors — is a category, not a single site. Grep the whole api-gateway for `|| 'default'`, `?? defaults`, `if (user === null) return success-with-fallback` patterns. Lying-on-error masks real bugs in prod. **Surfaced by**: claude-bot review on PR #881 round 3 (2026-04-23).
-
-- 🏗️ `[LIFT]` **Move api-gateway attachment download to ai-worker lazy-load (structural fix for submit-job timeout)** — Observed 2026-04-23T03:38 + 03:49 UTC: user sent a message with 12 extended-context attachments (screenshots up to 827KB each, several MB total), hit `TimeoutError` on bot-client's 10s submit timeout, retried, hit it again with the same payload. `api-gateway`'s `POST /ai/generate` handler downloads all attachments synchronously via `AttachmentStorageService` before returning — request-handler time scales with attachment count/size. Mitigation shipped in beta.104 (bot-client submit timeout 10s → 60s); this entry tracks the structural fix. **Structural fix shape**: api-gateway enqueues the job with raw attachment URLs, ai-worker's preprocessing step downloads them at job-run time (off the submit-response critical path). Reduces api-gateway's CPU/memory/network load per request, decouples submit timing from attachment payload, removes the client-timeout fragility entirely. **Also folds in**: Reddit-CDN attachment URLs hit `Invalid attachment URL: must be from Discord CDN` in the same code path and fall back to the original URL — the whitelist scope should be revisited as part of this refactor (either widen to known image hosts or document the fallback as intentional). **Start**: `services/api-gateway/src/routes/ai/generate.ts` (the submit handler); `services/api-gateway/src/services/AttachmentStorageService.ts` (the Discord-CDN whitelist); `services/ai-worker/src/jobs/` for where preprocessing already lives (likely add a `downloadAttachments` child job).
-
-- ✨ `[FEAT]` **Discord system-message handling — welcome/join events in activated channels** — Open question: when a user joins a guild where the bot is activated in the welcome channel, Discord emits a `MESSAGE_CREATE` for the system-generated join message. Does the bot currently see these? Do they arrive as empty-content messages (and fall into whatever guard handles empty content), or as typed system messages with `message.system === true` and a known `MessageType` (`UserJoin`, `GuildBoost`, `ChannelPinnedMessage`, etc.)? If unhandled, the risk is either (a) silent pass-through to the AI with empty input (bad-quality responses), (b) duplicate responses (one to the system msg, one to anything the user actually types after), or (c) they're dropped entirely and we miss a UX opportunity for personality-aware welcomes. **Investigation steps**: (1) grep `MessageType.UserJoin`, `message.system`, and `isSystem` across `services/bot-client/src/handlers/MessageHandler.ts` + `PersonalityMessageHandler.ts` — see if there's explicit handling today; (2) test in a local guild by joining with a second account — observe what fires in ai-worker logs; (3) inspect `message.content` for system messages (typically empty string with `message.system === true` and `message.type === MessageType.UserJoin`). **Decision points after investigation**: ignore them explicitly (safest default, ship as a guard), respond with a personality-aware welcome (feature opportunity, opt-in per guild), or surface only when channel is explicitly configured for welcomes. Surfaced 2026-04-21.
-
-- 🐛 `[FIX]` **Near-duplicate consecutive replies on `glm-4.5-air:free` — observability-first investigation** — Rare but recurring: `z-ai/glm-4.5-air:free` occasionally emits two consecutive responses with near-byte-identical bodies. Frequency has been trending down, possibly due to reasoning-mode usage, but the root cause isn't known. Two rounds of council pressure-test narrowed the hypothesis space but did not identify a definitive fix — see details below.
-
-  **What we've ruled out** (do not retry any of these):
-  - **Request-hash cache busting (nonce in system prompt)**: previously tried, did not resolve. So this is NOT OpenRouter/provider-level hash-keyed caching — changing payload bytes doesn't help.
-  - **Temperature jitter**: breaks this specific model — output quality collapses above a narrow operating range.
-  - **Threshold adjustment**: math doesn't support it. Prod NEAR_MISS distribution clusters at 0.72–0.78, and council (Gemini 3.1 Pro Preview, 2026-04-19) showed that a one-adjective difference in a multi-paragraph response yields Jaccard ≥ 0.95, so a genuine near-duplicate from this failure mode would NOT land in the 0.72–0.78 band. The observed NEAR_MISS distribution is baseline persona-style overlap, not almost-caught duplicates.
-
-  **Working hypothesis**: **model-inference-level stickiness** — `glm-4.5-air:free` has sampling or attention patterns that produce very similar outputs across near-identical prompts, independent of OpenRouter's cache. This would be a Z-AI-provider-side behavior, not something we can prevent at the request layer.
-
-  **Secondary hypothesis**: **DB write-read race** — bot-client's `MessageHandler.ts:154` delivers response to Discord BEFORE `saveAssistantMessage()` at line 171 persists to DB. A rapid user follow-up fires a new job before persistence completes, so the follow-up's `conversationHistory` snapshot (from `ConversationHistoryService.getChannelHistory`) misses the prior response. Duplicate detector then compares against older unrelated messages (baseline 0.72–0.78 overlap) and passes. Small race window (typically <200ms) but non-zero.
-
-  **Approach — observability-first, not fix-first** (PR in flight, 2026-04-19):
-  - Expanded `CrossTurnDetection` diagnostic logging: full per-message `comparisonReport` (8-char hash, 80-char prefix, Jaccard and bigram scores) for every check, so the next incident gives us ground-truth data instead of requiring another hypothesis round.
-  - Race-window telemetry in `ContextStep`: computes delta between job creation time and newest-assistant-message persisted timestamp. Logs `warn` when delta < 500ms (would indicate race is firing).
-  - Reasoning-mode actual-vs-requested telemetry in `ResponsePostProcessor`: logs whether reasoning was configured AND whether the response actually contained reasoning tokens. User reports reasoning mode sometimes fails to engage on this model; knowing whether incidents correlate with non-engaged reasoning is a useful signal.
-
-  **Runbook for next incident** (when user reports a duplicate):
-  1. Get approximate UTC time, channel ID, personality, and whether reasoning mode was requested.
-  2. `railway logs --service ai-worker --json | jq -c 'select(.name == "CrossTurnDetection")' | grep <jobId or time window>` — inspect `comparisonReport` for the affected job. Was the prior response in the list? What were its scores?
-  3. Check for `[ContextStep] Race-window signal` warnings near that time. If present, the race is the cause.
-  4. Check `[ResponsePostProcessor] Reasoning mode requested but did NOT engage` around that time. Correlation with duplicate incidents tells us whether reasoning-mode reliability is part of the story.
-  5. If none of the above explain it, the model-inference-stickiness hypothesis stands — potential mitigations include swapping models for specific users, adding a user-facing "regenerate" button, or accepting the residual given low frequency.
-
-  **Why we're not fixing aggressively**: the user has invested in many rounds of model-specific patches for this model already (echo parroting, hallucinated tool-use XML, `<received message>` echo). Frequency is trending down. Observability first, targeted fix when the diagnostic data is in hand, rather than another hypothesis-shopping round.
-
-  **Start**: the observability PR (commits `<TBD>` on develop). Once merged, monitor prod logs. On next occurrence, correlate `comparisonReport` against the user's observation. Surfaced 2026-04-19; diagnostic PR same day.
-
-- 🐛 `[FIX]` **Typing indicator intermittently stops during long AI responses — investigate** — User has observed the "bot is typing…" indicator disappearing before the AI response actually lands, multiple times, not yet reproduced deterministically. Unclear whether this is a bot-side bug (failed `sendTyping` refresh not recovering) or a Discord client-side display glitch (indicator sent but not rendered).
-
-  **Current implementation — two independent typing loops**:
-  - `services/bot-client/src/services/JobTracker.ts:85-149` — fires `channel.sendTyping()` every 8s (`TYPING_INDICATOR_INTERVAL_MS`) until the 10-min cutoff (`TYPING_INDICATOR_TIMEOUT_MS`) or job completion. Errors are logged and **swallowed** at lines 144-146 (comment: "channel might be temporarily unavailable"); the interval continues.
-  - `services/bot-client/src/services/VoiceTranscriptionService.ts:186-198` — independent interval at the same 8s cadence for voice-transcription flows, also swallowing errors (lines 194-196).
-
-  **Known constants**:
-  - Discord's typing indicator expires ~10s after the last ping.
-  - Refresh at 8s → only a **2-second buffer**. A single missed refresh can cause a visible dropout until the next 8s tick succeeds.
-  - discord.js v14.26.2 (`services/bot-client/package.json`).
-
-  **Hypotheses to investigate** (ranked by likelihood):
-  1. **Rate limiting on `sendTyping`** — Discord rate-limits `POST /channels/{id}/typing` per-channel. When the bot processes multiple @mentions in the same channel simultaneously (e.g., two users pinging different personalities at once), two JobTracker entries fire typing every 8s each into the same channel, doubling the effective rate. Under concurrent usage this can hit the channel rate limit. The current `catch` block treats 429s identically to any other error — no backoff, no logging differentiation. **Cheapest investigation**: Railway log search for `'[JobTracker] Failed to send typing indicator'` grouped by channel and by 5-min windows. If rate-limited, retry-after headers should be attached to the rejected request in discord.js.
-  2. **Handoff gap between VoiceTranscriptionService and JobTracker** — for voice-message flows: VoiceTranscriptionService runs its typing loop during transcription, then terminates its interval when transcription finishes. PersonalityMessageHandler then starts JobTracker's typing loop for the AI response. If the handoff takes >2s (voice transcription cleanup + AI job submission), the Discord indicator will flicker off between the last VoiceTranscriptionService ping and the first JobTracker ping. **Check**: grep for the handoff site — probably `PersonalityMessageHandler` or the voice-message path in `MessageHandler` — and measure the wall-clock gap between the two intervals.
-  3. **Gateway disconnect/reconnect during long jobs** — if the bot's gateway connection drops and auto-reconnects mid-job, the `typingInterval` keeps firing in-process but the `sendTyping` REST calls may fail silently or queue. After reconnect, queued calls may or may not succeed. **Check**: correlate typing dropouts with `Client#disconnect`/`Client#resume` events. discord.js logs these at `info` if `rest.debug` is enabled.
-  4. **Discord client-side rendering bug** — known anecdotally that Discord desktop and mobile clients sometimes fail to display the typing indicator even when the gateway delivered the event. More common on mobile and intermittent connections. **Not fixable bot-side**; only relevant to rule out. **Check**: does the user see the dropout on desktop, mobile, both? Reproducible in a second client?
-  5. **Abuse-prevention heuristics** — anecdotal reports in Discord developer community that the server suppresses typing indicators that have been running continuously for "a long time" as abuse prevention. No official documentation. **Check**: does the dropout correlate with job age? Jobs >5 min showing dropouts more often than fast jobs?
-  6. **discord.js bug or regression** — v14.26.2 is recent; check release notes for any typing-related changes. **Check**: GitHub issues on discord.js for `sendTyping` + `indicator` in the last 6 months.
-
-  **Investigation steps (in order)**:
-  1. **Differentiate error types in the catch block** — at `JobTracker.ts:144` and `VoiceTranscriptionService.ts:194`, classify the error: 429 rate-limit → log at warn with retry-after and next-refresh offset; network → log at info (transient); channel-gone (404 / 50013) → log at error and clear the interval (no point continuing). Ship this first — it's a prerequisite for every other investigation step because today the logs don't distinguish failure modes.
-  2. **Add per-channel aggregation telemetry** — count of `sendTyping` calls and failures per channel per 5-min window. Surfaces rate-limit patterns. Can live in the existing logger output; no new infrastructure required.
-  3. **Measure the voice-handoff gap** — instrument the transition from VoiceTranscriptionService → JobTracker with a timestamped log pair. If the gap is >2s on the reproducer cases, this is almost certainly the voice-specific failure mode.
-  4. **User-side reproduction capture** — when the user notices a dropout next, they record: (a) channel, (b) approximate time (UTC), (c) whether it was a voice message or text, (d) whether it was a long reply or a short one, (e) client (desktop/web/mobile). Cross-reference with the differentiated logs from step 1.
-
-  **Remediation options (pick after findings)**:
-  - **If rate-limiting**: reduce refresh rate (8s → 7s widens buffer but also increases rate), OR coalesce typing loops per-channel (one loop per channel regardless of how many jobs are active), OR back off on 429 instead of silently retrying at the fixed 8s cadence.
-  - **If voice-handoff gap**: continue the first typing loop across the handoff rather than restarting fresh. Pass the `sendTyping` responsibility through the VoiceTranscription → PersonalityMessage transition without a gap.
-  - **If gateway reconnect**: subscribe to `Client#resume` and re-fire typing for all tracked jobs on reconnect.
-  - **If Discord client bug**: nothing to do bot-side; document and close.
-
-  **Why this deserves investigation despite being a "small" UX bug**: the typing indicator is the sole signal a user has that the bot received their message and is working on it. Dropouts → users assume "bot is broken" → they retry → duplicate requests → more load → more rate limits → more dropouts. The feedback loop makes it worse under load, not self-healing.
-
-  **Start**: `services/bot-client/src/services/JobTracker.ts:141-147` (the silent-swallow catch) is the bottleneck for every investigation step. Step 1 (error differentiation) is the cheapest action and unblocks the rest. Related existing item: the "JobTracker orphan sweep" entry directly below — if orphan sweep lands first, factor the error-differentiation change into the same PR since both touch the same interval callback.
+---
 
 ## 🎯 Current Focus
 
@@ -137,15 +67,35 @@ The Identity & Provisioning Hardening Epic shipped end-to-end as of 2026-04-23 (
 
 Promoted from Inbox 2026-04-22.
 
+### Attachment-download lift to ai-worker (structural fix for submit-job timeout)
+
+🏗️ `[LIFT]` **Active production issue.** Observed 2026-04-23T03:38 + 03:49 UTC: user sent a message with 12 extended-context attachments (screenshots up to 827KB each, several MB total), hit `TimeoutError` on bot-client's 10s submit timeout, retried, hit it again with the same payload. `api-gateway`'s `POST /ai/generate` handler downloads all attachments synchronously via `AttachmentStorageService` before returning — request-handler time scales with attachment count/size. Mitigation shipped in beta.104 (bot-client submit timeout 10s → 60s); this entry is the structural fix.
+
+**Structural fix shape**: api-gateway enqueues the job with raw attachment URLs; ai-worker's preprocessing step downloads them at job-run time (off the submit-response critical path). Reduces api-gateway's CPU/memory/network load per request, decouples submit timing from attachment payload, removes the client-timeout fragility entirely.
+
+**Also folds in**: Reddit-CDN attachment URLs hit `Invalid attachment URL: must be from Discord CDN` in the same code path and fall back to the original URL — the whitelist scope should be revisited as part of this refactor (either widen to known image hosts or document the fallback as intentional).
+
+**Start**: `services/api-gateway/src/routes/ai/generate.ts` (the submit handler); `services/api-gateway/src/services/AttachmentStorageService.ts` (the Discord-CDN whitelist); `services/ai-worker/src/jobs/` for where preprocessing already lives (likely add a `downloadAttachments` child job).
+
+Promoted from Inbox 2026-04-23.
+
 ### Other in-flight
 
-_None. TTS Engine Upgrade is now the Active Epic (promoted 2026-04-23 after Identity & Provisioning Hardening closed)._
+_None beyond the above. TTS Engine Upgrade is Active Epic._
 
 ---
 
 ## ⚡️ Quick Wins
 
 _Small tasks that can be done between major features. Good for momentum._
+
+- 🧹 `[CHORE]` **Extend `pnpm ops test:generate-schema` to preserve CHECK constraints** — The PGLite schema file at `packages/test-utils/schema/pglite-schema.sql` has zero `CHECK` constraint DDL despite Phase 5 adding two (`personas_name_non_empty`, `personas_name_not_snowflake`). Root cause: the schema generator builds from Prisma introspection, which has no CHECK-constraint representation, so those DDL lines don't round-trip. Consequence: integration tests against PGLite can't exercise CHECK-constraint rejection behavior — the test harness silently permits values prod Postgres would reject. **Fix shape**: extend the generator to parse `prisma/migrations/**/migration.sql` for `ADD CONSTRAINT "..." CHECK (...)` patterns and append them to the generated schema. One-shot sweep + regeneration. **Once fixed**: `schemaInvariants.int.test.ts` can upgrade from structural (greps migration SQL) to behavioral (inserts bad values and asserts rejection). **Start**: `packages/tooling/src/commands/test.ts` or wherever `test:generate-schema` lives. Surfaced 2026-04-23.
+
+- 🧹 `[CHORE]` **Guard `__autocomplete_error__` sentinel at slash-command option-read sites** — PR #884 introduced the `__autocomplete_error__` sentinel as the `value` field of the `[Unable to load — try again]` placeholder choice. Discord's autocomplete UI doesn't prevent free-form text submission, so a user who types the sentinel literally (or selects the placeholder) can submit it as the option value. Command handlers currently pass it through as if it were a real slug/id, which fails at the gateway with a generic not-found error — graceful but confusing. **Fix shape**: at each command handler's option-read site that can receive a slug/id from the three autocomplete handlers (shapes/import, persona picker, personality picker, memory personality option, etc.), check for `AUTOCOMPLETE_ERROR_SENTINEL` and respond with "Autocomplete was unavailable — please try again in a moment." **Scope**: grep `interaction.options.getString` sites in shapes/persona/personality command files; ~5-8 sites. ~1h. Surfaced by claude-bot review on PR #884.
+
+- 🐛 `[FIX]` **Differentiate typing-indicator error types in JobTracker catch block (investigation step 1)** — `services/bot-client/src/services/JobTracker.ts:141-147` currently swallows all `sendTyping` errors with a single warn log, making it impossible to tell rate-limits from network blips from channel-gone errors. Classify the error: 429 rate-limit → log at warn with retry-after and next-refresh offset; network → log at info (transient); channel-gone (404 / 50013) → log at error and clear the interval. Same treatment for `VoiceTranscriptionService.ts:186-198`. **Why this alone is a Quick Win**: unblocks every other step of the typing-indicator investigation (see Future Theme: Typing Indicator Reliability) — the remaining steps all depend on differentiated failure-mode data the current logs don't provide. Ships standalone without committing to any remediation yet. Surfaced 2026-04-22.
+
+- 🧹 `[CHORE]` **Release note for `GET /user/timezone` 404 contract change (beta.105)** — PR #881 replaced the old "silently default to UTC" handler with a proper 404 when `requireProvisionedUser` guarantees the user row should exist but doesn't. Architecturally correct but it's a contract change on a rarely-exercised error path. Draft a release-note entry for beta.105 noting: "`GET /user/timezone` now returns 404 instead of `{ timezone: 'UTC', isDefault: true }` for the missing-user race case. Bot-client graceful-degradation logic hitting this endpoint may silently shift behavior." **Scope**: add to the next release notes draft. ~10 min. Surfaced by claude-bot review on PR #881 round 3. (The broader "lie-on-error audit across api-gateway" is tracked under the Logging & Error Observability theme — that's the category-wide sweep; this is the release-note for the single documented instance.)
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
@@ -707,9 +657,60 @@ Intermittent failures from Railway Serverless cold starts (~56s). Significant pr
 
 ---
 
+### Theme: Typing Indicator Reliability
+
+_Focus: diagnose and fix intermittent typing-indicator dropouts during long AI responses. Quick Win "error differentiation" step is the prerequisite and ships first; this theme covers everything after._
+
+**Observed**: user has seen the "bot is typing…" indicator disappearing before the AI response actually lands, multiple times, not yet reproduced deterministically. Unclear whether this is a bot-side bug (failed `sendTyping` refresh not recovering) or a Discord client-side display glitch.
+
+**Current implementation — two independent typing loops**:
+
+- `services/bot-client/src/services/JobTracker.ts:85-149` — fires `channel.sendTyping()` every 8s until the 10-min cutoff or job completion. Errors swallowed at lines 144-146.
+- `services/bot-client/src/services/VoiceTranscriptionService.ts:186-198` — independent interval at the same cadence for voice flows, also swallowing errors.
+
+**Hypotheses (ranked by likelihood)**:
+
+1. **Rate limiting on `sendTyping`** — Discord rate-limits `POST /channels/{id}/typing` per-channel. Concurrent @mentions in the same channel can double the effective rate. Current catch treats 429s identically to other errors — no backoff. **Check after step 1 (Quick Win) ships**: log-search for 429 classifications grouped by channel and 5-min windows.
+2. **Handoff gap between VoiceTranscriptionService and JobTracker** — for voice flows, VoiceTranscription's interval terminates when transcription finishes; JobTracker starts after. If the gap is >2s, the Discord indicator flickers off (Discord typing TTL is ~10s; we refresh at 8s, only 2s buffer). **Check**: instrument the transition with a timestamped log pair.
+3. **Gateway disconnect/reconnect during long jobs** — `typingInterval` keeps firing in-process but REST calls may fail silently or queue. Correlate typing dropouts with `Client#disconnect`/`Client#resume` events.
+4. **Discord client-side rendering bug** — anecdotal, known to happen on mobile / intermittent connections. Not fixable bot-side; only relevant to rule out.
+5. **Abuse-prevention heuristics** — anecdotal reports of Discord suppressing typing indicators that have been running continuously "for a long time." No official documentation. Check: does dropout correlate with job age?
+6. **discord.js bug/regression** — check v14.26.2 release notes for typing-related changes.
+
+**Investigation steps (after Quick Win step 1 ships)**:
+
+2. **Per-channel aggregation telemetry** — count of `sendTyping` calls and failures per channel per 5-min window. Surfaces rate-limit patterns.
+3. **Voice-handoff gap measurement** — instrument the VoiceTranscriptionService → JobTracker transition. If gap >2s on reproducer cases, this is the voice-specific failure mode.
+4. **User-side repro capture** — when user notices next dropout, record channel / time (UTC) / voice-or-text / long-or-short reply / client (desktop/web/mobile). Cross-reference with differentiated logs.
+
+**Remediation options (pick after findings)**:
+
+- **If rate-limiting**: coalesce typing loops per-channel (one loop per channel regardless of concurrent jobs), or back off on 429 instead of retrying at fixed cadence. Reducing refresh 8s → 7s widens buffer but also increases rate.
+- **If voice-handoff gap**: continue the first typing loop across the handoff rather than restarting fresh.
+- **If gateway reconnect**: subscribe to `Client#resume` and re-fire typing for all tracked jobs on reconnect.
+- **If Discord client bug**: document and close.
+
+**Why this matters despite being "small" UX**: the typing indicator is the sole signal a user has that the bot received their message. Dropouts → users assume "bot is broken" → they retry → duplicate requests → more load → more rate limits → more dropouts. The loop gets worse under load, not self-healing.
+
+**Start**: Quick Win "Differentiate typing-indicator error types" ships first. That entry is the prerequisite — its differentiated logs drive every step here. Surfaced 2026-04-22.
+
+---
+
 ### Theme: Logging & Error Observability
 
 _Comprehensive audit of logging quality, error serialization, and log hygiene across the stack._
+
+#### 🐛 Lie-on-Error Fallback Audit (api-gateway category sweep)
+
+Pattern surfaced by PR #881: the old `GET /user/timezone` handler returned `{ timezone: 'UTC', isDefault: true }` when the user row didn't exist. Phase 5c correctly replaced it with a 404 since `requireProvisionedUser` guarantees the row exists in happy flow. Architecturally correct but points at a broader category — endpoints that silently degrade to defaults on state errors mask real bugs in prod.
+
+**Audit scope**: grep api-gateway for `|| 'default'`, `?? defaults`, `if (user === null) return success-with-fallback` patterns. Any endpoint returning a "plausible but fake" success where the real answer is "this doesn't exist / isn't available" is a candidate.
+
+**Fix shape per site**: flip to proper error response (404 / 400 / 409) and surface the "fake success" path in logs so downstream consumers (bot-client graceful-degradation logic) can adapt. Each flip is a small contract change — cheap individually but the category-wide sweep is multi-site.
+
+**Why a theme, not a Quick Win**: the timezone case was one documented instance; the audit may surface 3-10+ more across routes, each needing its own small fix + release-note entry. Coordinate as one audit pass rather than drip-fed one-off fixes.
+
+**Start**: `services/api-gateway/src/routes/user/**` first (most user-facing state-lookup endpoints live there); then admin, shapes, persona routes. Surfaced by claude-bot review on PR #881 round 3 (2026-04-23).
 
 #### 🐛 Error Serialization Audit
 
@@ -935,6 +936,38 @@ _Eventually kill v2, but these are rarely used features._
 
 ### Latent (relevant only if specific triggers fire)
 
+#### 🐛 Near-duplicate consecutive replies on `glm-4.5-air:free` — observability primed, awaiting next incident
+
+Diagnostic PR landed 2026-04-19 with full `CrossTurnDetection` logging (per-message `comparisonReport` with hash, 80-char prefix, Jaccard and bigram scores), race-window telemetry in `ContextStep`, and reasoning-mode engagement telemetry in `ResponsePostProcessor`. Latent now — no further action until the next user-reported occurrence gives us data to correlate.
+
+**Ruled out (do not retry)**: request-hash cache busting (nonce in system prompt didn't help), temperature jitter (breaks this model's output quality), threshold adjustment (council math 2026-04-19 showed genuine near-duplicates would score ≥0.95 Jaccard, so prod's 0.72-0.78 band is baseline persona overlap, not almost-caught duplicates).
+
+**Working hypothesis**: model-inference-level stickiness on the Z-AI provider side — not something we can prevent at the request layer.
+
+**Runbook when user reports next duplicate**:
+
+1. Get approximate UTC time, channel ID, personality, whether reasoning mode was requested.
+2. `railway logs --service ai-worker --json | jq -c 'select(.name == "CrossTurnDetection")' | grep <jobId or time window>` — inspect `comparisonReport`.
+3. Check for `[ContextStep] Race-window signal` warnings near that time. If present, DB write-read race is the cause.
+4. Check `[ResponsePostProcessor] Reasoning mode requested but did NOT engage` — correlation with incidents tells us whether reasoning-mode reliability is part of the story.
+5. If none explain it, model-inference-stickiness stands. Potential mitigations: swap models for specific users, add user-facing "regenerate" button, or accept residual given low frequency.
+
+**Why Latent**: we've done the pre-work; the next move requires an incident to correlate against. Surfaced 2026-04-19.
+
+#### ✨ Discord system-message handling (welcome/join events in activated channels)
+
+Open question: when a user joins a guild where the bot is activated in the welcome channel, Discord emits `MESSAGE_CREATE` for the system-generated join message. Does the bot currently see these? Do they arrive as empty-content messages (and fall into whatever guard handles empty content), or as typed system messages with `message.system === true` and a known `MessageType` (`UserJoin`, `GuildBoost`, `ChannelPinnedMessage`, etc.)? If unhandled, the risk is (a) silent pass-through to AI with empty input, (b) duplicate responses, or (c) they're dropped entirely and we miss a UX opportunity for personality-aware welcomes.
+
+**Investigation steps**:
+
+1. Grep `MessageType.UserJoin`, `message.system`, `isSystem` across `services/bot-client/src/handlers/MessageHandler.ts` + `PersonalityMessageHandler.ts` — is there explicit handling today?
+2. Test in a local guild by joining with a second account — observe what fires in ai-worker logs.
+3. Inspect `message.content` for system messages (typically empty string with `message.system === true`, `message.type === MessageType.UserJoin`).
+
+**Decision after investigation**: ignore explicitly (safest default, ship as guard), respond with personality-aware welcome (feature opportunity, opt-in per guild), or surface only when channel explicitly configured for welcomes.
+
+**Why Latent**: no active user pain; `[FEAT]` investigation that only becomes relevant if a concrete welcome-UX use case appears. Surfaced 2026-04-21.
+
 #### 🏗️ Singleton-hazard guard for `UserService` cache
 
 Relevant only if `UserService` is ever refactored from per-request instantiation to a singleton (a reasonable perf improvement).
@@ -1001,6 +1034,21 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 **User's own framing**: "Probably a bit pie in the sky, but I want to at least think about it."
 
 ### Code Quality
+
+#### 🧹 Mock Convention Unification Audit
+
+The codebase has two mock conventions side-by-side: `src/test/mocks/*.mock.ts` explicit-import libraries (~10 files in ai-worker + bot-client, pre-existing) and `src/services/__mocks__/AuthMiddleware.ts` vitest auto-discovery (1 file, added in PR #883). The split serves two real mechanisms — factory-libraries that can't be tied to a specific module path vs. module-replacement mocks that vitest auto-resolves — but nobody audited which existing `.mock.ts` files actually need explicit-import flexibility vs. which are single-module replacements that could migrate to `__mocks__/` for DRY.
+
+**Scope**: ~10 files to audit, ~5-7 likely migrate, ~2-3 stay as factory libraries. ~2-3h.
+
+- **Initial-skim candidates for migration**: `ai-worker/src/test/mocks/{LLMInvoker,PromptBuilder,ContextWindowManager,LongTermMemoryService,MemoryRetriever,ReferencedMessageFormatter,UserReferenceResolver}.mock.ts` + `bot-client/src/test/mocks/PersonalityService.mock.ts`.
+- **Stay as-is**: `bot-client/src/test/mocks/Discord.mock.ts` + `ai-worker/src/test/mocks/utils.mock.ts` are factory libraries, not module replacements.
+
+**Deliverables**: (a) per-file audit notes; (b) migrations for qualifying files; (c) caller updates (`vi.mock(path)` with no factory); (d) rule in `.claude/rules/02-code-standards.md` documenting "use `__mocks__/` for module replacement; use `.mock.ts` library for reusable factories not tied to a single module."
+
+**Tried and rejected on PR #883**: explicit `vi.mock(path, () => import('./.mock.ts'))` pattern with an imported factory — fails with circular-mock reentry when the mock file uses `export *` AND with `ReferenceError: Cannot access '__vi_import_0__' before initialization` when the factory is an imported symbol (vitest hoists `vi.mock` above imports). `vi.hoisted()` workaround reconstructs per-file boilerplate. The `__mocks__/` auto-discovery is vitest's purpose-built escape hatch for the same-package DRY case.
+
+Surfaced 2026-04-23.
 
 #### 🏗️ Unify Shapes Job Error Handlers
 
