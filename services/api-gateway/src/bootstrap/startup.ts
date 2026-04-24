@@ -70,13 +70,6 @@ export async function ensureAvatarDirectory(): Promise<void> {
 }
 
 /**
- * Ensure temp attachment storage directory exists
- */
-export async function ensureTempAttachmentDirectory(): Promise<void> {
-  await ensureDirectory('/data/temp-attachments', 'Temp attachment storage');
-}
-
-/**
  * Check avatar storage health
  */
 export async function checkAvatarStorage(): Promise<{

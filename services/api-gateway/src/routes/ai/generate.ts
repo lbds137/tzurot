@@ -5,38 +5,16 @@
 
 import { Router, type Request, type Response } from 'express';
 import { randomUUID } from 'crypto';
-import {
-  createLogger,
-  generateRequestSchema,
-  JobStatus,
-  type AttachmentMetadata,
-} from '@tzurot/common-types';
+import { createLogger, generateRequestSchema, JobStatus } from '@tzurot/common-types';
 import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
 import { createJobChain } from '../../utils/jobChainOrchestrator.js';
-import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendSuccess, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 
 const logger = createLogger('AIRouter');
 
-/**
- * Download attachments to local storage if present
- */
-async function downloadAttachmentsIfPresent(
-  attachmentStorage: AttachmentStorageService,
-  requestId: string,
-  attachments: AttachmentMetadata[] | undefined,
-  logLabel: string
-): Promise<AttachmentMetadata[] | undefined> {
-  if (!attachments || attachments.length === 0) {
-    return attachments;
-  }
-  logger.info({ requestId, count: attachments.length }, `Downloading ${logLabel} to local storage`);
-  return attachmentStorage.downloadAndStore(requestId, attachments);
-}
-
-export function createGenerateRoute(attachmentStorage: AttachmentStorageService): Router {
+export function createGenerateRoute(): Router {
   const router = Router();
 
   router.post(
@@ -67,20 +45,6 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
 
       const requestId = randomUUID();
 
-      // Download attachments to local storage (prevents CDN expiration issues)
-      const localAttachments = await downloadAttachmentsIfPresent(
-        attachmentStorage,
-        requestId,
-        request.context.attachments,
-        'attachments'
-      );
-      const localExtendedContextAttachments = await downloadAttachmentsIfPresent(
-        attachmentStorage,
-        requestId,
-        request.context.extendedContextAttachments,
-        'extended context attachments'
-      );
-
       if (request.context.referencedMessages && request.context.referencedMessages.length > 0) {
         logger.info(
           { requestId, referencedMessagesCount: request.context.referencedMessages.length },
@@ -89,15 +53,14 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
       }
 
       try {
+        // Attachment URLs flow through unchanged. Bytes are downloaded inside
+        // ai-worker's DownloadAttachmentsStep so this handler never blocks on
+        // network I/O regardless of attachment size or count.
         const jobId = await createJobChain({
           requestId,
           personality: request.personality,
           message: request.message,
-          context: {
-            ...request.context,
-            attachments: localAttachments,
-            extendedContextAttachments: localExtendedContextAttachments,
-          },
+          context: request.context,
           responseDestination: { type: 'api' as const },
           userApiKey: request.userApiKey,
         });
