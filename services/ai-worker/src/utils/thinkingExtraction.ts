@@ -117,6 +117,84 @@ const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
   /^\s*<from_id>[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}<\/from_id>\s*<user>[^<]*<\/user>\s*<message>([\s\S]*?)<\/message>\s*/;
 
 /**
+ * GLM-4.7 meta-preamble pattern.
+ *
+ * Observed 2026-04-24 (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3): with
+ * `reasoning.enabled=true` and `showThinking=false`, GLM-4.7 emitted a scene-
+ * setting preamble before the in-character response:
+ *
+ *   <user>Lila</user>
+ *   <character>Lilith</character>
+ *   <analysis>
+ *   ...chain of thought about tone, persona, format...
+ *   </analysis>
+ *
+ *   <actual in-character response>
+ *
+ * Same bug class as GLM-4.5-Air's fake-user-message echo — the model's RL
+ * training surfaces reasoning as XML-tagged meta-content rather than through
+ * OpenAI's `reasoning` field. Different tag vocabulary per revision; each
+ * needs its own extractor.
+ *
+ * Load-bearing guarantees (what makes this safe to strip):
+ *   1. Start-of-response anchor (`^\s*`) — mid-response meta-discussion about
+ *      the format is not stripped.
+ *   2. Presence of `<analysis>` as a required terminator — the `<user>` and
+ *      `<character>` tags alone wouldn't anchor anything (both words appear
+ *      in normal response prose). `<analysis>` at the start of a response is
+ *      statistically a leak marker.
+ *   3. Tag-closure matching via backreference (`<\/\1>`) — a `<user>` opener
+ *      only matches a `</user>` closer, preventing tag crossings from
+ *      accidentally eating into the real response body.
+ *
+ * False-positive risk: low but higher than the 4.5-Air pattern, which had
+ * UUID validation as an additional bedrock guarantee. The tag vocabulary
+ * here is load-bearing — a legitimate response rarely starts with
+ * `<analysis>`. If that assumption breaks (e.g., a personality is prompted
+ * to output `<analysis>` as a structured-output format), shrink this
+ * pattern. Concretely: change `{0,2}` to `{1,2}` so the regex requires at
+ * least one `<user>` or `<character>` preamble tag — this eliminates bare-
+ * `<analysis>` matches at the cost of breaking the "handles bare <analysis>
+ * with no preamble tags" test case. Do that rather than weakening the
+ * start-of-response anchor, which is the primary safety guarantee.
+ *
+ * Interaction with `normalizeThinkingTagNamespaces` and Pass 2: `user`,
+ * `character`, and `analysis` must NOT appear in `KNOWN_THINKING_TAGS`.
+ * Adding bare `analysis` to that list (natural-seeming given
+ * `character_analysis` is already there) would cause Pass 2 to double-
+ * extract the `<analysis>` body into `thinkingParts` from `normalized`
+ * (which still holds the original content). Not user-visible since Pass 1
+ * already strips it from `visibleContent`, but inflates thinking output.
+ * If `KNOWN_THINKING_TAGS` is ever extended with an overlapping name,
+ * re-verify.
+ *
+ * Structural flexibility vs. the 4.5-Air pattern:
+ *   - `<user>` and `<character>` are OPTIONAL preamble — either, both, or
+ *     neither may appear, in any order. Observed variant had all three; future
+ *     variants may drop some. Permutation tolerance avoids re-opening the bug
+ *     if the model changes its output shape slightly.
+ *   - `</analysis>` is OPTIONAL terminator via `(?:<\/analysis>|$)`. If the
+ *     model hits `max_tokens` mid-reasoning, the closing tag is absent.
+ *     Without the `|$` alternative, the regex would fail and the raw XML
+ *     would leak in full — worse than the non-extraction case. Eating to
+ *     end-of-string on truncation is the safer failure mode.
+ *
+ * Case-insensitive (`/i`) because the model has been observed to lowercase
+ * tags inconsistently. Anchors remain absolute (no `m` flag).
+ *
+ * Architecture: runs in `extractThinkingBlocks` Pass 1 alongside the 4.5-Air
+ * pattern. When multiple GLM-family patterns match, each consumes its own
+ * scaffolding from the response head; their order is irrelevant because each
+ * is tightly anchored by a distinct tag vocabulary.
+ *
+ * Deletion plan: same as the 4.5-Air pattern — once OpenRouter's reasoning
+ * middleware polyfills this model's leak pattern upstream, remove this entry.
+ * Filing with the raw API response as evidence is the fastest path.
+ */
+const GLM_47_META_PREAMBLE_PATTERN =
+  /^\s*(?:<(user|character)>[^<]*<\/\1>\s*){0,2}(?:<analysis>([\s\S]*?)(?:<\/analysis>|$))\s*/i;
+
+/**
  * Alternation pattern fragment for use in regex: `think|thinking|...`
  *
  * Order is safe — all usage sites have structural terminators (`>`, `\b`)
@@ -362,10 +440,10 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
 
   // Pass 1 — model-specific pattern extractors.
   // Runs before the generic KNOWN_THINKING_TAGS loop so the leading block
-  // is consumed before the simple tag extractors see it. Currently only
-  // handles GLM-4.5-Air's fake-user-message wrapper; add new entries here
-  // for future model-specific leak patterns (see Chain-of-Extractors rationale
-  // on GLM_FAKE_USER_MESSAGE_ECHO_PATTERN).
+  // is consumed before the simple tag extractors see it. Each extractor
+  // targets a distinct model-version leak vocabulary; add new entries here
+  // as new patterns are observed (see Chain-of-Extractors rationale on the
+  // individual pattern docstrings).
   const fakeUserMessageMatch = GLM_FAKE_USER_MESSAGE_ECHO_PATTERN.exec(visibleContent);
   if (fakeUserMessageMatch !== null) {
     const extractedThinking = fakeUserMessageMatch[1].trim();
@@ -387,6 +465,29 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
         remainingLength: visibleContent.length,
       },
       'Stripped leading fake-user-message scaffolding (GLM-4.5-Air input-format echo)'
+    );
+  }
+
+  const glm47MetaMatch = GLM_47_META_PREAMBLE_PATTERN.exec(visibleContent);
+  if (glm47MetaMatch !== null) {
+    // Group 2 is the <analysis> body (group 1 is the preamble tag name used
+    // for backreference closure matching).
+    const extractedThinking = glm47MetaMatch[2].trim();
+    if (extractedThinking.length > 0) {
+      thinkingParts.push(extractedThinking);
+    }
+    visibleContent = visibleContent.slice(glm47MetaMatch[0].length);
+    logger.warn(
+      {
+        extractedLength: extractedThinking.length,
+        remainingLength: visibleContent.length,
+        // Case-insensitive check mirrors the outer regex's `/i` flag. A plain
+        // `.includes('</analysis>')` would miss uppercased closing tags (e.g.
+        // `</ANALYSIS>`) and falsely log `truncated: true` even when the model
+        // successfully closed the block.
+        truncated: !/<\/analysis>/i.test(glm47MetaMatch[0]),
+      },
+      'Stripped leading meta-preamble scaffolding (GLM-4.7 user/character/analysis echo)'
     );
   }
 
@@ -463,13 +564,16 @@ export function hasThinkingBlocks(content: string): boolean {
     return true;
   }
 
-  // Pass-1 model-specific pattern (GLM-4.5-Air fake-user-message echo).
-  // `extractThinkingBlocks` removes this pattern via Pass 1, so we must
-  // check it here too — otherwise `DiagnosticRecorders.hasReasoningTagsInContent`
-  // would report `false` for pure-GLM responses where the fake wrapper is
-  // the only thinking-content signal, and `/inspect` diagnostics would
-  // under-report GLM reasoning occurrences.
+  // Pass-1 model-specific patterns. `extractThinkingBlocks` removes these
+  // via Pass 1, so we must check them here too — otherwise
+  // `DiagnosticRecorders.hasReasoningTagsInContent` would report `false` for
+  // pure-GLM responses where the scaffolding is the only thinking-content
+  // signal, and `/inspect` diagnostics would under-report GLM reasoning
+  // occurrences.
   if (GLM_FAKE_USER_MESSAGE_ECHO_PATTERN.test(normalized)) {
+    return true;
+  }
+  if (GLM_47_META_PREAMBLE_PATTERN.test(normalized)) {
     return true;
   }
 

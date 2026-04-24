@@ -881,6 +881,247 @@ Response.`;
       expect(result.visibleContent).toBe('Response.');
     });
   });
+
+  describe('GLM-4.7 meta-preamble pattern', () => {
+    // Observed 2026-04-24 (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3). Model
+    // emitted scene-setting preamble before the in-character response. Same
+    // bug class as the 4.5-Air fake-user-message echo, different vocabulary.
+    // Safety relies on: start-of-response anchor, presence of <analysis> as
+    // terminator, backreference-matched tag closure.
+
+    it('extracts the observed user/character/analysis preamble as thinking content', () => {
+      const content = `<user>Lila</user>
+<character>Lilith</character>
+<analysis>
+The user is starting a new diary thread. Tone should be attentive.
+</analysis>
+
+*The shadows stir, lengthening across the room.*
+I'm listening.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('The user is starting a new diary thread');
+      expect(result.thinkingContent).toContain('Tone should be attentive');
+      expect(result.visibleContent).toContain('*The shadows stir');
+      expect(result.visibleContent).toContain("I'm listening.");
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('strips the wrapper from visible content without leaking scaffolding tags', () => {
+      const content = `<user>Lila</user>
+<character>Lilith</character>
+<analysis>reasoning</analysis>
+
+Real response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).not.toContain('<user>');
+      expect(result.visibleContent).not.toContain('<character>');
+      expect(result.visibleContent).not.toContain('<analysis>');
+      expect(result.visibleContent).not.toContain('</analysis>');
+      expect(result.visibleContent).toBe('Real response.');
+    });
+
+    it('handles permuted preamble order (character before user)', () => {
+      // Model hasn't committed to a fixed tag order. Permutation tolerance
+      // avoids re-opening the bug when output shape drifts slightly.
+      const content = `<character>Lilith</character>
+<user>Lila</user>
+<analysis>content</analysis>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('content');
+      expect(result.visibleContent).toBe('Response.');
+    });
+
+    it('handles omitted <user> tag (character + analysis only)', () => {
+      const content = `<character>Lilith</character>
+<analysis>content</analysis>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('content');
+      expect(result.visibleContent).toBe('Response.');
+    });
+
+    it('handles omitted <character> tag (user + analysis only)', () => {
+      const content = `<user>Lila</user>
+<analysis>content</analysis>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('content');
+      expect(result.visibleContent).toBe('Response.');
+    });
+
+    it('handles bare <analysis> with no preamble tags', () => {
+      const content = `<analysis>content</analysis>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('content');
+      expect(result.visibleContent).toBe('Response.');
+    });
+
+    it('handles truncation: unclosed <analysis> at end-of-string', () => {
+      // Critical case — if max_tokens fires mid-reasoning, </analysis> never
+      // appears. Without the `|$` alternative in the pattern, the regex would
+      // fail and the raw XML would leak in full — worse than no extraction.
+      // Eating to end-of-string on truncation is the safer failure mode.
+      const content = `<user>Lila</user>
+<character>Lilith</character>
+<analysis>
+The user is starting a new diary thread. I should respond thoughtfully,
+considering the full context of our relationship and the recent post-op`;
+
+      const result = extractThinkingBlocks(content);
+
+      // The whole block is consumed — nothing leaks.
+      expect(result.visibleContent).not.toContain('<user>');
+      expect(result.visibleContent).not.toContain('<analysis>');
+      expect(result.visibleContent).not.toContain('diary thread');
+      // Truncated reasoning is still captured as thinking content.
+      expect(result.thinkingContent).toContain('The user is starting a new diary thread');
+    });
+
+    it('does NOT match when the block is mid-response rather than leading', () => {
+      // Start-of-string anchor is load-bearing. A personality discussing the
+      // leak format mid-response (or a character's in-world literal use of
+      // these tag names) must not get stripped.
+      const content = `Here is my response. The model sometimes outputs:
+<user>X</user>
+<character>Y</character>
+<analysis>reasoning</analysis>
+That is what the leak looks like.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<analysis>');
+      expect(result.blockCount).toBe(0);
+    });
+
+    it('does NOT match when <analysis> is absent (no terminator to anchor on)', () => {
+      // <user> and <character> alone aren't enough — both words are common
+      // in roleplay prose. Only the <analysis> terminator makes this a leak.
+      const content = `<user>Lila</user>
+<character>Lilith</character>
+
+Real response without an analysis block.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<user>');
+      expect(result.visibleContent).toContain('<character>');
+    });
+
+    it('does NOT match when tag closure is mismatched (backreference guard)', () => {
+      // `<(user|character)>...<\/\1>` requires the closing tag to match the
+      // opening tag. A crossed closure would match 0 preamble iterations and
+      // then fail the <analysis> requirement — fails closed (leak preserved).
+      const content = `<user>Lila</character>
+<analysis>reasoning</analysis>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Pattern doesn't match, so no extraction happens.
+      // The outer pattern fails → Pass 2 takes over → <analysis> isn't in
+      // KNOWN_THINKING_TAGS so it also doesn't match there. Content is
+      // preserved for user to investigate.
+      //
+      // UX consequence: the crossed closure appears verbatim in the Discord
+      // message the user sees. Rare enough in practice (would require the
+      // model to cross tags on its own) that the mild leak is preferable to
+      // eagerly stripping malformed content and potentially eating real
+      // response body. Fails open (content preserved), not closed.
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<user>Lila</character>');
+    });
+
+    it('documents the known {0,2} preamble limit: 3+ preamble tags cause full leak', () => {
+      // Known structural limitation: `{0,2}` quantifier caps the preamble at
+      // at most two `<user>`/`<character>` tags. A future model variant that
+      // emits 3+ preamble tags before `<analysis>` would cause the regex to
+      // fail entirely, leaving the whole block in visibleContent.
+      //
+      // We intentionally don't raise the cap preemptively — that's guessing
+      // at the next model's output shape without evidence, and the cap would
+      // still break at cap+1. Instead, the BACKLOG entry "GLM-family
+      // meta-preamble pattern drift" documents the watch-item for new
+      // vocabularies. When a 3+ preamble variant is observed, promote that
+      // entry and extend the pattern with the actual observed shape.
+      //
+      // This test pins the current behavior so future maintainers know the
+      // limit is intentional (not an oversight) and can reach for the right
+      // lever (extend pattern, don't just bump the cap) when drift surfaces.
+      const content = `<user>A</user>
+<character>B</character>
+<character>C</character>
+<analysis>reasoning</analysis>
+
+Real response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Pattern fails to match → Pass 1 doesn't fire → <analysis> isn't in
+      // KNOWN_THINKING_TAGS → Pass 2 doesn't strip it either. Full leak.
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('<user>A</user>');
+      expect(result.visibleContent).toContain('<character>C</character>');
+      expect(result.visibleContent).toContain('<analysis>reasoning</analysis>');
+      expect(result.visibleContent).toContain('Real response.');
+    });
+
+    it('composes with standard <think> tag extraction on the remaining content', () => {
+      // Chain-of-Extractors: Pass 1 consumes the preamble, Pass 2 finds the
+      // <think> block in what remains. Both contribute to thinkingParts.
+      const content = `<user>Lila</user>
+<character>Lilith</character>
+<analysis>pass-1 reasoning</analysis>
+
+<think>pass-2 reasoning</think>
+
+Final response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('pass-1 reasoning');
+      expect(result.thinkingContent).toContain('pass-2 reasoning');
+      expect(result.visibleContent).toBe('Final response.');
+    });
+
+    it('strips the wrapper but yields null thinkingContent when <analysis> is empty', () => {
+      // Same contract as the 4.5-Air `extractedThinking.length > 0` guard:
+      // empty <analysis> should strip the scaffolding without pushing empty
+      // strings into thinkingParts.
+      const content = `<user>Lila</user>
+<character>Lilith</character>
+<analysis></analysis>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.blockCount).toBe(0);
+      expect(result.visibleContent).toBe('Response.');
+      expect(result.visibleContent).not.toContain('<user>');
+    });
+  });
 });
 
 describe('hasThinkingBlocks', () => {
@@ -938,6 +1179,19 @@ describe('hasThinkingBlocks', () => {
     const content = `<from_id>${uuid}</from_id>
 <user>User</user>
 <message>chain of thought</message>
+
+Response.`;
+    expect(hasThinkingBlocks(content)).toBe(true);
+  });
+
+  it('should detect GLM-4.7 meta-preamble as a thinking block', () => {
+    // Same diagnostic-parity reason as the 4.5-Air case above — pure-GLM-4.7
+    // responses where the preamble is the only thinking-content signal would
+    // otherwise report `hasReasoningTagsInContent: false` even though
+    // `extractThinkingBlocks` finds and strips the scaffolding.
+    const content = `<user>Lila</user>
+<character>Lilith</character>
+<analysis>chain of thought</analysis>
 
 Response.`;
     expect(hasThinkingBlocks(content)).toBe(true);
