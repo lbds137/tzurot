@@ -10,6 +10,7 @@ import { GatewayClient } from '../utils/GatewayClient.js';
 import { splitMessage, createLogger, CONTENT_TYPES, isTimeoutError } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
+import { handleTypingError } from '../utils/typingErrorClassifier.js';
 
 const logger = createLogger('VoiceTranscriptionService');
 
@@ -187,7 +188,11 @@ export class VoiceTranscriptionService {
         await channel.sendTyping();
         typingInterval = setInterval(() => {
           void (channel as { sendTyping: () => Promise<void> }).sendTyping().catch(err => {
-            logger.warn({ err }, 'Failed to refresh typing indicator');
+            handleTypingError(err, {
+              logger,
+              context: { channelId: message.channelId, source: 'voice-transcription' },
+              typingInterval,
+            });
           });
         }, TYPING_INDICATOR_INTERVAL_MS);
       }
