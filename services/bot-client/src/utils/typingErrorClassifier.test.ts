@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { DiscordAPIError } from 'discord.js';
 import type { Logger } from 'pino';
 import { classifyTypingError, handleTypingError } from './typingErrorClassifier.js';
@@ -10,6 +10,25 @@ function buildMockLogger(): Logger {
     error: vi.fn(),
     debug: vi.fn(),
   } as unknown as Logger;
+}
+
+/**
+ * Intervals created inside `handleTypingError` tests must be cleaned up even
+ * when the test body throws mid-assertion. Tracking them here and clearing in
+ * afterEach prevents leaking timers across tests (which would keep the vitest
+ * process alive and distort timing for downstream suites).
+ */
+const intervalsToCleanup: NodeJS.Timeout[] = [];
+afterEach(() => {
+  while (intervalsToCleanup.length > 0) {
+    const interval = intervalsToCleanup.pop();
+    if (interval !== undefined) clearInterval(interval);
+  }
+});
+
+function trackInterval(interval: NodeJS.Timeout): NodeJS.Timeout {
+  intervalsToCleanup.push(interval);
+  return interval;
 }
 
 /**
@@ -40,6 +59,18 @@ describe('classifyTypingError', () => {
   it('classifies 429 as rate-limit with null retryAfter when missing', () => {
     const err = buildDiscordApiError(0, 429);
     expect(classifyTypingError(err)).toEqual({
+      kind: 'rate-limit',
+      retryAfterSeconds: null,
+    });
+  });
+
+  // Defensive: if a future discord.js version ever changes retryAfter to a
+  // string (e.g., header passthrough), the extractor must coerce to null
+  // rather than smuggle a non-numeric value into downstream logging.
+  it('classifies 429 as rate-limit with null retryAfter when it is not a number', () => {
+    const err = buildDiscordApiError(0, 429) as unknown as Record<string, unknown>;
+    err.retryAfter = '3.5'; // String, not number
+    expect(classifyTypingError(err as unknown)).toEqual({
       kind: 'rate-limit',
       retryAfterSeconds: null,
     });
@@ -93,7 +124,8 @@ describe('classifyTypingError', () => {
 describe('handleTypingError', () => {
   it('logs rate-limit at warn level and does not clear the interval', () => {
     const logger = buildMockLogger();
-    const typingInterval = setInterval(() => undefined, 1000);
+    const typingInterval = trackInterval(setInterval(() => undefined, 1000));
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval');
     const err = buildDiscordApiError(0, 429);
 
     const result = handleTypingError(err, {
@@ -107,13 +139,16 @@ describe('handleTypingError', () => {
       expect.objectContaining({ jobId: 'job-1' }),
       expect.stringContaining('rate-limited')
     );
-    // Interval still alive — clear it to avoid leaking into the next test.
-    clearInterval(typingInterval);
+    // Rate-limit is explicitly NOT channel-unreachable: the interval must keep
+    // firing so the next tick can retry once the rate-limit window passes.
+    expect(clearSpy).not.toHaveBeenCalledWith(typingInterval);
+    clearSpy.mockRestore();
   });
 
   it('logs channel-unreachable at error level AND clears the interval', () => {
     const logger = buildMockLogger();
-    const typingInterval = setInterval(() => undefined, 1000);
+    const typingInterval = trackInterval(setInterval(() => undefined, 1000));
+    const clearSpy = vi.spyOn(globalThis, 'clearInterval');
     const err = buildDiscordApiError(10003, 404);
 
     const result = handleTypingError(err, {
@@ -127,9 +162,11 @@ describe('handleTypingError', () => {
       expect.objectContaining({ jobId: 'job-2', discordErrorCode: 10003 }),
       expect.stringContaining('unreachable')
     );
-    // Interval was cleared — hasRef returns false once cleared (Node timer API).
-    // We can't reliably assert "cleared" cross-runtime, but we can verify no
-    // callback fires after a microtask turn, which would happen if not cleared.
+    // This is the load-bearing assertion for the whole classifier — stop firing
+    // sendTyping against a dead channel. Previously commented as "can't assert"
+    // but `vi.spyOn(clearInterval)` catches it cleanly.
+    expect(clearSpy).toHaveBeenCalledWith(typingInterval);
+    clearSpy.mockRestore();
   });
 
   it('does not call clearInterval when no typingInterval was provided', () => {
