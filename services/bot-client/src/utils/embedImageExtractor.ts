@@ -22,20 +22,24 @@ export function extractEmbedImages(embeds: Embed[] | undefined): AttachmentMetad
   const imageAttachments: AttachmentMetadata[] = [];
 
   for (const embed of embeds) {
-    // Extract main image
-    if (embed.image?.url !== undefined && embed.image.url.length > 0) {
+    // Prefer proxyURL: Discord re-hosts external embed images on media.discordapp.net,
+    // which satisfies our strict CDN allowlist. `url` is the original source (e.g. Reddit,
+    // Imgur) and will be rejected. Fall back to `url` only when proxyURL is absent —
+    // bot-sent embeds occasionally ship without it.
+    const imageUrl = embed.image?.proxyURL ?? embed.image?.url;
+    if (imageUrl !== undefined && imageUrl.length > 0) {
       imageAttachments.push({
-        url: embed.image.url,
-        contentType: CONTENT_TYPES.IMAGE_PNG, // Discord embeds are typically PNG
+        url: imageUrl,
+        contentType: CONTENT_TYPES.IMAGE_PNG,
         name: `${EMBED_NAMING.IMAGE_PREFIX}${imageAttachments.length + 1}${EMBED_NAMING.DEFAULT_EXTENSION}`,
-        size: undefined, // Size not available for embed images
+        size: undefined,
       });
     }
 
-    // Extract thumbnail
-    if (embed.thumbnail?.url !== undefined && embed.thumbnail.url.length > 0) {
+    const thumbnailUrl = embed.thumbnail?.proxyURL ?? embed.thumbnail?.url;
+    if (thumbnailUrl !== undefined && thumbnailUrl.length > 0) {
       imageAttachments.push({
-        url: embed.thumbnail.url,
+        url: thumbnailUrl,
         contentType: CONTENT_TYPES.IMAGE_PNG,
         name: `${EMBED_NAMING.THUMBNAIL_PREFIX}${imageAttachments.length + 1}${EMBED_NAMING.DEFAULT_EXTENSION}`,
         size: undefined,

@@ -119,6 +119,45 @@ describe('extractEmbedImages', () => {
     expect(extractEmbedImages(embeds)).toBeUndefined();
   });
 
+  it('should prefer proxyURL over url when both are present (external-hosted image)', () => {
+    // When Discord generates an embed from a Reddit/Imgur link, `url` is the original
+    // source and `proxyURL` is Discord's `media.discordapp.net`-proxied version.
+    // We need the proxied one to satisfy the CDN allowlist downstream.
+    const embeds = [
+      {
+        image: {
+          url: 'https://i.redd.it/original.jpg',
+          proxyURL: 'https://media.discordapp.net/external/abc123/original.jpg',
+        },
+        thumbnail: {
+          url: 'https://i.redd.it/thumb.jpg',
+          proxyURL: 'https://media.discordapp.net/external/def456/thumb.jpg',
+        },
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toHaveLength(2);
+    expect(result![0].url).toBe('https://media.discordapp.net/external/abc123/original.jpg');
+    expect(result![1].url).toBe('https://media.discordapp.net/external/def456/thumb.jpg');
+  });
+
+  it('should fall back to url when proxyURL is undefined (bot-sent embed)', () => {
+    // Bot-generated embeds sometimes ship without proxyURL — the raw url must still work.
+    const embeds = [
+      {
+        image: { url: 'https://cdn.example.com/bot-image.png', proxyURL: undefined },
+        thumbnail: null,
+      },
+    ] as unknown as Embed[];
+
+    const result = extractEmbedImages(embeds);
+
+    expect(result).toHaveLength(1);
+    expect(result![0].url).toBe('https://cdn.example.com/bot-image.png');
+  });
+
   it('should handle mixed embeds with and without images', () => {
     const embeds = [
       {
