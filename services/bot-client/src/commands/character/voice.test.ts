@@ -222,6 +222,21 @@ describe('handleVoice', () => {
       expect(fetchCharacter).not.toHaveBeenCalled();
       expect(updateCharacter).not.toHaveBeenCalled();
     });
+
+    it('rejects the autocomplete-error sentinel before validating attachment', async () => {
+      const context = createMockContext('voice', {
+        character: '__autocomplete_error__',
+        audio: { contentType: 'audio/wav', size: 1024, url: 'https://cdn.discordapp.com/file.wav' },
+      });
+
+      await handleVoice(context, mockConfig);
+
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      // Sentinel guard is early-exit before any attachment validation or gateway call
+      expect(fetchCharacter).not.toHaveBeenCalled();
+    });
   });
 
   describe('voice-clear', () => {
@@ -272,6 +287,17 @@ describe('handleVoice', () => {
       expect(context.editReply).toHaveBeenCalledWith(
         expect.stringContaining('Voice reference removed')
       );
+    });
+
+    it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+      const context = createMockContext('voice-clear', { character: '__autocomplete_error__' });
+
+      await handleVoice(context, mockConfig);
+
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+      expect(fetchCharacter).not.toHaveBeenCalled();
     });
   });
 

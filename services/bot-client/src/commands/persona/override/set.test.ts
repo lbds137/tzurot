@@ -174,6 +174,26 @@ describe('handleOverrideSet', () => {
       flags: MessageFlags.Ephemeral,
     });
   });
+
+  it('rejects the autocomplete-error sentinel in the personality option before calling the gateway', async () => {
+    await handleOverrideSet(createMockContext('__autocomplete_error__', 'persona-123'));
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('rejects the autocomplete-error sentinel in the persona option before calling the gateway', async () => {
+    await handleOverrideSet(createMockContext('lilith', '__autocomplete_error__'));
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
 });
 
 describe('handleOverrideCreateModalSubmit', () => {

@@ -244,6 +244,17 @@ describe('Memory Incognito Handlers', () => {
         content: expect.stringContaining('unexpected error'),
       });
     });
+
+    it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
+      const context = createMockContext({ personality: '__autocomplete_error__' });
+      await handleIncognitoEnable(context);
+
+      expect(mockResolvePersonalityId).not.toHaveBeenCalled();
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+    });
   });
 
   describe('handleIncognitoDisable', () => {
@@ -356,6 +367,17 @@ describe('Memory Incognito Handlers', () => {
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unexpected error'),
+      });
+    });
+
+    it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
+      const context = createMockContext({ personality: '__autocomplete_error__' });
+      await handleIncognitoDisable(context);
+
+      expect(mockResolvePersonalityId).not.toHaveBeenCalled();
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
       });
     });
   });
@@ -628,6 +650,17 @@ describe('Memory Incognito Handlers', () => {
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('unexpected error'),
+      });
+    });
+
+    it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
+      const context = createMockContext({ personality: '__autocomplete_error__' });
+      await handleIncognitoForget(context);
+
+      expect(mockResolvePersonalityId).not.toHaveBeenCalled();
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
       });
     });
   });

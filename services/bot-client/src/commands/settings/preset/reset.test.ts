@@ -149,5 +149,14 @@ describe('Me Preset Reset Handler', () => {
         content: '❌ An error occurred. Please try again later.',
       });
     });
+
+    it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+      await handleReset(createMockContext('__autocomplete_error__'));
+
+      expect(callGatewayApi).not.toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Autocomplete was unavailable'),
+      });
+    });
   });
 });

@@ -174,4 +174,14 @@ describe('handleUndo', () => {
       content: '❌ An error occurred. Please try again later.',
     });
   });
+
+  it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
+    const context = createMockContext('__autocomplete_error__');
+    await handleUndo(context);
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Autocomplete was unavailable'),
+    });
+  });
 });
