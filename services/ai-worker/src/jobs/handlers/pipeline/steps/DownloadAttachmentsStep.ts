@@ -61,8 +61,19 @@ export class DownloadAttachmentsStep implements IPipelineStep {
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job } = context;
 
-    // 1. Queue-age gate — hits before any fetch so a backed-up queue fails
-    // with a clear classified error instead of a pile of 403 messages.
+    const triggerAttachments = job.data.context?.attachments ?? [];
+    const extendedAttachments = job.data.context?.extendedContextAttachments ?? [];
+
+    // No attachments → nothing to expire. Short-circuit before the queue-age
+    // gate so text-only jobs that sit through a backpressure incident don't
+    // fail with "URLs have likely expired" when there are no URLs to expire.
+    if (triggerAttachments.length === 0 && extendedAttachments.length === 0) {
+      return context;
+    }
+
+    // Queue-age gate — runs only when we're actually about to fetch CDN URLs.
+    // Hits before any fetch so a backed-up queue fails with a clear classified
+    // error instead of a pile of 403s from the CDN.
     const queueAgeMs = Date.now() - job.timestamp;
     if (queueAgeMs > MAX_QUEUE_AGE_MS) {
       logger.warn(
@@ -70,13 +81,6 @@ export class DownloadAttachmentsStep implements IPipelineStep {
         'Job exceeded queue-age threshold; Discord CDN URLs likely expired'
       );
       throw new ExpiredJobError(queueAgeMs);
-    }
-
-    const triggerAttachments = job.data.context?.attachments ?? [];
-    const extendedAttachments = job.data.context?.extendedContextAttachments ?? [];
-
-    if (triggerAttachments.length === 0 && extendedAttachments.length === 0) {
-      return context;
     }
 
     logger.info(

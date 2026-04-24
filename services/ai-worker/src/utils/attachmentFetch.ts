@@ -96,7 +96,10 @@ export function validateAttachmentUrl(rawUrl: string): string {
     throw new Error('Invalid attachment URL: protocol must be https:');
   }
 
-  if (url.port !== '' && url.port !== '443') {
+  // Node's URL constructor normalizes the default HTTPS port to ''; an
+  // explicit `:443` becomes empty string, so `url.port !== ''` alone catches
+  // all non-default ports (e.g. `cdn.discordapp.com:8443` yields `'8443'`).
+  if (url.port !== '') {
     throw new Error('Invalid attachment URL: non-standard port not allowed');
   }
 
@@ -199,6 +202,7 @@ export async function resizeImageIfNeeded(buffer: Buffer, contentType: string): 
 
   const originalSize = buffer.byteLength;
   if (originalSize <= MEDIA_LIMITS.MAX_IMAGE_SIZE) {
+    logger.info({ originalSize }, 'Image within size limit, no resize needed');
     return buffer;
   }
 

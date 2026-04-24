@@ -124,6 +124,18 @@ describe('DownloadAttachmentsStep', () => {
     expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
   });
 
+  it('does not throw ExpiredJobError when there are no attachments, even on a stale job', async () => {
+    // Pins the early-return-before-queue-age-gate ordering: the gate only
+    // exists to guard against 403s from expired CDN URLs, so it should not
+    // fire when there are no URLs. A text-only message queued through a
+    // multi-hour backpressure incident must complete cleanly.
+    const thirteenHoursAgo = Date.now() - 13 * 60 * 60 * 1000;
+    const job = createJob([], [], thirteenHoursAgo);
+
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
+    expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
+  });
+
   it('happy path: downloads a single image and rewrites url to data URL', async () => {
     const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]); // PNG magic
     fetchAttachmentBytesMock.mockResolvedValueOnce(imageBytes);
