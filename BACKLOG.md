@@ -21,7 +21,7 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
-_Empty — triaged 2026-04-23._
+- 🐛 `[FIX]` **GLM-family meta-preamble pattern drift** — GLM-4.5-Air and GLM-4.7 each shipped distinct preamble tag vocabularies (`<from_id>/<user>/<message>` for 4.5-Air, `<user>/<character>/<analysis>` for 4.7). Each revision needs its own extractor added to Pass 1 of `services/ai-worker/src/utils/thinkingExtraction.ts`. **Watch-item, not actionable yet**: when new GLM revisions deploy, monitor production logs for the existing `Stripped leading meta-preamble scaffolding` log lines NOT firing on reasoning-enabled responses where output looks structured. A new vocabulary will surface as unexplained user complaints ("why is my response starting with weird XML?") and absent log lines. Promotes to 🚨 Production Issues on first observed drift. Reference: PR #888 (GLM-4.7), PR #875 (GLM-4.5-Air), auto-memory `project_glm_47_quirks.md`. Surfaced 2026-04-24 by PR #888 review.
 
 ---
 
