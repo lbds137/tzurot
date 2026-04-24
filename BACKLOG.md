@@ -147,8 +147,6 @@ _None. TTS Engine Upgrade is now the Active Epic (promoted 2026-04-23 after Iden
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🧹 `[CHORE]` **ESLint `no-restricted-syntax` rule banning `new UserService(prisma)` in api-gateway route files** — Follow-up to PR #883's instantiation harmonization. The registry (`getOrCreateUserService` in AuthMiddleware.ts) is now the canonical path; direct `new UserService(prisma)` in a route factory defeats the cache-sharing the registry provides. Currently enforced by docstring + reviewer attention. **Fix shape**: add a selector `NewExpression[callee.name='UserService']` scoped to `services/api-gateway/src/routes/**/*.ts`, with message pointing at `getOrCreateUserService` as the canonical alternative. Same pattern as PR #881's `discordId` ban. **Start**: `eslint.config.js`, extend the `PROVISIONED_USER_ROUTE_RULES` array (or add a new `USER_SERVICE_ROUTE_RULES` constant). Keep exemptions for `AuthMiddleware.ts` itself (the registry's canonical construction site) and any test fixture files. ~30 min. Surfaced by claude-bot review on PR #883 (2026-04-23).
-
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
 LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned just `"N" (1 token, finishReason: "unknown"`, 160s duration). Needs compound scoring heuristic + timing data threading through RAGResponse. ~4-6hr feature, not a quick win — moved details to Logging & Error Observability theme.
