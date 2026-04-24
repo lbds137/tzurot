@@ -21,6 +21,10 @@ import {
   type IncognitoDuration,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import {
   createSuccessEmbed,
@@ -105,6 +109,11 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
   const personalityInput = options.personality();
   const duration = options.duration() as IncognitoDuration;
 
+  if (isAutocompleteErrorSentinel(personalityInput)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
+
   try {
     const resolved = await resolvePersonalityOrAll(user, personalityInput);
 
@@ -159,6 +168,11 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
   const user = toGatewayUser(context.user);
   const options = memoryIncognitoDisableOptions(context.interaction);
   const personalityInput = options.personality();
+
+  if (isAutocompleteErrorSentinel(personalityInput)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     const resolved = await resolvePersonalityOrAll(user, personalityInput);
@@ -271,6 +285,11 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
   const options = memoryIncognitoForgetOptions(context.interaction);
   const personalityInput = options.personality();
   const timeframe = options.timeframe();
+
+  if (isAutocompleteErrorSentinel(personalityInput)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
 
   try {
     const resolved = await resolvePersonalityOrAll(user, personalityInput);

@@ -50,6 +50,27 @@ export function isTransientHttpStatus(status: number): boolean {
  * placeholder choices. Exported so command handlers can guard against users
  * who submit the sentinel literally (e.g., by typing `__autocomplete_error__`
  * directly or selecting the placeholder choice from the autocomplete UI).
- * Backlog entry for that submission-time guard lives in BACKLOG.md.
  */
 export const AUTOCOMPLETE_ERROR_SENTINEL = '__autocomplete_error__';
+
+/**
+ * User-facing message shown when a command handler receives the autocomplete
+ * error sentinel as an option value. Submission of the sentinel means either
+ * (a) the user selected the `[Unable to load — try again]` placeholder choice
+ * produced by an autocomplete handler that failed its backend check, or
+ * (b) the user typed the raw sentinel string and submitted without choosing
+ * from the autocomplete UI. Both cases want the same wording — "retry soon,
+ * the autocomplete wasn't able to load its backing data."
+ */
+export const AUTOCOMPLETE_UNAVAILABLE_MESSAGE =
+  '⚠️ Autocomplete was unavailable — please try again in a moment.';
+
+/**
+ * Predicate for the autocomplete-error sentinel. Kept as a named predicate
+ * rather than inlining `value === AUTOCOMPLETE_ERROR_SENTINEL` at call sites
+ * so a future change to the sentinel shape (e.g., a prefix-based scheme) only
+ * needs to touch one place.
+ */
+export function isAutocompleteErrorSentinel(value: string): boolean {
+  return value === AUTOCOMPLETE_ERROR_SENTINEL;
+}

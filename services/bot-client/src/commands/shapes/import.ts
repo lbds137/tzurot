@@ -17,6 +17,10 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 import { buildBackToBrowseRow } from './errorRecovery.js';
 
@@ -117,7 +121,12 @@ export async function startImport(
  */
 export async function handleImport(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const slug = context.interaction.options.getString('slug', true).trim().toLowerCase();
+  const rawSlug = context.interaction.options.getString('slug', true);
+  if (isAutocompleteErrorSentinel(rawSlug)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
+  const slug = rawSlug.trim().toLowerCase();
   const importTypeRaw = context.interaction.options.getString('import_type') ?? 'full';
   const importType: 'full' | 'memory_only' =
     importTypeRaw === 'memory_only' ? 'memory_only' : 'full';

@@ -11,6 +11,10 @@
 import { escapeMarkdown } from 'discord.js';
 import { createLogger, type EnvConfig, VOICE_REFERENCE_LIMITS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../utils/apiCheck.js';
 import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
 
@@ -64,6 +68,10 @@ async function handleVoiceUpload(
 ): Promise<void> {
   const interaction = context.interaction;
   const slug = interaction.options.getString('character', true);
+  if (isAutocompleteErrorSentinel(slug)) {
+    await context.editReply(AUTOCOMPLETE_UNAVAILABLE_MESSAGE);
+    return;
+  }
   const attachment = interaction.options.getAttachment('audio', true);
   const userId = context.user.id;
 
@@ -157,6 +165,10 @@ async function handleVoiceUpload(
 async function handleVoiceClear(context: DeferredCommandContext, config: EnvConfig): Promise<void> {
   const interaction = context.interaction;
   const slug = interaction.options.getString('character', true);
+  if (isAutocompleteErrorSentinel(slug)) {
+    await context.editReply(AUTOCOMPLETE_UNAVAILABLE_MESSAGE);
+    return;
+  }
   const userId = context.user.id;
 
   try {

@@ -24,6 +24,10 @@ import type { ModalCommandContext } from '../../../utils/commandContext/types.js
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { buildPersonaModalFields } from '../utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../../utils/customIds.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-override-set');
@@ -184,6 +188,14 @@ export async function handleOverrideSet(context: ModalCommandContext): Promise<v
   const options = personaOverrideSetOptions(context.interaction);
   const personalitySlug = options.personality();
   const personaId = options.persona();
+
+  if (isAutocompleteErrorSentinel(personalitySlug) || isAutocompleteErrorSentinel(personaId)) {
+    await context.reply({
+      content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
 
   try {
     if (personaId === CREATE_NEW_PERSONA_VALUE) {
