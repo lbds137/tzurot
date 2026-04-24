@@ -1047,7 +1047,7 @@ Response.`;
       // message the user sees. Rare enough in practice (would require the
       // model to cross tags on its own) that the mild leak is preferable to
       // eagerly stripping malformed content and potentially eating real
-      // response body. Fails open, not closed to obscurity.
+      // response body. Fails open (content preserved), not closed.
       expect(result.thinkingContent).toBeNull();
       expect(result.visibleContent).toContain('<user>Lila</character>');
     });
