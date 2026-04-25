@@ -7,7 +7,9 @@
 
 ## Next Session Goal
 
-_Pick based on energy:_
+**🚨 START HERE: Investigate LangChain reasoning-extraction bug** — see [`docs/research/langchain-reasoning-extraction-bug.md`](docs/research/langchain-reasoning-extraction-bug.md). User-reported leak in inspect log surfaced what is almost certainly a long-standing silent bug: our `OpenRouterFetch` interceptor successfully extracts and injects `<reasoning>` tags, but they don't survive into LangChain's `BaseMessage.content`. Reasoning content has been silently dropped on every reasoning-enabled request for an unknown duration. Doc has full evidence, four ranked hypotheses, ordered test plan (start with `pnpm ops run --env prod --force tsx scripts/src/test-glm-reasoning-shape.ts`), and links to all the diagnostic infrastructure built tonight.
+
+_Other priorities (lower urgency):_
 
 1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs.
 2. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. Canary window closed (~2026-04-25 earliest), safe to start anytime now.
