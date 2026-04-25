@@ -92,11 +92,11 @@ _Focus: bring `/inspect` up to par after PR #895 changed the diagnostic shape, p
 
 **Sequence:**
 
-1. **Embed redesign** (Tier 1 + 2 + L) — drop the now-misleading "Interception: `<reasoning>` tags not found ❌" line; surface `upstreamProvider`; show API→Pipeline extraction chain; clarify `Provider:z-ai` (model namespace ≠ upstream OpenRouter provider); color/emoji-code `finishReason`; show memory score range; "(none triggered)" indicator on stop-sequence; remove duplicate completion-tokens display; better select-menu placeholder; reasoning button shows byte-size hint. ~50 line surface.
+1. ~~**Embed redesign** (Tier 1 + 2 + L)~~ ✅ Shipped via PR #897 (commit fc9a0d85b).
 
-2. **Privacy redaction for non-owners** _(closes long-standing backlog item — supersedes the prior "Inspect command privacy toggle" entry)_ — gateway endpoint joins `LlmDiagnosticLog` ↔ `Personality` and surfaces `ownerId` in admin-diagnostic responses. Bot-client threads `canViewCharacter` through view builders. **Redact for non-owners**: System Prompt (XML), Full JSON's `assembledPrompt.messages[0].content`, Compact JSON's memory previews, Memory Inspector previews. **Keep visible** for non-owners: reasoning content (model thinking is genuinely interesting; user already saw the response anyway). **Admin sees everything** (bot owner has DB access regardless). `isPublic` flag is irrelevant — public means "available to chat with," not "internals visible." Replace redacted views with explicit `🔒 Character card hidden (owned by another user)` so users know it's deliberate. ~200 line surface.
+2. ~~**Privacy redaction for non-owners**~~ ✅ Shipped via PR #898 (commit 8d4d2c6fc) — closes long-standing "Inspect command privacy toggle" backlog item.
 
-3. **New diagnostic views** (Tier 3 J + M) — Pipeline Health view (single-screen success/failure for `thinking_extraction`, `artifact_strip`, deduplication, memory budget) and Quick-copy summary (one-line text affordance for sharing in incident threads, e.g. `glm-4.7 via DekaLLM • 9.6s • 47 tok • thinking 1063 chars`). ~100 line surface.
+3. ~~**New diagnostic views** (Tier 3 J + M)~~ ✅ Shipped via PR #899 (commit 978437059) — Pipeline Health checklist + Quick-copy summary.
 
 4. **Memory Inspector filtering** (Tier 3 K) — stateful filter buttons (Included / Dropped / Top-N) on the Memory Inspector view. State encoded in customId (no closures, restart-safe per `04-discord.md`). ~150 line surface.
 
