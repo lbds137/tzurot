@@ -187,12 +187,14 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       // Estimate `size` from the data URL string length when the upstream
       // producer omitted it. The aggregate-payload guard in process() folds
       // missing sizes as 0, which would silently undercount pre-populated
-      // data URLs. The string-length estimate is an upper bound on actual
-      // bytes (data: prefix + base64 payload) — close enough to keep the
-      // guard honest if the early-return path ever sees real traffic.
+      // data URLs. Data URL length ≈ `4/3 × binary_bytes + small prefix`, so
+      // `Math.ceil(url.length * 3/4)` reverses the base64 inflation factor
+      // and lands within a few bytes of the true binary size. The remaining
+      // `data:image/png;base64,` prefix is rounded into the ceiling, keeping
+      // this an honest upper-bound estimate.
       return attachment.size !== undefined
         ? attachment
-        : { ...attachment, size: attachment.url.length };
+        : { ...attachment, size: Math.ceil((attachment.url.length * 3) / 4) };
     }
 
     const sanitizedUrl = validateAttachmentUrl(attachment.url);

@@ -2,7 +2,7 @@
  * DownloadAttachmentsStep Unit Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
 import { DownloadAttachmentsStep, MAX_QUEUE_AGE_MS } from './DownloadAttachmentsStep.js';
@@ -118,6 +118,15 @@ describe('DownloadAttachmentsStep', () => {
   let step: DownloadAttachmentsStep;
 
   beforeEach(() => {
+    // Selective fake timers per project standard (02-code-standards.md
+    // "Fake Timers ALWAYS Use"): only fake Date so the queue-age boundary
+    // arithmetic is deterministic. setTimeout/setInterval stay real so the
+    // retry test (which uses `retryDelayMs = 0` to skip its 500ms wait)
+    // resolves naturally on the macrotask queue without needing explicit
+    // vi.advanceTimers calls in every retry-path test.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-04-24T12:00:00Z'));
+
     vi.clearAllMocks();
     validateAttachmentUrlMock.mockImplementation((url: string) => url);
     resizeImageIfNeededMock.mockImplementation((buffer: Buffer, contentType: string) =>
@@ -129,6 +138,10 @@ describe('DownloadAttachmentsStep', () => {
     // retryDelayMs = 0 so the retry test finishes instantly instead of waiting
     // on a real 500ms setTimeout. Production uses the 500ms default.
     step = new DownloadAttachmentsStep(/* retryDelayMs= */ 0);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('has correct name', () => {
