@@ -70,6 +70,19 @@ vi.mock('../../../../utils/attachmentFetch.js', async importOriginal => {
   };
 });
 
+// Mock the safe-external-image fetcher. Default implementations are pass-through
+// so existing tests that don't exercise the external path keep working — only
+// tests that explicitly opt in to the external fallback need to override.
+const { fetchExternalImageBytesMock, validateExternalImageUrlMock } = vi.hoisted(() => ({
+  fetchExternalImageBytesMock: vi.fn(),
+  validateExternalImageUrlMock: vi.fn((url: string) => url),
+}));
+
+vi.mock('../../../../utils/safeExternalFetch.js', () => ({
+  fetchExternalImageBytes: fetchExternalImageBytesMock,
+  validateExternalImageUrl: validateExternalImageUrlMock,
+}));
+
 const TEST_PERSONALITY: LoadedPersonality = {
   id: 'p-1',
   name: 'TestBot',
@@ -88,7 +101,12 @@ const TEST_PERSONALITY: LoadedPersonality = {
 function createJob(
   attachments: LLMGenerationJobData['context']['attachments'] = [],
   extendedContextAttachments: LLMGenerationJobData['context']['extendedContextAttachments'] = [],
-  timestamp: number = Date.now()
+  timestamp: number = Date.now(),
+  // `message` controls the partial-success-throw heuristic: when ALL attachments
+  // fail AND `hasMessageText(message)` returns false, process() throws instead
+  // of proceeding silently with empty attachments. Tests that want to exercise
+  // the throw path pass `''`; everything else inherits the default `'hi'`.
+  message: string | object = 'hi'
 ): Job<LLMGenerationJobData> {
   return {
     id: 'job-123',
@@ -97,7 +115,7 @@ function createJob(
       requestId: 'req-001',
       jobType: JobType.LLMGeneration,
       personality: TEST_PERSONALITY,
-      message: 'hi',
+      message,
       context: {
         userId: 'u-1',
         userName: 'U',
@@ -259,11 +277,12 @@ describe('DownloadAttachmentsStep', () => {
     expect(job.data.context.attachments![0].contentType).toBe('image/png');
   });
 
-  it('fails the step on size-cap exceeded (no retry)', async () => {
-    // Throw a real AttachmentTooLargeError so the instanceof guard in
-    // fetchWithRetry fires. A plain Error with "AttachmentTooLarge" in its
-    // message would NOT — the real error's message is "Attachment is X MiB,
-    // exceeds limit of Y MiB" with no class-name substring.
+  it('does NOT retry on size-cap exceeded; logs failure and proceeds when message has text', async () => {
+    // Two assertions in one: (1) AttachmentTooLargeError short-circuits retry
+    // (instanceof guard in fetchWithRetry) — a single fetch call with no
+    // re-attempt; (2) per the new spec, a per-attachment failure no longer
+    // aborts the step when the user's message has text content (default 'hi'
+    // from createJob), since the LLM still has something to respond to.
     const err = new AttachmentTooLargeError(30 * 1024 * 1024, 25 * 1024 * 1024);
     fetchAttachmentBytesMock.mockRejectedValueOnce(err);
 
@@ -271,12 +290,19 @@ describe('DownloadAttachmentsStep', () => {
       { url: 'https://cdn.discordapp.com/huge.png', contentType: 'image/png', name: 'huge.png' },
     ]);
 
-    await expect(step.process(createContext(job))).rejects.toThrow(/huge\.png/);
-    // No retry — the second call would have advanced the mock queue.
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(1);
+    // Failure surfaces in the structured log so an incident responder can
+    // grep for the failing filename even though the step succeeded overall.
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-123', failure: expect.stringContaining('huge.png') }),
+      expect.stringMatching(/Attachment download failed/)
+    );
+    // No surviving attachment was written back — the LLM gets text-only.
+    expect(job.data.context!.attachments).toHaveLength(0);
   });
 
-  it('aggregates partial failures, prefixing the array label and naming the failing attachment', async () => {
+  it('proceeds with successes on partial failure (1 ok + 1 bad), naming the failure in logs', async () => {
     // Pins the `Promise.allSettled` aggregation path in `downloadAll`. Uses a
     // URL-keyed mock so the test is order-independent — `downloadOne` calls
     // run in parallel, so mockResolvedValueOnce/mockRejectedValueOnce chaining
@@ -295,21 +321,29 @@ describe('DownloadAttachmentsStep', () => {
       { url: 'https://cdn.discordapp.com/bad.png', contentType: 'image/png', name: 'bad.png' },
     ]);
 
-    // Error names the failing attachment, the aggregation prefix, AND the
-    // array label ('trigger/' or 'extended/') so a log-grepping responder
-    // can identify both the file and which group it came from.
-    await expect(step.process(createContext(job))).rejects.toThrow(
-      /Failed to download 1 attachment.*trigger\/bad\.png/s
+    // Step succeeds even with one failure — the surviving image reaches the
+    // LLM, the failure is logged with the array label ('trigger/') and name.
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-123',
+        failure: expect.stringMatching(/trigger\/bad\.png/),
+      }),
+      expect.stringMatching(/Attachment download failed/)
     );
     // 3 calls: good.png succeeds once, bad.png fails + retries once.
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(3);
+    // Surviving attachment makes it through to job.data.context.attachments.
+    expect(job.data.context!.attachments).toHaveLength(1);
+    expect(job.data.context!.attachments![0].name).toBe('good.png');
   });
 
-  it('aggregates failures across both groups in a single combined error', async () => {
+  it('logs failures from both groups when each group has a failure (cross-group aggregation)', async () => {
     // Pins the outer Promise.all + downloadAll-never-throws contract: when
-    // both trigger AND extended groups have failures, both are reported in
-    // the same error message rather than the first group's failure aborting
-    // and orphaning the second group's downloads.
+    // both trigger AND extended groups have failures, both are logged rather
+    // than the first group's failure aborting and orphaning the second group's
+    // downloads. With message='hi', step proceeds (no throw); failures still
+    // surface in logs with their respective labels.
     fetchAttachmentBytesMock.mockRejectedValue(new Error('ECONNRESET'));
 
     const job = createJob(
@@ -329,11 +363,57 @@ describe('DownloadAttachmentsStep', () => {
       ]
     );
 
-    // Both labels appear in the aggregated error — proves both groups ran
-    // to completion (Promise.allSettled at the per-attachment level + both
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
+    // Both labels appear across the warn calls — proves both groups ran to
+    // completion (Promise.allSettled at the per-attachment level + both
     // downloadAll calls awaited via Promise.all at the outer).
+    const warnFailures = loggerMock.warn.mock.calls.map(
+      call => (call[0] as { failure?: string }).failure ?? ''
+    );
+    expect(warnFailures.some(f => f.includes('trigger/trig.png'))).toBe(true);
+    expect(warnFailures.some(f => f.includes('extended/ext.png'))).toBe(true);
+  });
+
+  it('THROWS only when all attachments fail AND message has no text content', async () => {
+    // The exact failure-with-no-text path the production incident exposed:
+    // user message is empty (or whitespace-only), all attachments fail, the
+    // LLM would otherwise receive an empty prompt and hallucinate a confused
+    // response. The throw classifies via LLMGenerationHandler → MEDIA_NOT_FOUND
+    // so the bot's reply to Discord includes the failure list in a spoiler tag.
+    fetchAttachmentBytesMock.mockRejectedValue(new Error('ECONNRESET'));
+
+    const job = createJob(
+      [
+        { url: 'https://cdn.discordapp.com/a.png', contentType: 'image/png', name: 'a.png' },
+        { url: 'https://cdn.discordapp.com/b.png', contentType: 'image/png', name: 'b.png' },
+      ],
+      [],
+      Date.now(),
+      '' // empty message — triggers the throw path
+    );
+
     await expect(step.process(createContext(job))).rejects.toThrow(
-      /Failed to download 2 attachment.*trigger\/trig\.png.*extended\/ext\.png/s
+      /Failed to download 2 attachment.*no text content present/s
+    );
+  });
+
+  it('does NOT throw when all attachments fail but message has text (LLM responds to text)', async () => {
+    // Symmetric to the previous test. When the user's message has text, the
+    // LLM still has something useful to say; one bad URL no longer nukes the
+    // whole conversation. This is the exact regression the production
+    // incident surfaced — beta.105 threw on any failure, this is the fix.
+    fetchAttachmentBytesMock.mockRejectedValue(new Error('ECONNRESET'));
+
+    const job = createJob(
+      [],
+      [{ url: 'https://cdn.discordapp.com/c.png', contentType: 'image/png', name: 'c.png' }]
+    );
+
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
+    // The failure is logged but not thrown.
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ failure: expect.stringContaining('c.png') }),
+      expect.stringMatching(/Attachment download failed/)
     );
   });
 
@@ -376,31 +456,105 @@ describe('DownloadAttachmentsStep', () => {
     );
   });
 
-  it('retries once on transient network error, then fails cleanly', async () => {
+  it('retries once on transient network error before counting as a per-attachment failure', async () => {
+    // Pins retry behavior independent of throw-vs-proceed: 2 fetch calls
+    // (initial + 1 retry) before the failure is recorded. Step itself
+    // proceeds (message='hi'); the failure surfaces in the warn log.
     const transient = new Error('network: ECONNRESET');
     fetchAttachmentBytesMock.mockRejectedValueOnce(transient).mockRejectedValueOnce(transient);
 
     const job = createJob([
-      { url: 'https://cdn.discordapp.com/flaky.png', contentType: 'image/png' },
+      { url: 'https://cdn.discordapp.com/flaky.png', contentType: 'image/png', name: 'flaky.png' },
     ]);
 
-    await expect(step.process(createContext(job))).rejects.toThrow(/ECONNRESET|Failed to download/);
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(2);
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ failure: expect.stringContaining('flaky.png') }),
+      expect.stringMatching(/Attachment download failed/)
+    );
   });
 
-  it('does not retry on 403 (CDN-expiration signal)', async () => {
+  it('does NOT retry on 403 (CDN-expiration signal); failure logged once', async () => {
     // Throw a real HttpError so the instanceof+status guard fires. A plain
     // Error with "HTTP 403" in its message would match only because of the
     // old string-based check; this test pins the new typed-classification path.
+    // Step proceeds (message='hi'); 403 surfaces in the warn log just like
+    // any other per-attachment failure.
     const forbidden = new HttpError(403, 'Forbidden');
     fetchAttachmentBytesMock.mockRejectedValueOnce(forbidden);
 
     const job = createJob([
-      { url: 'https://cdn.discordapp.com/expired.png', contentType: 'image/png' },
+      {
+        url: 'https://cdn.discordapp.com/expired.png',
+        contentType: 'image/png',
+        name: 'expired.png',
+      },
     ]);
 
-    await expect(step.process(createContext(job))).rejects.toThrow(/403/);
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
+    // Critical: only ONE call. A retry would have advanced the mock queue.
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(1);
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ failure: expect.stringMatching(/expired\.png.*HTTP 403/) }),
+      expect.stringMatching(/Attachment download failed/)
+    );
+  });
+
+  it('falls through to safe-external fetch when validateAttachmentUrl rejects with allowlist error', async () => {
+    // The exact production-incident path: bot-client emitted a Reddit/Imgur/etc.
+    // URL via the embedImageExtractor's `proxyURL ?? url` fallback. The strict
+    // Discord-CDN validator rejects with "must be from Discord CDN", and the
+    // step is supposed to route to the safe-external fetcher (DNS+IP guard,
+    // browser UA, Content-Type assertion) instead of failing.
+    validateAttachmentUrlMock.mockImplementationOnce(() => {
+      throw new Error(
+        'Invalid attachment URL: must be from Discord CDN (cdn.discordapp.com, media.discordapp.net)'
+      );
+    });
+    fetchExternalImageBytesMock.mockResolvedValueOnce(Buffer.from('reddit-bytes'));
+
+    const job = createJob([
+      { url: 'https://i.redd.it/abc.jpg', contentType: 'image/jpeg', name: 'reddit.jpg' },
+    ]);
+
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
+
+    // Critical: the strict path was tried first (validate called), then the
+    // external path was used (fetchExternalImageBytes called once with the
+    // original URL — validateExternalImageUrl returned it unchanged via the
+    // module mock's pass-through implementation).
+    expect(validateAttachmentUrlMock).toHaveBeenCalledWith('https://i.redd.it/abc.jpg');
+    expect(validateExternalImageUrlMock).toHaveBeenCalledWith('https://i.redd.it/abc.jpg');
+    expect(fetchExternalImageBytesMock).toHaveBeenCalledTimes(1);
+    // The strict-path fetcher was NOT called — fallback diverted the work.
+    expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
+    // Result was written back to context (1 surviving attachment).
+    expect(job.data.context!.attachments).toHaveLength(1);
+  });
+
+  it('does NOT fall through on non-allowlist validation errors (real client errors propagate)', async () => {
+    // Pin: only the "must be from Discord CDN" error message triggers the
+    // fallback. Other validation failures (bad protocol, IP-as-hostname,
+    // credentials, non-standard port) are real client errors and must NOT
+    // be retried via the more permissive external path.
+    validateAttachmentUrlMock.mockImplementationOnce(() => {
+      throw new Error('Invalid attachment URL: protocol must be https:');
+    });
+
+    const job = createJob([
+      { url: 'http://cdn.discordapp.com/x.png', contentType: 'image/png', name: 'http-only.png' },
+    ]);
+
+    // Step itself succeeds (message='hi') — the validation throw becomes a
+    // per-attachment failure, logged but not aborted.
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
+    expect(validateExternalImageUrlMock).not.toHaveBeenCalled();
+    expect(fetchExternalImageBytesMock).not.toHaveBeenCalled();
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ failure: expect.stringMatching(/protocol must be https/) }),
+      expect.stringMatching(/Attachment download failed/)
+    );
   });
 
   it('skips fetch when url is already a data URL (idempotent), backfilling size when absent', async () => {
