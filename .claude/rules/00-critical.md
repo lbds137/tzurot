@@ -138,7 +138,36 @@ Routine `git add <files>` + `git commit` + `git push` to feature branches is **p
 
 **Gate**: `pnpm test` and `pnpm quality` must be green before the commit-push-PR cycle runs. Don't commit to get CI to check for you — CI is a second line of defense, not a substitute for local verification. If either fails, fix the failure (or escalate to the user if the failure is unclear) before commit; do not commit a known-broken state with the intent to follow up.
 
-**This permission applies ONLY to feature branches.** Direct commits to `main` or `develop` remain forbidden — open a PR instead.
+**This permission applies ONLY to feature branches.** Direct commits to `main` remain forbidden — open a PR instead.
+
+### Direct doc commits to `develop` (narrow exception)
+
+The PR cycle's primary value on this project is **automated review** — `claude-bot` scrutinises diffs for bugs, codecov flags coverage gaps, lint catches style/complexity issues. When a change can't benefit from any of those, the PR adds friction without catching anything. For that class of change, direct commits to `develop` are permitted.
+
+| Allowed on `develop` directly                                                                             | Still requires a PR                                                  |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `BACKLOG.md` (post-merge tracker updates, struck-through entries, status changes)                         | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)              |
+| `CURRENT.md` (session-status / handoff notes)                                                             | Schema or migration files (`prisma/`, `*.sql`)                       |
+| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides) | `.claude/rules/*.md` (load-bearing constraints — review-gated)       |
+| Release-notes / changelog edits                                                                           | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated) |
+|                                                                                                           | Anything that touches `.env`, secrets, or CI config (`.github/`)     |
+|                                                                                                           | Single doc changes >300 lines (worth review on a diff UI)            |
+
+**Apply the test, not just the file extension**: when in doubt about a doc change, ask "would `claude-bot`, codecov, or lint produce useful output on this diff?" If yes (e.g., a rule that affects every contributor's behavior, a runbook that prescribes a specific command sequence reviewer might want to second-guess), use a PR. If no (a status update, a typo fix, a stale-link replacement), direct commit is fine.
+
+**Workflow for the exception**:
+
+```bash
+git checkout develop && git pull
+# edit BACKLOG.md / CURRENT.md / docs/...
+git add <doc-files>
+git commit -m "docs(<scope>): <message>"
+git push origin develop
+```
+
+No branch, no PR, no CI re-run. Pre-push hooks still fire because they run on any push.
+
+**Why this exception exists**: routine doc housekeeping (post-merge BACKLOG sweeps, CURRENT.md handoffs, runbook fixes) gets no useful signal from automated review, so the PR ceremony adds friction without catching mistakes. Code changes still go through PRs because the diff _is_ where the automated review fires. Established 2026-04-25 after PR #899 merge surfaced friction around stashing a 6-line BACKLOG tracker update for a future PR.
 
 **This permission does NOT extend to:**
 
