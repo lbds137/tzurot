@@ -13,7 +13,9 @@ import {
   AttachmentTooLargeError,
   ExpiredJobError,
   HttpError,
+  JobPayloadTooLargeError,
   MAX_ATTACHMENT_BYTES,
+  MAX_AGGREGATE_PAYLOAD_BYTES,
 } from './attachmentFetch.js';
 
 describe('validateAttachmentUrl', () => {
@@ -113,6 +115,23 @@ describe('HttpError', () => {
     const err = new HttpError(500, 'Internal Server Error');
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(HttpError);
+  });
+});
+
+describe('JobPayloadTooLargeError', () => {
+  it('exposes totalBytes and limit, names itself, and exists in MiB form in the message', () => {
+    const err = new JobPayloadTooLargeError(60 * 1024 * 1024, MAX_AGGREGATE_PAYLOAD_BYTES);
+    expect(err.totalBytes).toBe(60 * 1024 * 1024);
+    expect(err.limit).toBe(MAX_AGGREGATE_PAYLOAD_BYTES);
+    expect(err.name).toBe('JobPayloadTooLargeError');
+    expect(err.message).toMatch(/60\.0 MiB/);
+    expect(err.message).toMatch(/50 MiB/);
+  });
+
+  it('is an Error subclass so `instanceof Error` still works for general handlers', () => {
+    const err = new JobPayloadTooLargeError(100, 50);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(JobPayloadTooLargeError);
   });
 });
 
