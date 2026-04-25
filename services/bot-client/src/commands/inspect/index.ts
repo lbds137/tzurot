@@ -151,10 +151,16 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     // original /inspect invoker. Ephemeral replies already prevent other users
     // from seeing the buttons, but each click revalidates.
     const ctx = computeViewContext(result.log, interaction.user.id);
+    // Picking MemoryInspector from the select menu always starts at DEFAULT_MEMORY_STATE.
+    // Filter / sort / Top-N state is only preserved when navigating between memory-inspector
+    // buttons (handleButton below threads parsed.memoryState through).
     const viewResult = VIEW_BUILDERS[viewType](result.log.data, parsed.requestId, ctx);
     await interaction.editReply({
       content: viewResult.content,
       files: viewResult.files,
+      // Pass [] for views without components so any prior component row is cleared
+      // when the user picks a different view from the same select menu.
+      components: viewResult.components ?? [],
     });
   } catch (error) {
     logger.error(
@@ -186,7 +192,15 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  // Memory-state filter buttons mutate the existing view in place — use deferUpdate
+  // so editReply edits the message that owns the button rather than spawning a new
+  // ephemeral per click. View-navigation buttons (Reasoning, FullJson, etc.) keep
+  // deferReply because they semantically open a new view as a separate ephemeral.
+  if (parsed.memoryState !== undefined) {
+    await interaction.deferUpdate();
+  } else {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  }
 
   try {
     const filterUserId = getFilterUserId(interaction.user.id);
@@ -198,10 +212,14 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
     // See handleSelectMenu — same defense-in-depth re-evaluation.
     const ctx = computeViewContext(result.log, interaction.user.id);
-    const viewResult = VIEW_BUILDERS[parsed.viewType](result.log.data, parsed.requestId, ctx);
+    const viewResult =
+      parsed.viewType === DebugViewType.MemoryInspector
+        ? buildMemoryInspectorView(result.log.data, parsed.requestId, ctx, parsed.memoryState)
+        : VIEW_BUILDERS[parsed.viewType](result.log.data, parsed.requestId, ctx);
     await interaction.editReply({
       content: viewResult.content,
       files: viewResult.files,
+      components: viewResult.components ?? [],
     });
   } catch (error) {
     logger.error(

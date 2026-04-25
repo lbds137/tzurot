@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { InspectCustomIds } from './customIds.js';
 import { DebugViewType } from './types.js';
+import { MEMORY_FILTERS, TOP_N_VALUES, SORT_MODES } from './memoryInspectorState.js';
 
 describe('InspectCustomIds', () => {
   describe('button', () => {
@@ -75,6 +76,100 @@ describe('InspectCustomIds', () => {
 
       const selectId = InspectCustomIds.selectMenu(longRequestId);
       expect(selectId.length).toBeLessThan(100);
+
+      // Memory-state button uses the longest combination
+      const memoryId = InspectCustomIds.memoryButton(
+        longRequestId,
+        'included',
+        20,
+        'included-first'
+      );
+      expect(memoryId.length).toBeLessThan(100);
+    });
+  });
+
+  describe('memoryButton', () => {
+    it('builds a 7-segment button with state', () => {
+      const id = InspectCustomIds.memoryButton('req-1', 'all', 0, 'score-desc');
+      expect(id).toBe('inspect::btn::req-1::memory-inspector::all::0::sd');
+    });
+
+    it('uses short-form sort tokens on the wire', () => {
+      expect(InspectCustomIds.memoryButton('r', 'all', 0, 'score-desc')).toContain('::sd');
+      expect(InspectCustomIds.memoryButton('r', 'all', 0, 'score-asc')).toContain('::sa');
+      expect(InspectCustomIds.memoryButton('r', 'all', 0, 'included-first')).toContain('::if');
+    });
+  });
+
+  describe('parseButton — memory state', () => {
+    it('round-trips all 36 (filter × topN × sort) combinations', () => {
+      for (const filter of MEMORY_FILTERS) {
+        for (const topN of TOP_N_VALUES) {
+          for (const sort of SORT_MODES) {
+            const built = InspectCustomIds.memoryButton('req-1', filter, topN, sort);
+            const parsed = InspectCustomIds.parseButton(built);
+            expect(parsed).toEqual({
+              requestId: 'req-1',
+              viewType: DebugViewType.MemoryInspector,
+              memoryState: { filter, topN, sort },
+            });
+          }
+        }
+      }
+    });
+
+    it('legacy 4-segment memory-inspector button parses without memoryState', () => {
+      const result = InspectCustomIds.parseButton('inspect::btn::req-1::memory-inspector');
+      expect(result).toEqual({
+        requestId: 'req-1',
+        viewType: DebugViewType.MemoryInspector,
+      });
+      expect(result?.memoryState).toBeUndefined();
+    });
+
+    it('rejects bad filter token', () => {
+      expect(
+        InspectCustomIds.parseButton('inspect::btn::req::memory-inspector::bogus::5::sd')
+      ).toBeNull();
+    });
+
+    it('rejects bad topN token', () => {
+      expect(
+        InspectCustomIds.parseButton('inspect::btn::req::memory-inspector::all::7::sd')
+      ).toBeNull();
+    });
+
+    it('rejects non-numeric topN', () => {
+      expect(
+        InspectCustomIds.parseButton('inspect::btn::req::memory-inspector::all::abc::sd')
+      ).toBeNull();
+    });
+
+    it('rejects bad sort token', () => {
+      expect(
+        InspectCustomIds.parseButton('inspect::btn::req::memory-inspector::all::0::xx')
+      ).toBeNull();
+    });
+
+    it('rejects 7-segment customIds for non-memory view types', () => {
+      // Even with valid-looking state segments, only memory-inspector accepts the 7-segment form
+      expect(InspectCustomIds.parseButton('inspect::btn::req::full-json::all::0::sd')).toBeNull();
+    });
+
+    it('still rejects 5- and 6-segment customIds', () => {
+      expect(InspectCustomIds.parseButton('inspect::btn::req::memory-inspector::all')).toBeNull();
+      expect(
+        InspectCustomIds.parseButton('inspect::btn::req::memory-inspector::all::0')
+      ).toBeNull();
+    });
+
+    it('regression: 4-segment buttons for other view types still parse', () => {
+      // Sanity check that the relaxation didn't break the legacy path
+      const result = InspectCustomIds.parseButton('inspect::btn::req::full-json');
+      expect(result).toEqual({
+        requestId: 'req',
+        viewType: DebugViewType.FullJson,
+      });
     });
   });
 });
