@@ -381,4 +381,30 @@ describe('OpenRouterFetch', () => {
     expect(parsed.transforms).toEqual(['middle-out']);
     expect(parsed.route).toBe('fallback');
   });
+
+  it('should pass body through unchanged when it is not a JSON-parseable string', async () => {
+    // Defensive guard: LangChain's ChatOpenAI always passes a string body today,
+    // but we don't want a future LangChain version that uses Uint8Array /
+    // ReadableStream to crash the fetch — silently skipping param injection
+    // is the safe fallback (a debug log breadcrumb makes the skip diagnosable).
+    const customFetch = createOpenRouterFetch({
+      transforms: ['middle-out'],
+      route: 'fallback',
+    });
+
+    let capturedBody: unknown;
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      capturedBody = init?.body;
+      return Promise.resolve(mockResponse({ choices: [] }, 200));
+    });
+
+    const nonJsonBody = 'this is not json';
+    await customFetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      body: nonJsonBody,
+    });
+
+    // Body passes through unchanged — params NOT injected (would have required parsing)
+    expect(capturedBody).toBe(nonJsonBody);
+  });
 });
