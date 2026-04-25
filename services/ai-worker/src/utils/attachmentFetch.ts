@@ -163,13 +163,26 @@ export function validateAttachmentUrl(rawUrl: string): string {
   }
 
   if (!ALLOWED_HOSTS.includes(normalizedHostname)) {
+    // The substring "must be from Discord CDN" is matched by
+    // DownloadAttachmentsStep.routeAttachmentUrl to detect this specific
+    // failure mode and route to the safe-external fallback. Edits that would
+    // BREAK the routing: rephrasing the prefix ("must come from", "needs to
+    // be from"), changing capitalization, removing "Discord CDN", or
+    // i18n/template wrapping. Adding hosts to the parenthetical list is
+    // safe (the routing matches the leading substring, not the host list).
+    // Keep the prefix stable until the typed `AllowlistRejectionError`
+    // BACKLOG entry ships and the substring-coupling can be retired.
     throw new Error(
       `Invalid attachment URL: must be from Discord CDN (${ALLOWED_HOSTS.join(', ')})`
     );
   }
 
   // Reconstruct from validated components to break taint flow into the fetch call.
-  return `https://${normalizedHostname}${url.pathname}${url.search}${url.hash}`;
+  // Fragment (`url.hash`) is intentionally dropped: undici strips it before the
+  // wire request anyway, so including it in the returned "sanitized" URL would
+  // be misleading and creates spurious differentiation if the value ever gets
+  // logged or used as a cache key (`/x.png` vs `/x.png#section`).
+  return `https://${normalizedHostname}${url.pathname}${url.search}`;
 }
 
 /**
@@ -180,11 +193,24 @@ export function isDataUrl(url: string): boolean {
   return url.startsWith('data:');
 }
 
-interface FetchAttachmentBytesOptions {
+export interface FetchAttachmentBytesOptions {
   /** Maximum bytes to accept. Defaults to MAX_ATTACHMENT_BYTES. */
   maxBytes?: number;
   /** Per-attachment timeout in milliseconds. Defaults to 30000. */
   timeoutMs?: number;
+  /**
+   * Additional request headers (e.g. `User-Agent`). The Discord CDN path uses
+   * none; the external-image fallback path passes a browser UA so Reddit/Imgur
+   * and similar hosts don't 403 us before SSRF defenses even matter.
+   */
+  headers?: Record<string, string>;
+  /**
+   * If set, after the status check we assert the response Content-Type starts
+   * with this prefix BEFORE consuming the body. Memory-exhaustion guard for
+   * the external-image path — without it, an attacker-controlled embed URL
+   * could point at a 10 MiB text/HTML payload that we'd buffer-then-reject.
+   */
+  assertContentTypePrefix?: string;
 }
 
 /**
@@ -193,6 +219,8 @@ interface FetchAttachmentBytesOptions {
  * Throws:
  * - Error with 403 message if Discord CDN rejects (URL expired)
  * - AttachmentTooLargeError if Content-Length or actual size exceeds the cap
+ * - Error if `assertContentTypePrefix` is set and the response Content-Type
+ *   doesn't start with that prefix
  * - Error on network failures and timeouts
  */
 export async function fetchAttachmentBytes(
@@ -211,11 +239,24 @@ export async function fetchAttachmentBytes(
     // would sneak past the allowlist. Discord's CDN doesn't redirect in
     // practice today — if that ever changes, we'd rather hard-fail than
     // silently follow the redirect out of the allowlist.
-    const response = await fetch(url, { signal: controller.signal, redirect: 'error' });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'error',
+      headers: options.headers,
+    });
     if (!response.ok) {
       // Do not let CDN 403s trip any future outbound-HTTP circuit breaker —
       // this is a per-URL lifetime issue, not a Discord availability issue.
       throw new HttpError(response.status, response.statusText);
+    }
+
+    if (options.assertContentTypePrefix !== undefined) {
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.toLowerCase().startsWith(options.assertContentTypePrefix.toLowerCase())) {
+        throw new Error(
+          `Unexpected Content-Type "${contentType}"; expected prefix "${options.assertContentTypePrefix}"`
+        );
+      }
     }
 
     const contentLength = response.headers.get('content-length');

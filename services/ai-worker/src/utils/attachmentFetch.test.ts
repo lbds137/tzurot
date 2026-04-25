@@ -74,6 +74,24 @@ describe('validateAttachmentUrl', () => {
     const sanitized = validateAttachmentUrl('https://cdn.discordapp.com./x.png');
     expect(sanitized).toBe('https://cdn.discordapp.com/x.png');
   });
+
+  it('drops the URL fragment from the sanitized output (undici strips before wire anyway)', () => {
+    // Fragments don't go over the wire. Returning them in the "sanitized" URL
+    // would mislead callers and risk cache-key fragment-divergence
+    // (`/x.png` vs `/x.png#a` vs `/x.png#b` for byte-identical responses).
+    const sanitized = validateAttachmentUrl('https://cdn.discordapp.com/x.png#section');
+    expect(sanitized).toBe('https://cdn.discordapp.com/x.png');
+  });
+
+  it('preserves the URL query string in the sanitized output (Discord signs URLs via query params)', () => {
+    // Discord CDN URLs carry HMAC signatures in `ex=`, `is=`, `hm=` query
+    // params. Stripping the query string would invalidate the signature and
+    // produce 403s. Pin that the query is preserved while the fragment is not.
+    const sanitized = validateAttachmentUrl(
+      'https://cdn.discordapp.com/x.png?ex=abc&is=def&hm=xyz#frag'
+    );
+    expect(sanitized).toBe('https://cdn.discordapp.com/x.png?ex=abc&is=def&hm=xyz');
+  });
 });
 
 describe('isDataUrl', () => {
@@ -222,6 +240,69 @@ describe('fetchAttachmentBytes', () => {
     await expect(
       fetchAttachmentBytes('https://cdn.discordapp.com/lie.png', { maxBytes: 50 })
     ).rejects.toBeInstanceOf(AttachmentTooLargeError);
+  });
+
+  it('passes additional headers (e.g. User-Agent for external-image fallback path) into the fetch call', async () => {
+    // The Discord-CDN path doesn't need a UA; the external-image path passes
+    // one so Reddit/Imgur don't 403 us before SSRF defenses even matter. Pin
+    // the wiring rather than just trusting the option exists.
+    const fetchSpy = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-length': '0' }),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      } as Response)
+    ) as typeof fetch;
+    globalThis.fetch = fetchSpy;
+
+    await fetchAttachmentBytes('https://i.imgur.com/x.png', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Tzurot/3.0)' },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://i.imgur.com/x.png',
+      expect.objectContaining({
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Tzurot/3.0)' },
+      })
+    );
+  });
+
+  it('rejects responses whose Content-Type does not match the asserted prefix', async () => {
+    // Memory-exhaustion guard for the external path: an attacker-controlled
+    // embed URL pointing at text/html (or anything non-image) would otherwise
+    // be buffered before being rejected. The check fires BEFORE arrayBuffer().
+    const arrayBuffer = vi.fn();
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+        arrayBuffer,
+      } as unknown as Response)
+    ) as typeof fetch;
+
+    await expect(
+      fetchAttachmentBytes('https://evil.example.com/not-image.png', {
+        assertContentTypePrefix: 'image/',
+      })
+    ).rejects.toThrow(/Unexpected Content-Type/);
+    // Critical: the body must NOT be consumed when Content-Type fails the assertion.
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it('accepts responses whose Content-Type matches the asserted prefix (case-insensitive)', async () => {
+    // HTTP header values are case-insensitive in practice; some CDNs return
+    // `Image/JPEG` or other casings. Pin the case-folding to avoid false 4xx.
+    const body = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]); // JPEG magic
+    mockFetchResponse(body, { 'content-type': 'IMAGE/JPEG', 'content-length': '4' });
+
+    const buf = await fetchAttachmentBytes('https://i.imgur.com/x.jpg', {
+      assertContentTypePrefix: 'image/',
+    });
+    expect(Array.from(buf)).toEqual([0xff, 0xd8, 0xff, 0xe0]);
   });
 
   it('aborts the fetch and surfaces the error when the per-request timeout fires', async () => {
