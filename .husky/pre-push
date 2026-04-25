@@ -128,7 +128,12 @@ else
 fi
 
 # 9. Run dependency boundary checks (BLOCKING)
+# Clear the depcruise cache first — content-strategy caching has missed
+# circular-dependency violations across renamed/moved files at least once
+# (PR #901, 2026-04-25). The full analysis takes ~5s, so the cost of always
+# starting cold is negligible compared to the cost of a stale "no violations".
 echo "Running dependency boundary checks..."
+rm -rf node_modules/.cache/dependency-cruiser
 if ! pnpm depcruise; then
     echo "${RED}Dependency boundary check failed!${NC}"
     echo "Run 'pnpm depcruise' for details"
