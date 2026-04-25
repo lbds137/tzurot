@@ -391,6 +391,13 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           maxTokens,
           modelKwargs: hasModelKwargs ? modelKwargs : undefined,
           configuration: buildOpenRouterClientConfig(extraParams, needsCustomFetch),
+          // Surfaces the raw OpenRouter response under additional_kwargs.__raw_response,
+          // which extractAndPopulateOpenRouterReasoning() in LLMInvoker reads to populate
+          // additional_kwargs.reasoning + response_metadata.reasoning_details. This
+          // bridges the OpenRouter `message.reasoning` ↔ LangChain `message.reasoning_content`
+          // field-name gap (see langchain-ai/langchain#32981).
+          // Field is typed but marked experimental beta in @langchain/openai dist/types.d.ts:121.
+          __includeRawResponse: true,
         }),
         modelName,
       };

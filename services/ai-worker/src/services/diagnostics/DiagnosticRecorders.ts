@@ -25,6 +25,15 @@ export interface ParsedResponseMetadata {
     stop?: string;
     stop_sequence?: string;
     reasoning_details?: unknown[];
+    /**
+     * Diagnostic info populated by extractAndPopulateOpenRouterReasoning from the
+     * raw OpenRouter response. Read by buildReasoningDebug to surface in `/inspect`.
+     */
+    openrouter?: {
+      provider?: string;
+      apiMessageKeys?: string[];
+      apiReasoningLength?: number;
+    };
   };
   additionalKwargs?: {
     reasoning?: string;
@@ -112,6 +121,7 @@ function buildReasoningDebug(
   metadata: ParsedResponseMetadata
 ): NonNullable<LlmResponseData['reasoningDebug']> {
   const { additionalKwargs, responseMetadata } = metadata;
+  const openrouter = responseMetadata?.openrouter;
   return {
     additionalKwargsKeys: additionalKwargs !== undefined ? Object.keys(additionalKwargs) : [],
     hasReasoningInKwargs:
@@ -122,6 +132,9 @@ function buildReasoningDebug(
     hasReasoningDetails: Array.isArray(responseMetadata?.reasoning_details),
     hasReasoningTagsInContent: hasThinkingBlocks(rawContent),
     rawContentPreview: rawContent.substring(0, 200),
+    upstreamProvider: openrouter?.provider,
+    apiMessageKeys: openrouter?.apiMessageKeys,
+    apiReasoningLength: openrouter?.apiReasoningLength,
   };
 }
 

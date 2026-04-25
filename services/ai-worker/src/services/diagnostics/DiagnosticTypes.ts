@@ -117,6 +117,25 @@ export interface LlmResponseData {
     hasReasoningDetails: boolean;
     hasReasoningTagsInContent: boolean;
     rawContentPreview: string;
+    /**
+     * Actual upstream OpenRouter provider (e.g. "Parasail", "Chutes", "DekaLLM").
+     * Captured from `__raw_response.provider` by extractAndPopulateOpenRouterReasoning.
+     * Distinct from LangChain's hardcoded `response_metadata.model_provider = "openai"`,
+     * which is useless for upstream-provider segmentation in incident investigation.
+     */
+    upstreamProvider?: string;
+    /**
+     * Keys present on the raw API response message (`__raw_response.choices[0].message`).
+     * Distinguishes "model returned structured reasoning" (keys include `reasoning`/`reasoning_details`)
+     * from "model embedded planning into content directly" (keys are just `role`/`content`).
+     */
+    apiMessageKeys?: string[];
+    /**
+     * Length of `__raw_response.choices[0].message.reasoning` (string).
+     * Zero = model did not emit structured reasoning. Non-zero but reasoning still
+     * not visible in the pipeline = our extraction broke (compare to other fields).
+     */
+    apiReasoningLength?: number;
   };
 }
 

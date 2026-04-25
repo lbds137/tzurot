@@ -3,15 +3,27 @@
  *
  * Two responsibilities:
  * 1. REQUEST: Inject OpenRouter-specific params (transforms, route, verbosity)
- * 2. RESPONSE: Extract reasoning content that LangChain would otherwise drop
+ *    that aren't first-class options on LangChain's ChatOpenAI but are part of
+ *    OpenRouter's request body schema.
+ * 2. RESPONSE: Best-effort recovery of usable content from 400-class JSON
+ *    error responses. Some free-tier providers (notably GLM variants) return
+ *    HTTP 400 with valid `choices[0].message.content` (or reasoning) that
+ *    LangChain would otherwise discard by throwing on the error status code.
+ *    When found, we synthesize a 200 response so the caller sees the content.
  *
- * LangChain's Chat Completions converter only preserves function_call/tool_calls/audio
- * from the message object — the `reasoning` and `reasoning_details` fields are silently
- * lost. We intercept the raw response to inject reasoning into message.content as
- * <reasoning> tags, which thinkingExtraction.ts then processes.
+ * Reasoning extraction itself lives in `extractOpenRouterReasoning.ts` and runs
+ * AFTER LangChain parses the response. This file no longer mutates response
+ * bodies for reasoning — that was a transport-layer hack that fought the wrong
+ * problem (LangChain's chat completions converter looks for the DeepSeek-legacy
+ * `message.reasoning_content` field while OpenRouter normalizes to OpenAI-canonical
+ * `message.reasoning`; tracked in langchain-ai/langchain#32981). With
+ * `__includeRawResponse: true` set on ChatOpenAI, the raw response surfaces
+ * via `additional_kwargs.__raw_response` and the consumer-side helper handles
+ * extraction without touching HTTP bytes.
  */
 
 import { createLogger } from '@tzurot/common-types';
+import { extractApiReasoningContent } from '../../utils/thinkingExtraction.js';
 
 const logger = createLogger('ModelFactory');
 
@@ -62,130 +74,28 @@ function injectOpenRouterParams(
 }
 
 /**
- * Extract reasoning text from OpenRouter's reasoning_details array.
- * Handles multiple detail types: reasoning.text, reasoning.summary.
- * Encrypted blocks (reasoning.encrypted) are skipped (unreadable).
+ * Synthesize a 200 Response from a body object, preserving the original headers.
  */
-function extractReasoningFromDetails(details: unknown[]): string | null {
-  const texts: string[] = [];
-  for (const item of details) {
-    if (typeof item !== 'object' || item === null) {
-      continue;
-    }
-    const detail = item as Record<string, unknown>;
-    if (detail.type === 'reasoning.text' && typeof detail.text === 'string') {
-      texts.push(detail.text);
-    } else if (detail.type === 'reasoning.summary' && typeof detail.summary === 'string') {
-      texts.push(detail.summary);
-    }
-  }
-  return texts.length > 0 ? texts.join('\n') : null;
-}
-
-/**
- * Extract reasoning from a single response message and inject it into content.
- * Returns true if reasoning was found and injected.
- *
- * Handles two response formats:
- * - message.reasoning (string) — DeepSeek R1, Kimi K2, QwQ, GLM
- * - message.reasoning_details (array) — Claude Extended Thinking, Gemini, o-series
- */
-function injectReasoningIntoMessage(message: Record<string, unknown>): boolean {
-  logger.info(
-    {
-      messageKeys: Object.keys(message),
-      hasReasoning: typeof message.reasoning === 'string',
-      reasoningLength: typeof message.reasoning === 'string' ? message.reasoning.length : 0,
-      hasReasoningDetails: Array.isArray(message.reasoning_details),
-    },
-    '[ModelFactory] Inspecting response message for reasoning content'
-  );
-
-  // Detect refusal field — LangChain drops this just like reasoning
-  if (typeof message.refusal === 'string' && message.refusal.length > 0) {
-    logger.warn(
-      {
-        refusalLength: message.refusal.length,
-        refusalPreview: message.refusal.substring(0, 200),
-        hasContent: typeof message.content === 'string' && message.content.length > 0,
-      },
-      '[ModelFactory] Model returned refusal field — content may be empty'
-    );
-  }
-
-  let reasoning: string | null = null;
-
-  // Source 1: message.reasoning (string — DeepSeek R1, Kimi K2, QwQ)
-  if (typeof message.reasoning === 'string' && message.reasoning.length > 0) {
-    reasoning = message.reasoning;
-  }
-  // Source 2: message.reasoning_details (array — Claude, Gemini, o-series)
-  else if (Array.isArray(message.reasoning_details)) {
-    reasoning = extractReasoningFromDetails(message.reasoning_details);
-  }
-
-  if (reasoning === null) {
-    return false;
-  }
-
-  const content = typeof message.content === 'string' ? message.content : '';
-
-  if (content.trim().length === 0) {
-    // Model put response in reasoning with empty content — use reasoning as content
-    logger.warn(
-      { reasoningLength: reasoning.length },
-      'Empty content with populated reasoning — using reasoning as content'
-    );
-    message.content = reasoning;
-    return true;
-  }
-
-  message.content = `<reasoning>${reasoning}</reasoning>\n${content}`;
-
-  logger.debug(
-    { reasoningLength: reasoning.length, contentLength: content.length },
-    'Injected reasoning from API response into content'
-  );
-
-  return true;
-}
-
-/**
- * Intercept OpenRouter API response to preserve reasoning content.
- *
- * LangChain's Chat Completions converter only extracts function_call, tool_calls,
- * and audio from the response message — reasoning fields are silently dropped.
- * We intercept the raw response to extract reasoning and inject it into the
- * message content as <reasoning> tags, which thinkingExtraction.ts then processes.
- */
-function interceptReasoningResponse(responseBody: Record<string, unknown>): boolean {
-  const choices = responseBody.choices;
-  if (!Array.isArray(choices)) {
-    return false;
-  }
-
-  let modified = false;
-  for (const choice of choices) {
-    if (typeof choice !== 'object' || choice === null) {
-      continue;
-    }
-    const msg = (choice as Record<string, unknown>).message;
-    if (typeof msg !== 'object' || msg === null) {
-      continue;
-    }
-    if (injectReasoningIntoMessage(msg as Record<string, unknown>)) {
-      modified = true;
-    }
-  }
-  return modified;
+function synthesize200(body: Record<string, unknown>, original: Response): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    statusText: 'OK',
+    headers: original.headers,
+  });
 }
 
 /**
  * Try to recover valid content from a 400-class error response.
  *
- * Some models (free-tier GLM, etc.) return HTTP 400 with usable content in
- * choices[].message.content that would otherwise be lost when LangChain throws
- * on the error status code. If content is found, returns a synthetic 200 Response.
+ * Some free-tier providers (notably GLM variants) return HTTP 400 with usable
+ * content in `choices[0].message.content` or — when the model put the response
+ * in the wrong field — `choices[0].message.reasoning`. LangChain throws on the
+ * error status code so the content is lost; we synthesize a 200 instead.
+ *
+ * In the reasoning-as-response case, we relocate the text to `content` and
+ * delete the reasoning field. Otherwise the downstream reasoning extractor
+ * would treat the actual response as chain-of-thought and surface it as
+ * `thinkingContent` rather than user-visible content.
  */
 async function tryRecoverErrorContent(response: Response): Promise<Response | null> {
   try {
@@ -197,33 +107,53 @@ async function tryRecoverErrorContent(response: Response): Promise<Response | nu
     }
     const firstChoice = choices[0] as Record<string, unknown> | undefined;
     const msg = firstChoice?.message as Record<string, unknown> | undefined;
-    const content = msg?.content;
-    let recoveredLength: number;
-    let fromReasoning = false;
-
-    if (typeof content === 'string' && content.length > 0) {
-      recoveredLength = content.length;
-    } else {
-      // Check reasoning field — model may have put response there
-      const reasoning = msg?.reasoning;
-      if (typeof reasoning !== 'string' || reasoning.length === 0) {
-        return null;
-      }
-      recoveredLength = reasoning.length;
-      fromReasoning = true;
-      // reasoning exists — interceptReasoningResponse will move it to content
+    if (msg === undefined) {
+      return null;
     }
 
-    logger.warn(
-      { status: response.status, contentLength: recoveredLength, fromReasoning },
-      'Recovered valid content from error response — synthesizing 200'
-    );
-    interceptReasoningResponse(body);
-    return new Response(JSON.stringify(body), {
-      status: 200,
-      statusText: 'OK',
-      headers: response.headers,
-    });
+    const content = msg.content;
+    if (typeof content === 'string' && content.length > 0) {
+      logger.warn(
+        { status: response.status, contentLength: content.length },
+        'Recovered valid content from error response — synthesizing 200'
+      );
+      return synthesize200(body, response);
+    }
+
+    // Content empty: model may have placed the response in `reasoning` or
+    // `reasoning_details`. We promote here (before LangChain parses the
+    // synthetic 200) for the 400-error path. The equivalent promotion for 200
+    // responses lives in extractAndPopulateOpenRouterReasoning's
+    // populateReasoningFields, which runs after LangChain parse.
+    const reasoning = msg.reasoning;
+    if (typeof reasoning === 'string' && reasoning.length > 0) {
+      msg.content = reasoning;
+      delete msg.reasoning;
+      delete msg.reasoning_details;
+      logger.warn(
+        { status: response.status, reasoningLength: reasoning.length },
+        'Recovered reasoning-as-response from error — synthesizing 200'
+      );
+      return synthesize200(body, response);
+    }
+
+    // No `reasoning` string but reasoning_details may carry the response
+    // (some providers emit only the structured form).
+    if (Array.isArray(msg.reasoning_details) && msg.reasoning_details.length > 0) {
+      const fromDetails = extractApiReasoningContent(msg.reasoning_details);
+      if (fromDetails !== null && fromDetails.length > 0) {
+        msg.content = fromDetails;
+        delete msg.reasoning;
+        delete msg.reasoning_details;
+        logger.warn(
+          { status: response.status, reasoningLength: fromDetails.length, fromDetails: true },
+          'Recovered reasoning_details-as-response from error — synthesizing 200'
+        );
+        return synthesize200(body, response);
+      }
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -232,9 +162,10 @@ async function tryRecoverErrorContent(response: Response): Promise<Response | nu
 /**
  * Create a custom fetch function for OpenRouter requests.
  *
- * Two responsibilities:
- * 1. REQUEST: Inject OpenRouter-specific params (transforms, route, verbosity)
- * 2. RESPONSE: Extract reasoning content that LangChain would otherwise drop
+ * Injects OpenRouter-specific request params and recovers content from 400-class
+ * JSON error responses. Reasoning extraction is handled downstream by
+ * `extractAndPopulateOpenRouterReasoning` after LangChain produces the AIMessage —
+ * see `extractOpenRouterReasoning.ts`.
  */
 export function createOpenRouterFetch(
   extraParams: OpenRouterExtraParams
@@ -256,7 +187,7 @@ export function createOpenRouterFetch(
 
     const response = await fetch(url, init);
 
-    // RESPONSE: Intercept to preserve reasoning content
+    // RESPONSE: Recover usable content from 400-class JSON error responses.
     const contentType = response.headers.get('content-type');
     logger.info(
       {
@@ -267,7 +198,6 @@ export function createOpenRouterFetch(
       'Custom fetch received response'
     );
 
-    // For 400-class errors with JSON body, try to recover valid content
     if (!response.ok) {
       const isJsonClientError =
         response.status >= 400 &&
@@ -279,31 +209,7 @@ export function createOpenRouterFetch(
           return recovered;
         }
       }
-      return response;
     }
-    if (contentType === null) {
-      return response;
-    }
-    if (!contentType.includes('application/json')) {
-      return response;
-    }
-
-    // Clone before consuming so the original body stays intact on parse failure
-    const clone = response.clone();
-    try {
-      const body = (await clone.json()) as Record<string, unknown>;
-      const modified = interceptReasoningResponse(body);
-
-      logger.info({ reasoningInjected: modified }, 'Response interception complete');
-
-      return new Response(JSON.stringify(body), {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      });
-    } catch (err) {
-      logger.warn({ err }, 'Failed to parse response JSON for reasoning interception');
-      return response;
-    }
+    return response;
   };
 }
