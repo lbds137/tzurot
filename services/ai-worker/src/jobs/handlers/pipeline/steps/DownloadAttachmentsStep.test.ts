@@ -403,7 +403,7 @@ describe('DownloadAttachmentsStep', () => {
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(1);
   });
 
-  it('skips fetch when url is already a data URL (idempotent)', async () => {
+  it('skips fetch when url is already a data URL (idempotent), backfilling size when absent', async () => {
     const dataUrl = 'data:image/png;base64,iVBORw0K';
     const job = createJob([{ url: dataUrl, contentType: 'image/png' }]);
 
@@ -411,7 +411,14 @@ describe('DownloadAttachmentsStep', () => {
 
     expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();
     expect(validateAttachmentUrlMock).not.toHaveBeenCalled();
-    // Pass-through: the same attachment object is preserved.
+    // No re-encoding: bufferToDataUrl must not be called for already-data URLs.
+    expect(bufferToDataUrlMock).not.toHaveBeenCalled();
+    // Pass-through preserves the URL.
     expect(job.data.context.attachments![0].url).toBe(dataUrl);
+    // Load-bearing: the size backfill (Math.ceil(url.length * 3 / 4)) must
+    // run for fixtures that omit `size`, otherwise the aggregate-payload
+    // guard would silently undercount pre-populated data URLs as 0 bytes.
+    expect(job.data.context.attachments![0].size).toBeGreaterThan(0);
+    expect(job.data.context.attachments![0].size).toBe(Math.ceil((dataUrl.length * 3) / 4));
   });
 });
