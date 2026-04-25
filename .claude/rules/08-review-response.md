@@ -55,15 +55,17 @@ Fixup commits autosquash naturally on the next `git rebase -i --autosquash`. Thi
 
 **When is "the next rebase"?** Once, **right before merge**, not after each round. Keep fixup commits visible through review iteration and just `git push` them — do not `rebase --autosquash` and do not force-push between rounds. Fixup commits sitting on the branch as `fixup! <target message>` are fine through review; reviewers and CI can read them.
 
-**Critical: `gh pr merge --rebase` does NOT autosquash fixup commits.** It runs `git rebase`, not `git rebase --autosquash`. Fixup commits will land on the base branch with their `fixup!` titles intact and clutter `git log` permanently (observed 2026-04-24 on PR #889 — develop ended up with 8 visible `fixup!` commits after merge, requiring a force-push cleanup).
+**Critical: `gh pr merge --rebase` does NOT autosquash fixup commits.** It runs `git rebase`, not `git rebase --autosquash`. Fixup commits will land on the base branch with their `fixup!` titles intact and clutter `git log` permanently (observed 2026-04-24 on PRs #889 and #890 — both required force-push cleanup of develop after merge).
+
+**Structural enforcement: the `fixup-check` job in `.github/workflows/ci.yml`** runs on every push to a feature branch and fails if any commit on the branch (since the merge base with develop) has a `fixup!` or `squash!` subject. CI stays red until you autosquash, which means the merge button is gated on it being green. This eliminates the "forgot to autosquash" failure mode at the tooling level — you can't accidentally merge a branch with fixup commits. Added 2026-04-24 after PR #890 merged with 4 visible `fixup!` commits despite this rule already prescribing the autosquash step.
 
 The correct pre-merge sequence is:
 
 ```bash
 # On the feature branch, right before requesting merge:
 git rebase --autosquash <base-branch>           # squash all fixups into their targets
-git push --force-with-lease origin <branch>     # publish the squashed history
-gh pr merge <PR#> --rebase --delete-branch      # then merge
+git push --force-with-lease origin <branch>     # CI's fixup-check now passes
+gh pr merge <PR#> --rebase --delete-branch      # then merge (or use the web UI)
 ```
 
 Mid-PR rebase (i.e., autosquash + force-push between review rounds) is reserved for three specific cases, all of which should be rare:

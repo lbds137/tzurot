@@ -16,6 +16,41 @@ permissions:
   contents: read
 
 jobs:
+  fixup-check:
+    # Block merge until review-cycle `fixup!` commits are autosquashed into
+    # their target commits. Fails if any commit on the branch (since the
+    # merge base with develop) has a subject starting with "fixup!" or
+    # "squash!". Run only on feature branches — main and develop are
+    # post-merge so any fixups there are already permanent history.
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history so `git log origin/develop..HEAD` works regardless
+          # of how many commits the branch has accumulated during review.
+          fetch-depth: 0
+      - name: Block unsquashed fixup commits
+        run: |
+          # Prefer develop as the merge base; fall back to main for branches
+          # cut directly from main (rare).
+          if git rev-parse --verify origin/develop >/dev/null 2>&1; then
+            BASE=$(git merge-base HEAD origin/develop)
+          else
+            BASE=$(git merge-base HEAD origin/main)
+          fi
+
+          FIXUPS=$(git log "$BASE..HEAD" --format='%h %s' | grep -E '^[a-f0-9]+ (fixup|squash)!' || true)
+          if [ -n "$FIXUPS" ]; then
+            echo "::error::Branch contains unsquashed fixup/squash commits. Run \`git rebase --autosquash <base> && git push --force-with-lease\` before merging."
+            echo ""
+            echo "Offending commits:"
+            echo "$FIXUPS"
+            exit 1
+          fi
+
+          echo "No fixup/squash commits — branch is merge-ready."
+
   lint:
     runs-on: ubuntu-latest
     steps:
