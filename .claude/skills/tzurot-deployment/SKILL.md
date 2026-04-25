@@ -64,7 +64,7 @@ git push origin develop
 ## Log Analysis
 
 ```bash
-# Tail specific service
+# Tail specific service (CURRENT deployment only)
 railway logs --service bot-client -n 50
 
 # Search for errors
@@ -76,6 +76,25 @@ railway logs | grep "requestId:abc123"
 # Find errors
 railway logs | grep '"level":"error"'
 ```
+
+### Pulling logs from PAST deployments
+
+`railway logs` defaults to the most recent successful deployment. Logs from before a deploy event aren't visible by default — but Railway DOES retain them, and the CLI supports an explicit deployment-ID lookup.
+
+When you need to investigate an event that happened before the most recent deploy:
+
+```bash
+# 1. List recent deployments to find the relevant ID + timestamp
+railway deployment list --service ai-worker --environment production --limit 10
+# Output: <deployment-id> | SUCCESS|REMOVED | <local-timestamp>
+
+# 2. Pull logs from a specific deployment by ID
+railway logs <DEPLOYMENT_ID> --service ai-worker --environment production --lines 5000 --filter "<search>"
+```
+
+The `--filter` flag uses Railway's query DSL (`@level:error`, quoted phrases like `"vision AND 404"`, etc.). For multi-token literal substring searches, single tokens often work better than quoted phrases — Railway's filter syntax doesn't always behave like grep.
+
+**When this matters**: investigations into bugs that surfaced just before a release deploy, or cross-deployment timeline traces. Surfaced 2026-04-25 during the LangChain reasoning-extraction investigation when the leaked request happened on the prior deployment.
 
 ## Environment Variables
 

@@ -448,6 +448,28 @@ railway logs --service bot-client
 railway logs --deployment
 ```
 
+### Pulling logs from a PRIOR deployment
+
+`railway logs` defaults to the most recent successful deployment, so logs from before a deploy event aren't visible by default. Railway DOES retain them, and they're accessible via the explicit `<deployment-id>` argument — but you have to find the ID first via `railway deployment list`.
+
+**Two-step workflow**:
+
+```bash
+# 1. List recent deployments to find the relevant ID + timestamp
+railway deployment list --service ai-worker --environment production --limit 10
+# Output:
+#   <deployment-id> | SUCCESS | 2026-04-25 01:19:40 -04:00     ← current
+#   <deployment-id> | REMOVED | 2026-04-24 21:53:31 -04:00     ← prior
+#   ...
+
+# 2. Pull logs from a specific deployment by ID
+railway logs <DEPLOYMENT_ID> --service ai-worker --environment production --lines 5000 --filter "<search>"
+```
+
+**When this matters**: investigations into bugs that surfaced just before a release deploy (the deployment that ran the buggy request gets replaced before you can grab its logs via the default `railway logs` command). The `pnpm ops logs` wrapper currently doesn't pass through deployment IDs, so for past-deployment investigation use the raw `railway` CLI directly.
+
+**Filter syntax notes**: Railway's `--filter` uses their query DSL. Single tokens (e.g. `Inspecting`) often work better than quoted multi-token phrases (`"Inspecting response"` may return zero matches). For multi-token searches, prefer single-token filter + `| grep`.
+
 ---
 
 ## Domains
