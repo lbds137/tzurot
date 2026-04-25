@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-04-24 (long session — substantial work across attachment refactor, multiple PR review cycles, workflow rule + CI infrastructure)
-> **Version**: v3.0.0-beta.104 (released 2026-04-23 — beta.105 ready to cut)
+> **Session**: 2026-04-24 (long session — substantial work across attachment refactor, multiple PR review cycles, workflow rule + CI infrastructure, **beta.105 released**)
+> **Version**: v3.0.0-beta.105 (released 2026-04-24)
 
 ---
 
@@ -9,10 +9,9 @@
 
 _Pick based on energy:_
 
-1. **Cut beta.105 release** — substantial unreleased work (16 commits, 4 user-facing improvements + CVE pin). `pnpm bump-version` then assemble release notes from the conventional changelog. The auto-generated notes will cover most of it; the timezone 404 release-note addendum from earlier in the session still needs manual paste.
-2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs.
-3. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. Canary window closed (~2026-04-25 earliest), safe to start anytime now.
-4. **Post-deploy DM subscription loss fix** — HIGH priority, two-layer warmer spec-ready.
+1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs.
+2. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. Canary window closed (~2026-04-25 earliest), safe to start anytime now.
+3. **Post-deploy DM subscription loss fix** — HIGH priority, two-layer warmer spec-ready.
 
 ## Active Task
 
@@ -61,43 +60,15 @@ _None. Session paused after PR #891 merged + post-merge cleanup committed + deve
 
 ---
 
-## Unreleased on Develop (since beta.104)
+## Unreleased on Develop (since beta.105)
 
-**16 commits** since beta.104, three calendar days of merged work. Substantial enough that release notes will span multiple categories.
-
-**Headline user-facing changes:**
-
-- 🚀 **Attachment download lifted to ai-worker** (PR #889) — fixes the 12-screenshot timeout incident structurally. api-gateway's `/ai/generate` and `/ai/transcribe` return in milliseconds regardless of attachment size.
-- 🐛 **Reddit/Imgur embed images now work** — `embedImageExtractor.ts` prefers `proxyURL` so external-hosted images route through Discord's media proxy (which passes the strict CDN allowlist).
-- 🐛 **GLM-4.7 reasoning leak fix** (PR #888) — strips `<user>/<character>/<analysis>` meta-preamble from responses; same fix class as the existing GLM-4.5-Air handler.
-- 🛡️ **Hardened attachment download error handling** (PR #890) — typed errors (`HttpError`, `AttachmentTooLargeError`, `JobPayloadTooLargeError`), aggregate 50 MiB payload cap, labeled error messages for incident triage.
-- 🛡️ **Queue-age gate for transcription jobs** (PR #891) — symmetric with the LLM-gen pipeline, classified telemetry on stale-CDN-URL failures.
-
-**Security:**
-
-- 🔒 CVE pin: `uuid >=14.0.0` via pnpm override (GHSA-w5hq-g745-h8pq).
-
-**Infrastructure / dev-facing (not release-note material but real changes):**
-
-- CI `fixup-check` job — structurally enforces clean merge history
-- Multiple `.claude/rules/08-review-response.md` clarifications (3 amendments today)
-- BACKLOG triage + 7 new follow-up entries
-- Stale `regenerate-pglite-schema.sh` deleted post-PR #887
-- Three quick-win Quick-Wins shipped morning of the session (PR #885, #886, #887)
-
-### Release-note addenda (manual — paste at beta.105 draft time)
-
-The auto-generated notes from `pnpm ops release:draft-notes` will not surface the following behavior-visible change. Paste this line under **Improvements** in the beta.105 draft:
-
-```markdown
-- **api-gateway:** `GET /user/timezone` now returns `404` instead of `{ timezone: 'UTC', isDefault: true }` when the user row is missing (PR #881). Graceful-degradation callers should handle 404 explicitly; bot-client was already updated to treat 404 as the missing-user signal.
-```
+_Nothing yet — beta.105 was just cut._
 
 ---
 
 ## Previous Sessions
 
-- **2026-04-24** (this session): 7 PRs merged (#885, #886, #887, #888, #889, #890, #891) + new review-response rule + CI `fixup-check` job + workflow rule amendments + 2 develop history cleanups.
+- **2026-04-24** (this session): 7 PRs merged (#885, #886, #887, #888, #889, #890, #891) + new review-response rule + CI `fixup-check` job + workflow rule amendments + 2 develop history cleanups + **beta.105 cut** (PR #892).
 - **2026-04-23**: Identity Epic CLOSED + ApiCheck autocomplete cache + Inbox triage.
 - **2026-04-22 → 2026-04-23**: v3.0.0-beta.104 released. Phase 5c PR C cutover + tech-debt sweep PR #866.
 - **2026-04-21**: Tech-debt sweep PR #866.
@@ -109,6 +80,7 @@ The auto-generated notes from `pnpm ops release:draft-notes` will not surface th
 
 ## Recent Releases
 
+- **v3.0.0-beta.105** (2026-04-24) — Attachment download lifted from api-gateway to ai-worker (#889); downloadAll hardening + 50 MiB aggregate cap (#890); transcription queue-age gate (#891); GLM-4.7 meta-preamble fix (#888); two-tier autocomplete cache (#884); identity Phase 6 part 2 + ESLint rule (#881, #882); pglite CHECK constraints (#887); typing-indicator classifier (#886); autocomplete sentinel guards (#885); uuid CVE pin.
 - **v3.0.0-beta.104** (2026-04-23) — shapes.inc cookie migrated Auth0 → Better Auth; GLM-4.5-air thought leak via Chain-of-Extractors pattern; new release tooling; bot-client submit-job timeout bump.
 - **v3.0.0-beta.103** (2026-04-22) — Identity Epic Phase 5c PR C cutover; voice multi-chunk TTS Opus fix; `ApiCheck<T>` tri-state type; tech-debt paydown.
 - **v3.0.0-beta.102** (2026-04-20) — Hybrid post-action UX, Kimi K2.5 routing fix, CITEXT name uniqueness.
