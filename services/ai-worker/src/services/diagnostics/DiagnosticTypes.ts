@@ -16,6 +16,12 @@ export interface DiagnosticCollectorOptions {
   triggerMessageId?: string;
   personalityId: string;
   personalityName: string;
+  /** Discord ID of the personality owner. Threaded through to
+   *  meta.personalityOwnerDiscordId for owner-aware /inspect view rendering.
+   *  Resolved by the caller via prisma.user.findUnique() before constructing
+   *  the collector — see GenerationStep. May be null if the owner User row
+   *  was deleted between personality creation and this request. */
+  personalityOwnerDiscordId: string | null;
   userId: string;
   guildId: string | null;
   channelId: string;

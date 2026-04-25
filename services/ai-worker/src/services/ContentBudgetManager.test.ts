@@ -20,6 +20,7 @@ describe('ContentBudgetManager', () => {
     name: 'TestBot',
     displayName: 'Test Bot',
     slug: 'testbot',
+    ownerId: 'owner-uuid-test',
     systemPrompt: 'You are a helpful assistant',
     model: 'gpt-4',
     temperature: 0.7,

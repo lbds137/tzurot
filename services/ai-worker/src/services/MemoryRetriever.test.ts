@@ -45,6 +45,7 @@ describe('MemoryRetriever', () => {
     name: 'TestBot',
     displayName: 'Test Bot',
     slug: 'testbot',
+    ownerId: 'owner-uuid-test',
     systemPrompt: 'You are a test bot',
     model: 'test-model',
     temperature: 0.7,

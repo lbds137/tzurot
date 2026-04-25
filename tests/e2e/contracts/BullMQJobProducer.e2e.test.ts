@@ -32,6 +32,7 @@ describe('Contract: BullMQ Job Producer (api-gateway)', () => {
       name: 'TestPersonality',
       displayName: 'Test Personality',
       slug: 'test-personality',
+      ownerId: 'owner-uuid-test',
       systemPrompt: 'You are a test AI assistant.',
       model: 'anthropic/claude-3-5-sonnet',
       visionModel: 'anthropic/claude-3-5-sonnet',

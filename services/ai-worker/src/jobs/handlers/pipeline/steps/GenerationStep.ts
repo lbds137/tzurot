@@ -14,6 +14,7 @@ import {
   USER_ERROR_MESSAGES,
   type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
+import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {
   RAGResponse,
@@ -280,15 +281,15 @@ export class GenerationStep implements IPipelineStep {
       'Processing with context'
     );
 
-    // Create diagnostic collector for flight recorder (captures full pipeline data)
-    const diagnosticCollector = new DiagnosticCollector({
+    const diagnosticCollector = await createDiagnosticCollectorForRequest({
       requestId,
       triggerMessageId: jobContext.triggerMessageId,
+      userId: jobContext.userId,
+      serverId: jobContext.serverId,
+      channelId: jobContext.channelId,
       personalityId: effectivePersonality.id,
       personalityName: effectivePersonality.name,
-      userId: jobContext.userId,
-      guildId: jobContext.serverId ?? null,
-      channelId: jobContext.channelId ?? '',
+      personalityOwnerInternalId: effectivePersonality.ownerId,
     });
 
     try {

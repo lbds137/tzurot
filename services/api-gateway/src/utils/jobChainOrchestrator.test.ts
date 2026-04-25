@@ -35,6 +35,7 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
     name: 'TestBot',
     displayName: 'Test Bot',
     slug: 'testbot',
+    ownerId: 'owner-uuid-test',
     systemPrompt: 'Test prompt',
     model: 'test-model',
     temperature: 0.7,

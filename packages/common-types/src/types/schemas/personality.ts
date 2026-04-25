@@ -34,6 +34,11 @@ export const loadedPersonalitySchema = z.object({
   name: z.string(),
   displayName: z.string(),
   slug: z.string(),
+  /** Internal user UUID of the personality owner. Used for diagnostic-log
+   * snapshots so /inspect can render the right view for owner vs non-owner.
+   * Already queried by PERSONALITY_SELECT — exposed here so consumers can
+   * read it without going back to the DB. */
+  ownerId: z.string(),
 
   // Core configuration
   systemPrompt: z.string(),

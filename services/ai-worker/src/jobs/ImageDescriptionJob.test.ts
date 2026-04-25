@@ -42,6 +42,7 @@ describe('ImageDescriptionJob', () => {
     name: 'Test',
     displayName: 'Test Personality',
     slug: 'test',
+    ownerId: 'owner-uuid-test',
     systemPrompt: 'Test prompt',
     model: 'gpt-4-vision-preview',
     visionModel: 'gpt-4-vision-preview',

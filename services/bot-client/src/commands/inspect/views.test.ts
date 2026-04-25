@@ -9,6 +9,12 @@ import {
   buildMemoryInspectorView,
   buildTokenBudgetView,
 } from './views.js';
+import type { ViewContext } from './viewContext.js';
+
+/** Owner context — character internals are visible (existing test behavior) */
+const OWNER_CTX: ViewContext = { canViewCharacter: true };
+/** Non-owner context — character internals are redacted */
+const NON_OWNER_CTX: ViewContext = { canViewCharacter: false };
 
 function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPayload {
   return {
@@ -87,7 +93,7 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
 describe('buildFullJsonView', () => {
   it('should return a .json file attachment', () => {
     const payload = createMockPayload();
-    const result = buildFullJsonView(payload, 'req-123');
+    const result = buildFullJsonView(payload, 'req-123', OWNER_CTX);
 
     expect(result.files).toHaveLength(1);
     expect(result.files![0].name).toBe('debug-req-123.json');
@@ -96,7 +102,7 @@ describe('buildFullJsonView', () => {
 
   it('should contain the full payload as JSON', () => {
     const payload = createMockPayload();
-    const result = buildFullJsonView(payload, 'req-123');
+    const result = buildFullJsonView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     const parsed = JSON.parse(content);
@@ -108,7 +114,7 @@ describe('buildFullJsonView', () => {
 describe('buildCompactJsonView', () => {
   it('should return a compact .json file', () => {
     const payload = createMockPayload();
-    const result = buildCompactJsonView(payload, 'req-123');
+    const result = buildCompactJsonView(payload, 'req-123', OWNER_CTX);
 
     expect(result.files).toHaveLength(1);
     expect(result.files![0].name).toContain('compact');
@@ -116,7 +122,7 @@ describe('buildCompactJsonView', () => {
 
   it('should replace system prompt with length summary', () => {
     const payload = createMockPayload();
-    const result = buildCompactJsonView(payload, 'req-123');
+    const result = buildCompactJsonView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     const parsed = JSON.parse(content);
@@ -128,7 +134,7 @@ describe('buildCompactJsonView', () => {
 
   it('should keep user/assistant messages intact', () => {
     const payload = createMockPayload();
-    const result = buildCompactJsonView(payload, 'req-123');
+    const result = buildCompactJsonView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     const parsed = JSON.parse(content);
@@ -141,7 +147,7 @@ describe('buildCompactJsonView', () => {
   it('should truncate long memory previews', () => {
     const payload = createMockPayload();
     payload.memoryRetrieval.memoriesFound[0].preview = 'x'.repeat(200);
-    const result = buildCompactJsonView(payload, 'req-123');
+    const result = buildCompactJsonView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     const parsed = JSON.parse(content);
@@ -152,7 +158,7 @@ describe('buildCompactJsonView', () => {
 describe('buildSystemPromptView', () => {
   it('should return an .xml file', () => {
     const payload = createMockPayload();
-    const result = buildSystemPromptView(payload, 'req-123');
+    const result = buildSystemPromptView(payload, 'req-123', OWNER_CTX);
 
     expect(result.files).toHaveLength(1);
     expect(result.files![0].name).toContain('.xml');
@@ -160,7 +166,7 @@ describe('buildSystemPromptView', () => {
 
   it('should wrap content in SystemPrompt tags', () => {
     const payload = createMockPayload();
-    const result = buildSystemPromptView(payload, 'req-123');
+    const result = buildSystemPromptView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('<SystemPrompt>');
@@ -171,7 +177,7 @@ describe('buildSystemPromptView', () => {
   it('should handle missing system message', () => {
     const payload = createMockPayload();
     payload.assembledPrompt.messages = [{ role: 'user', content: 'Hello' }];
-    const result = buildSystemPromptView(payload, 'req-123');
+    const result = buildSystemPromptView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('No system message found');
@@ -181,7 +187,7 @@ describe('buildSystemPromptView', () => {
 describe('buildReasoningView', () => {
   it('should show "no reasoning" message when thinkingContent is null', () => {
     const payload = createMockPayload();
-    const result = buildReasoningView(payload, 'req-123');
+    const result = buildReasoningView(payload, 'req-123', OWNER_CTX);
 
     expect(result.content).toContain('No reasoning content captured');
     expect(result.files).toBeUndefined();
@@ -191,7 +197,7 @@ describe('buildReasoningView', () => {
   it('should show "no reasoning" for empty string', () => {
     const payload = createMockPayload();
     payload.postProcessing.thinkingContent = '';
-    const result = buildReasoningView(payload, 'req-123');
+    const result = buildReasoningView(payload, 'req-123', OWNER_CTX);
 
     expect(result.content).toContain('No reasoning content captured');
   });
@@ -199,7 +205,7 @@ describe('buildReasoningView', () => {
   it('should return inline message for short reasoning', () => {
     const payload = createMockPayload();
     payload.postProcessing.thinkingContent = 'The user asked about castles...';
-    const result = buildReasoningView(payload, 'req-123');
+    const result = buildReasoningView(payload, 'req-123', OWNER_CTX);
 
     expect(result.content).toContain('## Reasoning');
     expect(result.content).toContain('castles');
@@ -209,7 +215,7 @@ describe('buildReasoningView', () => {
   it('should return .md file for long reasoning', () => {
     const payload = createMockPayload();
     payload.postProcessing.thinkingContent = 'x'.repeat(2500);
-    const result = buildReasoningView(payload, 'req-123');
+    const result = buildReasoningView(payload, 'req-123', OWNER_CTX);
 
     expect(result.files).toHaveLength(1);
     expect(result.files![0].name).toContain('.md');
@@ -220,7 +226,7 @@ describe('buildReasoningView', () => {
 describe('buildMemoryInspectorView', () => {
   it('should return a .md file', () => {
     const payload = createMockPayload();
-    const result = buildMemoryInspectorView(payload, 'req-123');
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
     expect(result.files).toHaveLength(1);
     expect(result.files![0].name).toContain('memory-inspector');
@@ -228,7 +234,7 @@ describe('buildMemoryInspectorView', () => {
 
   it('should include search query and focus mode status', () => {
     const payload = createMockPayload();
-    const result = buildMemoryInspectorView(payload, 'req-123');
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('"hello"');
@@ -237,7 +243,7 @@ describe('buildMemoryInspectorView', () => {
 
   it('should include memory table with scores and status', () => {
     const payload = createMockPayload();
-    const result = buildMemoryInspectorView(payload, 'req-123');
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('0.95');
@@ -249,7 +255,7 @@ describe('buildMemoryInspectorView', () => {
   it('should show message when no memories found', () => {
     const payload = createMockPayload();
     payload.memoryRetrieval.memoriesFound = [];
-    const result = buildMemoryInspectorView(payload, 'req-123');
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('No memories retrieved');
@@ -260,7 +266,7 @@ describe('buildMemoryInspectorView', () => {
     payload.memoryRetrieval.memoriesFound = [
       { id: 'mem-1', score: 0.9, preview: 'has | pipe and \\ backslash', includedInPrompt: true },
     ];
-    const result = buildMemoryInspectorView(payload, 'req-123');
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('has \\| pipe and \\\\ backslash');
@@ -269,7 +275,7 @@ describe('buildMemoryInspectorView', () => {
   it('should show "none" for null search query', () => {
     const payload = createMockPayload();
     payload.inputProcessing.searchQuery = null;
-    const result = buildMemoryInspectorView(payload, 'req-123');
+    const result = buildMemoryInspectorView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('_none_');
@@ -279,7 +285,7 @@ describe('buildMemoryInspectorView', () => {
 describe('buildTokenBudgetView', () => {
   it('should return a .txt file', () => {
     const payload = createMockPayload();
-    const result = buildTokenBudgetView(payload, 'req-123');
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
     expect(result.files).toHaveLength(1);
     expect(result.files![0].name).toContain('token-budget');
@@ -288,7 +294,7 @@ describe('buildTokenBudgetView', () => {
 
   it('should include context window size', () => {
     const payload = createMockPayload();
-    const result = buildTokenBudgetView(payload, 'req-123');
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('128,000');
@@ -297,7 +303,7 @@ describe('buildTokenBudgetView', () => {
   it('should show history warning when > 70%', () => {
     const payload = createMockPayload();
     // 92000 / 128000 = 71.9%
-    const result = buildTokenBudgetView(payload, 'req-123');
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('>70%');
@@ -305,7 +311,7 @@ describe('buildTokenBudgetView', () => {
 
   it('should show dropped counts', () => {
     const payload = createMockPayload();
-    const result = buildTokenBudgetView(payload, 'req-123');
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).toContain('1 memories');
@@ -316,9 +322,143 @@ describe('buildTokenBudgetView', () => {
     const payload = createMockPayload();
     payload.tokenBudget.memoriesDropped = 0;
     payload.tokenBudget.historyMessagesDropped = 0;
-    const result = buildTokenBudgetView(payload, 'req-123');
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
 
     const content = result.files![0].attachment.toString();
     expect(content).not.toContain('Dropped:');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Non-owner redaction paths
+// ---------------------------------------------------------------------------
+
+describe('non-owner redaction', () => {
+  describe('buildFullJsonView', () => {
+    it('redacts the system-prompt message body when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildFullJsonView(payload, 'req-123', NON_OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      const systemMsg = parsed.assembledPrompt.messages.find(
+        (m: { role: string }) => m.role === 'system'
+      );
+      expect(systemMsg.content).toContain('REDACTED');
+      expect(systemMsg.content).not.toContain('<persona>');
+    });
+
+    it('redacts memory previews when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildFullJsonView(payload, 'req-123', NON_OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      for (const memory of parsed.memoryRetrieval.memoriesFound) {
+        expect(memory.preview).toBe('[REDACTED]');
+      }
+    });
+
+    it('preserves user/assistant messages when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildFullJsonView(payload, 'req-123', NON_OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      const userMsg = parsed.assembledPrompt.messages.find(
+        (m: { role: string }) => m.role === 'user'
+      );
+      expect(userMsg.content).toBe('Hello, how are you?');
+    });
+
+    it('preserves memory IDs and scores when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildFullJsonView(payload, 'req-123', NON_OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      expect(parsed.memoryRetrieval.memoriesFound[0].id).toBe('mem-1');
+      expect(parsed.memoryRetrieval.memoriesFound[0].score).toBe(0.95);
+      expect(parsed.memoryRetrieval.memoriesFound[0].includedInPrompt).toBe(true);
+    });
+  });
+
+  describe('buildCompactJsonView', () => {
+    it('redacts memory previews when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildCompactJsonView(payload, 'req-123', NON_OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      for (const memory of parsed.memoryRetrieval.memoriesFound) {
+        expect(memory.preview).toBe('[REDACTED]');
+      }
+    });
+
+    it('keeps system-prompt summary intact when canViewCharacter is false (non-leaking)', () => {
+      const payload = createMockPayload();
+      const result = buildCompactJsonView(payload, 'req-123', NON_OWNER_CTX);
+      const parsed = JSON.parse(result.files![0].attachment.toString());
+      const systemMsg = parsed.assembledPrompt.messages.find(
+        (m: { role: string }) => m.role === 'system'
+      );
+      // System prompt gets the same length-summary as for owners — the actual
+      // content was never exposed in compact form anyway, just its length.
+      expect(systemMsg.content).toMatch(/\[system prompt: \d+ chars\]/);
+    });
+  });
+
+  describe('buildSystemPromptView', () => {
+    it('returns the 🔒 affordance message instead of XML when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildSystemPromptView(payload, 'req-123', NON_OWNER_CTX);
+      expect(result.content).toContain('🔒');
+      expect(result.content).toContain('Character card hidden');
+      expect(result.files).toBeUndefined();
+      // No `flags` field — editReply cannot change ephemeral state set on the
+      // initial defer, so the lock affordance relies on the /inspect command
+      // itself having deferred ephemeral.
+      expect(result.flags).toBeUndefined();
+    });
+
+    it('does NOT include any of the system prompt content when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildSystemPromptView(payload, 'req-123', NON_OWNER_CTX);
+      expect(result.content).not.toContain('<persona>');
+      expect(result.content).not.toContain('You are helpful');
+    });
+  });
+
+  describe('buildMemoryInspectorView', () => {
+    it('redacts memory previews while keeping IDs/scores/inclusion visible', () => {
+      const payload = createMockPayload();
+      const result = buildMemoryInspectorView(payload, 'req-123', NON_OWNER_CTX);
+      const content = result.files![0].attachment.toString();
+      // Each memory row contains [REDACTED] in the preview column
+      expect(content).toContain('[REDACTED]');
+      // Score and status remain
+      expect(content).toContain('0.95');
+      expect(content).toContain('Included');
+      // Banner explaining the redaction
+      expect(content).toContain('🔒');
+      expect(content).toContain('redacted');
+    });
+
+    it('does not show memory preview text when canViewCharacter is false', () => {
+      const payload = createMockPayload();
+      const result = buildMemoryInspectorView(payload, 'req-123', NON_OWNER_CTX);
+      const content = result.files![0].attachment.toString();
+      expect(content).not.toContain('Memory preview text');
+      expect(content).not.toContain('Low score memory');
+    });
+  });
+
+  describe('buildReasoningView', () => {
+    it('shows reasoning content even when canViewCharacter is false (per project decision)', () => {
+      const payload = createMockPayload();
+      payload.postProcessing.thinkingContent = 'I considered the user request and decided to...';
+      const result = buildReasoningView(payload, 'req-123', NON_OWNER_CTX);
+      expect(result.content).toContain('considered the user request');
+    });
+  });
+
+  describe('buildTokenBudgetView', () => {
+    it('shows full token-budget breakdown even when canViewCharacter is false (purely numeric)', () => {
+      const payload = createMockPayload();
+      const result = buildTokenBudgetView(payload, 'req-123', NON_OWNER_CTX);
+      const content = result.files![0].attachment.toString();
+      expect(content).toContain('Context Window');
+      expect(content).toContain('System Prompt:');
+    });
   });
 });

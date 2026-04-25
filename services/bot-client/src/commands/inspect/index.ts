@@ -38,6 +38,7 @@ import {
   buildMemoryInspectorView,
   buildTokenBudgetView,
 } from './views.js';
+import { computeViewContext } from './viewContext.js';
 
 const logger = createLogger('inspect');
 
@@ -143,7 +144,11 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
       return;
     }
 
-    const viewResult = VIEW_BUILDERS[viewType](result.log.data, parsed.requestId);
+    // Defense in depth: re-evaluate ownership against the CLICKER's id, not the
+    // original /inspect invoker. Ephemeral replies already prevent other users
+    // from seeing the buttons, but each click revalidates.
+    const ctx = computeViewContext(result.log, interaction.user.id);
+    const viewResult = VIEW_BUILDERS[viewType](result.log.data, parsed.requestId, ctx);
     await interaction.editReply({
       content: viewResult.content,
       files: viewResult.files,
@@ -188,7 +193,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       return;
     }
 
-    const viewResult = VIEW_BUILDERS[parsed.viewType](result.log.data, parsed.requestId);
+    // See handleSelectMenu — same defense-in-depth re-evaluation.
+    const ctx = computeViewContext(result.log, interaction.user.id);
+    const viewResult = VIEW_BUILDERS[parsed.viewType](result.log.data, parsed.requestId, ctx);
     await interaction.editReply({
       content: viewResult.content,
       files: viewResult.files,
