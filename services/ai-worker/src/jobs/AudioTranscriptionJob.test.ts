@@ -20,6 +20,7 @@ vi.mock('../utils/retry.js', () => ({
 // Import the mocked modules
 import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
 import { withRetry } from '../utils/retry.js';
+import { MAX_QUEUE_AGE_MS } from '../utils/jobAgeGate.js';
 
 // Get mocked functions
 const mockTranscribeAudio = vi.mocked(transcribeAudio);
@@ -365,6 +366,53 @@ describe('AudioTranscriptionJob', () => {
       const retryFn = mockWithRetry.mock.calls[0][0];
       await retryFn();
       expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, undefined);
+    });
+
+    describe('queue-age gate', () => {
+      // Pinned clock per project standard (02-code-standards.md "Fake Timers
+      // ALWAYS Use"). The other tests in this file don't depend on Date.now(),
+      // so the fake-timer setup lives only in this nested describe to avoid
+      // affecting the rest of the suite. `toFake: ['Date']` keeps setTimeout
+      // real so any retry-path code in the call chain still resolves naturally.
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-04-24T12:00:00Z'));
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('should throw ExpiredJobError when queue-age exceeds threshold', async () => {
+        const jobData: AudioTranscriptionJobData = {
+          requestId: 'test-req-expired',
+          jobType: JobType.AudioTranscription,
+          attachment: {
+            url: 'https://cdn.discordapp.com/expired.ogg',
+            name: 'expired.ogg',
+            contentType: CONTENT_TYPES.AUDIO_OGG,
+            size: 2048,
+            duration: 10,
+          },
+          context: { userId: 'user-123', channelId: 'channel-456' },
+          responseDestination: { type: 'discord', channelId: 'channel-456' },
+        };
+
+        // +1 min past the threshold so the test pins "just-over" rather than
+        // a hardcoded "way over" value. Survives MAX_QUEUE_AGE_MS tuning.
+        const justOverThreshold = Date.now() - MAX_QUEUE_AGE_MS - 60_000;
+        const job = {
+          id: 'audio-test-expired',
+          data: jobData,
+          timestamp: justOverThreshold,
+        } as Job<AudioTranscriptionJobData>;
+
+        await expect(processAudioTranscriptionJob(job)).rejects.toThrow(/likely expired/);
+        // Load-bearing: gate must fire BEFORE any transcription work. Neither
+        // withRetry nor transcribeAudio should have been called.
+        expect(mockWithRetry).not.toHaveBeenCalled();
+        expect(mockTranscribeAudio).not.toHaveBeenCalled();
+      });
     });
 
     it('should throw on invalid job data (Zod validation failure)', async () => {

@@ -17,6 +17,7 @@ import {
 } from '@tzurot/common-types';
 import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
 import { withRetry } from '../utils/retry.js';
+import { checkQueueAge } from '../utils/jobAgeGate.js';
 
 const logger = createLogger('AudioTranscriptionJob');
 
@@ -46,6 +47,15 @@ export async function processAudioTranscriptionJob(
   }
 
   const { requestId, attachment, sourceReferenceNumber } = validation.data;
+
+  // Queue-age gate: fail fast with a classified ExpiredJobError if this job
+  // sat in the queue long enough that its Discord CDN URL has likely expired.
+  // Without this, an expired URL would surface as an opaque HTTP 403 inside
+  // AudioProcessor.fetchAudioBuffer, indistinguishable from "voice engine
+  // unreachable" in dashboards. The LLM generation pipeline has the same
+  // guard in DownloadAttachmentsStep; this keeps the two job families
+  // consistent.
+  checkQueueAge(job, logger);
 
   logger.info(
     {
