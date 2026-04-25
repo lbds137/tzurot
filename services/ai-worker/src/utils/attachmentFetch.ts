@@ -77,6 +77,52 @@ export class AttachmentTooLargeError extends Error {
 }
 
 /**
+ * Maximum aggregate size of all attachments (post-resize) carried inside a
+ * single BullMQ job's data. Stays well under Redis's 512 MiB per-key limit
+ * with headroom for non-attachment payload fields. Image attachments are
+ * resized down well below this; the cap really only fires for non-image
+ * attachments (audio/video) that bypass resize.
+ *
+ * Note: this cap is in **binary bytes** (pre-base64). Data URLs in `job.data`
+ * are base64-encoded, inflating each attachment by ~33% — so a 50 MiB binary
+ * payload produces ~67 MiB of base64 in the serialized job. Still well under
+ * Redis's 512 MiB per-key limit; the conservative cap exists so the
+ * BullMQ JSON.stringify boundary never runs close to the limit.
+ */
+export const MAX_AGGREGATE_PAYLOAD_BYTES = 50 * 1024 * 1024;
+
+/**
+ * Error thrown when the aggregate size of all downloaded attachments in a
+ * single job exceeds MAX_AGGREGATE_PAYLOAD_BYTES. Per-attachment caps are
+ * enforced via AttachmentTooLargeError; this one fires at the job level
+ * after all per-attachment downloads have settled. "Non-retryable" describes
+ * the contract — re-running with the same inputs would just hit the cap
+ * again. Operationally, this and the other pipeline errors never propagate
+ * to BullMQ's retry mechanism: LLMGenerationHandler.processJob's catch block
+ * converts ALL pipeline-step errors into `success: false` result objects, so
+ * BullMQ sees a successful job invocation that returned a failure result.
+ * The "non-retryable" guarantee is therefore automatic, not configuration-
+ * dependent.
+ *
+ * Hazard scenario this guards: 10× 20 MB audio/video files, each under
+ * MAX_ATTACHMENT_BYTES = 25 MiB but together ~260 MB of base64 in
+ * job.data — would otherwise blow Redis's 512 MiB per-key limit at the
+ * BullMQ JSON.stringify boundary with an opaque DataCloneError.
+ */
+export class JobPayloadTooLargeError extends Error {
+  readonly totalBytes: number;
+  readonly limit: number;
+  constructor(totalBytes: number, limit: number) {
+    super(
+      `Job attachments total ${(totalBytes / 1024 / 1024).toFixed(1)} MiB after resize, exceeds aggregate limit of ${(limit / 1024 / 1024).toFixed(0)} MiB`
+    );
+    this.name = 'JobPayloadTooLargeError';
+    this.totalBytes = totalBytes;
+    this.limit = limit;
+  }
+}
+
+/**
  * Validate an attachment URL against SSRF-prevention rules and return a
  * sanitized URL string suitable for fetching.
  *
