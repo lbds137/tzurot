@@ -65,4 +65,6 @@ export enum DebugViewType {
   Reasoning = 'reasoning',
   MemoryInspector = 'memory-inspector',
   TokenBudget = 'token-budget',
+  PipelineHealth = 'pipeline-health',
+  QuickCopy = 'quick-copy',
 }

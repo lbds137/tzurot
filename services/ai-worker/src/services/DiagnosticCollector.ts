@@ -393,7 +393,7 @@ export class DiagnosticCollector {
     if (data.rawContent !== data.deduplicatedContent) {
       transforms.push('duplicate_removal');
     }
-    if (data.thinkingContent !== null && data.thinkingContent !== '') {
+    if (data.thinkingContent !== null && data.thinkingContent.length > 0) {
       transforms.push('thinking_extraction');
     }
     if (data.deduplicatedContent !== data.strippedContent) {
@@ -405,6 +405,44 @@ export class DiagnosticCollector {
       transforms.push('placeholder_replacement');
     }
 
+    // Build per-step pipeline outcomes for the /inspect Pipeline Health view.
+    // Each step is recorded as success | skipped so the renderer can show an
+    // explicit checklist without cross-referencing flags.
+    const pipelineSteps: NonNullable<DiagnosticPostProcessing['pipelineSteps']> = [
+      data.rawContent !== data.deduplicatedContent
+        ? {
+            name: 'duplicate_removal',
+            status: 'success',
+            reason: `removed ${(data.rawContent.length - data.deduplicatedContent.length).toLocaleString()} chars`,
+          }
+        : { name: 'duplicate_removal', status: 'skipped', reason: 'no duplicate detected' },
+      data.thinkingContent !== null && data.thinkingContent.length > 0
+        ? {
+            name: 'thinking_extraction',
+            status: 'success',
+            reason: `extracted ${data.thinkingContent.length.toLocaleString()} chars`,
+          }
+        : { name: 'thinking_extraction', status: 'skipped', reason: 'no reasoning content found' },
+      data.deduplicatedContent !== data.strippedContent
+        ? {
+            name: 'artifact_strip',
+            status: 'success',
+            reason: `stripped ${(data.deduplicatedContent.length - data.strippedContent.length).toLocaleString()} chars`,
+          }
+        : { name: 'artifact_strip', status: 'skipped', reason: 'no artifacts present' },
+      data.strippedContent !== data.finalContent
+        ? {
+            name: 'placeholder_replacement',
+            status: 'success',
+            reason: 'placeholder text replaced',
+          }
+        : {
+            name: 'placeholder_replacement',
+            status: 'skipped',
+            reason: 'no placeholders to replace',
+          },
+    ];
+
     this.postProcessing = {
       transformsApplied: transforms,
       duplicateDetected: data.rawContent !== data.deduplicatedContent,
@@ -412,6 +450,7 @@ export class DiagnosticCollector {
       thinkingContent: data.thinkingContent,
       artifactsStripped,
       finalContent: data.finalContent,
+      pipelineSteps,
     };
   }
 

@@ -61,4 +61,11 @@ describe('buildInspectComponents', () => {
     const selectMenu = rows[1].components[0].toJSON();
     expect('placeholder' in selectMenu && selectMenu.placeholder).toBe('More diagnostic views…');
   });
+
+  it('exposes the expected number of select-menu options', () => {
+    const rows = buildInspectComponents('test-req');
+    const selectMenu = rows[1].components[0].toJSON();
+    // Compact JSON, System Prompt, Memory Inspector, Token Budget, Pipeline Health, Quick Copy
+    expect('options' in selectMenu && selectMenu.options).toHaveLength(6);
+  });
 });

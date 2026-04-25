@@ -241,10 +241,34 @@ export interface DiagnosticLlmResponse {
 }
 
 /**
+ * One step in the post-processing pipeline (deduplication, thinking extraction,
+ * artifact stripping, etc.). Captured per-step so the /inspect Pipeline Health
+ * view can render an explicit checklist instead of inferring step state from
+ * scattered flags.
+ *
+ * Status semantics:
+ * - `success` — step ran AND produced a result (e.g. extracted thinking content,
+ *   stripped artifacts, detected duplicates)
+ * - `skipped` — step ran but produced no result (e.g. no thinking tags found,
+ *   no duplicate to remove, no artifacts present)
+ * - `error` — step threw or otherwise failed; `reason` should explain
+ */
+export interface PipelineStep {
+  /** Step identifier, e.g. "thinking_extraction", "artifact_strip", "duplicate_detection" */
+  name: string;
+  /** Outcome of the step */
+  status: 'success' | 'skipped' | 'error';
+  /** Optional human-readable detail (failure cause, what was extracted, etc.) */
+  reason?: string;
+  /** Optional per-step duration when measured */
+  durationMs?: number;
+}
+
+/**
  * Stage 7: Post-processing applied to the response
  */
 export interface DiagnosticPostProcessing {
-  /** List of transforms applied */
+  /** List of transforms applied (legacy — `pipelineSteps` provides richer detail) */
   transformsApplied: string[];
   /** Whether duplicate content was detected and removed */
   duplicateDetected: boolean;
@@ -256,6 +280,12 @@ export interface DiagnosticPostProcessing {
   artifactsStripped: string[];
   /** Final content sent to Discord */
   finalContent: string;
+  /**
+   * Per-step pipeline outcomes (success / skipped / error). Used by the
+   * /inspect Pipeline Health view as an explicit checklist. Optional for
+   * backward compatibility with logs written before PR #899.
+   */
+  pipelineSteps?: PipelineStep[];
 }
 
 /**
