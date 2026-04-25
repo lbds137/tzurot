@@ -280,6 +280,146 @@ describe('buildMemoryInspectorView', () => {
     const content = result.files![0].attachment.toString();
     expect(content).toContain('_none_');
   });
+
+  describe('filter / sort / Top-N state', () => {
+    function memoryPayload() {
+      const payload = createMockPayload();
+      payload.memoryRetrieval.memoriesFound = [
+        { id: 'm1', score: 0.9, preview: 'p1', includedInPrompt: true },
+        { id: 'm2', score: 0.8, preview: 'p2', includedInPrompt: false },
+        { id: 'm3', score: 0.7, preview: 'p3', includedInPrompt: true },
+        { id: 'm4', score: 0.6, preview: 'p4', includedInPrompt: false },
+        { id: 'm5', score: 0.5, preview: 'p5', includedInPrompt: true },
+      ];
+      return payload;
+    }
+
+    it('default state matches existing behavior (regression)', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX);
+      const text = result.files![0].attachment.toString();
+      // All 5 rows shown
+      expect(text).toContain('p1');
+      expect(text).toContain('p5');
+      expect(text).toContain('5 total');
+      expect(text).toContain('showing 5');
+    });
+
+    it('returns 5-button component row', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX);
+      expect(result.components).toHaveLength(1);
+      expect(result.components![0].components).toHaveLength(5);
+    });
+
+    it('filter=included shows only included rows', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX, {
+        filter: 'included',
+        topN: 0,
+        sort: 'score-desc',
+      });
+      const text = result.files![0].attachment.toString();
+      expect(text).toContain('p1');
+      expect(text).not.toContain('p2');
+      expect(text).toContain('p3');
+      expect(text).not.toContain('p4');
+      expect(text).toContain('p5');
+    });
+
+    it('filter=dropped shows only dropped rows', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX, {
+        filter: 'dropped',
+        topN: 0,
+        sort: 'score-desc',
+      });
+      const text = result.files![0].attachment.toString();
+      expect(text).not.toContain('p1');
+      expect(text).toContain('p2');
+      expect(text).not.toContain('p3');
+      expect(text).toContain('p4');
+      expect(text).not.toContain('p5');
+    });
+
+    it('topN=5 covers all 5 fixture rows', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX, {
+        filter: 'all',
+        topN: 5,
+        sort: 'score-desc',
+      });
+      const text = result.files![0].attachment.toString();
+      expect(text).toContain('showing 5');
+    });
+
+    it('sort=score-asc puts lowest score first', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX, {
+        filter: 'all',
+        topN: 0,
+        sort: 'score-asc',
+      });
+      const text = result.files![0].attachment.toString();
+      // First row index is 1, lowest-scored memory (p5 with 0.50) should be there
+      const firstRowMatch = text.match(/\| 1 \| (\d+\.\d+) \|/);
+      expect(firstRowMatch?.[1]).toBe('0.50');
+    });
+
+    it('sort=included-first groups included rows above dropped', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX, {
+        filter: 'all',
+        topN: 0,
+        sort: 'included-first',
+      });
+      const text = result.files![0].attachment.toString();
+      const p1Idx = text.indexOf('p1'); // included
+      const p3Idx = text.indexOf('p3'); // included
+      const p5Idx = text.indexOf('p5'); // included
+      const p2Idx = text.indexOf('p2'); // dropped
+      const p4Idx = text.indexOf('p4'); // dropped
+      // All included rows appear before any dropped row
+      expect(Math.max(p1Idx, p3Idx, p5Idx)).toBeLessThan(Math.min(p2Idx, p4Idx));
+    });
+
+    it('combined filter + topN + sort: included + topN=5 + score-asc', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX, {
+        filter: 'included',
+        topN: 5,
+        sort: 'score-asc',
+      });
+      const text = result.files![0].attachment.toString();
+      // Included memories sorted by ascending score: p5 (0.5), p3 (0.7), p1 (0.9)
+      // topN=5 covers all 3
+      const p5Idx = text.indexOf('p5');
+      const p3Idx = text.indexOf('p3');
+      const p1Idx = text.indexOf('p1');
+      expect(p5Idx).toBeLessThan(p3Idx);
+      expect(p3Idx).toBeLessThan(p1Idx);
+    });
+
+    it('empty result after filtering shows "no memories match" message', () => {
+      const payload = memoryPayload();
+      // All memories are included, so filter=dropped → empty
+      payload.memoryRetrieval.memoriesFound = payload.memoryRetrieval.memoriesFound.map(m => ({
+        ...m,
+        includedInPrompt: true,
+      }));
+      const result = buildMemoryInspectorView(payload, 'req-1', OWNER_CTX, {
+        filter: 'dropped',
+        topN: 0,
+        sort: 'score-desc',
+      });
+      const text = result.files![0].attachment.toString();
+      expect(text).toContain('No memories match filter');
+    });
+
+    it('non-owner with filter applied still redacts previews', () => {
+      const result = buildMemoryInspectorView(memoryPayload(), 'req-1', NON_OWNER_CTX, {
+        filter: 'included',
+        topN: 0,
+        sort: 'score-desc',
+      });
+      const text = result.files![0].attachment.toString();
+      expect(text).toContain('[REDACTED]');
+      expect(text).not.toContain('p1');
+      expect(text).not.toContain('p3');
+    });
+  });
 });
 
 describe('buildTokenBudgetView', () => {

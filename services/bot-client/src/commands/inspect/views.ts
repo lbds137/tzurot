@@ -9,15 +9,29 @@
  * `viewContext.ts` for the ownership-resolution logic.
  */
 
-import { AttachmentBuilder, MessageFlags } from 'discord.js';
-import type { DiagnosticPayload } from '@tzurot/common-types';
+import {
+  ActionRowBuilder,
+  AttachmentBuilder,
+  MessageFlags,
+  type MessageActionRowComponentBuilder,
+} from 'discord.js';
+import type { DiagnosticPayload, DiagnosticMemoryEntry } from '@tzurot/common-types';
 import type { ViewContext } from './viewContext.js';
+import {
+  DEFAULT_MEMORY_STATE,
+  applyMemoryFilter,
+  applySort,
+  applyTopN,
+  buildMemoryFilterButtons,
+  type MemoryInspectorState,
+} from './memoryInspectorState.js';
 
-/** Return type for view builders — either a content string or file attachments */
+/** Return type for view builders — content string, file attachments, and optional component rows. */
 export interface DebugViewResult {
   content?: string;
   files?: AttachmentBuilder[];
   flags?: MessageFlags;
+  components?: ActionRowBuilder<MessageActionRowComponentBuilder>[];
 }
 
 /** Sentinel string used in JSON views to redact a system-prompt message body */
@@ -224,51 +238,75 @@ export function buildReasoningView(
 // Memory Inspector
 // ---------------------------------------------------------------------------
 
-/** Scored memories table with inclusion status */
+function formatMemoryRow(
+  m: DiagnosticMemoryEntry,
+  index: number,
+  canViewCharacter: boolean
+): string {
+  const status = m.includedInPrompt ? 'Included' : 'Dropped (budget)';
+  const preview = canViewCharacter
+    ? m.preview.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+    : REDACTED_MEMORY_PREVIEW;
+  return `| ${index + 1} | ${m.score.toFixed(2)} | ${status} | ${preview} |`;
+}
+
+function renderMemoryTable(
+  memories: readonly DiagnosticMemoryEntry[],
+  allMemories: readonly DiagnosticMemoryEntry[],
+  tokenBudget: { memoryTokensUsed: number },
+  canViewCharacter: boolean
+): string[] {
+  const includedTotal = allMemories.filter(m => m.includedInPrompt).length;
+  // Budget drops happened over the full unfiltered retrieval, not the filtered view —
+  // hence allMemories rather than memories. Variable name is explicit to avoid
+  // confusion with filter-induced row exclusion.
+  const budgetDropped = allMemories.length - includedTotal;
+  const lines = [
+    `## Retrieved Memories (${allMemories.length} total, ${includedTotal} included, showing ${memories.length})`,
+  ];
+  if (!canViewCharacter) {
+    lines.push('');
+    lines.push('🔒 _Memory previews redacted — this personality is owned by another user._');
+  }
+  lines.push('', '| # | Score | Status | Preview |', '|---|-------|--------|---------|');
+  for (let i = 0; i < memories.length; i++) {
+    lines.push(formatMemoryRow(memories[i], i, canViewCharacter));
+  }
+  lines.push('');
+  lines.push(
+    `**Token Budget:** ${tokenBudget.memoryTokensUsed} tokens allocated, ${budgetDropped} memories dropped for budget`
+  );
+  return lines;
+}
+
+/** Scored memories table with inclusion status. Applies filter → sort → Top-N. */
 export function buildMemoryInspectorView(
   payload: DiagnosticPayload,
   requestId: string,
-  ctx: ViewContext
+  ctx: ViewContext,
+  state: MemoryInspectorState = DEFAULT_MEMORY_STATE
 ): DebugViewResult {
   const { memoryRetrieval, inputProcessing, tokenBudget } = payload;
-  const memories = memoryRetrieval.memoriesFound;
+  const allMemories = memoryRetrieval.memoriesFound;
+  const filtered = applyMemoryFilter(allMemories, state.filter);
+  const sorted = applySort(filtered, state.sort);
+  const memories = applyTopN(sorted, state.topN);
 
   const lines: string[] = [
     '# Memory Inspector',
     '',
     `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : '_none_'}`,
     `**Focus Mode:** ${memoryRetrieval.focusModeEnabled ? 'Enabled' : 'Disabled'}`,
+    `**Filter:** ${state.filter} · **Sort:** ${state.sort} · **Top-N:** ${state.topN === 0 ? 'all' : state.topN}`,
     '',
   ];
 
-  if (memories.length === 0) {
+  if (allMemories.length === 0) {
     lines.push('_No memories retrieved for this request._');
+  } else if (memories.length === 0) {
+    lines.push(`_No memories match filter "${state.filter}"._`);
   } else {
-    const included = memories.filter(m => m.includedInPrompt).length;
-    const dropped = memories.length - included;
-
-    lines.push(`## Retrieved Memories (${memories.length} found, ${included} included)`);
-    if (!ctx.canViewCharacter) {
-      lines.push('');
-      lines.push('🔒 _Memory previews redacted — this personality is owned by another user._');
-    }
-    lines.push('');
-    lines.push('| # | Score | Status | Preview |');
-    lines.push('|---|-------|--------|---------|');
-
-    for (let i = 0; i < memories.length; i++) {
-      const m = memories[i];
-      const status = m.includedInPrompt ? 'Included' : 'Dropped (budget)';
-      const preview = ctx.canViewCharacter
-        ? m.preview.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
-        : REDACTED_MEMORY_PREVIEW;
-      lines.push(`| ${i + 1} | ${m.score.toFixed(2)} | ${status} | ${preview} |`);
-    }
-
-    lines.push('');
-    lines.push(
-      `**Token Budget:** ${tokenBudget.memoryTokensUsed} tokens allocated, ${dropped} memories dropped for budget`
-    );
+    lines.push(...renderMemoryTable(memories, allMemories, tokenBudget, ctx.canViewCharacter));
   }
 
   const content = lines.join('\n');
@@ -279,6 +317,7 @@ export function buildMemoryInspectorView(
         description: 'Memory retrieval details',
       }),
     ],
+    components: [buildMemoryFilterButtons(requestId, state)],
     flags: MessageFlags.Ephemeral,
   };
 }
