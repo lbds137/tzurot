@@ -240,6 +240,39 @@ describe('DiagnosticRecorders', () => {
       expect(debug.rawContentPreview).toBe('Short content');
     });
 
+    it('should surface upstream OpenRouter provider from responseMetadata.openrouter (NOT LangChain hardcoded "openai")', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        responseMetadata: {
+          openrouter: {
+            provider: 'Parasail',
+            apiMessageKeys: ['role', 'content', 'reasoning', 'reasoning_details'],
+            apiReasoningLength: 1994,
+          },
+        },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'z-ai/glm-4.7', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      const debug = call.reasoningDebug as Record<string, unknown>;
+      expect(debug.upstreamProvider).toBe('Parasail');
+      expect(debug.apiMessageKeys).toEqual(['role', 'content', 'reasoning', 'reasoning_details']);
+      expect(debug.apiReasoningLength).toBe(1994);
+    });
+
+    it('should leave openrouter.* fields undefined when responseMetadata.openrouter is absent', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', {});
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      const debug = call.reasoningDebug as Record<string, unknown>;
+      expect(debug.upstreamProvider).toBeUndefined();
+      expect(debug.apiMessageKeys).toBeUndefined();
+      expect(debug.apiReasoningLength).toBeUndefined();
+    });
+
     it('should infer stop sequence when finish_reason is stop but content lacks </message>', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
       const metadata: ParsedResponseMetadata = {

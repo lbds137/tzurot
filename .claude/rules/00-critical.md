@@ -132,6 +132,24 @@ gh pr merge 714 --rebase                  # develop survives
 
 **Uncommitted changes = HOURS OF WORK.** When user says "get changes" → COMMIT, not DISCARD.
 
+### Standing permission: feature-branch commits and pushes
+
+Routine `git add <files>` + `git commit` + `git push` to feature branches is **pre-authorized**. After implementation work passes its verification (tests + quality), proceed straight to: branch → stage specific files → commit → push → `gh pr create`. Don't ask "want me to commit?" — the user reviews on the PR diff, not on a per-commit prompt.
+
+**Gate**: `pnpm test` and `pnpm quality` must be green before the commit-push-PR cycle runs. Don't commit to get CI to check for you — CI is a second line of defense, not a substitute for local verification. If either fails, fix the failure (or escalate to the user if the failure is unclear) before commit; do not commit a known-broken state with the intent to follow up.
+
+**This permission applies ONLY to feature branches.** Direct commits to `main` or `develop` remain forbidden — open a PR instead.
+
+**This permission does NOT extend to:**
+
+- Anything in the "Destructive Commands - ASK FIRST" table above (force-push, reset --hard, restore, clean, kill processes, rm -rf)
+- `gh pr merge` (always needs explicit user approval — see "Never Merge PRs Without User Approval" below)
+- Branch deletion (`git branch -D`, `--delete-branch` flag on `gh pr merge`) on long-lived branches (main/develop)
+- Skipping hooks (`--no-verify`, `--no-gpg-sign`)
+- Touching `.env` or files that may contain secrets
+
+**Why this rule exists**: applying "ask before any commit" too literally produced decision-fatigue noise — the user was rubber-stamping commits one-by-one when the meaningful review surface is the PR diff. A standing pre-authorization for the routine commit-push-PR cycle, paired with the unchanged "ask first" gates above, restores the right asymmetry: low cost for routine actions, high cost for irreversible ones. Established 2026-04-25.
+
 ### Before Code Changes
 
 1. Read the ENTIRE file first

@@ -28,6 +28,7 @@ import {
   type ChatModelResult,
   type ModelConfig,
 } from './ModelFactory.js';
+import { extractAndPopulateOpenRouterReasoning } from './modelFactory/extractOpenRouterReasoning.js';
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
@@ -243,6 +244,13 @@ export class LLMInvoker {
 
     // Invoke with per-attempt timeout (3 minutes per attempt)
     const response = await model.invoke(messages, invokeOptions);
+
+    // Extract OpenRouter reasoning from additional_kwargs.__raw_response and
+    // populate the standard fields downstream consumers expect. Mutates response
+    // in place — the return value is intentionally discarded; the in-place
+    // mutation IS the contract that ResponsePostProcessor / DiagnosticRecorders
+    // observe. See extractOpenRouterReasoning.ts header for full rationale.
+    extractAndPopulateOpenRouterReasoning(response);
 
     // Log finish_reason for completion quality diagnostics
     // This helps identify models that fail to emit stop tokens (hallucinated turn bug)
