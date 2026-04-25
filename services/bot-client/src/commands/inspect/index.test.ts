@@ -269,6 +269,18 @@ describe('handleButton', () => {
       customId: InspectCustomIds.button(requestId, viewType),
       user: { id: userId },
       deferReply: vi.fn().mockResolvedValue(undefined),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('discord.js').ButtonInteraction;
+  }
+
+  function createMockMemoryButtonInteraction(userId = 'owner-123') {
+    const requestId = 'test-req-123';
+    return {
+      customId: InspectCustomIds.memoryButton(requestId, 'included', 5, 'score-asc'),
+      user: { id: userId },
+      deferReply: vi.fn().mockResolvedValue(undefined),
+      deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').ButtonInteraction;
   }
@@ -311,6 +323,30 @@ describe('handleButton', () => {
 
     expect(interaction.deferReply).not.toHaveBeenCalled();
     expect(interaction.editReply).not.toHaveBeenCalled();
+  });
+
+  it('uses deferUpdate (not deferReply) for memory-state filter buttons', async () => {
+    // deferUpdate edits the existing ephemeral message in place, so successive
+    // filter clicks don't accumulate as separate messages in the user's view.
+    const mockPayload = createMockDiagnosticPayload();
+    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
+
+    const interaction = createMockMemoryButtonInteraction();
+    await inspectCommand.handleButton!(interaction);
+
+    expect(interaction.deferUpdate).toHaveBeenCalledTimes(1);
+    expect(interaction.deferReply).not.toHaveBeenCalled();
+  });
+
+  it('uses deferReply for non-memory view-navigation buttons', async () => {
+    const mockPayload = createMockDiagnosticPayload();
+    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
+
+    const interaction = createMockButtonInteraction(DebugViewType.FullJson);
+    await inspectCommand.handleButton!(interaction);
+
+    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    expect(interaction.deferUpdate).not.toHaveBeenCalled();
   });
 });
 
