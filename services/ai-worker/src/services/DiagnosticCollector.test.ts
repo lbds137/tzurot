@@ -593,6 +593,88 @@ describe('DiagnosticCollector', () => {
 
       expect(payload.postProcessing.transformsApplied).toHaveLength(0);
     });
+
+    describe('pipelineSteps', () => {
+      it('should mark all four steps as skipped when nothing changes', () => {
+        collector.recordPostProcessing({
+          rawContent: 'Simple response',
+          deduplicatedContent: 'Simple response',
+          thinkingContent: null,
+          strippedContent: 'Simple response',
+          finalContent: 'Simple response',
+        });
+
+        const steps = collector.finalize().postProcessing.pipelineSteps;
+        expect(steps).toBeDefined();
+        expect(steps).toHaveLength(4);
+        expect(steps?.map(s => s.name)).toEqual([
+          'duplicate_removal',
+          'thinking_extraction',
+          'artifact_strip',
+          'placeholder_replacement',
+        ]);
+        expect(steps?.every(s => s.status === 'skipped')).toBe(true);
+      });
+
+      it('should mark duplicate_removal success when raw differs from dedup', () => {
+        collector.recordPostProcessing({
+          rawContent: 'Hello Hello',
+          deduplicatedContent: 'Hello',
+          thinkingContent: null,
+          strippedContent: 'Hello',
+          finalContent: 'Hello',
+        });
+
+        const steps = collector.finalize().postProcessing.pipelineSteps;
+        const dup = steps?.find(s => s.name === 'duplicate_removal');
+        expect(dup?.status).toBe('success');
+        expect(dup?.reason).toMatch(/6 chars/);
+      });
+
+      it('should mark thinking_extraction success when thinkingContent present', () => {
+        collector.recordPostProcessing({
+          rawContent: '<thinking>Plan</thinking>Reply',
+          deduplicatedContent: '<thinking>Plan</thinking>Reply',
+          thinkingContent: 'Plan',
+          strippedContent: 'Reply',
+          finalContent: 'Reply',
+        });
+
+        const steps = collector.finalize().postProcessing.pipelineSteps;
+        const think = steps?.find(s => s.name === 'thinking_extraction');
+        expect(think?.status).toBe('success');
+        expect(think?.reason).toMatch(/4 chars/);
+      });
+
+      it('should mark artifact_strip success when dedup differs from stripped', () => {
+        collector.recordPostProcessing({
+          rawContent: 'Content with artifact',
+          deduplicatedContent: 'Content with artifact',
+          thinkingContent: null,
+          strippedContent: 'Content',
+          finalContent: 'Content',
+        });
+
+        const steps = collector.finalize().postProcessing.pipelineSteps;
+        const strip = steps?.find(s => s.name === 'artifact_strip');
+        expect(strip?.status).toBe('success');
+        expect(strip?.reason).toMatch(/14 chars/);
+      });
+
+      it('should mark placeholder_replacement success when stripped differs from final', () => {
+        collector.recordPostProcessing({
+          rawContent: 'Hello {{USER}}',
+          deduplicatedContent: 'Hello {{USER}}',
+          thinkingContent: null,
+          strippedContent: 'Hello {{USER}}',
+          finalContent: 'Hello Lila',
+        });
+
+        const steps = collector.finalize().postProcessing.pipelineSteps;
+        const ph = steps?.find(s => s.name === 'placeholder_replacement');
+        expect(ph?.status).toBe('success');
+      });
+    });
   });
 
   describe('timing', () => {

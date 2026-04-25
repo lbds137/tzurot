@@ -87,6 +87,18 @@ export function buildInspectComponents(
         description: 'ASCII breakdown of context window allocation',
         value: DebugViewType.TokenBudget,
         emoji: '📊',
+      },
+      {
+        label: 'Pipeline Health',
+        description: 'Per-step post-processing outcomes (checklist)',
+        value: DebugViewType.PipelineHealth,
+        emoji: '🩺',
+      },
+      {
+        label: 'Quick Copy',
+        description: 'Single-line summary for incident threads',
+        value: DebugViewType.QuickCopy,
+        emoji: '📎',
       }
     );
 

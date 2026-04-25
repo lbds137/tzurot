@@ -38,6 +38,7 @@ import {
   buildMemoryInspectorView,
   buildTokenBudgetView,
 } from './views.js';
+import { buildPipelineHealthView, buildQuickCopySummaryView } from './extendedViews.js';
 import { computeViewContext } from './viewContext.js';
 
 const logger = createLogger('inspect');
@@ -50,6 +51,8 @@ const VIEW_BUILDERS = {
   [DebugViewType.Reasoning]: buildReasoningView,
   [DebugViewType.MemoryInspector]: buildMemoryInspectorView,
   [DebugViewType.TokenBudget]: buildTokenBudgetView,
+  [DebugViewType.PipelineHealth]: buildPipelineHealthView,
+  [DebugViewType.QuickCopy]: buildQuickCopySummaryView,
 } as const;
 
 /**
