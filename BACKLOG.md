@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-04-20
-> **Version**: v3.0.0-beta.101 (released — next unreleased bundle starts fresh on develop)
+> **Last Updated**: 2026-04-25
+> **Version**: v3.0.0-beta.106 (released — next unreleased bundle starts fresh on develop)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -13,13 +13,17 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-_None currently._
+- 🐛 `[FIX]` **GLM-4.7 untagged thinking-leak (NEW shape, distinct from PR #888)** — Observed 2026-04-25 in inspect-log for request `30a5af6d-6c29-458d-a6ed-9f817f1f6364` (Lila personality, GLM-4.7, `reasoning.enabled: true`, `showThinking: false`). Model dumped ~2000 chars of meta-planning prose at the top of the response BEFORE the in-character content: third-person summary ("Lila has been scrolling..."), reasoning bullets ("My reaction as Lila Elyona:"), tone planning ("Tone: warm, knowing..."), key-themes outline, structure outline, format reminders ("No quotation marks for dialogue"). NO XML tags — purely unstructured prose. The existing `GLM_47_META_PREAMBLE_PATTERN` (PR #888) catches `<user>/<character>/<analysis>` tag-wrapped leaks; this shape would slip past entirely. **Critical: validates that inspect-log capture is working correctly** — `rawContent` has the full leak, `postProcessing.thinkingExtracted: false`, `reasoningDebug.hasReasoningInKwargs: false`, `reasoningDebug.reasoningKwargsLength: 0`. So the API returned ZERO content in the structured `reasoning` field and dumped everything into `content`. **User reports leak frequency seems to be increasing**, suggesting either (a) GLM-4.7 is honoring `reasoning.enabled: true` less consistently, (b) `showThinking: false` is being ignored, or (c) the model is degrading. **Fix shape**: needs investigation phase first — verify the structured-reasoning channel honoring rate via inspect-log sample, then either (i) widen the heuristic to detect untagged meta-planning prose (risky — could false-positive on legitimate intro paragraphs), or (ii) document the OpenRouter quirk and consider switching to a more reliable reasoning-channel model. Auto-memory `project_glm_47_quirks.md` to be updated. Surfaced 2026-04-25 by user inspect-log review post beta.106 release. Inspect-log file: `/home/deck/.claude/uploads/eb24bfc9-a1a8-4fcc-a360-b166913664d2/019dc301-debugcompact30a5af6d6c29458da6ed9f817f1f6364.json`.
 
 ---
 
 ## 📥 Inbox
 
 _New items go here. Triage to appropriate section weekly._
+
+- 🧹 `[CHORE]` **Handler-level test for `MEDIA_NOT_FOUND` classification in `LLMGenerationHandler` catch** — `LLMGenerationHandler.test.ts` only covers `errorInfo` population on the GenerationStep failure path (which classifies as `UNKNOWN`). The DownloadAttachments → `MEDIA_NOT_FOUND` mapping at `LLMGenerationHandler.ts:117` has unit-level coverage in `DownloadAttachmentsStep.test.ts` (the throw-when-no-text case) but no integration-level coverage that asserts the classification reaches `result.errorInfo.category`. A future refactor could silently break the step-name check. **Fix shape**: add a test that mocks `DownloadAttachmentsStep.prototype.process` to throw and verifies `result.errorInfo.category === ApiErrorCategory.MEDIA_NOT_FOUND`. Surfaced 2026-04-25 by claude-bot review on PR #893 round 7. ~15 min.
+
+- 🛡️ `[FIX]` **Uncompressed IPv6 loopback gap in `isPrivateOrInternalIpv6`** — `0:0:0:0:0:0:0:1` (uncompressed form of `::1`) satisfies `isIPv6()` but doesn't match the `lower === '::1'` comparison, so returns `false` (treated as public). **NOT exploitable through current call path**: `validateExternalImageUrl` rejects IP literals as hostnames AND `dns.lookup` returns RFC 5952 canonical form (`::1`). Defense-in-depth gap that surfaces only if `isPrivateOrInternalIp` gets reused in a new context. Surfaced 2026-04-25 by claude-bot review on release PR #894. **Fix shape**: add `lower === '0:0:0:0:0:0:0:1'` (and possibly other zero-padded variants) to the loopback check + a test case. ~3 min.
 
 - 🐛 `[FIX]` **GLM-family meta-preamble pattern drift** — GLM-4.5-Air and GLM-4.7 each shipped distinct preamble tag vocabularies (`<from_id>/<user>/<message>` for 4.5-Air, `<user>/<character>/<analysis>` for 4.7). Each revision needs its own extractor added to Pass 1 of `services/ai-worker/src/utils/thinkingExtraction.ts`. **Watch-item, not actionable yet**: when new GLM revisions deploy, monitor production logs for the existing `Stripped leading meta-preamble scaffolding` log lines NOT firing on reasoning-enabled responses where output looks structured. A new vocabulary will surface as unexplained user complaints ("why is my response starting with weird XML?") and absent log lines. Promotes to 🚨 Production Issues on first observed drift. Reference: PR #888 (GLM-4.7), PR #875 (GLM-4.5-Air), auto-memory `project_glm_47_quirks.md`. Surfaced 2026-04-24 by PR #888 review.
 

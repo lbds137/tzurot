@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-04-24 (long session — substantial work across attachment refactor, multiple PR review cycles, workflow rule + CI infrastructure, **beta.105 released**)
-> **Version**: v3.0.0-beta.105 (released 2026-04-24)
+> **Session**: 2026-04-24 → 2026-04-25 (extended marathon — beta.105 released, then beta.105 production failures caught + beta.106 hotfix released within hours)
+> **Version**: v3.0.0-beta.106 (released 2026-04-25)
 
 ---
 
@@ -60,15 +60,16 @@ _None. Session paused after PR #891 merged + post-merge cleanup committed + deve
 
 ---
 
-## Unreleased on Develop (since beta.105)
+## Unreleased on Develop (since beta.106)
 
-_Nothing yet — beta.105 was just cut._
+_Nothing yet — beta.106 was just cut._
 
 ---
 
 ## Previous Sessions
 
-- **2026-04-24** (this session): 7 PRs merged (#885, #886, #887, #888, #889, #890, #891) + new review-response rule + CI `fixup-check` job + workflow rule amendments + 2 develop history cleanups + **beta.105 cut** (PR #892).
+- **2026-04-25** (continuation of marathon): beta.105 production failures observed within minutes of deploy (extended-context embed images from external URLs aborted entire conversations); audit + council consultation surfaced 3 critical hardening items I'd have missed; PR #893 shipped beta.106 hotfix after **8 review rounds** and a real security bug catch (Teredo RFC 5952 canonical-form gap, found by claude-bot, would have shipped if reviewer hadn't caught it); release ceremony cut (PR #894).
+- **2026-04-24**: 7 PRs merged (#885, #886, #887, #888, #889, #890, #891) + new review-response rule + CI `fixup-check` job + workflow rule amendments + 2 develop history cleanups + **beta.105 cut** (PR #892).
 - **2026-04-23**: Identity Epic CLOSED + ApiCheck autocomplete cache + Inbox triage.
 - **2026-04-22 → 2026-04-23**: v3.0.0-beta.104 released. Phase 5c PR C cutover + tech-debt sweep PR #866.
 - **2026-04-21**: Tech-debt sweep PR #866.
@@ -80,6 +81,7 @@ _Nothing yet — beta.105 was just cut._
 
 ## Recent Releases
 
+- **v3.0.0-beta.106** (2026-04-25) — Hotfix for beta.105 production failures: external embed images (Reddit/Imgur/Tenor) now reach the LLM via new `safeExternalFetch` module with layered SSRF defenses (DNS-resolution + IP-range guards including IPv4-mapped/6to4/Teredo recursion, browser User-Agent, Content-Type assertion); single bad URL no longer aborts whole conversation (partial-success tolerance in DownloadAttachmentsStep); bot error replies now include actual failure detail in spoiler tag instead of generic "Sorry, I encountered an error" (errorInfo populated in pipeline catch); VisionProcessor SSRF theater dropped (LLM provider does the fetch). Council-reviewed (Gemini 3.1 Pro Preview). 8 review rounds with 1 real security bug caught by claude-bot (Teredo RFC 5952 canonical-form gap).
 - **v3.0.0-beta.105** (2026-04-24) — Attachment download lifted from api-gateway to ai-worker (#889); downloadAll hardening + 50 MiB aggregate cap (#890); transcription queue-age gate (#891); GLM-4.7 meta-preamble fix (#888); two-tier autocomplete cache (#884); identity Phase 6 part 2 + ESLint rule (#881, #882); pglite CHECK constraints (#887); typing-indicator classifier (#886); autocomplete sentinel guards (#885); uuid CVE pin.
 - **v3.0.0-beta.104** (2026-04-23) — shapes.inc cookie migrated Auth0 → Better Auth; GLM-4.5-air thought leak via Chain-of-Extractors pattern; new release tooling; bot-client submit-job timeout bump.
 - **v3.0.0-beta.103** (2026-04-22) — Identity Epic Phase 5c PR C cutover; voice multi-chunk TTS Opus fix; `ApiCheck<T>` tri-state type; tech-debt paydown.
