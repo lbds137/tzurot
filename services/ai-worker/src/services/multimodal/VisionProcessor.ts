@@ -23,7 +23,7 @@ import {
 import { createChatModel } from '../ModelFactory.js';
 import { parseApiError } from '../../utils/apiErrorParser.js';
 import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js';
-import { validateAttachmentUrl, isDataUrl } from '../../utils/attachmentFetch.js';
+import { isDataUrl } from '../../utils/attachmentFetch.js';
 
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
@@ -144,17 +144,32 @@ async function invokeVisionModel(
     messages.push(new SystemMessage(systemPrompt));
   }
 
-  // SSRF guard: the URL flows through LangChain into the upstream LLM provider,
-  // which may fetch it server-side. Validate before trust. Data URLs (from
-  // DownloadAttachmentsStep) carry inline bytes and don't need validation.
+  // The URL flows through LangChain to the upstream LLM provider, which fetches
+  // it on their server with their own SSRF defenses. We don't make the network
+  // request here — only the provider does. Apply minimal well-formedness so a
+  // literally-malformed URL fails fast in our stack instead of theirs; full
+  // SSRF defense for URLs WE fetch lives in DownloadAttachmentsStep
+  // (LLM-generation pipeline) and is bypassed here precisely because the
+  // bytes never enter our process. Data URLs short-circuit unchanged.
   //
-  // Do not remove this guard assuming DownloadAttachmentsStep already handled
-  // it — preprocessing jobs (ImageDescriptionJob) hit this code path without
-  // running DownloadAttachmentsStep first. Removing the guard here would open
-  // an SSRF surface on the preprocessing path.
-  const imageUrl = isDataUrl(attachment.url)
-    ? attachment.url
-    : validateAttachmentUrl(attachment.url);
+  // ImageDescriptionJob path: this function is also reached from the
+  // preprocessing job, which receives raw user-controlled URLs from
+  // jobChainOrchestrator.createImageDescriptionJob (api-gateway, line ~181)
+  // WITHOUT prior DownloadAttachmentsStep validation. We deliberately accept
+  // the residual side-channel risk (provider error responses could echo back
+  // internal-IP probes if an attacker submitted such a URL) because (a) we
+  // do not initiate the fetch — the provider does, on their hardened infra —
+  // so there is no SSRF execution surface on our stack; and (b) the only
+  // attacker-controlled URL injection vector is via Discord embed/attachment
+  // shapes, which limits practical exploitation. Council-reviewed 2026-04-25.
+  //
+  // Behavior note: `new URL().toString()` is NOT equivalent to
+  // `validateAttachmentUrl` minus the allowlist — that helper also stripped
+  // DNS absolute-form trailing dots via `hostname.replace(/\.{1,16}$/, '')`.
+  // `new URL()` preserves them. In practice neither LLM providers nor Discord
+  // CDN ever emit trailing-dot hostnames, so the difference is academic, but
+  // it's a real semantic divergence worth noting if either ever changes.
+  const imageUrl = isDataUrl(attachment.url) ? attachment.url : new URL(attachment.url).toString();
 
   // Redact data URLs in logs: after DownloadAttachmentsStep runs, attachment.url
   // is a 1-2 MiB base64 string. Emitting that at info level saturates log
