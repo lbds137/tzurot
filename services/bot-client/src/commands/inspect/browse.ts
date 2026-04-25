@@ -312,7 +312,10 @@ export async function handleBrowseLogSelection(
     }
 
     const embed = buildDiagnosticEmbed(result.log.data);
-    const inspectComponents = buildInspectComponents(result.log.requestId);
+    const inspectComponents = buildInspectComponents(
+      result.log.requestId,
+      result.log.data.postProcessing.thinkingContent?.length ?? 0
+    );
     const backRow = buildBackToListRow(parsed.page);
 
     await interaction.editReply({

@@ -31,4 +31,34 @@ describe('buildInspectComponents', () => {
     const button = buttonRow.components[0].toJSON();
     expect('custom_id' in button && button.custom_id).toContain('inspect::');
   });
+
+  it('omits byte hint on View Reasoning button when thinking length is 0 / not passed', () => {
+    const rows = buildInspectComponents('test-req');
+    const reasoningButton = rows[0].components[0].toJSON();
+    expect('label' in reasoningButton && reasoningButton.label).toBe('View Reasoning');
+  });
+
+  it('shows raw count when thinking content is under 1k chars', () => {
+    const rows = buildInspectComponents('test-req', 250);
+    const reasoningButton = rows[0].components[0].toJSON();
+    expect('label' in reasoningButton && reasoningButton.label).toBe('View Reasoning (250)');
+  });
+
+  it('shows X.Xk format for 1k-99k char range', () => {
+    const rows = buildInspectComponents('test-req', 1063);
+    const reasoningButton = rows[0].components[0].toJSON();
+    expect('label' in reasoningButton && reasoningButton.label).toBe('View Reasoning (1.1k)');
+  });
+
+  it('shows integer Xk format for 100k+ chars', () => {
+    const rows = buildInspectComponents('test-req', 145_300);
+    const reasoningButton = rows[0].components[0].toJSON();
+    expect('label' in reasoningButton && reasoningButton.label).toBe('View Reasoning (145k)');
+  });
+
+  it('uses the more-descriptive select-menu placeholder', () => {
+    const rows = buildInspectComponents('test-req');
+    const selectMenu = rows[1].components[0].toJSON();
+    expect('placeholder' in selectMenu && selectMenu.placeholder).toBe('More diagnostic views…');
+  });
 });
