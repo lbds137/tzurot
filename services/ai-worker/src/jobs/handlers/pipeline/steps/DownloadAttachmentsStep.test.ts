@@ -28,20 +28,30 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 // Mock the attachmentFetch utility so tests control fetch / validation /
-// resize without hitting network or sharp. ExpiredJobError and the data-url
-// helpers are passed through from the real module.
-const { fetchAttachmentBytesMock, validateAttachmentUrlMock, resizeImageIfNeededMock } = vi.hoisted(
-  () => ({
-    fetchAttachmentBytesMock: vi.fn(),
-    validateAttachmentUrlMock: vi.fn((url: string) => url),
-    // Default: pass-through — returns { buffer, contentType } matching the real
-    // function's no-resize branch. Individual tests override to simulate the
-    // JPEG-conversion path when they want to exercise it.
-    resizeImageIfNeededMock: vi.fn((buffer: Buffer, contentType: string) =>
-      Promise.resolve({ buffer, contentType })
-    ),
-  })
-);
+// resize / data-URL building without hitting network or sharp. Error classes
+// (ExpiredJobError, AttachmentTooLargeError, etc.) are passed through from
+// the real module.
+const {
+  fetchAttachmentBytesMock,
+  validateAttachmentUrlMock,
+  resizeImageIfNeededMock,
+  bufferToDataUrlMock,
+} = vi.hoisted(() => ({
+  fetchAttachmentBytesMock: vi.fn(),
+  validateAttachmentUrlMock: vi.fn((url: string) => url),
+  // Default: pass-through — returns { buffer, contentType } matching the real
+  // function's no-resize branch. Individual tests override to simulate the
+  // JPEG-conversion path when they want to exercise it.
+  resizeImageIfNeededMock: vi.fn((buffer: Buffer, contentType: string) =>
+    Promise.resolve({ buffer, contentType })
+  ),
+  // Mocked separately so tests can pass non-Buffer fixtures (e.g. fake
+  // oversized objects with only a byteLength field) without depending on
+  // the real bufferToDataUrl's Buffer.toString('base64') behavior.
+  bufferToDataUrlMock: vi.fn(
+    (_buffer: Buffer, contentType: string) => `data:${contentType};base64,FAKE`
+  ),
+}));
 
 vi.mock('../../../../utils/attachmentFetch.js', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../../utils/attachmentFetch.js')>();
@@ -50,6 +60,7 @@ vi.mock('../../../../utils/attachmentFetch.js', async importOriginal => {
     fetchAttachmentBytes: fetchAttachmentBytesMock,
     validateAttachmentUrl: validateAttachmentUrlMock,
     resizeImageIfNeeded: resizeImageIfNeededMock,
+    bufferToDataUrl: bufferToDataUrlMock,
   };
 });
 
@@ -105,6 +116,9 @@ describe('DownloadAttachmentsStep', () => {
     validateAttachmentUrlMock.mockImplementation((url: string) => url);
     resizeImageIfNeededMock.mockImplementation((buffer: Buffer, contentType: string) =>
       Promise.resolve({ buffer, contentType })
+    );
+    bufferToDataUrlMock.mockImplementation(
+      (_buffer: Buffer, contentType: string) => `data:${contentType};base64,FAKE`
     );
     // retryDelayMs = 0 so the retry test finishes instantly instead of waiting
     // on a real 500ms setTimeout. Production uses the 500ms default.
@@ -314,9 +328,10 @@ describe('DownloadAttachmentsStep', () => {
     const smallBuf = Buffer.from('placeholder');
     fetchAttachmentBytesMock.mockResolvedValue(smallBuf);
     // Simulate two non-image attachments that bypass resize at ~30 MiB each
-    // (combined: 60 MiB > 50 MiB cap). resizeImageIfNeeded passes through
-    // non-images unchanged, but we override to return a fake oversized
-    // buffer-shaped object so the size sum trips the gate.
+    // (combined: 60 MiB > 50 MiB cap). The fake { byteLength } object never
+    // reaches a real Buffer method — bufferToDataUrlMock at module scope
+    // accepts any input and returns a placeholder data URL, and the size
+    // sum is computed directly from the byteLength field.
     const fakeOversized = { byteLength: 30 * 1024 * 1024 } as Buffer;
     resizeImageIfNeededMock.mockResolvedValue({
       buffer: fakeOversized,

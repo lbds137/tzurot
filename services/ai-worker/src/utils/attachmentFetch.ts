@@ -82,6 +82,12 @@ export class AttachmentTooLargeError extends Error {
  * with headroom for non-attachment payload fields. Image attachments are
  * resized down well below this; the cap really only fires for non-image
  * attachments (audio/video) that bypass resize.
+ *
+ * Note: this cap is in **binary bytes** (pre-base64). Data URLs in `job.data`
+ * are base64-encoded, inflating each attachment by ~33% — so a 50 MiB binary
+ * payload produces ~67 MiB of base64 in the serialized job. Still well under
+ * Redis's 512 MiB per-key limit; the conservative cap exists so the
+ * BullMQ JSON.stringify boundary never runs close to the limit.
  */
 export const MAX_AGGREGATE_PAYLOAD_BYTES = 50 * 1024 * 1024;
 

@@ -94,11 +94,9 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       'Downloading attachments in parallel'
     );
 
-    // Run both groups in parallel. downloadAll never throws — it returns
-    // per-attachment successes and failures separately, so neither group can
-    // abort the other's in-flight downloads. (Old Promise.all-with-throws
-    // would have orphaned the second group's downloads if the first rejected
-    // first; bytes downloaded, buffers allocated, then GC'd. Wasted work.)
+    // Invariant: downloadAll never throws — it always returns a settled
+    // { successes, failures } pair. This means Promise.all here can never
+    // reject, so neither group can abort the other's in-flight downloads.
     const [triggerResult, extendedResult] = await Promise.all([
       this.downloadAll(triggerAttachments, 'trigger', job.id),
       this.downloadAll(extendedAttachments, 'extended', job.id),
