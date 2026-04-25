@@ -6,8 +6,10 @@ const staticScopes = [
   'ci', // CI/CD configuration (.github/)
   'deps', // Dependency updates
   'docs', // General documentation
-  'hooks', // Git hooks (.husky/)
+  'hooks', // Claude Code hooks (.claude/hooks/)
+  'husky', // Git workflow hooks (.husky/)
   'repo', // General repo maintenance
+  'rules', // Claude Code rules (.claude/rules/)
   'skills', // Claude Code skills (.claude/skills/)
 ];
 
