@@ -6,7 +6,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
 import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
 import { DownloadAttachmentsStep, MAX_QUEUE_AGE_MS } from './DownloadAttachmentsStep.js';
-import { AttachmentTooLargeError, HttpError } from '../../../../utils/attachmentFetch.js';
+import {
+  AttachmentTooLargeError,
+  HttpError,
+  JobPayloadTooLargeError,
+} from '../../../../utils/attachmentFetch.js';
 import type { GenerationContext } from '../types.js';
 
 // Mock logger so it doesn't pollute test output.
@@ -239,7 +243,7 @@ describe('DownloadAttachmentsStep', () => {
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(1);
   });
 
-  it('aggregates partial failures, naming the failing attachment while other succeeds', async () => {
+  it('aggregates partial failures, prefixing the array label and naming the failing attachment', async () => {
     // Pins the `Promise.allSettled` aggregation path in `downloadAll`. Uses a
     // URL-keyed mock so the test is order-independent — `downloadOne` calls
     // run in parallel, so mockResolvedValueOnce/mockRejectedValueOnce chaining
@@ -258,13 +262,73 @@ describe('DownloadAttachmentsStep', () => {
       { url: 'https://cdn.discordapp.com/bad.png', contentType: 'image/png', name: 'bad.png' },
     ]);
 
-    // Error names the failing attachment AND the aggregation prefix, so the
-    // user-facing message isn't an opaque "some attachment failed".
+    // Error names the failing attachment, the aggregation prefix, AND the
+    // array label ('trigger/' or 'extended/') so a log-grepping responder
+    // can identify both the file and which group it came from.
     await expect(step.process(createContext(job))).rejects.toThrow(
-      /Failed to download 1 attachment.*bad\.png/s
+      /Failed to download 1 attachment.*trigger\/bad\.png/s
     );
     // 3 calls: good.png succeeds once, bad.png fails + retries once.
     expect(fetchAttachmentBytesMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('aggregates failures across both groups in a single combined error', async () => {
+    // Pins the outer Promise.all + downloadAll-never-throws contract: when
+    // both trigger AND extended groups have failures, both are reported in
+    // the same error message rather than the first group's failure aborting
+    // and orphaning the second group's downloads.
+    fetchAttachmentBytesMock.mockRejectedValue(new Error('ECONNRESET'));
+
+    const job = createJob(
+      [
+        {
+          url: 'https://cdn.discordapp.com/trig.png',
+          contentType: 'image/png',
+          name: 'trig.png',
+        },
+      ],
+      [
+        {
+          url: 'https://cdn.discordapp.com/ext.png',
+          contentType: 'image/png',
+          name: 'ext.png',
+        },
+      ]
+    );
+
+    // Both labels appear in the aggregated error — proves both groups ran
+    // to completion (Promise.allSettled at the per-attachment level + both
+    // downloadAll calls awaited via Promise.all at the outer).
+    await expect(step.process(createContext(job))).rejects.toThrow(
+      /Failed to download 2 attachment.*trigger\/trig\.png.*extended\/ext\.png/s
+    );
+  });
+
+  it('throws JobPayloadTooLargeError when post-resize aggregate exceeds the cap', async () => {
+    // Pins the aggregate-size guard: each attachment passes per-attachment
+    // cap (under MAX_ATTACHMENT_BYTES), but together they exceed the
+    // aggregate cap (50 MiB) and would otherwise blow Redis's per-key limit
+    // at the BullMQ JSON.stringify boundary. Use small synthetic buffers
+    // and override the resize mock to return realistic post-resize sizes
+    // so the test doesn't allocate hundreds of MiB.
+    const smallBuf = Buffer.from('placeholder');
+    fetchAttachmentBytesMock.mockResolvedValue(smallBuf);
+    // Simulate two non-image attachments that bypass resize at ~30 MiB each
+    // (combined: 60 MiB > 50 MiB cap). resizeImageIfNeeded passes through
+    // non-images unchanged, but we override to return a fake oversized
+    // buffer-shaped object so the size sum trips the gate.
+    const fakeOversized = { byteLength: 30 * 1024 * 1024 } as Buffer;
+    resizeImageIfNeededMock.mockResolvedValue({
+      buffer: fakeOversized,
+      contentType: 'video/mp4',
+    });
+
+    const job = createJob([
+      { url: 'https://cdn.discordapp.com/a.mp4', contentType: 'video/mp4', name: 'a.mp4' },
+      { url: 'https://cdn.discordapp.com/b.mp4', contentType: 'video/mp4', name: 'b.mp4' },
+    ]);
+
+    await expect(step.process(createContext(job))).rejects.toBeInstanceOf(JobPayloadTooLargeError);
   });
 
   it('retries once on transient network error, then fails cleanly', async () => {

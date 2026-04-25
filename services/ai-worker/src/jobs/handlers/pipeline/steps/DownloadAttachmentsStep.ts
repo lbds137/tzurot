@@ -34,8 +34,10 @@ import {
   ExpiredJobError,
   AttachmentTooLargeError,
   HttpError,
+  JobPayloadTooLargeError,
   isDataUrl,
   MAX_ATTACHMENT_BYTES,
+  MAX_AGGREGATE_PAYLOAD_BYTES,
 } from '../../../../utils/attachmentFetch.js';
 
 const logger = createLogger('DownloadAttachmentsStep');
@@ -92,16 +94,53 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       'Downloading attachments in parallel'
     );
 
-    const [processedTrigger, processedExtended] = await Promise.all([
-      this.downloadAll(triggerAttachments, job.id),
-      this.downloadAll(extendedAttachments, job.id),
+    // Run both groups in parallel. downloadAll never throws — it returns
+    // per-attachment successes and failures separately, so neither group can
+    // abort the other's in-flight downloads. (Old Promise.all-with-throws
+    // would have orphaned the second group's downloads if the first rejected
+    // first; bytes downloaded, buffers allocated, then GC'd. Wasted work.)
+    const [triggerResult, extendedResult] = await Promise.all([
+      this.downloadAll(triggerAttachments, 'trigger', job.id),
+      this.downloadAll(extendedAttachments, 'extended', job.id),
     ]);
+
+    // Aggregate failures from both groups before throwing — one combined
+    // error message lists every failed attachment with its array context,
+    // so a log-grepping responder sees both the filename and which group.
+    const allFailures = [...triggerResult.failures, ...extendedResult.failures];
+    if (allFailures.length > 0) {
+      throw new Error(
+        `Failed to download ${allFailures.length} attachment(s): ${allFailures.join('; ')}`
+      );
+    }
+
+    // Aggregate-size cap: per-attachment cap (MAX_ATTACHMENT_BYTES) is
+    // already enforced inside fetchAttachmentBytes, but a job carrying
+    // many large non-image attachments (which bypass resize) could still
+    // exceed Redis's 512 MiB per-key limit at the BullMQ JSON.stringify
+    // boundary. Sum the post-resize sizes and fail with a classified
+    // error instead of producing an opaque DataCloneError downstream.
+    const totalBytes =
+      triggerResult.successes.reduce((sum, a) => sum + (a.size ?? 0), 0) +
+      extendedResult.successes.reduce((sum, a) => sum + (a.size ?? 0), 0);
+    if (totalBytes > MAX_AGGREGATE_PAYLOAD_BYTES) {
+      logger.warn(
+        {
+          jobId: job.id,
+          totalBytes,
+          limit: MAX_AGGREGATE_PAYLOAD_BYTES,
+          attachmentCount: triggerResult.successes.length + extendedResult.successes.length,
+        },
+        'Job aggregate attachment payload exceeds limit'
+      );
+      throw new JobPayloadTooLargeError(totalBytes, MAX_AGGREGATE_PAYLOAD_BYTES);
+    }
 
     // Mutate the job.data view of attachments so downstream steps see data URLs.
     // job.data is a plain object on this worker's copy of the job — safe to assign.
     if (job.data.context !== undefined) {
-      job.data.context.attachments = processedTrigger;
-      job.data.context.extendedContextAttachments = processedExtended;
+      job.data.context.attachments = triggerResult.successes;
+      job.data.context.extendedContextAttachments = extendedResult.successes;
     }
 
     return context;
@@ -109,8 +148,9 @@ export class DownloadAttachmentsStep implements IPipelineStep {
 
   private async downloadAll(
     attachments: AttachmentMetadata[],
+    label: 'trigger' | 'extended',
     jobId: string | undefined
-  ): Promise<AttachmentMetadata[]> {
+  ): Promise<{ successes: AttachmentMetadata[]; failures: string[] }> {
     const results = await Promise.allSettled(
       attachments.map(attachment => this.downloadOne(attachment, jobId))
     );
@@ -124,16 +164,14 @@ export class DownloadAttachmentsStep implements IPipelineStep {
       } else {
         const message =
           result.reason instanceof Error ? result.reason.message : String(result.reason);
-        failures.push(`${attachments[i].name ?? attachments[i].url}: ${message}`);
+        // Prefix with the array label so the eventual aggregated error tells
+        // an incident responder which group the failure came from, not just
+        // the filename.
+        failures.push(`${label}/${attachments[i].name ?? attachments[i].url}: ${message}`);
       }
     }
 
-    if (failures.length > 0) {
-      throw new Error(
-        `Failed to download ${failures.length} attachment(s): ${failures.join('; ')}`
-      );
-    }
-    return successes;
+    return { successes, failures };
   }
 
   private async downloadOne(
