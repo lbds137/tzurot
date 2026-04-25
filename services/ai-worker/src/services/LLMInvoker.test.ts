@@ -64,6 +64,12 @@ describe('LLMInvoker', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // vi.restoreAllMocks() resets vi.spyOn mocks but does NOT reset
+    // vi.fn() implementation overrides; reset mockExtractReasoning's
+    // mockImplementation explicitly so call-order test setup doesn't
+    // leak into subsequent tests.
+    mockExtractReasoning.mockReset();
+    mockExtractReasoning.mockImplementation(<T>(msg: T) => msg);
   });
 
   describe('getModel', () => {
