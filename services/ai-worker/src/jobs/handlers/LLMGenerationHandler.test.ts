@@ -779,6 +779,50 @@ describe('LLMGenerationHandler', () => {
         expect(result.metadata?.configSource).toBe('personality');
         expect(result.metadata?.isGuestMode).toBe(false);
       });
+
+      it('should always include errorInfo on failure results so bot-client can render spoiler-tag details', async () => {
+        // Two paths populate errorInfo on a failed pipeline:
+        // (1) GenerationStep failures (e.g. RAG rejection) — GenerationStep
+        //     handles the error itself and writes errorInfo into context.result.
+        // (2) Other step failures (e.g. DownloadAttachmentsStep throwing) —
+        //     the outer LLMGenerationHandler catch populates errorInfo with a
+        //     step-classified category (DownloadAttachments → MEDIA_NOT_FOUND).
+        //
+        // This test pins path (1) — that GenerationStep failures still produce
+        // a result the bot-client can use. Path (2) is pinned at the unit
+        // level by DownloadAttachmentsStep.test.ts (the THROWS-when-no-text
+        // case) plus visual inspection of the small mapping if-branch — the
+        // existing pipeline test harness mocks RAGService but uses real
+        // pipeline steps, so triggering DownloadAttachments to throw here
+        // would require non-trivial setup that adds no marginal coverage.
+        //
+        // Without errorInfo, bot-client falls through to the generic "Sorry,
+        // I encountered an error" with no diagnostic content — observed
+        // during the 2026-04-25 attachment incident.
+        const jobData = createValidJobData();
+        const job = { id: 'job-pipeline-fail-1', data: jobData } as Job<LLMGenerationJobData>;
+
+        mockRAGService.generateResponse.mockRejectedValue(new Error('rate limited'));
+
+        const result = await handler.processJob(job);
+
+        expect(result.success).toBe(false);
+        expect(result.errorInfo).toBeDefined();
+        // Pin contract bits the bot-client downstream depends on. The exact
+        // category/type may vary (rate_limit/transient for this RAG-rejected
+        // case; media_not_found/permanent for DownloadAttachments) — what
+        // matters is that the shape is non-empty and routable.
+        expect(result.errorInfo?.category).toBeTruthy();
+        expect(result.errorInfo?.type).toBeTruthy();
+        expect(result.errorInfo?.referenceId.length ?? 0).toBeGreaterThan(0);
+        // userMessage must come from USER_ERROR_MESSAGES (or equivalent), not
+        // be left empty — an empty userMessage would render an empty spoiler
+        // tag client-side.
+        expect(result.errorInfo?.userMessage.length ?? 0).toBeGreaterThan(0);
+        // technicalMessage is what surfaces in the spoiler tag — verify the
+        // underlying error reaches the user-visible diagnostic.
+        expect(result.errorInfo?.technicalMessage).toContain('rate limited');
+      });
     });
 
     describe('conversation history processing', () => {
