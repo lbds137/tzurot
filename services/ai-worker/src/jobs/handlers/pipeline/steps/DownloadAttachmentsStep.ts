@@ -184,7 +184,15 @@ export class DownloadAttachmentsStep implements IPipelineStep {
     // retry. Safety boundary is "within one pipeline execution," not "across
     // job retries."
     if (isDataUrl(attachment.url)) {
-      return attachment;
+      // Estimate `size` from the data URL string length when the upstream
+      // producer omitted it. The aggregate-payload guard in process() folds
+      // missing sizes as 0, which would silently undercount pre-populated
+      // data URLs. The string-length estimate is an upper bound on actual
+      // bytes (data: prefix + base64 payload) — close enough to keep the
+      // guard honest if the early-return path ever sees real traffic.
+      return attachment.size !== undefined
+        ? attachment
+        : { ...attachment, size: attachment.url.length };
     }
 
     const sanitizedUrl = validateAttachmentUrl(attachment.url);

@@ -13,17 +13,23 @@ import {
 } from '../../../../utils/attachmentFetch.js';
 import type { GenerationContext } from '../types.js';
 
-// Mock logger so it doesn't pollute test output.
+// Mock logger so it doesn't pollute test output. Hoisted so individual tests
+// can assert on warn calls (e.g. the aggregate-cap test pins the structured
+// warn fields that ops tooling may eventually key on).
+const { loggerMock } = vi.hoisted(() => ({
+  loggerMock: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    createLogger: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    }),
+    createLogger: () => loggerMock,
   };
 });
 
@@ -344,6 +350,17 @@ describe('DownloadAttachmentsStep', () => {
     ]);
 
     await expect(step.process(createContext(job))).rejects.toBeInstanceOf(JobPayloadTooLargeError);
+    // Pin the structured warn-log fields. Ops dashboards may eventually key
+    // off these — silent renames or removals would be a regression.
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-123',
+        totalBytes: 60 * 1024 * 1024,
+        limit: 50 * 1024 * 1024,
+        attachmentCount: 2,
+      }),
+      expect.stringMatching(/aggregate attachment payload exceeds limit/)
+    );
   });
 
   it('retries once on transient network error, then fails cleanly', async () => {

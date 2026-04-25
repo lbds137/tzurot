@@ -95,8 +95,14 @@ export const MAX_AGGREGATE_PAYLOAD_BYTES = 50 * 1024 * 1024;
  * Error thrown when the aggregate size of all downloaded attachments in a
  * single job exceeds MAX_AGGREGATE_PAYLOAD_BYTES. Per-attachment caps are
  * enforced via AttachmentTooLargeError; this one fires at the job level
- * after all per-attachment downloads have settled. Non-retryable — re-running
- * with the same inputs would just hit the cap again.
+ * after all per-attachment downloads have settled. "Non-retryable" describes
+ * the contract — re-running with the same inputs would just hit the cap
+ * again. Operationally, this and the other pipeline errors never propagate
+ * to BullMQ's retry mechanism: LLMGenerationHandler.processJob's catch block
+ * converts ALL pipeline-step errors into `success: false` result objects, so
+ * BullMQ sees a successful job invocation that returned a failure result.
+ * The "non-retryable" guarantee is therefore automatic, not configuration-
+ * dependent.
  *
  * Hazard scenario this guards: 10× 20 MB audio/video files, each under
  * MAX_ATTACHMENT_BYTES = 25 MiB but together ~260 MB of base64 in
