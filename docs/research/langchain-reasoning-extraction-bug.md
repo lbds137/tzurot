@@ -6,11 +6,13 @@
 
 ## TL;DR (read first thing)
 
-**Our `OpenRouterFetch` interceptor extracts `message.reasoning` from API responses and injects `<reasoning>...</reasoning>` tags into `message.content` BEFORE returning the Response to LangChain. The interceptor runs successfully (~89%+ of GLM requests). But by the time `model.invoke()` returns and we read `response.content`, the `<reasoning>` tags are gone.** Something between our interceptor's `new Response(JSON.stringify(body), ...)` and LangChain's eventual `BaseMessage.content` is stripping or bypassing our injected tags.
+**Our `OpenRouterFetch` interceptor extracts `message.reasoning` from API responses and injects `<reasoning>...</reasoning>` tags into `message.content` BEFORE returning the Response to LangChain. The interceptor runs successfully (~89%+ of GLM requests). MOST of the time those tags survive into `response.content` and `/inspect` shows the reasoning correctly. But ~11% of the time on GLM-4.7, the tags are gone by the time `model.invoke()` returns, even though the interceptor's `reasoningInjected=true` log fires.** Something between our interceptor's `new Response(JSON.stringify(body), ...)` and LangChain's eventual `BaseMessage.content` is **intermittently** stripping or bypassing our injected tags.
 
-This means **reasoning content is silently lost on every request that returns reasoning** — not just the visible "leak" cases. The visible leaks (~11% on GLM-4.7) are the subset where the model ALSO embedded planning prose in `content` directly; the silent loss happens 100% of the time the model returns reasoning.
+The 11% intermittent failure rate matches the user-visible "leak" rate. Each of those failures is doubly bad: (a) reasoning content is dropped from `/inspect` audit (the reasoning was extracted but disappears), and (b) when the model ALSO embedded planning prose in `content` directly, that planning becomes user-visible because we're not masking it with the structured reasoning content.
 
-The user's perception that "leaks are happening more often" was the visible symptom of an underlying bug that's been silently degrading our reasoning capture for an unknown duration.
+The user's perception that "leaks are happening more often" reflects this intermittent-failure rate. The bug isn't 100% silent loss; it's an **intermittent loss in a specific 11% of conditions** that we need to identify.
+
+**Important correction (2026-04-25 user feedback)**: An earlier draft claimed reasoning was lost on EVERY request. That was wrong — `/inspect` does show reasoning successfully on most requests. The bug is the intermittent failure mode, not the steady-state.
 
 ## Evidence
 
@@ -72,40 +74,60 @@ OpenRouter received reasoning content from the model. The leak is between OpenRo
 | `z-ai/glm-4.7`          | 16/18 = 88.9%                  |
 | `z-ai/glm-4.5-air:free` | 19/19 = 100%                   |
 | `z-ai/glm-5.1`          | 4/4 = 100%                     |
+| `google/gemma-4-31b-it` | 3/4 = 75%                      |
 
-The 88.9% rate on GLM-4.7 is misleading: it measures _tag presence in raw content as captured by the diagnostic_, but those tags are NOT making it to `response.content` (per the smoking guns above). The 88.9% measures something else — possibly `<reasoning>` tags emitted by the model itself in its visible content (a separate phenomenon). Needs verification.
+**Per the user-feedback correction in the TL;DR**: this 88.9% IS the actual successful-extraction rate on GLM-4.7 (those are the cases where `/inspect` shows reasoning correctly). The remaining 11.1% is the intermittent failure — those are the requests where the interceptor extracts and injects, but the tags don't survive to `rawContent` capture.
+
+**Gemma 4 ALSO supports reasoning** (`reasoning` in OpenRouter `supported_parameters` for both `google/gemma-4-31b-it` and the `:free` variant — verified 2026-04-25). So its 3/4 = 75% rate is genuine intermittent-failure data, not noise from a non-reasoning model. Sample size is too small to draw a strong rate estimate, but the fact that we see the failure on a non-GLM model **suggests this isn't GLM-specific** — it's a cross-model intermittent failure in our extraction pipeline. That refutes the "GLM-4.7-specific quirk" framing and points more strongly at H3/H4 (something in the response-handling path that's structurally different on a subset of requests).
+
+The other GLM models showing 100% rates over very small samples (4 and 19 requests) may just not have hit the failing condition yet. Need more data accumulation before drawing per-model conclusions.
 
 Re-run anytime: `pnpm ops run --env prod --force tsx scripts/src/glm47-reasoning-rate.ts`
 
-## Hypothesis space (ordered by likelihood)
+## Hypothesis space (ordered by likelihood — REVISED for intermittent failure)
 
-### H1: openai client v6.34.0 consumes the original `response.body` stream, ignoring our synthesized JSON body
+The bug is **intermittent** (happens ~11% of the time, not 100%). This rules out hypotheses that would produce universal failure and promotes ones that depend on per-request conditions.
 
-When we do `return new Response(JSON.stringify(body), { headers: response.headers })`, we hand back a Response object whose body is our serialized JSON. But the openai client may be using something like `response.body.getReader()` (the raw stream) on the **original** response that we already consumed via `clone.json()`. If so, our modifications would be on a discarded copy.
+### H3 (PROMOTED): Streaming-related path bypasses or strips our injection on a subset of requests
 
-**Test**: instrument LLMInvoker to log `response.content.substring(0, 200)` immediately after `model.invoke()` returns. If the content lacks `<reasoning>` tags AND matches what the model originally returned in `delta.content` chunks (per OpenRouter's stream), this hypothesis is confirmed.
+Now the leading hypothesis. OpenRouter's generation log shows `streamed: true` for the leaked request. Our interceptor's content-type check passes (`application/json`) and `reasoningInjected=true` fires — so the interceptor DID run. But there's likely a downstream code path that behaves differently when OpenRouter's underlying response involved streaming, even when delivered to us as application/json.
 
-**Fix shape**: instead of returning `new Response(JSON.stringify(body), ...)`, mutate the original response's body somehow, or use a different mechanism (custom dispatcher, pre-request `messages` injection, etc.).
+Possible mechanisms:
 
-### H2: LangChain v1.4.4 has a content sanitizer that strips XML-like tags
+- The openai client's response parser may inspect a streaming-related header (e.g. `transfer-encoding: chunked`) and route to a stream-aware code path that reads from the original `response.body` stream rather than parsing our synthesized JSON body
+- OpenRouter may populate `streamed: true` for a structurally-different response shape (e.g., trailing `[DONE]` chunks, or content + reasoning as separate top-level array elements rather than a single message object) that LangChain handles via a non-`message.content`-direct path
 
-Less likely but plausible — LangChain might run content through a sanitizer that removes unrecognized XML tags before constructing the BaseMessage.
+**Test**: re-run the diagnostic-rate query and segment by `provider_responses[0].provider_name` from OpenRouter's gen log. If the 11% failures all map to specific providers (e.g. Parasail vs DekaLLM) or specific request shapes, that's the discriminator.
 
-**Test**: change the injection from `<reasoning>` to a non-XML format (e.g., `[REASONING_BEGIN]...[REASONING_END]`) and see if it survives. If it does, H2 is confirmed.
+**Better test**: add more request-shape diagnostic capture to `OpenRouterFetch` — log the response headers (especially `transfer-encoding`, `content-length`) for every request, plus a hash of the final `body.choices[0].message.content` after our injection. Cross-reference with diagnostic logs to find the 11% where `<reasoning>` tags vanished, see what's structurally different about those responses.
 
-**Fix shape**: switch the interceptor's injection format to one that LangChain doesn't sanitize, or inject reasoning as a separate field that LangChain preserves (additional_kwargs?).
+### H4 (PROMOTED): Two-pass response parsing where second pass overrides first under specific conditions
 
-### H3: Streaming response bypasses our content-type check
+Could be intermittent if the second-pass triggers on certain response shapes (e.g., when reasoning length exceeds some threshold, when content/reasoning ratio is unusual, when refusal field is present, etc.).
 
-The OpenRouter generation log shows `streamed: true`. Our `OpenRouterFetch.ts:287` skips interception for non-`application/json` content types. **HOWEVER** the interceptor logs (`Custom fetch received response ... contentType="application/json"` and `Inspecting response`) confirm the interceptor DID fire. So this hypothesis is partially refuted — at least for the leaked request, content-type was JSON. But OpenRouter's `streamed: true` may refer to upstream-only streaming (OpenRouter→provider hop), not their response to us.
+**Test**: capture and log request/response shape characteristics on every request; cross-reference with the 11% failure cases for patterns.
 
-Worth keeping the streaming-bypass hypothesis on the list as a separate latent bug — if any of our requests ever do return as `text/event-stream`, the interceptor would silently skip. We should add explicit handling or at least a warn-log.
+### H1 (DEMOTED): openai client v6.34.0 always consumes original `response.body`
 
-### H4: Two-pass response parsing where second pass overrides first
+**Demoted because**: would produce 100% failure, not 11%. The fact that 89% of requests work correctly means the openai client IS reading our synthesized body in the success case. Something else makes 11% different.
 
-The openai client might parse the response twice — once for usage metadata (using our modified body) and once for message content (using the raw stream). The second pass would overwrite our content modifications.
+Still possible if the client conditionally reads from one source vs another based on response characteristics — but that collapses to H3/H4 territory.
 
-**Test**: similar to H1's test, but also check whether `usage` data in the diagnostic matches our modified body or the original.
+### H2 (DEMOTED): LangChain v1.4.4 always sanitizes XML-like tags
+
+**Demoted because**: would produce 100% failure across the board. Real `<reasoning>` tags ARE making it to `rawContent` 89% of the time (and `/inspect` displays the extracted thinking content correctly), so there's no universal sanitizer running.
+
+Still possible if sanitization is conditional on certain content shapes (e.g., very long content, specific characters in the reasoning) — but again collapses to "what triggers the conditional?" investigation.
+
+### Open question: why do GLM-4.5-air and GLM-5.1 show 100%?
+
+Could be:
+
+- Sample size (only 19 and 4 requests respectively) — may just not have hit the failing condition yet
+- A model-specific characteristic of GLM-4.7 that triggers the failing path more often
+- A provider-routing characteristic (OpenRouter's `provider_responses[0].provider_name` for the leaked request was Parasail; check whether the other GLM models route through different providers consistently)
+
+Verify with larger samples tomorrow as more traffic accumulates.
 
 ## Diagnostic infrastructure built during this investigation
 
@@ -187,12 +209,13 @@ Once the underlying bug is fixed, the visible-symptom rate may or may not improv
 
 ## Why this has been "mostly working"
 
-For non-reasoning requests, this bug has zero impact (no reasoning to extract).
+For non-reasoning requests, this bug has zero impact.
 
-For reasoning requests, the silent loss has been invisible because:
+For reasoning requests, the system DOES work most of the time (~89% on GLM-4.7) — `/inspect` correctly shows the extracted reasoning, and users see clean responses with reasoning hidden per `showThinking: false`. The 11% intermittent failure has two visible symptoms:
 
-- **`showThinking: false`** is the user's normal config — they never expected to see reasoning content in their replies
-- **`/inspect` diagnostics** captured `thinkingContent: null`, but no one was systematically tracking the reasoning-extraction success rate until tonight
-- **The visible "leak"** (~11% on GLM-4.7) was attributed to model quirks rather than upstream silent loss — the `GLM_47_META_PREAMBLE_PATTERN` (PR #888) was built to handle this as if it were a model-emitted XML pattern, when it might actually be a model-emitted prose pattern that we're not extracting
+1. **Lost audit data** — `/inspect` shows `thinkingContent: null` for those requests when reasoning content existed in the API response. Discoverable only by inspecting the failing request specifically and cross-referencing with OpenRouter's per-generation log.
+2. **User-visible leak** — when the model ALSO embedded planning prose in `content` directly (which appears to be a separate GLM-4.7 phenomenon, not strictly correlated with the extraction failure), the user sees the planning prose because we're not masking it with the structured reasoning. This was the user-reported symptom that surfaced the entire investigation.
 
-The system has been functioning correctly from the user's POV for the common case (clean responses with reasoning hidden), so the silent loss didn't surface as user-visible behavior. The audit value of `/inspect` was reduced (we couldn't see what the model was actually thinking), but no one was relying on that for production correctness.
+The two failure modes happen to combine in a way that makes the 11% rate user-visible. If the extraction failure happened on a request where the model behaved normally (clean `content`, all reasoning in the structured channel), the user wouldn't notice — they'd just see a clean response, missing only the audit-trail value of `/inspect`.
+
+That's why this has gone unnoticed: no one was tracking the reasoning-extraction success rate quantitatively, and the user-visible leak was attributed to GLM-4.7 model quirks rather than upstream extraction loss. The PR #888 fix was designed for this leak class as if it were purely a model-emitted XML pattern — and it works for the tag-wrapped case — but the untagged-prose case (which this investigation revealed) goes through a different path that we don't extract from.
