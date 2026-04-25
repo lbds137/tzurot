@@ -86,6 +86,24 @@ The Identity & Provisioning Hardening Epic shipped end-to-end as of 2026-04-23 (
 
 Promoted from Inbox 2026-04-22.
 
+### Inspect UX Hardening (mini-epic)
+
+_Focus: bring `/inspect` up to par after PR #895 changed the diagnostic shape, plus close the long-standing character-card privacy issue while we're touching the code. 5 PRs, smallest-first._
+
+**Sequence:**
+
+1. **Embed redesign** (Tier 1 + 2 + L) — drop the now-misleading "Interception: `<reasoning>` tags not found ❌" line; surface `upstreamProvider`; show API→Pipeline extraction chain; clarify `Provider:z-ai` (model namespace ≠ upstream OpenRouter provider); color/emoji-code `finishReason`; show memory score range; "(none triggered)" indicator on stop-sequence; remove duplicate completion-tokens display; better select-menu placeholder; reasoning button shows byte-size hint. ~50 line surface.
+
+2. **Privacy redaction for non-owners** _(closes long-standing backlog item — supersedes the prior "Inspect command privacy toggle" entry)_ — gateway endpoint joins `LlmDiagnosticLog` ↔ `Personality` and surfaces `ownerId` in admin-diagnostic responses. Bot-client threads `canViewCharacter` through view builders. **Redact for non-owners**: System Prompt (XML), Full JSON's `assembledPrompt.messages[0].content`, Compact JSON's memory previews, Memory Inspector previews. **Keep visible** for non-owners: reasoning content (model thinking is genuinely interesting; user already saw the response anyway). **Admin sees everything** (bot owner has DB access regardless). `isPublic` flag is irrelevant — public means "available to chat with," not "internals visible." Replace redacted views with explicit `🔒 Character card hidden (owned by another user)` so users know it's deliberate. ~200 line surface.
+
+3. **New diagnostic views** (Tier 3 J + M) — Pipeline Health view (single-screen success/failure for `thinking_extraction`, `artifact_strip`, deduplication, memory budget) and Quick-copy summary (one-line text affordance for sharing in incident threads, e.g. `glm-4.7 via DekaLLM • 9.6s • 47 tok • thinking 1063 chars`). ~100 line surface.
+
+4. **Memory Inspector filtering** (Tier 3 K) — stateful filter buttons (Included / Dropped / Top-N) on the Memory Inspector view. State encoded in customId (no closures, restart-safe per `04-discord.md`). ~150 line surface.
+
+5. **Cleanup** — `git rm scripts/src/glm47-failure-segmentation.ts` (purpose served by `upstreamProvider` field in `/inspect`) + remove the corresponding Quick Wins entry. ~5 line surface.
+
+Surfaced 2026-04-25 by user dev-deploy validation of PR #895.
+
 ### Other in-flight
 
 _None beyond the above. TTS Engine Upgrade is Active Epic._
@@ -945,7 +963,7 @@ _Items moved from Inbox during backlog-shrink pass. Full prose preserved — imp
 
 - 🏗️ `[LIFT]` **Dynamic free model selection from OpenRouter** — Replace hardcoded `FREE_MODELS` / `VISION_FALLBACK_FREE` with a query layer on `OpenRouterModelCache`. Models go stale when sunset. **Start**: `services/api-gateway/src/services/OpenRouterModelCache.ts`.
 
-- ✨ `[FEAT]` **Inspect command privacy toggle** — Per-personality toggle to hide character card details from `/inspect`.
+<!-- "Inspect command privacy toggle" entry superseded 2026-04-25 by the Inspect UX Hardening mini-epic in Current Focus, which implements default-on redaction for non-owners (no per-personality toggle needed). -->
 
 - ✨ `[FEAT]` **Character import — optional voice file support** — Accept optional voice reference audio alongside character data import.
 

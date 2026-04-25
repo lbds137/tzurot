@@ -218,10 +218,16 @@ export interface DiagnosticLlmResponse {
     responseMetadataKeys: string[];
     /** Whether reasoning_details array exists in response_metadata */
     hasReasoningDetails: boolean;
-    /** Whether <reasoning> tags were found in raw content (proves interception worked) */
+    /** Whether <reasoning> tags were found in raw content. Always false post-PR-#895 (reasoning extraction moved from transport-layer tag injection to consumer-layer kwargs population) — kept for backward compatibility with old logs. */
     hasReasoningTagsInContent: boolean;
     /** First ~200 chars of raw content for quick visual inspection */
     rawContentPreview: string;
+    /** Actual upstream OpenRouter provider that handled the request (e.g. "Parasail", "Chutes", "DekaLLM"). Distinct from LangChain's hardcoded `response_metadata.model_provider = "openai"`. Populated by extractAndPopulateOpenRouterReasoning post-PR-#895. */
+    upstreamProvider?: string;
+    /** Keys present on raw API response `choices[0].message`. Distinguishes "model returned structured reasoning" (includes `reasoning`/`reasoning_details`) from "model embedded planning into content directly" (just `role`/`content`). Populated post-PR-#895. */
+    apiMessageKeys?: string[];
+    /** Length of `message.reasoning` from the raw OpenRouter response, captured BEFORE the consumer-layer extractor runs. Compared with reasoningKwargsLength to detect leak class: zero = model emitted no structured reasoning; mismatch = pipeline lost data. Populated post-PR-#895. */
+    apiReasoningLength?: number;
   };
 }
 
