@@ -93,6 +93,23 @@ describe('ModelFactory', () => {
       );
     });
 
+    it('should always set __includeRawResponse:true so the OpenRouter reasoning extractor has access to the raw API response', () => {
+      // Required for extractAndPopulateOpenRouterReasoning() in LLMInvoker to read
+      // additional_kwargs.__raw_response. If this assertion ever fails, also check
+      // the canary test extractOpenRouterReasoning.canary.test.ts which exercises
+      // the LangChain end of the same contract.
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        apiKey: 'test-api-key',
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({ __includeRawResponse: true })
+      );
+    });
+
     it('should pass topP to ChatOpenAI', () => {
       const config: ModelConfig = {
         modelName: 'test-model',

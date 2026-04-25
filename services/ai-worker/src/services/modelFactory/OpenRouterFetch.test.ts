@@ -2,11 +2,17 @@
  * Tests for OpenRouterFetch
  *
  * Verifies custom fetch wrapper behavior:
- * - Response cloning (body preserved on parse failure)
- * - 400 content recovery (valid content extracted from error responses)
- * - Reasoning injection into content
+ * - Request-side OpenRouter param injection (transforms, route, verbosity)
+ * - 400-class JSON error recovery (synthesizing 200 from error responses
+ *   that contain valid `choices[0].message.content` or reasoning-as-response)
+ * - Pass-through behavior (non-JSON, 5xx, unparseable bodies)
  *
- * Moved from ModelFactory.test.ts to colocate with the extracted module.
+ * Reasoning extraction itself happens downstream via
+ * `extractAndPopulateOpenRouterReasoning` after LangChain produces an AIMessage —
+ * not at the HTTP layer. Tests for that helper live in
+ * `extractOpenRouterReasoning.test.ts`. Contract tests for the
+ * `__includeRawResponse` LangChain option live in
+ * `extractOpenRouterReasoning.canary.test.ts`.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -49,7 +55,7 @@ describe('OpenRouterFetch', () => {
     return createOpenRouterFetch({});
   }
 
-  it('should preserve response body when interception succeeds (clone behavior)', async () => {
+  it('should pass through 200 responses unchanged (no reasoning mutation)', async () => {
     const customFetch = createFetch();
 
     const responseBody = {
@@ -69,12 +75,15 @@ describe('OpenRouterFetch', () => {
       method: 'GET',
     });
     const resultBody = (await result.json()) as Record<string, unknown>;
-    const choices = resultBody.choices as Array<{ message: { content: string } }>;
+    const choices = resultBody.choices as Array<{
+      message: { content: string; reasoning: string };
+    }>;
 
     expect(result.status).toBe(200);
-    // Reasoning should be injected into content
-    expect(choices[0].message.content).toContain('<reasoning>');
-    expect(choices[0].message.content).toContain('Hello world');
+    // Body should be unchanged — reasoning extraction happens downstream now
+    expect(choices[0].message.content).toBe('Hello world');
+    expect(choices[0].message.reasoning).toBe('I thought carefully');
+    expect(choices[0].message.content).not.toContain('<reasoning>');
   });
 
   it('should return original response when JSON parse fails (clone preserves body)', async () => {
@@ -204,7 +213,7 @@ describe('OpenRouterFetch', () => {
     expect(result.status).toBe(502);
   });
 
-  it('should inject reasoning into recovered 400 content', async () => {
+  it('should preserve reasoning untouched in recovered 400 content (extraction happens downstream)', async () => {
     const customFetch = createFetch();
 
     const responseBody = {
@@ -226,9 +235,12 @@ describe('OpenRouterFetch', () => {
 
     expect(result.status).toBe(200);
     const body = (await result.json()) as Record<string, unknown>;
-    const choices = body.choices as Array<{ message: { content: string } }>;
-    expect(choices[0].message.content).toContain('<reasoning>Deep thinking here</reasoning>');
-    expect(choices[0].message.content).toContain('Hello world');
+    const choices = body.choices as Array<{ message: { content: string; reasoning: string } }>;
+    // Recovery preserves both fields verbatim — extraction happens in the
+    // downstream extractAndPopulateOpenRouterReasoning helper after LangChain parse
+    expect(choices[0].message.content).toBe('Hello world');
+    expect(choices[0].message.reasoning).toBe('Deep thinking here');
+    expect(choices[0].message.content).not.toContain('<reasoning>');
   });
 
   it('should NOT attempt content recovery for non-JSON 400 responses', async () => {
@@ -248,35 +260,7 @@ describe('OpenRouterFetch', () => {
     expect(result.status).toBe(400);
   });
 
-  it('should use reasoning as content when 200 response has reasoning only (empty content)', async () => {
-    const customFetch = createFetch();
-
-    const responseBody = {
-      choices: [
-        {
-          message: {
-            content: '',
-            reasoning: 'This is the actual dialogue response',
-          },
-        },
-      ],
-    };
-
-    globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
-
-    const result = await customFetch('https://api.test.com/v1/chat', {
-      method: 'GET',
-    });
-
-    expect(result.status).toBe(200);
-    const body = (await result.json()) as Record<string, unknown>;
-    const choices = body.choices as Array<{ message: { content: string } }>;
-    // Should use reasoning directly as content — no <reasoning> tags
-    expect(choices[0].message.content).toBe('This is the actual dialogue response');
-    expect(choices[0].message.content).not.toContain('<reasoning>');
-  });
-
-  it('should recover reasoning from 400 response when content is empty', async () => {
+  it('should recover reasoning-as-response from 400 (relocates to content, clears reasoning)', async () => {
     const customFetch = createFetch();
 
     const responseBody = {
@@ -285,6 +269,9 @@ describe('OpenRouterFetch', () => {
           message: {
             content: '',
             reasoning: 'Model put dialogue here by mistake',
+            reasoning_details: [
+              { type: 'reasoning.text', text: 'Model put dialogue here by mistake' },
+            ],
           },
         },
       ],
@@ -297,29 +284,39 @@ describe('OpenRouterFetch', () => {
       method: 'GET',
     });
 
-    // Should synthesize a 200 response with reasoning as content
+    // Synthesizes a 200; relocates reasoning text into `content` and clears
+    // `reasoning` + `reasoning_details` so the downstream extractor doesn't
+    // ALSO surface the same text as thinking content (which would duplicate the
+    // actual response into the audit-trail)
     expect(result.status).toBe(200);
     const body = (await result.json()) as Record<string, unknown>;
-    const choices = body.choices as Array<{ message: { content: string } }>;
+    const choices = body.choices as Array<{
+      message: { content: string; reasoning?: string; reasoning_details?: unknown };
+    }>;
     expect(choices[0].message.content).toBe('Model put dialogue here by mistake');
-    expect(choices[0].message.content).not.toContain('<reasoning>');
+    expect(choices[0].message.reasoning).toBeUndefined();
+    expect(choices[0].message.reasoning_details).toBeUndefined();
   });
 
-  it('should wrap reasoning in tags when both reasoning and content are present (regression guard)', async () => {
+  it('should recover reasoning_details-only response from 400 (no string `reasoning` field)', async () => {
     const customFetch = createFetch();
 
+    // Some providers emit the response only via reasoning_details, omitting
+    // the convenience `reasoning` string. Empty content + reasoning_details
+    // only must still be recoverable.
     const responseBody = {
       choices: [
         {
           message: {
-            content: 'Actual response content',
-            reasoning: 'Internal thinking process',
+            content: '',
+            reasoning_details: [{ type: 'reasoning.text', text: 'Recovered from details only' }],
           },
         },
       ],
+      error: { message: 'Some provider error' },
     };
 
-    globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 400));
 
     const result = await customFetch('https://api.test.com/v1/chat', {
       method: 'GET',
@@ -327,11 +324,37 @@ describe('OpenRouterFetch', () => {
 
     expect(result.status).toBe(200);
     const body = (await result.json()) as Record<string, unknown>;
-    const choices = body.choices as Array<{ message: { content: string } }>;
-    // When both exist, reasoning should be wrapped in tags and content preserved
-    expect(choices[0].message.content).toBe(
-      '<reasoning>Internal thinking process</reasoning>\nActual response content'
-    );
+    const choices = body.choices as Array<{
+      message: { content: string; reasoning?: string; reasoning_details?: unknown };
+    }>;
+    expect(choices[0].message.content).toBe('Recovered from details only');
+    expect(choices[0].message.reasoning).toBeUndefined();
+    expect(choices[0].message.reasoning_details).toBeUndefined();
+  });
+
+  it('should NOT synthesize 200 when 400 has empty content + empty reasoning_details', async () => {
+    const customFetch = createFetch();
+
+    const responseBody = {
+      choices: [
+        {
+          message: {
+            content: '',
+            reasoning_details: [],
+          },
+        },
+      ],
+      error: { message: 'Genuine error, nothing to recover' },
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 400));
+
+    const result = await customFetch('https://api.test.com/v1/chat', {
+      method: 'GET',
+    });
+
+    // Empty reasoning_details = no recovery possible; passes through as 400
+    expect(result.status).toBe(400);
   });
 
   it('should inject OpenRouter params into POST request body', async () => {

@@ -44,6 +44,16 @@ vi.mock('../utils/retry.js', async importOriginal => {
   };
 });
 
+// Spy on extractAndPopulateOpenRouterReasoning so we can assert the call-site
+// wiring between model.invoke() and the helper. Without this test, a future
+// refactor that reorders or removes the call would silently break upstream
+// provider capture in /inspect with no CI signal (the helper's own unit tests
+// cover its behavior, not its invocation point).
+const mockExtractReasoning = vi.fn(<T>(message: T) => message);
+vi.mock('./modelFactory/extractOpenRouterReasoning.js', () => ({
+  extractAndPopulateOpenRouterReasoning: (msg: unknown) => mockExtractReasoning(msg),
+}));
+
 describe('LLMInvoker', () => {
   let invoker: LLMInvoker;
 
@@ -127,6 +137,55 @@ describe('LLMInvoker', () => {
       expect(result.content).toBe('Success!');
       expect(mockModel.invoke).toHaveBeenCalledTimes(1);
       expect(mockModel.invoke).toHaveBeenCalledWith(messages, expect.any(Object));
+    });
+
+    it('should call extractAndPopulateOpenRouterReasoning with the model.invoke() result', async () => {
+      // Regression guard: this is the integration point between
+      // ChatOpenAI({__includeRawResponse:true}) (set in ModelFactory) and
+      // the helper that reads __raw_response. If a future refactor reorders
+      // or removes this call, upstream provider capture and reasoning
+      // surfacing in /inspect would silently break.
+      const responseMessage = { content: 'Reasoning was extracted', additional_kwargs: {} };
+      const mockModel = {
+        invoke: vi.fn().mockResolvedValue(responseMessage),
+      } as any as BaseChatModel;
+
+      await invoker.invokeWithRetry({
+        model: mockModel,
+        messages: [new HumanMessage('Hello')],
+        modelName: 'test-model',
+      });
+
+      expect(mockExtractReasoning).toHaveBeenCalledTimes(1);
+      expect(mockExtractReasoning).toHaveBeenCalledWith(responseMessage);
+    });
+
+    it('should call extractAndPopulateOpenRouterReasoning AFTER model.invoke() (correct ordering)', async () => {
+      // Stronger guard: verify the call order. logFinishReason and the empty-
+      // response retry guard read response.additional_kwargs.* fields that
+      // the extractor populates, so the extractor MUST run before either of
+      // those — otherwise the reasoning fields aren't yet attached when those
+      // consumers read them.
+      const callOrder: string[] = [];
+      const responseMessage = { content: 'Hi', additional_kwargs: {} };
+      const mockModel = {
+        invoke: vi.fn().mockImplementation(async () => {
+          callOrder.push('model.invoke');
+          return responseMessage;
+        }),
+      } as any as BaseChatModel;
+      mockExtractReasoning.mockImplementation(<T>(msg: T) => {
+        callOrder.push('extractor');
+        return msg;
+      });
+
+      await invoker.invokeWithRetry({
+        model: mockModel,
+        messages: [new HumanMessage('Hello')],
+        modelName: 'test-model',
+      });
+
+      expect(callOrder).toEqual(['model.invoke', 'extractor']);
     });
 
     it('should pass getErrorLogContext as getErrorContext to withRetry', async () => {
