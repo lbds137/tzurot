@@ -18,9 +18,13 @@
  */
 
 import { Job } from 'bullmq';
+import { randomUUID } from 'node:crypto';
 import { ConversationalRAGService } from '../../services/ConversationalRAGService.js';
 import {
   createLogger,
+  ApiErrorCategory,
+  ApiErrorType,
+  USER_ERROR_MESSAGES,
   type LLMGenerationJobData,
   type LLMGenerationResult,
 } from '@tzurot/common-types';
@@ -193,13 +197,34 @@ export class LLMGenerationHandler {
         'Pipeline failed'
       );
 
+      // Classify the failure for the bot's user-facing error message. Without
+      // an `errorInfo` field, bot-client's `buildErrorContent` falls through
+      // to a generic "Sorry, I encountered an error" with no spoiler-tag
+      // detail — observed during the 2026-04-25 attachment incident, where
+      // users had no visible signal about what actually broke. Map known
+      // failed-step values to their user-facing categories; everything else
+      // surfaces as UNKNOWN with the technical message in the spoiler.
+      const category =
+        currentStepName === 'DownloadAttachments'
+          ? ApiErrorCategory.MEDIA_NOT_FOUND
+          : ApiErrorCategory.UNKNOWN;
+      const technicalMessage = error instanceof Error ? error.message : String(error);
+
       // Return error result with step information for debugging
       // Include model info if available (ConfigStep may have populated it)
       return {
         requestId: job.data.requestId,
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: technicalMessage,
         personalityErrorMessage: job.data.personality.errorMessage,
+        errorInfo: {
+          type: ApiErrorType.PERMANENT,
+          category,
+          userMessage: USER_ERROR_MESSAGES[category],
+          technicalMessage,
+          referenceId: job.id ?? randomUUID(),
+          shouldRetry: false,
+        },
         metadata: {
           processingTimeMs,
           failedStep: currentStepName,
