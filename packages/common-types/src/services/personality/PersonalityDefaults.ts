@@ -246,6 +246,10 @@ export function mapToPersonality(
     name: db.name,
     displayName: db.displayName ?? db.name,
     slug: db.slug,
+    // Owner UUID, used by diagnostic-log snapshots so /inspect can render
+    // owner-vs-non-owner views with the right redaction. PERSONALITY_SELECT
+    // already queries this column.
+    ownerId: db.ownerId,
     // Avatar URL with path-based cache-busting (timestamp in filename)
     // Discord CDN ignores query params, so we embed the timestamp in the path
     avatarUrl: deriveAvatarUrl(db.slug, db.updatedAt, logger),

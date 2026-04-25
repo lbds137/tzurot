@@ -55,6 +55,7 @@ describe('LongTermMemoryService', () => {
     name: 'TestPersonality',
     displayName: 'Test Personality',
     slug: 'test-personality',
+    ownerId: 'owner-uuid-test',
     systemPrompt: 'You are a test personality.',
     model: 'anthropic/claude-sonnet-4',
     temperature: 0.7,

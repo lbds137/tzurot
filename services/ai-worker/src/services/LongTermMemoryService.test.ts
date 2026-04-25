@@ -46,6 +46,7 @@ describe('LongTermMemoryService', () => {
   const testPersonality: LoadedPersonality = {
     id: 'personality-1',
     slug: 'test-bot',
+    ownerId: 'owner-uuid-test',
     name: 'TestBot',
     systemPrompt: 'You are a test bot',
     characterInfo: 'Test character',

@@ -21,6 +21,7 @@ describe('MemoryPersistenceService', () => {
     name: 'TestBot',
     displayName: 'Test Bot',
     slug: 'testbot',
+    ownerId: 'owner-uuid-test',
     systemPrompt: 'Test system prompt',
     model: 'test-model',
     temperature: 0.7,

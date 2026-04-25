@@ -55,6 +55,7 @@ describe('RedisDeduplicationCache', () => {
       name: 'TestBot',
       displayName: 'Test Bot',
       slug: 'testbot',
+      ownerId: 'owner-uuid-test',
       systemPrompt: 'Test system prompt',
       model: 'gpt-4',
       visionModel: undefined,

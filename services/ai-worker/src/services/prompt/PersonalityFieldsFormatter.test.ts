@@ -26,6 +26,7 @@ function createMinimalPersonality(overrides: Partial<LoadedPersonality> = {}): L
     id: 'test-id',
     name: 'TestBot',
     slug: 'testbot',
+    ownerId: 'owner-uuid-test',
     displayName: '',
     avatarUrl: '',
     characterInfo: '',

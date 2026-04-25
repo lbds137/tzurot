@@ -470,6 +470,7 @@ describe('PromptBuilder', () => {
     const minimalPersonality: LoadedPersonality = {
       id: 'test-1',
       slug: 'test',
+      ownerId: 'owner-uuid-test',
       name: 'TestBot',
       systemPrompt: 'You are a helpful assistant.',
       characterInfo: 'A test character',
@@ -982,6 +983,7 @@ describe('PromptBuilder', () => {
           ...minimalPersonality,
           id: 'lila-1',
           slug: 'lila',
+          ownerId: 'owner-uuid-test',
           name: 'Lila', // Same name as user
           displayName: 'Lila',
         };
@@ -1033,6 +1035,7 @@ describe('PromptBuilder', () => {
           ...minimalPersonality,
           id: 'lila-1',
           slug: 'lila',
+          ownerId: 'owner-uuid-test',
           name: 'LILA', // Uppercase
           displayName: 'LILA',
         };
@@ -1061,6 +1064,7 @@ describe('PromptBuilder', () => {
           ...minimalPersonality,
           id: 'lila-1',
           slug: 'lila',
+          ownerId: 'owner-uuid-test',
           name: 'Lila',
           displayName: 'Lila',
         };
@@ -1268,6 +1272,7 @@ describe('PromptBuilder', () => {
     const basePersonality: LoadedPersonality = {
       id: 'snapshot-personality-1',
       slug: 'snapshot-bot',
+      ownerId: 'owner-uuid-test',
       name: 'SnapshotBot',
       systemPrompt: 'You are a helpful assistant. Always be kind and helpful.',
       characterInfo: 'A friendly AI assistant for testing',
