@@ -88,6 +88,7 @@ describe('UserContextResolver', () => {
       name: 'TestBot',
       displayName: 'Test Bot',
       slug: 'testbot',
+      ownerId: 'owner-uuid-test',
       systemPrompt: 'Test prompt',
       model: 'test-model',
       temperature: 0.7,
@@ -100,12 +101,10 @@ describe('UserContextResolver', () => {
 
     const createMockDeps = () => ({
       userService: {
-        getOrCreateUser: vi
-          .fn()
-          .mockResolvedValue({
-            userId: 'internal-user-uuid',
-            defaultPersonaId: 'persona-uuid-123',
-          }),
+        getOrCreateUser: vi.fn().mockResolvedValue({
+          userId: 'internal-user-uuid',
+          defaultPersonaId: 'persona-uuid-123',
+        }),
         getUserTimezone: vi.fn().mockResolvedValue('America/New_York'),
       } as unknown as UserService,
       personaResolver: {

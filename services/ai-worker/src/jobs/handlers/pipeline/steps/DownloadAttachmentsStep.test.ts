@@ -88,6 +88,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   name: 'TestBot',
   displayName: 'Test Bot',
   slug: 'testbot',
+  ownerId: 'owner-uuid-test',
   systemPrompt: 'x',
   model: 'anthropic/claude-sonnet-4',
   temperature: 0.7,

@@ -632,6 +632,7 @@ describe('UserReferenceResolver', () => {
       name: 'Test Personality',
       displayName: 'Test',
       slug: 'test',
+      ownerId: 'owner-uuid-test',
       systemPrompt: '',
       model: 'gpt-4',
       temperature: 0.7,

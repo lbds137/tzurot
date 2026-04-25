@@ -96,6 +96,8 @@ export class DiagnosticCollector {
       triggerMessageId: options.triggerMessageId,
       personalityId: options.personalityId,
       personalityName: options.personalityName,
+      // Stored only when resolved (null collapses to undefined for optional meta field)
+      personalityOwnerDiscordId: options.personalityOwnerDiscordId ?? undefined,
       userId: options.userId,
       guildId: options.guildId,
       channelId: options.channelId,

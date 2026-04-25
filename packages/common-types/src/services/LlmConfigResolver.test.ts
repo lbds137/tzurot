@@ -41,6 +41,7 @@ describe('LlmConfigResolver', () => {
     name: 'Test Personality',
     displayName: 'Test',
     slug: 'test-personality',
+    ownerId: 'owner-uuid-test',
     model: 'anthropic/claude-sonnet-4',
     visionModel: 'anthropic/claude-sonnet-4',
     temperature: 0.7,

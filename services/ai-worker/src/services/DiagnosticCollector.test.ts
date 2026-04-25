@@ -38,6 +38,7 @@ describe('DiagnosticCollector', () => {
     requestId: 'test-request-123',
     personalityId: 'personality-uuid-456',
     personalityName: 'Test Personality',
+    personalityOwnerDiscordId: '777777777777777777',
     userId: '123456789',
     guildId: '987654321',
     channelId: '111222333',
@@ -62,6 +63,7 @@ describe('DiagnosticCollector', () => {
         requestId: 'test-request-123',
         personalityId: 'personality-uuid-456',
         personalityName: 'Test Personality',
+        personalityOwnerDiscordId: '777777777777777777',
         userId: '123456789',
         guildId: '987654321',
         channelId: '111222333',
@@ -77,6 +79,16 @@ describe('DiagnosticCollector', () => {
 
       const payload = dmCollector.finalize();
       expect(payload.meta.guildId).toBeNull();
+    });
+
+    it('should collapse null personalityOwnerDiscordId to undefined in meta (when User row was deleted)', () => {
+      const orphanedCollector = new DiagnosticCollector({
+        ...defaultOptions,
+        personalityOwnerDiscordId: null,
+      });
+
+      const payload = orphanedCollector.finalize();
+      expect(payload.meta.personalityOwnerDiscordId).toBeUndefined();
     });
   });
 

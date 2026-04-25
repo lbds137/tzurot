@@ -40,6 +40,7 @@ describe('POST /generate', () => {
           name: 'TestBot',
           displayName: 'Test Bot',
           slug: 'test-bot',
+          ownerId: 'owner-uuid-test',
           systemPrompt: 'You are a helpful assistant',
           model: 'anthropic/claude-sonnet-4.5',
           temperature: 0.7,

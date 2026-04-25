@@ -2,10 +2,16 @@
  * View builders for each diagnostic output format
  *
  * Each view returns either an ephemeral message payload or a file attachment.
+ *
+ * View builders take a {@link ViewContext} so they can redact character
+ * internals (system prompt, memory previews) when the inspecting user does
+ * not own the personality the diagnostic log was generated against. See
+ * `viewContext.ts` for the ownership-resolution logic.
  */
 
 import { AttachmentBuilder, MessageFlags } from 'discord.js';
 import type { DiagnosticPayload } from '@tzurot/common-types';
+import type { ViewContext } from './viewContext.js';
 
 /** Return type for view builders — either a content string or file attachments */
 export interface DebugViewResult {
@@ -14,13 +20,43 @@ export interface DebugViewResult {
   flags?: MessageFlags;
 }
 
+/** Sentinel string used in JSON views to redact a system-prompt message body */
+const REDACTED_SYSTEM_PROMPT = '[REDACTED — character card hidden for non-owner]';
+/** Sentinel string used in JSON / Memory Inspector views to redact a memory preview */
+const REDACTED_MEMORY_PREVIEW = '[REDACTED]';
+
 // ---------------------------------------------------------------------------
 // Full JSON
 // ---------------------------------------------------------------------------
 
+/** Apply non-owner redactions to a full DiagnosticPayload (system prompt + memory previews) */
+function redactPayloadForNonOwner(payload: DiagnosticPayload): DiagnosticPayload {
+  return {
+    ...payload,
+    assembledPrompt: {
+      ...payload.assembledPrompt,
+      messages: payload.assembledPrompt.messages.map(msg =>
+        msg.role === 'system' ? { ...msg, content: REDACTED_SYSTEM_PROMPT } : msg
+      ),
+    },
+    memoryRetrieval: {
+      ...payload.memoryRetrieval,
+      memoriesFound: payload.memoryRetrieval.memoriesFound.map(m => ({
+        ...m,
+        preview: REDACTED_MEMORY_PREVIEW,
+      })),
+    },
+  };
+}
+
 /** Complete DiagnosticPayload as a .json file */
-export function buildFullJsonView(payload: DiagnosticPayload, requestId: string): DebugViewResult {
-  const jsonContent = JSON.stringify(payload, null, 2);
+export function buildFullJsonView(
+  payload: DiagnosticPayload,
+  requestId: string,
+  ctx: ViewContext
+): DebugViewResult {
+  const effectivePayload = ctx.canViewCharacter ? payload : redactPayloadForNonOwner(payload);
+  const jsonContent = JSON.stringify(effectivePayload, null, 2);
   return {
     files: [
       new AttachmentBuilder(Buffer.from(jsonContent), {
@@ -39,10 +75,14 @@ export function buildFullJsonView(payload: DiagnosticPayload, requestId: string)
 /**
  * JSON with system prompt content replaced by a length summary,
  * memory previews truncated, embeddings stripped. User/assistant messages intact.
+ *
+ * For non-owners, memory previews are also redacted (the system-prompt summary
+ * is non-leaking so it stays as-is).
  */
 export function buildCompactJsonView(
   payload: DiagnosticPayload,
-  requestId: string
+  requestId: string,
+  ctx: ViewContext
 ): DebugViewResult {
   const { assembledPrompt, ...rest } = payload;
 
@@ -58,7 +98,11 @@ export function buildCompactJsonView(
 
   const compactMemories = payload.memoryRetrieval.memoriesFound.map(m => ({
     ...m,
-    preview: m.preview.length > 100 ? m.preview.substring(0, 100) + '...' : m.preview,
+    preview: ctx.canViewCharacter
+      ? m.preview.length > 100
+        ? m.preview.substring(0, 100) + '...'
+        : m.preview
+      : REDACTED_MEMORY_PREVIEW,
   }));
 
   const compactPayload = {
@@ -92,8 +136,20 @@ export function buildCompactJsonView(
 /** Extract and format the system prompt as XML */
 export function buildSystemPromptView(
   payload: DiagnosticPayload,
-  requestId: string
+  requestId: string,
+  ctx: ViewContext
 ): DebugViewResult {
+  if (!ctx.canViewCharacter) {
+    // No `flags` field: editReply cannot change ephemeral state set on the
+    // initial defer. The /inspect command defers ephemeral, so all view
+    // results inherit that automatically.
+    return {
+      content:
+        '🔒 **Character card hidden** — this personality is owned by another user.\n\n' +
+        'Numeric and timing diagnostics remain visible above.',
+    };
+  }
+
   const systemMessage = payload.assembledPrompt.messages.find(m => m.role === 'system');
   const xmlContent =
     systemMessage !== undefined
@@ -118,8 +174,22 @@ export function buildSystemPromptView(
 /** Discord message content limit; reasoning longer than this is sent as a .md file attachment */
 const REASONING_INLINE_LIMIT = 2000;
 
-/** Reasoning content as either inline markdown or a .md file */
-export function buildReasoningView(payload: DiagnosticPayload, requestId: string): DebugViewResult {
+/**
+ * Reasoning content as either inline markdown or a .md file.
+ *
+ * Reasoning content is shown to non-owners by design (per project decision —
+ * model thinking is genuinely interesting and the user already saw the
+ * response anyway; redacting reasoning would not actually close the system-
+ * prompt leak path because prompt-injection attacks bypass it). The
+ * `_ctx` parameter is kept on the signature for uniformity with the
+ * other view builders.
+ */
+export function buildReasoningView(
+  payload: DiagnosticPayload,
+  requestId: string,
+  // intentionally unused — uniform VIEW_BUILDERS signature
+  _ctx: ViewContext
+): DebugViewResult {
   const thinking = payload.postProcessing.thinkingContent;
 
   if (thinking === null || thinking.length === 0) {
@@ -157,7 +227,8 @@ export function buildReasoningView(payload: DiagnosticPayload, requestId: string
 /** Scored memories table with inclusion status */
 export function buildMemoryInspectorView(
   payload: DiagnosticPayload,
-  requestId: string
+  requestId: string,
+  ctx: ViewContext
 ): DebugViewResult {
   const { memoryRetrieval, inputProcessing, tokenBudget } = payload;
   const memories = memoryRetrieval.memoriesFound;
@@ -177,6 +248,10 @@ export function buildMemoryInspectorView(
     const dropped = memories.length - included;
 
     lines.push(`## Retrieved Memories (${memories.length} found, ${included} included)`);
+    if (!ctx.canViewCharacter) {
+      lines.push('');
+      lines.push('🔒 _Memory previews redacted — this personality is owned by another user._');
+    }
     lines.push('');
     lines.push('| # | Score | Status | Preview |');
     lines.push('|---|-------|--------|---------|');
@@ -184,7 +259,9 @@ export function buildMemoryInspectorView(
     for (let i = 0; i < memories.length; i++) {
       const m = memories[i];
       const status = m.includedInPrompt ? 'Included' : 'Dropped (budget)';
-      const preview = m.preview.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      const preview = ctx.canViewCharacter
+        ? m.preview.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+        : REDACTED_MEMORY_PREVIEW;
       lines.push(`| ${i + 1} | ${m.score.toFixed(2)} | ${status} | ${preview} |`);
     }
 
@@ -210,10 +287,18 @@ export function buildMemoryInspectorView(
 // Token Budget
 // ---------------------------------------------------------------------------
 
-/** ASCII breakdown of context window allocation */
+/**
+ * ASCII breakdown of context window allocation.
+ *
+ * Token-budget data is purely numeric and contains no character-internal
+ * information; the `_ctx` parameter is kept on the signature for uniformity
+ * with the other view builders.
+ */
 export function buildTokenBudgetView(
   payload: DiagnosticPayload,
-  requestId: string
+  requestId: string,
+  // intentionally unused — uniform VIEW_BUILDERS signature
+  _ctx: ViewContext
 ): DebugViewResult {
   const { tokenBudget } = payload;
   const total = tokenBudget.contextWindowSize || 1;
@@ -228,16 +313,16 @@ export function buildTokenBudgetView(
 
   const bar = (pct: number): string => {
     const blocks = Math.round(pct / 2.5);
-    return '\u2588'.repeat(blocks);
+    return '█'.repeat(blocks);
   };
 
-  const warn = (pct: number): string => (pct > 70 ? '  \u26a0\ufe0f >70%' : '');
+  const warn = (pct: number): string => (pct > 70 ? '  ⚠️ >70%' : '');
 
   const pad = (label: string): string => label.padEnd(16);
 
   const lines = [
     'Token Budget Breakdown',
-    '\u2550'.repeat(40),
+    '═'.repeat(40),
     `Context Window: ${total.toLocaleString()} tokens`,
     '',
     `  ${pad('System Prompt:')}${tokenBudget.systemPromptTokens.toLocaleString().padStart(8)} tokens (${systemPct.toFixed(0).padStart(2)}%)  ${bar(systemPct)}`,

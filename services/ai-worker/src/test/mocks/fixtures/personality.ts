@@ -22,6 +22,7 @@ export function createMockPersonality(overrides?: Partial<LoadedPersonality>): L
     name: 'TestBot',
     displayName: 'Test Bot',
     slug: 'testbot',
+    ownerId: 'owner-uuid-test',
     systemPrompt: 'You are a helpful test bot.',
     model: 'test-model',
     temperature: 0.7,
