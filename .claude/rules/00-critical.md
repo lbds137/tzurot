@@ -142,6 +142,24 @@ gh pr merge 714 --rebase                  # develop survives
 
 CI passing != merge approval. User must explicitly request merge.
 
+### Never Merge PRs With Red CI
+
+**Every CI check must be green before `gh pr merge` runs.** No exceptions for "looks like infrastructure," "non-blocking," "not really code-related," or "release PR doesn't need review." If a check is red, the merge is forbidden until the check is green.
+
+**Why:** CI green-by-omission is invisible by default. A failed `claude-review` (or any other check) sitting next to 14 green checks looks identical to "all green" at a glance, and skipping it silently sacrifices the signal it would have produced. Release PRs in particular benefit from a holistic second-look review even when the constituent code was reviewed PR-by-PR.
+
+**How to apply when a check fails:**
+
+| Failure shape                                                                                    | Action                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Infrastructure flake (binary not found, missing secret, transient network error in action setup) | `gh run rerun <run-id> --failed` and re-arm the CI Monitor. Do not merge until the rerun passes.                                                                                  |
+| Substantive review finding (claude-review or human reviewer)                                     | Apply per `08-review-response.md` — auto-apply trivial-shape edits, ASK on semantic-shape, present batch summary. Then re-run CI. Do not merge until the review verdict is green. |
+| Real code failure (test red, lint error, type error)                                             | Fix the code. Do not skip the check.                                                                                                                                              |
+
+**Bypassing CI is forbidden** even when the user has approved the merge in principle — approval is contingent on the merge happening through a green pipeline. If the user explicitly says "merge it anyway despite the red check," confirm once that they understand which check is red and what signal is being skipped before proceeding.
+
+**Observed**: 2026-04-24, release PR #892. `claude-review` failed with `Claude Code native binary not found at /home/runner/.local/bin/claude` (empty `ANTHROPIC_API_KEY` in env block). Treated as infra-only and merged through. User feedback: rerun the failed CI task rather than merge through it.
+
 ## Testing
 
 - **NEVER modify tests to make them pass** - fix the implementation

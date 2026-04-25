@@ -97,6 +97,8 @@ The #2-without-full-body failure mode is the second trap: fetching comments but 
 
 If the monitor completes without a `CI_COMPLETE` line in its output, the 15-min timeout fired first — re-arm rather than assume CI passed. If CI fails or CodeQL flags something, use `PushNotification` — the user should hear about it before their next turn.
 
+**Merge gate is green-only.** Per `.claude/rules/00-critical.md` "Never Merge PRs With Red CI": every check must be green before `gh pr merge` runs, including release PRs. If a check fails for what looks like infrastructure reasons (binary not found, missing secret, action-setup error), `gh run rerun <run-id> --failed` and re-arm the Monitor — don't merge through the red. The release procedure below assumes a green pipeline.
+
 ### After PR Merged
 
 ```bash
@@ -179,8 +181,10 @@ gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Descrip
 
 ⚠️ **NEVER use `--delete-branch` for release PRs.** `develop` is a long-lived branch.
 
+⚠️ **Wait for every CI check to be green** per `.claude/rules/00-critical.md` "Never Merge PRs With Red CI". Release PRs are not exempt — claude-review is the second-look on the full release delta and infra failures (binary not found, missing secret) need `gh run rerun <run-id> --failed` before merge, not "merge through it."
+
 ```bash
-# ✅ CORRECT - Merge without deleting develop
+# ✅ CORRECT - Merge without deleting develop (only after all checks green)
 gh pr merge <number> --rebase
 
 # ❌ FORBIDDEN - Would delete develop!
