@@ -24,12 +24,18 @@ describe('checkQueueAge', () => {
   // ALWAYS Use"). With the system time fixed, both `Date.now() - X` reads
   // (the test fixture's anchor and the helper's internal one) are
   // deterministic, eliminating any chance of clock-drift flakiness.
+  // `toFake: ['Date']` matches the sibling test files' convention — fakes
+  // only Date, leaves setTimeout/setInterval real.
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-04-24T12:00:00Z'));
   });
 
+  // Both teardowns matter: `useRealTimers` actually resets the fake clock
+  // (which `restoreAllMocks` does NOT do), and `restoreAllMocks` resets
+  // any spies created inside individual tests.
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
