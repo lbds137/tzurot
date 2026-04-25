@@ -85,7 +85,10 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 
     const { log } = result;
     const embed = buildDiagnosticEmbed(log.data);
-    const components = buildInspectComponents(log.requestId);
+    const components = buildInspectComponents(
+      log.requestId,
+      log.data.postProcessing.thinkingContent?.length ?? 0
+    );
 
     await context.editReply({
       embeds: [embed],
