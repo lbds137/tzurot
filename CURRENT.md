@@ -34,6 +34,12 @@ _None. Session paused after PR #911 merged + Identity Hardening Epic fully close
 - **PR #910** (merged): personality `MOCK_USER_ID` UUID normalization across 6 test files (24 inline `'user-uuid-123'` literals → constant).
 - **PR #912** (merged): vestigial `setAsDefault` field removed (post-Identity-Hardening, the field was structurally always `false`; both ends of the dead pipe cleaned up — schema, factory, gateway response, bot-client type + consumer + tests). DiagnosticCollector.ts sanity check added to the structural guard test for symmetry with the resolver assertion.
 
+### Post-deploy DM-silence fix — investigation + diagnostic-first ship
+
+- **PR #913** (merged): **SIGTERM handler refactor** + opt-in `DM_RAW_GATEWAY_DIAGNOSTIC` env-gated raw-packet listener. Council consultation (`google/gemini-3.1-pro-preview`, session `sess_1b24c9ada373`) reframed the originally-planned 300-LOC DM warmer as a much simpler structural problem: bot-client only handled SIGINT, never SIGTERM, so Railway's deploy lifecycle hard-killed V1 without `client.destroy()` — leaving orphaned gateway sessions for Shard 0 that competed with V2's freshly-connected session for ~minutes until Discord's server-side session timeout. Council's first-round diagnosis (`Partials.Channel` missing) was wrong — verified-and-disproven against existing config, then they reconsidered productively. 44 LOC instead of 300+, fix-bundled-with-diagnostic so the next deploy verifies the fix definitively.
+- Verification phase next: enable `DM_RAW_GATEWAY_DIAGNOSTIC=true` on Railway dev, deploy, send test plain-text DM, read logs. Three conditional branches tracked in `backlog/inbox.md` "DM fix verification follow-ups (post-PR-#913)".
+- Surfaced quick-win: `await async cleanup before process.exit` in shutdown handler (pre-existing voided-promise race; tracked in `backlog/quick-wins.md`).
+
 ### Identity & Provisioning Hardening Epic — CLOSED
 
 - **PR #911** (merged): final cleanup — `requireProvisionedUser` flipped from shadow-mode passthrough to strict 400/403/500 typed errors; `getOrCreateUserShell` method + `createShellUserWithRaceProtection` helper deleted; `resolveProvisionedUserId` and `getOrCreateInternalUser` collapsed to synchronous passthroughs that throw on missing field. -1404 lines net deletion. 3 review rounds with auto-applied fixups for stale-comment archaeology. Two follow-ups surfaced into `backlog/inbox.md` (vestigial `setAsDefault` field, Zod-validation gap at gateway boundary).

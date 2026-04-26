@@ -2,35 +2,17 @@
 
 _This week's active work. Max 3 items._
 
-### Post-deploy DM subscription loss fix
+### Post-deploy DM subscription loss fix — VERIFICATION PHASE
 
-🐛 `[FIX]` **HIGH priority** — user-facing friction on every release. Every time we ship a release and bot-client restarts, **plain-text DMs silently fail until the user fires a slash command** in the DM. Slash commands work (they go through `interactionCreate` which establishes the DM channel as a side effect). Guild messages work. Only plain-text `MESSAGE_CREATE` events in DMs get dropped on Discord's side.
+🐛 `[FIX]` **HIGH priority** — user-facing friction on every release.
 
-**Root cause**: Discord doesn't automatically re-subscribe a bot to existing DM channels on gateway reconnect. DM channel subscriptions are per-bot-per-user and ephemeral across bot reconnects. When user DMs a bot that has no active subscription to their DM channel, Discord silently drops the message. Slash-command interactions trigger `POST /users/@me/channels` implicitly, re-establishing the subscription. Once re-subscribed, plain-text DMs route normally until the next bot restart.
+**PR #913 shipped 2026-04-26**: SIGTERM handler refactor (Railway sends SIGTERM, not SIGINT — V1 was hard-exiting on every deploy without calling `client.destroy()`, leaving orphaned gateway sessions for Shard 0 that competed with V2's freshly-connected session for ~minutes until Discord's server-side session timeout) + opt-in `DM_RAW_GATEWAY_DIAGNOSTIC` env-gated raw-packet listener.
 
-**Observed**: 2026-04-20 (initial report, misdiagnosed as user-install state), 2026-04-22 (beta.103 release night, pattern confirmed by user noting correlation with every deploy). The prior "deauth + reauth" mitigation was partially effective because reauth forced the Discord client to re-open the DM channel, incidentally re-subscribing the bot.
+The original two-layer warmer plan was reframed after council consultation (`google/gemini-3.1-pro-preview`) and config investigation revealed a much simpler structural cause: Railway's deploy lifecycle was hard-killing V1 without graceful gateway disconnect because we only handled SIGINT, never SIGTERM.
 
-**Two-layer fix (belt-and-suspenders)**:
+**Next step**: enable `DM_RAW_GATEWAY_DIAGNOSTIC=true` on Railway dev, trigger a deploy, send a test plain-text DM, read logs. The log-presence binary signal confirms which side of the Discord/Discord.js boundary was dropping packets — see `backlog/inbox.md` "DM fix verification follow-ups (post-PR-#913)" for the three conditional branches.
 
-**Layer 1 — Startup pre-warming**: on bot-client `ClientReady`, fetch all Discord IDs of users active in the last N days (30 or 90) from api-gateway, then rate-limited loop `client.users.fetch(id).createDM()` on each. Handles cold-start case so existing users don't need to interact first.
-
-**Layer 2 — Greedy lazy registration**: on any user interaction (message received in guild OR DM, slash command, button, select menu, modal, autocomplete), greedily call `createDM()` for that user's Discord ID. Memoize via in-memory `Set<userId>` so we only fire once per user per bot lifetime. This is the correctness guarantee — any user we see, in any context, gets a live DM subscription established within their first interaction post-restart. Memoization set clears on restart naturally, matching Discord's own subscription lifecycle.
-
-**Architecture**: centralize in a `DMSubscriptionWarmer` service (bot-client), memoizes via `Set<userId>`, rate-limits via simple queue (~10 req/sec to respect Discord's `POST /users/@me/channels` bucket). Both layers funnel through the same service — startup = batch-mode loop, greedy = per-interaction single call.
-
-**Changes needed**:
-
-- (a) new endpoint `GET /internal/users/recent?sinceDays=30` on api-gateway (service-auth protected, returns Discord IDs only) — for Layer 1
-- (b) new `DMSubscriptionWarmer` service in `services/bot-client/src/services/` with queue-based rate limiting
-- (c) wire Layer 1 into `services/bot-client/src/index.ts` after `Events.ClientReady`, before "fully operational"
-- (d) wire Layer 2 into `MessageHandler.handleMessage` (for every non-bot, non-system message) and the `interactionCreate` handler (for every interaction)
-- (e) fire-and-forget throughout; log warming progress + failures; circuit-breaker on 429s
-
-**Acceptable residual**: a brand-new user who has never interacted with the bot at all (not in a guild, never triggered a slash command, truly first contact via DM) still needs to slash-command first. Unavoidable without bot-initiated DM creation, which Discord doesn't allow. Layer 2 shrinks this edge case to "first-ever interaction only."
-
-**Start**: `services/bot-client/src/services/` for the new warmer service; `services/bot-client/src/index.ts` around line 256 (`Events.MessageCreate` handler) and 267 (`Events.InteractionCreate`) for Layer 2 wire-up; `services/api-gateway/src/routes/` for the new endpoint.
-
-Promoted from Inbox 2026-04-22.
+**Original two-layer warmer plan superseded**: the SIGTERM hypothesis is structurally simpler and matches every observed symptom. If the diagnostic confirms the fix, we don't need the warmer at all. If it doesn't, the diagnostic tells us _which_ alternative (Discord.js cache config, Railway `overlapSeconds: 0`, etc.) to try next — narrower than the original 300-LOC speculative warmer.
 
 ### Other in-flight
 
