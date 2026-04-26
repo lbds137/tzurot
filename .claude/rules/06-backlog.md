@@ -86,6 +86,7 @@ Both gates pair with the session-end workflow in the `/tzurot-docs` skill. Addit
 | Needed this week              | 🎯 Current Focus     |
 | Small (<1 hour), independent  | ⚡️ Quick Wins        |
 | Part of current epic          | 🏗 Active Epic       |
+| Part of the queued-next theme | 📅 Next Theme        |
 | Part of a future theme        | 📦 Future Themes     |
 | Nice-to-have, no urgency      | 🧊 Icebox            |
 | Decided against (with reason) | ⏸️ Deferred          |
@@ -98,9 +99,9 @@ When Active Epic completes:
 2. Promote Next Theme: replace `backlog/active-epic.md` content with what was in `backlog/next-theme.md`
 3. Choose new Next Theme from `backlog/future-themes.md` (pick based on dependencies + value); replace `backlog/next-theme.md` content accordingly. The filename stays stable across rotations — the file's role (the slot after active-epic) is what's named, not the specific theme inside.
 
-## Epic Structure
+## Theme/Epic Structure
 
-Each epic should have:
+Each theme or epic should have:
 
 ```markdown
 ## 🏗 Active Epic: Name
