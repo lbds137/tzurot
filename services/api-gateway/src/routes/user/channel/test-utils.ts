@@ -6,13 +6,10 @@ import { vi } from 'vitest';
 import {
   createMockIsBotOwner,
   createMockCreatedAt,
-  createMockReqRes,
+  createProvisionedMockReqRes,
   getHandler,
   type RouteHandler,
 } from '../../../test/shared-route-test-utils.js';
-
-// Re-export shared utilities used by test files
-export { createMockReqRes, getHandler, createMockCreatedAt, type RouteHandler };
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 export const mockIsBotOwner = createMockIsBotOwner();
@@ -22,6 +19,27 @@ export const MOCK_USER_UUID = '550e8400-e29b-41d4-a716-446655440000';
 export const MOCK_PERSONALITY_UUID = '550e8400-e29b-41d4-a716-446655440001';
 export const MOCK_ACTIVATION_UUID = '550e8400-e29b-41d4-a716-446655440002';
 export const MOCK_DISCORD_USER_ID = '123456789012345678';
+/** Sentinel default-persona id shared by channel-domain mocks. */
+const MOCK_DEFAULT_PERSONA_ID = 'test-persona-uuid';
+
+/**
+ * Channel-domain wrapper around the shared mock helper. Sets
+ * `provisionedUserId` to MOCK_USER_UUID so route handlers see the same id
+ * as `setupStandardMocks` returns from `mockPrisma.user.findUnique`.
+ */
+export function createMockReqRes(
+  body: Record<string, unknown> = {},
+  params: Record<string, string> = {},
+  query: Record<string, string> = {}
+): ReturnType<typeof createProvisionedMockReqRes> {
+  return createProvisionedMockReqRes(body, params, query, {
+    provisionedUserId: MOCK_USER_UUID,
+    provisionedDefaultPersonaId: MOCK_DEFAULT_PERSONA_ID,
+  });
+}
+
+// Re-export shared utilities used by test files
+export { getHandler, createMockCreatedAt, type RouteHandler };
 
 // Mock Prisma client with tables needed for channel settings tests + UserService dependencies
 export function createMockPrisma(): {
@@ -50,7 +68,6 @@ export function createMockPrisma(): {
     delete: ReturnType<typeof vi.fn>;
     updateMany: ReturnType<typeof vi.fn>;
   };
-  $executeRaw: ReturnType<typeof vi.fn>;
 } {
   return {
     user: {
@@ -60,14 +77,14 @@ export function createMockPrisma(): {
       findUnique: vi.fn().mockResolvedValue({
         id: MOCK_USER_UUID,
         username: 'test-user',
-        defaultPersonaId: 'test-persona-uuid',
+        defaultPersonaId: MOCK_DEFAULT_PERSONA_ID,
         isSuperuser: false,
       }),
       create: vi.fn(),
       update: vi.fn(),
     },
     persona: {
-      create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+      create: vi.fn().mockResolvedValue({ id: MOCK_DEFAULT_PERSONA_ID }),
     },
     personality: {
       findUnique: vi.fn(),
@@ -85,8 +102,6 @@ export function createMockPrisma(): {
       delete: vi.fn(),
       updateMany: vi.fn(),
     },
-    // UserService's create-user CTE; plain happy-path resolve by default.
-    $executeRaw: vi.fn().mockResolvedValue(1),
   };
 }
 
