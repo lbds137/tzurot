@@ -32,7 +32,6 @@ interface CreatePersonaResponse {
     pronouns: string | null;
     content: string | null;
   };
-  setAsDefault: boolean;
 }
 
 /**
@@ -111,13 +110,9 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
       return;
     }
 
-    const { persona, setAsDefault } = result.data;
+    const { persona } = result.data;
 
     logger.info({ userId: discordId, personaId: persona.id, personaName }, 'Created new persona');
-
-    if (setAsDefault) {
-      logger.info({ userId: discordId, personaId: persona.id }, 'Set as default (first persona)');
-    }
 
     // Build response
     const details: string[] = [];
@@ -139,9 +134,6 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     let response = `✅ **Persona "${personaName}" created!**`;
     if (details.length > 0) {
       response += `\n\n${details.join('\n')}`;
-    }
-    if (setAsDefault) {
-      response += '\n\n⭐ This persona has been set as your default.';
     }
     response += '\n\nUse `/persona browse` to see all your personas.';
 

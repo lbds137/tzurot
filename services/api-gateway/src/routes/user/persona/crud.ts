@@ -162,10 +162,6 @@ function createCreateHandler(prisma: PrismaClient) {
       select: PERSONA_SELECT,
     });
 
-    // The provisioning middleware always supplies a non-null defaultPersonaId
-    // on req, so this newly-created persona is never the first one. The
-    // shell-path-era branch that auto-set a "first" persona as the default
-    // was deleted alongside getOrCreateUserShell.
     logger.info({ userId: user.id, personaId: persona.id }, 'Created new persona');
 
     sendCustomSuccess(
@@ -173,7 +169,6 @@ function createCreateHandler(prisma: PrismaClient) {
       {
         success: true,
         persona: toPersonaDetails(persona, false),
-        setAsDefault: false,
       },
       StatusCodes.CREATED
     );

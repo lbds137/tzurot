@@ -150,17 +150,6 @@ describe('Persona API Contract Tests', () => {
       const data = {
         success: true as const,
         persona: createValidPersonaDetails(),
-        setAsDefault: true,
-      };
-      const result = CreatePersonaResponseSchema.safeParse(data);
-      expect(result.success).toBe(true);
-    });
-
-    it('should accept create response with setAsDefault=false', () => {
-      const data = {
-        success: true as const,
-        persona: createValidPersonaDetails({ isDefault: false }),
-        setAsDefault: false,
       };
       const result = CreatePersonaResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
@@ -170,7 +159,6 @@ describe('Persona API Contract Tests', () => {
       const data = {
         success: false,
         persona: createValidPersonaDetails(),
-        setAsDefault: true,
       };
       const result = CreatePersonaResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
