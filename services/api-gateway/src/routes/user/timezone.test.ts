@@ -75,6 +75,8 @@ function createMockReqRes(body: Record<string, unknown> = {}) {
   const req = {
     body,
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -125,18 +127,11 @@ describe('/user/timezone routes', () => {
   });
 
   describe('GET /user/timezone', () => {
-    // Each GET/PUT handler here issues TWO `user.findUnique` calls in sequence:
-    //   1. Inside `getOrCreateUserShell` (shadow-mode UUID resolution) — returns { id }
-    //   2. The handler's actual data read — returns the row (or null for the 404 branch)
-    // The `mockResolvedValueOnce` pairs below mirror that call order. If
-    // `resolveProvisionedUserId`'s shadow-mode path ever changes (e.g., swaps
-    // `findUnique` for `findFirst`, or adds an intermediate query), these
-    // pairs need to match the new sequence.
+    // Provisioning middleware sets `req.provisionedUserId`; route reads it
+    // directly (no shadow-mode resolver call). Each GET/PUT handler issues a
+    // SINGLE `user.findUnique` call: the timezone data read.
 
     it('should return 404 when user row is missing', async () => {
-      // Simulate both the shadow-fallback resolver read AND the timezone
-      // read failing to find a row — exercises the defensive 404 branch.
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
@@ -149,7 +144,6 @@ describe('/user/timezone routes', () => {
     });
 
     it('should return user timezone', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'America/New_York' });
 
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
@@ -168,7 +162,6 @@ describe('/user/timezone routes', () => {
     });
 
     it('should return isDefault=true for UTC timezone', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'UTC' });
 
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
@@ -186,7 +179,6 @@ describe('/user/timezone routes', () => {
     });
 
     it('should query user timezone by internal UUID', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({ timezone: 'UTC' });
 
       const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
@@ -195,8 +187,7 @@ describe('/user/timezone routes', () => {
 
       await handler(req, res);
 
-      // Second findUnique call (after the shadow-resolver one) queries by UUID
-      expect(mockPrisma.user.findUnique).toHaveBeenNthCalledWith(2, {
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-uuid-123' },
         select: { timezone: true },
       });
@@ -285,26 +276,6 @@ describe('/user/timezone routes', () => {
           timezone: 'UTC',
         })
       );
-    });
-
-    it('should resolve user via provisioning fallback and update timezone', async () => {
-      const router = createTimezoneRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'put', '/');
-      const { req, res } = createMockReqRes({ timezone: 'Europe/London' });
-
-      await handler(req, res);
-
-      // Shadow-mode fallback: resolveProvisionedUserId calls
-      // getOrCreateUserShell which reads the user by discordId.
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
-      );
-
-      // Timezone is then updated via direct update by internal UUID.
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'user-uuid-123' },
-        data: { timezone: 'Europe/London' },
-      });
     });
 
     it('should return timezone info in response', async () => {

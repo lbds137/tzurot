@@ -56,6 +56,8 @@ function createMockReqRes(query: Record<string, string> = {}) {
   const req = {
     query,
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -157,25 +159,6 @@ describe('/user/usage routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'VALIDATION_ERROR',
-        })
-      );
-    });
-  });
-
-  describe('user lookup', () => {
-    it('should resolve user via provisioning and query usage logs by UUID', async () => {
-      const { req, res } = createMockReqRes({});
-
-      await callHandler(mockPrisma, req, res);
-
-      // Shadow fallback reads by discordId to resolve the UUID.
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
-      );
-      // Usage is queried by internal UUID, not by discordId.
-      expect(mockPrisma.usageLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ userId: 'user-uuid-123' }),
         })
       );
     });

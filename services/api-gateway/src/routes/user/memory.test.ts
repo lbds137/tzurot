@@ -87,6 +87,8 @@ function createMockReqRes(body: Record<string, unknown> = {}, query: Record<stri
     body,
     query,
     userId: TEST_DISCORD_USER_ID,
+    provisionedUserId: TEST_USER_ID,
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -812,9 +814,7 @@ describe('/user/memory routes', () => {
     });
 
     it('should return empty list when user has no persona', async () => {
-      mockPrisma.user.findUnique
-        .mockResolvedValueOnce({ id: TEST_USER_ID }) // First call - check user
-        .mockResolvedValueOnce({ defaultPersonaId: null }); // Second call - get default persona
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ defaultPersonaId: null });
 
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/list');
