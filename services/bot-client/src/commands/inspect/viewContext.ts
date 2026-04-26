@@ -27,6 +27,12 @@ export interface ViewContext {
    *   PR #898, deleted-owner User rows (resolver returned null), test
    *   environments without DB access, and any future schema drift. This
    *   fallback is load-bearing, not just a transition aid.
+   *
+   *   Defense: ai-worker's personalityOwnerResolver.test.ts has a structural
+   *   guard asserting that `new DiagnosticCollector(...)` only appears in the
+   *   resolver helper file in production code, so any current-era log with
+   *   undefined `ownerDiscordId` is genuinely one of the four cases above —
+   *   not a write path that forgot to call the resolver.
    */
   canViewCharacter: boolean;
 }

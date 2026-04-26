@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const mockFindUnique = vi.hoisted(() => vi.fn());
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -113,5 +115,90 @@ describe('createDiagnosticCollectorForRequest', () => {
     });
     const payload = collector.finalize();
     expect(payload.meta.guildId).toBeNull();
+  });
+});
+
+/**
+ * Structural guard: prevent future write paths from constructing
+ * DiagnosticCollector directly and bypassing the owner-resolver call.
+ *
+ * Why this matters: viewContext.canViewCharacter falls back to "show
+ * everything" when meta.personalityOwnerDiscordId is undefined. The fallback
+ * is intentional for legacy logs (pre-PR-#898), deleted-owner User rows, and
+ * test environments — but a current-era write path that forgot to populate
+ * the field would silently grant cross-user access to character internals.
+ *
+ * createDiagnosticCollectorForRequest is the single approved construction
+ * site. This test asserts no other production file in ai-worker creates a
+ * collector via `new DiagnosticCollector(...)`.
+ */
+describe('DiagnosticCollector construction is funneled through the owner resolver', () => {
+  it('production code constructs DiagnosticCollector only via createDiagnosticCollectorForRequest', () => {
+    const aiWorkerSrc = path.resolve(__dirname, '../..');
+    const productionFiles: string[] = [];
+
+    function collectTsFiles(dir: string): void {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          // Skip test infra, mocks, and build output
+          if (
+            entry.name === 'test' ||
+            entry.name === 'mocks' ||
+            entry.name === '__mocks__' ||
+            entry.name === 'dist' ||
+            entry.name === 'node_modules'
+          ) {
+            continue;
+          }
+          collectTsFiles(full);
+        } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+          // Skip test files
+          if (entry.name.endsWith('.test.ts') || entry.name.endsWith('.spec.ts')) {
+            continue;
+          }
+          productionFiles.push(full);
+        }
+      }
+    }
+    collectTsFiles(aiWorkerSrc);
+
+    const offenders: { file: string; line: number; text: string }[] = [];
+    const constructPattern = /\bnew\s+DiagnosticCollector\s*\(/;
+
+    for (const file of productionFiles) {
+      const lines = fs.readFileSync(file, 'utf8').split('\n');
+      lines.forEach((text, idx) => {
+        if (constructPattern.test(text)) {
+          offenders.push({ file, line: idx + 1, text: text.trim() });
+        }
+      });
+    }
+
+    // Allowed callsites:
+    // - personalityOwnerResolver.ts: the resolver helper (single approved
+    //   construction site for production paths)
+    // - DiagnosticCollector.ts: the class definition itself, whose JSDoc
+    //   examples include literal `new DiagnosticCollector(...)` snippets
+    const allowedSuffixes = [
+      path.normalize('services/diagnostics/personalityOwnerResolver.ts'),
+      path.normalize('services/DiagnosticCollector.ts'),
+    ];
+    const isAllowed = (file: string): boolean =>
+      allowedSuffixes.some(suffix => file.endsWith(suffix));
+    const unauthorized = offenders.filter(o => !isAllowed(o.file));
+
+    expect(
+      unauthorized,
+      `Unauthorized DiagnosticCollector constructions:\n${unauthorized
+        .map(o => `  ${o.file}:${o.line} → ${o.text}`)
+        .join(
+          '\n'
+        )}\nAll production code must construct DiagnosticCollector via createDiagnosticCollectorForRequest so the owner resolver is invoked.`
+    ).toEqual([]);
+    // Sanity: the resolver callsite still exists. Catches accidental rename
+    // of the helper that would silently make this test trivially pass.
+    const resolverPath = path.normalize('services/diagnostics/personalityOwnerResolver.ts');
+    expect(offenders.some(o => o.file.endsWith(resolverPath))).toBe(true);
   });
 });
