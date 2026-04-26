@@ -3,11 +3,13 @@ const path = require('path');
 
 // Static scopes for root-level concerns (not workspace packages)
 const staticScopes = [
+  'backlog', // Work tracking (backlog/*.md, BACKLOG.md, CURRENT.md)
   'ci', // CI/CD configuration (.github/)
   'deps', // Dependency updates
   'docs', // General documentation
   'hooks', // Claude Code hooks (.claude/hooks/)
   'husky', // Git workflow hooks (.husky/)
+  'prisma', // Database schema and migrations (prisma/)
   'repo', // General repo maintenance
   'rules', // Claude Code rules (.claude/rules/)
   'skills', // Claude Code skills (.claude/skills/)
