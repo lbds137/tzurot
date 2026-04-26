@@ -98,20 +98,20 @@ Auto-memory audit runs as part of the recurring `/tzurot-doc-audit` cycle — th
 - [ ] Reference subdirectory table matches actual subdirectories
 - [ ] Root-level documentation section references correct filenames
 
-> Note: this project uses `BACKLOG.md` for active work tracking, not `docs/proposals/active/` — that directory does not exist by design. If you see references to it in any doc, they're stale and should be removed.
+> Note: this project uses `BACKLOG.md` (root index) + `backlog/*.md` (per-section) for active work tracking, not `docs/proposals/active/` — that directory does not exist by design. If you see references to it in any doc, they're stale and should be removed.
 
 ### 2. Rules Files (`.claude/rules/`)
 
-| File                   | Check                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `00-critical.md`       | Security rules still reflect current patterns? Post-mortem table current?       |
-| `01-architecture.md`   | Service boundaries match dependency-cruiser rules? Anti-patterns table current? |
-| `02-code-standards.md` | ESLint limits match `eslint.config.js`? Testing patterns current?               |
-| `03-database.md`       | Cache implementations table accurate? Protected indexes list current?           |
-| `04-discord.md`        | Shared utilities table lists all browse/dashboard helpers?                      |
-| `05-tooling.md`        | All `pnpm ops` commands listed? `pnpm quality` description accurate?            |
-| `06-backlog.md`        | Backlog structure matches actual BACKLOG.md sections?                           |
-| `07-documentation.md`  | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?  |
+| File                   | Check                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `00-critical.md`       | Security rules still reflect current patterns? Post-mortem table current?           |
+| `01-architecture.md`   | Service boundaries match dependency-cruiser rules? Anti-patterns table current?     |
+| `02-code-standards.md` | ESLint limits match `eslint.config.js`? Testing patterns current?                   |
+| `03-database.md`       | Cache implementations table accurate? Protected indexes list current?               |
+| `04-discord.md`        | Shared utilities table lists all browse/dashboard helpers?                          |
+| `05-tooling.md`        | All `pnpm ops` commands listed? `pnpm quality` description accurate?                |
+| `06-backlog.md`        | Backlog structure table matches actual `backlog/*.md` files (one section per file)? |
+| `07-documentation.md`  | Placement table covers all `docs/reference/` subdirs? Lifecycle rules current?      |
 
 **How to verify 05-tooling.md:**
 
@@ -152,7 +152,7 @@ ls .claude/skills/*/SKILL.md
 
 ### 5. Proposals Lifecycle
 
-- [ ] All `proposals/active/` items are actually being worked on (check BACKLOG.md)
+- [ ] All `proposals/active/` items are actually being worked on (check `backlog/current-focus.md`)
 - [ ] No completed features still have active proposals (should be deleted)
 - [ ] Backlog proposals still relevant (not implemented, not abandoned)
 
@@ -160,7 +160,7 @@ ls .claude/skills/*/SKILL.md
 
 - [ ] Files in `docs/research/` are TL;DR format (2-5KB, not raw transcripts)
 - [ ] No raw AI chat dumps (distill or delete)
-- [ ] Research links to actionable items in BACKLOG.md or proposals
+- [ ] Research links to actionable items in `backlog/*.md` or proposals
 
 ### 8. Incidents
 
@@ -226,7 +226,7 @@ These catch drift between docs and code:
 
 1. Fix issues found inline during the audit
 2. Update `lastUpdated` on any modified skill files
-3. Note any larger doc rewrites needed in BACKLOG.md Inbox
+3. Note any larger doc rewrites needed in `backlog/inbox.md`
 4. Commit documentation fixes: `docs: audit and refresh documentation`
 
 ## References
