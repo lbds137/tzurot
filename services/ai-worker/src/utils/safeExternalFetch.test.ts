@@ -129,6 +129,27 @@ describe('isPrivateOrInternalIp', () => {
     expect(isPrivateOrInternalIp('0:0:0:0:0:0:0:0')).toBe(true);
   });
 
+  it('rejects IPv6 loopback / unspecified across non-canonical mixed-compression forms', () => {
+    // dns.lookup never emits these, but isPrivateOrInternalIp is exported for
+    // defense-in-depth and can be called with arbitrary IPv6 shapes. Numeric
+    // comparison via parseIPv6ToBigInt covers all syntactic variants.
+    //
+    // Loopback (::1) variants:
+    expect(isPrivateOrInternalIp('000::1')).toBe(true); // leading hextet padded
+    expect(isPrivateOrInternalIp('0::0:1')).toBe(true); // mixed compression
+    expect(isPrivateOrInternalIp('0:0::1')).toBe(true);
+    expect(isPrivateOrInternalIp('0000:0000:0000:0000:0000:0000:0000:0001')).toBe(true); // fully padded
+    // Unspecified (::) variants:
+    expect(isPrivateOrInternalIp('0::')).toBe(true);
+    expect(isPrivateOrInternalIp('0::0')).toBe(true);
+    expect(isPrivateOrInternalIp('0:0::0')).toBe(true);
+    expect(isPrivateOrInternalIp('0000:0000:0000:0000:0000:0000:0000:0000')).toBe(true); // fully padded
+    // Sanity: similar-looking but DIFFERENT addresses must NOT match the loopback.
+    expect(isPrivateOrInternalIp('::1:0')).toBe(false); // 1 in hextet 7, not 8 — value 0x10000
+    expect(isPrivateOrInternalIp('::2')).toBe(false); // not loopback
+    expect(isPrivateOrInternalIp('1::')).toBe(false); // 1 in hextet 1
+  });
+
   it('rejects IPv6 unique local addresses (fc00::/7)', () => {
     expect(isPrivateOrInternalIp('fc00::1')).toBe(true);
     expect(isPrivateOrInternalIp('fd00:dead:beef::1')).toBe(true);
