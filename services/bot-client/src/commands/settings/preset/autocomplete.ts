@@ -11,7 +11,7 @@ import {
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
   type LlmConfigSummary,
-  type AIProvider,
+  type ListWalletKeysResponse,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
@@ -22,13 +22,6 @@ import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index
  * Used to detect when user selects the upsell in command handlers
  */
 export const UNLOCK_MODELS_VALUE = '__unlock_all_models__';
-
-interface WalletListResponse {
-  keys: {
-    provider: AIProvider;
-    isActive: boolean;
-  }[];
-}
 
 const logger = createLogger('settings-preset-autocomplete');
 
@@ -83,7 +76,7 @@ async function handlePresetAutocomplete(
   const user = toGatewayUser(interaction.user);
   const [configResult, walletResult] = await Promise.all([
     callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', { user }),
-    callGatewayApi<WalletListResponse>('/wallet/list', { user }),
+    callGatewayApi<ListWalletKeysResponse>('/wallet/list', { user }),
   ]);
 
   if (!configResult.ok) {
