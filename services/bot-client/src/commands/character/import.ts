@@ -15,6 +15,7 @@ import {
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
 import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
+import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import {
   VALID_IMAGE_TYPES,
   MAX_INPUT_SIZE_MB,
@@ -148,7 +149,7 @@ async function validateAndParseCharacterJsonFile(
     return { error: validationResult.error + '\n\n' + buildTemplateMessage() };
   }
 
-  // Download and parse using shared utility
+  // Download and parse using shared utility (CDN guard runs inside downloadAndParseJson)
   const jsonResult = await downloadAndParseJson(file.url, file.name);
   if ('error' in jsonResult) {
     return { error: jsonResult.error + '\n\n' + buildTemplateMessage() };
@@ -185,6 +186,11 @@ function validateAvatarAttachment(avatar: AttachmentOption): string | null {
 async function processAvatarDownload(
   avatar: AttachmentOption
 ): Promise<AvatarProcessingResult | { error: string }> {
+  // SSRF defense-in-depth: reject non-Discord-CDN URLs before fetching.
+  const cdnGuard = validateDiscordCdnUrl(avatar.url, logger);
+  if (!cdnGuard.ok) {
+    return { error: '❌ Invalid avatar URL.' };
+  }
   try {
     const response = await fetch(avatar.url);
     if (!response.ok) {

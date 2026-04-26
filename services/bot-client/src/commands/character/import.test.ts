@@ -286,6 +286,38 @@ describe('handleImport', () => {
     });
   });
 
+  describe('CDN URL validation', () => {
+    it('should reject character file URLs not on the Discord CDN', async () => {
+      const context = createMockContext({
+        url: 'https://evil.example.com/malicious.json',
+      });
+
+      await handleImport(context, mockConfig);
+
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
+      expect(editReplyArg).toContain('❌ Invalid file URL.');
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(callGatewayApi).not.toHaveBeenCalled();
+    });
+
+    it('should reject avatar URLs not on the Discord CDN', async () => {
+      // File URL passes the guard; avatar URL fails — pins the second guard inside processAvatarDownload.
+      const context = createMockContext(undefined, {
+        url: 'https://evil.example.com/malicious.png',
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
+      });
+      mockCreateScenario({ ok: true, data: { id: 'new-id' } });
+
+      await handleImport(context, mockConfig);
+
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
+      expect(editReplyArg).toContain('❌ Invalid avatar URL.');
+    });
+  });
+
   describe('file size validation', () => {
     it('should reject files larger than AVATAR_SIZE limit', async () => {
       const context = createMockContext({

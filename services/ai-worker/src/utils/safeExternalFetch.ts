@@ -140,10 +140,19 @@ function isPrivateOrInternalIpv6Tunneled6to4(lower: string): boolean {
  * Covers loopback, ULA, link-local, multicast, deprecated site-local,
  * IPv4-mapped recursion, 6to4 tunneling recursion, and Teredo tunneling.
  */
+// Loopback / unspecified IPv6 addresses, in the forms `dns.lookup` actually
+// produces: canonical (RFC 5952) `::`, `::1` plus the uncompressed-zeros
+// representation. Fully-padded forms (`0000:...:0001`) and mixed-compression
+// variants are not covered — `dns.lookup` does not emit them, and the only
+// other caller (`isPrivateOrInternalIp` exposed for defense-in-depth) is
+// expected to canonicalise its input first. Set lookup keeps the guard tight
+// while keeping function complexity below the lint cap.
+const LOOPBACK_OR_UNSPECIFIED_IPV6 = new Set(['::', '::1', '0:0:0:0:0:0:0:0', '0:0:0:0:0:0:0:1']);
+
 function isPrivateOrInternalIpv6(ip: string): boolean {
   const lower = ip.toLowerCase();
-  if (lower === '::' || lower === '::1') {
-    return true; // unspecified or loopback
+  if (LOOPBACK_OR_UNSPECIFIED_IPV6.has(lower)) {
+    return true;
   }
   // IPv4-mapped IPv6 (::ffff:a.b.c.d) — extract embedded IPv4 and recurse so
   // a private IPv4 wrapped in IPv6 syntax doesn't slip through.
