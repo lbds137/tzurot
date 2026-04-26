@@ -52,7 +52,7 @@ describe('jsonFileUtils', () => {
         contentType: 'application/json',
         name: 'test.json',
         size: 1000,
-        url: 'https://example.com/test.json',
+        url: 'https://cdn.discordapp.com/attachments/1/2/test.json',
         ...overrides,
       }) as Attachment;
 
@@ -110,7 +110,10 @@ describe('jsonFileUtils', () => {
         text: () => Promise.resolve(JSON.stringify(testData)),
       });
 
-      const result = await downloadAndParseJson('https://example.com/test.json', 'test.json');
+      const result = await downloadAndParseJson(
+        'https://cdn.discordapp.com/attachments/1/2/test.json',
+        'test.json'
+      );
 
       expect(result).toHaveProperty('data');
       expect((result as { data: unknown }).data).toEqual(testData);
@@ -122,7 +125,10 @@ describe('jsonFileUtils', () => {
         status: 404,
       });
 
-      const result = await downloadAndParseJson('https://example.com/test.json', 'test.json');
+      const result = await downloadAndParseJson(
+        'https://cdn.discordapp.com/attachments/1/2/test.json',
+        'test.json'
+      );
 
       expect(result).toHaveProperty('error');
       expect((result as { error: string }).error).toContain('Failed to parse');
@@ -134,7 +140,10 @@ describe('jsonFileUtils', () => {
         text: () => Promise.resolve('not valid json {'),
       });
 
-      const result = await downloadAndParseJson('https://example.com/test.json', 'test.json');
+      const result = await downloadAndParseJson(
+        'https://cdn.discordapp.com/attachments/1/2/test.json',
+        'test.json'
+      );
 
       expect(result).toHaveProperty('error');
       expect((result as { error: string }).error).toContain('Failed to parse');
@@ -143,9 +152,23 @@ describe('jsonFileUtils', () => {
     it('should return error for network failure', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
-      const result = await downloadAndParseJson('https://example.com/test.json', 'test.json');
+      const result = await downloadAndParseJson(
+        'https://cdn.discordapp.com/attachments/1/2/test.json',
+        'test.json'
+      );
 
       expect(result).toHaveProperty('error');
+    });
+
+    it('should reject non-Discord-CDN URLs without fetching', async () => {
+      const result = await downloadAndParseJson(
+        'https://evil.example.com/malicious.json',
+        'evil.json'
+      );
+
+      expect(result).toHaveProperty('error');
+      expect((result as { error: string }).error).toContain('Invalid file URL');
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
@@ -155,7 +178,7 @@ describe('jsonFileUtils', () => {
         contentType: 'application/json',
         name: 'test.json',
         size: 1000,
-        url: 'https://example.com/test.json',
+        url: 'https://cdn.discordapp.com/attachments/1/2/test.json',
         ...overrides,
       }) as Attachment;
 

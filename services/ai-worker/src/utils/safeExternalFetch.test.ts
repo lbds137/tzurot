@@ -123,6 +123,10 @@ describe('isPrivateOrInternalIp', () => {
   it('rejects IPv6 loopback (::1) and unspecified (::)', () => {
     expect(isPrivateOrInternalIp('::1')).toBe(true);
     expect(isPrivateOrInternalIp('::')).toBe(true);
+    // Uncompressed forms — same addresses, different syntactic representation.
+    // dns.lookup returns canonical (::1, ::) but the helper may receive arbitrary input.
+    expect(isPrivateOrInternalIp('0:0:0:0:0:0:0:1')).toBe(true);
+    expect(isPrivateOrInternalIp('0:0:0:0:0:0:0:0')).toBe(true);
   });
 
   it('rejects IPv6 unique local addresses (fc00::/7)', () => {
