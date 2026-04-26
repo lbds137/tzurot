@@ -10,6 +10,7 @@ import {
   getHandler,
   mockIsBotOwner,
   setupStandardMocks,
+  MOCK_USER_ID,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -113,7 +114,7 @@ describe('DELETE /user/personality/:slug', () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: 'personality-owned',
       name: 'My Character',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       _count: {
         conversationHistory: 10,
         memories: 5,
@@ -142,7 +143,7 @@ describe('DELETE /user/personality/:slug', () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: 'personality-counts',
       name: 'Count Test',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       _count: {
         conversationHistory: 50,
         memories: 25,
@@ -178,7 +179,7 @@ describe('DELETE /user/personality/:slug', () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: 'personality-schema',
       name: 'Schema Test',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       _count: {
         conversationHistory: 5,
         memories: 3,
@@ -206,7 +207,7 @@ describe('DELETE /user/personality/:slug', () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: 'personality-no-pending',
       name: 'No Pending',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       _count: {
         conversationHistory: 5,
         memories: 3,
@@ -274,7 +275,7 @@ describe('DELETE /user/personality/:slug', () => {
     });
     // User has co-ownership entry in PersonalityOwner table
     mockPrisma.personalityOwner.findUnique.mockResolvedValue({
-      userId: 'user-uuid-123',
+      userId: MOCK_USER_ID,
       personalityId: 'personality-coowned',
     });
     mockPrisma.pendingMemory.count.mockResolvedValue(0);
@@ -294,7 +295,7 @@ describe('DELETE /user/personality/:slug', () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-avatar-delete',
         name: 'Avatar Test',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         _count: {
           conversationHistory: 0,
           memories: 0,
@@ -396,7 +397,7 @@ describe('DELETE /user/personality/:slug', () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-cache-test',
         name: 'Cache Test',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         _count: {
           conversationHistory: 0,
           memories: 0,

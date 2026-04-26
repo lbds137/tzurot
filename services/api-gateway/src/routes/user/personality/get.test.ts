@@ -9,6 +9,7 @@ import {
   createMockReqRes,
   getHandler,
   setupStandardMocks,
+  MOCK_USER_ID,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -150,7 +151,7 @@ describe('GET /user/personality/:slug', () => {
       isPublic: false,
       voiceEnabled: false,
       imageEnabled: false,
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       avatarData: Buffer.from('test'),
       voiceReferenceType: null,
       createdAt: new Date('2024-01-01'),

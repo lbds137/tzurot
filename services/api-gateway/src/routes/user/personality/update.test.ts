@@ -11,6 +11,7 @@ import {
   getHandler,
   setupStandardMocks,
   mockIsBotOwner,
+  MOCK_USER_ID,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -115,7 +116,7 @@ describe('PUT /user/personality/:slug (update)', () => {
   it('should update owned personality', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: 'personality-7',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
     });
     mockPrisma.personality.update.mockResolvedValue(
       createMockPersonality({
@@ -168,7 +169,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
     // User has co-ownership entry in PersonalityOwner table
     mockPrisma.personalityOwner.findUnique.mockResolvedValue({
-      userId: 'user-uuid-123',
+      userId: MOCK_USER_ID,
       personalityId: 'personality-8',
     });
     mockPrisma.personality.update.mockResolvedValue(
@@ -195,7 +196,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     beforeEach(() => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-unicode',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         name: 'persephone', // Plain ASCII name
       });
     });
@@ -328,7 +329,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       // Standard setup: user exists, owns the personality
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-avatar',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         name: 'Test',
         avatarData: null,
       });
@@ -434,7 +435,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       // Invalid slugs should not trigger glob at all
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-avatar',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         slug: '../../../etc/passwd', // Malicious slug
         avatarData: null,
       });
@@ -459,7 +460,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     beforeEach(() => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-cache',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         name: 'Test',
         avatarData: null,
       });
@@ -546,7 +547,7 @@ describe('PUT /user/personality/:slug (update)', () => {
     beforeEach(() => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-voice',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         name: 'Test',
       });
       mockPrisma.personality.update.mockResolvedValue(
@@ -697,7 +698,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       // Setup: user exists and owns the personality
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-slug-test',
-        ownerId: 'user-uuid-123',
+        ownerId: MOCK_USER_ID,
         name: 'Test Character',
       });
     });
@@ -730,7 +731,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       mockPrisma.personality.findUnique
         .mockResolvedValueOnce({
           id: 'personality-slug-test',
-          ownerId: 'user-uuid-123',
+          ownerId: MOCK_USER_ID,
           name: 'Test Character',
         })
         .mockResolvedValueOnce(null); // Uniqueness check
@@ -777,7 +778,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       mockPrisma.personality.findUnique
         .mockResolvedValueOnce({
           id: 'personality-slug-test',
-          ownerId: 'user-uuid-123',
+          ownerId: MOCK_USER_ID,
           name: 'Test Character',
         })
         .mockResolvedValueOnce(null); // Uniqueness check
@@ -843,7 +844,7 @@ describe('PUT /user/personality/:slug (update)', () => {
       mockPrisma.personality.findUnique
         .mockResolvedValueOnce({
           id: 'personality-slug-test',
-          ownerId: 'user-uuid-123',
+          ownerId: MOCK_USER_ID,
           name: 'Test Character',
         })
         .mockResolvedValueOnce({ id: 'other-personality' }); // Another personality has this slug
