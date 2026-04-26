@@ -2,13 +2,6 @@
 
 _This week's active work. Max 3 items._
 
-### Identity Hardening — final cleanup (post-epic)
-
-The Identity & Provisioning Hardening Epic shipped end-to-end as of 2026-04-23 (Phases 1–6; see `docs/reference/architecture/epic-identity-hardening.md`). Two small follow-ups remain, sequenced as one atomic bundle:
-
-- 🧹 **Tighten `requireProvisionedUser` shadow-mode to strict 400** — `services/api-gateway/src/services/AuthMiddleware.ts:193-204` already plans this cutover. Safe once prod canary stays clean for 48-72h (earliest: ~2026-04-25). Middleware returns 400 on missing/malformed user-context headers instead of falling through. Removes the fallback branch from `resolveProvisionedUserId` + `getOrCreateInternalUser`. **Prerequisite migration (already landed in PR #882)**: `createProvisionedMockReqRes` helper in `services/api-gateway/src/test/shared-route-test-utils.ts`. The route test files currently mock `requireProvisionedUser` as a no-op. The strict-cutover PR applies the helper to every test file before flipping the middleware — migration + strict flip as one atomic change.
-- 🧹 **Delete `getOrCreateUserShell` method + canary log + helper fallback branches** — After the shadow-mode tightening above lands and canary confirms zero hits, the shell path is truly dead. Delete `UserService.getOrCreateUserShell` + its `[Identity] Shell path executed` canary log at `packages/common-types/src/services/UserService.ts:215`. Both `resolveProvisionedUserId` and `getOrCreateInternalUser` collapse to passthroughs reading `req.provisionedUserId` directly. **Also update `eslint.config.js:56`**: the existing ban on direct `prisma.user.create/upsert/createMany` currently names `getOrCreateUserShell` as the canonical HTTP-route alternative — remove that reference when the method is deleted.
-
 ### Post-deploy DM subscription loss fix
 
 🐛 `[FIX]` **HIGH priority** — user-facing friction on every release. Every time we ship a release and bot-client restarts, **plain-text DMs silently fail until the user fires a slash command** in the DM. Slash commands work (they go through `interactionCreate` which establishes the DM channel as a side effect). Guild messages work. Only plain-text `MESSAGE_CREATE` events in DMs get dropped on Discord's side.

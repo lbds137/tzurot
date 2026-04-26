@@ -1,25 +1,44 @@
 # Current
 
-> **Session**: 2026-04-24 → 2026-04-25 (extended marathon — beta.105 released, then beta.105 production failures caught + beta.106 hotfix released within hours)
+> **Session**: 2026-04-26 (Quick Wins triage + Identity Hardening final cleanup — epic closed)
 > **Version**: v3.0.0-beta.107 (released 2026-04-26)
 
 ---
 
 ## Next Session Goal
 
-_No production issues active as of 2026-04-26 — both prior entries (LangChain reasoning drop, preset autocomplete guest-mode) cleared after beta.107 confirmed structural fixes (#895, #906) held overnight. Pick from the candidates below; user-impact and shape vary._
+_No production issues active. Identity Hardening Epic fully closed as of PR #911. Pick from the candidates below; user-impact and shape vary._
 
-1. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. Canary window closed 2026-04-25, safe to start. Mechanical shape — middleware flip + symbol deletion + ESLint config update + test-helper migration as one PR. Good for a clean session.
-2. **Post-deploy DM subscription loss fix** — HIGH user-facing impact on every release. Two-layer warmer spec-ready in `backlog/current-focus.md` (startup pre-warm via `client.users.fetch().createDM()` + greedy lazy registration on any interaction). Medium implementation complexity.
-3. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/month ElevenLabs).
+1. **Post-deploy DM subscription loss fix** — HIGH user-facing impact on every release. Two-layer warmer spec-ready in `backlog/current-focus.md` (startup pre-warm via `client.users.fetch().createDM()` + greedy lazy registration on any interaction). Medium implementation complexity.
+2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/month ElevenLabs).
+3. **Quick Wins follow-ups from PR #911 reviews** — `setAsDefault` field cleanup, Zod schema validation at gateway boundary (both in `backlog/inbox.md`).
 
 ## Active Task
 
-_None. Session paused after PR #891 merged + post-merge cleanup committed + develop history fully cleaned._
+_None. Session paused after PR #911 merged + Identity Hardening Epic fully closed._
 
 ---
 
-## Completed This Session (2026-04-24)
+## Completed This Session (2026-04-26)
+
+### Inbox triage + commitlint scope additions
+
+- Cleared two production-issues entries (LangChain reasoning drop, preset autocomplete guest-mode) after beta.107 confirmed structural fixes held overnight.
+- Deleted obsolete `docs/research/langchain-reasoning-extraction-bug.md` + `scripts/glm47-reasoning-rate.ts` + `test-glm-reasoning-shape.ts` (architecture replaced).
+- Added `backlog`, `prisma` to commitlint static scopes.
+
+### Quick Wins shipped
+
+- **PR #908** (merged): three Quick Wins bundled — dedup `WalletListResponse` to canonical `ListWalletKeysResponse` across bot-client preset/apikey paths, IPv6 mixed-compression hardening in `safeExternalFetch` via `parseIPv6ToBigInt`, structural guard test on `personalityOwnerResolver`.
+- **PR #909** (merged): test-utils consolidation — three `test-utils.ts` files now wrap shared `createProvisionedMockReqRes` helper instead of duplicating mock setup.
+- **PR #910** (merged): personality `MOCK_USER_ID` UUID normalization across 6 test files (24 inline `'user-uuid-123'` literals → constant).
+
+### Identity & Provisioning Hardening Epic — CLOSED
+
+- **PR #911** (merged): final cleanup — `requireProvisionedUser` flipped from shadow-mode passthrough to strict 400/403/500 typed errors; `getOrCreateUserShell` method + `createShellUserWithRaceProtection` helper deleted; `resolveProvisionedUserId` and `getOrCreateInternalUser` collapsed to synchronous passthroughs that throw on missing field. -1404 lines net deletion. 3 review rounds with auto-applied fixups for stale-comment archaeology. Two follow-ups surfaced into `backlog/inbox.md` (vestigial `setAsDefault` field, Zod-validation gap at gateway boundary).
+- Removed obsolete `UserService.getOrCreateUserShell` cache hazard entry from icebox (the method no longer exists).
+
+### Old session content (2026-04-24)
 
 ### Morning: three Quick Wins shipped
 
