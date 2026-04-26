@@ -5,12 +5,7 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  type PrismaClient,
-  type UserService,
-  MemoryUpdateSchema,
-} from '@tzurot/common-types';
+import { createLogger, type PrismaClient, MemoryUpdateSchema } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -33,7 +28,6 @@ const PERSONALITY_INCLUDE = {
 
 interface OwnershipContext {
   prisma: PrismaClient;
-  userService: UserService;
   req: ProvisionedRequest;
   memoryId: string;
   res: Response;
@@ -46,9 +40,9 @@ interface OwnershipContext {
 async function verifyMemoryOwnership(
   context: OwnershipContext
 ): Promise<{ id: string; isLocked: boolean } | null> {
-  const { prisma, userService, req, memoryId, res } = context;
+  const { prisma, req, memoryId, res } = context;
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {
@@ -111,7 +105,6 @@ function transformMemory(memory: {
  */
 export async function handleGetMemory(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -123,7 +116,7 @@ export async function handleGetMemory(
     return;
   }
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {
@@ -155,7 +148,6 @@ export async function handleGetMemory(
  */
 export async function handleUpdateMemory(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -177,7 +169,6 @@ export async function handleUpdateMemory(
 
   const existing = await verifyMemoryOwnership({
     prisma,
-    userService,
     req,
     memoryId,
     res,
@@ -211,7 +202,6 @@ export async function handleUpdateMemory(
  */
 export async function handleToggleLock(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -225,7 +215,6 @@ export async function handleToggleLock(
 
   const existing = await verifyMemoryOwnership({
     prisma,
-    userService,
     req,
     memoryId,
     res,
@@ -254,7 +243,6 @@ export async function handleToggleLock(
  */
 export async function handleDeleteMemory(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -268,7 +256,6 @@ export async function handleDeleteMemory(
 
   const existing = await verifyMemoryOwnership({
     prisma,
-    userService,
     req,
     memoryId,
     res,

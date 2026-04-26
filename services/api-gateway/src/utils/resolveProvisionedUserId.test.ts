@@ -1,41 +1,28 @@
-import { describe, it, expect, vi } from 'vitest';
-import type { UserService } from '@tzurot/common-types';
+import { describe, it, expect } from 'vitest';
 import type { ProvisionedRequest } from '../types.js';
 import { resolveProvisionedUserId } from './resolveProvisionedUserId.js';
 
-function mockUserService(shellReturn: string): UserService {
-  return {
-    getOrCreateUserShell: vi.fn().mockResolvedValue(shellReturn),
-  } as unknown as UserService;
-}
-
 describe('resolveProvisionedUserId', () => {
-  it('returns req.provisionedUserId when middleware attached it (common path)', async () => {
+  it('returns req.provisionedUserId when middleware attached it', () => {
     const req = {
       userId: 'discord-123',
       provisionedUserId: 'internal-uuid-abc',
     } as ProvisionedRequest;
-    const userService = mockUserService('shell-uuid-should-not-be-used');
 
-    const result = await resolveProvisionedUserId(req, userService);
-
-    expect(result).toBe('internal-uuid-abc');
-    // Structural proof the provisioned path won: shell must NOT have been called.
-    expect(userService.getOrCreateUserShell).not.toHaveBeenCalled();
+    expect(resolveProvisionedUserId(req)).toBe('internal-uuid-abc');
   });
 
-  it('falls back to getOrCreateUserShell when middleware fell through (shadow-mode)', async () => {
+  it('throws when called on a request without provisionedUserId', () => {
+    // Defense-in-depth: should be impossible if requireProvisionedUser middleware
+    // is mounted on the route. Throwing surfaces middleware-misconfiguration
+    // bugs at the first request rather than producing silent data corruption.
     const req = {
       userId: 'discord-123',
-      // provisionedUserId intentionally absent — middleware shadow-mode
-      // fell through (missing/malformed headers, bot user, etc.)
+      // provisionedUserId intentionally absent
     } as ProvisionedRequest;
-    const userService = mockUserService('shell-uuid-fallback');
 
-    const result = await resolveProvisionedUserId(req, userService);
-
-    expect(result).toBe('shell-uuid-fallback');
-    // Uses req.userId directly — no more redundant third parameter.
-    expect(userService.getOrCreateUserShell).toHaveBeenCalledWith('discord-123');
+    expect(() => resolveProvisionedUserId(req)).toThrow(
+      /requireProvisionedUser middleware is missing/
+    );
   });
 });

@@ -75,7 +75,7 @@ async function resolveOwnedPersona(
     return null;
   }
 
-  const user = await getOrCreateInternalUser(prisma, req);
+  const user = getOrCreateInternalUser(req);
 
   const persona = await prisma.persona.findFirst({
     where: { id, ownerId: user.id },
@@ -94,7 +94,7 @@ async function resolveOwnedPersona(
 
 function createListHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
-    const user = await getOrCreateInternalUser(prisma, req);
+    const user = getOrCreateInternalUser(req);
 
     const personas = await prisma.persona.findMany({
       where: { ownerId: user.id },
@@ -120,7 +120,7 @@ function createGetHandler(prisma: PrismaClient) {
       return sendError(res, idValidation.error);
     }
 
-    const user = await getOrCreateInternalUser(prisma, req);
+    const user = getOrCreateInternalUser(req);
 
     const persona = await prisma.persona.findFirst({
       where: { id, ownerId: user.id },
@@ -147,7 +147,7 @@ function createCreateHandler(prisma: PrismaClient) {
 
     const { name, content, preferredName, description, pronouns } = parseResult.data;
 
-    const user = await getOrCreateInternalUser(prisma, req);
+    const user = getOrCreateInternalUser(req);
 
     const persona = await prisma.persona.create({
       data: {
@@ -162,22 +162,18 @@ function createCreateHandler(prisma: PrismaClient) {
       select: PERSONA_SELECT,
     });
 
-    const isFirstPersona = user.defaultPersonaId === null;
-    if (isFirstPersona) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { defaultPersonaId: persona.id },
-      });
-    }
-
+    // The provisioning middleware always supplies a non-null defaultPersonaId
+    // on req, so this newly-created persona is never the first one. The
+    // shell-path-era branch that auto-set a "first" persona as the default
+    // was deleted alongside getOrCreateUserShell.
     logger.info({ userId: user.id, personaId: persona.id }, 'Created new persona');
 
     sendCustomSuccess(
       res,
       {
         success: true,
-        persona: toPersonaDetails(persona, isFirstPersona),
-        setAsDefault: isFirstPersona,
+        persona: toPersonaDetails(persona, false),
+        setAsDefault: false,
       },
       StatusCodes.CREATED
     );

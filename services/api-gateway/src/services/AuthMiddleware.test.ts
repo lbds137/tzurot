@@ -534,7 +534,7 @@ describe('authMiddleware', () => {
       expect(mockNext).toHaveBeenCalledTimes(1);
     });
 
-    it('should fall through without attaching when X-User-Username is missing', async () => {
+    it('should reject with 400 when X-User-Username is missing', async () => {
       mockReq.headers = { 'x-user-displayname': 'Alice' };
 
       const middleware = requireProvisionedUser(fakePrisma);
@@ -542,12 +542,11 @@ describe('authMiddleware', () => {
 
       expect(mockGetOrCreateUser).not.toHaveBeenCalled();
       expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
-      expect(mockNext).toHaveBeenCalledTimes(1);
-      expect(mockNext).toHaveBeenCalledWith();
-      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(400);
     });
 
-    it('should fall through without attaching when X-User-DisplayName is missing', async () => {
+    it('should reject with 400 when X-User-DisplayName is missing', async () => {
       mockReq.headers = { 'x-user-username': 'alice' };
 
       const middleware = requireProvisionedUser(fakePrisma);
@@ -555,10 +554,11 @@ describe('authMiddleware', () => {
 
       expect(mockGetOrCreateUser).not.toHaveBeenCalled();
       expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
-      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(400);
     });
 
-    it('should fall through on malformed URI encoding (invalid % sequence)', async () => {
+    it('should reject with 400 on malformed URI encoding (invalid % sequence)', async () => {
       mockReq.headers = {
         'x-user-username': '%ZZ', // invalid hex after %
         'x-user-displayname': 'Alice',
@@ -569,11 +569,11 @@ describe('authMiddleware', () => {
 
       expect(mockGetOrCreateUser).not.toHaveBeenCalled();
       expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
-      expect(mockNext).toHaveBeenCalledTimes(1);
-      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(400);
     });
 
-    it('should fall through when getOrCreateUser throws', async () => {
+    it('should reject with 500 when getOrCreateUser throws', async () => {
       mockGetOrCreateUser.mockRejectedValue(new Error('DB down'));
 
       const middleware = requireProvisionedUser(fakePrisma);
@@ -581,21 +581,22 @@ describe('authMiddleware', () => {
 
       expect(mockGetOrCreateUser).toHaveBeenCalled();
       expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
-      expect(mockNext).toHaveBeenCalledTimes(1);
-      expect(mockNext).toHaveBeenCalledWith(); // no error argument — graceful degradation
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(500);
     });
 
-    it('should fall through when getOrCreateUser returns null (bot user case)', async () => {
+    it('should reject with 403 when getOrCreateUser returns null (bot user case)', async () => {
       mockGetOrCreateUser.mockResolvedValue(null);
 
       const middleware = requireProvisionedUser(fakePrisma);
       await middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect((mockReq as { provisionedUserId?: string }).provisionedUserId).toBeUndefined();
-      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
     });
 
-    it('should fall through when req.userId is missing (defense in depth)', async () => {
+    it('should reject with 403 when req.userId is missing (defense in depth)', async () => {
       // In practice requireUserAuth runs first and 401s on missing userId —
       // this test just guards against a future refactor removing that chain.
       mockReq.userId = undefined;
@@ -604,7 +605,8 @@ describe('authMiddleware', () => {
       await middleware(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockGetOrCreateUser).not.toHaveBeenCalled();
-      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext).not.toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(403);
     });
   });
 

@@ -4,7 +4,7 @@
  */
 
 import type { Response } from 'express';
-import { Prisma, type PrismaClient, type UserService, isBotOwner } from '@tzurot/common-types';
+import { Prisma, type PrismaClient, isBotOwner } from '@tzurot/common-types';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import type { ProvisionedRequest } from '../../../types.js';
 import { sendError } from '../../../utils/responseHelpers.js';
@@ -139,7 +139,6 @@ interface ResolvePersonalityOptions {
 
 interface ResolvePersonalityForEditParams {
   prisma: PrismaClient;
-  userService: UserService;
   req: ProvisionedRequest;
   slug: string;
   res: Response;
@@ -170,11 +169,11 @@ interface ResolvePersonalityForEditParams {
 export async function resolvePersonalityForEdit<T extends { id: string; ownerId: string }>(
   params: ResolvePersonalityForEditParams
 ): Promise<{ personality: T } | null> {
-  const { prisma, userService, req, slug, res, options } = params;
+  const { prisma, req, slug, res, options } = params;
   const { select, action = 'edit' } = options;
   const discordUserId = req.userId;
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   const personality = await prisma.personality.findUnique({ where: { slug }, select });
   if (personality === null) {

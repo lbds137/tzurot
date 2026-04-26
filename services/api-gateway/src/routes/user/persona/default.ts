@@ -34,7 +34,7 @@ export function addDefaultRoutes(router: Router, prisma: PrismaClient): void {
         return;
       }
 
-      const user = await getOrCreateInternalUser(prisma, req);
+      const user = getOrCreateInternalUser(req);
 
       const persona = await prisma.persona.findFirst({
         where: { id, ownerId: user.id },

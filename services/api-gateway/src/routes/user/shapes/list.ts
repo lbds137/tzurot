@@ -11,18 +11,13 @@ import { Router, type Response } from 'express';
 import {
   createLogger,
   decryptApiKey,
-  type UserService,
   type PrismaClient,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
   SHAPES_BASE_URL,
   SHAPES_USER_AGENT,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -41,11 +36,11 @@ interface ShapesListItem {
   created_ts?: number;
 }
 
-function createListHandler(prisma: PrismaClient, userService: UserService) {
+function createListHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     const credential = await prisma.userCredential.findFirst({
       where: {
@@ -145,13 +140,12 @@ function createListHandler(prisma: PrismaClient, userService: UserService) {
 
 export function createShapesListRoutes(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   router.get(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(prisma, userService))
+    asyncHandler(createListHandler(prisma))
   );
 
   return router;

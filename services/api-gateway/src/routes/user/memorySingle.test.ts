@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Response } from 'express';
-import type { PrismaClient, UserService } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 import type { ProvisionedRequest } from '../../types.js';
 
 // Mock logger
@@ -64,9 +64,6 @@ const mockPrisma = {
 const mockResolveProvisionedUserId = vi.mocked(resolveProvisionedUserId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 
-// Stub UserService — all accesses are routed through mocked helpers.
-const mockUserService = {} as unknown as UserService;
-
 // Helper to create mock request/response
 function createMockReqRes(params: Record<string, string> = {}, body: Record<string, unknown> = {}) {
   const req = {
@@ -101,7 +98,7 @@ describe('memorySingle handlers', () => {
     vi.clearAllMocks();
 
     // Default successful mocks
-    mockResolveProvisionedUserId.mockResolvedValue(TEST_USER_ID);
+    mockResolveProvisionedUserId.mockReturnValue(TEST_USER_ID);
     mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
     mockPrisma.memory.findFirst.mockResolvedValue(defaultMemory);
     mockPrisma.memory.update.mockResolvedValue(defaultMemory);
@@ -111,7 +108,7 @@ describe('memorySingle handlers', () => {
     it('should reject missing memoryId', async () => {
       const { req, res } = createMockReqRes({ id: '' });
 
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleGetMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -125,7 +122,7 @@ describe('memorySingle handlers', () => {
     it('should reject undefined memoryId', async () => {
       const { req, res } = createMockReqRes({});
 
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleGetMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -134,7 +131,7 @@ describe('memorySingle handlers', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleGetMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith(
@@ -148,7 +145,7 @@ describe('memorySingle handlers', () => {
       mockPrisma.memory.findFirst.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleGetMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.memory.findFirst).toHaveBeenCalledWith(
@@ -165,7 +162,7 @@ describe('memorySingle handlers', () => {
     it('should return memory successfully', async () => {
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleGetMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -188,7 +185,7 @@ describe('memorySingle handlers', () => {
       });
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleGetMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -202,7 +199,7 @@ describe('memorySingle handlers', () => {
     it('should include formatted dates in response', async () => {
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleGetMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleGetMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       const response = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(response.memory.createdAt).toBe('2025-01-01T00:00:00.000Z');
@@ -214,7 +211,7 @@ describe('memorySingle handlers', () => {
     it('should reject missing memoryId', async () => {
       const { req, res } = createMockReqRes({ id: '' }, { content: 'new content' });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -227,7 +224,7 @@ describe('memorySingle handlers', () => {
     it('should reject missing content', async () => {
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, {});
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -241,7 +238,7 @@ describe('memorySingle handlers', () => {
     it('should reject empty content (whitespace only)', async () => {
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: '   ' });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -250,7 +247,7 @@ describe('memorySingle handlers', () => {
       const longContent = 'a'.repeat(2001);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: longContent });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -264,7 +261,7 @@ describe('memorySingle handlers', () => {
       const maxContent = 'a'.repeat(2000);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: maxContent });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -273,7 +270,7 @@ describe('memorySingle handlers', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -282,7 +279,7 @@ describe('memorySingle handlers', () => {
       mockPrisma.memory.findFirst.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.memory.update).not.toHaveBeenCalled();
@@ -301,7 +298,7 @@ describe('memorySingle handlers', () => {
         { content: '  Updated content  ' }
       );
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.update).toHaveBeenCalledWith({
         where: { id: TEST_MEMORY_ID },
@@ -328,7 +325,7 @@ describe('memorySingle handlers', () => {
       const beforeUpdate = Date.now();
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       const updateCall = mockPrisma.memory.update.mock.calls[0][0];
       const updatedAtDate = updateCall.data.updatedAt as Date;
@@ -339,7 +336,7 @@ describe('memorySingle handlers', () => {
       mockPrisma.memory.findFirst.mockResolvedValue({ ...defaultMemory, isLocked: true });
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
 
-      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleUpdateMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith(
@@ -355,7 +352,7 @@ describe('memorySingle handlers', () => {
     it('should reject missing memoryId', async () => {
       const { req, res } = createMockReqRes({ id: '' });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -369,7 +366,7 @@ describe('memorySingle handlers', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -378,7 +375,7 @@ describe('memorySingle handlers', () => {
       mockPrisma.memory.findFirst.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.memory.update).not.toHaveBeenCalled();
@@ -396,7 +393,7 @@ describe('memorySingle handlers', () => {
 
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.update).toHaveBeenCalledWith({
         where: { id: TEST_MEMORY_ID },
@@ -431,7 +428,7 @@ describe('memorySingle handlers', () => {
 
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.update).toHaveBeenCalledWith({
         where: { id: TEST_MEMORY_ID },
@@ -453,7 +450,7 @@ describe('memorySingle handlers', () => {
       const beforeToggle = Date.now();
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleToggleLock(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleToggleLock(mockPrisma as unknown as PrismaClient, req, res);
 
       const updateCall = mockPrisma.memory.update.mock.calls[0][0];
       const updatedAtDate = updateCall.data.updatedAt as Date;
@@ -465,7 +462,7 @@ describe('memorySingle handlers', () => {
     it('should reject missing memoryId', async () => {
       const { req, res } = createMockReqRes({ id: '' });
 
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -479,7 +476,7 @@ describe('memorySingle handlers', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -488,7 +485,7 @@ describe('memorySingle handlers', () => {
       mockPrisma.memory.findFirst.mockResolvedValue(null);
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(mockPrisma.memory.update).not.toHaveBeenCalled();
@@ -497,7 +494,7 @@ describe('memorySingle handlers', () => {
     it('should soft delete memory by setting visibility', async () => {
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.update).toHaveBeenCalledWith({
         where: { id: TEST_MEMORY_ID },
@@ -517,7 +514,7 @@ describe('memorySingle handlers', () => {
       const beforeDelete = Date.now();
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       const updateCall = mockPrisma.memory.update.mock.calls[0][0];
       const updatedAtDate = updateCall.data.updatedAt as Date;
@@ -527,7 +524,7 @@ describe('memorySingle handlers', () => {
     it('should verify ownership before delete', async () => {
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.findFirst).toHaveBeenCalledWith({
         where: {
@@ -542,7 +539,7 @@ describe('memorySingle handlers', () => {
       mockPrisma.memory.findFirst.mockResolvedValue({ ...defaultMemory, isLocked: true });
       const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
 
-      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, mockUserService, req, res);
+      await handleDeleteMemory(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith(

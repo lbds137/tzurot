@@ -14,17 +14,12 @@ import type { Redis } from 'ioredis';
 import {
   createLogger,
   getDurationLabel,
-  type UserService,
   type PrismaClient,
   EnableIncognitoRequestSchema,
   DisableIncognitoRequestSchema,
   IncognitoForgetRequestSchema,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -209,7 +204,6 @@ async function handleDisable(
  */
 async function handleForget(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -223,7 +217,7 @@ async function handleForget(
 
   const { personalityId, timeframe } = parseResult.data;
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   // Get persona ID for the user
   const personaId = await getDefaultPersonaId(prisma, userId);
@@ -316,7 +310,6 @@ async function handleForget(
 export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Router {
   const router = Router();
   const manager = new IncognitoSessionManager(redis);
-  const userService = getOrCreateUserService(prisma);
 
   // GET /user/memory/incognito - Get status
   router.get(
@@ -351,9 +344,7 @@ export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Route
     '/forget',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler((req: ProvisionedRequest, res: Response) =>
-      handleForget(prisma, userService, req, res)
-    )
+    asyncHandler((req: ProvisionedRequest, res: Response) => handleForget(prisma, req, res))
   );
 
   return router;

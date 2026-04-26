@@ -203,69 +203,6 @@ describe('UserService', () => {
     });
   });
 
-  describe('shell-flow creation and upgrade (Phase 5b)', () => {
-    // The legacy "backfill a null-default user" scenario is structurally
-    // impossible post-5b: users.default_persona_id is NOT NULL and both user
-    // paths atomically create a persona. These tests exercise the new
-    // contract — the shell path produces a valid user + placeholder persona,
-    // and the first real `getOrCreateUser` call upgrades both sides.
-
-    it('getOrCreateUserShell creates a user with a non-null default persona named "User {discordId}"', async () => {
-      const userId = await service.getOrCreateUserShell(testDiscordId);
-
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      expect(user).not.toBeNull();
-      expect(user?.username).toBe(testDiscordId); // Placeholder
-      expect(user?.defaultPersonaId).not.toBeNull();
-
-      const persona = await prisma.persona.findUnique({
-        where: { id: user!.defaultPersonaId! },
-      });
-      expect(persona).not.toBeNull();
-      expect(persona?.name).toBe(`User ${testDiscordId}`);
-      expect(persona?.preferredName).toBe(`User ${testDiscordId}`);
-      expect(persona?.ownerId).toBe(userId);
-    });
-
-    it('first getOrCreateUser after a shell upgrades both username and placeholder persona name', async () => {
-      const userId = await service.getOrCreateUserShell(testDiscordId);
-
-      // Use a fresh service so the upgrade path actually runs (cache would
-      // otherwise short-circuit runMaintenanceTasks).
-      const newService = new UserService(prisma);
-      const provisioned = await newService.getOrCreateUser(
-        testDiscordId,
-        testUsername,
-        testDisplayName
-      );
-
-      expect(provisioned?.userId).toBe(userId);
-
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      expect(user?.username).toBe(testUsername);
-
-      const persona = await prisma.persona.findUnique({
-        where: { id: user!.defaultPersonaId! },
-      });
-      expect(persona?.name).toBe(testUsername);
-      // `preferredName` follows `displayName ?? username`, matching the
-      // full-path create behavior. A shell-created user whose first
-      // bot-client interaction carries a distinct displayName should land
-      // on preferredName = displayName, not preferredName = username.
-      expect(persona?.preferredName).toBe(testDisplayName);
-    });
-
-    it('calling getOrCreateUser twice with the same real username is idempotent (no P2002)', async () => {
-      await service.getOrCreateUserShell(testDiscordId);
-
-      const first = await new UserService(prisma).getOrCreateUser(testDiscordId, testUsername);
-      const second = await new UserService(prisma).getOrCreateUser(testDiscordId, testUsername);
-
-      expect(first?.userId).toBe(second?.userId);
-      expect(first?.defaultPersonaId).toBe(second?.defaultPersonaId);
-    });
-  });
-
   describe('getUserTimezone', () => {
     it('should return user timezone', async () => {
       const provisioned = await service.getOrCreateUser(testDiscordId, testUsername);

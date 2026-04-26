@@ -8,7 +8,6 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   isBotOwner,
-  type UserService,
   type PrismaClient,
   type CacheInvalidationService,
   PersonalityUpdateSchema,
@@ -16,11 +15,7 @@ import {
   PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
 import { Prisma } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
@@ -157,12 +152,7 @@ async function processMediaUploads(
 
 // --- Handler Factory ---
 
-// eslint-disable-next-line max-lines-per-function -- Returned async handler has ~15 optional fields, ownership verification, slug uniqueness check, media processing, and cache invalidation
-function createHandler(
-  prisma: PrismaClient,
-  userService: UserService,
-  cacheInvalidationService?: CacheInvalidationService
-) {
+function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
   // eslint-disable-next-line sonarjs/cognitive-complexity -- Personality update handler with ~15 optional fields, ownership verification, slug uniqueness check, and cache invalidation
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -177,7 +167,6 @@ function createHandler(
       name: string;
     }>({
       prisma,
-      userService,
       req,
       slug,
       res,
@@ -293,10 +282,9 @@ export function createUpdateHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
-  const userService = getOrCreateUserService(prisma);
   return [
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createHandler(prisma, userService, cacheInvalidationService)),
+    asyncHandler(createHandler(prisma, cacheInvalidationService)),
   ];
 }

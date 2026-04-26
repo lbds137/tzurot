@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient, UserService } from '@tzurot/common-types';
+import type { PrismaClient } from '@tzurot/common-types';
 import type { ProvisionedRequest } from '../../../types.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
@@ -319,20 +319,13 @@ describe('personality route helpers', () => {
       } as unknown as ProvisionedRequest;
     }
 
-    function createUserService(userId: string): UserService {
-      return {
-        getOrCreateUserShell: vi.fn().mockResolvedValue(userId),
-      } as unknown as UserService;
-    }
-
     it('should return 404 when personality not found', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
       const res = createMockRes();
 
       const result = await resolvePersonalityForEdit({
         prisma: mockPrisma as unknown as PrismaClient,
-        userService: createUserService('user-id'),
-        req: createMockReq('discord-123'),
+        req: createMockReq('discord-123', 'user-id'),
         slug: 'nonexistent-slug',
         res,
         options: { select: { id: true, ownerId: true } },
@@ -355,8 +348,7 @@ describe('personality route helpers', () => {
 
       const result = await resolvePersonalityForEdit({
         prisma: mockPrisma as unknown as PrismaClient,
-        userService: createUserService('user-id'),
-        req: createMockReq('discord-123'),
+        req: createMockReq('discord-123', 'user-id'),
         slug: 'test-slug',
         res,
         options: { select: { id: true, ownerId: true } },
@@ -381,8 +373,7 @@ describe('personality route helpers', () => {
 
       const result = await resolvePersonalityForEdit({
         prisma: mockPrisma as unknown as PrismaClient,
-        userService: createUserService('user-id'),
-        req: createMockReq('discord-123'),
+        req: createMockReq('discord-123', 'user-id'),
         slug: 'test-slug',
         res,
         options: { select: { id: true, ownerId: true }, action: 'delete' },
@@ -406,8 +397,7 @@ describe('personality route helpers', () => {
 
       const result = await resolvePersonalityForEdit({
         prisma: mockPrisma as unknown as PrismaClient,
-        userService: createUserService('user-id'),
-        req: createMockReq('discord-123'),
+        req: createMockReq('discord-123', 'user-id'),
         slug: 'test-slug',
         res,
         options: { select: { id: true, ownerId: true, name: true } },
@@ -418,18 +408,18 @@ describe('personality route helpers', () => {
       expect(res.status).not.toHaveBeenCalled();
     });
 
-    it('should prefer provisionedUserId over shell fallback', async () => {
+    it('uses provisionedUserId from req as the authoritative user id', async () => {
+      // Post-Identity-Hardening: there is no shell fallback. The middleware
+      // attaches provisionedUserId or 400s. This test documents the new
+      // single-source-of-truth contract.
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'pers-id',
         ownerId: 'provisioned-id',
       });
       const res = createMockRes();
-      const shellSpy = vi.fn().mockResolvedValue('shell-id');
-      const userService = { getOrCreateUserShell: shellSpy } as unknown as UserService;
 
       const result = await resolvePersonalityForEdit({
         prisma: mockPrisma as unknown as PrismaClient,
-        userService,
         req: createMockReq('discord-123', 'provisioned-id'),
         slug: 'test-slug',
         res,
@@ -438,7 +428,6 @@ describe('personality route helpers', () => {
 
       expect(result).not.toBeNull();
       expect(result!.personality).toEqual({ id: 'pers-id', ownerId: 'provisioned-id' });
-      expect(shellSpy).not.toHaveBeenCalled();
     });
   });
 });

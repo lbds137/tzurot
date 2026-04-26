@@ -14,7 +14,6 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  type UserService,
   generateExportJobUuid,
   IMPORT_SOURCES,
   JobType,
@@ -25,11 +24,7 @@ import {
   getConfig,
   Prisma,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -118,12 +113,7 @@ async function createExportJobOrConflict(
   return { exportJobId, conflictStatus };
 }
 
-function createExportHandler(
-  prisma: PrismaClient,
-  queue: Queue,
-  userService: UserService,
-  baseUrl: string
-) {
+function createExportHandler(prisma: PrismaClient, queue: Queue, baseUrl: string) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const { slug, format: formatRaw } = req.body as { slug?: string; format?: string };
@@ -135,7 +125,7 @@ function createExportHandler(
     const normalizedSlug = slug.trim().toLowerCase();
     const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Verify credentials exist (don't decrypt — ai-worker does that)
     const credential = await prisma.userCredential.findFirst({
@@ -233,15 +223,11 @@ function createExportHandler(
   };
 }
 
-function createListExportJobsHandler(
-  prisma: PrismaClient,
-  userService: UserService,
-  baseUrl: string
-) {
+function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
   return async (req: ProvisionedRequest, res: Response) => {
     const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     const jobs = await prisma.exportJob.findMany({
       where: {
@@ -279,7 +265,6 @@ function createListExportJobsHandler(
 
 export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
   const envConfig = getConfig();
   const baseUrl = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
 
@@ -287,13 +272,13 @@ export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Ro
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createExportHandler(prisma, queue, userService, baseUrl))
+    asyncHandler(createExportHandler(prisma, queue, baseUrl))
   );
   router.get(
     '/jobs',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListExportJobsHandler(prisma, userService, baseUrl))
+    asyncHandler(createListExportJobsHandler(prisma, baseUrl))
   );
 
   return router;

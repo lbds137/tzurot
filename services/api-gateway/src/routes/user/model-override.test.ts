@@ -432,8 +432,7 @@ describe('/user/model-override routes', () => {
 
   describe('GET /user/model-override/default', () => {
     it('should return null default when user has none set', async () => {
-      // getOrCreateUserShell resolves the UUID; subsequent findUnique for default
-      // returns a user with no default config.
+      // Provisioning middleware sets the UUID; handler's findUnique for the default config returns null.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: null,
         defaultLlmConfig: null,
@@ -457,7 +456,7 @@ describe('/user/model-override routes', () => {
     });
 
     it('should return user default config when set', async () => {
-      // UserService.getOrCreateUserShell first, then the handler's own findUnique by id.
+      // Provisioning middleware sets the UUID; handler's findUnique fetches the stored default.
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
         defaultLlmConfig: { name: 'My Default Config' },
@@ -615,8 +614,7 @@ describe('/user/model-override routes', () => {
 
   describe('DELETE /user/model-override/default', () => {
     it('should return 404 when user lookup returns null after provisioning', async () => {
-      // Defensive 404 path: shell returns UUID, but the subsequent handler-level
-      // findUnique returns null (e.g., race with user deletion).
+      // Provisioning middleware sets the UUID; handler-level findUnique returns null (e.g., race with user deletion).
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);

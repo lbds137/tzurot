@@ -53,7 +53,7 @@ const IDENTITY_PROVISIONING_RULES = [
     selector:
       "CallExpression[callee.property.name=/^(create|upsert|createMany)$/][callee.object.property.name='user']",
     message:
-      'Direct prisma.user.create/upsert/createMany is banned outside UserService. Use userService.getOrCreateUser (for Discord-interaction paths with username) or userService.getOrCreateUserShell (for HTTP routes). See epic-identity-hardening.md Phase 2.',
+      'Direct prisma.user.create/upsert/createMany is banned outside UserService. Use userService.getOrCreateUser, which goes through the full provisioning path. HTTP routes receive the provisioned user via the requireProvisionedUser middleware (req.provisionedUserId). See epic-identity-hardening.md.',
   },
   {
     selector:
