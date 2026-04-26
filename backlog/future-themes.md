@@ -484,36 +484,54 @@ Surfaced 2026-04-24 by PR #886 review. When Discord rate-limits `sendTyping` wit
 
 ---
 
-### Theme: Logging & Error Observability
+### Theme: Observability & Telemetry
 
-_Comprehensive audit of logging quality, error serialization, and log hygiene across the stack._
+_Logging quality, structured telemetry, and analytics. Codebase-wide decisions on retry counts, timeouts, cache TTLs, and feature adoption currently rely on guesswork. Vision-pipeline telemetry (2026-04-14) was the prototype; the rest extends that pattern. **Approach: Pino + structured logs + Railway query DSL is sufficient at one-person-project scale; not standing up Prometheus/Datadog/OTel.**_
+
+#### ✨ Telemetry Strategy — Decision-Triggering Metrics
+
+System-health decisions are made without quantitative data. Establish a structured-log convention so any tuning question can be answered by a Railway query rather than a guess.
+
+- Audit current logging across services, identify gap events (hot-path successes with `durationMs`, cache hit/miss rates, job durations, queue depths, retry success rates per category)
+- Standardize `{ durationMs, attempt, errorCategory, ...dimensionX }` structured-log shape (vision-pipeline retry logs are the prototype)
+- Document Railway query cookbook (builds on `pnpm ops logs --filter` DSL passthrough)
+- Define "decision-triggering metrics" — events that, when queried, answer a specific tuning question
+
+#### ✨ User Analytics Strategy
+
+No systematic view of product usage. Unanswerable today: which personalities have active users? Are users adopting `/browse` or falling back to `/list`? Does voice-engine adoption correlate with specific personalities? Retention by user cohort?
+
+- **Event taxonomy**: command invocations, personality switches, voice/vision/memory usage, user-facing errors (as product signals, not debug signals)
+- **Privacy constraints**: opaque user IDs only — never usernames, message content, or PII. Anything requiring message-content inspection is a non-starter
+- **Build-vs-buy** (first decision point for this sub-epic):
+  - **PostHog self-hosted on Railway** (open-source, product-analytics-native, server-side ingestion, self-hostable). Leading candidate
+  - Plausible: too web-page-centric for a Discord bot
+  - Custom Postgres event table + query UI: most control, heaviest ops burden
+- Integration surface: event emission as middleware/hooks in command handlers and job processors, decoupled from business logic
 
 #### 🐛 Lie-on-Error Fallback Audit (api-gateway category sweep)
 
-Pattern surfaced by PR #881: the old `GET /user/timezone` handler returned `{ timezone: 'UTC', isDefault: true }` when the user row didn't exist. Phase 5c correctly replaced it with a 404 since `requireProvisionedUser` guarantees the row exists in happy flow. Architecturally correct but points at a broader category — endpoints that silently degrade to defaults on state errors mask real bugs in prod.
+Pattern surfaced by PR #881: the old `GET /user/timezone` handler returned `{ timezone: 'UTC', isDefault: true }` when the user row didn't exist (Phase 5c correctly replaced it with a 404). Architecturally correct but points at a broader category — endpoints that silently degrade to defaults on state errors mask real bugs.
 
-**Audit scope**: grep api-gateway for `|| 'default'`, `?? defaults`, `if (user === null) return success-with-fallback` patterns. Any endpoint returning a "plausible but fake" success where the real answer is "this doesn't exist / isn't available" is a candidate.
+**Audit scope**: grep api-gateway for `|| 'default'`, `?? defaults`, `if (user === null) return success-with-fallback` patterns. Any endpoint returning "plausible but fake" success where the real answer is "this doesn't exist" is a candidate.
 
-**Fix shape per site**: flip to proper error response (404 / 400 / 409) and surface the "fake success" path in logs so downstream consumers (bot-client graceful-degradation logic) can adapt. Each flip is a small contract change — cheap individually but the category-wide sweep is multi-site.
+**Fix shape per site**: flip to proper error (404/400/409) and surface the "fake success" path in logs so consumers (bot-client graceful-degradation logic) can adapt.
 
-**Why a theme, not a Quick Win**: the timezone case was one documented instance; the audit may surface 3-10+ more across routes, each needing its own small fix + release-note entry. Coordinate as one audit pass rather than drip-fed one-off fixes.
-
-**Start**: `services/api-gateway/src/routes/user/**` first (most user-facing state-lookup endpoints live there); then admin, shapes, persona routes. Surfaced by claude-bot review on PR #881 round 3 (2026-04-23).
+**Start**: `services/api-gateway/src/routes/user/**` first; then admin, shapes, persona routes.
 
 #### 🐛 Error Serialization Audit
 
-During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorObject: true, raw: "{}"}` despite being a real `Error`. Makes logs nearly useless for debugging provider issues.
+`err` sometimes serializes as `{_nonErrorObject: true, raw: "{}"}` despite being a real `Error`, making logs useless for debugging. Goal: every `{ err: ... }` log shows message + stack.
 
 - [ ] Audit LangChain throwing non-Error objects that look like Errors
 - [ ] Audit Node `undici` fetch errors — `TypeError` from `fetch()` serializes as `raw: "{}"` in Pino (non-enumerable properties). Seen in `GatewayClient.submitJob()` and `PersonalityMessageHandler` on Railway dev (2026-02-15)
-- [ ] Review `normalizeErrorForLogging()` in `retry.ts` wrapping behavior
-- [ ] Review `determineErrorType()` in `logger.ts` checking `constructor.name`
-- [ ] Codebase-wide scan for `{ err: ... }` patterns that produce useless output
-- [ ] Goal: every `{ err: ... }` log shows message + stack, never `raw: "{}"`
+- [ ] Review `normalizeErrorForLogging()` in `retry.ts`
+- [ ] Review `determineErrorType()` in `logger.ts` (`constructor.name` check)
+- [ ] Codebase-wide scan for `{ err: ... }` patterns producing useless output
 
 #### 🐛 Inadequate LLM Response Detection
 
-Compound scoring heuristic to detect garbage 200 OK responses (e.g., glm-5 returned just `"N"`, 1 token, `finishReason: "unknown"`, 160s). All signals already collected by `DiagnosticCollector` but timing data needs threading through `RAGResponse`. Integrates into PR #702's retry loop via `FallbackResponse` ranking.
+Compound scoring heuristic to detect garbage 200 OK responses (glm-5 returned just `"N"`, 1 token, `finishReason: "unknown"`, 160s). All signals already collected by `DiagnosticCollector`; timing data needs threading through `RAGResponse`. Integrates into PR #702's retry loop via `FallbackResponse` ranking.
 
 **Signals**: `finishReason` unknown/error (+0.4), `completionTokens` ≤1/≤5 (+0.3/+0.15), no stop sequence + short (+0.2), extreme ms-per-token (+0.2), empty content (+0.3). Threshold: ≥0.5. Max 1 content retry.
 
@@ -523,51 +541,28 @@ Compound scoring heuristic to detect garbage 200 OK responses (e.g., glm-5 retur
 
 #### 🏗️ Per-Attempt Diagnostic Tracking in Retry Loop
 
-When the fallback response path is used (PR #672), the diagnostic payload has data from attempt 1 (token counts, model, raw content) but `llmInvocationMs: undefined` because timing was reset for attempt 2 which failed. Add a `diagnosticAttempt` field or per-attempt timing array so the payload is internally consistent about which attempt's data it contains.
-
-#### 🧹 Logging Verbosity Audit
-
-Some operations log at INFO when they should be DEBUG. Noisy logs obscure real issues in production.
-
-- [ ] Audit all `logger.info()` calls — demote routine operations to DEBUG
-- [ ] Ensure ERROR/WARN are reserved for actionable items
-- [ ] Review hot paths (message processing, cache lookups) for excessive logging
-
-#### 🏗️ Consistent Service Prefix Injection
-
-Auto-inject `[ServiceName]` prefix in logs instead of hardcoding in every log call.
-
-- [ ] Extend Pino logger factory to auto-add service name prefix
-- [ ] Remove manual `[ServiceName]` prefixes from log messages
-- [ ] Consider structured `service` field instead of string prefix
+When the fallback response path is used (PR #672), the diagnostic payload mixes data from attempt 1 (token counts, model, raw content) with `llmInvocationMs: undefined` because timing was reset for attempt 2. Add a `diagnosticAttempt` field or per-attempt timing array so the payload is internally consistent.
 
 #### 🏗️ Audit Error Sanitization in Log Pipeline
 
 Two gaps: (1) Enumerable Error properties (e.g. Axios `error.config.url`) bypass `sanitizeObject()` early-return for `instanceof Error`. (2) `getErrorContext` callback results spread into log objects without sanitization. Check OpenRouter/LangChain error objects, document API contract. Discovered during PR #700.
 
+#### 🧹 Logging Hygiene
+
+Two related cleanups:
+
+- **Verbosity audit**: demote routine `logger.info()` calls to DEBUG; reserve ERROR/WARN for actionable items; review hot paths (message processing, cache lookups) for excessive logging
+- **Service prefix injection**: extend Pino logger factory to auto-add service name as a structured `service` field instead of hardcoded `[ServiceName]` strings in messages
+
 #### ✨ Admin/User Error Context Differentiation
 
-Admin errors should show full technical context; user errors show sanitized version. Partially done in PR #587 (error display framework shipped), this is the remaining differentiation.
-
-- [ ] Admin error responses include stack traces and internal context
-- [ ] User-facing errors show friendly messages without internals
+Admin errors should show full technical context; user errors show sanitized version. Partially done in PR #587 (error display framework shipped); remaining: admin error responses include stack traces and internal context, user-facing errors show friendly messages without internals.
 
 ---
 
-### Theme: Observability & Tooling
+### Theme: Tooling & Quality Ratchet
 
-_Backend health: monitoring, debugging, developer experience._
-
-#### 🏗️ Metrics & Monitoring (Prometheus)
-
-Production observability with metrics collection.
-
-- [ ] Add Prometheus metrics endpoint
-- [ ] Key metrics: request latency, token usage, error rates, queue depth
-
-#### 🏗️ Database-Configurable Model Capabilities
-
-Move hardcoded model patterns to database for admin updates without deployment.
+_Developer experience, schema-type discipline, CI strictness, and test infrastructure that keeps the codebase healthy as it grows._
 
 #### 🏗️ Graduate Warnings to Errors (CI Strictness Ratchet)
 
@@ -582,55 +577,27 @@ Goal: every quality check that currently warns should eventually block, with a c
 
 #### 🏗️ Schema-Type Unification (Zod `z.infer`)
 
-Adopt `z.infer<typeof schema>` across all job types to eliminate manual interface/schema sync. Currently each job type has both a Zod schema and a hand-written TypeScript interface that must be kept in sync manually.
+Adopt `z.infer<typeof schema>` across all job types to eliminate manual interface/schema sync. Each job type currently has both a Zod schema and a hand-written TypeScript interface kept in sync manually.
 
 - [ ] Replace `ShapesImportJobData` / `ShapesImportJobResult` interfaces with `z.infer<>` derivations
-- [ ] Do the same for `AudioTranscriptionJobData`, `ImageDescriptionJobData`, `LLMGenerationJobData`
+- [ ] Same for `AudioTranscriptionJobData`, `ImageDescriptionJobData`, `LLMGenerationJobData`
 - [ ] Consider discriminated unions for success/failure result types (compile-time enforcement that `personalityId` is required on success, `error` is required on failure)
 - [ ] Audit all Zod schemas in common-types for interface/schema drift
 
 **Context**: PR #651 added Zod schemas for shapes import jobs and an enforcement test that catches missing schemas. This follow-up eliminates the remaining duplication.
 
-#### 🏗️ Investigate Safe Auto-Migration on Railway
-
-Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env dev/prod`). This caused a P2002 bug when a migration was deployed as code but never applied. Investigate: dev-only auto-migration in start command, pre-deploy hook with `prisma migrate deploy`, CI step that validates migration state matches schema.
-
 #### 🏗️ API Gateway Middleware Wiring Integration Tests
 
 Add supertest-style integration tests that boot the actual Express app with real middleware. Verifies auth middleware is correctly applied (factory functions called, not just passed), routes respond properly, error middleware works. Audit `router.use(...)` calls for missing `()` on factory functions. Discovered during PR #691.
 
+#### 🏗️ Investigate Safe Auto-Migration on Railway
+
+Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env dev/prod`). This caused a P2002 bug when a migration was deployed as code but never applied. Investigate: dev-only auto-migration in start command, pre-deploy hook with `prisma migrate deploy`, CI step that validates migration state matches schema.
+
+#### 🏗️ Database-Configurable Model Capabilities
+
+Move hardcoded model patterns (e.g., capability flags, context-window limits) to database for admin updates without deployment.
+
 #### 🧹 Ops CLI Command Migration
 
-Migrate stub commands to proper TypeScript implementations.
-
-### Theme: Observability & Analytics
-
-_Codebase-wide decisions on retry counts, timeouts, cache TTLs, rate limits, and feature adoption currently rely on guesswork because we don't systematically capture the data needed to answer them. Vision-pipeline telemetry landed 2026-04-14 as the first concrete step; treat the rest as epic-sized work._
-
-#### ✨ Observability & Telemetry Strategy
-
-**Problem**: System-health decisions (retry counts, timeouts, cache TTLs, queue concurrency) are made without quantitative data. Same pattern exists throughout ai-worker, api-gateway, bot-client — vision-pipeline fix on 2026-04-14 was just the first concrete instance.
-
-**Scope**:
-
-- Audit current logging across all services, identify gap events (hot-path successes with `durationMs`, cache hit/miss rates, job durations, queue depths, retry success rates per category)
-- Establish `{ durationMs, attempt, errorCategory, ...dimensionX }` structured-log conventions across the codebase (vision-pipeline retry logs are the prototype)
-- Document Railway query cookbook (builds on `pnpm ops logs --filter` DSL passthrough)
-- Define "decision-triggering metrics" — events that, when queried, answer a specific tuning question
-
-**Non-goal**: standing up Prometheus/Datadog/OTel. Pino + structured logs + Railway server-side query DSL is likely sufficient at one-person-project scale.
-
-#### ✨ User Analytics Strategy
-
-**Problem**: No systematic view of product usage. Questions unanswerable today: which personalities have active users? Are users adopting `/browse` or falling back to `/list`? Does voice-engine adoption correlate with specific personalities? What's retention look like by user cohort?
-
-**Scope**:
-
-- Event taxonomy: command invocations, personality switches, voice/vision/memory usage, user-facing errors (as product signals, not debug signals)
-- Privacy constraints: opaque user IDs only — never usernames, message content, or PII
-- **Build-vs-buy decision** (first real decision point for this epic):
-  - Off-the-shelf leading candidate: **PostHog self-hosted on Railway** (open-source, product-analytics-native, supports server-side event ingestion, self-hostable to avoid third-party data)
-  - Lighter alternatives: Plausible (too web-page-centric for a Discord bot), custom Postgres event table + query UI (most control, heaviest ops burden)
-- Integration surface: event emission as middleware/hooks in command handlers and job processors, decoupled from business logic
-
-**Non-goal**: anything requiring message-content inspection (privacy non-starter).
+Migrate remaining stub commands in `packages/tooling` to proper TypeScript implementations.
