@@ -28,16 +28,11 @@ import type { Redis } from 'ioredis';
 import {
   createLogger,
   Prisma,
-  type UserService,
   type PrismaClient,
   generateUserPersonalityConfigUuid,
   FocusModeSchema,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -63,7 +58,6 @@ const logger = createLogger('user-memory');
  */
 async function handleGetStats(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -75,7 +69,7 @@ async function handleGetStats(
     return;
   }
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
@@ -151,7 +145,6 @@ async function handleGetStats(
  */
 async function handleGetFocus(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -162,7 +155,7 @@ async function handleGetFocus(
     return;
   }
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   const config = await prisma.userPersonalityConfig.findUnique({
     where: { userId_personalityId: { userId, personalityId } },
@@ -185,7 +178,6 @@ async function handleGetFocus(
  */
 async function handleSetFocus(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -199,7 +191,7 @@ async function handleSetFocus(
 
   const { personalityId, enabled } = parseResult.data;
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
@@ -265,13 +257,12 @@ async function handleSetFocus(
 }
 
 /**
- * Handler signature common to every memory route: takes prisma + userService +
+ * Handler signature common to every memory route: takes prisma +
  * the provisioned request, returns a promise. Defined locally to avoid
  * exporting the shape.
  */
 type MemoryHandler = (
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ) => Promise<void>;
@@ -279,25 +270,23 @@ type MemoryHandler = (
 interface RegisterRouteParams {
   router: Router;
   prisma: PrismaClient;
-  userService: UserService;
   method: 'get' | 'post' | 'patch' | 'delete';
   path: string;
   handler: MemoryHandler;
 }
 
 function registerMemoryRoute(params: RegisterRouteParams): void {
-  const { router, prisma, userService, method, path, handler } = params;
+  const { router, prisma, method, path, handler } = params;
   router[method](
     path,
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler((req: ProvisionedRequest, res: Response) => handler(prisma, userService, req, res))
+    asyncHandler((req: ProvisionedRequest, res: Response) => handler(prisma, req, res))
   );
 }
 
 export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   // Incognito mode routes (requires Redis)
   if (redis !== undefined) {
@@ -329,7 +318,6 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
     registerMemoryRoute({
       router,
       prisma,
-      userService,
       method: route.method,
       path: route.path,
       handler: route.handler,

@@ -57,7 +57,7 @@ async function resolvePersonalityBySlug(
 
 function createListHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
-    const user = await getOrCreateInternalUser(prisma, req);
+    const user = getOrCreateInternalUser(req);
 
     const overrides = await prisma.userPersonalityConfig.findMany({
       where: { userId: user.id, personaId: { not: null } },
@@ -122,7 +122,7 @@ function createSetHandler(prisma: PrismaClient) {
 
     const { personaId: personaIdValue } = parseResult.data;
 
-    const user = await getOrCreateInternalUser(prisma, req);
+    const user = getOrCreateInternalUser(req);
 
     const persona = await prisma.persona.findFirst({
       where: { id: personaIdValue, ownerId: user.id },
@@ -168,7 +168,7 @@ function createSetHandler(prisma: PrismaClient) {
 
 function createClearHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
-    const user = await getOrCreateInternalUser(prisma, req);
+    const user = getOrCreateInternalUser(req);
 
     const personality = await resolvePersonalityBySlug(
       prisma,

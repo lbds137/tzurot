@@ -115,11 +115,14 @@ export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
       return sendError(res, voiceRefResult.error);
     }
 
-    // Get or create user and find default system prompt in parallel
-    const [user, defaultSystemPrompt] = await Promise.all([
-      getOrCreateInternalUser(prisma, req),
-      prisma.systemPrompt.findFirst({ where: { isDefault: true }, select: { id: true } }),
-    ]);
+    // Read provisioned user (sync, no Prisma call) and look up the default
+    // system prompt. Parallel was meaningful when getOrCreateInternalUser was
+    // async and hit Prisma; post-Identity-Hardening it's a sync passthrough.
+    const user = getOrCreateInternalUser(req);
+    const defaultSystemPrompt = await prisma.systemPrompt.findFirst({
+      where: { isDefault: true },
+      select: { id: true },
+    });
 
     // Create personality in database
     const createData = buildCreateData(body, user.id, defaultSystemPrompt?.id ?? null, {

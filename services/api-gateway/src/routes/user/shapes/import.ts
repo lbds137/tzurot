@@ -10,7 +10,6 @@ import type { Queue } from 'bullmq';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type UserService,
   type PrismaClient,
   generateImportJobUuid,
   IMPORT_SOURCES,
@@ -18,11 +17,7 @@ import {
   JOB_PREFIXES,
   type ShapesImportJobData,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -90,7 +85,7 @@ async function createImportJobOrConflict(
   return { importJobId, conflictStatus };
 }
 
-function createImportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
+function createImportHandler(prisma: PrismaClient, queue: Queue) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const { sourceSlug, importType } = req.body as {
@@ -111,7 +106,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 
     const validImportType = importType === 'memory_only' ? 'memory_only' : 'full';
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Atomically check for conflicts and create the import job
     let importJobId: string;
@@ -188,11 +183,11 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
   };
 }
 
-function createListImportJobsHandler(prisma: PrismaClient, userService: UserService) {
+function createListImportJobsHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
     const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     const jobs = await prisma.importJob.findMany({
       where: {
@@ -222,19 +217,18 @@ function createListImportJobsHandler(prisma: PrismaClient, userService: UserServ
 
 export function createShapesImportRoutes(prisma: PrismaClient, queue: Queue): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createImportHandler(prisma, queue, userService))
+    asyncHandler(createImportHandler(prisma, queue))
   );
   router.get(
     '/jobs',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListImportJobsHandler(prisma, userService))
+    asyncHandler(createListImportJobsHandler(prisma))
   );
 
   return router;

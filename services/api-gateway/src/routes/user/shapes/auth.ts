@@ -15,7 +15,6 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   encryptApiKey,
-  type UserService,
   type PrismaClient,
   generateUserCredentialUuid,
   CREDENTIAL_SERVICES,
@@ -25,11 +24,7 @@ import {
   SHAPES_TOKEN_MAX_LENGTH,
   isPlausibleShapesTokenValue,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
@@ -44,7 +39,7 @@ const SHAPES_CREDENTIAL_WHERE = {
   credentialType: CREDENTIAL_TYPES.SESSION_COOKIE,
 } as const;
 
-function createStoreHandler(prisma: PrismaClient, userService: UserService) {
+function createStoreHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const { sessionCookie } = req.body as { sessionCookie?: string };
@@ -102,7 +97,7 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       logger.warn({ discordUserId }, 'Preflight inconclusive; proceeding with persistence');
     }
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     const encrypted = encryptApiKey(sessionCookie);
     const credentialId = generateUserCredentialUuid(
@@ -135,10 +130,10 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
   };
 }
 
-function createDeleteHandler(prisma: PrismaClient, userService: UserService) {
+function createDeleteHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     const existing = await prisma.userCredential.findFirst({
       where: { userId, ...SHAPES_CREDENTIAL_WHERE },
@@ -159,9 +154,9 @@ function createDeleteHandler(prisma: PrismaClient, userService: UserService) {
   };
 }
 
-function createStatusHandler(prisma: PrismaClient, userService: UserService) {
+function createStatusHandler(prisma: PrismaClient) {
   return async (req: ProvisionedRequest, res: Response) => {
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     const credential = await prisma.userCredential.findFirst({
       where: { userId, ...SHAPES_CREDENTIAL_WHERE },
@@ -185,25 +180,24 @@ function createStatusHandler(prisma: PrismaClient, userService: UserService) {
 
 export function createShapesAuthRoutes(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createStoreHandler(prisma, userService))
+    asyncHandler(createStoreHandler(prisma))
   );
   router.delete(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(prisma, userService))
+    asyncHandler(createDeleteHandler(prisma))
   );
   router.get(
     '/status',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createStatusHandler(prisma, userService))
+    asyncHandler(createStatusHandler(prisma))
   );
 
   return router;

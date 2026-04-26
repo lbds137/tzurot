@@ -5,13 +5,7 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  Prisma,
-  type PrismaClient,
-  type UserService,
-  MemorySearchSchema,
-} from '@tzurot/common-types';
+import { createLogger, Prisma, type PrismaClient, MemorySearchSchema } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -280,7 +274,6 @@ async function executeSemanticSearchWithFallback(
 /** Handler for POST /user/memory/search */
 export async function handleSearch(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -306,7 +299,7 @@ export async function handleSearch(
   );
   const effectiveOffset = Math.max(0, offset ?? 0);
 
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   const personaId = await getDefaultPersonaId(prisma, userId);
   if (personaId === null) {

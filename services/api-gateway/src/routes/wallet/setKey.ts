@@ -19,11 +19,7 @@ import {
   generateUserApiKeyUuid,
   SetWalletKeySchema,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -63,7 +59,6 @@ export function createSetKeyRoute(
   apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
 ): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   router.post(
     '/',
@@ -90,7 +85,7 @@ export function createSetKeyRoute(
         return sendError(res, mapValidationErrorToResponse(validation));
       }
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Encrypt and store the API key
       const encrypted = encryptApiKey(apiKey);

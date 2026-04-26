@@ -110,7 +110,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
     }
 
     // Get or create internal user and check access
-    const user = await getOrCreateInternalUser(prisma, req);
+    const user = getOrCreateInternalUser(req);
     const canView = await canUserViewPersonality({
       prisma,
       userId: user.id,

@@ -7,11 +7,7 @@
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { createLogger, type PrismaClient } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -21,7 +17,6 @@ const logger = createLogger('user-nsfw');
 
 export function createNsfwRoutes(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   /**
    * GET /user/nsfw
@@ -32,7 +27,7 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
     requireUserAuth(),
     requireProvisionedUser(prisma),
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -76,10 +71,7 @@ export function createNsfwRoutes(prisma: PrismaClient): Router {
 
       logger.info({ discordUserId }, 'Verifying user via NSFW channel interaction');
 
-      // Prefer the provisionedUserId attached by requireProvisionedUser; fall
-      // back to the shell path on shadow-mode fallthrough. Once the middleware
-      // is tightened to 400 on missing provisioning, the fallback disappears.
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Check if already verified
       const existingUser = await prisma.user.findUnique({

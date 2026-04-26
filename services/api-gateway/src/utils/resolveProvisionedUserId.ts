@@ -1,26 +1,25 @@
 /**
- * Prefer the internal-UUID `userId` attached by `requireProvisionedUser`
- * middleware. Fall back to `getOrCreateUserShell` on shadow-mode fallthrough
- * (missing / malformed user-context headers, bot users, or rare
- * getOrCreateUser failures) to preserve UX during the bot-client rollout
- * window.
+ * Reads the internal user UUID attached to the request by the
+ * `requireProvisionedUser` middleware. The middleware enforces that
+ * `provisionedUserId` is always set before any handler runs (returning 400
+ * on missing user-context headers), so this is a safe direct read.
  *
- * Once `AuthMiddleware.requireProvisionedUser` is tightened to return 400 on
- * missing provisioning (planned follow-up), this helper collapses to a
- * passthrough read of `req.provisionedUserId` and the shell path can be
- * deleted. The canary log inside `getOrCreateUserShell` surfaces the
- * fallback rate for that cutover decision.
+ * Kept as a named function rather than `req.provisionedUserId` access at
+ * each call site so that any future change to the resolution path (cache,
+ * fallback, alternate header source) only needs to update one place.
  */
 
-import type { UserService } from '@tzurot/common-types';
 import type { ProvisionedRequest } from '../types.js';
 
-export async function resolveProvisionedUserId(
-  req: ProvisionedRequest,
-  userService: UserService
-): Promise<string> {
-  if (req.provisionedUserId !== undefined) {
-    return req.provisionedUserId;
+export function resolveProvisionedUserId(req: ProvisionedRequest): string {
+  if (req.provisionedUserId === undefined) {
+    // Defense-in-depth: should be impossible if requireProvisionedUser middleware
+    // is mounted on the route. Throwing here surfaces middleware-misconfiguration
+    // bugs at the first request rather than producing silent data corruption.
+    throw new Error(
+      'resolveProvisionedUserId called on request without provisionedUserId — ' +
+        'requireProvisionedUser middleware is missing from the route'
+    );
   }
-  return userService.getOrCreateUserShell(req.userId);
+  return req.provisionedUserId;
 }

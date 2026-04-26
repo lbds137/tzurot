@@ -14,7 +14,6 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type UserService,
   isBotOwner,
   type PrismaClient,
   type LlmConfigSummary,
@@ -25,11 +24,7 @@ import {
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -60,10 +55,10 @@ const CONFIG_RESOURCE = 'Config';
 
 // --- Handler Factories ---
 
-function createListHandler(service: LlmConfigService, userService: UserService) {
+function createListHandler(service: LlmConfigService) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Admin sees all presets (same pattern as character browse)
     // Regular users see global + their own
@@ -90,11 +85,7 @@ function createListHandler(service: LlmConfigService, userService: UserService) 
   };
 }
 
-function createGetHandler(
-  service: LlmConfigService,
-  userService: UserService,
-  modelCache?: OpenRouterModelCache
-) {
+function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
@@ -105,7 +96,7 @@ function createGetHandler(
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Determine if user owns this config
     const isOwned = config.ownerId !== null && config.ownerId === userId;
@@ -126,11 +117,7 @@ function createGetHandler(
   };
 }
 
-function createCreateHandler(
-  service: LlmConfigService,
-  userService: UserService,
-  modelCache?: OpenRouterModelCache
-) {
+function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -145,7 +132,7 @@ function createCreateHandler(
       return;
     }
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Duplicate-name check is skipped when the client opts into
     // autoSuffixOnCollision (the preset clone flow): the service will bump
@@ -225,11 +212,7 @@ function createCreateHandler(
   };
 }
 
-function createUpdateHandler(
-  service: LlmConfigService,
-  userService: UserService,
-  modelCache?: OpenRouterModelCache
-) {
+function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
@@ -252,7 +235,7 @@ function createUpdateHandler(
       return;
     }
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Get existing config using service
     const config = await service.getById(configId);
@@ -311,12 +294,12 @@ function createUpdateHandler(
   };
 }
 
-function createDeleteHandler(service: LlmConfigService, userService: UserService) {
+function createDeleteHandler(service: LlmConfigService) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Get config using service
     const config = await service.getById(configId);
@@ -360,25 +343,24 @@ export function createLlmConfigRoutes(
 
   // Instantiate services with dependencies
   const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
-  const userService = getOrCreateUserService(prisma);
 
   router.get(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createListHandler(service, userService))
+    asyncHandler(createListHandler(service))
   );
   router.get(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createGetHandler(service, userService, modelCache))
+    asyncHandler(createGetHandler(service, modelCache))
   );
   router.post(
     '/',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createCreateHandler(service, userService, modelCache))
+    asyncHandler(createCreateHandler(service, modelCache))
   );
   router.post(
     '/resolve',
@@ -390,13 +372,13 @@ export function createLlmConfigRoutes(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createUpdateHandler(service, userService, modelCache))
+    asyncHandler(createUpdateHandler(service, modelCache))
   );
   router.delete(
     '/:id',
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createDeleteHandler(service, userService))
+    asyncHandler(createDeleteHandler(service))
   );
 
   return router;

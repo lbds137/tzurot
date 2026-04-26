@@ -10,11 +10,7 @@ import {
   type PrismaClient,
   type ApiKeyCacheInvalidationService,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -31,7 +27,6 @@ export function createRemoveKeyRoute(
   prisma: PrismaClient,
   apiKeyCacheInvalidation?: ApiKeyCacheInvalidationService
 ): RequestHandler[] {
-  const userService = getOrCreateUserService(prisma);
   const handler = asyncHandler(async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const provider = req.params.provider as AIProvider;
@@ -42,7 +37,7 @@ export function createRemoveKeyRoute(
       return;
     }
 
-    const userId = await resolveProvisionedUserId(req, userService);
+    const userId = resolveProvisionedUserId(req);
 
     // Find and delete the API key
     const existingKey = await prisma.userApiKey.findFirst({

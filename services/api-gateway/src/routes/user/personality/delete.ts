@@ -7,16 +7,11 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  type UserService,
   type PrismaClient,
   type CacheInvalidationService,
   DeletePersonalityResponseSchema,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
@@ -58,11 +53,7 @@ async function invalidateCacheSafely(
 
 // --- Handler Factory ---
 
-function createHandler(
-  prisma: PrismaClient,
-  userService: UserService,
-  cacheInvalidationService?: CacheInvalidationService
-) {
+function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
@@ -82,7 +73,6 @@ function createHandler(
       };
     }>({
       prisma,
-      userService,
       req,
       slug,
       res,
@@ -151,10 +141,9 @@ export function createDeleteHandler(
   prisma: PrismaClient,
   cacheInvalidationService?: CacheInvalidationService
 ): RequestHandler[] {
-  const userService = getOrCreateUserService(prisma);
   return [
     requireUserAuth(),
     requireProvisionedUser(prisma),
-    asyncHandler(createHandler(prisma, userService, cacheInvalidationService)),
+    asyncHandler(createHandler(prisma, cacheInvalidationService)),
   ];
 }

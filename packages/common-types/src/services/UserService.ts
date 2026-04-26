@@ -163,160 +163,6 @@ export class UserService {
   }
 
   /**
-   * Get or create a user by Discord ID when only the discordId is known.
-   *
-   * Used from code paths that don't have Discord username/displayName context
-   * (currently: api-gateway HTTP routes where auth middleware only exposes
-   * `discordId` on the request). Creates the user atomically with a
-   * placeholder persona named `"User {discordId}"`; the placeholder is
-   * replaced with the real Discord username by `runMaintenanceTasks` on
-   * the user's first bot-client interaction.
-   *
-   * Callers that DO have username context should use {@link getOrCreateUser}
-   * instead — the shell path is a temporary accommodation, not the
-   * preferred entry point. The Identity Epic's Phase 5c is queued to
-   * eliminate it by moving user provisioning into bot-client before any
-   * HTTP call.
-   *
-   * No bot-filtering is done here (unlike {@link getOrCreateUser}) because
-   * HTTP routes authenticate via session/discordId — bots don't hit these
-   * endpoints in practice.
-   *
-   * Note on UUID divergence: shell-created personas have their deterministic
-   * UUID derived from `"User {discordId}"`, not the later-assigned real
-   * username. After the placeholder rename the row has the correct `name`
-   * but a UUID that `generatePersonaUuid(realUsername, userId)` would NOT
-   * produce. This is cosmetic — no production code looks up personas by
-   * the username-derived formula — but it's worth flagging because the
-   * full path's UUID convention does match `generatePersonaUuid(username,
-   * userId)`. Phase 5c removes the divergence by removing the shell path.
-   *
-   * @param discordId Discord user ID
-   * @returns The user's UUID
-   */
-  async getOrCreateUserShell(discordId: string): Promise<string> {
-    // Phase 5c PR B shadow-mode canary. Any call here means a route bypassed
-    // the provisioning middleware — either the middleware isn't mounted on
-    // that route, or bot-client didn't send the X-User-Username/-DisplayName
-    // headers (deploy transition). The stack trace identifies the offending
-    // caller. Target: zero hits in prod for 48-72h, which unlocks PR C's
-    // shell-path deletion. Kept at warn level so a misconfigured route shows
-    // up in normal log-search without spamming debug noise.
-    //
-    // Stack is capped to the top 6 frames: enough to see the caller chain
-    // (middleware / handler / route-helper) without paying for a full 30+
-    // frame string allocation on every shell-path hit during the deploy-
-    // transition window.
-    logger.warn(
-      {
-        discordId,
-        stack: new Error().stack?.split('\n').slice(0, 6).join('\n'),
-      },
-      '[Identity] Shell path executed — PR B shadow-mode canary (should trend to zero before PR C)'
-    );
-
-    const cached = this.userCache.get(discordId);
-    if (cached !== null) {
-      return cached.userId;
-    }
-
-    try {
-      const user =
-        (await this.prisma.user.findUnique({
-          where: { discordId },
-          select: { id: true },
-        })) ?? (await this.createShellUserWithRaceProtection(discordId));
-
-      // Intentionally NOT populated: this.userCache.set(...).
-      // The cache is shared with getOrCreateUser and stores ProvisionedUser
-      // (userId + non-null defaultPersonaId). The shell path doesn't guarantee
-      // a persona exists yet — persona creation is deferred to the first
-      // bot-client call with a real username. Writing here with a synthetic
-      // defaultPersonaId would either lie about the invariant or force us to
-      // widen the cache type. Omitting the write keeps the invariant "only
-      // getOrCreateUser populates the cache" explicit and singleton-safe.
-      return user.id;
-    } catch (error) {
-      logger.error({ err: error, discordId }, 'Failed to get/create user shell');
-      throw error;
-    }
-  }
-
-  /**
-   * Create a shell user (no persona) with race condition protection.
-   * Username is stored as discordId as a placeholder; it'll be upgraded when
-   * the user interacts via bot-client with their real Discord username.
-   */
-  private async createShellUserWithRaceProtection(discordId: string): Promise<{ id: string }> {
-    const userId = generateUserUuid(discordId);
-    const shouldBeSuperuser = isBotOwner(discordId);
-    // Placeholder persona name — MUST be prefixed (not bare discordId) to
-    // pass the `personas_name_not_snowflake` CHECK constraint added in Phase 5.
-    // Upgraded to the real Discord username by runMaintenanceTasks on the
-    // user's first bot-client interaction.
-    const placeholderPersonaName = buildShellPlaceholderPersonaName(discordId);
-    const personaId = generatePersonaUuid(placeholderPersonaName, userId);
-
-    try {
-      // Phase 5b: users.default_persona_id is NOT NULL and personas.owner_id
-      // FKs back to users.id — a circular reference that would break any
-      // sequence of standalone INSERTs (neither row can be the first one
-      // inserted with complete data). A single-statement CTE sidesteps the
-      // bootstrap: Postgres checks IMMEDIATE FK constraints at statement end,
-      // by which point both rows exist. NOT NULL on users.default_persona_id
-      // is satisfied at row-insert time because we pre-compute personaId from
-      // the deterministic UUID formula.
-      await this.prisma.$executeRaw`
-        WITH new_persona AS (
-          INSERT INTO personas (id, name, preferred_name, description, content, owner_id, updated_at)
-          VALUES (
-            ${personaId}::uuid,
-            ${placeholderPersonaName},
-            ${placeholderPersonaName},
-            ${DEFAULT_PERSONA_DESCRIPTION},
-            ${''},
-            ${userId}::uuid,
-            NOW()
-          )
-          RETURNING id
-        ),
-        new_user AS (
-          INSERT INTO users (id, discord_id, username, is_superuser, default_persona_id, updated_at)
-          VALUES (
-            ${userId}::uuid,
-            ${discordId},
-            ${discordId},
-            ${shouldBeSuperuser},
-            ${personaId}::uuid,
-            NOW()
-          )
-          RETURNING id
-        )
-        SELECT 1
-      `;
-      if (shouldBeSuperuser) {
-        logger.info({ userId, discordId }, 'Bot owner auto-promoted to superuser (shell creation)');
-      }
-      logger.info(
-        { userId, discordId, personaId },
-        'Created shell user with placeholder default persona'
-      );
-      return { id: userId };
-    } catch (error) {
-      // Post-Phase-5b: the transaction writes User + Persona. P2002 can in
-      // theory come from either constraint, though in practice only
-      // `users.discord_id` can fire here (persona UUIDs are deterministic
-      // from discordId and the placeholder name is unique per ownerId by
-      // construction). Match on `discord_id` explicitly so future schema
-      // changes that add more unique constraints don't silently mis-recover.
-      if (this.isPrismaUniqueConstraintError(error, 'discord_id')) {
-        return this.fetchExistingUserAfterRace(discordId, { id: true }, error, 'shell');
-      }
-      throw error;
-    }
-  }
-
-  /**
    * Create user with race condition protection
    * If two requests try to create the same user simultaneously, one will fail with P2002.
    * We catch that and fetch the existing user instead.
@@ -331,18 +177,16 @@ export class UserService {
       return await this.createUserWithDefaultPersona(discordId, username, displayName, bio);
     } catch (error) {
       // Phase 5b: the full path's CTE now writes User + Persona in a single
-      // statement, same as the shell path. Filter on `discord_id` explicitly
-      // so a P2002 from the persona `(owner_id, name)` unique constraint
-      // cannot be mis-classified as a "user already exists" race. In
-      // practice the persona UUID+name pair is deterministic per ownerId so
-      // this shouldn't fire, but the explicit filter is defense-in-depth
-      // and keeps symmetry with `createShellUserWithRaceProtection`.
+      // statement. Filter on `discord_id` explicitly so a P2002 from the
+      // persona `(owner_id, name)` unique constraint cannot be mis-classified
+      // as a "user already exists" race. In practice the persona UUID+name
+      // pair is deterministic per ownerId so this shouldn't fire, but the
+      // explicit filter is defense-in-depth.
       if (this.isPrismaUniqueConstraintError(error, 'discord_id')) {
         return this.fetchExistingUserAfterRace(
           discordId,
           { id: true, isSuperuser: true, username: true, defaultPersonaId: true },
-          error,
-          'full'
+          error
         );
       }
       throw error;
@@ -400,18 +244,14 @@ export class UserService {
    * Recover after a P2002 race — another concurrent request created the user
    * between our findUnique and create. Fetch the now-existing row with the
    * caller's preferred select shape and return it.
-   *
-   * Shared by both shell and full creation paths. `creationType` is logged as
-   * a structured field so the two call sites stay distinguishable in logs.
    */
   private async fetchExistingUserAfterRace<T extends Prisma.UserSelect>(
     discordId: string,
     select: T,
-    cause: unknown,
-    creationType: 'shell' | 'full'
+    cause: unknown
   ): Promise<Prisma.UserGetPayload<{ select: T }>> {
     logger.warn(
-      { discordId, creationType },
+      { discordId },
       'Race condition detected during user creation, fetching existing user'
     );
     const existingUser = await this.prisma.user.findUnique({
