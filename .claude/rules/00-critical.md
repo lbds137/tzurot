@@ -192,10 +192,11 @@ CI passing != merge approval. User must explicitly request merge.
 
 ### Never Merge PRs Without Completed CI
 
-**Every CI check must be GREEN AND COMPLETE on the most recent push before `gh pr merge` runs.** This has two parts:
+**Every CI check must be GREEN, COMPLETE, AND READ on the most recent commit's CI run before `gh pr merge` runs.** This has three parts:
 
 1. **Green**: no exceptions for "looks like infrastructure," "non-blocking," "not really code-related," or "release PR doesn't need review." If a check is red, the merge is forbidden until the check is green.
 2. **Complete**: a CI cycle that's still running on the most recent commit is not "green" — it's incomplete. Wait for `claude-review` and every other check to finish before any merge proposal, even if the only remaining commit is a "trivial" fixup (one-line comment, test rename, etc.). Trivial-shape edits per `08-review-response.md` are still gated by tests; the analog at the merge step is "still gated by CI."
+3. **Read**: `claude-review` turning green only means it finished posting — it does NOT mean its content was read. Always fetch the latest review (`pnpm ops gh:pr-comments <N>`) and read its findings before any merge proposal. A "LGTM" verdict is fine; non-blocking observations may or may not warrant a fixup, but you can't decide without reading. Skipping this step is how reviewer feedback gets silently dropped.
 
 If post-merge feedback surfaces from claude-review on a tiny fixup, it can always be fixed on develop afterwards via the doc-commit exception (for docs) or a tiny follow-up PR (for code). The cost of one more CI cycle (~5 min) is far smaller than the cost of merging through an unreviewed change.
 
