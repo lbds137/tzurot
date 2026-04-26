@@ -90,7 +90,19 @@ const config = {
 // Note: GuildMembers is a privileged intent requiring Discord Portal approval for 100+ servers.
 // It's required because without it, message.member is null and we can't access user roles,
 // display color, or join date for the AI context (activePersonaGuildInfo).
-// Note: Partials.Channel is required for DM message events to fire properly.
+// Note: Partials.Channel + Message + User are all required for DM events to
+// reliably fire after a process restart. Empirical diagnosis (raw-gateway
+// listener, 2026-04-26): with only Partials.Channel, DM MESSAGE_CREATE
+// packets reach the gateway listener but Discord.js silently drops them
+// before MessageCreate fires. The DM channel↔user resolution path needs
+// the user to be a partial when uncached (every fresh restart), and
+// Message partial covers reference-resolution edge cases.
+//
+// Forward-protection: Partials.Message also means any future
+// MESSAGE_UPDATE/DELETE handler must guard against partial Message
+// objects (check `message.partial === true` and fetch before accessing
+// `content`, `author`, etc.). MESSAGE_CREATE payloads are always
+// complete per Discord protocol, so the create path is unaffected.
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -100,7 +112,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMembers,
   ],
-  partials: [Partials.Channel],
+  partials: [Partials.Channel, Partials.Message, Partials.User],
   // Disable all mention parsing from message content to prevent AI-generated
   // @everyone/@here/@role pings. Reply-pings (repliedUser) are unaffected.
   allowedMentions: { parse: [] },
@@ -473,8 +485,10 @@ process.on('unhandledRejection', error => {
 // SIGINT (Ctrl+C in dev). Without SIGTERM handling, Railway's deploy lifecycle
 // hard-kills the process before client.destroy() can close the Discord gateway
 // session, leaving an orphaned shard that competes with the new instance until
-// Discord's session timeout — observed as DMs being silent for ~minutes after
-// every deploy (Hypothesis A under investigation, see DM_RAW_GATEWAY_DIAGNOSTIC).
+// Discord's session timeout. The DM-silence symptom that originally motivated
+// this fix was actually caused by missing Partials (see client instantiation
+// comment), but clean gateway shutdown on deploy is correct independent
+// behaviour and resolved its own latent issue.
 let shutdownInitiated = false;
 function handleShutdownSignal(signal: NodeJS.Signals): void {
   if (shutdownInitiated) {
