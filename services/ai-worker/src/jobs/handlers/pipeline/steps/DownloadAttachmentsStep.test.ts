@@ -5,12 +5,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
-import { DownloadAttachmentsStep, MAX_QUEUE_AGE_MS } from './DownloadAttachmentsStep.js';
+import { DownloadAttachmentsStep } from './DownloadAttachmentsStep.js';
 import {
   AttachmentTooLargeError,
   HttpError,
   JobPayloadTooLargeError,
 } from '../../../../utils/attachmentFetch.js';
+import { ExpiredJobError, MAX_QUEUE_AGE_MS } from '../../../../utils/jobAgeGate.js';
 import type { GenerationContext } from '../types.js';
 
 // Mock logger so it doesn't pollute test output. Hoisted so individual tests
@@ -184,7 +185,7 @@ describe('DownloadAttachmentsStep', () => {
       justOverThreshold
     );
 
-    await expect(step.process(createContext(job))).rejects.toThrow(/URLs have likely expired/);
+    await expect(step.process(createContext(job))).rejects.toBeInstanceOf(ExpiredJobError);
     // Load-bearing assertion: pins the gate against future refactors that
     // might move it past the fetch call.
     expect(fetchAttachmentBytesMock).not.toHaveBeenCalled();

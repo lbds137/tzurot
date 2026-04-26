@@ -3,8 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
-import { checkQueueAge, MAX_QUEUE_AGE_MS } from './jobAgeGate.js';
-import { ExpiredJobError } from './attachmentFetch.js';
+import { checkQueueAge, ExpiredJobError, MAX_QUEUE_AGE_MS } from './jobAgeGate.js';
 
 function mockLogger(): Logger {
   return {
@@ -91,5 +90,14 @@ describe('checkQueueAge', () => {
     expect(() => checkQueueAge(fiveSecondsOld, logger, 1_000)).toThrow(ExpiredJobError);
     // 10-second threshold: 5s < 10s → should not throw.
     expect(() => checkQueueAge(fiveSecondsOld, logger, 10_000)).not.toThrow();
+  });
+});
+
+describe('ExpiredJobError', () => {
+  it('exposes queueAgeMs and renders a human-friendly message', () => {
+    const err = new ExpiredJobError(45 * 60 * 1000); // 45 min
+    expect(err.queueAgeMs).toBe(45 * 60 * 1000);
+    expect(err.name).toBe('ExpiredJobError');
+    expect(err.message).toMatch(/expired/);
   });
 });

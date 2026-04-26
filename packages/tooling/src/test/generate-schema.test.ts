@@ -297,6 +297,39 @@ describe('generateSchema', () => {
       expect(content).not.toContain('CHECK ("n" > 0)');
     });
 
+    it('removes a CHECK that is dropped without re-adding (DROP-only migration)', async () => {
+      // Migration A adds c1, migration B drops it without re-adding. The
+      // previous Map<name,statement> implementation ignored DROP entries
+      // entirely, so c1 stayed in the extracted output — PGLite would
+      // enforce a constraint prod Postgres no longer has, producing
+      // confusing integration-test false positives.
+      mockMigrations({
+        '20251127110000_add': 'ALTER TABLE "t" ADD CONSTRAINT "c1" CHECK ("n" > 0);',
+        '20260501000000_drop': 'ALTER TABLE "t" DROP CONSTRAINT "c1";',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('"c1"');
+    });
+
+    it('also matches the `DROP CONSTRAINT IF EXISTS` form', async () => {
+      // Hand-written migrations sometimes use IF EXISTS for idempotency.
+      // The extractor must treat it identically to the bare DROP form.
+      mockMigrations({
+        '20251127110000_add': 'ALTER TABLE "t" ADD CONSTRAINT "c2" CHECK ("n" > 0);',
+        '20260501000000_drop': 'ALTER TABLE "t" DROP CONSTRAINT IF EXISTS "c2";',
+      });
+
+      const { generateSchema } = await import('./generate-schema.js');
+      await generateSchema();
+
+      const [, content] = fsMock.writeFileSync.mock.calls[0] as [string, string];
+      expect(content).not.toContain('"c2"');
+    });
+
     it('processes migration folders in chronological order', async () => {
       // Later migrations may override/refine earlier ones. Deterministic
       // ordering (by folder name, which carries the YYYYMMDDHHMMSS prefix)

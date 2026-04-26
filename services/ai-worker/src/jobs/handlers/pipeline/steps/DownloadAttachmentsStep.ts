@@ -40,7 +40,6 @@ import {
   fetchAttachmentBytes,
   resizeImageIfNeeded,
   bufferToDataUrl,
-  ExpiredJobError,
   AttachmentTooLargeError,
   HttpError,
   JobPayloadTooLargeError,
@@ -48,20 +47,13 @@ import {
   MAX_ATTACHMENT_BYTES,
   MAX_AGGREGATE_PAYLOAD_BYTES,
 } from '../../../../utils/attachmentFetch.js';
+import { checkQueueAge } from '../../../../utils/jobAgeGate.js';
 import {
   validateExternalImageUrl,
   fetchExternalImageBytes,
 } from '../../../../utils/safeExternalFetch.js';
 
 const logger = createLogger('DownloadAttachmentsStep');
-
-/**
- * Maximum age a job may have sat in the queue before its Discord CDN URLs
- * are considered expired. Discord tokens last ~24h; 12h gives a safety margin
- * that still lets pathological backpressure surface cleanly instead of
- * silently producing 403s from the CDN.
- */
-export const MAX_QUEUE_AGE_MS = 12 * 60 * 60 * 1000;
 
 /**
  * True if the user's trigger-message payload carries any meaningful text.
@@ -128,14 +120,7 @@ export class DownloadAttachmentsStep implements IPipelineStep {
     // Queue-age gate — runs only when we're actually about to fetch CDN URLs.
     // Hits before any fetch so a backed-up queue fails with a clear classified
     // error instead of a pile of 403s from the CDN.
-    const queueAgeMs = Date.now() - job.timestamp;
-    if (queueAgeMs > MAX_QUEUE_AGE_MS) {
-      logger.warn(
-        { jobId: job.id, queueAgeMs, maxQueueAgeMs: MAX_QUEUE_AGE_MS },
-        'Job exceeded queue-age threshold; Discord CDN URLs likely expired'
-      );
-      throw new ExpiredJobError(queueAgeMs);
-    }
+    checkQueueAge(job, logger);
 
     logger.info(
       {
