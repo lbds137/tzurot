@@ -2,41 +2,42 @@
 
 ## Structure
 
-The backlog follows a "Now, Next, Later" topology with clear focus:
+The backlog follows a "Now, Next, Later" topology with clear focus. Each section lives in its own file under `backlog/`; `BACKLOG.md` at root is the index pointing to them.
 
-| Section              | Purpose                                    | Max Items |
-| -------------------- | ------------------------------------------ | --------- |
-| 🚨 Production Issues | Active bugs in production. Fix first.      | No limit  |
-| 📥 Inbox             | New items. Triage weekly.                  | No limit  |
-| 🎯 Current Focus     | This week's active work.                   | 3         |
-| ⚡️ Quick Wins        | Small tasks for momentum between features. | ~5        |
-| 🏗 Active Epic       | Current major initiative with phases.      | 1         |
-| 📅 Next Epic         | Ready to start when current epic ends.     | 1         |
-| 📦 Future Themes     | Epics ordered by dependency.               | Unlimited |
-| 🧊 Icebox            | Ideas for later. Resist the shiny object.  | Unlimited |
-| ⏸️ Deferred          | Decided not to do yet, with reasoning.     | Unlimited |
+| Section              | File                           | Purpose                                                             | Max Items |
+| -------------------- | ------------------------------ | ------------------------------------------------------------------- | --------- |
+| 🚨 Production Issues | `backlog/production-issues.md` | Active bugs in production. Fix first.                               | No limit  |
+| 📥 Inbox             | `backlog/inbox.md`             | New items. Triage weekly.                                           | No limit  |
+| 🎯 Current Focus     | `backlog/current-focus.md`     | This week's active work.                                            | 3         |
+| ⚡️ Quick Wins        | `backlog/quick-wins.md`        | Small tasks for momentum between features.                          | ~5        |
+| 🏗 Active Epic       | `backlog/active-epic.md`       | Current major initiative with phases.                               | 1         |
+| 📅 Next Theme        | `backlog/next-theme.md`        | Ready to start when current epic ends.                              | 1         |
+| 📦 Future Themes     | `backlog/future-themes.md`     | Epics ordered by dependency.                                        | Unlimited |
+| 🧊 Icebox            | `backlog/icebox.md`            | Ideas for later. Resist the shiny object.                           | Unlimited |
+| ⏸️ Deferred          | `backlog/deferred.md`          | Decided not to do yet, with reasoning.                              | Unlimited |
+| 📚 References        | `backlog/references.md`        | Cross-links to research docs and post-mortems. Not a triage target. | —         |
 
 ## Session Workflow
 
 ### Starting a Session
 
 1. Read `CURRENT.md` for context
-2. Check 🚨 Production Issues - fix before new features
-3. Check 🎯 Current Focus - continue active work
-4. If Current Focus is empty, pull from Quick Wins or Active Epic
+2. Read `backlog/production-issues.md` — fix before new features
+3. Read `backlog/current-focus.md` — continue active work
+4. If Current Focus is empty, pull from `backlog/quick-wins.md` or `backlog/active-epic.md`
 
 ### Ending a Session
 
 1. Update `CURRENT.md` with session progress
-2. Move completed items from Current Focus
-3. Add any new items to Inbox
-4. Triage Inbox if items are piling up
+2. Move completed items out of `backlog/current-focus.md`
+3. Add any new items to `backlog/inbox.md`
+4. Triage `backlog/inbox.md` if items are piling up
 
 ## Out-of-Scope Items Must Be Tracked
 
-Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in `BACKLOG.md` with a concrete destination section. Applies to plans, PRs, code reviews, and ad-hoc work.
+Marking something "out of scope" is NOT permission to ignore it. Any known defect, inconsistency, or technical deficiency you decide not to fix in the current work **must** land in the appropriate `backlog/*.md` file with a concrete destination section. Applies to plans, PRs, code reviews, and ad-hoc work.
 
-**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes for `BACKLOG.md` entries.** Mentioning "adminFetch sites are a distinct follow-up" in a commit message, or writing `// TODO: migrate this later` in a comment, does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a concrete `BACKLOG.md` entry before the current work closes. Observed failure mode 2026-04-21 on PR #859 where "adminFetch follow-up" was flagged in a commit message but never written to backlog; reviewer caught the gap.
+**Commit messages, PR bodies, plan notes, and code comments are NOT substitutes for backlog entries.** Mentioning "adminFetch sites are a distinct follow-up" in a commit message, or writing `// TODO: migrate this later` in a comment, does not count as tracking — nobody greps commit history or scattered comments looking for deferred work. If the follow-up matters enough to mention anywhere, it matters enough to be a concrete entry in the appropriate `backlog/*.md` file before the current work closes. Observed failure mode 2026-04-21 on PR #859 where "adminFetch follow-up" was flagged in a commit message but never written to backlog; reviewer caught the gap.
 
 ### Two types of "out of scope" — only one needs tracking
 
@@ -58,18 +59,18 @@ Plan files produced in plan mode must include a "Backlog Additions Required" sec
 
 ### Session-end gate (additions)
 
-A session is NOT done until every promised backlog addition is actually written to `BACKLOG.md`. Before running session-end cleanup:
+A session is NOT done until every promised backlog addition is actually written to the appropriate `backlog/*.md` file. Before running session-end cleanup:
 
 - Re-read the plan's "Backlog Additions Required" section
-- Verify each item exists in `BACKLOG.md` in the promised destination section
+- Verify each item exists in the promised destination file (e.g. `backlog/inbox.md`, `backlog/quick-wins.md`)
 - If any are missing, write them first — then close the session
 
 ### Session-end gate (removals)
 
-A session is ALSO not done until every item that shipped during the session is removed from `BACKLOG.md`. Additions without removals is what lets the backlog rot. Specifically:
+A session is ALSO not done until every item that shipped during the session is removed from its `backlog/*.md` file. Additions without removals is what lets the backlog rot. Specifically:
 
 - List the PRs merged during the session
-- For each PR, grep `BACKLOG.md` for the item title/topic — if a matching entry exists, **remove it**
+- For each PR, grep `backlog/` for the item title/topic — if a matching entry exists, **remove it**
 - For any backlog entry annotated "PROMOTED to Current Focus" or similar, re-verify the underlying fix actually shipped; if yes, remove
 - Also remove any entry whose "Start" hints point to code that no longer needs fixing (grep the file to confirm)
 
@@ -89,13 +90,13 @@ Both gates pair with the session-end workflow in the `/tzurot-docs` skill. Addit
 | Nice-to-have, no urgency      | 🧊 Icebox            |
 | Decided against (with reason) | ⏸️ Deferred          |
 
-### Promoting Epics
+### Promoting Themes
 
 When Active Epic completes:
 
-1. Move Active Epic to Future Themes (as completed reference) or delete if no longer relevant
-2. Promote Next Epic to Active Epic
-3. Choose new Next Epic from Future Themes (pick based on dependencies + value)
+1. Move Active Epic content out of `backlog/active-epic.md` (delete if no longer relevant, or fold completed phases into a `backlog/future-themes.md` entry as historical reference)
+2. Promote Next Theme: replace `backlog/active-epic.md` content with what was in `backlog/next-theme.md`
+3. Choose new Next Theme from `backlog/future-themes.md` (pick based on dependencies + value); replace `backlog/next-theme.md` content accordingly. The filename stays stable across rotations — the file's role (the slot after active-epic) is what's named, not the specific theme inside.
 
 ## Epic Structure
 
