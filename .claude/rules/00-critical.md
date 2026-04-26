@@ -144,14 +144,15 @@ Routine `git add <files>` + `git commit` + `git push` to feature branches is **p
 
 The PR cycle's primary value on this project is **automated review** — `claude-bot` scrutinises diffs for bugs, codecov flags coverage gaps, lint catches style/complexity issues. When a change can't benefit from any of those, the PR adds friction without catching anything. For that class of change, direct commits to `develop` are permitted.
 
-| Allowed on `develop` directly                                                                             | Still requires a PR                                                  |
-| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `BACKLOG.md` (post-merge tracker updates, struck-through entries, status changes)                         | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)              |
-| `CURRENT.md` (session-status / handoff notes)                                                             | Schema or migration files (`prisma/`, `*.sql`)                       |
-| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides) | `.claude/rules/*.md` (load-bearing constraints — review-gated)       |
-| Release-notes / changelog edits                                                                           | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated) |
-|                                                                                                           | Anything that touches `.env`, secrets, or CI config (`.github/`)     |
-|                                                                                                           | Single doc changes >300 lines (worth review on a diff UI)            |
+| Allowed on `develop` directly                                                                             | Still requires a PR                                                          |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `BACKLOG.md` (post-merge tracker updates, struck-through entries, status changes)                         | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
+| `CURRENT.md` (session-status / handoff notes)                                                             | Schema or migration files (`prisma/`, `*.sql`)                               |
+| New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides) | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
+| Release-notes / changelog edits                                                                           | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |
+|                                                                                                           | `.claude/hooks/*` (automation hooks that run on every contributor's session) |
+|                                                                                                           | Anything that touches `.env`, secrets, or CI config (`.github/`)             |
+|                                                                                                           | Single doc changes >300 lines (worth review on a diff UI)                    |
 
 **Apply the test, not just the file extension**: when in doubt about a doc change, ask "would `claude-bot`, codecov, or lint produce useful output on this diff?" If yes (e.g., a rule that affects every contributor's behavior, a runbook that prescribes a specific command sequence reviewer might want to second-guess), use a PR. If no (a status update, a typo fix, a stale-link replacement), direct commit is fine.
 
@@ -189,9 +190,14 @@ No branch, no PR, no CI re-run. Pre-push hooks still fire because they run on an
 
 CI passing != merge approval. User must explicitly request merge.
 
-### Never Merge PRs With Red CI
+### Never Merge PRs Without Completed CI
 
-**Every CI check must be green before `gh pr merge` runs.** No exceptions for "looks like infrastructure," "non-blocking," "not really code-related," or "release PR doesn't need review." If a check is red, the merge is forbidden until the check is green.
+**Every CI check must be GREEN AND COMPLETE on the most recent push before `gh pr merge` runs.** This has two parts:
+
+1. **Green**: no exceptions for "looks like infrastructure," "non-blocking," "not really code-related," or "release PR doesn't need review." If a check is red, the merge is forbidden until the check is green.
+2. **Complete**: a CI cycle that's still running on the most recent commit is not "green" — it's incomplete. Wait for `claude-review` and every other check to finish before any merge proposal, even if the only remaining commit is a "trivial" fixup (one-line comment, test rename, etc.). Trivial-shape edits per `08-review-response.md` are still gated by tests; the analog at the merge step is "still gated by CI."
+
+If post-merge feedback surfaces from claude-review on a tiny fixup, it can always be fixed on develop afterwards via the doc-commit exception (for docs) or a tiny follow-up PR (for code). The cost of one more CI cycle (~5 min) is far smaller than the cost of merging through an unreviewed change.
 
 **Why:** CI green-by-omission is invisible by default. A failed `claude-review` (or any other check) sitting next to 14 green checks looks identical to "all green" at a glance, and skipping it silently sacrifices the signal it would have produced. Release PRs in particular benefit from a holistic second-look review even when the constituent code was reviewed PR-by-PR.
 

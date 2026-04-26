@@ -13,13 +13,31 @@
 
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
-import { ExpiredJobError } from './attachmentFetch.js';
 
 /**
- * Default queue-age threshold. Matches `DownloadAttachmentsStep`'s inline
- * constant so both job families fail at the same boundary.
+ * Default queue-age threshold. The single source of truth for both LLM
+ * generation and audio transcription job families.
  */
 export const MAX_QUEUE_AGE_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Error thrown when a job's timestamp suggests its Discord CDN URLs have expired.
+ * Surfaces to the user as a classified async error result; distinguishable from
+ * download failures so telemetry can track queue-backpressure incidents.
+ *
+ * Lives here (not in attachmentFetch.ts) because it's a job-lifecycle error,
+ * not a fetch concern — its only producer is `checkQueueAge`.
+ */
+export class ExpiredJobError extends Error {
+  readonly queueAgeMs: number;
+  constructor(queueAgeMs: number) {
+    super(
+      `Job sat in queue for ${Math.round(queueAgeMs / 1000)}s, Discord CDN URLs have likely expired`
+    );
+    this.name = 'ExpiredJobError';
+    this.queueAgeMs = queueAgeMs;
+  }
+}
 
 /**
  * Throw `ExpiredJobError` if `job.timestamp` is older than `maxAgeMs` ago.

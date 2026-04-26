@@ -11,7 +11,6 @@ import {
   fetchAttachmentBytes,
   resizeImageIfNeeded,
   AttachmentTooLargeError,
-  ExpiredJobError,
   HttpError,
   JobPayloadTooLargeError,
   MAX_ATTACHMENT_BYTES,
@@ -109,15 +108,6 @@ describe('bufferToDataUrl', () => {
     const buf = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
     const dataUrl = bufferToDataUrl(buf, 'image/png');
     expect(dataUrl).toBe(`data:image/png;base64,${buf.toString('base64')}`);
-  });
-});
-
-describe('ExpiredJobError', () => {
-  it('exposes queueAgeMs and renders a human-friendly message', () => {
-    const err = new ExpiredJobError(45 * 60 * 1000); // 45 min
-    expect(err.queueAgeMs).toBe(45 * 60 * 1000);
-    expect(err.name).toBe('ExpiredJobError');
-    expect(err.message).toMatch(/expired/);
   });
 });
 

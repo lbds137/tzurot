@@ -297,16 +297,22 @@ export function buildMemoryInspectorView(
     '',
     `**Search Query:** ${inputProcessing.searchQuery !== null ? `"${inputProcessing.searchQuery}"` : '_none_'}`,
     `**Focus Mode:** ${memoryRetrieval.focusModeEnabled ? 'Enabled' : 'Disabled'}`,
-    `**Filter:** ${state.filter} · **Sort:** ${state.sort} · **Top-N:** ${state.topN === 0 ? 'all' : state.topN}`,
-    '',
   ];
 
+  // State annotation and filter buttons only make sense when there's something
+  // to filter — omit both when the underlying retrieval was empty.
   if (allMemories.length === 0) {
-    lines.push('_No memories retrieved for this request._');
-  } else if (memories.length === 0) {
-    lines.push(`_No memories match filter "${state.filter}"._`);
+    lines.push('', '_No memories retrieved for this request._');
   } else {
-    lines.push(...renderMemoryTable(memories, allMemories, tokenBudget, ctx.canViewCharacter));
+    lines.push(
+      `**Filter:** ${state.filter} · **Sort:** ${state.sort} · **Top-N:** ${state.topN === 0 ? 'all' : state.topN}`,
+      ''
+    );
+    if (memories.length === 0) {
+      lines.push(`_No memories match filter "${state.filter}"._`);
+    } else {
+      lines.push(...renderMemoryTable(memories, allMemories, tokenBudget, ctx.canViewCharacter));
+    }
   }
 
   const content = lines.join('\n');
@@ -317,7 +323,7 @@ export function buildMemoryInspectorView(
         description: 'Memory retrieval details',
       }),
     ],
-    components: [buildMemoryFilterButtons(requestId, state)],
+    components: allMemories.length > 0 ? [buildMemoryFilterButtons(requestId, state)] : [],
     flags: MessageFlags.Ephemeral,
   };
 }

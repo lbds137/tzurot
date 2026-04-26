@@ -86,24 +86,6 @@ The Identity & Provisioning Hardening Epic shipped end-to-end as of 2026-04-23 (
 
 Promoted from Inbox 2026-04-22.
 
-### Inspect UX Hardening (mini-epic)
-
-_Focus: bring `/inspect` up to par after PR #895 changed the diagnostic shape, plus close the long-standing character-card privacy issue while we're touching the code. 5 PRs, smallest-first._
-
-**Sequence:**
-
-1. ~~**Embed redesign** (Tier 1 + 2 + L)~~ ✅ Shipped via PR #897 (commit fc9a0d85b).
-
-2. ~~**Privacy redaction for non-owners**~~ ✅ Shipped via PR #898 (commit 8d4d2c6fc) — closes long-standing "Inspect command privacy toggle" backlog item.
-
-3. ~~**New diagnostic views** (Tier 3 J + M)~~ ✅ Shipped via PR #899 (commit 978437059) — Pipeline Health checklist + Quick-copy summary.
-
-4. **Memory Inspector filtering** (Tier 3 K) — stateful filter buttons (Included / Dropped / Top-N) on the Memory Inspector view. State encoded in customId (no closures, restart-safe per `04-discord.md`). ~150 line surface.
-
-5. **Cleanup** — `git rm scripts/src/glm47-failure-segmentation.ts` (purpose served by `upstreamProvider` field in `/inspect`) + remove the corresponding Quick Wins entry. ~5 line surface.
-
-Surfaced 2026-04-25 by user dev-deploy validation of PR #895.
-
 ### Other in-flight
 
 _None beyond the above. TTS Engine Upgrade is Active Epic._
@@ -114,15 +96,9 @@ _None beyond the above. TTS Engine Upgrade is Active Epic._
 
 _Small tasks that can be done between major features. Good for momentum._
 
-- 🏗️ `[LIFT]` **Consolidate `DownloadAttachmentsStep` onto the shared `checkQueueAge` helper** — Surfaced 2026-04-24 by PR #891 review. After PR #891 ships the `services/ai-worker/src/utils/jobAgeGate.ts` helper, two independent `MAX_QUEUE_AGE_MS` constants exist in the same package: one in `jobAgeGate.ts` (the helper's default) and one in `DownloadAttachmentsStep.ts:49` (the inline gate from PR #889). Neither file imports from the other, so a one-line threshold tune in `jobAgeGate.ts` would silently leave `DownloadAttachmentsStep` on the old value with no compiler or lint warning. **Fix shape**: in `DownloadAttachmentsStep.ts` (a) delete the local `MAX_QUEUE_AGE_MS` export, (b) replace the inline `Date.now() - job.timestamp > MAX_QUEUE_AGE_MS` block with `checkQueueAge(job, logger)`, (c) update the corresponding tests to import `MAX_QUEUE_AGE_MS` from `jobAgeGate.js` instead, (d) **also** migrate `ExpiredJobError` from `attachmentFetch.ts` to `jobAgeGate.ts` — it's a job-lifecycle error, not a fetch concern, and after this consolidation `attachmentFetch.ts` will have no remaining use for it (currently imported only by `jobAgeGate.ts`, which would become its natural home). The current import direction (`jobAgeGate.ts` → `attachmentFetch.ts`) is reversed from the natural ownership. ~12 lines of diff total. **Why deferred to its own PR**: bundling into PR #891 would have expanded scope into the LLM-gen pipeline files; reviewer suggested ⚡️ Quick Wins as the right destination.
-
-- 🧹 `[CHORE]` **Delete `scripts/src/glm47-failure-segmentation.ts` after PR #895 dev deploy validates new diagnostic capture** — the script was a one-off investigation tool for the OpenRouter reasoning extraction bug. Once PR #895 lands and dev traffic emits the new `reasoningDebug.upstreamProvider` / `apiMessageKeys` / `apiReasoningLength` fields into `LlmDiagnosticLog.data`, the diagnostic JSON is self-segmenting via `/inspect` and the script's purpose is served. Per `.claude/rules/05-tooling.md`, persistent diagnostic tooling lives in `packages/tooling/`; this script does not meet that bar — delete rather than promote. **Verify before delete**: pull a few recent dev `LlmDiagnosticLog` rows and confirm `data.llmResponse.reasoningDebug.upstreamProvider` shows real values (Parasail/Chutes/etc.) instead of being absent or hardcoded. **Start**: `git rm scripts/src/glm47-failure-segmentation.ts`. Surfaced 2026-04-25 by claude-bot review of PR #895.
-
 - ⚡️ `[PERF]` **Cache `personalityOwnerResolver` lookups (TTL ~5min)** — Surfaced 2026-04-25 by claude-bot review of PR #898. `services/ai-worker/src/services/diagnostics/personalityOwnerResolver.ts:resolvePersonalityOwnerDiscordId` fires a `prisma.user.findUnique` on every AI generation request to look up the personality owner's Discord ID for diagnostic-meta. Ownership is stable (personalities almost never change owners) so this is a good fit for short-TTL caching. Options: (a) thin wrapper around an in-memory `TTLCache<string, string|null>` with 5-min TTL keyed by `personalityOwnerInternalId`; (b) extend `UserService` with a cached `getDiscordIdByInternalUuid` method that other consumers could also use. (b) is more reusable; (a) is simpler if no other consumer surfaces. **Why deferred**: the lookup is fast (single indexed query, ~1ms typical) and not on a hot path that's been profiled as a bottleneck. Cache adds invalidation complexity. Promote when generation latency is being tightened or this query is identified as a material p95 contributor. **Start**: profile the resolver call in production diagnostic logs before optimizing — confirm the actual cost first.
 
 - 🧹 `[CHORE]` **Wrap individual pipeline steps in try/catch so `PipelineStep.status: 'error'` is reachable** — Surfaced 2026-04-25 by claude-bot review of PR #899. The schema declares `'success' | 'skipped' | 'error'` and `extendedViews.ts` renders the ❌ icon for it, but `DiagnosticCollector.recordPostProcessing()` currently only emits `success` / `skipped`. If a step throws today, the whole `recordPostProcessing` call dies and `pipelineSteps` is never set — the failure is invisible to the Pipeline Health view rather than surfaced in it. **Fix shape**: wrap each of the 4 step blocks (duplicate_removal, thinking_extraction, artifact_strip, placeholder_replacement) in its own try/catch; on catch, emit `{ name, status: 'error', reason: err.message }` and log via the collector's logger. **Not urgent**: post-processing transforms are simple string operations that don't realistically throw today. Promote when the pipeline grows steps that do real I/O (vector lookups, external API calls) or when adding the first step that can legitimately fail. **Start**: refactor the array-build in `recordPostProcessing` so each step is a try/catch returning a `PipelineStep` rather than a positional ternary expression.
-
-- 🧹 `[CHORE]` **Handle `DROP CONSTRAINT` in pglite CHECK extractor** — Surfaced 2026-04-24 by PR #887 review. `extractCheckConstraints` in `packages/tooling/src/test/generate-schema.ts` tracks ADD statements in a `Map<name, statement>` but ignores `DROP CONSTRAINT` entirely. The drop-and-re-add case works (second ADD overwrites first), but a future migration that drops a CHECK **without re-adding it** would leave the original ADD in the extracted output — PGLite would then enforce a constraint prod Postgres no longer has, causing integration-test false-positives with confusing symptoms. **Fix shape**: extend `extractCheckStatementsFromFile` to emit a tagged union `{ kind: 'add' | 'drop'; name: string; statement?: string }`, and have the outer loop in `extractCheckConstraints` call `byName.delete(name)` on DROP entries. Add a test with `migration_A: ADD "c1"` + `migration_B: DROP "c1"` (no re-add) asserting "c1" is absent from output. **Not a current regression**: all 5 emitted constraints are active in prod. Would bite once confusingly when the first CHECK is eventually retired.
 
 ### 🐛 Detect and Retry Inadequate LLM Responses
 

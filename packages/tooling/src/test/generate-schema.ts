@@ -52,18 +52,28 @@ interface GenerateSchemaOptions {
  * `extractCheckStatementsFromFile`).
  */
 const CHECK_CONSTRAINT_REGEX = /^ALTER\s+TABLE\s+"[^"]+"\s+ADD\s+CONSTRAINT\s+"([^"]+)"\s+CHECK\b/i;
+// Matches both forms: `DROP CONSTRAINT "c"` and `DROP CONSTRAINT IF EXISTS "c"`.
+// Prisma migrate dev doesn't currently emit `IF EXISTS` for CHECK constraints,
+// but a hand-written migration may, and the IF-EXISTS form is semantically
+// equivalent for our extraction purposes.
+const DROP_CONSTRAINT_REGEX =
+  /^ALTER\s+TABLE\s+"[^"]+"\s+DROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?"([^"]+)"/i;
 
-interface ExtractedCheck {
-  name: string;
-  statement: string;
-}
+type ExtractedCheck =
+  | { kind: 'add'; name: string; statement: string }
+  | { kind: 'drop'; name: string };
 
 /**
- * Parse one migration.sql file and return its CHECK-constraint statements.
- * Strips both line-comments and block-comments before splitting on `;` —
- * block comments matter because a block-comment body can contain a raw `;`
- * that would split the surrounding statement in half and silently drop the
- * CHECK that followed.
+ * Parse one migration.sql file and emit its CHECK-constraint operations
+ * (both ADD and DROP). Strips both line-comments and block-comments before
+ * splitting on `;` — block comments matter because a block-comment body can
+ * contain a raw `;` that would split the surrounding statement in half and
+ * silently drop the CHECK that followed.
+ *
+ * DROP CONSTRAINT is emitted alongside ADD so the outer dedup loop can remove
+ * a previously-added constraint when a later migration retires it without
+ * re-adding (else PGLite would enforce a CHECK that prod Postgres no longer
+ * has, producing confusing integration-test false positives).
  */
 function extractCheckStatementsFromFile(sqlPath: string): ExtractedCheck[] {
   const raw = readFileSync(sqlPath, 'utf-8');
@@ -77,17 +87,29 @@ function extractCheckStatementsFromFile(sqlPath: string): ExtractedCheck[] {
   for (const stmt of uncommented.split(';')) {
     const trimmed = stmt.trim();
     if (trimmed.length === 0) continue;
-    const match = CHECK_CONSTRAINT_REGEX.exec(trimmed);
-    if (match === null) continue;
-    const name = match[1];
-    // Unreachable per regex (`"[^"]+"` requires the capture), but TS sees
-    // match[1] as string | undefined.
-    if (name === undefined) continue;
 
-    results.push({
-      name,
-      statement: normalizeStatement(trimmed) + ';',
-    });
+    const addMatch = CHECK_CONSTRAINT_REGEX.exec(trimmed);
+    if (addMatch !== null) {
+      const name = addMatch[1];
+      // Unreachable per regex (`"[^"]+"` requires the capture), but TS sees
+      // match[1] as string | undefined.
+      if (name === undefined) continue;
+      results.push({
+        kind: 'add',
+        name,
+        statement: normalizeStatement(trimmed) + ';',
+      });
+      continue;
+    }
+
+    const dropMatch = DROP_CONSTRAINT_REGEX.exec(trimmed);
+    if (dropMatch !== null) {
+      const name = dropMatch[1];
+      // Unreachable per regex (`"[^"]+"` requires the capture); guard
+      // satisfies TS's `string | undefined` view of the match group.
+      if (name === undefined) continue;
+      results.push({ kind: 'drop', name });
+    }
   }
   return results;
 }
@@ -124,8 +146,16 @@ export function extractCheckConstraints(migrationsDir: string): string[] {
     const sqlPath = join(migrationsDir, folder, 'migration.sql');
     if (!existsSync(sqlPath)) continue;
 
-    for (const { name, statement } of extractCheckStatementsFromFile(sqlPath)) {
-      byName.set(name, statement);
+    for (const op of extractCheckStatementsFromFile(sqlPath)) {
+      if (op.kind === 'add') {
+        byName.set(op.name, op.statement);
+      } else {
+        // DROP without subsequent re-ADD must remove the prior definition.
+        // A drop-then-re-add pair across two migrations is handled correctly
+        // by the natural sequence: this delete fires, then the next iteration's
+        // ADD repopulates with the new statement.
+        byName.delete(op.name);
+      }
     }
   }
 
