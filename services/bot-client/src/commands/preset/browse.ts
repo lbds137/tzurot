@@ -16,7 +16,7 @@ import {
   isFreeModel,
   presetBrowseOptions,
   type LlmConfigSummary,
-  type AIProvider,
+  type ListWalletKeysResponse,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -66,13 +66,6 @@ const browseHelpers = createBrowseCustomIdHelpers<PresetBrowseFilter>({
 
 interface ListResponse {
   configs: LlmConfigSummary[];
-}
-
-interface WalletListResponse {
-  keys: {
-    provider: AIProvider;
-    isActive: boolean;
-  }[];
 }
 
 /**
@@ -331,7 +324,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
         user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
-      callGatewayApi<WalletListResponse>('/wallet/list', {
+      callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
         user,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
@@ -394,7 +387,7 @@ export async function buildBrowseResponse(
       user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
-    callGatewayApi<WalletListResponse>('/wallet/list', {
+    callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
       user,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
