@@ -135,23 +135,73 @@ function isPrivateOrInternalIpv6Tunneled6to4(lower: string): boolean {
   return isIPv4(embeddedV4) ? isPrivateOrInternalIpv4(embeddedV4) : true;
 }
 
+// Parse a (possibly non-canonical) IPv6 address to its 128-bit numeric value.
+// Returns null on malformed input or IPv4-embedded forms (`.` present) —
+// embedded-IPv4 cases are handled by the explicit `::ffff:` / `2002:` branches
+// in isPrivateOrInternalIpv6, which preserve IPv4-recursion semantics.
+//
+// Why numeric comparison vs. string-Set lookup: the previous Set covered
+// canonical (`::`, `::1`) and uncompressed (`0:0:0:0:0:0:0:0/1`) forms but
+// missed mixed-compression variants like `000::1` or `0::0:1`. `dns.lookup`
+// emits only canonical form so the gap was theoretical, but `isPrivateOrInternalIp`
+// is exported for defense-in-depth and can be called with arbitrary IPv6
+// shapes — closing the gap is cheap.
+function parseIPv6ToBigInt(ip: string): bigint | null {
+  if (ip.includes('.')) {
+    return null;
+  }
+
+  const doubleColonIdx = ip.indexOf('::');
+  let headParts: string[];
+  let tailParts: string[];
+
+  if (doubleColonIdx >= 0) {
+    const head = ip.slice(0, doubleColonIdx);
+    const tail = ip.slice(doubleColonIdx + 2);
+    if (tail.includes('::')) {
+      return null;
+    } // multiple :: shortcuts not allowed
+    headParts = head === '' ? [] : head.split(':');
+    tailParts = tail === '' ? [] : tail.split(':');
+  } else {
+    headParts = ip.split(':');
+    tailParts = [];
+  }
+
+  const totalNonZero = headParts.length + tailParts.length;
+  if (totalNonZero > 8) {
+    return null;
+  }
+  if (doubleColonIdx < 0 && totalNonZero !== 8) {
+    return null;
+  }
+
+  const fillCount = 8 - totalNonZero;
+  const allParts = [...headParts, ...new Array<string>(fillCount).fill('0'), ...tailParts];
+
+  let result = 0n;
+  for (const part of allParts) {
+    if (part.length === 0 || part.length > 4 || !/^[0-9a-f]+$/.test(part)) {
+      return null;
+    }
+    result = (result << 16n) | BigInt(parseInt(part, 16));
+  }
+  return result;
+}
+
 /**
  * True if an IPv6 address is in a range we refuse to fetch from.
  * Covers loopback, ULA, link-local, multicast, deprecated site-local,
  * IPv4-mapped recursion, 6to4 tunneling recursion, and Teredo tunneling.
  */
-// Loopback / unspecified IPv6 addresses, in the forms `dns.lookup` actually
-// produces: canonical (RFC 5952) `::`, `::1` plus the uncompressed-zeros
-// representation. Fully-padded forms (`0000:...:0001`) and mixed-compression
-// variants are not covered — `dns.lookup` does not emit them, and the only
-// other caller (`isPrivateOrInternalIp` exposed for defense-in-depth) is
-// expected to canonicalise its input first. Set lookup keeps the guard tight
-// while keeping function complexity below the lint cap.
-const LOOPBACK_OR_UNSPECIFIED_IPV6 = new Set(['::', '::1', '0:0:0:0:0:0:0:0', '0:0:0:0:0:0:0:1']);
-
 function isPrivateOrInternalIpv6(ip: string): boolean {
   const lower = ip.toLowerCase();
-  if (LOOPBACK_OR_UNSPECIFIED_IPV6.has(lower)) {
+  // Loopback (::1) / unspecified (::) — numeric comparison covers canonical,
+  // uncompressed, AND non-canonical mixed-compression forms (`000::1`, `0::0:1`)
+  // that a string-Set lookup would miss. parseIPv6ToBigInt returns null for
+  // IPv4-embedded forms — those are handled by the `::ffff:` branch below.
+  const numeric = parseIPv6ToBigInt(lower);
+  if (numeric === 0n || numeric === 1n) {
     return true;
   }
   // IPv4-mapped IPv6 (::ffff:a.b.c.d) — extract embedded IPv4 and recurse so
