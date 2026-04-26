@@ -97,7 +97,6 @@ describe('handleCreateModalSubmit', () => {
           pronouns: 'she/her',
           content: 'I am professional',
         },
-        setAsDefault: false,
       }),
     });
 
@@ -133,37 +132,6 @@ describe('handleCreateModalSubmit', () => {
     });
   });
 
-  it('should indicate when set as default', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreatePersonaResponse({
-        persona: {
-          name: 'First Persona',
-          description: null,
-          preferredName: null,
-          pronouns: null,
-          content: null,
-        },
-        setAsDefault: true,
-      }),
-    });
-
-    await handleCreateModalSubmit(
-      createMockModalInteraction({
-        personaName: 'First Persona',
-        description: '',
-        preferredName: '',
-        pronouns: '',
-        content: '',
-      })
-    );
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('set as your default'),
-      flags: MessageFlags.Ephemeral,
-    });
-  });
-
   it('should require persona name', async () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
@@ -193,7 +161,6 @@ describe('handleCreateModalSubmit', () => {
           pronouns: null,
           content: '',
         },
-        setAsDefault: false,
       }),
     });
 
@@ -236,7 +203,6 @@ describe('handleCreateModalSubmit', () => {
           pronouns: 'she/her',
           content: 'content',
         },
-        setAsDefault: false,
       }),
     });
 

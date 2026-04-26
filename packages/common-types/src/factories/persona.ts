@@ -147,7 +147,6 @@ export function mockCreatePersonaResponse(
   const base: CreatePersonaResponse = {
     success: true,
     persona: createBasePersonaDetails(),
-    setAsDefault: false,
   };
   return CreatePersonaResponseSchema.parse(deepMerge(base, overrides));
 }

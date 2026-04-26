@@ -196,9 +196,12 @@ describe('DiagnosticCollector construction is funneled through the owner resolve
           '\n'
         )}\nAll production code must construct DiagnosticCollector via createDiagnosticCollectorForRequest so the owner resolver is invoked.`
     ).toEqual([]);
-    // Sanity: the resolver callsite still exists. Catches accidental rename
-    // of the helper that would silently make this test trivially pass.
+    // Sanity: each allowlist entry still maps to a real construction site.
+    // Catches accidental rename of either file that would silently make this
+    // test trivially pass.
     const resolverPath = path.normalize('services/diagnostics/personalityOwnerResolver.ts');
     expect(offenders.some(o => o.file.endsWith(resolverPath))).toBe(true);
+    const collectorPath = path.normalize('services/DiagnosticCollector.ts');
+    expect(offenders.some(o => o.file.endsWith(collectorPath))).toBe(true);
   });
 });

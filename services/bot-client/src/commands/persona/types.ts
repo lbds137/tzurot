@@ -61,5 +61,4 @@ export interface FlattenedPersonaData {
 export interface SavePersonaResponse {
   success: boolean;
   persona: PersonaDetails;
-  setAsDefault?: boolean;
 }
