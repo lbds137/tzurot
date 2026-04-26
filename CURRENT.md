@@ -32,6 +32,7 @@ _None. Session paused after PR #911 merged + Identity Hardening Epic fully close
 - **PR #908** (merged): three Quick Wins bundled — dedup `WalletListResponse` to canonical `ListWalletKeysResponse` across bot-client preset/apikey paths, IPv6 mixed-compression hardening in `safeExternalFetch` via `parseIPv6ToBigInt`, structural guard test on `personalityOwnerResolver`.
 - **PR #909** (merged): test-utils consolidation — three `test-utils.ts` files now wrap shared `createProvisionedMockReqRes` helper instead of duplicating mock setup.
 - **PR #910** (merged): personality `MOCK_USER_ID` UUID normalization across 6 test files (24 inline `'user-uuid-123'` literals → constant).
+- **PR #912** (merged): vestigial `setAsDefault` field removed (post-Identity-Hardening, the field was structurally always `false`; both ends of the dead pipe cleaned up — schema, factory, gateway response, bot-client type + consumer + tests). DiagnosticCollector.ts sanity check added to the structural guard test for symmetry with the resolver assertion.
 
 ### Identity & Provisioning Hardening Epic — CLOSED
 
