@@ -13,11 +13,7 @@ import {
   type PrismaClient,
   TestWalletKeySchema,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
@@ -30,7 +26,6 @@ const logger = createLogger('wallet-test-key');
 
 export function createTestKeyRoute(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   router.post(
     '/',
@@ -45,7 +40,7 @@ export function createTestKeyRoute(prisma: PrismaClient): Router {
       const { provider } = parseResult.data;
       const discordUserId = req.userId;
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Get the stored API key
       const storedKey = await prisma.userApiKey.findFirst({

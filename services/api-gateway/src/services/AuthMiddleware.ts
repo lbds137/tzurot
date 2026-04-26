@@ -182,22 +182,20 @@ function readEncodedHeader(req: Request, headerName: string): string | undefined
 
 /**
  * Express middleware to provision the authenticated user via the full
- * context path (Phase 5c PR B shadow mode).
+ * context path. Replaces the legacy shadow-mode shell-path fallback.
  *
  * Runs AFTER `requireUserAuth()`. Reads the `X-User-Username` and
- * `X-User-DisplayName` headers set by bot-client in PR A, URI-decodes
- * them, and calls `UserService.getOrCreateUser(discordId, username,
- * displayName)` — the full provisioning path that avoids the
- * placeholder-name shell-user class of bug. Attaches
- * `req.provisionedUserId` + `req.provisionedDefaultPersonaId` on success.
+ * `X-User-DisplayName` headers set by bot-client, URI-decodes them, and
+ * calls `UserService.getOrCreateUser(discordId, username, displayName)` —
+ * the full provisioning path that avoids the placeholder-name shell-user
+ * class of bug. Attaches `req.provisionedUserId` +
+ * `req.provisionedDefaultPersonaId` on success.
  *
- * **Shadow mode**: degrades gracefully on every failure mode. Missing
- * headers, malformed URI encoding, or a thrown `getOrCreateUser` all
- * log at warn and call `next()` without attaching the provisioned
- * fields — the existing handler's shell-path call still runs. PR C
- * tightens this to 400 Bad Request once every prod bot-client is on
- * the new code path and the canary log in `getOrCreateUserShell` has
- * trended to zero.
+ * **Strict mode**: returns 400 Bad Request on every failure mode —
+ * missing headers, malformed URI encoding, or a thrown `getOrCreateUser`.
+ * The shadow-mode fallback that previously called `next()` without
+ * attaching the provisioned fields was deleted alongside `getOrCreateUserShell`
+ * after the canary log trended to zero in production.
  *
  * Usage:
  * ```ts
@@ -253,19 +251,22 @@ export function requireProvisionedUser(prisma: PrismaClient) {
   // reference — see `userServiceByPrisma` comment above for why.
   const userService = getOrCreateUserService(prisma);
 
-  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const discordId = (req as AuthenticatedRequest).userId;
     // Shouldn't happen — requireUserAuth runs first and would 401 on
     // missing userId — but defense in depth.
     if (discordId === undefined || discordId.length === 0) {
-      next();
+      const errorResponse = ErrorResponses.unauthorized('User authentication required');
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
     const username = readEncodedHeader(req, 'x-user-username');
     const displayName = readEncodedHeader(req, 'x-user-displayname');
 
-    // Missing either header → deploy-transition case, warn and fall through.
+    // Missing either header → bot-client didn't send the user-context.
+    // Pre-strict-mode this fell through; now it 400s loudly so a
+    // misconfigured bot-client deploy is caught immediately.
     if (username === undefined || displayName === undefined) {
       logger.warn(
         {
@@ -275,13 +276,16 @@ export function requireProvisionedUser(prisma: PrismaClient) {
           hasUsername: username !== undefined,
           hasDisplayName: displayName !== undefined,
         },
-        'Missing user-context headers — shadow middleware falling through'
+        'Missing user-context headers — rejecting request'
       );
-      next();
+      const errorResponse = ErrorResponses.validationError(
+        'Missing user-context headers (X-User-Username, X-User-DisplayName)'
+      );
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
-    // Malformed URI → bot-client bug, warn louder and fall through.
+    // Malformed URI → bot-client bug.
     if (username === null || displayName === null) {
       logger.warn(
         {
@@ -290,9 +294,10 @@ export function requireProvisionedUser(prisma: PrismaClient) {
           usernameMalformed: username === null,
           displayNameMalformed: displayName === null,
         },
-        'Malformed URI in user-context header — shadow middleware falling through'
+        'Malformed URI in user-context header — rejecting request'
       );
-      next();
+      const errorResponse = ErrorResponses.validationError('Malformed URI in user-context header');
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -301,25 +306,27 @@ export function requireProvisionedUser(prisma: PrismaClient) {
       const provisioned = await userService.getOrCreateUser(discordId, username, displayName);
       if (provisioned === null) {
         // getOrCreateUser returns null for bot accounts; HTTP routes
-        // shouldn't receive bot traffic in practice, but if it happens
-        // we fall through rather than block the request.
+        // shouldn't receive bot traffic in practice. Reject explicitly
+        // rather than falling through — defense-in-depth bot-block.
         logger.warn(
           { discordId, path: req.path },
-          'getOrCreateUser returned null (bot user?) — shadow middleware falling through'
+          'getOrCreateUser returned null (bot user?) — rejecting request'
         );
-        next();
+        const errorResponse = ErrorResponses.unauthorized('Bot users cannot access user routes');
+        res.status(getStatusCode(errorResponse.error)).json(errorResponse);
         return;
       }
       (req as ProvisionedRequest).provisionedUserId = provisioned.userId;
       (req as ProvisionedRequest).provisionedDefaultPersonaId = provisioned.defaultPersonaId;
+      next();
     } catch (err) {
-      logger.warn(
+      logger.error(
         { err, discordId, path: req.path },
-        'getOrCreateUser threw — shadow middleware falling through'
+        'getOrCreateUser threw during provisioning — rejecting request'
       );
+      const errorResponse = ErrorResponses.internalError('User provisioning failed');
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
     }
-
-    next();
   };
 }
 

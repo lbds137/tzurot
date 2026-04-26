@@ -11,7 +11,6 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   type PrismaClient,
-  type UserService,
   Prisma,
   BatchDeleteSchema,
   PurgeMemoriesSchema,
@@ -32,7 +31,6 @@ const logger = createLogger('memory-batch');
 // eslint-disable-next-line max-lines-per-function -- Procedural handler with sequential validation steps and timeframe parsing
 export async function handleBatchDelete(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -47,7 +45,7 @@ export async function handleBatchDelete(
   const { personalityId, personaId: requestedPersonaId, timeframe } = parseResult.data;
 
   // Get user
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   // Validate personality exists
   const personality = await getPersonalityById(prisma, personalityId, res);
@@ -165,7 +163,6 @@ export async function handleBatchDelete(
  */
 export async function handlePurge(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -180,7 +177,7 @@ export async function handlePurge(
   const { personalityId, confirmationPhrase } = parseResult.data;
 
   // Get user
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   // Validate personality exists
   const personality = await getPersonalityById(prisma, personalityId, res);
@@ -274,7 +271,6 @@ export async function handlePurge(
  */
 export async function handleBatchDeletePreview(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -295,7 +291,7 @@ export async function handleBatchDeletePreview(
   }
 
   // Get user
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   // Validate personality exists
   const personality = await getPersonalityById(prisma, personalityId, res);

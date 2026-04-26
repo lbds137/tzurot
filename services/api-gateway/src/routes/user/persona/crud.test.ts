@@ -275,27 +275,6 @@ describe('persona CRUD routes', () => {
         })
       );
     });
-
-    // Test skipped: "should set first persona as default" verified the
-    // `defaultPersonaId === null` branch in POST /user/persona. Post Identity
-    // Hardening, the provisioning middleware always supplies a non-null
-    // defaultPersonaId on req, so the branch is unreachable from the
-    // provisioned path. The route's `if (isFirstPersona)` block remains as
-    // defense-in-depth but isn't exercised by tests.
-    //
-    // TODO(identity-hardening-cleanup-PR): when the cleanup PR removes the
-    // `isFirstPersona` branch from crud.ts, delete this skipped test in the
-    // same commit so the suite doesn't carry a permanently-dead `it.skip`.
-    it.skip('should set first persona as default (UNREACHABLE post-Identity-Hardening)', () => {
-      // The pre-migration test body verified that POST /user/persona sets
-      // user.defaultPersonaId to the new persona's id when user.defaultPersonaId
-      // was null. After the test-utils consolidation, createMockReqRes always
-      // sets req.provisionedDefaultPersonaId = MOCK_PERSONA_ID, so the
-      // isFirstPersona branch (crud.ts:165-170) is unreachable from this test
-      // shape. Don't un-skip and "fix" the old body — the branch is what's
-      // unreachable, not the test setup. Delete this block in the same commit
-      // that removes isFirstPersona from the route.
-    });
   });
 
   describe('PUT /user/persona/:id', () => {

@@ -5,7 +5,7 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, type UserService } from '@tzurot/common-types';
+import { createLogger, type PrismaClient } from '@tzurot/common-types';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -61,7 +61,6 @@ interface ListResponse {
  */
 export async function handleList(
   prisma: PrismaClient,
-  userService: UserService,
   req: ProvisionedRequest,
   res: Response
 ): Promise<void> {
@@ -83,7 +82,7 @@ export async function handleList(
   const effectiveOrder: SortOrder = order === 'asc' ? 'asc' : 'desc';
 
   // Get user
-  const userId = await resolveProvisionedUserId(req, userService);
+  const userId = resolveProvisionedUserId(req);
 
   // Get persona
   const personaId = await getDefaultPersonaId(prisma, userId);

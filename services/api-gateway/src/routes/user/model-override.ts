@@ -23,11 +23,7 @@ import {
   SetModelOverrideSchema,
   SetDefaultConfigSchema,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { tryInvalidateCache } from '../../utils/configOverrideHelpers.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -63,7 +59,6 @@ export function createModelOverrideRoutes(
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   /**
    * GET /user/model-override
@@ -76,7 +71,7 @@ export function createModelOverrideRoutes(
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Get all overrides with personality and config names
       const overrides = await prisma.userPersonalityConfig.findMany({
@@ -125,7 +120,7 @@ export function createModelOverrideRoutes(
 
       const { personalityId, configId } = parseResult.data;
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Verify personality exists
       const personality = await prisma.personality.findFirst({
@@ -207,7 +202,7 @@ export function createModelOverrideRoutes(
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -247,7 +242,7 @@ export function createModelOverrideRoutes(
 
       const { configId } = parseResult.data;
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Verify config exists and user can access it (global or owned)
       const llmConfig = await verifyConfigAccess(prisma, configId, userId);
@@ -292,7 +287,7 @@ export function createModelOverrideRoutes(
     asyncHandler(async (req: ProvisionedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -349,7 +344,7 @@ export function createModelOverrideRoutes(
       const discordUserId = req.userId;
       const personalityId = getParam(req.params.personalityId);
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Find the override
       const override = await prisma.userPersonalityConfig.findFirst({

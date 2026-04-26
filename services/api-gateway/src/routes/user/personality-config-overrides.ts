@@ -15,11 +15,7 @@ import {
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
   tryInvalidateCache,
@@ -38,7 +34,6 @@ export function createPersonalityConfigOverrideRoutes(
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService
 ): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
   const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
   router.use(requireUserAuth());
@@ -81,7 +76,7 @@ export function createPersonalityConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
       }
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       // Verify creator ownership
       const personality = await prisma.personality.findUnique({

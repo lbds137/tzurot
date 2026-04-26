@@ -55,6 +55,8 @@ function createMockReqRes(provider: string) {
   const req = {
     params: { provider },
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -134,25 +136,6 @@ describe('DELETE /wallet/:provider', () => {
       await callHandler(mockPrisma, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-    });
-  });
-
-  describe('user lookup', () => {
-    it('should resolve user via provisioning and scope API key lookup to UUID', async () => {
-      const { req, res } = createMockReqRes(AIProvider.OpenRouter);
-
-      await callHandler(mockPrisma, req, res);
-
-      // Shadow fallback reads by discordId to resolve the UUID.
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
-      );
-      // API keys are queried by internal UUID.
-      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ userId: 'user-uuid-123' }),
-        })
-      );
     });
   });
 

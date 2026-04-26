@@ -62,9 +62,12 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 function createTestApp() {
   const app = express();
   app.use(express.json());
-  // Mock auth middleware - sets req.userId
+  // Mock auth middleware — sets req.userId AND the provisioned fields the
+  // route handler reads via getOrCreateInternalUser / resolveProvisionedUserId.
   app.use((req, _res, next) => {
     (req as any).userId = '123456789012345678';
+    (req as any).provisionedUserId = 'user-uuid-123';
+    (req as any).provisionedDefaultPersonaId = 'persona-uuid-default';
     next();
   });
   app.use('/nsfw', createNsfwRoutes(mockPrisma as any));
@@ -88,7 +91,7 @@ describe('NSFW Routes', () => {
       const verifiedAt = new Date('2024-01-15T10:00:00Z');
       // First findUnique: getOrCreateUserShell lookup by discordId.
       // Second findUnique: handler's own read by UUID for the NSFW fields.
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'test-uuid' }).mockResolvedValueOnce({
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
         nsfwVerified: true,
         nsfwVerifiedAt: verifiedAt,
       });
@@ -103,7 +106,7 @@ describe('NSFW Routes', () => {
     });
 
     it('should return not verified for non-verified user', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'test-uuid' }).mockResolvedValueOnce({
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
         nsfwVerified: false,
         nsfwVerifiedAt: null,
       });
@@ -118,9 +121,7 @@ describe('NSFW Routes', () => {
     });
 
     it('should return not verified when user row missing after provisioning', async () => {
-      mockPrisma.user.findUnique
-        .mockResolvedValueOnce({ id: 'test-uuid' })
-        .mockResolvedValueOnce(null);
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const response = await request(app).get('/nsfw');
 
@@ -134,14 +135,10 @@ describe('NSFW Routes', () => {
 
   describe('POST /nsfw/verify', () => {
     it('should verify a new user', async () => {
-      // Mock UserService.getOrCreateUser - first call returns existing user ID
-      mockPrisma.user.findUnique
-        .mockResolvedValueOnce({ id: 'test-uuid' }) // getOrCreateUser lookup
-        .mockResolvedValueOnce({
-          // findUnique for existing status check
-          nsfwVerified: false,
-          nsfwVerifiedAt: null,
-        });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nsfwVerified: false,
+        nsfwVerifiedAt: null,
+      });
       mockPrisma.user.update.mockResolvedValue({
         nsfwVerified: true,
         nsfwVerifiedAt: new Date(),
@@ -158,14 +155,10 @@ describe('NSFW Routes', () => {
 
     it('should return already verified for previously verified user', async () => {
       const verifiedAt = new Date('2024-01-15T10:00:00Z');
-      // Mock UserService.getOrCreateUser - first call returns existing user ID
-      mockPrisma.user.findUnique
-        .mockResolvedValueOnce({ id: 'test-uuid' }) // getOrCreateUser lookup
-        .mockResolvedValueOnce({
-          // findUnique for existing status check
-          nsfwVerified: true,
-          nsfwVerifiedAt: verifiedAt,
-        });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        nsfwVerified: true,
+        nsfwVerifiedAt: verifiedAt,
+      });
 
       const response = await request(app).post('/nsfw/verify');
 

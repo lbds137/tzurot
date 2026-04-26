@@ -11,11 +11,7 @@ import {
   type UsagePeriod,
   type UsageStats,
 } from '@tzurot/common-types';
-import {
-  requireUserAuth,
-  requireProvisionedUser,
-  getOrCreateUserService,
-} from '../../services/AuthMiddleware.js';
+import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -54,7 +50,6 @@ function getPeriodStartDate(period: UsagePeriod): Date | null {
 
 export function createUsageRoutes(prisma: PrismaClient): Router {
   const router = Router();
-  const userService = getOrCreateUserService(prisma);
 
   /**
    * GET /user/usage
@@ -79,7 +74,7 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
         );
       }
 
-      const userId = await resolveProvisionedUserId(req, userService);
+      const userId = resolveProvisionedUserId(req);
 
       const periodStart = getPeriodStartDate(period);
 
