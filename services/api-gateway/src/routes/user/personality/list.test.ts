@@ -10,6 +10,7 @@ import {
   getHandler,
   mockIsBotOwner,
   setupStandardMocks,
+  MOCK_USER_ID,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -109,7 +110,7 @@ describe('GET /user/personality (list)', () => {
       name: 'My Character',
       displayName: 'Mine',
       slug: 'my-character',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       isPublic: false,
       owner: { discordId: 'discord-123456789' },
     };
@@ -187,7 +188,7 @@ describe('GET /user/personality (list)', () => {
           name: 'Admin Character',
           displayName: 'Admin',
           slug: 'admin-char',
-          ownerId: 'user-uuid-123', // Owned by bot owner
+          ownerId: MOCK_USER_ID, // Owned by bot owner
           isPublic: false,
           owner: { discordId: 'test-user-id' },
         },
