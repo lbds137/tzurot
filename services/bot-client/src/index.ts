@@ -458,8 +458,9 @@ client.on(Events.Error, error => {
 // present but no MessageCreate handler invocation).
 if (process.env.DM_RAW_GATEWAY_DIAGNOSTIC === 'true') {
   logger.warn(
-    'DM_RAW_GATEWAY_DIAGNOSTIC enabled — raw gateway packets will be logged. ' +
-      'Disable for production once diagnosis is complete.'
+    'DM_RAW_GATEWAY_DIAGNOSTIC enabled — raw gateway packets and filtered ' +
+      'Discord.js debug events will be logged. Disable for production once ' +
+      'diagnosis is complete.'
   );
   client.on(
     'raw',
@@ -475,6 +476,26 @@ if (process.env.DM_RAW_GATEWAY_DIAGNOSTIC === 'true') {
       }
     }
   );
+
+  // Internal Discord.js debug stream — reveals which step in the dispatch
+  // pipeline is dropping events when the raw packet arrives but MessageCreate
+  // doesn't fire. Filter is narrowed to *failure* signals only (drop/fail/
+  // reject/skip/uncached/cache miss): the noisy 'dispatch' and 'partial'
+  // keywords match a high fraction of normal djs debug output and would
+  // bury the actual silent-drop signal we're looking for.
+  client.on('debug', (info: string) => {
+    const lower = info.toLowerCase();
+    const interesting =
+      lower.includes('drop') ||
+      lower.includes('fail') ||
+      lower.includes('reject') ||
+      lower.includes('skip') ||
+      lower.includes('uncached') ||
+      lower.includes('cache miss');
+    if (interesting) {
+      logger.info({ djsDebug: info }, '[DJS DEBUG]');
+    }
+  });
 }
 
 process.on('unhandledRejection', error => {
