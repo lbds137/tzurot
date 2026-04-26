@@ -11,7 +11,7 @@ import {
   createLogger,
   DISCORD_COLORS,
   isFreeModel,
-  type AIProvider,
+  type ListWalletKeysResponse,
   type LlmConfigSummary,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
@@ -23,13 +23,6 @@ import {
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('settings-preset-guest-mode');
-
-interface WalletListResponse {
-  keys: {
-    provider: AIProvider;
-    isActive: boolean;
-  }[];
-}
 
 interface ConfigListResponse {
   configs: LlmConfigSummary[];
@@ -98,7 +91,7 @@ export async function checkGuestModePremiumAccess(
   // wallet check. The configs endpoint is only needed on the guest-mode
   // branch to decide free-vs-premium, so fetching it upfront in parallel
   // wasted a gateway round-trip per paid-user interaction.
-  const walletResult = await callGatewayApi<WalletListResponse>('/wallet/list', {
+  const walletResult = await callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
     user,
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });

@@ -17,7 +17,8 @@ import {
   createLogger,
   DISCORD_COLORS,
   AUTOCOMPLETE_BADGES,
-  type AIProvider,
+  type ListWalletKeysResponse,
+  type WalletKey,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
@@ -29,21 +30,10 @@ import { getProviderDisplayName } from '../../../utils/providers.js';
 
 const logger = createLogger('settings-apikey-browse');
 
-interface WalletKeyInfo {
-  provider: AIProvider;
-  isActive: boolean;
-  createdAt: string;
-  lastUsedAt: string | null;
-}
-
-interface WalletListResponse {
-  keys: WalletKeyInfo[];
-}
-
 /**
  * Format a single key entry for the browse embed
  */
-function formatKeyEntry(key: WalletKeyInfo, index: number): string {
+function formatKeyEntry(key: WalletKey, index: number): string {
   const statusBadge = key.isActive ? AUTOCOMPLETE_BADGES.DEFAULT : '';
   const statusText = key.isActive ? 'Active' : 'Inactive';
   const providerName = getProviderDisplayName(key.provider);
@@ -63,7 +53,7 @@ function formatKeyEntry(key: WalletKeyInfo, index: number): string {
 /**
  * Build the browse embed
  */
-function buildBrowseEmbed(keys: WalletKeyInfo[]): EmbedBuilder {
+function buildBrowseEmbed(keys: WalletKey[]): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle('💳 API Wallet Browser')
     .setColor(keys.length > 0 ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.BLURPLE)
@@ -113,7 +103,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<WalletListResponse>('/wallet/list', {
+    const result = await callGatewayApi<ListWalletKeysResponse>('/wallet/list', {
       user: toGatewayUser(context.user),
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
