@@ -240,7 +240,7 @@ Use this format to report audit results:
 
 - [ ] Item (tool that flagged it)
 
-### Track (add to BACKLOG.md)
+### Track (add to backlog)
 
 - [ ] Item (current value → target)
 
@@ -257,7 +257,7 @@ Use this format to report audit results:
    pnpm depcruise:baseline          # If circular deps decreased
    pnpm ops test:audit --update     # If coverage gaps closed
    ```
-3. Add "Track" items to `BACKLOG.md` Inbox
+3. Add "Track" items to `backlog/inbox.md`
 4. Commit: `docs: architecture audit YYYY-MM-DD` or `fix: address architecture audit findings`
 
 ## References

@@ -146,7 +146,7 @@ The PR cycle's primary value on this project is **automated review** — `claude
 
 | Allowed on `develop` directly                                                                             | Still requires a PR                                                          |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `BACKLOG.md` (post-merge tracker updates, struck-through entries, status changes)                         | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
+| `BACKLOG.md` + `backlog/*.md` (post-merge tracker updates, triage moves, status changes)                  | Any code change (`*.ts`, `*.tsx`, `*.py`, `*.js`, etc.)                      |
 | `CURRENT.md` (session-status / handoff notes)                                                             | Schema or migration files (`prisma/`, `*.sql`)                               |
 | New or edited files under `docs/` (typo fixes, runbook tweaks, reference updates, freshly-written guides) | `.claude/rules/*.md` (load-bearing constraints — review-gated)               |
 | Release-notes / changelog edits                                                                           | `.claude/skills/*/SKILL.md` (load-bearing procedures — review-gated)         |
@@ -160,7 +160,7 @@ The PR cycle's primary value on this project is **automated review** — `claude
 
 ```bash
 git checkout develop && git pull
-# edit BACKLOG.md / CURRENT.md / docs/...
+# edit BACKLOG.md / backlog/<section>.md / CURRENT.md / docs/...
 git add <doc-files>
 git commit -m "docs(<scope>): <message>"
 git push origin develop

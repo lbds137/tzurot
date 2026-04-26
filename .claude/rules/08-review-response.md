@@ -128,7 +128,7 @@ PR #N has completed 3 rounds of review-respond. Remaining unresolved items:
 2. [semantic:contract] ...     (raised round 3, new)
 
 Each round's fixes have surfaced new findings. Options:
-- Merge as-is (remaining items → BACKLOG.md)
+- Merge as-is (remaining items → appropriate `backlog/*.md` file)
 - Rewrite the PR to address remaining items differently
 - Review the loop — maybe the PR scope is wrong
 ```
@@ -162,9 +162,9 @@ The whitelist is loaded with the rule. Entries are evaluated in order. The user 
 - **Type annotation addition** — adding `: T` to a variable, parameter, or return type; adding a type guard that only narrows for the compiler; **not** type changes that alter runtime control flow
 - **Formatting per linter** — apply `prettier` or `eslint --fix` output verbatim; no manual edits
 - **String literal typo fix** — text-content correction in a regular string literal; **not** inside regex patterns, SQL queries, shell commands, URL paths, or any other language-in-a-string context
-- **Documentation-only addition** — adding content to `BACKLOG.md`, release notes, `CHANGELOG.md`, `README.md`, or any file under `docs/`. Includes new sections and new entries, not just fixes. **Excludes** edits to `.claude/rules/*.md` and `.claude/skills/*/SKILL.md`, which are load-bearing constraints/procedures — treat those as semantic-shape even though they're markdown. Adding to a documentation file that this PR didn't otherwise touch is still allowed under this shape; "scope expansion" only applies to CODE files (see below).
+- **Documentation-only addition** — adding content to `BACKLOG.md`, `backlog/*.md`, release notes, `CHANGELOG.md`, `README.md`, or any file under `docs/`. Includes new sections and new entries, not just fixes. **Excludes** edits to `.claude/rules/*.md` and `.claude/skills/*/SKILL.md`, which are load-bearing constraints/procedures — treat those as semantic-shape even though they're markdown. Adding to a documentation file that this PR didn't otherwise touch is still allowed under this shape; "scope expansion" only applies to CODE files (see below).
 
-Implicit rule: "touches a file not in the PR's diff so far" is NOT a blocker for auto-apply as long as the edit is one of the trivial shapes above. The blast radius concern comes from the _shape_ of the change, not the _location_. A `BACKLOG.md` addition to a file the PR hasn't touched is still a trivial-shape edit; a logic change in an untouched code file is still semantic-shape.
+Implicit rule: "touches a file not in the PR's diff so far" is NOT a blocker for auto-apply as long as the edit is one of the trivial shapes above. The blast radius concern comes from the _shape_ of the change, not the _location_. A `backlog/*.md` addition to a file the PR hasn't touched is still a trivial-shape edit; a logic change in an untouched code file is still semantic-shape.
 
 ### Explicit non-trivial (always ASK regardless of surface simplicity)
 
@@ -204,4 +204,4 @@ Before each round's consolidated message:
 - **`00-critical.md`** "Never merge PRs without user approval" remains in force. This rule governs iteration _before_ merge approval; it does not loosen the merge gate.
 - **`00-critical.md`** "NEVER modify tests to make them pass" remains in force. The test-suite gate in rule 3 fails closed — a trivial-shape edit that breaks tests is escalated, not covered up by modifying tests.
 - **`05-tooling.md`** PR-monitoring step 4 delegates to this file.
-- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are added to `BACKLOG.md` per rule 4's "Backlog candidates" section.
+- **`06-backlog.md`** out-of-scope tracking still applies — items explicitly flagged as follow-ups are added to the appropriate `backlog/*.md` file per rule 4's "Backlog candidates" section.
