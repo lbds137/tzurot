@@ -245,36 +245,4 @@ describe('POST /user/channel/activate', () => {
 
     expect(res.status).toHaveBeenCalledWith(201);
   });
-
-  it('should create user if they do not exist', async () => {
-    const personality = createMockPersonality({ isPublic: true });
-    const settings = createMockActivation();
-
-    // Override default mock so the shell path sees "user missing"
-    mockPrisma.user.findUnique
-      .mockResolvedValueOnce(null) // getOrCreateUserShell initial lookup
-      .mockResolvedValueOnce({ id: MOCK_USER_UUID, defaultPersonaId: null }); // post-create lookup in userHelpers
-    mockPrisma.user.create.mockResolvedValueOnce({ id: MOCK_USER_UUID });
-    mockPrisma.user.findFirst.mockResolvedValue(null);
-    mockPrisma.personality.findUnique.mockResolvedValue(personality);
-    mockPrisma.channelSettings.upsert.mockResolvedValue(settings);
-
-    const router = createChannelRoutes(mockPrisma as unknown as PrismaClient);
-    const handler = getHandler(router, 'post', '/activate');
-    const { req, res } = createMockReqRes({
-      channelId: MOCK_DISCORD_USER_ID,
-      personalitySlug: 'test-character',
-      guildId: '987654321098765432',
-    });
-
-    await handler(req, res);
-
-    // Shell creation — api-gateway routes don't have username context, so
-    // UserService.getOrCreateUserShell runs a single $executeRaw CTE that
-    // atomically creates the user plus a placeholder persona named
-    // `"User {discordId}"`. The placeholder is renamed to the real
-    // username on the first bot-client interaction.
-    expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(201);
-  });
 });

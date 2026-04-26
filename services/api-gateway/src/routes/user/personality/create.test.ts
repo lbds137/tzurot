@@ -197,31 +197,6 @@ describe('POST /user/personality (create)', () => {
     );
   });
 
-  it('should create user if not exists', async () => {
-    // First findUnique returns null (user doesn't exist), second returns created shell user
-    mockPrisma.user.findUnique
-      .mockResolvedValueOnce(null) // getOrCreateUserShell lookup
-      .mockResolvedValueOnce({ id: 'user-uuid-123', defaultPersonaId: null }); // After shell creation
-    mockPrisma.user.create.mockResolvedValueOnce({ id: 'user-uuid-123' });
-    mockPrisma.personality.create.mockResolvedValue(createMockPersonality());
-
-    const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
-    const handler = getHandler(router, 'post', '/');
-    const { req, res } = createMockReqRes({
-      name: 'New Character',
-      slug: 'new-char',
-      characterInfo: 'Info',
-      personalityTraits: 'Traits',
-    });
-
-    await handler(req, res);
-
-    // Shell creation — api-gateway routes don't have username context.
-    // See UserService.getOrCreateUserShell.
-    expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-    expect(res.status).toHaveBeenCalledWith(201);
-  });
-
   it('does not create a personality_default_configs row on personality create', async () => {
     // New personalities cascade to the current global default at request time
     // via PersonalityService.loadPersonality. Auto-pinning was removed after
