@@ -71,6 +71,8 @@ const mockUserService = {} as unknown as UserService;
 function createMockReqRes(params: Record<string, string> = {}, body: Record<string, unknown> = {}) {
   const req = {
     userId: TEST_DISCORD_USER_ID,
+    provisionedUserId: TEST_USER_ID,
+    provisionedDefaultPersonaId: 'persona-uuid-default',
     params,
     body,
   } as unknown as ProvisionedRequest;

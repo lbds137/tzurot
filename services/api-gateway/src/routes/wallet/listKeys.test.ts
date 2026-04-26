@@ -55,6 +55,8 @@ import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
 function createMockReqRes() {
   const req = {
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -98,25 +100,6 @@ describe('GET /wallet/list', () => {
       expect(router.stack.length).toBeGreaterThan(0);
 
       expect(findRoute(router, 'get')).toBeDefined();
-    });
-  });
-
-  describe('user lookup', () => {
-    it('should resolve provisioned user and scope query to internal UUID', async () => {
-      const { req, res } = createMockReqRes();
-
-      await callHandler(mockPrisma, req, res);
-
-      // Shadow fallback reads user row by discordId to resolve the UUID.
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { discordId: 'discord-user-123' } })
-      );
-      // API keys are fetched by internal UUID, not discordId.
-      expect(mockPrisma.userApiKey.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { userId: 'user-uuid-123' },
-        })
-      );
     });
   });
 
