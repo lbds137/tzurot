@@ -9,6 +9,7 @@ import {
   createMockReqRes,
   getHandler,
   setupStandardMocks,
+  MOCK_USER_ID,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -86,7 +87,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
   it('should toggle visibility to public', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: 'personality-10',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       isPublic: false,
     });
     mockPrisma.personality.update.mockResolvedValue({
@@ -120,7 +121,7 @@ describe('PATCH /user/personality/:slug/visibility', () => {
   it('should toggle visibility to private', async () => {
     mockPrisma.personality.findUnique.mockResolvedValue({
       id: 'personality-11',
-      ownerId: 'user-uuid-123',
+      ownerId: MOCK_USER_ID,
       isPublic: true,
     });
     mockPrisma.personality.update.mockResolvedValue({

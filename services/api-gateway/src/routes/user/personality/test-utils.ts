@@ -13,12 +13,12 @@ import {
 } from '../../../test/shared-route-test-utils.js';
 
 /**
- * Internal user identifier used by every personality-route test mock. The
- * value is a free-form string rather than a UUID; routes don't validate the
- * format here, but consumers checking by exact equality (Prisma mocks,
- * `provisionedUserId` comparison) all agree on this string.
+ * Internal user UUID used by every personality-route test mock. RFC-4122
+ * format matches the convention in `persona/test-utils.ts` and
+ * `channel/test-utils.ts` — protects against future middleware-side UUID
+ * validation that would reject the legacy `'user-uuid-123'` placeholder.
  */
-export const MOCK_USER_ID = 'user-uuid-123';
+export const MOCK_USER_ID = 'b9c8d7e6-f5a4-4321-b8c7-d6e5f4a3b2c1';
 
 /**
  * Personality-domain wrapper around the shared mock helper. Sets

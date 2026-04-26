@@ -10,6 +10,7 @@ import {
   createMockReqRes,
   getHandler,
   setupStandardMocks,
+  MOCK_USER_ID,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -175,7 +176,7 @@ describe('POST /user/personality (create)', () => {
           slug: 'new-char',
           characterInfo: 'A new character',
           personalityTraits: 'Friendly, kind',
-          ownerId: 'user-uuid-123',
+          ownerId: MOCK_USER_ID,
           isPublic: false,
         }),
         select: expect.objectContaining({
