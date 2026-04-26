@@ -117,13 +117,3 @@ export function getHandler(
 ): RouteHandler {
   return getRouteHandler(router, method, path) as RouteHandler;
 }
-
-/**
- * Create a mock `$executeRaw` implementation for UserService's
- * CTE-based user creation (Phase 5b). UserService uses a single
- * `$executeRaw` call to atomically create the user + default persona,
- * so mocks need only resolve successfully.
- */
-export function createUserServiceExecuteRawMock(): ReturnType<typeof vi.fn> {
-  return vi.fn().mockResolvedValue(1);
-}

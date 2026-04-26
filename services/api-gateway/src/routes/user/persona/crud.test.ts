@@ -18,6 +18,7 @@ import {
   mockPersona,
   MOCK_USER_ID,
   MOCK_PERSONA_ID,
+  MOCK_PERSONA_ID_2,
   NONEXISTENT_UUID,
 } from './test-utils.js';
 
@@ -113,25 +114,6 @@ describe('persona CRUD routes', () => {
         // This provides helpful error messages if the schema validation fails
         console.error('Schema validation failed:', parseResult.error.format());
       }
-    });
-
-    it('should create user if they do not exist', async () => {
-      // First call returns null (user doesn't exist), second returns created shell user
-      mockPrisma.user.findUnique
-        .mockResolvedValueOnce(null) // getOrCreateUserShell lookup
-        .mockResolvedValueOnce({ id: MOCK_USER_ID, defaultPersonaId: null }); // After shell creation
-      mockPrisma.user.create.mockResolvedValueOnce({ id: MOCK_USER_ID });
-      mockPrisma.persona.findMany.mockResolvedValue([]);
-
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'get', '/');
-
-      const { req, res } = createMockReqRes();
-      await handler(req, res);
-
-      // Shell creation — api-gateway routes don't have username context.
-      // See UserService.getOrCreateUserShell — creates a User-only record.
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
     });
 
     it('should handle personas with null content and pronouns', async () => {
@@ -294,36 +276,25 @@ describe('persona CRUD routes', () => {
       );
     });
 
-    it('should set first persona as default', async () => {
-      // User has no default persona
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: MOCK_USER_ID,
-        defaultPersonaId: null,
-      });
-      mockPrisma.persona.create.mockResolvedValue({
-        ...mockPersona,
-        id: 'new-persona-id',
-      });
-      mockPrisma.user.update.mockResolvedValue({});
-
-      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'post', '/');
-
-      const { req, res } = createMockReqRes({
-        name: 'First Persona',
-        content: 'My first persona',
-      });
-      await handler(req, res);
-
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: MOCK_USER_ID },
-        data: { defaultPersonaId: 'new-persona-id' },
-      });
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          setAsDefault: true,
-        })
-      );
+    // Test skipped: "should set first persona as default" verified the
+    // `defaultPersonaId === null` branch in POST /user/persona. Post Identity
+    // Hardening, the provisioning middleware always supplies a non-null
+    // defaultPersonaId on req, so the branch is unreachable from the
+    // provisioned path. The route's `if (isFirstPersona)` block remains as
+    // defense-in-depth but isn't exercised by tests.
+    //
+    // TODO(identity-hardening-cleanup-PR): when the cleanup PR removes the
+    // `isFirstPersona` branch from crud.ts, delete this skipped test in the
+    // same commit so the suite doesn't carry a permanently-dead `it.skip`.
+    it.skip('should set first persona as default (UNREACHABLE post-Identity-Hardening)', () => {
+      // The pre-migration test body verified that POST /user/persona sets
+      // user.defaultPersonaId to the new persona's id when user.defaultPersonaId
+      // was null. After the test-utils consolidation, createMockReqRes always
+      // sets req.provisionedDefaultPersonaId = MOCK_PERSONA_ID, so the
+      // isFirstPersona branch (crud.ts:165-170) is unreachable from this test
+      // shape. Don't un-skip and "fix" the old body — the branch is what's
+      // unreachable, not the test setup. Delete this block in the same commit
+      // that removes isFirstPersona from the route.
     });
   });
 
@@ -470,18 +441,19 @@ describe('persona CRUD routes', () => {
 
   describe('DELETE /user/persona/:id', () => {
     it('should delete persona', async () => {
-      // UserService uses findUnique, not findFirst - set defaultPersonaId to null to allow delete
-      mockPrisma.user.findUnique.mockResolvedValue({ id: MOCK_USER_ID, defaultPersonaId: null });
-      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
+      // Delete a non-default persona (MOCK_PERSONA_ID_2) — provisioning
+      // middleware sets req.provisionedDefaultPersonaId = MOCK_PERSONA_ID,
+      // so deleting that id would trip the "can't delete default" guard.
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID_2 });
       mockPrisma.persona.delete.mockResolvedValue({});
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:id');
 
-      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID });
+      const { req, res } = createMockReqRes({}, { id: MOCK_PERSONA_ID_2 });
       await handler(req, res);
 
-      expect(mockPrisma.persona.delete).toHaveBeenCalledWith({ where: { id: MOCK_PERSONA_ID } });
+      expect(mockPrisma.persona.delete).toHaveBeenCalledWith({ where: { id: MOCK_PERSONA_ID_2 } });
       expect(res.json).toHaveBeenCalledWith({ message: 'Persona deleted' });
     });
 

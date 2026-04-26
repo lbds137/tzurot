@@ -7,14 +7,39 @@ import {
   createMockIsBotOwner,
   createMockCreatedAt,
   createMockUpdatedAt,
-  createMockReqRes,
+  createProvisionedMockReqRes,
   getHandler,
-  createUserServiceExecuteRawMock,
   type RouteHandler,
 } from '../../../test/shared-route-test-utils.js';
 
+/**
+ * Internal user identifier used by every personality-route test mock. The
+ * value is a free-form string rather than a UUID; routes don't validate the
+ * format here, but consumers checking by exact equality (Prisma mocks,
+ * `provisionedUserId` comparison) all agree on this string.
+ */
+export const MOCK_USER_ID = 'user-uuid-123';
+
+/**
+ * Personality-domain wrapper around the shared mock helper. Sets
+ * `provisionedUserId` to MOCK_USER_ID so route handlers see the same id
+ * as `setupStandardMocks` returns from `mockPrisma.user.findUnique`.
+ */
+export function createMockReqRes(
+  body: Record<string, unknown> = {},
+  params: Record<string, string> = {},
+  query: Record<string, string> = {}
+): ReturnType<typeof createProvisionedMockReqRes> {
+  return createProvisionedMockReqRes(body, params, query, {
+    provisionedUserId: MOCK_USER_ID,
+    // provisionedDefaultPersonaId intentionally omitted — personality routes
+    // don't read user.defaultPersonaId, so the sentinel default from the shared
+    // helper is fine. Contrast with persona/test-utils, which does set it.
+  });
+}
+
 // Re-export shared utilities used by test files
-export { createMockReqRes, getHandler, type RouteHandler };
+export { getHandler, type RouteHandler };
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 export const mockIsBotOwner = createMockIsBotOwner();
@@ -45,7 +70,6 @@ export function createMockPrisma(): {
   systemPrompt: { findFirst: ReturnType<typeof vi.fn> };
   llmConfig: { findFirst: ReturnType<typeof vi.fn> };
   personalityDefaultConfig: { create: ReturnType<typeof vi.fn> };
-  $executeRaw: ReturnType<typeof vi.fn>;
 } {
   return {
     user: {
@@ -81,7 +105,6 @@ export function createMockPrisma(): {
     personalityDefaultConfig: {
       create: vi.fn(),
     },
-    $executeRaw: createUserServiceExecuteRawMock(),
   };
 }
 
@@ -110,8 +133,7 @@ export function createMockPersonality(
     isPublic: false,
     voiceEnabled: false,
     imageEnabled: false,
-    // eslint-disable-next-line sonarjs/no-duplicate-string -- Test fixture UUID shared across mock factory functions
-    ownerId: 'user-uuid-123',
+    ownerId: MOCK_USER_ID,
     avatarData: null,
     voiceReferenceType: null,
     customFields: null,
@@ -128,10 +150,10 @@ export function createMockPersonality(
 export function setupStandardMocks(mockPrisma: ReturnType<typeof createMockPrisma>): void {
   mockIsBotOwner.mockReturnValue(false);
   // Old findFirst for legacy code paths
-  mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
+  mockPrisma.user.findFirst.mockResolvedValue({ id: MOCK_USER_ID });
   // UserService uses findUnique to look up users
   mockPrisma.user.findUnique.mockResolvedValue({
-    id: 'user-uuid-123',
+    id: MOCK_USER_ID,
     username: 'test-user',
     defaultPersonaId: null,
     isSuperuser: false,

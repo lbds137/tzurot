@@ -4,14 +4,10 @@
 
 import { vi } from 'vitest';
 import {
-  createMockReqRes,
+  createProvisionedMockReqRes,
   getHandler,
-  createUserServiceExecuteRawMock,
   type RouteHandler,
 } from '../../../test/shared-route-test-utils.js';
-
-// Re-export shared utilities used by test files
-export { createMockReqRes, getHandler, type RouteHandler };
 
 // Valid UUIDs for testing (required by route validation)
 export const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
@@ -19,6 +15,27 @@ export const MOCK_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 export const MOCK_PERSONA_ID_2 = 'f6a7b8c9-d0e1-4345-a012-456789012345';
 export const MOCK_PERSONALITY_ID = 'c3d4e5f6-a7b8-9012-cdef-123456789012';
 export const NONEXISTENT_UUID = 'd4e5f6a7-b8c9-4123-9ef0-234567890123';
+
+/**
+ * Persona-domain wrapper around the shared mock helper. Sets
+ * `provisionedUserId` and `provisionedDefaultPersonaId` to the file's MOCK_*
+ * constants so route handlers see the same IDs as the rest of the test's
+ * Prisma mocks (which all use MOCK_USER_ID for user.id and MOCK_PERSONA_ID
+ * for default persona).
+ */
+export function createMockReqRes(
+  body: Record<string, unknown> = {},
+  params: Record<string, string> = {},
+  query: Record<string, string> = {}
+): ReturnType<typeof createProvisionedMockReqRes> {
+  return createProvisionedMockReqRes(body, params, query, {
+    provisionedUserId: MOCK_USER_ID,
+    provisionedDefaultPersonaId: MOCK_PERSONA_ID,
+  });
+}
+
+// Re-export shared utilities used by test files
+export { getHandler, type RouteHandler };
 
 export const mockUser = {
   id: MOCK_USER_ID,
@@ -65,7 +82,6 @@ interface MockPrismaClient {
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
-  $executeRaw: ReturnType<typeof vi.fn>;
 }
 
 /** Create mock Prisma client for testing - includes UserService dependencies */
@@ -100,6 +116,5 @@ export function createMockPrisma(): MockPrismaClient {
       update: vi.fn(),
       delete: vi.fn(),
     },
-    $executeRaw: createUserServiceExecuteRawMock(),
   };
 }
