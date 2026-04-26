@@ -153,14 +153,6 @@ Open question: when a user joins a guild where the bot is activated in the welco
 
 **Why Latent**: no active user pain; `[FEAT]` investigation that only becomes relevant if a concrete welcome-UX use case appears. Surfaced 2026-04-21.
 
-#### 🏗️ Singleton-hazard guard for `UserService` cache
-
-Relevant only if `UserService` is ever refactored from per-request instantiation to a singleton (a reasonable perf improvement).
-
-`UserService.getOrCreateUserShell` intentionally does NOT write to `this.userCache` to prevent a subtle bug: in a singleton context, a shell call would cache a `discordId → userId` mapping, causing subsequent `getOrCreateUser` calls to short-circuit out of the cache and skip `runMaintenanceTasks` (username upgrade + persona backfill). Today's per-request instantiation keeps the cache cold, so this is latent.
-
-Hazard is documented in the cache field's JSDoc (`packages/common-types/src/services/UserService.ts`). Options if UserService is made a singleton: (a) split the caches so shell and full have separate tracking; (b) move username upgrade/persona backfill out of the hot-path into an explicit "ensure provisioned" method callers invoke. Flagged by PR #805 review.
-
 #### 🐛 Voice engine (Pocket TTS) intermittent failures
 
 _Superseded by TTS engine upgrade epic in Current Focus._ Pocket TTS is being replaced by Chatterbox Turbo (research done 2026-04-12, evaluation in progress). Any fix to Pocket TTS would be throwaway work once the replacement ships. Revisit only if the TTS epic stalls for multi-session reasons.
