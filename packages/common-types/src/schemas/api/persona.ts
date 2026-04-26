@@ -89,7 +89,6 @@ export type GetPersonaResponse = z.infer<typeof GetPersonaResponseSchema>;
 export const CreatePersonaResponseSchema = z.object({
   success: z.literal(true),
   persona: PersonaDetailsSchema,
-  setAsDefault: z.boolean(),
 });
 export type CreatePersonaResponse = z.infer<typeof CreatePersonaResponseSchema>;
 
