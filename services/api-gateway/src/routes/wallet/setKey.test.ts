@@ -85,6 +85,8 @@ function createMockReqRes(body: Record<string, unknown> = {}) {
   const req = {
     body,
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -280,23 +282,6 @@ describe('POST /wallet/set', () => {
   });
 
   describe('successful key storage', () => {
-    it('should create user via UserService if not exists', async () => {
-      const { req, res } = createMockReqRes({
-        provider: AIProvider.OpenRouter,
-        apiKey: 'sk-valid-key',
-      });
-
-      await callHandler(mockPrisma, req, res);
-
-      // UserService uses findUnique then $transaction for user creation
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { discordId: 'discord-user-123' },
-        })
-      );
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-    });
-
     it('should encrypt and store API key', async () => {
       const { req, res } = createMockReqRes({
         provider: AIProvider.OpenRouter,
@@ -368,32 +353,6 @@ describe('POST /wallet/set', () => {
   describe('provider validation', () => {
     it('should support OpenRouter provider', () => {
       expect(AIProvider.OpenRouter).toBe('openrouter');
-    });
-  });
-
-  describe('user creation via UserService', () => {
-    // Note: Bot owner auto-promotion tests are in UserService.test.ts
-    // These tests verify the route correctly uses UserService for user creation
-
-    it('should create user via UserService when storing API key', async () => {
-      mockBotOwnerId = undefined;
-
-      const { req, res } = createMockReqRes({
-        provider: AIProvider.OpenRouter,
-        apiKey: 'sk-valid-key',
-      });
-
-      await callHandler(mockPrisma, req, res);
-
-      // User creation is now handled by UserService which uses direct user.create
-      // Verify user was created by checking user.create was called
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-
-      // API key should be stored with the user ID returned by UserService
-      expect(mockPrisma.userApiKey.upsert).toHaveBeenCalled();
-
-      // Response should be successful
-      expect(res.status).toHaveBeenCalledWith(200);
     });
   });
 });

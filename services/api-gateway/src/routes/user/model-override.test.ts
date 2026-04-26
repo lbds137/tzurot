@@ -81,6 +81,8 @@ function createMockReqRes(body: Record<string, unknown> = {}, params: Record<str
     body,
     params,
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -297,40 +299,6 @@ describe('/user/model-override routes', () => {
       );
     });
 
-    it('should create user if not exists', async () => {
-      // getOrCreateUserShell calls findUnique first; override beforeEach's user result to null
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
-      mockPrisma.personality.findFirst.mockResolvedValue({
-        id: '11111111-1111-4111-a111-111111111111',
-        name: 'Lilith',
-      });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        id: '22222222-2222-4222-a222-222222222222',
-        name: 'GPT-4',
-      });
-      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
-        personalityId: '11111111-1111-4111-a111-111111111111',
-        personality: { name: 'Lilith' },
-        llmConfigId: '22222222-2222-4222-a222-222222222222',
-        llmConfig: { name: 'GPT-4' },
-      });
-
-      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'put', '/');
-      const { req, res } = createMockReqRes({
-        personalityId: '11111111-1111-4111-a111-111111111111',
-        configId: '22222222-2222-4222-a222-222222222222',
-      });
-
-      await handler(req, res);
-
-      // getOrCreateUserShell creates users via direct user.create
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
     it('should upsert override successfully', async () => {
       mockPrisma.personality.findFirst.mockResolvedValue({
         id: '11111111-1111-4111-a111-111111111111',
@@ -466,7 +434,6 @@ describe('/user/model-override routes', () => {
     it('should return null default when user has none set', async () => {
       // getOrCreateUserShell resolves the UUID; subsequent findUnique for default
       // returns a user with no default config.
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: null,
         defaultLlmConfig: null,
@@ -491,7 +458,6 @@ describe('/user/model-override routes', () => {
 
     it('should return user default config when set', async () => {
       // UserService.getOrCreateUserShell first, then the handler's own findUnique by id.
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
         defaultLlmConfig: { name: 'My Default Config' },
@@ -556,27 +522,6 @@ describe('/user/model-override routes', () => {
           message: expect.stringContaining('Config'),
         })
       );
-    });
-
-    it('should create user if not exists', async () => {
-      // getOrCreateUserShell calls findUnique first; override beforeEach's user result to null
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        id: '22222222-2222-4222-a222-222222222222',
-        name: 'Test Config',
-      });
-
-      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
-
-      await handler(req, res);
-
-      // getOrCreateUserShell creates users via direct user.create
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('should set default config successfully', async () => {
@@ -672,7 +617,6 @@ describe('/user/model-override routes', () => {
     it('should return 404 when user lookup returns null after provisioning', async () => {
       // Defensive 404 path: shell returns UUID, but the subsequent handler-level
       // findUnique returns null (e.g., race with user deletion).
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce(null);
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
@@ -685,7 +629,6 @@ describe('/user/model-override routes', () => {
     });
 
     it('should return 200 (idempotent) when no default config set', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: null,
       });
@@ -706,7 +649,6 @@ describe('/user/model-override routes', () => {
     });
 
     it('should clear default config successfully', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });
@@ -732,7 +674,6 @@ describe('/user/model-override routes', () => {
 
   describe('DELETE /user/model-override/default cache invalidation', () => {
     it('should call invalidateUserLlmConfig on success', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });

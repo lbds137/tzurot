@@ -55,6 +55,8 @@ function createMockReqRes(query: Record<string, string> = {}) {
   const req = {
     query,
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as ProvisionedRequest;
 
   const res = {

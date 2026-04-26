@@ -114,6 +114,8 @@ function createMockReqRes(
     params,
     query,
     userId: TEST_DISCORD_USER_ID,
+    provisionedUserId: 'internal-user-id',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {

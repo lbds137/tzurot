@@ -147,6 +147,8 @@ function createMockReqRes(body: Record<string, unknown> = {}, params: Record<str
     body,
     params,
     userId: 'discord-user-123',
+    provisionedUserId: 'user-uuid-123',
+    provisionedDefaultPersonaId: 'persona-uuid-default',
   } as unknown as Request & { userId: string };
 
   const res = {
@@ -545,33 +547,6 @@ describe('/user/llm-config routes', () => {
           }),
         })
       );
-      expect(res.status).toHaveBeenCalledWith(201);
-    });
-
-    it('should create user if not exists', async () => {
-      // getOrCreateUserShell calls findUnique first; override beforeEach's user result to null
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
-      mockPrisma.llmConfig.create.mockResolvedValue({
-        id: 'new-config',
-        name: 'My Config',
-        description: null,
-        provider: 'openrouter',
-        model: 'gpt-4',
-        visionModel: null,
-        isGlobal: false,
-        isDefault: false,
-      });
-
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'post', '/');
-      const { req, res } = createMockReqRes({ name: 'My Config', model: 'gpt-4' });
-
-      await handler(req, res);
-
-      // Phase 2: HTTP routes use getOrCreateUserShell → direct user.create (no transaction)
-      expect(mockPrisma.$executeRaw).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
   });
