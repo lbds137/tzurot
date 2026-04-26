@@ -92,9 +92,25 @@ async function handlePresetAutocomplete(
     return;
   }
 
-  // Check if user is in guest mode (no active wallet keys)
-  const hasActiveWallet = walletResult.ok && walletResult.data.keys.some(k => k.isActive === true);
-  const isGuestMode = !hasActiveWallet;
+  // Check if user is in guest mode (no active wallet keys).
+  //
+  // Fails OPEN on wallet-API failure: a transient `/wallet/list` error
+  // would otherwise collapse with `!hasActiveWallet` to force `isGuestMode
+  // = true`, hiding paid models from users who actually have active keys.
+  // Mirrors the pattern in guestModeValidation.checkGuestModePremiumAccess —
+  // the ai-worker's ApiKeyResolver + AuthStep enforce the gate
+  // authoritatively at generation time, so showing extra options here can't
+  // bypass the real check.
+  let isGuestMode: boolean;
+  if (walletResult.ok) {
+    isGuestMode = !walletResult.data.keys.some(k => k.isActive === true);
+  } else {
+    logger.warn(
+      { userId, error: walletResult.error },
+      'Wallet check failed in preset autocomplete — failing open, treating as paid'
+    );
+    isGuestMode = false;
+  }
 
   const queryLower = query.toLowerCase();
 

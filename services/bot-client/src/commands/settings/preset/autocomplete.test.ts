@@ -502,6 +502,57 @@ describe('handleAutocomplete', () => {
       expect(choices.some(c => c.value === UNLOCK_MODELS_VALUE)).toBe(false);
     });
 
+    it('should fail open when wallet API errors — show all models, no upsell', async () => {
+      // Pre-fix bug: walletResult.ok && ... collapsed to false on API failure,
+      // forcing isGuestMode = true and hiding paid models for users who
+      // actually have active keys. ai-worker enforces the gate authoritatively
+      // at generation time, so failing open here is safe.
+      vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
+        name: 'preset',
+        value: '',
+      } as unknown as string);
+      vi.mocked(callGatewayApi).mockImplementation((path: string) => {
+        if (path === '/user/llm-config') {
+          return Promise.resolve({
+            ok: true,
+            data: {
+              configs: [
+                mockLlmConfigSummary({
+                  id: '00000000-0000-4000-8000-0000000000c1',
+                  name: 'Claude Pro',
+                  model: 'anthropic/claude-sonnet-4',
+                  isGlobal: true,
+                  isOwned: false,
+                }),
+                mockLlmConfigSummary({
+                  id: '00000000-0000-4000-8000-0000000000c2',
+                  name: 'Grok Free',
+                  model: 'x-ai/grok-4.1-fast:free',
+                  isGlobal: true,
+                  isOwned: false,
+                }),
+              ],
+            },
+          });
+        }
+        if (path === '/wallet/list') {
+          return Promise.resolve({ ok: false, error: 'Gateway timeout', status: 504 });
+        }
+        return Promise.resolve({ ok: false, error: 'Unknown path', status: 404 });
+      });
+
+      await handleAutocomplete(mockInteraction);
+
+      const choices = vi.mocked(mockInteraction.respond).mock.calls[0][0] as {
+        name: string;
+        value: string;
+      }[];
+      // Both models should be present (no guest-mode filter applied)
+      expect(choices).toHaveLength(2);
+      // Upsell should NOT appear — we treated the user as paid
+      expect(choices.some(c => c.value === UNLOCK_MODELS_VALUE)).toBe(false);
+    });
+
     it('should add 🆓 badge to free models', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
