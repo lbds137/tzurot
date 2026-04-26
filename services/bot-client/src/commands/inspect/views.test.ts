@@ -310,6 +310,18 @@ describe('buildMemoryInspectorView', () => {
       expect(result.components![0].components).toHaveLength(5);
     });
 
+    it('omits filter buttons and state line when there are no retrieved memories', () => {
+      const payload = memoryPayload();
+      payload.memoryRetrieval.memoriesFound = [];
+      const result = buildMemoryInspectorView(payload, 'req-1', OWNER_CTX);
+      const text = result.files![0].attachment.toString();
+
+      expect(result.components).toEqual([]);
+      // State annotation should not appear — there's nothing to filter
+      expect(text).not.toContain('**Filter:**');
+      expect(text).toContain('No memories retrieved');
+    });
+
     it('filter=included shows only included rows', () => {
       const result = buildMemoryInspectorView(memoryPayload(), 'req-1', OWNER_CTX, {
         filter: 'included',

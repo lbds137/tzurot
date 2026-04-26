@@ -26,6 +26,9 @@ export const SORT_WIRE = {
 } as const;
 
 export type SortMode = keyof typeof SORT_WIRE;
+/** Sort modes in cycle order. ES2015+ spec guarantees `Object.keys` returns
+ *  string keys in insertion order, so this is stable across engines as long as
+ *  `SORT_WIRE`'s declaration order matches the desired cycle. */
 export const SORT_MODES: readonly SortMode[] = Object.keys(SORT_WIRE) as SortMode[];
 
 /** Reverse map: short wire token → full SortMode. The `| undefined` in the cast

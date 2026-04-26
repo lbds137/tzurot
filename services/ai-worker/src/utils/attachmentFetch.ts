@@ -29,22 +29,6 @@ const ALLOWED_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 /**
- * Error thrown when a job's timestamp suggests its Discord CDN URLs have expired.
- * Surfaces to the user as a classified async error result; distinguishable from
- * download failures so telemetry can track queue-backpressure incidents.
- */
-export class ExpiredJobError extends Error {
-  readonly queueAgeMs: number;
-  constructor(queueAgeMs: number) {
-    super(
-      `Job sat in queue for ${Math.round(queueAgeMs / 1000)}s, Discord CDN URLs have likely expired`
-    );
-    this.name = 'ExpiredJobError';
-    this.queueAgeMs = queueAgeMs;
-  }
-}
-
-/**
  * Error thrown when an HTTP fetch returns a non-OK status. Carries the status
  * code as a typed field so callers can classify by number instead of parsing
  * the message string. 403 specifically is the Discord-CDN expiration signal
