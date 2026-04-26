@@ -7,13 +7,11 @@
 
 ## Next Session Goal
 
-**🚨 START HERE: Investigate LangChain reasoning-extraction bug** — see [`docs/research/langchain-reasoning-extraction-bug.md`](docs/research/langchain-reasoning-extraction-bug.md). User-reported leak in inspect log surfaced what is almost certainly a long-standing silent bug: our `OpenRouterFetch` interceptor successfully extracts and injects `<reasoning>` tags, but they don't survive into LangChain's `BaseMessage.content`. Reasoning content has been silently dropped on every reasoning-enabled request for an unknown duration. Doc has full evidence, four ranked hypotheses, ordered test plan (start with `pnpm ops run --env prod --force tsx scripts/src/test-glm-reasoning-shape.ts`), and links to all the diagnostic infrastructure built tonight.
+_No production issues active as of 2026-04-26 — both prior entries (LangChain reasoning drop, preset autocomplete guest-mode) cleared after beta.107 confirmed structural fixes (#895, #906) held overnight. Pick from the candidates below; user-impact and shape vary._
 
-_Other priorities (lower urgency):_
-
-1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs.
-2. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. Canary window closed (~2026-04-25 earliest), safe to start anytime now.
-3. **Post-deploy DM subscription loss fix** — HIGH priority, two-layer warmer spec-ready.
+1. **Identity Hardening — final cleanup** (atomic bundle) — flip `requireProvisionedUser` shadow-mode → strict 400; delete `getOrCreateUserShell`. Canary window closed 2026-04-25, safe to start. Mechanical shape — middleware flip + symbol deletion + ESLint config update + test-helper migration as one PR. Good for a clean session.
+2. **Post-deploy DM subscription loss fix** — HIGH user-facing impact on every release. Two-layer warmer spec-ready in `backlog/current-focus.md` (startup pre-warm via `client.users.fetch().createDM()` + greedy lazy registration on any interaction). Medium implementation complexity.
+3. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local) and feed it a character reference audio. Compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/month ElevenLabs).
 
 ## Active Task
 
