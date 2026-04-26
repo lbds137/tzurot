@@ -14,11 +14,13 @@ import {
   JobType,
   JobStatus,
   AIProvider,
+  ApiErrorCategory,
   type LLMGenerationJobData,
   type LoadedPersonality,
   REDIS_KEY_PREFIXES,
 } from '@tzurot/common-types';
 import { LLMGenerationHandler } from './LLMGenerationHandler.js';
+import { DownloadAttachmentsStep } from './pipeline/steps/DownloadAttachmentsStep.js';
 import type { ApiKeyResolver, ApiKeyResolutionResult } from '../../services/ApiKeyResolver.js';
 
 // Mock the redis module (dynamic import)
@@ -781,6 +783,35 @@ describe('LLMGenerationHandler', () => {
         expect(result.metadata?.isGuestMode).toBe(false);
       });
 
+      it('should classify DownloadAttachments throwing as MEDIA_NOT_FOUND on errorInfo.category', async () => {
+        // Pins path (2) from the broader-coverage test below: when the
+        // DownloadAttachments pipeline step throws, the handler's outer catch
+        // populates errorInfo with the MEDIA_NOT_FOUND category. Without this
+        // assertion at the handler level, a future refactor of the
+        // currentStepName → category mapping (LLMGenerationHandler.ts:207-210)
+        // could silently break the classification — the unit-level coverage
+        // in DownloadAttachmentsStep.test.ts only exercises the step's own
+        // throw, not the handler's classification of it.
+        const jobData = createValidJobData();
+        const job = { id: 'job-attachment-fail', data: jobData } as Job<LLMGenerationJobData>;
+
+        const stepError = new Error('Failed to download attachment');
+        const stepSpy = vi
+          .spyOn(DownloadAttachmentsStep.prototype, 'process')
+          .mockRejectedValue(stepError);
+
+        try {
+          const result = await handler.processJob(job);
+
+          expect(result.success).toBe(false);
+          expect(result.errorInfo).toBeDefined();
+          expect(result.errorInfo?.category).toBe(ApiErrorCategory.MEDIA_NOT_FOUND);
+          expect(result.errorInfo?.technicalMessage).toContain('Failed to download attachment');
+        } finally {
+          stepSpy.mockRestore();
+        }
+      });
+
       it('should always include errorInfo on failure results so bot-client can render spoiler-tag details', async () => {
         // Two paths populate errorInfo on a failed pipeline:
         // (1) GenerationStep failures (e.g. RAG rejection) — GenerationStep
@@ -790,12 +821,9 @@ describe('LLMGenerationHandler', () => {
         //     step-classified category (DownloadAttachments → MEDIA_NOT_FOUND).
         //
         // This test pins path (1) — that GenerationStep failures still produce
-        // a result the bot-client can use. Path (2) is pinned at the unit
-        // level by DownloadAttachmentsStep.test.ts (the THROWS-when-no-text
-        // case) plus visual inspection of the small mapping if-branch — the
-        // existing pipeline test harness mocks RAGService but uses real
-        // pipeline steps, so triggering DownloadAttachments to throw here
-        // would require non-trivial setup that adds no marginal coverage.
+        // a result the bot-client can use. Path (2) — DownloadAttachmentsStep
+        // throwing → MEDIA_NOT_FOUND classification — is pinned by the test
+        // immediately above this one.
         //
         // Without errorInfo, bot-client falls through to the generic "Sorry,
         // I encountered an error" with no diagnostic content — observed

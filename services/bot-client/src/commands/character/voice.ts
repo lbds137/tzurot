@@ -16,6 +16,7 @@ import {
   isAutocompleteErrorSentinel,
 } from '../../utils/apiCheck.js';
 import { toGatewayUser, type GatewayUser } from '../../utils/userGatewayClient.js';
+import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import { fetchCharacter, updateCharacter, type FetchedCharacter } from './api.js';
 
 const logger = createLogger('character-voice');
@@ -28,9 +29,6 @@ const VALID_AUDIO_PREFIX = 'audio/';
 /** Max upload size accepted client-side (same as server limit) */
 const MAX_UPLOAD_BYTES = VOICE_REFERENCE_LIMITS.MAX_SIZE;
 const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
-
-/** Allowed Discord CDN hostnames for SSRF defense-in-depth */
-const DISCORD_CDN_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
 
 /**
  * Fetch a character and verify the user has edit permission.
@@ -95,15 +93,8 @@ async function handleVoiceUpload(
   }
 
   // Validate attachment URL is from Discord CDN (SSRF defense-in-depth)
-  let attachmentHost: string;
-  try {
-    attachmentHost = new URL(attachment.url).hostname;
-  } catch {
-    await context.editReply('❌ Invalid attachment URL.');
-    return;
-  }
-  if (!DISCORD_CDN_HOSTS.includes(attachmentHost)) {
-    logger.warn({ url: attachment.url, host: attachmentHost }, 'Unexpected attachment URL host');
+  const cdnGuard = validateDiscordCdnUrl(attachment.url, logger);
+  if (!cdnGuard.ok) {
     await context.editReply('❌ Invalid attachment URL.');
     return;
   }

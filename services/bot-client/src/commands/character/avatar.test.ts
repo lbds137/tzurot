@@ -51,7 +51,7 @@ describe('Character Avatar Handler', () => {
 
   const createMockAttachment = (overrides: Partial<Attachment> = {}): Attachment =>
     ({
-      url: 'https://cdn.discord.com/attachments/123/456/image.png',
+      url: 'https://cdn.discordapp.com/attachments/123/456/image.png',
       contentType: 'image/png',
       size: 1024 * 1024, // 1MB
       ...overrides,
@@ -144,6 +144,18 @@ describe('Character Avatar Handler', () => {
 
       expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('too large'));
       expect(api.fetchCharacter).not.toHaveBeenCalled();
+    });
+
+    it('should reject non-Discord CDN URLs', async () => {
+      const attachment = createMockAttachment({ url: 'https://evil.example.com/malicious.png' });
+      const mockContext = createMockContext('my-char', attachment);
+      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
+
+      await handleAvatar(mockContext, mockConfig);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith('❌ Invalid attachment URL.');
+      expect(api.updateCharacter).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it('should return error when character not found', async () => {

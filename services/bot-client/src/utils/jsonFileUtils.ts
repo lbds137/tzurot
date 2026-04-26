@@ -8,6 +8,7 @@
 import { AttachmentBuilder } from 'discord.js';
 import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import type { Attachment } from 'discord.js';
+import { validateDiscordCdnUrl } from './discordCdnGuard.js';
 
 const logger = createLogger('json-file-utils');
 
@@ -72,6 +73,14 @@ export async function downloadAndParseJson<T = Record<string, unknown>>(
   url: string,
   filename: string
 ): Promise<JsonDownloadResult<T> | JsonErrorResult> {
+  // SSRF defense-in-depth: reject non-Discord-CDN URLs before fetching.
+  // Discord-supplied attachment URLs always come from the CDN; anything else
+  // is suspect. Guarding here protects every caller (character import, preset
+  // import, future ones) without requiring per-site discipline.
+  const cdnGuard = validateDiscordCdnUrl(url, logger);
+  if (!cdnGuard.ok) {
+    return { error: '❌ Invalid file URL.' };
+  }
   try {
     const response = await fetch(url);
     if (!response.ok) {

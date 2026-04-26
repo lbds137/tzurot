@@ -8,6 +8,7 @@
 import { createLogger, type EnvConfig, characterAvatarOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { validateDiscordCdnUrl } from '../../utils/discordCdnGuard.js';
 import { fetchCharacter, updateCharacter } from './api.js';
 import {
   VALID_IMAGE_TYPES,
@@ -64,6 +65,15 @@ export async function handleAvatar(
         `❌ You don't have permission to edit \`${slug}\`.\n` +
           'You can only edit characters you own.'
       );
+      return;
+    }
+
+    // SSRF defense-in-depth: validate the attachment URL points at a Discord
+    // CDN host before fetching. Discord interactions only ever supply CDN URLs,
+    // so this is a guard rather than expected reject path.
+    const cdnGuard = validateDiscordCdnUrl(attachment.url, logger);
+    if (!cdnGuard.ok) {
+      await context.editReply('❌ Invalid attachment URL.');
       return;
     }
 
