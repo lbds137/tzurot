@@ -438,13 +438,51 @@ client.on(Events.Error, error => {
   logger.error({ err: error }, 'Discord client error');
 });
 
+// Optional raw-gateway diagnostic — gated by env var so it can be enabled per
+// deploy without code changes. Set DM_RAW_GATEWAY_DIAGNOSTIC=true to log every
+// DM-shaped MESSAGE_CREATE packet received from the gateway. Used to confirm
+// whether post-deploy DM silence is "Discord didn't deliver the packet" (no log
+// line for the test DM) vs "Discord.js dropped it after delivery" (log line
+// present but no MessageCreate handler invocation).
+if (process.env.DM_RAW_GATEWAY_DIAGNOSTIC === 'true') {
+  logger.warn(
+    'DM_RAW_GATEWAY_DIAGNOSTIC enabled — raw gateway packets will be logged. ' +
+      'Disable for production once diagnosis is complete.'
+  );
+  client.on(
+    'raw',
+    (packet: { t?: string; d?: { id?: string; channel_id?: string; guild_id?: string } }) => {
+      if (packet.t === 'MESSAGE_CREATE' && packet.d !== undefined) {
+        const isDm = packet.d.channel_id !== undefined && packet.d.guild_id === undefined;
+        if (isDm) {
+          logger.info(
+            { messageId: packet.d.id, channelId: packet.d.channel_id },
+            '[RAW GATEWAY] DM MESSAGE_CREATE packet received'
+          );
+        }
+      }
+    }
+  );
+}
+
 process.on('unhandledRejection', error => {
   logger.error({ err: error }, 'Unhandled rejection');
 });
 
-// Graceful shutdown
-process.on('SIGINT', () => {
-  logger.info('Shutting down...');
+// Graceful shutdown — register for BOTH SIGTERM (Railway/orchestrator) and
+// SIGINT (Ctrl+C in dev). Without SIGTERM handling, Railway's deploy lifecycle
+// hard-kills the process before client.destroy() can close the Discord gateway
+// session, leaving an orphaned shard that competes with the new instance until
+// Discord's session timeout — observed as DMs being silent for ~minutes after
+// every deploy (Hypothesis A under investigation, see DM_RAW_GATEWAY_DIAGNOSTIC).
+let shutdownInitiated = false;
+function handleShutdownSignal(signal: NodeJS.Signals): void {
+  if (shutdownInitiated) {
+    logger.warn({ signal }, 'Shutdown signal received again — already shutting down');
+    return;
+  }
+  shutdownInitiated = true;
+  logger.info({ signal }, 'Shutting down...');
 
   // Stop accepting new results first to prevent race condition during shutdown
   void services.resultsListener.stop();
@@ -476,7 +514,9 @@ process.on('SIGINT', () => {
       void disconnectPrisma();
       process.exit(0);
     });
-});
+}
+process.on('SIGTERM', handleShutdownSignal);
+process.on('SIGINT', handleShutdownSignal);
 
 /**
  * Verify database connection and log personality count
