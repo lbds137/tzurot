@@ -61,6 +61,9 @@ describe('ProviderRouter', () => {
       );
 
       expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
+      // Auto-promotion check fires on every OpenRouter request to inspect the
+      // model. For non-z-ai/ models (like anthropic/...) it short-circuits
+      // before the key lookup, so tryResolveUserKey is not called.
       expect(mockTryResolveUserKey).not.toHaveBeenCalled();
       expect(route).toEqual({
         effectiveProvider: AIProvider.OpenRouter,
@@ -68,6 +71,7 @@ describe('ProviderRouter', () => {
         apiKey: 'sk-or-user-key',
         isGuestMode: false,
         fallthroughTriggered: false,
+        wasAutoPromoted: false,
       });
     });
 
@@ -105,6 +109,7 @@ describe('ProviderRouter', () => {
         apiKey: 'zai-user-key',
         isGuestMode: false,
         fallthroughTriggered: false,
+        wasAutoPromoted: false,
       });
     });
 
@@ -151,6 +156,7 @@ describe('ProviderRouter', () => {
         apiKey: 'sk-or-user-key',
         isGuestMode: false,
         fallthroughTriggered: true,
+        wasAutoPromoted: false,
       });
     });
 
@@ -251,6 +257,170 @@ describe('ProviderRouter', () => {
 
       expect(route.fallthroughTriggered).toBe(true);
       expect(route.effectiveModel).toBe('z-ai/glm-4.7');
+    });
+  });
+
+  describe('OpenRouter z-ai/ auto-promotion', () => {
+    it('should promote z-ai/glm-5.1 to z.ai-direct when user has zai-coding key', async () => {
+      // The single-preset UX: user has one preset configured for OpenRouter
+      // (the broadly-compatible default) with model z-ai/glm-5.1, AND has a
+      // z.ai-coding key. ProviderRouter should detect this and route direct
+      // to z.ai with the bare model name (stripped z-ai/ prefix).
+      mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123');
+
+      expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-123', AIProvider.ZaiCoding);
+      expect(mockResolveApiKey).not.toHaveBeenCalled(); // promoted, no OpenRouter resolution
+      expect(route).toEqual({
+        effectiveProvider: AIProvider.ZaiCoding,
+        effectiveModel: 'glm-5.1', // bare, stripped of z-ai/ prefix
+        apiKey: 'zai-user-key',
+        isGuestMode: false,
+        fallthroughTriggered: false,
+        wasAutoPromoted: true,
+      } satisfies typeof route);
+    });
+
+    it('should stay on OpenRouter when user has NO zai-coding key', async () => {
+      // No key → promotion doesn't fire, request stays on OpenRouter with the
+      // namespaced model name verbatim.
+      mockTryResolveUserKey.mockResolvedValue(null);
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-user-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: false,
+      } satisfies ApiKeyResolutionResult);
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123');
+
+      expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-123', AIProvider.ZaiCoding);
+      expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
+      expect(route).toEqual({
+        effectiveProvider: AIProvider.OpenRouter,
+        effectiveModel: 'z-ai/glm-5.1', // unchanged — stays on OpenRouter
+        apiKey: 'sk-or-user-key',
+        isGuestMode: false,
+        fallthroughTriggered: false,
+        wasAutoPromoted: false,
+      } satisfies typeof route);
+    });
+
+    it('should stay on OpenRouter when bare model is NOT in coding-plan whitelist', async () => {
+      // Whitelist guard against catalog drift: if z.ai ships z-ai/foo to
+      // OpenRouter that isn't on the coding plan, promotion would 404.
+      // Even with a key present, unknown bare models stay on OpenRouter.
+      // Key mock is configured with a valid key so the assertion below can
+      // prove the whitelist check fires *before* the key lookup — not because
+      // no key exists, but because the whitelist miss short-circuits
+      // unconditionally.
+      mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-user-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: false,
+      } satisfies ApiKeyResolutionResult);
+
+      const route = await router.resolveRoute(
+        AIProvider.OpenRouter,
+        'z-ai/glm-99-future',
+        'user-123'
+      );
+
+      // Whitelist miss → tryResolveUserKey is NOT called (short-circuits before
+      // the key check to avoid the cost of looking up keys for non-promotable
+      // models).
+      expect(mockTryResolveUserKey).not.toHaveBeenCalled();
+      expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
+      expect(route.wasAutoPromoted).toBe(false);
+      expect(route.effectiveProvider).toBe(AIProvider.OpenRouter);
+      expect(route.effectiveModel).toBe('z-ai/glm-99-future');
+    });
+
+    it('should NOT promote non-z-ai/ models even with a zai-coding key', async () => {
+      // OpenRouter request with anthropic/, openai/, etc. — different
+      // namespace, not eligible for z.ai promotion regardless of key state.
+      mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-user-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: false,
+      } satisfies ApiKeyResolutionResult);
+
+      const route = await router.resolveRoute(
+        AIProvider.OpenRouter,
+        'anthropic/claude-sonnet-4',
+        'user-123'
+      );
+
+      expect(mockTryResolveUserKey).not.toHaveBeenCalled(); // short-circuit on prefix miss
+      // End-to-end verification: the prefix-miss null return falls through to
+      // the OpenRouter passthrough branch (resolveApiKey called for openrouter).
+      expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
+      expect(route.wasAutoPromoted).toBe(false);
+      expect(route.effectiveProvider).toBe(AIProvider.OpenRouter);
+    });
+
+    it('should stay on OpenRouter when bare model is empty (z-ai/ prefix only)', async () => {
+      // Edge case: configuredModel is exactly 'z-ai/' so bareModel becomes ''.
+      // isZaiCodingPlanModel('') returns false (covered in ai.test.ts), so the
+      // whitelist guard correctly short-circuits and the request stays on
+      // OpenRouter via the passthrough branch.
+      mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-user-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: false,
+      } satisfies ApiKeyResolutionResult);
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/', 'user-123');
+
+      expect(mockTryResolveUserKey).not.toHaveBeenCalled(); // whitelist miss short-circuits
+      expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
+      expect(route.wasAutoPromoted).toBe(false);
+      expect(route.effectiveProvider).toBe(AIProvider.OpenRouter);
+      expect(route.effectiveModel).toBe('z-ai/');
+    });
+
+    it('should case-normalize the model name for whitelist lookup', async () => {
+      // Preset configs are user-typed strings; z-ai/GLM-5.1 should promote
+      // the same as z-ai/glm-5.1. Promoted model name uses lowercase form
+      // (z.ai's documented model names are lowercase).
+      mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/GLM-5.1', 'user-123');
+
+      expect(route.wasAutoPromoted).toBe(true);
+      expect(route.effectiveProvider).toBe(AIProvider.ZaiCoding);
+      expect(route.effectiveModel).toBe('glm-5.1'); // normalized to lowercase
+    });
+
+    it('should not promote when userId is undefined (no-key path)', async () => {
+      // tryResolveUserKey returns null for undefined userId per contract; the
+      // null result short-circuits promotion and the request continues on
+      // OpenRouter via the standard passthrough.
+      mockTryResolveUserKey.mockResolvedValue(null);
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        userId: undefined,
+        isGuestMode: true,
+      } satisfies ApiKeyResolutionResult);
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', undefined);
+
+      expect(route.wasAutoPromoted).toBe(false);
+      expect(route.effectiveProvider).toBe(AIProvider.OpenRouter);
+      expect(route.isGuestMode).toBe(true);
     });
   });
 });

@@ -288,6 +288,33 @@ describe('AuthStep', () => {
           .mock.calls.filter(c => c[1] === AIProvider.OpenRouter);
         expect(orCalls).toHaveLength(0);
       });
+
+      it('should apply auto-promotion overrides to effectivePersonality when openrouter z-ai/ + user has z.ai key', async () => {
+        // Inverse symmetry of fallthrough: preset configured for OpenRouter
+        // with model `z-ai/glm-5.1`, user has z.ai-coding key. ProviderRouter
+        // auto-promotes; AuthStep MUST apply the model + provider overrides
+        // to effectivePersonality so ModelFactory builds the z.ai client with
+        // the bare model name (not the OpenRouter client with the prefixed name).
+        const OR_ZAI_PERSONALITY: LoadedPersonality = {
+          ...TEST_PERSONALITY,
+          provider: 'openrouter',
+          model: 'z-ai/glm-5.1',
+        };
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue('zai-user-key');
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: OR_ZAI_PERSONALITY, configSource: 'personality' },
+        });
+
+        // Override applied: model gets z-ai/ stripped, provider becomes zai-coding
+        expect(result.config?.effectivePersonality.model).toBe('glm-5.1');
+        expect(result.config?.effectivePersonality.provider).toBe(AIProvider.ZaiCoding);
+        expect(result.auth?.apiKey).toBe('zai-user-key');
+        expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
+      });
     });
 
     describe('ProviderRouter injection', () => {
