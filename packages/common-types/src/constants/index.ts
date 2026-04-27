@@ -13,6 +13,7 @@ export {
   AIProvider,
   GUEST_MODE,
   isFreeModel,
+  ZAI_VALIDATION_MODEL,
 } from './ai.js';
 
 // Timing constants

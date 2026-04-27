@@ -146,6 +146,12 @@ export const AI_ENDPOINTS = {
   OPENROUTER_MODEL_CARD_URL: 'https://openrouter.ai',
   /** ElevenLabs API base URL (voice synthesis/cloning) */
   ELEVENLABS_BASE_URL: 'https://api.elevenlabs.io/v1',
+  /**
+   * z.ai Coding Plan API base URL — distinct from pay-as-you-go (`/api/paas/v4`).
+   * Subscription-tier endpoint that draws from the user's monthly quota instead
+   * of per-token billing. See https://z.ai/subscribe for plan details.
+   */
+  ZAI_CODING_BASE_URL: 'https://api.z.ai/api/coding/paas/v4',
 } as const;
 
 /** Primary free multimodal model — shared between vision fallback and guest mode */
@@ -184,14 +190,24 @@ export const MODEL_DEFAULTS = {
 export const ELEVENLABS_VOICE_NAME_PREFIX = 'tzurot-';
 
 /**
+ * Smallest model in z.ai's coding-plan model catalog — used as the probe
+ * model when validating z.ai-coding API keys (minimal latency, single-token
+ * response budget). Kept in one place so api-gateway and ai-worker validators
+ * stay synchronized when z.ai's catalog changes.
+ */
+export const ZAI_VALIDATION_MODEL = 'glm-4.5-flash';
+
+/**
  * AI provider identifiers
  *
  * OpenRouter: LLM chat/generation (BYOK for model access)
  * ElevenLabs: Voice synthesis, cloning, and STT (BYOK for premium features)
+ * ZaiCoding: z.ai Coding Plan subscription endpoint for GLM models (BYOK)
  */
 export enum AIProvider {
   OpenRouter = 'openrouter',
   ElevenLabs = 'elevenlabs',
+  ZaiCoding = 'zai-coding',
 }
 
 /**
