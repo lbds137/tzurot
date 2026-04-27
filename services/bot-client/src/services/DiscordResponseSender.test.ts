@@ -54,6 +54,7 @@ describe('DiscordResponseSender', () => {
       slug: 'testbot',
       systemPrompt: 'You are a test bot',
       model: 'test-model',
+      provider: 'openrouter',
       temperature: 0.7,
       maxTokens: 1000,
       contextWindowTokens: 4000,

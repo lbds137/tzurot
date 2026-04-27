@@ -39,6 +39,7 @@ describe('PersonalityIdCache', () => {
       isPublic: true,
       ownerId: null,
       model: 'test-model',
+      provider: 'openrouter',
       voiceEnabled: false,
       ...overrides,
     }) as LoadedPersonality;

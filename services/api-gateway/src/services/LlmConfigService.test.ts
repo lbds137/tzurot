@@ -75,8 +75,8 @@ const sampleConfigDetail = {
   id: 'config-123',
   name: 'Test Config',
   description: 'A test config',
-  provider: 'openrouter',
   model: 'anthropic/claude-sonnet-4',
+  provider: 'openrouter',
   visionModel: null,
   isGlobal: true,
   isDefault: false,
@@ -246,6 +246,7 @@ describe('LlmConfigService', () => {
           data: expect.objectContaining({
             name: 'Spaced Name',
             model: 'spaced-model',
+            provider: 'openrouter',
           }),
         })
       );
@@ -259,6 +260,7 @@ describe('LlmConfigService', () => {
         {
           name: 'Test',
           model: 'test-model',
+          provider: 'openrouter',
           memoryScoreThreshold: 0.7,
           memoryLimit: 30,
           contextWindowTokens: 65536,
@@ -662,8 +664,8 @@ describe('LlmConfigService', () => {
         id: 'config-123',
         name: 'Test Config',
         description: 'A test config',
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: true,
         isDefault: false,

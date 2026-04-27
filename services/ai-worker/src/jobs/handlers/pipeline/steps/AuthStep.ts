@@ -7,6 +7,7 @@
 
 import { createLogger, AIProvider, GUEST_MODE, isFreeModel } from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
+import { ProviderRouter } from '../../../../services/ProviderRouter.js';
 import type { LlmConfigResolver } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
@@ -14,11 +15,20 @@ const logger = createLogger('AuthStep');
 
 export class AuthStep implements IPipelineStep {
   readonly name = 'AuthResolution';
+  private readonly providerRouter: ProviderRouter | undefined;
 
   constructor(
     private readonly apiKeyResolver?: ApiKeyResolver,
     private readonly configResolver?: LlmConfigResolver
-  ) {}
+  ) {
+    // ProviderRouter wraps ApiKeyResolver to encode the auto-fallthrough
+    // routing rule for `zai-coding` (and any future provider that needs it).
+    // We construct it inline so AuthStep's existing constructor signature
+    // stays backward compatible — injectable ProviderRouter constructor
+    // parameter is deferred; tests mock at the `apiKeyResolver` level instead.
+    this.providerRouter =
+      apiKeyResolver !== undefined ? new ProviderRouter(apiKeyResolver) : undefined;
+  }
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, config } = context;
@@ -28,55 +38,8 @@ export class AuthStep implements IPipelineStep {
       throw new Error('[AuthStep] ConfigStep must run before AuthStep');
     }
 
-    let resolvedApiKey: string | undefined;
-    let resolvedProvider: string | undefined;
-    let isGuestMode = false;
-    let effectivePersonality = config.effectivePersonality;
-
-    if (this.apiKeyResolver) {
-      try {
-        const keyResult = await this.apiKeyResolver.resolveApiKey(
-          jobContext.userId,
-          AIProvider.OpenRouter
-        );
-        resolvedApiKey = keyResult.apiKey;
-        resolvedProvider = keyResult.provider;
-        isGuestMode = keyResult.isGuestMode;
-
-        logger.debug(
-          {
-            userId: jobContext.userId,
-            source: keyResult.source,
-            provider: resolvedProvider,
-            isGuestMode,
-          },
-          'Resolved API key'
-        );
-
-        // Guest Mode: Enforce free-model-only
-        if (isGuestMode) {
-          effectivePersonality = await this.applyGuestModeOverrides(
-            effectivePersonality,
-            jobContext.userId
-          );
-        }
-      } catch (error) {
-        // Log at error level - resolution failure is unexpected and should be investigated
-        // (Normal guest mode is signaled via isGuestMode=true, not by throwing)
-        // We still recover gracefully by falling back to guest mode
-        logger.error(
-          { err: error, userId: jobContext.userId },
-          'Failed to resolve API key, falling back to guest mode'
-        );
-        isGuestMode = true;
-
-        // Apply guest mode model override
-        effectivePersonality = await this.applyGuestModeOverrides(
-          effectivePersonality,
-          jobContext.userId
-        );
-      }
-    }
+    const llmAuth = await this.resolveLlmAuth(config.effectivePersonality, jobContext.userId);
+    const { resolvedApiKey, resolvedProvider, isGuestMode, effectivePersonality } = llmAuth;
 
     // Resolve ElevenLabs key independently (voice provider, not LLM).
     // Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
@@ -123,6 +86,90 @@ export class AuthStep implements IPipelineStep {
         elevenlabsApiKey,
       },
     };
+  }
+
+  /**
+   * Resolve LLM-side auth: route via ProviderRouter (with auto-fallthrough),
+   * apply post-route overrides to effectivePersonality, fall back to guest
+   * mode on resolution failure. Extracted from `process()` to keep the main
+   * orchestration flow within cognitive-complexity limits.
+   */
+  private async resolveLlmAuth(
+    initialPersonality: NonNullable<GenerationContext['config']>['effectivePersonality'],
+    userId: string
+  ): Promise<{
+    resolvedApiKey: string | undefined;
+    resolvedProvider: string | undefined;
+    isGuestMode: boolean;
+    effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'];
+  }> {
+    let effectivePersonality = initialPersonality;
+
+    if (!this.apiKeyResolver || !this.providerRouter) {
+      return {
+        resolvedApiKey: undefined,
+        resolvedProvider: undefined,
+        isGuestMode: false,
+        effectivePersonality,
+      };
+    }
+
+    try {
+      // Route through ProviderRouter: reads `effectivePersonality.provider`
+      // (plumbed end-to-end after PR 2 Phase A) to decide direct vs fallthrough.
+      const route = await this.providerRouter.resolveRoute(
+        effectivePersonality.provider,
+        effectivePersonality.model,
+        userId
+      );
+
+      // Fallthrough override: apply BOTH model-name and provider overrides so
+      // downstream code (ConversationalRAGService → ModelFactory) reads the
+      // post-route values. Without the provider override, ModelFactory would
+      // route to the wrong client using the wrong key.
+      if (route.fallthroughTriggered) {
+        effectivePersonality = {
+          ...effectivePersonality,
+          model: route.effectiveModel,
+          provider: route.effectiveProvider,
+        };
+      }
+
+      logger.debug(
+        {
+          userId,
+          configuredProvider: initialPersonality.provider,
+          effectiveProvider: route.effectiveProvider,
+          effectiveModel: route.effectiveModel,
+          fallthroughTriggered: route.fallthroughTriggered,
+          isGuestMode: route.isGuestMode,
+        },
+        'Resolved provider route'
+      );
+
+      // Guest Mode: enforce free-model-only on top of any router decision.
+      if (route.isGuestMode) {
+        effectivePersonality = await this.applyGuestModeOverrides(effectivePersonality, userId);
+      }
+
+      return {
+        resolvedApiKey: route.apiKey,
+        resolvedProvider: route.effectiveProvider,
+        isGuestMode: route.isGuestMode,
+        effectivePersonality,
+      };
+    } catch (error) {
+      // Resolution failure is unexpected (normal guest mode is signaled via
+      // isGuestMode=true, not by throwing). Recover by falling back to guest.
+      logger.error({ err: error, userId }, 'Failed to resolve API key, falling back to guest mode');
+      effectivePersonality = await this.applyGuestModeOverrides(effectivePersonality, userId);
+      return {
+        resolvedApiKey: undefined,
+        resolvedProvider: undefined,
+        isGuestMode: true,
+        effectivePersonality,
+      };
+    }
   }
 
   /**

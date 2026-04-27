@@ -160,6 +160,7 @@ describe('MessageContextBuilder', () => {
       slug: 'test-bot',
       systemPrompt: 'You are a helpful assistant',
       model: 'gpt-4',
+      provider: 'openrouter',
       temperature: 0.7,
       maxTokens: 2000,
     } as LoadedPersonality;

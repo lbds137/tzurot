@@ -213,8 +213,8 @@ describe('llm-config factories', () => {
 
       expect(summary).toMatchObject({
         name: 'Default Config',
-        provider: 'openrouter',
         model: 'openai/gpt-4o-mini',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: true,
         isOwned: false,
@@ -293,6 +293,7 @@ describe('llm-config factories', () => {
       const response = mockCreateLlmConfigResponse({
         name: 'My New Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       expect(response.config.name).toBe('My New Config');

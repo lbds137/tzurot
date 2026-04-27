@@ -44,6 +44,16 @@ export const loadedPersonalitySchema = z.object({
   systemPrompt: z.string(),
   model: z.string(),
   visionModel: z.string().optional(),
+  /**
+   * Provider routing key (e.g. 'openrouter', 'zai-coding'). Drives
+   * provider-tier baseURL selection in ModelFactory and any auto-fallthrough
+   * decisions in ProviderRouter. String-typed (not the AIProvider enum)
+   * because the DB column is a free-form string and may carry future provider
+   * values not yet in the enum. Defaults to 'openrouter' to preserve
+   * pre-zai-coding behavior for any LoadedPersonality constructed without
+   * explicit provider data.
+   */
+  provider: z.string().default('openrouter'),
 
   // LLM parameters
   temperature: z.number(),

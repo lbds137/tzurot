@@ -856,6 +856,7 @@ describe('PersonalityLoader', () => {
     it('should load global default config', async () => {
       const mockConfig = {
         model: 'global-model',
+        provider: 'openrouter',
         visionModel: 'global-vision-model',
         temperature: 0.7,
         topP: null,

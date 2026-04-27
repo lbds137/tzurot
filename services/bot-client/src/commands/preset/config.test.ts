@@ -18,8 +18,8 @@ describe('flattenPresetData', () => {
       id: 'preset-123',
       name: 'My Preset',
       description: 'A test preset',
-      provider: 'openrouter',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       visionModel: 'anthropic/claude-sonnet-4',
       isGlobal: false,
       isOwned: true,
@@ -46,8 +46,8 @@ describe('flattenPresetData', () => {
       id: 'preset-123',
       name: 'My Preset',
       description: null,
-      provider: 'openrouter',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       visionModel: null,
       isGlobal: true,
       isOwned: false,
@@ -67,8 +67,8 @@ describe('flattenPresetData', () => {
       id: 'preset-123',
       name: 'My Preset',
       description: null,
-      provider: 'openrouter',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       visionModel: null,
       isGlobal: false,
       isOwned: true,
@@ -97,8 +97,8 @@ describe('flattenPresetData', () => {
       id: 'preset-123',
       name: 'My Preset',
       description: null,
-      provider: 'openrouter',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       visionModel: null,
       isGlobal: false,
       isOwned: true,
@@ -127,8 +127,8 @@ describe('flattenPresetData', () => {
       id: 'preset-123',
       name: 'My Preset',
       description: null,
-      provider: 'openrouter',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       visionModel: null,
       isGlobal: false,
       isOwned: true,
@@ -157,8 +157,8 @@ describe('flattenPresetData', () => {
       id: 'preset-123',
       name: 'My Preset',
       description: null,
-      provider: 'openrouter',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       visionModel: null,
       isGlobal: false,
       isOwned: true,
@@ -182,8 +182,8 @@ describe('unflattenPresetData', () => {
     const flat: Partial<FlattenedPresetData> = {
       name: 'Updated Name',
       description: 'Updated description',
-      provider: 'openrouter',
       model: 'anthropic/claude-opus-4',
+      provider: 'openrouter',
       visionModel: 'anthropic/claude-sonnet-4',
     };
 
@@ -422,6 +422,7 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
       const data = {
         name: 'Test',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         description: 'A description',
       } as FlattenedPresetData;
       expect(identitySection.getStatus(data)).toBe(SectionStatus.COMPLETE);
@@ -431,6 +432,7 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
       const data = {
         name: 'Test',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         description: '',
       } as FlattenedPresetData;
       expect(identitySection.getStatus(data)).toBe(SectionStatus.DEFAULT);

@@ -43,6 +43,7 @@ describe('LlmConfigResolver', () => {
     slug: 'test-personality',
     ownerId: 'owner-uuid-test',
     model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
     visionModel: 'anthropic/claude-sonnet-4',
     temperature: 0.7,
     topP: 0.9,
@@ -119,6 +120,7 @@ describe('LlmConfigResolver', () => {
         llmConfig: {
           name: 'User Override Config',
           model: 'google/gemini-2.0-flash',
+          provider: 'openrouter',
           visionModel: null,
           advancedParameters: {
             temperature: 0.5,
@@ -149,6 +151,7 @@ describe('LlmConfigResolver', () => {
         defaultLlmConfig: {
           name: 'User Global Config',
           model: 'openai/gpt-4o',
+          provider: 'openrouter',
           visionModel: 'openai/gpt-4o',
           advancedParameters: {
             temperature: 0.3,
@@ -193,6 +196,7 @@ describe('LlmConfigResolver', () => {
         defaultLlmConfig: {
           name: 'JSONB Config',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           visionModel: null,
           advancedParameters: {
             temperature: 0.42,
@@ -372,6 +376,7 @@ describe('LlmConfigResolver', () => {
         defaultLlmConfig: {
           name: 'Partial Override',
           model: 'google/gemini-2.0-flash',
+          provider: 'openrouter',
           visionModel: null, // null - should use personality default
           advancedParameters: {
             temperature: 0.5,
@@ -408,6 +413,7 @@ describe('LlmConfigResolver', () => {
         defaultLlmConfig: {
           name: 'No Params Config',
           model: 'google/gemini-2.0-flash',
+          provider: 'openrouter',
           visionModel: null,
           advancedParameters: null, // No JSONB params set
           memoryScoreThreshold: null,
@@ -442,6 +448,7 @@ describe('LlmConfigResolver', () => {
         defaultLlmConfig: {
           name: 'R1 Config',
           model: 'deepseek/deepseek-r1',
+          provider: 'openrouter',
           visionModel: null,
           advancedParameters: {
             reasoning: { effort: 'high', enabled: true }, // Override reasoning
@@ -570,6 +577,7 @@ describe('LlmConfigResolver', () => {
         defaultLlmConfig: {
           name: 'Decimal Config',
           model: 'test/model',
+          provider: 'openrouter',
           visionModel: null,
           advancedParameters: null,
           memoryScoreThreshold: mockDecimal,
@@ -592,6 +600,7 @@ describe('LlmConfigResolver', () => {
         defaultLlmConfig: {
           name: 'Bad Config',
           model: 'test/model',
+          provider: 'openrouter',
           visionModel: null,
           advancedParameters: 'not-an-object', // Invalid JSONB
           memoryScoreThreshold: null,
@@ -626,6 +635,7 @@ describe('LlmConfigResolver', () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: {
           temperature: 0.7,
@@ -653,6 +663,7 @@ describe('LlmConfigResolver', () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: {
           temperature: 0.7,
@@ -675,6 +686,7 @@ describe('LlmConfigResolver', () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: {
           temperature: 0.7,
@@ -712,6 +724,7 @@ describe('LlmConfigResolver', () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: {
           temperature: 0.7,
@@ -742,6 +755,7 @@ describe('LlmConfigResolver', () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: {
           temperature: 0.7,

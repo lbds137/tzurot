@@ -352,6 +352,7 @@ describe('AIJobProcessor', () => {
           ownerId: 'owner-uuid-test',
           systemPrompt: 'You are a helpful assistant.',
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 2000,
           contextWindowTokens: 8192,
@@ -465,6 +466,7 @@ describe('AIJobProcessor', () => {
         ownerId: 'owner-uuid-test',
         systemPrompt: 'You are a helpful assistant.',
         model: 'test-model',
+        provider: 'openrouter',
         temperature: 0.7,
         maxTokens: 2000,
         contextWindowTokens: 8192,
@@ -497,8 +499,8 @@ describe('AIJobProcessor', () => {
       expect(mockPrisma.usageLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           userId: 'user-internal-uuid-123',
-          provider: 'openrouter',
           model: 'test-model',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'llm_generation',

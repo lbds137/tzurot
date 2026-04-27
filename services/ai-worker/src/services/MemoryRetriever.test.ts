@@ -48,6 +48,7 @@ describe('MemoryRetriever', () => {
     ownerId: 'owner-uuid-test',
     systemPrompt: 'You are a test bot',
     model: 'test-model',
+    provider: 'openrouter',
     temperature: 0.7,
     maxTokens: 4096,
     memoryLimit: 15,

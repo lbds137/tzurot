@@ -58,6 +58,7 @@ describe('RedisDeduplicationCache', () => {
       ownerId: 'owner-uuid-test',
       systemPrompt: 'Test system prompt',
       model: 'gpt-4',
+      provider: 'openrouter',
       visionModel: undefined,
       temperature: 0.7,
       maxTokens: 1000,

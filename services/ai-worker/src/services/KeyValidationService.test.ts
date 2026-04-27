@@ -8,6 +8,7 @@ import {
   InvalidApiKeyError,
   QuotaExceededError,
   ValidationTimeoutError,
+  ProviderUnavailableError,
 } from './KeyValidationService.js';
 import { AIProvider } from '@tzurot/common-types';
 
@@ -177,6 +178,25 @@ describe('KeyValidationService', () => {
         expect(result.valid).toBe(false);
         expect(result.error).toBeInstanceOf(ValidationTimeoutError);
       });
+
+      it('should classify 5xx as ProviderUnavailableError (not InvalidApiKeyError)', async () => {
+        // Parallel to the ElevenLabs + ZaiCoding 5xx tests — OpenRouter outage
+        // shouldn't flag a valid key as invalid in the runtime health check.
+        // Asymmetry across the three validators was a real bug caught in PR
+        // #924 round 4 review.
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: 503,
+          text: async () => 'Service Unavailable',
+        });
+
+        const result = await service.validateKey('sk-or-valid', AIProvider.OpenRouter);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(ProviderUnavailableError);
+        expect(result.error).not.toBeInstanceOf(InvalidApiKeyError);
+        expect((result.error as ProviderUnavailableError).httpStatus).toBe(503);
+      });
     });
 
     describe('ElevenLabs validation', () => {
@@ -252,6 +272,24 @@ describe('KeyValidationService', () => {
         expect(result.valid).toBe(false);
         expect(result.error).toBeInstanceOf(ValidationTimeoutError);
       });
+
+      it('should classify 5xx as ProviderUnavailableError (not InvalidApiKeyError)', async () => {
+        // 5xx means "provider is having issues," not "key is bad." The 5xx-as-
+        // transient classification was added to address the latent correctness
+        // issue where a correct key got flagged invalid during an upstream outage.
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: 503,
+          text: async () => 'Service Unavailable',
+        });
+
+        const result = await service.validateKey('sk_valid_key', AIProvider.ElevenLabs);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(ProviderUnavailableError);
+        expect(result.error).not.toBeInstanceOf(InvalidApiKeyError);
+        expect((result.error as ProviderUnavailableError).httpStatus).toBe(503);
+      });
     });
 
     describe('ZaiCoding validation', () => {
@@ -321,6 +359,23 @@ describe('KeyValidationService', () => {
 
         expect(result.valid).toBe(false);
         expect(result.error).toBeInstanceOf(ValidationTimeoutError);
+      });
+
+      it('should classify 5xx as ProviderUnavailableError (not InvalidApiKeyError)', async () => {
+        // Parallel to the ElevenLabs 5xx test — z.ai outage shouldn't flag a
+        // valid key as invalid in the runtime health check.
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: 502,
+          text: async () => 'Bad Gateway',
+        });
+
+        const result = await service.validateKey('zai-valid', AIProvider.ZaiCoding);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(ProviderUnavailableError);
+        expect(result.error).not.toBeInstanceOf(InvalidApiKeyError);
+        expect((result.error as ProviderUnavailableError).httpStatus).toBe(502);
       });
     });
   });

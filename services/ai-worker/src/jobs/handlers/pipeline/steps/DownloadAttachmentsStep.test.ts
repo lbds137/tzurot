@@ -92,6 +92,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   ownerId: 'owner-uuid-test',
   systemPrompt: 'x',
   model: 'anthropic/claude-sonnet-4',
+  provider: 'openrouter',
   temperature: 0.7,
   maxTokens: 2000,
   contextWindowTokens: 8192,

@@ -104,6 +104,7 @@ const mockLilithPersonality = {
   displayName: 'Lilith',
   systemPrompt: 'Lilith personality',
   model: 'anthropic/claude-sonnet-4.5',
+  provider: 'openrouter',
   temperature: 0.8,
   avatarUrl: 'https://example.com/lilith.png',
 } as unknown as LoadedPersonality;

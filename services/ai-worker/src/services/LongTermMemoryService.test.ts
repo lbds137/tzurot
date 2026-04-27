@@ -53,6 +53,7 @@ describe('LongTermMemoryService', () => {
     personalityTraits: 'Helpful',
     displayName: 'Test Bot',
     model: 'gpt-4',
+    provider: 'openrouter',
     temperature: 0.7,
     maxTokens: 2000,
     contextWindowTokens: 8000,

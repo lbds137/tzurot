@@ -12,6 +12,7 @@ describe('PersonalityValidator', () => {
     it('should validate valid config with all fields', () => {
       const config = {
         model: 'anthropic/claude-sonnet-4.5',
+        provider: 'openrouter',
         visionModel: 'anthropic/claude-sonnet-4.5',
         temperature: 0.7,
         maxTokens: 4096,
@@ -31,6 +32,7 @@ describe('PersonalityValidator', () => {
     it('should accept minimal config with only model', () => {
       const config = {
         model: 'anthropic/claude-sonnet-4.5',
+        provider: 'openrouter',
       };
 
       const result = LlmConfigSchema.safeParse(config);
@@ -52,6 +54,7 @@ describe('PersonalityValidator', () => {
     it('should convert Prisma Decimal to number', () => {
       const config = {
         model: 'test-model',
+        provider: 'openrouter',
         temperature: new Decimal(0.7),
         topP: new Decimal(0.9),
       };
@@ -69,6 +72,7 @@ describe('PersonalityValidator', () => {
     it('should reject temperature out of range', () => {
       const config = {
         model: 'test-model',
+        provider: 'openrouter',
         temperature: 3.0, // Max is 2.0
       };
 
@@ -79,6 +83,7 @@ describe('PersonalityValidator', () => {
     it('should reject negative maxTokens', () => {
       const config = {
         model: 'test-model',
+        provider: 'openrouter',
         maxTokens: -100,
       };
 
@@ -89,6 +94,7 @@ describe('PersonalityValidator', () => {
     it('should reject topP out of range', () => {
       const config = {
         model: 'test-model',
+        provider: 'openrouter',
         topP: 1.5, // Max is 1.0
       };
 
@@ -99,6 +105,7 @@ describe('PersonalityValidator', () => {
     it('should reject topK above maximum', () => {
       const config = {
         model: 'test-model',
+        provider: 'openrouter',
         topK: 2000, // Max is 1000
       };
 
@@ -109,6 +116,7 @@ describe('PersonalityValidator', () => {
     it('should reject contextWindowTokens above maximum', () => {
       const config = {
         model: 'test-model',
+        provider: 'openrouter',
         contextWindowTokens: 3000000, // Max is 2000000
       };
 
@@ -121,6 +129,7 @@ describe('PersonalityValidator', () => {
     it('should parse valid config', () => {
       const dbConfig = {
         model: 'anthropic/claude-sonnet-4.5',
+        provider: 'openrouter',
         visionModel: null,
         temperature: new Decimal(0.7),
         maxTokens: 4096,
@@ -143,6 +152,7 @@ describe('PersonalityValidator', () => {
     it('should handle config with invalid types gracefully', () => {
       const invalidConfig = {
         model: 'test-model',
+        provider: 'openrouter',
         temperature: 'invalid', // Should be number, but coerceToNumber converts to undefined
       };
 
@@ -161,6 +171,7 @@ describe('PersonalityValidator', () => {
     it('should handle config with out-of-range values', () => {
       const invalidConfig = {
         model: 'test-model',
+        provider: 'openrouter',
         temperature: 5.0, // Out of range
       };
 

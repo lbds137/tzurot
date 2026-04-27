@@ -635,6 +635,7 @@ describe('UserReferenceResolver', () => {
       ownerId: 'owner-uuid-test',
       systemPrompt: '',
       model: 'gpt-4',
+      provider: 'openrouter',
       temperature: 0.7,
       maxTokens: 1000,
       contextWindowTokens: 8000,

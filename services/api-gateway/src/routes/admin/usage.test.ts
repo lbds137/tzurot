@@ -55,16 +55,16 @@ describe('Admin Usage Routes', () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
         },
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           tokensIn: 200,
           tokensOut: 100,
           requestType: 'chat',
@@ -97,8 +97,8 @@ describe('Admin Usage Routes', () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'model-1',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
@@ -132,16 +132,16 @@ describe('Admin Usage Routes', () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'claude-sonnet',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
         },
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'gpt-4',
+          provider: 'openrouter',
           tokensIn: 200,
           tokensOut: 100,
           requestType: 'chat',
@@ -167,16 +167,16 @@ describe('Admin Usage Routes', () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'model-1',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
         },
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'model-1',
+          provider: 'openrouter',
           tokensIn: 50,
           tokensOut: 25,
           requestType: 'vision',
@@ -202,16 +202,16 @@ describe('Admin Usage Routes', () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
           userId: 'user-1',
-          provider: 'openrouter',
           model: 'model-1',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
         },
         {
           userId: 'user-2',
-          provider: 'openrouter',
           model: 'model-1',
+          provider: 'openrouter',
           tokensIn: 500,
           tokensOut: 250,
           requestType: 'chat',

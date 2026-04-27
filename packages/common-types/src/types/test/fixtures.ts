@@ -21,6 +21,7 @@ export const TEST_PERSONALITY: LoadedPersonality = {
   ownerId: 'user-owner-uuid-test',
   systemPrompt: 'You are a helpful assistant',
   model: 'anthropic/claude-sonnet-4.5',
+  provider: 'openrouter',
   temperature: 0.7,
   maxTokens: 2000,
   contextWindowTokens: 8192,

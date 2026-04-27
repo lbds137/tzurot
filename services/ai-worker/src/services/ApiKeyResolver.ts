@@ -153,6 +153,80 @@ export class ApiKeyResolver {
   }
 
   /**
+   * Look up and decrypt a user's BYOK API key without falling back to the
+   * system key. Returns `null` if the user has no key for the requested
+   * provider OR encryption is disabled at the resolver level.
+   *
+   * Use this when callers want to know whether the user has a specific key
+   * (e.g., ProviderRouter deciding whether to route z.ai-direct or fall through
+   * to OpenRouter) — distinct from `resolveApiKey` which always returns
+   * something or throws.
+   */
+  async tryResolveUserKey(
+    userId: string | undefined,
+    provider: AIProvider
+  ): Promise<string | null> {
+    if (userId === undefined || userId.length === 0) {
+      return null;
+    }
+    if (this.encryptionKey.length === 0) {
+      // Encryption not configured — every BYOK lookup returns null. Distinct
+      // from "user has no key": a zai-coding preset always falls through to
+      // OpenRouter in this branch, which is correct but worth surfacing when
+      // diagnosing "why is my zai-coding preset not routing direct."
+      logger.debug(
+        { userId, provider },
+        'Encryption key not configured — skipping user-key lookup'
+      );
+      return null;
+    }
+
+    // Peek the cache populated by resolveApiKey() before going to DB. Per-request
+    // DB reads on the LLM hot path were exactly the cost the cache was added to
+    // avoid; tryResolveUserKey() must respect it. Only honor cache hits where the
+    // source was 'user' — system-source entries indicate "user has no key" and
+    // should still return null here so ProviderRouter triggers fallthrough.
+    const cacheKey = `${userId}-${provider}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      if (cached.result.source === 'user') {
+        logger.debug(
+          { userId, provider, source: 'cache' },
+          'User API key resolved from cache (tryResolveUserKey)'
+        );
+        return cached.result.apiKey;
+      }
+      // Cached as system-source → user has no key. Skip DB lookup.
+      return null;
+    }
+
+    const userKey = await this.getUserApiKey(userId, provider);
+    if (userKey !== null) {
+      // Cache write for direct-route users — without this, requests that always
+      // route via tryResolveUserKey (e.g., a user who only ever hits z.ai-coding
+      // direct) would never populate the cache and DB-read on every request.
+      // Mirror the cacheResult shape from resolveApiKey() so subsequent reads
+      // through either entry-point hit the cache.
+      this.cacheResult(`${userId}-${provider}`, {
+        apiKey: userKey,
+        source: 'user',
+        provider,
+        userId,
+        isGuestMode: false,
+      });
+    }
+    // Accepted overhead: when userKey is null (the auto-fallthrough path), we
+    // do NOT cache a "no key" sentinel. Each `zai-coding`-with-no-key request
+    // will re-read the DB on the cold-cache path. Synthesizing a system-source
+    // entry here would muddy the cache semantics that resolveApiKey() depends
+    // on (system entries imply "system fallback was used," which isn't true for
+    // providers like zai-coding that have no system key). If usage scales to
+    // the point where the per-request DB read becomes a hotspot, revisit by
+    // introducing a distinct "no-user-key" cache state — see backlog.
+    return userKey;
+  }
+
+  /**
    * Get and decrypt a user's API key from the database
    */
   private async getUserApiKey(userId: string, provider: AIProvider): Promise<string | null> {
@@ -201,8 +275,8 @@ export class ApiKeyResolver {
       case AIProvider.ZaiCoding:
         // No system fallback for z.ai Coding Plan — every user must bring
         // their own coding-plan subscription key. Callers wanting OpenRouter
-        // fallthrough on missing z.ai key handle that at a higher layer
-        // (planned: ProviderRouter in PR 2).
+        // fallthrough on missing z.ai key handle that at the routing layer
+        // (see ProviderRouter.resolveRoute).
         return null;
       default: {
         // Type guard for exhaustive check - add new providers above

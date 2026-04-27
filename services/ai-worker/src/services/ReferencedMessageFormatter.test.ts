@@ -54,6 +54,7 @@ describe('ReferencedMessageFormatter', () => {
       ownerId: 'owner-uuid-test',
       systemPrompt: 'Test system prompt',
       model: 'test-model',
+      provider: 'openrouter',
       temperature: 0.7,
       maxTokens: 2000,
       contextWindowTokens: 131072,

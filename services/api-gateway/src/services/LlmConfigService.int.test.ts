@@ -99,6 +99,7 @@ describe('LlmConfigService Integration', () => {
       const data = {
         name: 'Global Preset',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         description: 'A global preset',
         memoryScoreThreshold: 0.75,
         memoryLimit: 50,
@@ -122,6 +123,7 @@ describe('LlmConfigService Integration', () => {
       const data = {
         name: 'My Preset',
         model: 'openai/gpt-4o',
+        provider: 'openrouter',
       };
 
       const config = await service.create(scope, data, testUserId);
@@ -140,6 +142,7 @@ describe('LlmConfigService Integration', () => {
       const data = {
         name: 'Minimal Preset',
         model: 'test-model',
+        provider: 'openrouter',
       };
 
       const config = await service.create(scope, data, testUserId);
@@ -284,6 +287,7 @@ describe('LlmConfigService Integration', () => {
       const updated = await service.update(configId, {
         name: 'Updated Name',
         model: 'new-model',
+        provider: 'openrouter',
         memoryScoreThreshold: 0.9,
       });
 
@@ -595,8 +599,8 @@ describe('LlmConfigService Integration', () => {
         id: configId,
         name: 'Format Test',
         description: 'Test description',
-        provider: 'openrouter',
         model: 'test-model',
+        provider: 'openrouter',
         visionModel: 'vision-model',
         isGlobal: true,
         isDefault: false,
@@ -650,6 +654,7 @@ describe('LlmConfigService Integration', () => {
         {
           name: 'X (Copy)',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           autoSuffixOnCollision: true,
         },
         testUserId
@@ -669,6 +674,7 @@ describe('LlmConfigService Integration', () => {
         {
           name: 'X (Copy)',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           autoSuffixOnCollision: true,
         },
         testUserId
@@ -709,6 +715,7 @@ describe('LlmConfigService Integration', () => {
         {
           name: 'Seed (Copy)',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           autoSuffixOnCollision: true,
         },
         testUserId
@@ -718,6 +725,7 @@ describe('LlmConfigService Integration', () => {
         {
           name: 'Seed (Copy 5)',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           autoSuffixOnCollision: true,
         },
         testUserId
@@ -730,6 +738,7 @@ describe('LlmConfigService Integration', () => {
         {
           name: 'Seed (Copy)',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           autoSuffixOnCollision: true,
         },
         testUserId
@@ -804,6 +813,7 @@ describe('LlmConfigService Integration', () => {
         {
           name: 'Preset (Copy)',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           autoSuffixOnCollision: true,
         },
         testUserId

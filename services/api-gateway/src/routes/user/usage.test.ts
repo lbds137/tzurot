@@ -185,15 +185,15 @@ describe('/user/usage routes', () => {
     it('should aggregate token counts', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
-          provider: 'openrouter',
           model: 'gpt-4',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
         },
         {
-          provider: 'openrouter',
           model: 'gpt-4',
+          provider: 'openrouter',
           tokensIn: 200,
           tokensOut: 100,
           requestType: 'chat',
@@ -217,8 +217,8 @@ describe('/user/usage routes', () => {
     it('should aggregate by provider', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
-          provider: 'openrouter',
           model: 'gpt-4',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
@@ -249,22 +249,22 @@ describe('/user/usage routes', () => {
     it('should aggregate by model', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
-          provider: 'openrouter',
           model: 'gpt-4',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
         },
         {
-          provider: 'openrouter',
           model: 'claude-3',
+          provider: 'openrouter',
           tokensIn: 200,
           tokensOut: 100,
           requestType: 'chat',
         },
         {
-          provider: 'openrouter',
           model: 'gpt-4',
+          provider: 'openrouter',
           tokensIn: 150,
           tokensOut: 75,
           requestType: 'chat',
@@ -288,15 +288,15 @@ describe('/user/usage routes', () => {
     it('should aggregate by request type', async () => {
       mockPrisma.usageLog.findMany.mockResolvedValue([
         {
-          provider: 'openrouter',
           model: 'gpt-4',
+          provider: 'openrouter',
           tokensIn: 100,
           tokensOut: 50,
           requestType: 'chat',
         },
         {
-          provider: 'openrouter',
           model: 'whisper',
+          provider: 'openrouter',
           tokensIn: 0,
           tokensOut: 100,
           requestType: 'transcription',
