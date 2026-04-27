@@ -18,8 +18,11 @@ import { z } from 'zod';
  * Discord snowflake IDs are 17–20 digit strings per Discord's ID format spec.
  * Validating the format here catches DB corruption or test-data drift early
  * rather than letting bad IDs propagate to `client.users.fetch()` calls.
+ *
+ * Exported for reuse by future schemas that need to validate Discord IDs
+ * against the same canonical format.
  */
-const DiscordSnowflakeSchema = z.string().regex(/^\d{17,20}$/);
+export const DiscordSnowflakeSchema = z.string().regex(/^\d{17,20}$/);
 
 export const RecentUsersResponseSchema = z.object({
   discordIds: z.array(DiscordSnowflakeSchema),

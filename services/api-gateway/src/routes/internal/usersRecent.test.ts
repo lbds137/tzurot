@@ -102,4 +102,29 @@ describe('GET /internal/users/recent', () => {
 
     expect(response.status).toBe(400);
   });
+
+  it('returns 500 when the DB query throws', async () => {
+    mockPrisma.$queryRaw.mockRejectedValue(new Error('connection refused'));
+
+    const response = await request(app).get('/internal/users/recent');
+
+    expect(response.status).toBe(500);
+    expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+  });
+
+  it('filters non-snowflake discord_ids from the DB result and warns', async () => {
+    // Real-world: DB schema enforces snowflake format, but data-drift
+    // (migration leakage, test contamination) could produce malformed rows.
+    // The handler should drop them rather than failing the whole batch.
+    mockPrisma.$queryRaw.mockResolvedValue([
+      { discord_id: '111111111111111111' }, // valid
+      { discord_id: 'not-a-snowflake' }, // invalid — should be filtered
+      { discord_id: '222222222222222222' }, // valid
+    ]);
+
+    const response = await request(app).get('/internal/users/recent');
+
+    expect(response.status).toBe(200);
+    expect(response.body.discordIds).toEqual(['111111111111111111', '222222222222222222']);
+  });
 });

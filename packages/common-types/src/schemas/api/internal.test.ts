@@ -1,5 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { RecentUsersResponseSchema } from './internal.js';
+import { DiscordSnowflakeSchema, RecentUsersResponseSchema } from './internal.js';
+
+describe('DiscordSnowflakeSchema', () => {
+  it('accepts a 17-digit snowflake', () => {
+    expect(DiscordSnowflakeSchema.safeParse('12345678901234567').success).toBe(true);
+  });
+
+  it('accepts an 18-digit snowflake (most common length today)', () => {
+    expect(DiscordSnowflakeSchema.safeParse('123456789012345678').success).toBe(true);
+  });
+
+  it('accepts a 20-digit snowflake (max length)', () => {
+    expect(DiscordSnowflakeSchema.safeParse('12345678901234567890').success).toBe(true);
+  });
+
+  it('rejects a 16-digit string (too short)', () => {
+    expect(DiscordSnowflakeSchema.safeParse('1234567890123456').success).toBe(false);
+  });
+
+  it('rejects a 21-digit string (too long)', () => {
+    expect(DiscordSnowflakeSchema.safeParse('123456789012345678901').success).toBe(false);
+  });
+
+  it('rejects non-numeric strings', () => {
+    expect(DiscordSnowflakeSchema.safeParse('not-a-snowflake').success).toBe(false);
+  });
+
+  it('rejects strings with mixed digits and letters', () => {
+    expect(DiscordSnowflakeSchema.safeParse('12345678901234567a').success).toBe(false);
+  });
+
+  it('rejects empty string', () => {
+    expect(DiscordSnowflakeSchema.safeParse('').success).toBe(false);
+  });
+
+  it('rejects non-string inputs (numbers)', () => {
+    expect(DiscordSnowflakeSchema.safeParse(123456789012345678).success).toBe(false);
+  });
+});
 
 describe('RecentUsersResponseSchema', () => {
   it('accepts a valid response with snowflake IDs', () => {
