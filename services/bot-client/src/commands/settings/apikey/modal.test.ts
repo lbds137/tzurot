@@ -113,6 +113,32 @@ describe('handleApikeyModalSubmit', () => {
         expect.stringContaining('Invalid OpenRouter Key Format')
       );
     });
+
+    it('should accept ZaiCoding key with any non-empty format (no client-side prefix check)', async () => {
+      // z.ai keys have no documented strict prefix, so the client-side
+      // validateKeyFormat returns null. Validation happens server-side via
+      // the chat-completions probe in api-gateway.
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+      const interaction = createMockInteraction(
+        'settings::apikey::set::zai-coding',
+        'arbitrary-zai-key-format'
+      );
+      await handleApikeyModalSubmit(interaction);
+
+      // Should NOT show a client-side format error — request flows through to gateway
+      expect(mockEditReply).not.toHaveBeenCalledWith(expect.stringContaining('Invalid'));
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3000/wallet/set',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            provider: 'zai-coding',
+            apiKey: 'arbitrary-zai-key-format',
+          }),
+        })
+      );
+    });
   });
 
   describe('Gateway API interaction', () => {

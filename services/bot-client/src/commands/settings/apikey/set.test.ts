@@ -98,4 +98,17 @@ describe('handleSetKey', () => {
 
     expect(textInput.data.placeholder).toBe('sk-or-v1-xxxx...');
   });
+
+  it('should show modal for ZaiCoding provider with z.ai-specific labels', async () => {
+    const context = createMockContext('zai-coding');
+    await handleSetKey(context);
+
+    expect(mockShowModal).toHaveBeenCalledTimes(1);
+    const modal = mockShowModal.mock.calls[0][0];
+
+    expect(modal.data.custom_id).toBe('settings::apikey::set::zai-coding');
+    expect(modal.data.title).toBe('Set Z.AI Coding Plan API Key');
+    const textInput = modal.components[0].components[0];
+    expect(textInput.data.placeholder).toBe('Your z.ai coding-plan API key');
+  });
 });

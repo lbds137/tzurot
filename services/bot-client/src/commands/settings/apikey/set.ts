@@ -80,6 +80,12 @@ function getProviderInfo(provider: AIProvider): {
         placeholder: API_KEY_FORMATS.ELEVENLABS_PLACEHOLDER,
         helpUrl: 'https://elevenlabs.io/app/settings/api-keys',
       };
+    case AIProvider.ZaiCoding:
+      return {
+        displayName: 'Z.AI Coding Plan',
+        placeholder: API_KEY_FORMATS.ZAI_CODING_PLACEHOLDER,
+        helpUrl: 'https://z.ai/manage-apikey/apikey-list',
+      };
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;

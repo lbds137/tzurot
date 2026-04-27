@@ -217,6 +217,11 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
       // Validation happens server-side via the ElevenLabs /v1/user endpoint
       return null;
 
+    case AIProvider.ZaiCoding:
+      // z.ai keys have no documented strict prefix — accept any non-empty key
+      // Validation happens server-side via a minimal chat-completions probe
+      return null;
+
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;
