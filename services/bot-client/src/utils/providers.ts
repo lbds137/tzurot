@@ -14,6 +14,8 @@ export function getProviderDisplayName(provider: AIProvider): string {
       return 'OpenRouter';
     case AIProvider.ElevenLabs:
       return 'ElevenLabs';
+    case AIProvider.ZaiCoding:
+      return 'Z.AI Coding Plan';
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;

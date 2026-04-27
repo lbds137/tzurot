@@ -15,5 +15,9 @@ describe('providers', () => {
     it('should return "ElevenLabs" for ElevenLabs provider', () => {
       expect(getProviderDisplayName(AIProvider.ElevenLabs)).toBe('ElevenLabs');
     });
+
+    it('should return "Z.AI Coding Plan" for ZaiCoding provider', () => {
+      expect(getProviderDisplayName(AIProvider.ZaiCoding)).toBe('Z.AI Coding Plan');
+    });
   });
 });
