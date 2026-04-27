@@ -44,6 +44,7 @@ import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { DenylistCache } from './services/DenylistCache.js';
+import { DMCacheWarmer } from './services/DMCacheWarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
 
 // Processors
@@ -136,6 +137,7 @@ interface Services {
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
   denylistCache: DenylistCache;
   denylistCacheInvalidationService: DenylistCacheInvalidationService;
+  dmCacheWarmer: DMCacheWarmer;
 }
 
 /**
@@ -184,6 +186,12 @@ function createServices(): Services {
   // Denylist cache and invalidation service
   const denylistCache = new DenylistCache();
   const denylistCacheInvalidationService = new DenylistCacheInvalidationService(cacheRedis);
+
+  // DM channel cache warmer — pre-establishes Discord.js's internal channel
+  // cache for any user we encounter, so subsequent plain-text DMs can be
+  // resolved by MessageCreateAction.getChannel(). See DMCacheWarmer.ts for
+  // the full diagnosis narrative.
+  const dmCacheWarmer = new DMCacheWarmer();
 
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
@@ -257,6 +265,7 @@ function createServices(): Services {
     channelActivationCacheInvalidationService,
     denylistCache,
     denylistCacheInvalidationService,
+    dmCacheWarmer,
   };
 }
 
@@ -266,6 +275,10 @@ let commandHandler: CommandHandler;
 
 // Message handler - wrapped to handle async properly
 client.on(Events.MessageCreate, message => {
+  // Warm the DM channel cache for this user; see DMCacheWarmer.ts for why.
+  if (!message.author.bot) {
+    services.dmCacheWarmer.warm(message.author);
+  }
   void (async () => {
     try {
       await services.messageHandler.handleMessage(message);
@@ -277,6 +290,8 @@ client.on(Events.MessageCreate, message => {
 
 // Interaction handler for slash commands, modals, autocomplete, and component interactions
 client.on(Events.InteractionCreate, interaction => {
+  // Warm the DM channel cache for this user; see DMCacheWarmer.ts for why.
+  services.dmCacheWarmer.warm(interaction.user);
   void (async () => {
     try {
       // Denylist check — applies to ALL interaction types (silent deny)
