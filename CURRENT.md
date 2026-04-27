@@ -11,11 +11,17 @@ _No production issues active. beta.108 just shipped with the post-deploy DM-sile
 
 1. **z.ai provider integration** — User has a $18/month z.ai coding plan they want to actually use with Tzurot. Multi-user scope, route-on-key (same model can have z.ai key OR fall through to OpenRouter), auto-fallthrough behavior. Wrinkle: z.ai has separate pay-as-you-go vs. coding-plan endpoints — need to research docs to differentiate. Architectural shape: provider-routing-as-property-of-API-key, not preset/user toggle. See preview discussion in 2026-04-26/27 session log.
 2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-3. **Quick Wins backlog** — multiple items queued: delete `DM_RAW_GATEWAY_DIAGNOSTIC` env entry from Railway dashboard (set to `false` 2026-04-27, dashboard cleanup needed), `await async cleanup before process.exit` in shutdown handler, `CreatePersonaResponse` import refactor in bot-client, "make duplicate-exports + knip blocking in CI."
+3. **Quick Wins remaining (post-bundle)** — once the bundle PR ships, what's left: delete `DM_RAW_GATEWAY_DIAGNOSTIC` env entry from Railway dashboard (dashboard cleanup, no code), and "make duplicate-exports + knip blocking in CI" (needs allowlist triage first — 30-60min focused task, its own PR).
 
 ## Active Task
 
-_None. Session paused after beta.108 cut + tag + GitHub Release._
+**Post-beta.108 cleanup bundle PR** (in progress) — three small items folded into one PR:
+
+1. TTS chunker defensive truncation (real bug, Lilith observation 2026-04-27 — chunker produced 2006 chars against 2000-char voice-engine cap; root cause unreproducible from user-pasted text but truncation cuts the failure path regardless)
+2. Await async cleanup before `process.exit` in bot-client shutdown (PR #913 follow-up — `void`'d promises don't resolve before exit)
+3. Replace local `CreatePersonaResponse` with imported common-types type (drift prevention — local interface and Zod schema can silently diverge)
+
+Branch: `chore/post-beta-108-cleanup`. Fix shapes documented in `backlog/quick-wins.md`.
 
 ---
 
