@@ -26,6 +26,7 @@ vi.mock('@tzurot/common-types', async () => {
     AIProvider: {
       OpenRouter: 'openrouter',
       ElevenLabs: 'elevenlabs',
+      ZaiCoding: 'zai-coding',
     },
   };
 });
@@ -318,6 +319,36 @@ describe('ApiKeyResolver', () => {
       expect(elevenLabsResult.apiKey).toBe('system-elevenlabs-key');
       expect(openRouterResult.provider).toBe(AIProvider.OpenRouter);
       expect(elevenLabsResult.provider).toBe(AIProvider.ElevenLabs);
+    });
+  });
+
+  describe('ZaiCoding (no system fallback)', () => {
+    it('should throw when user has no ZaiCoding key (no operator-provided fallback)', async () => {
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      // z.ai coding plan has no system fallback by design — every user must
+      // bring their own coding-plan subscription key. The intentional null
+      // from getSystemApiKey causes resolveApiKey to throw rather than silently
+      // route requests to a wrong/missing key.
+      await expect(resolver.resolveApiKey('user-123', AIProvider.ZaiCoding)).rejects.toThrow(
+        /No API key available for provider zai-coding/
+      );
+    });
+
+    it('should return user ZaiCoding key when present (BYOK only)', async () => {
+      const encryptedData = { iv: 'iv', content: 'content', tag: 'tag' };
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(encryptedData);
+      mockDecryptApiKey.mockReturnValue('zai-user-key');
+
+      const result = await resolver.resolveApiKey('user-123', AIProvider.ZaiCoding);
+
+      expect(result).toEqual({
+        apiKey: 'zai-user-key',
+        source: 'user',
+        provider: AIProvider.ZaiCoding,
+        userId: 'user-123',
+        isGuestMode: false,
+      });
     });
   });
 
