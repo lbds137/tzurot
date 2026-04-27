@@ -7,21 +7,23 @@
 
 ## Next Session Goal
 
-_No production issues active. beta.108 just shipped with the post-deploy DM-silence fix end-to-end resolved + Identity Hardening Epic CLOSED. Pick from the candidates below._
+_No production issues active. PR #920 + PR #921 (z.ai provider plumbing) shipped to develop. Plan: dependabot sweep before resuming the z.ai work._
 
-1. **z.ai provider integration** — User has a $18/month z.ai coding plan they want to actually use with Tzurot. Multi-user scope, route-on-key (same model can have z.ai key OR fall through to OpenRouter), auto-fallthrough behavior. Wrinkle: z.ai has separate pay-as-you-go vs. coding-plan endpoints — need to research docs to differentiate. Architectural shape: provider-routing-as-property-of-API-key, not preset/user toggle. See preview discussion in 2026-04-26/27 session log.
-2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-3. **Quick Wins remaining (post-bundle)** — once the bundle PR ships, what's left: delete `DM_RAW_GATEWAY_DIAGNOSTIC` env entry from Railway dashboard (dashboard cleanup, no code), and "make duplicate-exports + knip blocking in CI" (needs allowlist triage first — 30-60min focused task, its own PR).
+1. **Dependabot PR sweep** — work through the open dependabot dependency-update PRs. Standard flow: per PR, check the changelog/diff for breaking changes, run tests, merge if green. Paused PR 2 of the z.ai plan to clear this queue first.
+2. **z.ai PR 2 of 2 — `ProviderRouter` + auto-fallthrough wiring** — per `~/.claude/plans/wondrous-rolling-moore.md`. Absorbs the round-5/6 follow-up items from PR #921 (see `backlog/inbox.md`).
+3. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
+4. **Quick Wins remaining** — delete `DM_RAW_GATEWAY_DIAGNOSTIC` env entry from Railway dashboard (no code), and "make duplicate-exports + knip blocking in CI" (needs allowlist triage first).
 
 ## Active Task
 
-_None. PR #920 (post-beta-108 cleanup bundle) merged 2026-04-27 — three commits land on develop: chunker defensive truncation (`d5df0ab32`), shutdown async-await (`2eb46fe0d`), `CreatePersonaResponse` import (`538551a2b`). Four review rounds, two auto-applied trivial-comment fixups, all reviewer asks resolved or verified safe._
+_None. PR #921 (z.ai Coding Plan provider plumbing — PR 1 of 2 from the z.ai integration plan) merged 2026-04-27 — four commits land on develop. **Next**: dependabot PR sweep (paused before starting PR 2). After dependabot, continue with **PR 2 of 2 — `ProviderRouter` + auto-fallthrough wiring** per `~/.claude/plans/wondrous-rolling-moore.md`. PR 2 will absorb the round-5/6 follow-up items from PR #921 (see `backlog/inbox.md` "PR 2 absorbs: z.ai integration follow-ups")._
 
 ---
 
 ## Unreleased on Develop (since beta.108)
 
 - **PR #920** (`chore/post-beta-108-cleanup`, merged 2026-04-27) — chunker defensive truncation against off-by-N output (real Lilith bug), shutdown async-await (PR #913 follow-up), `CreatePersonaResponse` schema import (drift prevention).
+- **PR #921** (`feat/zai-coding-provider-plumbing`, merged 2026-04-27) — z.ai Coding Plan as new `AIProvider.ZaiCoding` enum + endpoint + key validators (api-gateway intake + ai-worker runtime) + `ModelFactory` per-request provider override with provider-tier param filtering. PR 1 of 2; routing & auto-fallthrough come in PR 2. 6 review rounds, all asks resolved or absorbed into PR 2 backlog.
 
 ---
 
