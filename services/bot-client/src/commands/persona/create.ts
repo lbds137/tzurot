@@ -14,25 +14,13 @@
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { CreatePersonaResponse } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-create');
-
-/** Response type for creating a persona */
-interface CreatePersonaResponse {
-  success: boolean;
-  persona: {
-    id: string;
-    name: string;
-    preferredName: string | null;
-    description: string | null;
-    pronouns: string | null;
-    content: string | null;
-  };
-}
 
 /**
  * Handle /persona create command - shows modal
