@@ -9,9 +9,9 @@ import type { TextChannel, ThreadChannel } from 'discord.js';
 import {
   splitMessage,
   DISCORD_LIMITS,
-  AI_ENDPOINTS,
   GUEST_MODE,
   buildModelFooterText,
+  buildModelInfoUrl,
 } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { getWebhookManager } from '../../services/serviceRegistry.js';
@@ -20,6 +20,8 @@ import { redisService } from '../../redis.js';
 /** Options for footer display */
 interface CharacterResponseOptions {
   modelUsed?: string;
+  /** Effective provider that served the request — picks the right footer link target. */
+  providerUsed?: string;
   isGuestMode?: boolean;
   showModelFooter?: boolean;
 }
@@ -34,7 +36,7 @@ export async function sendCharacterResponse(
   content: string,
   options?: CharacterResponseOptions
 ): Promise<string[]> {
-  const { modelUsed, isGuestMode, showModelFooter } = options ?? {};
+  const { modelUsed, providerUsed, isGuestMode, showModelFooter } = options ?? {};
   const webhookManager = getWebhookManager();
   const messageIds: string[] = [];
 
@@ -46,7 +48,7 @@ export async function sendCharacterResponse(
     modelUsed !== null &&
     modelUsed !== ''
   ) {
-    const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
+    const modelUrl = buildModelInfoUrl(modelUsed, providerUsed);
     footer = `\n-# ${buildModelFooterText(modelUsed, modelUrl)}`;
   }
   if (isGuestMode === true) {
