@@ -62,12 +62,40 @@ function accumulateSentence(chunks: string[], currentChunk: string, sentence: st
 }
 
 /**
+ * Defensive cap: if any chunk exceeds MAX_CHUNK_LENGTH despite the splitting
+ * logic, truncate to the cap and warn. Safety net against edge cases the
+ * static analysis of accumulateSentence/forceSplitLongSentence misses, plus
+ * any upstream preprocessing or measurement-mismatch that could inflate
+ * chunk length post-split.
+ *
+ * Lossy by design (last few chars dropped from an offending chunk) — strictly
+ * better than the alternative, which is voice-engine returning 400 and the
+ * user losing ALL TTS audio for the response.
+ *
+ * @internal Exported for testing
+ */
+export function enforceChunkLengthCap(chunks: string[]): string[] {
+  return chunks.map(chunk => {
+    if (chunk.length > MAX_CHUNK_LENGTH) {
+      logger.warn(
+        { chunkLength: chunk.length, maxLength: MAX_CHUNK_LENGTH },
+        'TTS chunk exceeded MAX_CHUNK_LENGTH after splitting — truncating to defensive cap'
+      );
+      return chunk.slice(0, MAX_CHUNK_LENGTH);
+    }
+    return chunk;
+  });
+}
+
+/**
  * Split text into chunks that fit within the TTS character limit.
  * Splits at sentence boundaries to maintain natural speech flow.
  *
  * @internal Exported for testing
  */
 export function splitTextIntoChunks(text: string): string[] {
+  // Fast path: bypasses enforceChunkLengthCap because the condition itself
+  // guarantees output is already at or below MAX_CHUNK_LENGTH.
   if (text.length <= MAX_CHUNK_LENGTH) {
     return [text];
   }
@@ -94,7 +122,7 @@ export function splitTextIntoChunks(text: string): string[] {
     chunks.push(currentChunk.trim());
   }
 
-  return chunks;
+  return enforceChunkLengthCap(chunks);
 }
 
 /**
