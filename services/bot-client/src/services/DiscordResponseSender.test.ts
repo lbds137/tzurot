@@ -106,6 +106,43 @@ describe('DiscordResponseSender', () => {
       );
     });
 
+    it('should link to z.ai blog for zai-coding direct routes', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'glm-4.7',
+        providerUsed: 'zai-coding',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('[glm-4.7]');
+      expect(calledContent).toContain('z.ai/blog/glm-4.7');
+    });
+
+    it('should link to OpenRouter for post-fallthrough z-ai/-prefixed openrouter route', async () => {
+      // When ProviderRouter fallthrough fires, providerUsed is 'openrouter'
+      // and modelUsed is 'z-ai/<model>' — the request hit OpenRouter, so the
+      // footer must link to OpenRouter (not z.ai).
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      await sender.sendResponse({
+        content: 'Response content',
+        personality: mockPersonality,
+        message: mockMessage,
+        modelUsed: 'z-ai/glm-4.7',
+        providerUsed: 'openrouter',
+      });
+
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).toContain('[z-ai/glm-4.7]');
+      expect(calledContent).toContain('openrouter.ai/z-ai%2Fglm-4.7');
+    });
+
     it('should add guest mode footer when isGuestMode is true', async () => {
       const mockChannel = createMockTextChannel('channel-123');
       const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
