@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   splitTextIntoChunks,
+  enforceChunkLengthCap,
   extractPcmData,
   buildWavHeader,
   inferSampleRate,
@@ -127,6 +128,63 @@ describe('splitTextIntoChunks', () => {
 
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toBe('');
+  });
+});
+
+describe('enforceChunkLengthCap', () => {
+  beforeEach(() => {
+    mockLogger.warn.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should pass through chunks within the cap unchanged', () => {
+    const input = ['short', 'A'.repeat(1500), 'A'.repeat(2000)];
+    const result = enforceChunkLengthCap(input);
+
+    expect(result).toEqual(input);
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('should truncate any chunk exceeding the cap to MAX_CHUNK_LENGTH', () => {
+    // Synthetic over-cap input — the production-failing shape was 2006 chars
+    // against the 2000 cap (Lilith observation 2026-04-27).
+    const oversized = 'A'.repeat(2006);
+    const result = enforceChunkLengthCap([oversized]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].length).toBe(2000);
+    expect(result[0]).toBe('A'.repeat(2000));
+  });
+
+  it('should log a warning with chunk-length context when truncation triggers', () => {
+    enforceChunkLengthCap(['A'.repeat(2050)]);
+
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      { chunkLength: 2050, maxLength: 2000 },
+      expect.stringContaining('TTS chunk exceeded MAX_CHUNK_LENGTH')
+    );
+  });
+
+  it('should truncate only the offending chunks in a mixed array', () => {
+    const input = ['A'.repeat(1500), 'B'.repeat(2200), 'C'.repeat(800), 'D'.repeat(2001)];
+    const result = enforceChunkLengthCap(input);
+
+    expect(result[0]).toBe('A'.repeat(1500));
+    expect(result[1]).toBe('B'.repeat(2000));
+    expect(result[2]).toBe('C'.repeat(800));
+    expect(result[3]).toBe('D'.repeat(2000));
+    expect(mockLogger.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('should return an empty array unchanged', () => {
+    const result = enforceChunkLengthCap([]);
+
+    expect(result).toEqual([]);
+    expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 });
 
