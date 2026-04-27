@@ -454,13 +454,23 @@ function buildZaiCodingModel(
       apiKey,
       temperature: shared.temperature,
       topP: shared.topP,
-      frequencyPenalty: shared.frequencyPenalty,
-      presencePenalty: shared.presencePenalty,
+      // frequencyPenalty / presencePenalty intentionally excluded:
+      // z.ai's chat-completion API returns 400 "Invalid API parameter" (code
+      // 1210) for both. filterRestrictedParams strips them in `shared` before
+      // we get here (provider-tier filter), but we also exclude them at the
+      // constructor call so the contract is self-evident — a future caller
+      // that calls buildZaiCodingModel without the filter doesn't get a
+      // silent 400 from z.ai.
       maxTokens: shared.maxTokens,
       modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
       configuration: {
         baseURL: AI_ENDPOINTS.ZAI_CODING_BASE_URL,
       },
+      // __includeRawResponse intentionally NOT set: that flag bridges the
+      // OpenRouter `message.reasoning` ↔ LangChain `message.reasoning_content`
+      // field-name gap. z.ai uses its own thinking-field protocol, not
+      // OpenRouter's reasoning bridge — including the flag would surface raw
+      // z.ai responses without the corresponding extractor wired up.
     }),
     modelName,
   };

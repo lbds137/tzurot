@@ -38,6 +38,7 @@ describe('jobChainOrchestrator (FlowProducer)', () => {
     ownerId: 'owner-uuid-test',
     systemPrompt: 'Test prompt',
     model: 'test-model',
+    provider: 'openrouter',
     temperature: 0.7,
     maxTokens: 1000,
     contextWindowTokens: 4096,

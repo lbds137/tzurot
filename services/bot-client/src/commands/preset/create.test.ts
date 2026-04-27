@@ -101,14 +101,15 @@ describe('Preset Create', () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: 'Test Preset',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       vi.mocked(api.createPreset).mockResolvedValue({
         id: 'preset-123',
         name: 'Test Preset',
         description: null,
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: false,
         isOwned: true,
@@ -120,6 +121,7 @@ describe('Preset Create', () => {
       const mockInteraction = createMockModalInteraction({
         name: 'Test Preset',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       await handleSeedModalSubmit(mockInteraction);
@@ -133,11 +135,13 @@ describe('Preset Create', () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: '',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       const mockInteraction = createMockModalInteraction({
         name: '',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       await handleSeedModalSubmit(mockInteraction);
@@ -168,8 +172,8 @@ describe('Preset Create', () => {
         id: 'preset-123',
         name: 'My Preset',
         description: null,
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: false,
         isOwned: true,
@@ -181,6 +185,7 @@ describe('Preset Create', () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: 'My Preset',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       vi.mocked(api.createPreset).mockResolvedValue(mockPreset);
@@ -188,6 +193,7 @@ describe('Preset Create', () => {
       const mockInteraction = createMockModalInteraction({
         name: 'My Preset',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       await handleSeedModalSubmit(mockInteraction);
@@ -221,6 +227,7 @@ describe('Preset Create', () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: 'Duplicate',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       vi.mocked(api.createPreset).mockRejectedValue(
@@ -230,6 +237,7 @@ describe('Preset Create', () => {
       const mockInteraction = createMockModalInteraction({
         name: 'Duplicate',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       await handleSeedModalSubmit(mockInteraction);
@@ -243,6 +251,7 @@ describe('Preset Create', () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: 'Test',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       vi.mocked(api.createPreset).mockRejectedValue(new Error('Network error'));
@@ -250,6 +259,7 @@ describe('Preset Create', () => {
       const mockInteraction = createMockModalInteraction({
         name: 'Test',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       await handleSeedModalSubmit(mockInteraction);
@@ -263,6 +273,7 @@ describe('Preset Create', () => {
       vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
         name: 'Test',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       vi.mocked(api.createPreset).mockRejectedValue(
@@ -274,6 +285,7 @@ describe('Preset Create', () => {
       const mockInteraction = createMockModalInteraction({
         name: 'Test',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       await handleSeedModalSubmit(mockInteraction);

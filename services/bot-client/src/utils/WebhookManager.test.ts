@@ -115,6 +115,7 @@ function createMockPersonality(
     voiceEnabled: false,
     llmConfig: {
       model: 'test-model',
+      provider: 'openrouter',
       temperature: 0.7,
       maxTokens: 1000,
     },

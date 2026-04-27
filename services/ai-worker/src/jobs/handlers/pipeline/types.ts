@@ -89,7 +89,12 @@ export interface ResolvedConfig {
 export interface ResolvedAuth {
   /** The resolved API key (undefined means use system key) */
   apiKey: string | undefined;
-  /** The provider (e.g., 'openrouter') */
+  /**
+   * The effective provider after any routing decisions. May differ from the
+   * `LlmConfig.provider` when ProviderRouter applied a fallthrough (e.g.,
+   * configured `zai-coding` redirected to `openrouter` for a user without a
+   * z.ai-coding key).
+   */
   provider: string | undefined;
   /** Whether in guest mode (free models only) */
   isGuestMode: boolean;

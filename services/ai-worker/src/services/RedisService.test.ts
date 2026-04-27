@@ -121,6 +121,7 @@ describe('RedisService', () => {
         metadata: {
           tokens: 100,
           model: 'gpt-4',
+          provider: 'openrouter',
           nested: { deep: true },
         },
         array: [1, 2, 3],

@@ -24,8 +24,8 @@ describe('LLM Config API Contract Tests', () => {
       id: '00000000-0000-4000-8000-000000000001',
       name: 'Default Config',
       description: 'A test configuration',
-      provider: 'openrouter',
       model: 'openai/gpt-4o-mini',
+      provider: 'openrouter',
       visionModel: 'openai/gpt-4o',
       isGlobal: true,
       isDefault: true,
@@ -135,8 +135,8 @@ describe('LLM Config API Contract Tests', () => {
             id: '00000000-0000-4000-8000-000000000002',
             name: 'Default Preset',
             description: 'System default',
-            provider: 'openrouter',
             model: 'openai/gpt-4o-mini',
+            provider: 'openrouter',
             visionModel: null,
             isGlobal: true,
             isDefault: true,
@@ -147,8 +147,8 @@ describe('LLM Config API Contract Tests', () => {
             id: '00000000-0000-4000-8000-000000000003',
             name: 'My Custom Preset',
             description: null,
-            provider: 'openrouter',
             model: 'anthropic/claude-sonnet-4',
+            provider: 'openrouter',
             visionModel: 'anthropic/claude-sonnet-4',
             isGlobal: false,
             isDefault: false,
@@ -177,8 +177,8 @@ describe('LLM Config API Contract Tests', () => {
           id: '00000000-0000-4000-8000-000000000004',
           name: 'My New Preset',
           description: 'A custom preset',
-          provider: 'openrouter',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           visionModel: null,
           isGlobal: false,
           isDefault: false,
@@ -312,6 +312,7 @@ describe('LLM Config API Contract Tests', () => {
     const validCreateInput = {
       name: 'My Custom Preset',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
     };
 
     it('should validate minimal create input (only required fields)', () => {

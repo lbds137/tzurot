@@ -137,6 +137,7 @@ describe('handleDefault', () => {
               id: '00000000-0000-4000-8000-000000000123',
               name: 'Test',
               model: 'openai/gpt-4o-mini',
+              provider: 'openrouter',
             },
           ]),
         });
@@ -185,6 +186,7 @@ describe('handleDefault', () => {
               id: '00000000-0000-4000-8000-000000000100',
               name: 'Premium Config',
               model: 'openai/gpt-4o',
+              provider: 'openrouter',
             },
           ]),
         });
@@ -229,6 +231,7 @@ describe('handleDefault', () => {
               id: '00000000-0000-4000-8000-000000000f00',
               name: 'Free Config',
               model: 'meta-llama/llama-3.3-70b-instruct:free',
+              provider: 'openrouter',
             },
           ]),
         });

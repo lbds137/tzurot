@@ -79,6 +79,7 @@ describe('Preset Import', () => {
   const createValidPresetData = (overrides = {}) => ({
     name: 'Test Preset',
     model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
     description: 'A test preset',
     ...overrides,
   });

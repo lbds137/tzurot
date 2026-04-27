@@ -183,6 +183,7 @@ describe('Character Chat Handler', () => {
     slug: 'test-char',
     systemPrompt: 'You are a test character.',
     model: 'anthropic/claude-3.5-sonnet',
+    provider: 'openrouter',
     ...overrides,
   });
 

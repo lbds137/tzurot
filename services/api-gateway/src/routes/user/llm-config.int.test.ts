@@ -127,6 +127,7 @@ describe('LLM Config Resolution Integration', () => {
       name: 'test-personality',
       displayName: 'Test Personality',
       model: 'default-model',
+      provider: 'openrouter',
     };
 
     it('should return personality defaults when no user override exists', async () => {

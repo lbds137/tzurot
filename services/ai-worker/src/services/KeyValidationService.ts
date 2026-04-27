@@ -64,6 +64,24 @@ export class ValidationTimeoutError extends Error {
 }
 
 /**
+ * Error thrown when the upstream provider returns a 5xx response during
+ * validation. Distinct from `InvalidApiKeyError` — a 5xx means "key may be
+ * fine, provider is having issues", not "key is bad". Callers that classify
+ * validation failures (retry vs. surface to user) should treat this as
+ * transient.
+ */
+export class ProviderUnavailableError extends Error {
+  constructor(
+    public readonly provider: AIProvider,
+    public readonly httpStatus: number,
+    public readonly responseBody?: string
+  ) {
+    super(`Provider ${provider} returned HTTP ${httpStatus} during validation`);
+    this.name = 'ProviderUnavailableError';
+  }
+}
+
+/**
  * Result of API key validation
  */
 interface KeyValidationResult {
@@ -112,8 +130,17 @@ async function handleOpenRouterHttpError(response: Response): Promise<void> {
   if (response.status === 429) {
     throw new QuotaExceededError(provider, 'Rate limited - try again later');
   }
+  // 5xx means "OpenRouter is having issues," not "key is bad." Mirrors the
+  // classification applied to validateElevenLabsKey + validateZaiCodingKey so
+  // callers see consistent transient-vs-terminal classification across all
+  // three validators. During an OpenRouter outage, a valid key no longer gets
+  // flagged as invalid in the runtime health check.
+  if (response.status >= 500) {
+    const errorText = await response.text().catch(() => UNKNOWN_ERROR_TEXT);
+    throw new ProviderUnavailableError(provider, response.status, errorText);
+  }
   if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error');
+    const errorText = await response.text().catch(() => UNKNOWN_ERROR_TEXT);
     throw new InvalidApiKeyError(provider, `HTTP ${response.status}: ${errorText}`);
   }
 }
@@ -194,7 +221,8 @@ export class KeyValidationService {
       if (
         error instanceof InvalidApiKeyError ||
         error instanceof QuotaExceededError ||
-        error instanceof ValidationTimeoutError
+        error instanceof ValidationTimeoutError ||
+        error instanceof ProviderUnavailableError
       ) {
         return { valid: false, provider, error };
       }
@@ -282,6 +310,13 @@ export class KeyValidationService {
         throw new InvalidApiKeyError(provider, 'Key rejected by ElevenLabs');
       }
 
+      // 5xx means "provider is having issues," not "key is bad." Surface as
+      // transient so callers can distinguish retry-worthy from terminal.
+      if (response.status >= 500) {
+        const errorText = await response.text().catch(() => UNKNOWN_ERROR_TEXT);
+        throw new ProviderUnavailableError(provider, response.status, errorText);
+      }
+
       if (!response.ok) {
         const errorText = await response.text().catch(() => UNKNOWN_ERROR_TEXT);
         throw new InvalidApiKeyError(provider, `HTTP ${response.status}: ${errorText}`);
@@ -361,6 +396,13 @@ export class KeyValidationService {
 
       if (response.status === 429) {
         throw new QuotaExceededError(provider, 'Coding-plan quota exhausted');
+      }
+
+      // 5xx means "provider is having issues," not "key is bad." Surface as
+      // transient so callers can distinguish retry-worthy from terminal.
+      if (response.status >= 500) {
+        const errorText = await response.text().catch(() => UNKNOWN_ERROR_TEXT);
+        throw new ProviderUnavailableError(provider, response.status, errorText);
       }
 
       if (!response.ok) {

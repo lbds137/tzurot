@@ -39,6 +39,7 @@ describe('identitySection', () => {
     const data = {
       name: 'Test',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       description: 'A description',
     } as FlattenedPresetData;
     expect(identitySection.getStatus(data)).toBe(SectionStatus.COMPLETE);
@@ -48,6 +49,7 @@ describe('identitySection', () => {
     const data = {
       name: 'Test',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       description: '',
     } as FlattenedPresetData;
     expect(identitySection.getStatus(data)).toBe(SectionStatus.DEFAULT);
@@ -57,6 +59,7 @@ describe('identitySection', () => {
     const data = {
       name: 'My Preset',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       description: '',
     } as FlattenedPresetData;
     const preview = identitySection.getPreview(data);
@@ -68,6 +71,7 @@ describe('identitySection', () => {
     const data = {
       name: 'My Preset',
       model: 'anthropic/claude-sonnet-4',
+      provider: 'openrouter',
       visionModel: 'gpt-4-vision',
       description: '',
     } as FlattenedPresetData;
