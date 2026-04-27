@@ -253,6 +253,76 @@ describe('KeyValidationService', () => {
         expect(result.error).toBeInstanceOf(ValidationTimeoutError);
       });
     });
+
+    describe('ZaiCoding validation', () => {
+      it('should return valid=true for 200 response and POST to coding endpoint', async () => {
+        mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+
+        const result = await service.validateKey('zai-valid', AIProvider.ZaiCoding);
+
+        expect(result.valid).toBe(true);
+        expect(result.provider).toBe(AIProvider.ZaiCoding);
+        expect(mockFetch).toHaveBeenCalledWith(
+          'https://api.z.ai/api/coding/paas/v4/chat/completions',
+          expect.objectContaining({
+            method: 'POST',
+            headers: expect.objectContaining({
+              Authorization: 'Bearer zai-valid',
+              'Content-Type': 'application/json',
+            }),
+          })
+        );
+      });
+
+      it('should throw InvalidApiKeyError for 401 response', async () => {
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: 401,
+          text: async () => 'Unauthorized',
+        });
+
+        const result = await service.validateKey('zai-invalid', AIProvider.ZaiCoding);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(InvalidApiKeyError);
+        expect((result.error as InvalidApiKeyError).provider).toBe(AIProvider.ZaiCoding);
+      });
+
+      it('should throw InvalidApiKeyError for 403 response', async () => {
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: 403,
+          text: async () => 'Forbidden',
+        });
+
+        const result = await service.validateKey('zai-forbidden', AIProvider.ZaiCoding);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(InvalidApiKeyError);
+      });
+
+      it('should throw QuotaExceededError for 429 response', async () => {
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status: 429,
+          text: async () => 'Rate limited',
+        });
+
+        const result = await service.validateKey('zai-quota-out', AIProvider.ZaiCoding);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(QuotaExceededError);
+      });
+
+      it('should handle timeout errors', async () => {
+        mockFetch.mockRejectedValue(new Error(MOCK_TIMEOUT_SIGNAL));
+
+        const result = await service.validateKey('zai-slow', AIProvider.ZaiCoding);
+
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeInstanceOf(ValidationTimeoutError);
+      });
+    });
   });
 
   describe('error classes', () => {

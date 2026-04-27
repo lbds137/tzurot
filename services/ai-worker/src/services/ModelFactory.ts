@@ -28,32 +28,70 @@ const logger = createLogger('ModelFactory');
 const config = getConfig();
 
 /**
- * Models with restricted parameter sets.
- * Some providers only support a subset of sampling parameters.
- * Sending unsupported params causes 400 "Provider returned error" from OpenRouter.
+ * Provider-tier unsupported params for z.ai-direct routing.
+ *
+ * Z.AI docs (docs.z.ai/api-reference/llm/chat-completion) list supported params
+ * as: temperature, top_p, max_tokens, stop (max 1), thinking, tools, tool_choice,
+ * do_sample, response_format, stream. Anything outside that list yields 400
+ * "Invalid API parameter" (code 1210), regardless of which GLM model is targeted.
+ *
+ * Routes through OpenRouter are NOT subject to this filter — OpenRouter's
+ * normalization layer translates or drops these params per upstream provider's
+ * actual support, so we don't pre-strip them at the SDK boundary.
+ */
+const ZAI_DIRECT_UNSUPPORTED_PARAMS: ReadonlySet<string> = new Set([
+  'frequency_penalty',
+  'presence_penalty',
+  'repetition_penalty',
+  'seed',
+  'top_k',
+  'min_p',
+  'top_a',
+  'logit_bias',
+]);
+
+/**
+ * Models with restricted parameter sets even when routed through OpenRouter.
+ * Some upstream providers reject params that OpenRouter's normalization layer
+ * doesn't translate. The pattern matches by model name substring.
  *
  * Maps model patterns to sets of unsupported parameter names (snake_case API keys).
  * Filtering covers both first-class ChatOpenAI params and modelKwargs.
  */
 const RESTRICTED_PARAM_MODELS: { pattern: RegExp; unsupported: ReadonlySet<string> }[] = [
   {
-    // Z.AI docs (docs.z.ai/api-reference/llm/chat-completion) list supported params as:
-    // temperature, top_p, max_tokens, stop (max 1), thinking, tools, tool_choice,
-    // do_sample, response_format, stream
-    // Everything else causes intermittent 400 "Invalid API parameter" (code 1210)
+    // glm-4.5-air observed to 400 with "Invalid API parameter" (code 1210)
+    // when these params are passed via OpenRouter despite OpenRouter's normalization.
+    // Reuses ZAI_DIRECT_UNSUPPORTED_PARAMS because the two contracts happen to match
+    // today; track independently if z.ai's direct supported-params contract diverges
+    // from what OpenRouter passes through to the glm-4.5-air upstream.
     pattern: /glm-4\.5-air/i,
-    unsupported: new Set([
-      'frequency_penalty',
-      'presence_penalty',
-      'repetition_penalty',
-      'seed',
-      'top_k',
-      'min_p',
-      'top_a',
-      'logit_bias',
-    ]),
+    unsupported: ZAI_DIRECT_UNSUPPORTED_PARAMS,
   },
 ];
+
+/**
+ * Resolve the set of unsupported param names for a given (modelName, provider) pair.
+ *
+ * Provider-tier filter (z.ai-direct) takes precedence — z.ai's chat-completion
+ * endpoint enforces a single supported-params contract for every GLM variant it
+ * serves, regardless of model name. For other providers (e.g. OpenRouter), fall
+ * back to per-model regex matching against `RESTRICTED_PARAM_MODELS`.
+ */
+function resolveUnsupportedParamSet(
+  modelName: string,
+  effectiveProvider: AIProvider
+): ReadonlySet<string> | null {
+  if (effectiveProvider === AIProvider.ZaiCoding) {
+    return ZAI_DIRECT_UNSUPPORTED_PARAMS;
+  }
+  for (const entry of RESTRICTED_PARAM_MODELS) {
+    if (entry.pattern.test(modelName)) {
+      return entry.unsupported;
+    }
+  }
+  return null;
+}
 
 /**
  * Filter unsupported sampling params for models with restricted parameter sets.
@@ -63,17 +101,11 @@ const RESTRICTED_PARAM_MODELS: { pattern: RegExp; unsupported: ReadonlySet<strin
  */
 function filterRestrictedParams(
   modelName: string,
+  effectiveProvider: AIProvider,
   firstClassParams: { frequencyPenalty?: number; presencePenalty?: number },
   modelKwargs: Record<string, unknown>
 ): { frequencyPenalty?: number; presencePenalty?: number } {
-  // Find restricted param set for this model
-  let unsupported: ReadonlySet<string> | null = null;
-  for (const entry of RESTRICTED_PARAM_MODELS) {
-    if (entry.pattern.test(modelName)) {
-      unsupported = entry.unsupported;
-      break;
-    }
-  }
+  const unsupported = resolveUnsupportedParamSet(modelName, effectiveProvider);
   if (unsupported === null) {
     return firstClassParams;
   }
@@ -315,28 +347,146 @@ function buildOpenRouterClientConfig(
 }
 
 /**
- * Create a chat model based on configured AI provider
+ * Common pre-computed params shared across provider-specific model builders.
+ * Computed once in createChatModel and forwarded to whichever build*Model runs.
+ */
+interface SharedChatModelParams {
+  temperature: number | undefined;
+  topP: number | undefined;
+  maxTokens: number | undefined;
+  frequencyPenalty: number | undefined;
+  presencePenalty: number | undefined;
+  modelKwargs: Record<string, unknown>;
+  hasModelKwargs: boolean;
+}
+
+function buildOpenRouterModel(
+  modelName: string,
+  modelConfig: ModelConfig,
+  shared: SharedChatModelParams
+): ChatModelResult {
+  const apiKey =
+    modelConfig.apiKey !== undefined && modelConfig.apiKey.length > 0
+      ? modelConfig.apiKey
+      : config.OPENROUTER_API_KEY;
+  if (apiKey === undefined || apiKey.length === 0) {
+    throw new Error('OPENROUTER_API_KEY is required for AI generation');
+  }
+
+  const extraParams = buildOpenRouterExtraParams(modelConfig);
+  const hasExtraParams = Object.keys(extraParams).length > 0;
+  const hasReasoning =
+    modelConfig.reasoning !== undefined && modelConfig.supportsReasoning !== false;
+  const needsCustomFetch = hasExtraParams || hasReasoning;
+
+  logger.debug(
+    {
+      provider: AIProvider.OpenRouter,
+      modelName,
+      temperature: shared.temperature,
+      topP: shared.topP,
+      frequencyPenalty: shared.frequencyPenalty,
+      presencePenalty: shared.presencePenalty,
+      maxTokens: shared.maxTokens,
+      modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
+      extraParams: hasExtraParams ? extraParams : undefined,
+      reasoningEnabled: hasReasoning,
+      customFetch: needsCustomFetch,
+    },
+    'Creating model'
+  );
+
+  return {
+    model: new ChatOpenAI({
+      modelName,
+      apiKey,
+      temperature: shared.temperature,
+      topP: shared.topP,
+      frequencyPenalty: shared.frequencyPenalty,
+      presencePenalty: shared.presencePenalty,
+      maxTokens: shared.maxTokens,
+      modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
+      configuration: buildOpenRouterClientConfig(extraParams, needsCustomFetch),
+      // Surfaces the raw OpenRouter response under additional_kwargs.__raw_response,
+      // which extractAndPopulateOpenRouterReasoning() in LLMInvoker reads to populate
+      // additional_kwargs.reasoning + response_metadata.reasoning_details. This
+      // bridges the OpenRouter `message.reasoning` ↔ LangChain `message.reasoning_content`
+      // field-name gap (see langchain-ai/langchain#32981).
+      // Field is typed but marked experimental beta in @langchain/openai dist/types.d.ts:121.
+      __includeRawResponse: true,
+    }),
+    modelName,
+  };
+}
+
+function buildZaiCodingModel(
+  modelName: string,
+  modelConfig: ModelConfig,
+  shared: SharedChatModelParams
+): ChatModelResult {
+  // z.ai coding plan has no system fallback — only user-provided keys are
+  // valid here (the system OPENROUTER_API_KEY belongs to OpenRouter, not z.ai).
+  // Callers wanting OpenRouter fallthrough on missing key must resolve that
+  // BEFORE calling createChatModel (planned: ProviderRouter in a follow-up PR).
+  const { apiKey } = modelConfig;
+  if (apiKey === undefined || apiKey.length === 0) {
+    throw new Error('z.ai coding plan API key is required for this preset (no system fallback)');
+  }
+
+  logger.debug(
+    {
+      provider: AIProvider.ZaiCoding,
+      modelName,
+      temperature: shared.temperature,
+      topP: shared.topP,
+      maxTokens: shared.maxTokens,
+      // frequencyPenalty/presencePenalty omitted: filterRestrictedParams strips
+      // them to undefined for z.ai-direct (provider-tier filter), so they would
+      // always log as undefined and add noise without signal.
+      modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
+    },
+    'Creating z.ai coding model'
+  );
+
+  return {
+    model: new ChatOpenAI({
+      modelName,
+      apiKey,
+      temperature: shared.temperature,
+      topP: shared.topP,
+      frequencyPenalty: shared.frequencyPenalty,
+      presencePenalty: shared.presencePenalty,
+      maxTokens: shared.maxTokens,
+      modelKwargs: shared.hasModelKwargs ? shared.modelKwargs : undefined,
+      configuration: {
+        baseURL: AI_ENDPOINTS.ZAI_CODING_BASE_URL,
+      },
+    }),
+    modelName,
+  };
+}
+
+/**
+ * Create a chat model based on configured AI provider.
  *
- * Currently only OpenRouter is supported. OpenRouter can route to any provider
- * including OpenAI, Anthropic, Google, etc. models.
+ * Provider is taken from `modelConfig.provider` (per-request override) when set,
+ * else falls back to env-level `config.AI_PROVIDER`. Each provider has its own
+ * client builder (build*Model) — this function pre-computes shared params and
+ * dispatches.
  */
 export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult {
-  const provider = config.AI_PROVIDER;
+  const provider = modelConfig.provider ?? config.AI_PROVIDER;
   const modelName = validateModelName(modelConfig.modelName);
-
-  const temperature = modelConfig.temperature;
-  const topP = modelConfig.topP;
 
   const maxTokens = getEffectiveMaxTokens(
     modelName,
     modelConfig.maxTokens,
     modelConfig.reasoning?.effort
   );
-
   const modelKwargs = buildModelKwargs(modelConfig);
-
   const { frequencyPenalty, presencePenalty } = filterRestrictedParams(
     modelName,
+    provider,
     {
       frequencyPenalty: modelConfig.frequencyPenalty,
       presencePenalty: modelConfig.presencePenalty,
@@ -344,70 +494,25 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
     modelKwargs
   );
 
-  const hasModelKwargs = Object.keys(modelKwargs).length > 0;
+  const shared: SharedChatModelParams = {
+    temperature: modelConfig.temperature,
+    topP: modelConfig.topP,
+    maxTokens,
+    frequencyPenalty,
+    presencePenalty,
+    modelKwargs,
+    hasModelKwargs: Object.keys(modelKwargs).length > 0,
+  };
 
   switch (provider) {
-    case AIProvider.OpenRouter: {
-      const apiKey =
-        modelConfig.apiKey !== undefined && modelConfig.apiKey.length > 0
-          ? modelConfig.apiKey
-          : config.OPENROUTER_API_KEY;
-      if (apiKey === undefined || apiKey.length === 0) {
-        throw new Error('OPENROUTER_API_KEY is required for AI generation');
-      }
-
-      const extraParams = buildOpenRouterExtraParams(modelConfig);
-      const hasExtraParams = Object.keys(extraParams).length > 0;
-
-      const hasReasoning =
-        modelConfig.reasoning !== undefined && modelConfig.supportsReasoning !== false;
-      const needsCustomFetch = hasExtraParams || hasReasoning;
-
-      logger.debug(
-        {
-          provider,
-          modelName,
-          temperature,
-          topP,
-          frequencyPenalty,
-          presencePenalty,
-          maxTokens,
-          modelKwargs: hasModelKwargs ? modelKwargs : undefined,
-          extraParams: hasExtraParams ? extraParams : undefined,
-          reasoningEnabled: hasReasoning,
-          customFetch: needsCustomFetch,
-        },
-        'Creating model'
-      );
-
-      return {
-        model: new ChatOpenAI({
-          modelName,
-          apiKey,
-          temperature,
-          topP,
-          frequencyPenalty,
-          presencePenalty,
-          maxTokens,
-          modelKwargs: hasModelKwargs ? modelKwargs : undefined,
-          configuration: buildOpenRouterClientConfig(extraParams, needsCustomFetch),
-          // Surfaces the raw OpenRouter response under additional_kwargs.__raw_response,
-          // which extractAndPopulateOpenRouterReasoning() in LLMInvoker reads to populate
-          // additional_kwargs.reasoning + response_metadata.reasoning_details. This
-          // bridges the OpenRouter `message.reasoning` ↔ LangChain `message.reasoning_content`
-          // field-name gap (see langchain-ai/langchain#32981).
-          // Field is typed but marked experimental beta in @langchain/openai dist/types.d.ts:121.
-          __includeRawResponse: true,
-        }),
-        modelName,
-      };
-    }
-
+    case AIProvider.OpenRouter:
+      return buildOpenRouterModel(modelName, modelConfig, shared);
+    case AIProvider.ZaiCoding:
+      return buildZaiCodingModel(modelName, modelConfig, shared);
     case AIProvider.ElevenLabs:
       throw new Error(
         'ElevenLabs is a voice provider, not an LLM provider. Use VoiceEngineClient or ElevenLabsClient for voice operations.'
       );
-
     default: {
       const _exhaustive: never = provider;
       throw new Error(`Unsupported AI provider: ${String(_exhaustive)}`);

@@ -198,6 +198,12 @@ export class ApiKeyResolver {
         // no system key is typically configured. Present for completeness
         // and to support future operator-provided fallback if needed.
         return config.ELEVENLABS_API_KEY ?? null;
+      case AIProvider.ZaiCoding:
+        // No system fallback for z.ai Coding Plan — every user must bring
+        // their own coding-plan subscription key. Callers wanting OpenRouter
+        // fallthrough on missing z.ai key handle that at a higher layer
+        // (planned: ProviderRouter in PR 2).
+        return null;
       default: {
         // Type guard for exhaustive check - add new providers above
         const _exhaustive: never = provider;

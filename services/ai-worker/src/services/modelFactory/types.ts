@@ -6,7 +6,7 @@
  */
 
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { ConvertedLlmParams } from '@tzurot/common-types';
+import type { AIProvider, ConvertedLlmParams } from '@tzurot/common-types';
 
 /**
  * Model configuration for creating chat models.
@@ -15,6 +15,13 @@ import type { ConvertedLlmParams } from '@tzurot/common-types';
 export interface ModelConfig extends ConvertedLlmParams {
   modelName?: string;
   apiKey?: string; // User-provided key (BYOK)
+  /**
+   * Per-request provider override. When set, ModelFactory uses this provider
+   * instead of the env-level `config.AI_PROVIDER` default. Required to route
+   * a single request to a non-default provider (e.g. z.ai-coding) based on
+   * the resolved LlmConfig's provider field.
+   */
+  provider?: AIProvider;
   /**
    * Whether the model supports reasoning parameters.
    * Resolved async by caller via checkModelReasoningSupport().

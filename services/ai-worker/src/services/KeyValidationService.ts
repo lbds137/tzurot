@@ -16,10 +16,14 @@ import {
   AI_ENDPOINTS,
   VALIDATION_TIMEOUTS,
   TimeoutError,
+  ZAI_VALIDATION_MODEL,
 } from '@tzurot/common-types';
 import { withTimeout } from '../utils/retry.js';
 
 const logger = createLogger('KeyValidationService');
+
+/** Fallback error text when an HTTP error response body cannot be parsed. */
+const UNKNOWN_ERROR_TEXT = 'Unknown error';
 
 /**
  * Error thrown when API key is invalid or rejected by provider
@@ -175,6 +179,8 @@ export class KeyValidationService {
           return await this.validateOpenRouterKey(apiKey);
         case AIProvider.ElevenLabs:
           return await this.validateElevenLabsKey(apiKey);
+        case AIProvider.ZaiCoding:
+          return await this.validateZaiCodingKey(apiKey);
         default: {
           const _exhaustive: never = provider;
           logger.warn({ provider: _exhaustive }, 'Unsupported provider for validation');
@@ -277,7 +283,7 @@ export class KeyValidationService {
       }
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
+        const errorText = await response.text().catch(() => UNKNOWN_ERROR_TEXT);
         throw new InvalidApiKeyError(provider, `HTTP ${response.status}: ${errorText}`);
       }
 
@@ -308,6 +314,62 @@ export class KeyValidationService {
         provider,
         metadata: { creditBalance: remaining },
       };
+    } catch (error) {
+      if (error instanceof TimeoutError) {
+        throw new ValidationTimeoutError(provider);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Validate a z.ai Coding Plan API key.
+   *
+   * z.ai does not expose an introspection endpoint, so validation is a minimal
+   * `chat/completions` POST (max_tokens=1) against the coding-plan base URL.
+   *
+   * Note: Similar validation exists in api-gateway's apiKeyValidation.ts
+   * (validateZaiCodingKey). Gateway validates on key submission; this
+   * validates on job execution. Intentionally separate per service boundary.
+   */
+  private async validateZaiCodingKey(apiKey: string): Promise<KeyValidationResult> {
+    const provider = AIProvider.ZaiCoding;
+
+    try {
+      const response = await withTimeout(
+        signal =>
+          fetch(`${AI_ENDPOINTS.ZAI_CODING_BASE_URL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: ZAI_VALIDATION_MODEL,
+              messages: [{ role: 'user', content: 'hi' }],
+              max_tokens: 1,
+            }),
+            signal,
+          }),
+        VALIDATION_TIMEOUTS.API_KEY_VALIDATION,
+        'z.ai coding-plan key validation'
+      );
+
+      if (response.status === 401 || response.status === 403) {
+        throw new InvalidApiKeyError(provider, 'Key rejected by z.ai');
+      }
+
+      if (response.status === 429) {
+        throw new QuotaExceededError(provider, 'Coding-plan quota exhausted');
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => UNKNOWN_ERROR_TEXT);
+        throw new InvalidApiKeyError(provider, `HTTP ${response.status}: ${errorText}`);
+      }
+
+      logger.info({ provider }, 'z.ai coding-plan key validated successfully');
+      return { valid: true, provider };
     } catch (error) {
       if (error instanceof TimeoutError) {
         throw new ValidationTimeoutError(provider);
