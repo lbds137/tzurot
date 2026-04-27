@@ -15,19 +15,13 @@ _No production issues active. beta.108 just shipped with the post-deploy DM-sile
 
 ## Active Task
 
-**Post-beta.108 cleanup bundle PR** (in progress) — three small items folded into one PR:
-
-1. TTS chunker defensive truncation (real bug, Lilith observation 2026-04-27 — chunker produced 2006 chars against 2000-char voice-engine cap; root cause unreproducible from user-pasted text but truncation cuts the failure path regardless)
-2. Await async cleanup before `process.exit` in bot-client shutdown (PR #913 follow-up — `void`'d promises don't resolve before exit)
-3. Replace local `CreatePersonaResponse` with imported common-types type (drift prevention — local interface and Zod schema can silently diverge)
-
-Branch: `chore/post-beta-108-cleanup`. Fix shapes documented in `backlog/quick-wins.md`.
+_None. PR #920 (post-beta-108 cleanup bundle) merged 2026-04-27 — three commits land on develop: chunker defensive truncation (`d5df0ab32`), shutdown async-await (`2eb46fe0d`), `CreatePersonaResponse` import (`538551a2b`). Four review rounds, two auto-applied trivial-comment fixups, all reviewer asks resolved or verified safe._
 
 ---
 
 ## Unreleased on Develop (since beta.108)
 
-_Nothing yet — beta.108 was just cut._
+- **PR #920** (`chore/post-beta-108-cleanup`, merged 2026-04-27) — chunker defensive truncation against off-by-N output (real Lilith bug), shutdown async-await (PR #913 follow-up), `CreatePersonaResponse` schema import (drift prevention).
 
 ---
 
