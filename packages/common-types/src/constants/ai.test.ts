@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isFreeModel, GUEST_MODE, buildModelInfoUrl } from './ai.js';
+import { isFreeModel, GUEST_MODE, buildModelInfoUrl, isZaiCodingPlanModel } from './ai.js';
 
 describe('isFreeModel', () => {
   it('should return true for models ending with :free', () => {
@@ -129,5 +129,30 @@ describe('buildModelInfoUrl', () => {
         'https://openrouter.ai/some-model'
       );
     });
+  });
+});
+
+describe('isZaiCodingPlanModel', () => {
+  it('should accept all four current coding-plan catalog entries', () => {
+    expect(isZaiCodingPlanModel('glm-5.1')).toBe(true);
+    expect(isZaiCodingPlanModel('glm-5-turbo')).toBe(true);
+    expect(isZaiCodingPlanModel('glm-4.7')).toBe(true);
+    expect(isZaiCodingPlanModel('glm-4.5-air')).toBe(true);
+  });
+
+  it('should case-normalize the input before lookup', () => {
+    // User-typed preset configs may use any case; the catalog entries are
+    // canonical lowercase. This is the function's whole reason to exist
+    // (rather than just exporting the array).
+    expect(isZaiCodingPlanModel('GLM-5.1')).toBe(true);
+    expect(isZaiCodingPlanModel('Glm-4.7')).toBe(true);
+    expect(isZaiCodingPlanModel('GLM-4.5-AIR')).toBe(true);
+  });
+
+  it('should reject models not in the catalog', () => {
+    expect(isZaiCodingPlanModel('glm-99-future')).toBe(false);
+    expect(isZaiCodingPlanModel('glm-4.5-flash')).toBe(false); // hallucinated name from PR #921
+    expect(isZaiCodingPlanModel('claude-sonnet-4')).toBe(false);
+    expect(isZaiCodingPlanModel('')).toBe(false);
   });
 });

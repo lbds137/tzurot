@@ -127,11 +127,13 @@ export class AuthStep implements IPipelineStep {
         userId
       );
 
-      // Fallthrough override: apply BOTH model-name and provider overrides so
+      // Route override: apply BOTH model-name and provider overrides so
       // downstream code (ConversationalRAGService → ModelFactory) reads the
       // post-route values. Without the provider override, ModelFactory would
-      // route to the wrong client using the wrong key.
-      if (route.fallthroughTriggered) {
+      // route to the wrong client using the wrong key. Fires on either
+      // direction of the routing decision: zai-coding → openrouter (no key
+      // fallthrough) OR openrouter z-ai/ → zai-coding (auto-promotion).
+      if (route.fallthroughTriggered || route.wasAutoPromoted) {
         effectivePersonality = {
           ...effectivePersonality,
           model: route.effectiveModel,
@@ -146,6 +148,7 @@ export class AuthStep implements IPipelineStep {
           effectiveProvider: route.effectiveProvider,
           effectiveModel: route.effectiveModel,
           fallthroughTriggered: route.fallthroughTriggered,
+          wasAutoPromoted: route.wasAutoPromoted,
           isGuestMode: route.isGuestMode,
         },
         'Resolved provider route'
