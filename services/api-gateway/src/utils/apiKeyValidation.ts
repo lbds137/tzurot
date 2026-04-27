@@ -25,6 +25,7 @@ const VALIDATION_MESSAGES = {
   INVALID_KEY: 'Invalid API key',
   TIMEOUT: 'Validation request timed out',
   FALLBACK: 'Validation failed',
+  QUOTA_EXCEEDED_ZAI: 'z.ai coding-plan quota exhausted for the current period',
 } as const;
 
 /**
@@ -232,7 +233,7 @@ export async function validateZaiCodingKey(apiKey: string): Promise<ApiKeyValida
       return {
         valid: false,
         errorCode: 'QUOTA_EXCEEDED',
-        error: 'z.ai coding-plan quota exhausted for the current period',
+        error: VALIDATION_MESSAGES.QUOTA_EXCEEDED_ZAI,
       };
     }
 

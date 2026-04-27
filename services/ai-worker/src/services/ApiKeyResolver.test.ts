@@ -352,6 +352,75 @@ describe('ApiKeyResolver', () => {
     });
   });
 
+  describe('tryResolveUserKey', () => {
+    it('should return null when userId is undefined', async () => {
+      const result = await resolver.tryResolveUserKey(undefined, AIProvider.ZaiCoding);
+
+      expect(result).toBeNull();
+      expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('should return null when encryption is not configured', async () => {
+      const noEncryptionResolver = new ApiKeyResolver(mockPrisma as unknown as PrismaClient, '');
+
+      const result = await noEncryptionResolver.tryResolveUserKey('user-123', AIProvider.ZaiCoding);
+
+      expect(result).toBeNull();
+      // Should NOT hit the DB — encryption-disabled short-circuit.
+      expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('should return user key from cache when source is "user"', async () => {
+      // Pre-warm the cache via resolveApiKey
+      const encryptedData = { iv: 'iv', content: 'content', tag: 'tag' };
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(encryptedData);
+      mockDecryptApiKey.mockReturnValue('cached-zai-key');
+
+      await resolver.resolveApiKey('user-123', AIProvider.ZaiCoding);
+      mockPrisma.userApiKey.findFirst.mockClear();
+
+      // Now tryResolveUserKey should hit the cache, NOT the DB.
+      const result = await resolver.tryResolveUserKey('user-123', AIProvider.ZaiCoding);
+
+      expect(result).toBe('cached-zai-key');
+      expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('should return null on cache hit when source is "system" (user has no key)', async () => {
+      // Pre-warm cache with system-source result (this is the path for
+      // OpenRouter when user has no key — system key + isGuestMode=true).
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      await resolver.resolveApiKey('user-123', AIProvider.OpenRouter); // system fallback
+      mockPrisma.userApiKey.findFirst.mockClear();
+
+      // tryResolveUserKey should NOT honor the system-source cache hit —
+      // returning null triggers fallthrough correctly.
+      const result = await resolver.tryResolveUserKey('user-123', AIProvider.OpenRouter);
+
+      expect(result).toBeNull();
+      // Should also NOT hit the DB — we've decided based on cached source.
+      expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('should write user-source cache entry on cache miss + DB hit', async () => {
+      // First call: cache miss, DB hit, writes cache.
+      const encryptedData = { iv: 'iv', content: 'content', tag: 'tag' };
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(encryptedData);
+      mockDecryptApiKey.mockReturnValue('zai-user-key');
+
+      const firstCall = await resolver.tryResolveUserKey('user-123', AIProvider.ZaiCoding);
+      expect(firstCall).toBe('zai-user-key');
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(1);
+
+      // Second call: cache hit, no DB call.
+      mockPrisma.userApiKey.findFirst.mockClear();
+      const secondCall = await resolver.tryResolveUserKey('user-123', AIProvider.ZaiCoding);
+      expect(secondCall).toBe('zai-user-key');
+      expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
   describe('encryption key not configured', () => {
     it('should use system key with guest mode when encryption key not provided', async () => {
       const resolverNoEncryption = new ApiKeyResolver(

@@ -69,6 +69,7 @@ describe('ConversationPersistence', () => {
       systemPrompt: 'You are a test bot',
       llmConfig: {
         model: 'test-model',
+        provider: 'openrouter',
         temperature: 0.7,
         maxTokens: 1000,
       },

@@ -38,6 +38,7 @@ describe('LlmConfigMapper', () => {
   describe('mapLlmConfigFromDb', () => {
     const createRaw = (overrides: Partial<RawLlmConfigFromDb> = {}): RawLlmConfigFromDb => ({
       model: 'openai/gpt-4',
+      provider: 'openrouter',
       visionModel: 'openai/gpt-4-vision',
       advancedParameters: null,
       memoryScoreThreshold: null,
@@ -176,6 +177,7 @@ describe('LlmConfigMapper', () => {
     it('should preserve model fields regardless of advancedParameters state', () => {
       const raw = createRaw({
         model: 'anthropic/claude-3-opus',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: { temperature: 999 }, // Invalid
       });
@@ -206,6 +208,7 @@ describe('LlmConfigMapper', () => {
       const raw: RawLlmConfigFromDbWithName = {
         name: 'My Custom Config',
         model: 'openai/gpt-4',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: { temperature: 0.7 },
         memoryScoreThreshold: null,
@@ -228,6 +231,7 @@ describe('LlmConfigMapper', () => {
     it('should handle typical personality default config', () => {
       const raw: RawLlmConfigFromDb = {
         model: 'anthropic/claude-3-sonnet',
+        provider: 'openrouter',
         visionModel: 'anthropic/claude-3-haiku',
         advancedParameters: {
           temperature: 0.9,
@@ -257,6 +261,7 @@ describe('LlmConfigMapper', () => {
     it('should handle config with reasoning enabled', () => {
       const raw: RawLlmConfigFromDb = {
         model: 'deepseek/deepseek-r1',
+        provider: 'openrouter',
         visionModel: null,
         advancedParameters: {
           temperature: 1.0, // Required for reasoning models
@@ -291,6 +296,7 @@ describe('LlmConfigMapper', () => {
       const raw: RawLlmConfigFromDbWithName = {
         name: 'Creative Mode',
         model: 'openai/gpt-4o',
+        provider: 'openrouter',
         visionModel: 'openai/gpt-4o',
         advancedParameters: {
           temperature: 1.5,

@@ -30,11 +30,18 @@ function getConfigValue<T>(
 function getRequiredLlmConfig(
   pc: MappedLlmConfig | null,
   gc: MappedLlmConfig | null
-): Pick<LoadedPersonality, 'model' | 'temperature' | 'maxTokens' | 'contextWindowTokens'> {
+): Pick<
+  LoadedPersonality,
+  'model' | 'temperature' | 'maxTokens' | 'contextWindowTokens' | 'provider'
+> {
   return {
     model:
       getConfigValue(pc?.model, gc?.model, MODEL_DEFAULTS.DEFAULT_MODEL) ??
       MODEL_DEFAULTS.DEFAULT_MODEL,
+    // Provider routing key — cascades through personality-specific config
+    // → global default → 'openrouter' fallback. Drives ProviderRouter and
+    // ModelFactory branch selection at request time.
+    provider: getConfigValue(pc?.provider, gc?.provider, 'openrouter') ?? 'openrouter',
     temperature:
       getConfigValue(pc?.temperature, gc?.temperature, AI_DEFAULTS.TEMPERATURE) ??
       AI_DEFAULTS.TEMPERATURE,

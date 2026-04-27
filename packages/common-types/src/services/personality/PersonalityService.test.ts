@@ -48,6 +48,7 @@ describe('PersonalityService - Cache Invalidation', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'test-model',
+            provider: 'openrouter',
             visionModel: null,
             temperature: 0.7,
             topP: null,
@@ -110,6 +111,7 @@ describe('PersonalityService - Cache Invalidation', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'test-model',
+            provider: 'openrouter',
             visionModel: null,
             temperature: 0.7,
             topP: null,
@@ -164,6 +166,7 @@ describe('PersonalityService - Cache Invalidation', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'test-model',
+            provider: 'openrouter',
             visionModel: null,
             temperature: 0.7,
             topP: null,
@@ -240,6 +243,7 @@ describe('PersonalityService - Cache Invalidation', () => {
       defaultConfigLink: {
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           visionModel: null,
           temperature: 0.7,
           topP: null,
@@ -385,6 +389,7 @@ describe('PersonalityService - Cache Invalidation', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'test-model',
+            provider: 'openrouter',
             visionModel: null,
             temperature: 0.7,
             topP: null,

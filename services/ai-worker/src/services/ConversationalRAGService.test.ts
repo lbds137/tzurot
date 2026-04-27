@@ -906,6 +906,7 @@ describe('ConversationalRAGService', () => {
     it('should pass all sampling parameters to LLMInvoker', async () => {
       const personality = createMockPersonality({
         model: 'claude-3-sonnet',
+        provider: 'openrouter',
         temperature: 0.8,
         topP: 0.95,
         topK: 50,
@@ -935,6 +936,7 @@ describe('ConversationalRAGService', () => {
     it('should pass advanced sampling parameters to LLMInvoker', async () => {
       const personality = createMockPersonality({
         model: 'openrouter/deepseek-r1',
+        provider: 'openrouter',
         minP: 0.1,
         topA: 0.5,
         seed: 42,
@@ -956,6 +958,7 @@ describe('ConversationalRAGService', () => {
     it('should pass reasoning config for thinking models', async () => {
       const personality = createMockPersonality({
         model: 'openrouter/deepseek-r1',
+        provider: 'openrouter',
         reasoning: {
           effort: 'high',
           enabled: true,
@@ -981,6 +984,7 @@ describe('ConversationalRAGService', () => {
     it('should pass OpenRouter-specific parameters to LLMInvoker', async () => {
       const personality = createMockPersonality({
         model: 'openrouter/gpt-4o',
+        provider: 'openrouter',
         transforms: ['middle-out'],
         route: 'fallback',
         verbosity: 'high',

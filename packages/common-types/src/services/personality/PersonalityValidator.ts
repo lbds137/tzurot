@@ -109,6 +109,7 @@ export function parseLlmConfig(dbConfig: unknown): LlmConfig {
 export interface DatabaseLlmConfig {
   model: string;
   visionModel: string | null;
+  provider: string; // 'openrouter' | 'zai-coding' | future enum values
   advancedParameters: unknown; // JSONB - validated via Zod in mapper
   memoryScoreThreshold: Decimal | null;
   memoryLimit: number | null;

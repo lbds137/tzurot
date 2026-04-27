@@ -174,6 +174,7 @@ describe('PersonalityDefaults', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'anthropic/claude-sonnet-4.5',
+            provider: 'openrouter',
             visionModel: 'anthropic/claude-sonnet-4.5',
             advancedParameters: {
               temperature: 0.7,
@@ -214,6 +215,7 @@ describe('PersonalityDefaults', () => {
 
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
+        provider: 'openrouter',
         visionModel: 'global-vision-model',
         temperature: 0.8,
         maxTokens: 2048,
@@ -276,6 +278,7 @@ describe('PersonalityDefaults', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'deepseek/deepseek-r1',
+            provider: 'openrouter',
             visionModel: null,
             advancedParameters: {
               temperature: 0.7,
@@ -321,6 +324,7 @@ describe('PersonalityDefaults', () => {
 
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
+        provider: 'openrouter',
         visionModel: null,
         temperature: 0.8,
         maxTokens: 2048,
@@ -356,6 +360,7 @@ describe('PersonalityDefaults', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'z-ai/glm-4.5-air:free',
+            provider: 'openrouter',
             visionModel: null,
             advancedParameters: {
               temperature: 1,
@@ -391,6 +396,7 @@ describe('PersonalityDefaults', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'anthropic/claude-sonnet-4.5',
+            provider: 'openrouter',
             visionModel: null,
             advancedParameters: {
               temperature: 0.7,
@@ -451,6 +457,7 @@ describe('PersonalityDefaults', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'test-model',
+            provider: 'openrouter',
             visionModel: null,
             advancedParameters: {
               temperature: 0.7,
@@ -484,6 +491,7 @@ describe('PersonalityDefaults', () => {
 
       const globalConfig: MappedLlmConfig = {
         model: 'global-model',
+        provider: 'openrouter',
         visionModel: null,
         temperature: 0.7,
         maxTokens: 2048,
@@ -527,6 +535,7 @@ describe('PersonalityDefaults', () => {
         defaultConfigLink: {
           llmConfig: {
             model: 'anthropic/claude-3-opus',
+            provider: 'openrouter',
             visionModel: null,
             advancedParameters: {
               temperature: 0.9,
@@ -545,6 +554,7 @@ describe('PersonalityDefaults', () => {
       // Global config has different values - should be overridden by personality
       const globalConfig: MappedLlmConfig = {
         model: 'openai/gpt-4',
+        provider: 'openrouter',
         visionModel: null,
         temperature: 0.5,
         maxTokens: 2048,

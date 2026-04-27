@@ -54,6 +54,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   ownerId: 'owner-uuid-test',
   systemPrompt: 'You are a helpful assistant.',
   model: 'anthropic/claude-sonnet-4',
+  provider: 'openrouter',
   temperature: 0.7,
   maxTokens: 2000,
   contextWindowTokens: 8192,
@@ -66,6 +67,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
 const GUEST_EFFECTIVE_PERSONALITY: LoadedPersonality = {
   ...TEST_PERSONALITY,
   model: 'google/gemma-3-27b-it:free',
+  provider: 'openrouter',
   visionModel: 'google/gemma-3-27b-it:free', // Free vision model from resolved guest config
 };
 

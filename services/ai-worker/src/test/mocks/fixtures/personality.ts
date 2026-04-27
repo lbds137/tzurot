@@ -25,6 +25,7 @@ export function createMockPersonality(overrides?: Partial<LoadedPersonality>): L
     ownerId: 'owner-uuid-test',
     systemPrompt: 'You are a helpful test bot.',
     model: 'test-model',
+    provider: 'openrouter',
     temperature: 0.7,
     maxTokens: 2000,
     contextWindowTokens: 8192,

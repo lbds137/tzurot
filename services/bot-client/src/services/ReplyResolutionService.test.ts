@@ -120,6 +120,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -158,6 +159,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -254,6 +256,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -290,6 +293,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -327,6 +331,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -371,6 +376,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -418,6 +424,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -512,6 +519,7 @@ describe('ReplyResolutionService', () => {
         systemPrompt: 'Test prompt',
         llmConfig: {
           model: 'test-model',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 1000,
         },

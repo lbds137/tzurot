@@ -43,6 +43,7 @@ describe('POST /generate', () => {
           ownerId: 'owner-uuid-test',
           systemPrompt: 'You are a helpful assistant',
           model: 'anthropic/claude-sonnet-4.5',
+          provider: 'openrouter',
           temperature: 0.7,
           maxTokens: 4096,
           contextWindowTokens: 200000,

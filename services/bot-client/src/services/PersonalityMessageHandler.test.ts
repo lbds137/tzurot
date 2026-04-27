@@ -42,6 +42,7 @@ vi.mock('../utils/userGatewayClient.js', async () => {
       data: {
         config: {
           model: 'test-model',
+          provider: 'openrouter',
           maxMessages: 50,
           maxAge: null,
           maxImages: 10,
@@ -352,6 +353,7 @@ describe('PersonalityMessageHandler', () => {
         data: {
           config: {
             model: 'test-model',
+            provider: 'openrouter',
             maxMessages: 50, // LlmConfig says 50
             maxAge: null,
             maxImages: 10,
@@ -910,6 +912,7 @@ function createMockPersonality(): LoadedPersonality {
     voiceEnabled: false,
     llmConfig: {
       model: 'test-model',
+      provider: 'openrouter',
       temperature: 0.7,
       maxTokens: 1000,
     },

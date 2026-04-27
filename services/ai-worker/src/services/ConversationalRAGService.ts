@@ -20,6 +20,7 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { logAndThrow } from '../utils/errorHandling.js';
+import { validateAIProvider } from '../utils/providerValidation.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { LLMInvoker } from './LLMInvoker.js';
 import { MemoryRetriever } from './MemoryRetriever.js';
@@ -179,6 +180,17 @@ export class ConversationalRAGService {
     // Get model with all LLM sampling parameters (retry config overrides for duplicate detection)
     const { model, modelName } = this.llmInvoker.getModel({
       modelName: personality.model,
+      // Per-request provider override — drives ModelFactory's branch selection
+      // (OpenRouter vs zai-coding baseURL). Plumbed through PR 2 Phase A from
+      // LlmConfig.provider; AuthStep applies any ProviderRouter fallthrough
+      // overrides before this read. Defensive runtime guard at this consumption
+      // boundary (per common-types LlmConfigMapper docs: "Consumers that need
+      // to switch on it should validate against the AIProvider enum at the
+      // consumption boundary") — if a future provider lands in the DB column
+      // ahead of the AIProvider enum (data migration, manual DB edit, AuthStep
+      // override gap), fall back to OpenRouter with a logged warning rather
+      // than handing ModelFactory a string that doesn't match any branch.
+      provider: validateAIProvider(personality.provider),
       apiKey: userApiKey,
       temperature: retryConfig?.temperatureOverride ?? personality.temperature,
       topP: personality.topP,

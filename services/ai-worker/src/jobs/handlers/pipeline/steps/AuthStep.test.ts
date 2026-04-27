@@ -42,6 +42,7 @@ const TEST_PERSONALITY: LoadedPersonality = {
   ownerId: 'owner-uuid-test',
   systemPrompt: 'You are a helpful assistant.',
   model: 'anthropic/claude-sonnet-4', // Paid model
+  provider: 'openrouter',
   temperature: 0.7,
   maxTokens: 2000,
   contextWindowTokens: 8192,
@@ -78,6 +79,7 @@ function createMockJob(data: Partial<LLMGenerationJobData> = {}): Job<LLMGenerat
 function createMockApiKeyResolver(): ApiKeyResolver {
   return {
     resolveApiKey: vi.fn(),
+    tryResolveUserKey: vi.fn(),
     invalidateUserCache: vi.fn(),
     clearCache: vi.fn(),
   } as unknown as ApiKeyResolver;
@@ -226,6 +228,66 @@ describe('AuthStep', () => {
 
       expect(result.auth?.isGuestMode).toBe(true);
       expect(result.auth?.apiKey).toBeUndefined();
+    });
+
+    describe('zai-coding provider routing', () => {
+      const ZAI_PERSONALITY: LoadedPersonality = {
+        ...TEST_PERSONALITY,
+        provider: 'zai-coding',
+        model: 'glm-4.7',
+      };
+
+      it('should apply fallthrough overrides to effectivePersonality when user has no z.ai key', async () => {
+        // No z.ai-coding key → ProviderRouter returns OpenRouter fallthrough.
+        // AuthStep MUST apply the model + provider overrides to effectivePersonality
+        // so downstream code (ConversationalRAGService → ModelFactory) reads the
+        // post-route values. Regression in this block silently sends wrong-provider
+        // requests with wrong-key.
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue(null);
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'sk-or-user-key',
+          provider: AIProvider.OpenRouter,
+          source: 'user',
+          isGuestMode: false,
+        });
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: ZAI_PERSONALITY, configSource: 'personality' },
+        });
+
+        // Override applied: model gets z-ai/ prefix, provider becomes openrouter
+        expect(result.config?.effectivePersonality.model).toBe('z-ai/glm-4.7');
+        expect(result.config?.effectivePersonality.provider).toBe(AIProvider.OpenRouter);
+        expect(result.auth?.apiKey).toBe('sk-or-user-key');
+        expect(result.auth?.provider).toBe(AIProvider.OpenRouter);
+      });
+
+      it('should NOT override effectivePersonality on direct z.ai-coding route', async () => {
+        // User has z.ai-coding key → direct route, no fallthrough, no override.
+        // effectivePersonality.model and .provider stay as configured.
+        vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue('zai-user-key');
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: ZAI_PERSONALITY, configSource: 'personality' },
+        });
+
+        expect(result.config?.effectivePersonality.model).toBe('glm-4.7');
+        expect(result.config?.effectivePersonality.provider).toBe('zai-coding');
+        expect(result.auth?.apiKey).toBe('zai-user-key');
+        expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
+        // resolveApiKey should NOT be called for the LLM path on direct z.ai route
+        // (it'll be called once for ElevenLabs after, but not for OpenRouter fallthrough)
+        const orCalls = vi
+          .mocked(mockApiKeyResolver.resolveApiKey)
+          .mock.calls.filter(c => c[1] === AIProvider.OpenRouter);
+        expect(orCalls).toHaveLength(0);
+      });
     });
 
     it('should not override model if already free in guest mode', async () => {

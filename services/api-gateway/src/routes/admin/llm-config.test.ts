@@ -97,6 +97,7 @@ describe('Admin LLM Config Routes', () => {
           id: 'config-1',
           name: 'Default Config',
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
           isGlobal: true,
           isDefault: true,
           isFreeDefault: false,
@@ -106,6 +107,7 @@ describe('Admin LLM Config Routes', () => {
           id: 'config-2',
           name: 'User Config',
           model: 'google/gemini-2.0-flash',
+          provider: 'openrouter',
           isGlobal: false,
           isDefault: false,
           isFreeDefault: false,
@@ -129,8 +131,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-1',
         name: 'Default Config',
         description: 'System default',
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: true,
         isDefault: true,
@@ -155,8 +157,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-1',
         name: 'Config with context',
         description: null,
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: true,
         isDefault: false,
@@ -190,8 +192,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-1',
         name: 'User Config',
         description: null,
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: false,
         isDefault: false,
@@ -212,8 +214,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-1',
         name: 'Config with params',
         description: null,
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: 'anthropic/claude-sonnet-4',
         isGlobal: true,
         isDefault: false,
@@ -241,8 +243,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-1',
         name: 'Config without params',
         description: null,
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: true,
         isDefault: false,
@@ -283,6 +285,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'new-config-id',
         name: 'New Global Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
       });
@@ -290,6 +293,7 @@ describe('Admin LLM Config Routes', () => {
       const response = await request(app).post('/admin/llm-config').send({
         name: 'New Global Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       expect(response.status).toBe(201);
@@ -304,6 +308,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'new-config-id',
         name: 'Config with Memory Settings',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
         memoryScoreThreshold: { toNumber: () => 0.75 },
@@ -314,6 +319,7 @@ describe('Admin LLM Config Routes', () => {
       const response = await request(app).post('/admin/llm-config').send({
         name: 'Config with Memory Settings',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         memoryScoreThreshold: 0.75,
         memoryLimit: 50,
         contextWindowTokens: 100000,
@@ -338,6 +344,7 @@ describe('Admin LLM Config Routes', () => {
       const response = await request(app).post('/admin/llm-config').send({
         name: 'New Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       expect(response.status).toBe(403);
@@ -347,6 +354,7 @@ describe('Admin LLM Config Routes', () => {
     it('should reject when name is missing', async () => {
       const response = await request(app).post('/admin/llm-config').send({
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       expect(response.status).toBe(400);
@@ -370,6 +378,7 @@ describe('Admin LLM Config Routes', () => {
         .send({
           name: 'a'.repeat(101),
           model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
         });
 
       expect(response.status).toBe(400);
@@ -382,6 +391,7 @@ describe('Admin LLM Config Routes', () => {
       const response = await request(app).post('/admin/llm-config').send({
         name: 'Existing Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       expect(response.status).toBe(400);
@@ -421,6 +431,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'New Name',
         model: 'google/gemini-2.0-flash',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
       });
@@ -450,6 +461,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Existing Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
         memoryScoreThreshold: { toNumber: () => 0.8 },
@@ -538,6 +550,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Unchanged',
         model: 'new-model',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
       });
@@ -608,6 +621,7 @@ describe('Admin LLM Config Routes', () => {
         name: 'Free Config',
         isGlobal: true,
         model: 'meta-llama/llama-3.3-70b-instruct:free',
+        provider: 'openrouter',
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({
@@ -640,6 +654,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         isGlobal: false,
         model: 'meta-llama/llama-3.3-70b-instruct:free',
+        provider: 'openrouter',
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
@@ -783,6 +798,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Same Name',
         model: 'new-model',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
       });
@@ -790,6 +806,7 @@ describe('Admin LLM Config Routes', () => {
       const response = await request(app).put('/admin/llm-config/config-id').send({
         name: 'Same Name',
         model: 'new-model',
+        provider: 'openrouter',
       });
 
       expect(response.status).toBe(200);
@@ -868,6 +885,7 @@ describe('Admin LLM Config Routes', () => {
         name: 'Free Config',
         isGlobal: true,
         model: 'meta-llama/llama-3.3-70b-instruct:free',
+        provider: 'openrouter',
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({
@@ -913,8 +931,8 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-1',
         name: 'Test Config',
         description: null,
-        provider: 'openrouter',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         visionModel: null,
         isGlobal: true,
         isDefault: false,
@@ -966,6 +984,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'new-config',
         name: 'New Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,
@@ -981,6 +1000,7 @@ describe('Admin LLM Config Routes', () => {
       const response = await request(appWithModel).post('/admin/llm-config').send({
         name: 'New Config',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
       });
 
       expect(response.status).toBe(201);
@@ -1024,6 +1044,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'New Name',
         model: 'anthropic/claude-sonnet-4',
+        provider: 'openrouter',
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,

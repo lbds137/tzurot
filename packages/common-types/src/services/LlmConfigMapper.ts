@@ -43,6 +43,7 @@ const logger = createLogger('LlmConfigMapper');
 export const LLM_CONFIG_SELECT = {
   model: true,
   visionModel: true,
+  provider: true, // String column — drives provider-tier routing (e.g. 'openrouter', 'zai-coding')
   advancedParameters: true, // JSONB (snake_case)
   memoryScoreThreshold: true, // Decimal column (not in JSONB)
   memoryLimit: true, // Integer column (not in JSONB)
@@ -75,6 +76,7 @@ export const LLM_CONFIG_SELECT_WITH_NAME = {
 export interface RawLlmConfigFromDb {
   model: string;
   visionModel: string | null;
+  provider: string; // 'openrouter' | 'zai-coding' | future enum values
   advancedParameters: unknown; // JSONB - validated via Zod
   memoryScoreThreshold: unknown; // Prisma Decimal - converted via toNumber()
   memoryLimit: number | null;
@@ -101,6 +103,13 @@ export interface RawLlmConfigFromDbWithName extends RawLlmConfigFromDb {
 export interface MappedLlmConfig extends ConvertedLlmParams {
   model: string;
   visionModel: string | null;
+  /**
+   * Provider routing key. String-typed (not the AIProvider enum) because the
+   * DB stores it as a string column and may carry future values not yet in the
+   * enum. Consumers that need to switch on it should validate against the
+   * AIProvider enum at the consumption boundary.
+   */
+  provider: string;
   memoryScoreThreshold: number | null;
   memoryLimit: number | null;
   contextWindowTokens: number;
@@ -177,6 +186,7 @@ export function mapLlmConfigFromDb(raw: RawLlmConfigFromDb): MappedLlmConfig {
   return {
     model: raw.model,
     visionModel: raw.visionModel,
+    provider: raw.provider,
     // Spread ALL converted params (sampling, reasoning, output, OpenRouter)
     ...converted,
     // Non-JSONB fields (still use individual columns)

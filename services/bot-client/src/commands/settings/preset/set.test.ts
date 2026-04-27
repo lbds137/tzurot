@@ -246,6 +246,7 @@ describe('Me Preset Set Handler', () => {
                 id: 'premium-config',
                 name: 'Premium Config',
                 model: 'anthropic/claude-sonnet-4',
+                provider: 'openrouter',
               },
             ],
           },

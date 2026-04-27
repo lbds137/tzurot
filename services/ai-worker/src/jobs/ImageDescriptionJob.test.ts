@@ -45,6 +45,7 @@ describe('ImageDescriptionJob', () => {
     ownerId: 'owner-uuid-test',
     systemPrompt: 'Test prompt',
     model: 'gpt-4-vision-preview',
+    provider: 'openrouter',
     visionModel: 'gpt-4-vision-preview',
     temperature: 0.7,
     maxTokens: 1000,

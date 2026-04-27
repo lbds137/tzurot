@@ -18,6 +18,7 @@ function createMockPersonality(overrides: Partial<LoadedPersonality> = {}): Load
     slug: 'test',
     systemPrompt: 'Test prompt',
     model: 'gpt-4',
+    provider: 'openrouter',
     visionModel: undefined,
     temperature: 0.7,
     maxTokens: 1000,
@@ -143,6 +144,7 @@ describe('VisionProcessor', () => {
       it('should use personality visionModel when specified', async () => {
         const personality = createMockPersonality({
           model: 'gpt-4',
+          provider: 'openrouter',
           visionModel: 'gpt-4-vision-preview',
         });
 
@@ -162,6 +164,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -181,6 +184,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -194,6 +198,7 @@ describe('VisionProcessor', () => {
       it('should prefer visionModel over main model even if main has vision', async () => {
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: 'claude-3-opus',
         });
 
@@ -215,6 +220,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -232,6 +238,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -249,6 +256,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -268,6 +276,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
           systemPrompt: 'You are a helpful assistant',
         });
@@ -285,6 +294,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
           systemPrompt: '',
         });
@@ -299,6 +309,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
           systemPrompt: undefined as any,
         });
@@ -315,6 +326,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -330,6 +342,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -345,6 +358,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -365,6 +379,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -382,6 +397,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -403,6 +419,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -425,6 +442,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -449,6 +467,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -475,6 +494,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -493,6 +513,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -509,6 +530,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -525,6 +547,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -541,6 +564,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -557,6 +581,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -581,6 +606,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -613,6 +639,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -643,6 +670,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -675,6 +703,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -707,6 +736,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -727,6 +757,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -747,6 +778,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -769,6 +801,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -789,6 +822,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -804,6 +838,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -823,6 +858,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -837,6 +873,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -851,6 +888,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -865,6 +903,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -880,6 +919,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -894,6 +934,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -914,6 +955,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -933,6 +975,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -955,6 +998,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -971,6 +1015,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -986,6 +1031,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -1002,6 +1048,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -1030,6 +1077,7 @@ describe('VisionProcessor', () => {
 
           const personality = createMockPersonality({
             model: 'gpt-4o',
+            provider: 'openrouter',
             visionModel: undefined,
           });
 
@@ -1048,6 +1096,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -1070,6 +1119,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 
@@ -1092,6 +1142,7 @@ describe('VisionProcessor', () => {
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
+          provider: 'openrouter',
           visionModel: undefined,
         });
 

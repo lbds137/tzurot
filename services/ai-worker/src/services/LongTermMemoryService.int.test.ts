@@ -58,6 +58,7 @@ describe('LongTermMemoryService', () => {
     ownerId: 'owner-uuid-test',
     systemPrompt: 'You are a test personality.',
     model: 'anthropic/claude-sonnet-4',
+    provider: 'openrouter',
     temperature: 0.7,
     maxTokens: 4000,
     contextWindowTokens: 8000,

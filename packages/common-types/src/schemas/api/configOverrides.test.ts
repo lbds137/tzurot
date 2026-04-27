@@ -191,6 +191,7 @@ describe('ConfigOverridesSchema', () => {
     it('should strip llm-related fields (not part of config overrides)', () => {
       const result = ConfigOverridesSchema.safeParse({
         model: 'openai/gpt-4o',
+        provider: 'openrouter',
       });
       expect(result.success).toBe(true);
       expect(result.data).toEqual({});
