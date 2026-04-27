@@ -241,8 +241,9 @@ export function buildModelInfoUrl(model: string, provider: string | undefined): 
   // Compare against the enum constant rather than the bare string so future
   // renames break at compile time. AIProvider is declared further down in this
   // module; the forward reference is safe because regular TypeScript enums
-  // compile to var declarations and are fully initialized during module
-  // evaluation, before any consumer can call this function.
+  // compile to a hoisted `var` plus an IIFE initializer that runs during
+  // module evaluation — by the time any consumer calls this function, the
+  // enum is fully populated.
   if (provider === AIProvider.ZaiCoding) {
     for (const { prefix, url } of ZAI_MODEL_FAMILY_URLS) {
       if (model.startsWith(prefix)) {
