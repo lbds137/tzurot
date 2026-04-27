@@ -121,6 +121,7 @@ async function pollAndSendResponse(
 
     const responseMessageIds = await sendCharacterResponse(channel, personality, result.content, {
       modelUsed: result.metadata?.modelUsed,
+      providerUsed: result.metadata?.providerUsed,
       isGuestMode: result.metadata?.isGuestMode,
       showModelFooter: result.metadata?.showModelFooter,
     });

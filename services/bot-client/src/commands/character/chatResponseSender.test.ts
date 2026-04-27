@@ -69,7 +69,32 @@ describe('sendCharacterResponse', () => {
 
     const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
     expect(sentContent).toContain('[test/model-1]');
-    expect(sentContent).toContain('openrouter.ai/models');
+    expect(sentContent).toContain('openrouter.ai/test%2Fmodel-1');
+  });
+
+  it('should link to z.ai blog for zai-coding direct routes', async () => {
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', {
+      modelUsed: 'glm-4.7',
+      providerUsed: 'zai-coding',
+    });
+
+    const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
+    expect(sentContent).toContain('[glm-4.7]');
+    expect(sentContent).toContain('z.ai/blog/glm-4.7');
+  });
+
+  it('should link to OpenRouter for openrouter route (post-fallthrough z-ai/-prefixed model)', async () => {
+    // When ProviderRouter fallthrough fires, providerUsed is 'openrouter'
+    // and modelUsed is 'z-ai/<model>' — the request hit OpenRouter, so the
+    // footer should link to OpenRouter's page for the namespaced model.
+    await sendCharacterResponse(mockChannel, mockPersonality, 'Hello', {
+      modelUsed: 'z-ai/glm-4.7',
+      providerUsed: 'openrouter',
+    });
+
+    const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
+    expect(sentContent).toContain('[z-ai/glm-4.7]');
+    expect(sentContent).toContain('openrouter.ai/z-ai%2Fglm-4.7');
   });
 
   it('should append guest mode footer when in guest mode', async () => {
