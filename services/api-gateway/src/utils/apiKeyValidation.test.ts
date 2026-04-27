@@ -8,6 +8,7 @@ import {
   validateApiKey,
   validateOpenRouterKey,
   validateElevenLabsKey,
+  validateZaiCodingKey,
 } from './apiKeyValidation.js';
 
 // Mock fetch globally
@@ -284,6 +285,105 @@ describe('apiKeyValidation', () => {
     });
   });
 
+  describe('validateZaiCodingKey', () => {
+    it('should return valid=true for 200 response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: 'h' } }] }),
+      });
+
+      const result = await validateZaiCodingKey('zai-valid-key');
+
+      expect(result.valid).toBe(true);
+      expect(result.errorCode).toBeUndefined();
+    });
+
+    it('should return INVALID_KEY for 401', async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+      const result = await validateZaiCodingKey('zai-bad-key');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('INVALID_KEY');
+    });
+
+    it('should return INVALID_KEY for 403', async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 403 });
+
+      const result = await validateZaiCodingKey('zai-forbidden');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('INVALID_KEY');
+    });
+
+    it('should return QUOTA_EXCEEDED for 429', async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 429 });
+
+      const result = await validateZaiCodingKey('zai-quota-out');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('QUOTA_EXCEEDED');
+    });
+
+    it('should return UNKNOWN for other non-2xx responses', async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+      const result = await validateZaiCodingKey('zai-server-err');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('UNKNOWN');
+      expect(result.error).toContain('500');
+    });
+
+    it('should return TIMEOUT for aborted request', async () => {
+      mockFetch.mockImplementation(() => {
+        const error = new Error('Aborted');
+        error.name = 'AbortError';
+        return Promise.reject(error);
+      });
+
+      const result = await validateZaiCodingKey('zai-slow');
+
+      expect(result.valid).toBe(false);
+      expect(result.errorCode).toBe('TIMEOUT');
+    });
+
+    it('should POST to the coding endpoint (not pay-as-you-go)', async () => {
+      // Critical: this is the architectural distinction between pay-as-you-go
+      // (`/api/paas/v4`) and the coding-plan subscription endpoint
+      // (`/api/coding/paas/v4`). Validating the wrong endpoint would silently
+      // bill against the wrong tier.
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      });
+
+      await validateZaiCodingKey('zai-key');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.z.ai/api/coding/paas/v4/chat/completions',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer zai-key',
+          }),
+        })
+      );
+    });
+
+    it('should request only 1 token to minimize quota cost', async () => {
+      mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+
+      await validateZaiCodingKey('zai-key');
+
+      const fetchCall = mockFetch.mock.calls[0];
+      const body = JSON.parse(fetchCall[1].body as string) as { max_tokens: number };
+      expect(body.max_tokens).toBe(1);
+    });
+  });
+
   describe('validateApiKey', () => {
     it('should route OpenRouter keys to validateOpenRouterKey', async () => {
       mockFetch.mockResolvedValue({
@@ -314,6 +414,22 @@ describe('apiKeyValidation', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://api.elevenlabs.io/v1/user',
         expect.any(Object)
+      );
+    });
+
+    it('should route ZaiCoding keys to validateZaiCodingKey', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      });
+
+      const result = await validateApiKey('zai-key', AIProvider.ZaiCoding);
+
+      expect(result.valid).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.z.ai/api/coding/paas/v4/chat/completions',
+        expect.objectContaining({ method: 'POST' })
       );
     });
   });
