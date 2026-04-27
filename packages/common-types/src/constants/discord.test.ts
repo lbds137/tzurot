@@ -10,7 +10,9 @@ import {
   BOT_FOOTER_TEXT,
   BOT_FOOTER_PATTERNS,
   buildModelFooterText,
+  DISCORD_PROVIDER_CHOICES,
 } from './discord.js';
+import { AIProvider } from './ai.js';
 
 describe('Discord ID Validation', () => {
   describe('DISCORD_SNOWFLAKE constants', () => {
@@ -164,5 +166,32 @@ describe('Bot Footer Text Constants', () => {
       expect(result).not.toContain('[with]');
       expect(result).not.toContain('<brackets>');
     });
+  });
+});
+
+describe('DISCORD_PROVIDER_CHOICES', () => {
+  it('should have an entry for every AIProvider enum value', () => {
+    // Guard test: catches the failure mode where a new AIProvider is added to
+    // the enum (and the runtime path is wired up — validators, ModelFactory
+    // branch, etc.) but the slash-command argument-choices list is missed.
+    // Without this assertion, /settings apikey set <provider> silently omits
+    // the new provider and users can't add their key — which is exactly what
+    // happened in PR #921 with zai-coding (caught manually 2026-04-27).
+    const enumValues = Object.values(AIProvider) as string[];
+    const choiceValues = DISCORD_PROVIDER_CHOICES.map(c => c.value);
+
+    for (const enumValue of enumValues) {
+      expect(choiceValues).toContain(enumValue);
+    }
+  });
+
+  it('should not have orphan choices that point to non-existent enum values', () => {
+    // Inverse guard: catches the opposite failure where a choice references
+    // a string value that doesn't match any current enum member (e.g., after
+    // an enum rename without updating the choices).
+    const enumValues = Object.values(AIProvider) as string[];
+    for (const choice of DISCORD_PROVIDER_CHOICES) {
+      expect(enumValues).toContain(choice.value);
+    }
   });
 });

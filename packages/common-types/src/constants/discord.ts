@@ -204,12 +204,16 @@ export function filterValidDiscordIds(ids: string[]): string[] {
  *
  * OpenRouter: LLM chat/generation (access to all AI models)
  * ElevenLabs: Premium voice synthesis and cloning (BYOK)
+ * Z.AI Coding Plan: GLM-family direct routing for users with a coding-plan
+ *   subscription; users without a key auto-fall through to OpenRouter via
+ *   ProviderRouter (see services/ai-worker/src/services/ProviderRouter.ts).
  *
  * These are the choices displayed in /settings apikey commands.
  */
 export const DISCORD_PROVIDER_CHOICES = [
   { name: 'OpenRouter', value: 'openrouter' },
   { name: 'ElevenLabs (Voice)', value: 'elevenlabs' },
+  { name: 'Z.AI Coding Plan', value: 'zai-coding' },
 ] as const;
 
 /**
