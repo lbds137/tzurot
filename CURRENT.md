@@ -7,16 +7,16 @@
 
 ## Next Session Goal
 
-_No production issues active. PR #920 + PR #921 (z.ai provider plumbing) shipped to develop. Plan: dependabot sweep before resuming the z.ai work._
+_No production issues active. z.ai integration end-to-end shipped (PR #921 + PR #924). Manual end-to-end verification + TTS upgrade work next._
 
-1. **Dependabot PR sweep** — work through the open dependabot dependency-update PRs. Standard flow: per PR, check the changelog/diff for breaking changes, run tests, merge if green. Paused PR 2 of the z.ai plan to clear this queue first.
-2. **z.ai PR 2 of 2 — `ProviderRouter` + auto-fallthrough wiring** — per `~/.claude/plans/wondrous-rolling-moore.md`. Absorbs the round-5/6 follow-up items from PR #921 (see `backlog/inbox.md`).
-3. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-4. **Quick Wins remaining** — delete `DM_RAW_GATEWAY_DIAGNOSTIC` env entry from Railway dashboard (no code), and "make duplicate-exports + knip blocking in CI" (needs allowlist triage first).
+1. **z.ai end-to-end manual verification** — per the plan in `~/.claude/plans/wondrous-rolling-moore.md`: (a) set z.ai-coding key via `/wallet add` → green validator response, (b) configure a personality with `provider: 'zai-coding'`, `model: 'glm-4.7'`, (c) send a Discord DM → check ai-worker logs for `effectiveProvider=zai-coding` and direct routing, (d) remove the key (or test as a different user) → check logs for `fallthroughTriggered=true` + `effectiveProvider=openrouter` with rewritten model `z-ai/glm-4.7`, (e) z.ai dashboard quota check confirms coding-plan quota was actually consumed (real-world signal). After verification, decide whether to seed a default `provider: 'zai-coding'` preset for users.
+2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
+3. **Quick Wins remaining** — delete `DM_RAW_GATEWAY_DIAGNOSTIC` env entry from Railway dashboard (no code), "make duplicate-exports + knip blocking in CI" (needs allowlist triage first), and the new `createMockPersonality` redundant `provider: 'openrouter'` overrides sweep (~80 fixtures, mechanical).
+4. **Beta release (when convenient)** — develop has 3 PRs unreleased since beta.108 (#920, #921, #924). Cut beta.109 when ready. Plan to fold the `claude-review` skip-on-dependabot workflow change into the same release branch (it's the last-commit-before-release-merge item per the quick-wins entry — needs to land on develop alongside the release-merge PR to minimize the dark window where claude-review is broken).
 
 ## Active Task
 
-_None. PR #921 (z.ai Coding Plan provider plumbing — PR 1 of 2 from the z.ai integration plan) merged 2026-04-27 — four commits land on develop. **Next**: dependabot PR sweep (paused before starting PR 2). After dependabot, continue with **PR 2 of 2 — `ProviderRouter` + auto-fallthrough wiring** per `~/.claude/plans/wondrous-rolling-moore.md`. PR 2 will absorb the round-5/6 follow-up items from PR #921 (see `backlog/inbox.md` "PR 2 absorbs: z.ai integration follow-ups")._
+_None. PR #924 (z.ai PR 2 of 2 — `ProviderRouter` + auto-fallthrough wiring) merged 2026-04-27 after 8 review rounds. The `provider` field is now plumbed end-to-end from DB → MappedLlmConfig → LoadedPersonality → effectivePersonality → ModelConfig, with `ProviderRouter` encoding the auto-fallthrough decision (zai-coding without user key → rewrite to `z-ai/<model>` and route via OpenRouter), `validateAIProvider` providing a defensive runtime guard at the ModelFactory boundary, and `ProviderUnavailableError` symmetrically classifying 5xx in all three validators. **Next**: end-to-end manual verification on dev (Railway auto-deploys develop pushes) before any preset seeding work._
 
 ---
 
@@ -24,6 +24,8 @@ _None. PR #921 (z.ai Coding Plan provider plumbing — PR 1 of 2 from the z.ai i
 
 - **PR #920** (`chore/post-beta-108-cleanup`, merged 2026-04-27) — chunker defensive truncation against off-by-N output (real Lilith bug), shutdown async-await (PR #913 follow-up), `CreatePersonaResponse` schema import (drift prevention).
 - **PR #921** (`feat/zai-coding-provider-plumbing`, merged 2026-04-27) — z.ai Coding Plan as new `AIProvider.ZaiCoding` enum + endpoint + key validators (api-gateway intake + ai-worker runtime) + `ModelFactory` per-request provider override with provider-tier param filtering. PR 1 of 2; routing & auto-fallthrough come in PR 2. 6 review rounds, all asks resolved or absorbed into PR 2 backlog.
+- **PR #924** (`feat/zai-coding-provider-router`, merged 2026-04-27) — z.ai PR 2 of 2: `ProviderRouter` (new service, 13 unit tests) encodes auto-fallthrough rule (zai-coding-with-key → direct route; zai-coding-without-key → rewrite to `z-ai/<model>` and route via OpenRouter; non-zai providers → passthrough). Wired into `AuthStep` via extracted `resolveLlmAuth()` helper. Threaded `provider` field end-to-end through `MappedLlmConfig` → `LoadedPersonality` → `ModelConfig`. Added `validateAIProvider()` runtime guard at ModelFactory boundary. Promoted 5xx classification to `ProviderUnavailableError` symmetrically across OpenRouter/ElevenLabs/ZaiCoding validators (was an asymmetric latent bug). 8 review rounds, all asks resolved or backlogged.
+- **Dependabot PRs #922/#923** (merged 2026-04-27) — production + development dependency updates. Merged with explicit `claude-review` infra-fail (bot-actor reject); workflow fix to skip claude-review on dependabot is queued in `backlog/quick-wins.md` as "last commit on develop before next release-merge."
 
 ---
 
