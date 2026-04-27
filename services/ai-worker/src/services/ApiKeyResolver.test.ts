@@ -419,6 +419,24 @@ describe('ApiKeyResolver', () => {
       expect(secondCall).toBe('zai-user-key');
       expect(mockPrisma.userApiKey.findFirst).not.toHaveBeenCalled();
     });
+
+    it('should NOT cache the null path — re-reads DB on every call (accepted overhead)', async () => {
+      // The auto-fallthrough majority path: user has no key for the requested
+      // provider. ApiKeyResolver intentionally does NOT write a "no key"
+      // sentinel here (would muddy resolveApiKey's source: 'system' semantics
+      // for providers like zai-coding that have no system fallback). This test
+      // locks in that invariant — if a future refactor adds caching here, the
+      // second-call DB-call assertion catches it.
+      mockPrisma.userApiKey.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.tryResolveUserKey('user-123', AIProvider.ZaiCoding);
+      expect(result).toBeNull();
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(1);
+
+      const secondResult = await resolver.tryResolveUserKey('user-123', AIProvider.ZaiCoding);
+      expect(secondResult).toBeNull();
+      expect(mockPrisma.userApiKey.findFirst).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('encryption key not configured', () => {
