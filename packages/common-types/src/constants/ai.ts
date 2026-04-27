@@ -203,6 +203,28 @@ export const ELEVENLABS_VOICE_NAME_PREFIX = 'tzurot-';
 export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 
 /**
+ * Models served by z.ai's GLM Coding Plan endpoint (`api.z.ai/api/coding/paas/v4`).
+ * Used by `ProviderRouter` as a guardrail before auto-promoting an OpenRouter
+ * `z-ai/<model>` request to z.ai-direct: if the bare model isn't on this list,
+ * promotion would 404 (the model exists on OpenRouter but not on z.ai's
+ * coding plan), so we leave the request on OpenRouter.
+ *
+ * Source of truth: docs.z.ai/devpack/overview. Update when z.ai adds or
+ * removes models from the plan; entries must stay lowercase to match the
+ * case-normalized lookup in `isZaiCodingPlanModel`.
+ */
+const ZAI_CODING_PLAN_MODEL_LIST = ['glm-5.1', 'glm-5-turbo', 'glm-4.7', 'glm-4.5-air'] as const;
+
+/**
+ * Membership check for `ZAI_CODING_PLAN_MODEL_LIST`. Case-normalizes the
+ * input to match the lowercase catalog entries — preset configs are
+ * user-typed strings and may use any case.
+ */
+export function isZaiCodingPlanModel(model: string): boolean {
+  return (ZAI_CODING_PLAN_MODEL_LIST as readonly string[]).includes(model.toLowerCase());
+}
+
+/**
  * Map of z.ai model-family prefix → blog announcement URL. z.ai doesn't
  * publish per-model documentation pages — family announcements (one per
  * model generation) are the closest analog to OpenRouter's per-model card
