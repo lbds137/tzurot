@@ -10,11 +10,11 @@ import { TextChannel, ThreadChannel } from 'discord.js';
 import {
   splitMessage,
   createLogger,
-  AI_ENDPOINTS,
   GUEST_MODE,
   DISCORD_LIMITS,
   BOT_FOOTER_TEXT,
   buildModelFooterText,
+  buildModelInfoUrl,
 } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
@@ -44,6 +44,12 @@ interface SendResponseOptions {
   message: Message;
   /** Model name used for generation (optional, adds indicator) */
   modelUsed?: string;
+  /**
+   * Effective provider that served the request (e.g., 'openrouter', 'zai-coding').
+   * Used to pick the right model-info URL for the footer link. When undefined,
+   * the footer link falls back to OpenRouter's model card page.
+   */
+  providerUsed?: string;
   /** Whether response was generated in guest mode (free model, no API key) */
   isGuestMode?: boolean;
   /** Whether this is an auto-response from channel activation (not @mention) */
@@ -211,6 +217,7 @@ export class DiscordResponseSender {
   private buildFooter(options: SendResponseOptions): string {
     const {
       modelUsed,
+      providerUsed,
       isGuestMode,
       isAutoResponse,
       focusModeEnabled,
@@ -219,7 +226,7 @@ export class DiscordResponseSender {
     } = options;
     let footer = '';
     if (showModelFooter !== false && modelUsed !== undefined && modelUsed.length > 0) {
-      const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${encodeURIComponent(modelUsed)}`;
+      const modelUrl = buildModelInfoUrl(modelUsed, providerUsed);
       footer += `\n-# ${buildModelFooterText(modelUsed, modelUrl, isAutoResponse === true)}`;
     } else if (isAutoResponse === true) {
       footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
