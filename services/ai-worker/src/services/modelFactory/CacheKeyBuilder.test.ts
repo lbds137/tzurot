@@ -16,8 +16,14 @@ vi.mock('@tzurot/common-types', () => ({
     DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
     OPENROUTER_API_KEY: 'test-openrouter-key',
   }),
+  AIProvider: {
+    OpenRouter: 'openrouter',
+    ElevenLabs: 'elevenlabs',
+    ZaiCoding: 'zai-coding',
+  },
 }));
 
+import { AIProvider } from '@tzurot/common-types';
 import { getModelCacheKey } from './CacheKeyBuilder.js';
 import type { ModelConfig } from '../ModelFactory.js';
 
@@ -130,5 +136,26 @@ describe('getModelCacheKey', () => {
     const config2: ModelConfig = { modelName: 'model-1' };
 
     expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+  });
+
+  it('should differentiate by per-request provider override', () => {
+    // Same model name, different provider override — must NOT share a cached
+    // ChatOpenAI instance because the configured baseURL differs (OpenRouter
+    // vs z.ai-coding endpoints). Without provider in the cache key, the second
+    // request would silently reuse the first's wrong-baseURL client.
+    const config1: ModelConfig = { modelName: 'glm-4.7' };
+    const config2: ModelConfig = { modelName: 'glm-4.7', provider: AIProvider.ZaiCoding };
+
+    expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+  });
+
+  it('should fall back to env-level AI_PROVIDER when no override is set', () => {
+    // When modelConfig.provider is undefined, env-level config.AI_PROVIDER
+    // (mocked as 'openrouter') is used. Two configs that both omit provider
+    // produce the same cache key.
+    const config1: ModelConfig = { modelName: 'glm-4.7' };
+    const config2: ModelConfig = { modelName: 'glm-4.7' };
+
+    expect(getModelCacheKey(config1)).toBe(getModelCacheKey(config2));
   });
 });

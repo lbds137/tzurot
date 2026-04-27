@@ -28,7 +28,11 @@ function cacheArr(value: unknown[] | undefined): string {
  * Includes ALL params so different configs get different cached instances.
  */
 export function getModelCacheKey(modelConfig: ModelConfig): string {
-  const provider = config.AI_PROVIDER;
+  // Per-request provider override wins over env-level default. Required so
+  // requests routed to different providers (e.g. zai-coding vs openrouter)
+  // for the same model name don't share a cached ChatOpenAI instance with
+  // the wrong baseURL.
+  const provider = modelConfig.provider ?? config.AI_PROVIDER;
 
   // Resolve model name with fallback chain
   const modelName = modelConfig.modelName ?? (config.DEFAULT_AI_MODEL || 'default');

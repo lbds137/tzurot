@@ -35,6 +35,7 @@ vi.mock('@tzurot/common-types', () => ({
   AIProvider: {
     OpenRouter: 'openrouter',
     ElevenLabs: 'elevenlabs',
+    ZaiCoding: 'zai-coding',
   },
   AI_DEFAULTS: {
     MAX_TOKENS: 4096,
@@ -49,6 +50,7 @@ vi.mock('@tzurot/common-types', () => ({
   },
   AI_ENDPOINTS: {
     OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
+    ZAI_CODING_BASE_URL: 'https://api.z.ai/api/coding/paas/v4',
   },
 }));
 
@@ -58,6 +60,7 @@ vi.mock('../utils/reasoningModelUtils.js', () => ({
   isReasoningModel: (modelName: string) => mockIsReasoningModel(modelName),
 }));
 
+import { AIProvider } from '@tzurot/common-types';
 import { createChatModel, type ModelConfig } from './ModelFactory.js';
 
 describe('ModelFactory', () => {
@@ -700,6 +703,51 @@ describe('ModelFactory', () => {
       // All modelKwargs params were unsupported, so modelKwargs is omitted entirely
       expect(callArgs.modelKwargs).toBeUndefined();
     });
+
+    it('should apply provider-tier z.ai-direct filter to ALL models (not just glm-4.5-air)', () => {
+      // Critical: when routing direct to z.ai, the strict supported-params list
+      // applies regardless of which GLM variant. glm-4.7 via OpenRouter would
+      // pass these params; glm-4.7 direct-to-z.ai would 400. The provider-tier
+      // filter handles this without needing one regex per model.
+      const config: ModelConfig = {
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+        frequencyPenalty: 0.5,
+        presencePenalty: 0.3,
+        seed: 42,
+        topK: 40,
+        topP: 0.95,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.frequencyPenalty).toBeUndefined();
+      expect(callArgs.presencePenalty).toBeUndefined();
+      expect(callArgs.topP).toBe(0.95); // top_p is supported by z.ai
+      const kwargs = callArgs.modelKwargs as Record<string, unknown> | undefined;
+      expect(kwargs?.seed).toBeUndefined();
+      expect(kwargs?.top_k).toBeUndefined();
+    });
+
+    it('should NOT apply z.ai-direct filter when route is OpenRouter (even for glm-4.7)', () => {
+      // Inverse of the previous test: same model name routed via OpenRouter
+      // does NOT get the strict z.ai-tier filter — OpenRouter normalizes params.
+      // Only the per-model RESTRICTED_PARAM_MODELS pattern applies (which doesn't
+      // currently include glm-4.7).
+      const config: ModelConfig = {
+        modelName: 'z-ai/glm-4.7',
+        // provider not set → uses env-level default (openrouter in this test)
+        seed: 42,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
+      expect(kwargs.seed).toBe(42); // Preserved through OpenRouter
+    });
   });
 
   // ===================================
@@ -979,6 +1027,83 @@ describe('ModelFactory', () => {
       expect(() => createChatModel({ modelName: 'test-model' })).toThrow(
         'ElevenLabs is a voice provider, not an LLM provider'
       );
+    });
+  });
+
+  // ===================================
+  // ZaiCoding provider branch
+  // ===================================
+
+  describe('ZaiCoding provider', () => {
+    it('should use the z.ai coding-plan baseURL when provider is zai-coding', () => {
+      const config: ModelConfig = {
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-user-key',
+        temperature: 0.7,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'glm-4.7',
+          apiKey: 'zai-user-key',
+          temperature: 0.7,
+          configuration: expect.objectContaining({
+            baseURL: 'https://api.z.ai/api/coding/paas/v4',
+          }),
+        })
+      );
+    });
+
+    it('should override env-level AI_PROVIDER with per-request provider field', () => {
+      // Env-level AI_PROVIDER is openrouter (default), but ModelConfig.provider
+      // overrides it for this request. Required so a single-process worker can
+      // route different requests to different providers.
+      mockConfigData.AI_PROVIDER = 'openrouter';
+
+      const config: ModelConfig = {
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      const configuration = callArgs.configuration as Record<string, unknown>;
+      expect(configuration.baseURL).toBe('https://api.z.ai/api/coding/paas/v4');
+    });
+
+    it('should throw when zai-coding has no apiKey (no system fallback)', () => {
+      // Critical: z.ai has no system-level fallback key. Callers wanting
+      // OpenRouter fallthrough on missing z.ai key must do that resolution
+      // BEFORE createChatModel (PR 2: ProviderRouter).
+      const config: ModelConfig = {
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        // No apiKey
+      };
+
+      expect(() => createChatModel(config)).toThrow(/z\.ai coding plan API key is required/);
+    });
+
+    it('should not include OpenRouter app-attribution headers on z.ai routes', () => {
+      mockConfigData.OPENROUTER_APP_TITLE = 'TzurotBot';
+      mockConfigData.OPENROUTER_APP_URL = 'https://tzurot.example.com';
+
+      const config: ModelConfig = {
+        modelName: 'glm-4.7',
+        provider: AIProvider.ZaiCoding,
+        apiKey: 'zai-key',
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      const configuration = callArgs.configuration as Record<string, unknown>;
+      expect(configuration.defaultHeaders).toBeUndefined();
     });
   });
 });
