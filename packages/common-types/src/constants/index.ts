@@ -14,6 +14,7 @@ export {
   GUEST_MODE,
   isFreeModel,
   ZAI_VALIDATION_MODEL,
+  buildModelInfoUrl,
 } from './ai.js';
 
 // Timing constants
