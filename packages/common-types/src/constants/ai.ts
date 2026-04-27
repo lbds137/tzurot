@@ -194,8 +194,13 @@ export const ELEVENLABS_VOICE_NAME_PREFIX = 'tzurot-';
  * model when validating z.ai-coding API keys (minimal latency, single-token
  * response budget). Kept in one place so api-gateway and ai-worker validators
  * stay synchronized when z.ai's catalog changes.
+ *
+ * Per z.ai's GLM Coding Plan documentation (docs.z.ai/devpack/overview),
+ * available models are GLM-5.1, GLM-5-Turbo, GLM-4.7, and GLM-4.5-Air.
+ * GLM-4.5-Air is the Haiku-equivalent tier with 1× quota multiplier — the
+ * cheapest probe option.
  */
-export const ZAI_VALIDATION_MODEL = 'glm-4.5-flash';
+export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 
 /**
  * AI provider identifiers
