@@ -290,6 +290,43 @@ describe('AuthStep', () => {
       });
     });
 
+    describe('ProviderRouter injection', () => {
+      it('should use the injected ProviderRouter instead of auto-constructing one', async () => {
+        // Constructor seam test: when a ProviderRouter is passed explicitly,
+        // AuthStep must use it. Future tests can leverage this to isolate
+        // AuthStep behavior from real ProviderRouter logic. We prove the seam
+        // works by injecting a stub that returns a fixture only this stub
+        // would produce (a sentinel apiKey + provider) and asserting AuthStep
+        // surfaces those values — if AuthStep had auto-constructed its own
+        // router, the result would reflect the apiKeyResolver mock instead.
+        const injectedRouter = {
+          resolveRoute: vi.fn().mockResolvedValue({
+            effectiveProvider: AIProvider.OpenRouter,
+            effectiveModel: 'injected/model',
+            apiKey: 'injected-router-sentinel-key',
+            isGuestMode: false,
+            fallthroughTriggered: false,
+          }),
+        } as unknown as import('../../../../services/ProviderRouter.js').ProviderRouter;
+
+        step = new AuthStep(mockApiKeyResolver, mockConfigResolver, injectedRouter);
+        const result = await step.process({
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: { effectivePersonality: TEST_PERSONALITY, configSource: 'personality' },
+        });
+
+        expect(injectedRouter.resolveRoute).toHaveBeenCalledTimes(1);
+        expect(result.auth?.apiKey).toBe('injected-router-sentinel-key');
+        // apiKeyResolver.resolveApiKey was NOT called for the LLM path because
+        // the injected router short-circuited the resolution.
+        const orCalls = vi
+          .mocked(mockApiKeyResolver.resolveApiKey)
+          .mock.calls.filter(c => c[1] === AIProvider.OpenRouter);
+        expect(orCalls).toHaveLength(0);
+      });
+    });
+
     it('should not override model if already free in guest mode', async () => {
       const freePersonality: LoadedPersonality = {
         ...TEST_PERSONALITY,

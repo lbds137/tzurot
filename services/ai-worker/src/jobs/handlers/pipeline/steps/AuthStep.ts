@@ -19,15 +19,19 @@ export class AuthStep implements IPipelineStep {
 
   constructor(
     private readonly apiKeyResolver?: ApiKeyResolver,
-    private readonly configResolver?: LlmConfigResolver
+    private readonly configResolver?: LlmConfigResolver,
+    providerRouter?: ProviderRouter
   ) {
     // ProviderRouter wraps ApiKeyResolver to encode the auto-fallthrough
     // routing rule for `zai-coding` (and any future provider that needs it).
-    // We construct it inline so AuthStep's existing constructor signature
-    // stays backward compatible — injectable ProviderRouter constructor
-    // parameter is deferred; tests mock at the `apiKeyResolver` level instead.
+    // The optional `providerRouter` parameter lets tests inject a mock to
+    // isolate AuthStep behavior from ProviderRouter — without it, AuthStep
+    // tests exercise both layers and a ProviderRouter bug manifests as an
+    // AuthStep test failure. Production callers omit the parameter and get
+    // the inline-constructed router.
     this.providerRouter =
-      apiKeyResolver !== undefined ? new ProviderRouter(apiKeyResolver) : undefined;
+      providerRouter ??
+      (apiKeyResolver !== undefined ? new ProviderRouter(apiKeyResolver) : undefined);
   }
 
   async process(context: GenerationContext): Promise<GenerationContext> {
