@@ -45,6 +45,7 @@ import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
+import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
 
 // Processors
@@ -446,6 +447,16 @@ client.once(Events.ClientReady, () => {
 
   // Restore saved bot presence from Redis
   void restoreBotPresence(client).catch(err => logger.warn({ err }, 'Failed to restore presence'));
+
+  // Layer 1 of the post-deploy DM-silence fix: pre-populate Discord.js's
+  // DM channel cache for recently active users. Fire-and-forget — bot is
+  // fully operational without this; pre-warming runs in the background.
+  // See StartupDMPrewarmer.ts and DMCacheWarmer.ts for the diagnosis chain.
+  const startupPrewarmer = new StartupDMPrewarmer({
+    client,
+    warmer: services.dmCacheWarmer,
+  });
+  void startupPrewarmer.run();
 
   // Auto-leave denied guilds when bot is added.
   // Registered inside ClientReady to make the dependency on denylistCache hydration explicit
