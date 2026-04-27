@@ -37,7 +37,18 @@ const SINCE_DAYS = 30;
  *  non-urgent background work. */
 const RATE_LIMIT_DELAY_MS = 1000;
 
-export interface StartupDMPrewarmerDeps {
+/**
+ * Backoff delays for retrying the recent-users fetch when api-gateway isn't
+ * yet ready. bot-client and api-gateway both auto-deploy from develop and
+ * start in parallel; bot-client's `ClientReady` fires fast (~16s) while
+ * api-gateway can take ~30s to finish registering routes. Without retry,
+ * the prewarmer loses its window and Layer 1 silently no-ops until the
+ * next deploy. Three attempts at 5s/15s/45s = 65s max delay covers the
+ * observed startup race.
+ */
+const RETRY_DELAYS_MS = [5000, 15000, 45000];
+
+interface StartupDMPrewarmerDeps {
   client: Client;
   warmer: DMCacheWarmer;
   /** Optional sleep override for testing with fake timers. */
@@ -112,15 +123,67 @@ export class StartupDMPrewarmer {
   }
 
   private async fetchRecentUserIds(): Promise<string[]> {
-    const response = await adminFetch(`/internal/users/recent?sinceDays=${SINCE_DAYS}`);
-    if (!response.ok) {
-      throw new Error(`api-gateway returned ${response.status}`);
+    // Retry only on conditions that plausibly clear with time: 404 (route
+    // not yet mounted), 5xx (server starting up), or network errors. Don't
+    // retry on 4xx-other (auth/client errors won't fix themselves).
+    const first = await this.fetchOnce();
+    if (first.kind === 'success') {
+      return first.ids;
     }
-    const json: unknown = await response.json();
-    const parsed = RecentUsersResponseSchema.safeParse(json);
-    if (!parsed.success) {
-      throw new Error(`Invalid recent-users response: ${parsed.error.message}`);
+    if (first.kind === 'fatal') {
+      throw first.err;
     }
-    return parsed.data.discordIds;
+    let lastError: Error = first.err;
+
+    // One iteration per entry in RETRY_DELAYS_MS — total of 1 initial
+    // attempt + 3 retries. Structure makes "no delay after last attempt"
+    // obvious without an out-of-bounds-index guard.
+    for (const delay of RETRY_DELAYS_MS) {
+      logger.debug(
+        { nextDelayMs: delay, err: lastError },
+        'Retrying recent-users fetch after backoff'
+      );
+      await this.sleep(delay);
+      const result = await this.fetchOnce();
+      if (result.kind === 'success') {
+        return result.ids;
+      }
+      if (result.kind === 'fatal') {
+        throw result.err;
+      }
+      lastError = result.err;
+    }
+    throw lastError;
+  }
+
+  private async fetchOnce(): Promise<
+    | { kind: 'success'; ids: string[] }
+    | { kind: 'retry'; err: Error }
+    | { kind: 'fatal'; err: Error }
+  > {
+    try {
+      const response = await adminFetch(`/internal/users/recent?sinceDays=${SINCE_DAYS}`);
+      if (response.ok) {
+        const json: unknown = await response.json();
+        const parsed = RecentUsersResponseSchema.safeParse(json);
+        if (!parsed.success) {
+          return {
+            kind: 'fatal',
+            err: new Error(`Invalid recent-users response: ${parsed.error.message}`),
+          };
+        }
+        return { kind: 'success', ids: parsed.data.discordIds };
+      }
+      if (response.status === 404 || response.status >= 500) {
+        return {
+          kind: 'retry',
+          err: new Error(`api-gateway returned ${response.status} (transient)`),
+        };
+      }
+      return { kind: 'fatal', err: new Error(`api-gateway returned ${response.status}`) };
+    } catch (err) {
+      // Network errors (ECONNREFUSED, DNS failures, etc.) are retry-able.
+      return { kind: 'retry', err: err instanceof Error ? err : new Error(String(err)) };
+    }
   }
 }

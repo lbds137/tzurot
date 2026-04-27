@@ -12,7 +12,12 @@
 
 import { type Request, type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, RecentUsersResponseSchema } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  RecentUsersResponseSchema,
+  DiscordSnowflakeSchema,
+} from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -74,12 +79,29 @@ export function createUsersRecentHandler(prisma: PrismaClient): RequestHandler {
       LIMIT ${MAX_RESULTS}
     `;
 
-    const discordIds = rows.map(r => r.discord_id);
+    const allIds = rows.map(r => r.discord_id);
+
+    // Filter non-snowflake IDs before schema validation. The DB stores
+    // snowflakes by schema (`discord_id @db.VarChar(20)`), so this guards
+    // against a near-zero data-drift scenario (migration leakage, test
+    // contamination). Filtering first preserves the rest of the batch
+    // rather than failing the whole pre-warm with a 500. Uses the canonical
+    // DiscordSnowflakeSchema so the validation here can never drift from
+    // the schema's own definition.
+    const discordIds = allIds.filter(id => DiscordSnowflakeSchema.safeParse(id).success);
+    const filtered = allIds.length - discordIds.length;
+    if (filtered > 0) {
+      logger.warn({ filtered }, 'Filtered non-snowflake discord_ids from DB result');
+    }
 
     const parsed = RecentUsersResponseSchema.parse({ discordIds, sinceDays });
 
+    // `atLimit: true` means the result count equals MAX_RESULTS. That's the
+    // signal LIMIT clipped — but technically also true if exactly MAX_RESULTS
+    // users were active in the window with no extras. Use as a "rows may
+    // have been dropped" indicator, not an absolute truth.
     logger.info(
-      { sinceDays, total: discordIds.length, capped: discordIds.length === MAX_RESULTS },
+      { sinceDays, total: discordIds.length, atLimit: discordIds.length === MAX_RESULTS },
       'Returning recent active users'
     );
 

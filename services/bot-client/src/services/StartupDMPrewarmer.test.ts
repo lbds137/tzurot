@@ -117,20 +117,75 @@ describe('StartupDMPrewarmer', () => {
     expect(mockWarmer.warm).toHaveBeenCalledTimes(2);
   });
 
-  it('skips warming entirely when api-gateway fetch fails', async () => {
+  it('skips warming entirely when api-gateway fetch fails on every retry (network errors)', async () => {
     mockAdminFetch.mockRejectedValue(new Error('connect ECONNREFUSED'));
 
     await prewarmer.run();
 
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
     expect(mockWarmer.warm).not.toHaveBeenCalled();
+    // 1 initial attempt + 3 retries = 4 total calls
+    expect(mockAdminFetch).toHaveBeenCalledTimes(4);
   });
 
-  it('skips warming when api-gateway returns non-2xx', async () => {
-    mockAdminFetch.mockResolvedValue(mockJsonResponse({}, false, 503));
+  it('skips warming entirely when api-gateway returns 404 on every retry (status-based exhaustion)', async () => {
+    // Different code path from network-error exhaustion: this exercises the
+    // status-based retry branch in fetchOnce() rather than the catch block.
+    mockAdminFetch.mockResolvedValue(mockJsonResponse({}, false, 404));
 
     await prewarmer.run();
 
+    expect(mockClient.users.fetch).not.toHaveBeenCalled();
+    expect(mockWarmer.warm).not.toHaveBeenCalled();
+    expect(mockAdminFetch).toHaveBeenCalledTimes(4);
+    // Sleep called once per retry delay (3 retries → 3 sleeps; no sleep
+    // before the initial attempt or after the final failure).
+    expect(mockSleep).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries on 404 and succeeds when api-gateway becomes ready', async () => {
+    // Simulates the empirical race observed on first dev deploy of PR #917:
+    // api-gateway routes weren't yet mounted when bot-client's ClientReady
+    // fired, so the first call got 404. With retry-with-backoff, the second
+    // call (after the api-gateway finishes startup) succeeds.
+    mockAdminFetch
+      .mockResolvedValueOnce(mockJsonResponse({}, false, 404))
+      .mockResolvedValueOnce(
+        mockJsonResponse({ discordIds: ['111111111111111111'], sinceDays: 30 })
+      );
+    mockClient.users.fetch.mockResolvedValue(mockUser('111111111111111111'));
+
+    await prewarmer.run();
+
+    expect(mockAdminFetch).toHaveBeenCalledTimes(2);
+    expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
+    expect(mockSleep).toHaveBeenCalledWith(5000); // first retry delay
+  });
+
+  it('retries on 5xx responses (gateway still starting)', async () => {
+    mockAdminFetch
+      .mockResolvedValueOnce(mockJsonResponse({}, false, 503))
+      .mockResolvedValueOnce(
+        mockJsonResponse({ discordIds: ['111111111111111111'], sinceDays: 30 })
+      );
+    mockClient.users.fetch.mockResolvedValue(mockUser('111111111111111111'));
+
+    await prewarmer.run();
+
+    expect(mockAdminFetch).toHaveBeenCalledTimes(2);
+    expect(mockWarmer.warm).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [401, 'auth required'],
+    [403, 'forbidden'],
+    [400, 'bad request'],
+  ])("does NOT retry on %d (%s — won't fix itself)", async (status: number) => {
+    mockAdminFetch.mockResolvedValue(mockJsonResponse({}, false, status));
+
+    await prewarmer.run();
+
+    expect(mockAdminFetch).toHaveBeenCalledTimes(1);
     expect(mockClient.users.fetch).not.toHaveBeenCalled();
   });
 
