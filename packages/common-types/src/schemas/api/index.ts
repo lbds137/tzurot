@@ -52,3 +52,6 @@ export * from './history.js';
 
 // Transcribe input schemas
 export * from './transcribe.js';
+
+// Internal service-to-service endpoints
+export * from './internal.js';

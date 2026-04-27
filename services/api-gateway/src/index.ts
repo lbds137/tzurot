@@ -35,6 +35,7 @@ import { createAIRouter } from './routes/ai/index.js';
 import { createAdminRouter } from './routes/admin/index.js';
 import { createWalletRouter } from './routes/wallet/index.js';
 import { createUserRouter } from './routes/user/index.js';
+import { createInternalRouter } from './routes/internal/index.js';
 import { createModelsRouter } from './routes/models/index.js';
 import {
   createHealthRouter,
@@ -246,6 +247,9 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
 
   app.use('/models', createModelsRouter(modelCache));
   logger.info('Models routes registered');
+
+  app.use('/internal', createInternalRouter(prisma));
+  logger.info('Internal routes registered');
 
   app.use(
     '/admin',
