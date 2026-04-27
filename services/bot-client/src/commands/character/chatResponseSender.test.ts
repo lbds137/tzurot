@@ -32,7 +32,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     ...(actual as Record<string, unknown>),
     splitMessage: (content: string) => [content], // No splitting for simple tests
     DISCORD_LIMITS: { MESSAGE_LENGTH: 2000 },
-    AI_ENDPOINTS: { OPENROUTER_MODEL_CARD_URL: 'https://openrouter.ai/models' },
     GUEST_MODE: { FOOTER_MESSAGE: 'Guest mode - limited features' },
     buildModelFooterText: (model: string, url: string) => `[${model}](${url})`,
   };

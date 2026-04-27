@@ -203,6 +203,61 @@ export const ELEVENLABS_VOICE_NAME_PREFIX = 'tzurot-';
 export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 
 /**
+ * Map of z.ai model-family prefix → blog announcement URL. z.ai doesn't
+ * publish per-model documentation pages — family announcements (one per
+ * model generation) are the closest analog to OpenRouter's per-model card
+ * URLs. Used by `buildModelInfoUrl` for the response footer link.
+ *
+ * Order matters: more-specific prefixes must appear before their more-general
+ * counterparts. Today's entries don't overlap (4.5 / 4.7 / 5 are distinct
+ * generations), but a future `glm-5.1` entry, for example, must precede the
+ * `glm-5` catch-all or it will never match.
+ */
+const ZAI_MODEL_FAMILY_URLS: readonly { prefix: string; url: string }[] = [
+  { prefix: 'glm-4.5', url: 'https://z.ai/blog/glm-4.5' },
+  { prefix: 'glm-4.7', url: 'https://z.ai/blog/glm-4.7' },
+  { prefix: 'glm-5', url: 'https://z.ai/blog/glm-5' },
+];
+
+/**
+ * Fallback URL for z.ai-coding requests where the model name doesn't match
+ * any known family prefix. Points to the coding-plan overview page so the
+ * user at least lands somewhere meaningful.
+ */
+const ZAI_CODING_OVERVIEW_URL = 'https://docs.z.ai/devpack/overview';
+
+/**
+ * Build a model-info URL for the response footer based on which provider
+ * was actually used. For z.ai-coding direct routes, link to z.ai's blog
+ * announcement for the model's family; for OpenRouter (including z.ai
+ * fallthrough where ProviderRouter rewrote the model to `z-ai/<model>`),
+ * link to OpenRouter's model card page.
+ *
+ * `provider` is the *effective* provider — i.e., the one that actually
+ * served the request, post-ProviderRouter — which is the value plumbed
+ * through `LLMGenerationResponse.metadata.providerUsed`.
+ */
+export function buildModelInfoUrl(model: string, provider: string | undefined): string {
+  // Compare against the enum constant rather than the bare string so future
+  // renames break at compile time. AIProvider is declared further down in this
+  // module; the forward reference is safe because regular TypeScript enums
+  // compile to var declarations and are fully initialized during module
+  // evaluation, before any consumer can call this function.
+  if (provider === AIProvider.ZaiCoding) {
+    for (const { prefix, url } of ZAI_MODEL_FAMILY_URLS) {
+      if (model.startsWith(prefix)) {
+        return url;
+      }
+    }
+    return ZAI_CODING_OVERVIEW_URL;
+  }
+  // OpenRouter (and any unknown provider — falls through to OpenRouter as
+  // the historical default; ElevenLabs is voice-only and never hits this
+  // path because the model footer is built from LLM responses).
+  return `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${encodeURIComponent(model)}`;
+}
+
+/**
  * AI provider identifiers
  *
  * OpenRouter: LLM chat/generation (BYOK for model access)
