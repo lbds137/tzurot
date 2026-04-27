@@ -73,9 +73,12 @@ describe('buildModelInfoUrl', () => {
   });
 
   describe('OpenRouter route (default)', () => {
-    it('should build a URL-encoded OpenRouter model card link', () => {
+    it('should build an OpenRouter model card link with literal / between path segments', () => {
+      // OpenRouter's path-based routing wants the `/` between namespace and
+      // model unencoded (path hierarchy). Segment-internal special chars still
+      // get escaped, but the namespace boundary stays a literal slash.
       expect(buildModelInfoUrl('anthropic/claude-sonnet-4', 'openrouter')).toBe(
-        'https://openrouter.ai/anthropic%2Fclaude-sonnet-4'
+        'https://openrouter.ai/anthropic/claude-sonnet-4'
       );
     });
 
@@ -85,8 +88,34 @@ describe('buildModelInfoUrl', () => {
       // the URL should point to OpenRouter's page for that namespaced model,
       // NOT to z.ai (the request didn't actually hit z.ai's endpoint).
       expect(buildModelInfoUrl('z-ai/glm-4.7', 'openrouter')).toBe(
-        'https://openrouter.ai/z-ai%2Fglm-4.7'
+        'https://openrouter.ai/z-ai/glm-4.7'
       );
+    });
+
+    it('should still encode segment-internal unsafe characters', () => {
+      // Slashes between segments stay literal, but unsafe chars within a
+      // segment (spaces, brackets, query separators) must still be escaped.
+      expect(buildModelInfoUrl('vendor/model with space', 'openrouter')).toBe(
+        'https://openrouter.ai/vendor/model%20with%20space'
+      );
+    });
+
+    it('should escape `..` segments to defeat path traversal', () => {
+      // Per 00-critical.md SSRF defense-in-depth rule — the model name
+      // ultimately comes from a downstream API response, but defense-in-depth
+      // requires encoding all dynamic URL segments. `encodeURIComponent('..')`
+      // returns `..` unchanged (dot is URL-safe), so a literal `..` segment
+      // would produce a traversal path. We escape the dots explicitly.
+      const url = buildModelInfoUrl('anthropic/../evil', 'openrouter');
+      expect(url).not.toContain('../');
+      expect(url).toBe('https://openrouter.ai/anthropic/%2E%2E/evil');
+    });
+
+    it('should escape standalone `.` segments too', () => {
+      // Same defense as `..` — a `.` segment is interpreted as "current
+      // directory" in path resolution; encode it so the URL can't navigate.
+      const url = buildModelInfoUrl('vendor/./model', 'openrouter');
+      expect(url).toBe('https://openrouter.ai/vendor/%2E/model');
     });
 
     it('should fall back to OpenRouter URL when provider is undefined', () => {
