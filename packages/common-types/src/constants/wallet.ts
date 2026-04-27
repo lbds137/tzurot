@@ -52,4 +52,7 @@ export const API_KEY_FORMATS = {
 
   /** Placeholder example for ElevenLabs keys (for documentation/UI) */
   ELEVENLABS_PLACEHOLDER: 'sk_xxxx...',
+
+  /** Placeholder example for z.ai Coding Plan keys (for documentation/UI) */
+  ZAI_CODING_PLACEHOLDER: 'Your z.ai coding-plan API key',
 } as const;
