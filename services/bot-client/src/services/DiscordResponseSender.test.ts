@@ -140,7 +140,7 @@ describe('DiscordResponseSender', () => {
 
       const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
       expect(calledContent).toContain('[z-ai/glm-4.7]');
-      expect(calledContent).toContain('openrouter.ai/z-ai%2Fglm-4.7');
+      expect(calledContent).toContain('openrouter.ai/z-ai/glm-4.7');
     });
 
     it('should add guest mode footer when isGuestMode is true', async () => {

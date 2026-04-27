@@ -255,7 +255,31 @@ export function buildModelInfoUrl(model: string, provider: string | undefined): 
   // OpenRouter (and any unknown provider — falls through to OpenRouter as
   // the historical default; ElevenLabs is voice-only and never hits this
   // path because the model footer is built from LLM responses).
-  return `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${encodeURIComponent(model)}`;
+  //
+  // Encode each path segment individually so that `/` between namespace and
+  // model name (e.g. `z-ai/glm-5.1`, `anthropic/claude-sonnet-4`) stays a
+  // literal `/` — OpenRouter's path-based routing rejects %2F. Segment-internal
+  // unsafe characters (spaces, brackets, etc.) still get escaped via
+  // `encodeOpenRouterPathSegment`, which also handles `.`/`..` traversal
+  // segments that `encodeURIComponent` would otherwise leave intact (per
+  // `00-critical.md` SSRF defense-in-depth rule).
+  const safePath = model.split('/').map(encodeOpenRouterPathSegment).join('/');
+  return `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${safePath}`;
+}
+
+/**
+ * Encode a single segment of an OpenRouter model URL path. Wraps
+ * `encodeURIComponent` with explicit handling for `.` and `..` segments —
+ * `encodeURIComponent('..')` returns `..` unchanged because dot is a URL-safe
+ * character, but a literal `..` segment in a path is a traversal vector. We
+ * escape the dots to `%2E%2E` so the URL can't be interpreted as climbing
+ * the path hierarchy.
+ */
+function encodeOpenRouterPathSegment(segment: string): string {
+  if (segment === '.' || segment === '..') {
+    return segment.replace(/\./g, '%2E');
+  }
+  return encodeURIComponent(segment);
 }
 
 /**

@@ -69,7 +69,7 @@ describe('sendCharacterResponse', () => {
 
     const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
     expect(sentContent).toContain('[test/model-1]');
-    expect(sentContent).toContain('openrouter.ai/test%2Fmodel-1');
+    expect(sentContent).toContain('openrouter.ai/test/model-1');
   });
 
   it('should link to z.ai blog for zai-coding direct routes', async () => {
@@ -94,7 +94,7 @@ describe('sendCharacterResponse', () => {
 
     const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
     expect(sentContent).toContain('[z-ai/glm-4.7]');
-    expect(sentContent).toContain('openrouter.ai/z-ai%2Fglm-4.7');
+    expect(sentContent).toContain('openrouter.ai/z-ai/glm-4.7');
   });
 
   it('should append guest mode footer when in guest mode', async () => {
