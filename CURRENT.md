@@ -1,51 +1,27 @@
 # Current
 
-> **Session**: 2026-04-26 → 2026-04-27 (extended marathon — DM-silence epic + Identity Hardening close-out + beta.108 release)
-> **Version**: v3.0.0-beta.108 (released 2026-04-27)
+> **Session**: 2026-04-27 → 2026-04-28 (z.ai integration end-to-end + beta.109 release)
+> **Version**: v3.0.0-beta.109 (released 2026-04-28)
 
 ---
 
 ## Next Session Goal
 
-_No production issues active. z.ai integration end-to-end shipped (PR #921 + PR #924). Manual end-to-end verification + TTS upgrade work next._
+_No production issues active. beta.109 just shipped — z.ai Coding Plan integration is end-to-end functional (user-verified live mid-session). No items in current focus._
 
-1. **z.ai end-to-end manual verification** — per the plan in `~/.claude/plans/wondrous-rolling-moore.md`: (a) set z.ai-coding key via `/wallet add` → green validator response, (b) configure a personality with `provider: 'zai-coding'`, `model: 'glm-4.7'`, (c) send a Discord DM → check ai-worker logs for `effectiveProvider=zai-coding` and direct routing, (d) remove the key (or test as a different user) → check logs for `fallthroughTriggered=true` + `effectiveProvider=openrouter` with rewritten model `z-ai/glm-4.7`, (e) z.ai dashboard quota check confirms coding-plan quota was actually consumed (real-world signal). After verification, decide whether to seed a default `provider: 'zai-coding'` preset for users.
-2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-3. **Quick Wins remaining** — delete `DM_RAW_GATEWAY_DIAGNOSTIC` env entry from Railway dashboard (no code), "make duplicate-exports + knip blocking in CI" (needs allowlist triage first), and the new `createMockPersonality` redundant `provider: 'openrouter'` overrides sweep (~80 fixtures, mechanical).
-4. **Beta release (when convenient)** — develop has 3 PRs unreleased since beta.108 (#920, #921, #924). Cut beta.109 when ready. Plan to fold the `claude-review` skip-on-dependabot workflow change into the same release branch (it's the last-commit-before-release-merge item per the quick-wins entry — needs to land on develop alongside the release-merge PR to minimize the dark window where claude-review is broken).
+1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
+2. **DM link-resolution oversight** (user intake from 2026-04-28) — links from DMs with bot don't resolve like links from guilds. Reproduction + diagnosis pass needed; could be one-line fix or meaningful refactor. See `backlog/inbox.md`.
+3. **Backlog: knip + duplicate-exports CI gate** — 30-60min triage + flag flip. The only remaining quick-win that's actionable; everything else in the backlog is blocked on production data, design decisions, or external dependencies.
 
 ## Active Task
 
-_None. PR #929 (backlog cleanup batch 1: z.ai reasoning extraction + /wallet/list Zod validation + named FallbackRoute alias) merged 2026-04-28 after 3 review rounds. Three backlog items retired in one PR; all reviewer-flagged in past PRs (#908, #928) and unblocked. Plus DM link-resolution intake captured (user-flagged 2026-04-28, not yet investigated)._
-
-_Remaining backlog (all production-data-blocked or design-blocked per their own promote-when criteria — no immediate low-hanging fruit):_
-
-- z.ai-specific field audit (sibling to reasoning fix; could ship anytime, lower urgency)
-- Narrow auto-promotion fallback trigger (z.ai error-shape data)
-- Discriminated union part (b) (production stabilization)
-- Runtime invariant guard for ResolvedRoute mutual exclusion (when 5th routing path is designed)
-- `tryResolveUserKey` no-key negative caching (production load data)
-- Validation model deprecation hardening (z.ai catalog signal)
-- 402 status verification (real expired-key probe)
-- DM link-resolution oversight (user intake; needs reproduction + diagnosis)
-- `claude-review` skip-on-dependabot (last-commit-before-release-merge)
-- knip + duplicate-exports CI gate (30-60min triage + flag flip)
-
-_**Next planned**: cut beta.109 release. Develop has 8 PRs unreleased since beta.108 (#920, #921, #924–929, plus dependabot #922/#923) — substantial release surface. Per `backlog/quick-wins.md`, the claude-review-skip-on-dependabot workflow change should be the LAST commit on develop before opening the release-merge PR (release-coupled timing constraint to minimize the dark window where claude-review is broken)._
+_None. v3.0.0-beta.109 released 2026-04-28 (this session). Develop is now SHA-aligned with main; "Unreleased on Develop" section is empty._
 
 ---
 
-## Unreleased on Develop (since beta.108)
+## Unreleased on Develop (since beta.109)
 
-- **PR #920** (`chore/post-beta-108-cleanup`, merged 2026-04-27) — chunker defensive truncation against off-by-N output (real Lilith bug), shutdown async-await (PR #913 follow-up), `CreatePersonaResponse` schema import (drift prevention).
-- **PR #921** (`feat/zai-coding-provider-plumbing`, merged 2026-04-27) — z.ai Coding Plan as new `AIProvider.ZaiCoding` enum + endpoint + key validators (api-gateway intake + ai-worker runtime) + `ModelFactory` per-request provider override with provider-tier param filtering. PR 1 of 2; routing & auto-fallthrough come in PR 2. 6 review rounds, all asks resolved or absorbed into PR 2 backlog.
-- **PR #924** (`feat/zai-coding-provider-router`, merged 2026-04-27) — z.ai PR 2 of 2: `ProviderRouter` (new service, 13 unit tests) encodes auto-fallthrough rule (zai-coding-with-key → direct route; zai-coding-without-key → rewrite to `z-ai/<model>` and route via OpenRouter; non-zai providers → passthrough). Wired into `AuthStep` via extracted `resolveLlmAuth()` helper. Threaded `provider` field end-to-end through `MappedLlmConfig` → `LoadedPersonality` → `ModelConfig`. Added `validateAIProvider()` runtime guard at ModelFactory boundary. Promoted 5xx classification to `ProviderUnavailableError` symmetrically across OpenRouter/ElevenLabs/ZaiCoding validators (was an asymmetric latent bug). 8 review rounds, all asks resolved or backlogged.
-- **PR #925** (`chore/pr924-review-polish`, merged 2026-04-27) — 3-commit bundle of PR #924 review follow-ups: (a) invariant test for `tryResolveUserKey` no-cache-null-path (locks in PR #924's documented cache invariant), (b) optional `providerRouter?` constructor injection in AuthStep (test-isolation seam), (c) drop 50 redundant `provider: 'openrouter'` overrides in VisionProcessor.test.ts. First-try LGTM, 13/13 CI green. Discovery during planning: 4 z.ai backlog items were already done inline during PR #921 review — backlog cleaned up in same session.
-- **PR #926** (`fix/zai-coding-discord-choices-and-validation-model`, merged 2026-04-27) — z.ai end-to-end UX fix after manual dev testing surfaced two day-1 bugs from PR #921: (a) `DISCORD_PROVIDER_CHOICES` was missing the `zai-coding` entry (slash-command dropdown silently omitted z.ai), (b) `ZAI_VALIDATION_MODEL = 'glm-4.5-flash'` was a hallucinated model name (correct: `glm-4.5-air`, the only 1× quota Haiku-equivalent in z.ai's documented coding-plan catalog). Plus `buildModelInfoUrl` helper that routes the response footer link to z.ai's blog (direct route) or OpenRouter (post-fallthrough), bidirectional guard tests in `discord.test.ts` to prevent recurrence on future enum additions, and an incidental `encodeURIComponent` SSRF cleanup in `chatResponseSender.ts`. 4 review rounds (1 autosquash gate + 3 review-fix cycles).
-- **PR #927** (`fix/zai-coding-auto-promotion`, merged 2026-04-28) — z.ai single-preset UX completion: ProviderRouter auto-promotes OpenRouter `z-ai/<model>` requests to z.ai-direct when the user has a zai-coding key (whitelist-guarded against catalog drift via `isZaiCodingPlanModel`). Plus URL encoding regression fix from PR #926 (per-segment encoding preserves `/` between namespace and model; `encodeOpenRouterPathSegment` escapes `.`/`..` segments per `00-critical.md` SSRF defense). New `wasAutoPromoted` field on `ResolvedRoute` plumbed through AuthStep (override + log context) — sets the trigger for the upcoming retry-with-fallback (C3 in `backlog/inbox.md`). 5 review rounds + council pre-review (Opus 4.6). Council prescribed: whitelist guard, case normalization, wasAutoPromoted field, YAGNI on opt-out — all four followed.
-- **PR #928** (`feat/zai-coding-c3-and-docs-urls`, merged 2026-04-28) — Two coordinated changes closing the third of three pre-release z.ai items: (a) refactor catalog from prefix-array + whitelist-array → single `ZAI_MODEL_CATALOG` Record (one-line additions for new models, replaces fragile prefix matching); (b) retry-with-fallback when auto-promoted z.ai request fails (catalog drift defense in depth — ProviderRouter pre-computes OpenRouter fallback alongside promotion, GenerationStep wraps the LLM call in `runWithAutoPromotionFallback` to swap+retry on failure, propagates ORIGINAL error if both fail). Plus per-model docs URLs replace blog family pages (`docs.z.ai/guides/llm/<model>` for 3 of 4 catalog entries; `glm-4.5-air` uses parent family page). 4 review rounds; round 3 surfaced graceful-degradation gap when OpenRouter resolution fails during promotion (defense added). User-confirmed working live before merge.
-- **PR #929** (`chore/backlog-cleanup-batch-1`, merged 2026-04-28) — Three independent backlog items in one PR (per the user's "I refuse to let them pile up" stance): (a) extract named `FallbackRoute` type alias replacing inline anonymous types on both `ResolvedRoute.fallback` and `ResolvedAuth.fallback`; (b) extend reasoning extraction to recognize z.ai's `additional_kwargs.reasoning_content` alongside OpenRouter's `reasoning` (real bug fix — z.ai thinking content was silently dropped before this); (c) `ListWalletKeysResponseSchema.parse()` validation in the gateway handler before sending response (defense against future schema drift). 3 review rounds, no blockers, clean LGTM verdict.
-- **Dependabot PRs #922/#923** (merged 2026-04-27) — production + development dependency updates. Merged with explicit `claude-review` infra-fail (bot-actor reject); workflow fix to skip claude-review on dependabot is queued in `backlog/quick-wins.md` as "last commit on develop before next release-merge."
+_Empty. Last release was beta.109 on 2026-04-28._
 
 ---
 
