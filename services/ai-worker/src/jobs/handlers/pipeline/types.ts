@@ -100,6 +100,28 @@ export interface ResolvedAuth {
   isGuestMode: boolean;
   /** ElevenLabs API key for BYOK voice (undefined = use self-hosted voice-engine) */
   elevenlabsApiKey?: string;
+  /**
+   * `true` when ProviderRouter auto-promoted an OpenRouter `z-ai/<model>`
+   * request to z.ai-direct. Together with `fallback`, enables GenerationStep
+   * to retry-with-fallback if the promoted z.ai request fails.
+   */
+  wasAutoPromoted?: boolean;
+  /**
+   * Pre-computed OpenRouter passthrough route — populated when (and only
+   * when) `wasAutoPromoted` is true. Contains everything GenerationStep
+   * needs to swap to OpenRouter on a z.ai failure (catalog drift defense
+   * in depth — the whitelist may go stale if z.ai deprecates a model).
+   *
+   * `model` here is the ORIGINAL `z-ai/<model>` namespaced form (not the
+   * stripped form sent to z.ai), so the OpenRouter retry uses the right
+   * route on its end.
+   */
+  fallback?: {
+    apiKey: string;
+    provider: string;
+    model: string;
+    isGuestMode: boolean;
+  };
 }
 
 /**

@@ -301,6 +301,15 @@ describe('AuthStep', () => {
           model: 'z-ai/glm-5.1',
         };
         vi.mocked(mockApiKeyResolver.tryResolveUserKey).mockResolvedValue('zai-user-key');
+        // ProviderRouter pre-computes the OpenRouter fallback alongside the
+        // promotion (for retry-with-fallback in GenerationStep), so the mock
+        // must serve the openrouter resolution.
+        vi.mocked(mockApiKeyResolver.resolveApiKey).mockResolvedValue({
+          apiKey: 'sk-or-user-key',
+          provider: AIProvider.OpenRouter,
+          source: 'user',
+          isGuestMode: false,
+        });
 
         step = new AuthStep(mockApiKeyResolver, mockConfigResolver);
         const result = await step.process({
@@ -314,6 +323,14 @@ describe('AuthStep', () => {
         expect(result.config?.effectivePersonality.provider).toBe(AIProvider.ZaiCoding);
         expect(result.auth?.apiKey).toBe('zai-user-key');
         expect(result.auth?.provider).toBe(AIProvider.ZaiCoding);
+        // wasAutoPromoted + fallback plumbed onto auth for retry-with-fallback
+        expect(result.auth?.wasAutoPromoted).toBe(true);
+        expect(result.auth?.fallback).toEqual({
+          apiKey: 'sk-or-user-key',
+          provider: AIProvider.OpenRouter,
+          model: 'z-ai/glm-5.1', // original namespaced form preserved
+          isGuestMode: false,
+        });
       });
     });
 
