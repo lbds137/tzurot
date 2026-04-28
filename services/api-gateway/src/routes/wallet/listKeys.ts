@@ -8,7 +8,11 @@
  */
 
 import { Router, type Response } from 'express';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  ListWalletKeysResponseSchema,
+  type PrismaClient,
+} from '@tzurot/common-types';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
@@ -43,7 +47,13 @@ export function createListKeysRoute(prisma: PrismaClient): Router {
 
       logger.info({ discordUserId, keyCount: keys.length }, 'Listed API keys');
 
-      sendCustomSuccess(res, {
+      // Validate the response shape against the canonical schema before
+      // sending. The handler hand-constructs the payload from a Prisma
+      // select(); without this parse, a future refactor that drops a
+      // required field (`timestamp`, per-key `createdAt`, etc.) would
+      // silently break bot-client consumers using `ListWalletKeysResponse`
+      // without typecheck or test catching it.
+      const payload = ListWalletKeysResponseSchema.parse({
         keys: keys.map(key => ({
           provider: key.provider,
           isActive: key.isActive,
@@ -52,6 +62,7 @@ export function createListKeysRoute(prisma: PrismaClient): Router {
         })),
         timestamp: new Date().toISOString(),
       });
+      sendCustomSuccess(res, payload);
     })
   );
 
