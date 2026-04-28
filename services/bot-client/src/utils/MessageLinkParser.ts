@@ -9,7 +9,8 @@
  * Parsed message link structure
  */
 export interface ParsedMessageLink {
-  guildId: string;
+  /** Guild ID — null for DM links (`/@me/`); matches discord.js Message#guildId semantics */
+  guildId: string | null;
   channelId: string;
   messageId: string;
   fullUrl: string;
@@ -23,9 +24,13 @@ export class MessageLinkParser {
   /**
    * Regex for Discord message links
    * Supports: discord.com, ptb.discord.com, canary.discord.com, discordapp.com
+   *
+   * The guild segment matches `@me` (DM links) or a numeric snowflake (guild links).
+   * `parseMessageLinks` maps `@me` to `null` so consumers see `string | null` rather
+   * than a magic-string sentinel.
    */
   static readonly MESSAGE_LINK_REGEX =
-    /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/g;
+    /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(@me|\d+)\/(\d+)\/(\d+)/g;
 
   /**
    * Parse all Discord message links from content
@@ -38,8 +43,9 @@ export class MessageLinkParser {
 
     let match;
     while ((match = regex.exec(content)) !== null) {
+      const rawGuildSegment = match[2];
       links.push({
-        guildId: match[2],
+        guildId: rawGuildSegment === '@me' ? null : rawGuildSegment,
         channelId: match[3],
         messageId: match[4],
         fullUrl: match[0],

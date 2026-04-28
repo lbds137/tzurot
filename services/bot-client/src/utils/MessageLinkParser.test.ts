@@ -44,6 +44,36 @@ describe('MessageLinkParser', () => {
       expect(links[0].messageId).toBe('999');
     });
 
+    it('should parse DM-format link with guildId === null', () => {
+      // Discord DM message URLs use `@me` for the guild segment. These were previously
+      // pre-filtered by the regex; now they parse with `guildId: null` so consumers
+      // can branch on null instead of dealing with magic-string sentinels.
+      const content = 'https://discord.com/channels/@me/789012/345678';
+      const links = MessageLinkParser.parseMessageLinks(content);
+
+      expect(links).toHaveLength(1);
+      expect(links[0]).toEqual({
+        guildId: null,
+        channelId: '789012',
+        messageId: '345678',
+        fullUrl: 'https://discord.com/channels/@me/789012/345678',
+      });
+    });
+
+    it('should parse mixed guild and DM links', () => {
+      const content = `
+        Guild: https://discord.com/channels/1/2/3
+        DM: https://discord.com/channels/@me/4/5
+      `;
+      const links = MessageLinkParser.parseMessageLinks(content);
+
+      expect(links).toHaveLength(2);
+      expect(links[0].guildId).toBe('1');
+      expect(links[1].guildId).toBeNull();
+      expect(links[1].channelId).toBe('4');
+      expect(links[1].messageId).toBe('5');
+    });
+
     it('should parse multiple links', () => {
       const content = `
         First: https://discord.com/channels/1/2/3

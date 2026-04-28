@@ -287,18 +287,43 @@ async function fetchAndFormatMessage(
   attachments: AttachmentMetadata[];
 } | null> {
   try {
-    // Try to get guild from cache first
-    const guild = client.guilds.cache.get(link.guildId);
+    // Resolution paths differ by link type:
+    // - Guild links: cache-only (`guilds.cache.get` → `channels.cache.get`). History
+    //   resolution is a best-effort backfill of context that was emitted long ago;
+    //   we don't pay a network round-trip per link. If the guild isn't already
+    //   cached, the link silently fails and the rest of history still resolves.
+    // - DM links: `client.channels.fetch` (cache-first, falls back to network).
+    //   DM channels are typically not in the guilds cache at all (DMs don't belong
+    //   to any guild) and the channel-cache hit rate for the bot's own DMs is
+    //   reasonable, so the network cost is tolerable when it happens.
+    // Note: no participant access check here. `HistoryLinkResolver` processes
+    // messages that are already in the bot's authorized conversation history
+    // (per-personality / per-conversation scope). The real-time access gate
+    // lives in `LinkExtractor.verifyInvokerCanAccessSource`, which fires when
+    // a fresh user message contains a link. By the time history-link resolution
+    // runs, the upstream gate has already either accepted or rejected the link.
+    let channel;
+    if (link.guildId === null) {
+      try {
+        channel = await client.channels.fetch(link.channelId);
+      } catch {
+        logger.debug({ channelId: link.channelId }, 'DM channel not accessible');
+        return null;
+      }
+    } else {
+      // Try to get guild from cache first
+      const guild = client.guilds.cache.get(link.guildId);
 
-    if (guild === undefined) {
-      // Not in cache - bot might not have access
-      logger.debug({ guildId: link.guildId }, 'Guild not accessible');
-      return null;
+      if (guild === undefined) {
+        // Not in cache - bot might not have access
+        logger.debug({ guildId: link.guildId }, 'Guild not accessible');
+        return null;
+      }
+
+      channel = guild.channels.cache.get(link.channelId);
     }
 
-    // Get channel
-    const channel = guild.channels.cache.get(link.channelId);
-    if (channel === undefined || !('messages' in channel)) {
+    if (channel === null || channel === undefined || !('messages' in channel)) {
       logger.debug({ channelId: link.channelId }, 'Channel not accessible or not text-based');
       return null;
     }

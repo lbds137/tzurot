@@ -4,7 +4,7 @@
  * Extracts reply-to references from Discord messages
  */
 
-import type { Message } from 'discord.js';
+import { type Message, MessageReferenceType } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { IReferenceStrategy } from './IReferenceStrategy.js';
 import type { ReferenceResult } from '../types.js';
@@ -27,24 +27,27 @@ export class ReplyReferenceStrategy implements IReferenceStrategy {
       return Promise.resolve([]);
     }
 
-    // Extract guild and channel IDs from the message
+    // Forwarded messages (Discord's Forward feature) also populate `message.reference`
+    // but with `type === MessageReferenceType.Forward`. Forwards are handled separately
+    // via message snapshots — don't treat them as reply references.
+    // Default reference type when omitted is `Default` (replies), so absence is allowed.
+    if (
+      message.reference.type !== undefined &&
+      message.reference.type !== MessageReferenceType.Default
+    ) {
+      return Promise.resolve([]);
+    }
+
+    // For DM channels, `message.guildId` is null per discord.js semantics.
+    // The downstream fetcher uses `channelId` to retrieve the parent message; access
+    // is verified via `LinkExtractor.verifyInvokerCanAccessSource` which has a
+    // DM-aware branch (`channel.isDMBased()` → check `recipientId === invokerId`).
+    // So a null guildId is valid here as long as channelId is present.
     const guildId = message.guildId;
     const channelId = message.channelId;
 
-    if (
-      guildId === null ||
-      guildId === undefined ||
-      channelId === null ||
-      channelId === undefined
-    ) {
-      logger.debug(
-        {
-          messageId: message.id,
-          hasGuildId: guildId !== null && guildId !== undefined,
-          hasChannelId: channelId !== null && channelId !== undefined,
-        },
-        'Skipping reply reference - missing guild or channel ID'
-      );
+    if (channelId === null || channelId === undefined) {
+      logger.debug({ messageId: message.id }, 'Skipping reply reference - missing channel ID');
       return Promise.resolve([]);
     }
 
@@ -52,6 +55,7 @@ export class ReplyReferenceStrategy implements IReferenceStrategy {
       {
         messageId: message.id,
         referencedMessageId: message.reference.messageId,
+        isDM: guildId === null,
       },
       'Found reply reference'
     );
