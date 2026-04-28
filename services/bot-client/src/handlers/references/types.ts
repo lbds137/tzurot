@@ -34,8 +34,8 @@ export interface ReferenceResult {
   messageId: string;
   /** Discord channel ID */
   channelId: string;
-  /** Discord guild ID */
-  guildId: string;
+  /** Discord guild ID — null for DM channels (matches discord.js Message#guildId semantics) */
+  guildId: string | null;
   /** Type of reference */
   type: ReferenceType;
   /** Discord URL (for link replacement) */

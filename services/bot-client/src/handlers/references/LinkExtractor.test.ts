@@ -414,6 +414,94 @@ describe('LinkExtractor', () => {
       expect(references).toHaveLength(1);
     });
 
+    it('should resolve DM-format links via direct channel fetch (guildId === null)', async () => {
+      // Regression: DM-format URLs (`/channels/@me/...`) parse with `guildId: null`.
+      // `resolveSourceChannel` skips the guild fetch entirely and resolves the channel
+      // via `client.channels.fetch(channelId)` directly. The downstream access check
+      // (`verifyInvokerCanAccessSource` → `isDMBased()` branch) then verifies the
+      // invoker is THE recipient of that DM.
+      const mockMessage = createMockMessage();
+      const mockClient = mockMessage.client;
+      const invokerId = mockMessage.author.id;
+
+      const mockDmChannel = {
+        id: 'dm-channel-789',
+        isTextBased: vi.fn(() => true),
+        isThread: vi.fn(() => false),
+        isDMBased: vi.fn(() => true),
+        recipientId: invokerId,
+        messages: {
+          fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'dm-msg-456' })),
+        },
+      } as unknown as Channel;
+
+      vi.mocked(mockClient.channels.fetch).mockResolvedValue(mockDmChannel);
+
+      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
+        {
+          fullUrl: 'https://discord.com/channels/@me/dm-channel-789/dm-msg-456',
+          guildId: null,
+          channelId: 'dm-channel-789',
+          messageId: 'dm-msg-456',
+        },
+      ]);
+
+      const [references, linkMap] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(mockClient.channels.fetch).toHaveBeenCalledWith('dm-channel-789');
+      expect(mockClient.guilds.fetch).not.toHaveBeenCalled();
+      expect(references).toHaveLength(1);
+      expect(linkMap.size).toBe(1);
+    });
+
+    it('should deny DM-format link expansion when invoker is not the DM recipient', async () => {
+      // Security: a user cannot paste another user's DM link and have it expanded.
+      // The DM channel fetch succeeds (the bot has access to its own DMs), but the
+      // `verifyInvokerCanAccessSource` participant check rejects when
+      // `recipientId !== invokerId`.
+      const mockMessage = createMockMessage();
+      const mockClient = mockMessage.client;
+
+      const mockDmChannel = {
+        id: 'dm-channel-789',
+        isTextBased: vi.fn(() => true),
+        isThread: vi.fn(() => false),
+        isDMBased: vi.fn(() => true),
+        recipientId: 'different-user-456',
+        messages: {
+          fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'dm-msg-456' })),
+        },
+      } as unknown as Channel;
+
+      vi.mocked(mockClient.channels.fetch).mockResolvedValue(mockDmChannel);
+
+      vi.mocked(MessageLinkParser.parseMessageLinks).mockReturnValue([
+        {
+          fullUrl: 'https://discord.com/channels/@me/dm-channel-789/dm-msg-456',
+          guildId: null,
+          channelId: 'dm-channel-789',
+          messageId: 'dm-msg-456',
+        },
+      ]);
+
+      const [references, linkMap] = await linkExtractor.extractLinkReferences(
+        mockMessage,
+        new Set(),
+        new Set(),
+        [],
+        1
+      );
+
+      expect(references).toHaveLength(0);
+      expect(linkMap.size).toBe(0);
+    });
+
     it('should handle guild fetch failure', async () => {
       const mockMessage = createMockMessage();
       const mockClient = mockMessage.client;
@@ -1055,13 +1143,12 @@ describe('LinkExtractor', () => {
       // The legitimate case: you're in a DM with the bot and you paste a link
       // to your own DM message in another conversation. You have access.
       //
-      // Pre-filter context: `MessageLinkParser.MESSAGE_LINK_REGEX` requires
-      // `\d+` for the guild segment, so DM-format links (`/channels/@me/...`)
-      // don't normally reach `verifyInvokerCanAccessSource` through user
-      // input — they're filtered at parse time. This test exercises the DM
-      // branch via the `client.channels.fetch()` fallback path (when a DM
-      // channel ID is resolved from a guild-format link). The branch is
-      // defensive; this test guarantees the defense works when it fires.
+      // The DM branch is the PRIMARY access-verification path for DM-format
+      // links (`/channels/@me/...`): `MessageLinkParser` parses such URLs
+      // with `guildId: null`, `resolveSourceChannel` fetches the DM channel
+      // directly via `client.channels.fetch`, and execution reaches the
+      // `isDMBased()` participant check. This test confirms the participant
+      // check passes when the invoker IS the DM recipient.
       const mockMessage = createMockMessage();
       const mockChannel = mockMessage.channel as TextChannel;
 

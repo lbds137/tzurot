@@ -128,50 +128,17 @@ export class LinkExtractor {
    *   the linked-to message, which is what this method FETCHES.
    * @returns Discord message or null if not accessible
    */
-  // eslint-disable-next-line complexity, max-lines-per-function -- Discord API requires nested try-catch for guild→channel→message fetch chain with different error codes (10008, 50001, 50013). Extracting would obscure the sequential fetch flow and error handling context.
   async fetchMessageFromLink(
     link: ParsedMessageLink,
     invokingMessage: Message
   ): Promise<Message | null> {
     try {
-      // Try to get guild from cache first
-      let guild = invokingMessage.client.guilds.cache.get(link.guildId);
-
-      // If not in cache, try to fetch it (bot might be in the guild but it's not cached)
-      if (!guild) {
-        try {
-          logger.debug(
-            {
-              guildId: link.guildId,
-              messageId: link.messageId,
-            },
-            'Guild not in cache, attempting fetch...'
-          );
-
-          guild = await invokingMessage.client.guilds.fetch(link.guildId);
-
-          logger.info(
-            {
-              guildId: link.guildId,
-              guildName: guild.name,
-            },
-            'Successfully fetched guild'
-          );
-        } catch (fetchError) {
-          logger.info(
-            {
-              guildId: link.guildId,
-              messageId: link.messageId,
-              err: fetchError,
-            },
-            'Guild not accessible for message link'
-          );
-          return null;
-        }
-      }
-
-      // Try to get channel from cache first (works for regular channels)
-      let channel: Channel | null = guild.channels.cache.get(link.channelId) ?? null;
+      // Resolve the source channel. DM links (`guildId === null`) skip the guild
+      // fetch — DM channels don't belong to any guild. The downstream access check
+      // (`verifyInvokerCanAccessSource` → `channel.isDMBased()` branch) verifies
+      // the invoking user is THE recipient of that DM, so a user can't paste
+      // someone else's DM link and have it expanded.
+      let channel = await this.resolveSourceChannel(link, invokingMessage);
 
       // If not in channels cache, it might be a thread - fetch it
       if (!channel) {
@@ -285,6 +252,57 @@ export class LinkExtractor {
   }
 
   /**
+   * Resolve the source channel for a parsed link, handling DM links separately
+   * from guild links. Returns null if the bot can't reach the channel/guild.
+   *
+   * Guild path: returns the cached channel (may be undefined if not in cache —
+   * the caller's thread-fetch fallback handles that case via
+   * `client.channels.fetch`, which also resolves threads).
+   *
+   * DM path: returns the result of `client.channels.fetch(channelId)` directly
+   * (or null on error). The caller's thread-fetch fallback is a no-op retry
+   * for this path — DM channels aren't threads, so a successful fetch yields a
+   * non-null channel and the fallback is skipped; a failed fetch already logged
+   * and returned null here, so the fallback's retry just produces the same
+   * failure.
+   */
+  private async resolveSourceChannel(
+    link: ParsedMessageLink,
+    invokingMessage: Message
+  ): Promise<Channel | null> {
+    if (link.guildId === null) {
+      try {
+        return await invokingMessage.client.channels.fetch(link.channelId);
+      } catch (fetchError) {
+        logger.info(
+          { channelId: link.channelId, messageId: link.messageId, err: fetchError },
+          'DM channel not accessible for message link'
+        );
+        return null;
+      }
+    }
+
+    let guild = invokingMessage.client.guilds.cache.get(link.guildId);
+    if (!guild) {
+      try {
+        logger.debug(
+          { guildId: link.guildId, messageId: link.messageId },
+          'Guild not in cache, attempting fetch...'
+        );
+        guild = await invokingMessage.client.guilds.fetch(link.guildId);
+        logger.info({ guildId: link.guildId, guildName: guild.name }, 'Successfully fetched guild');
+      } catch (fetchError) {
+        logger.info(
+          { guildId: link.guildId, messageId: link.messageId, err: fetchError },
+          'Guild not accessible for message link'
+        );
+        return null;
+      }
+    }
+    return guild.channels.cache.get(link.channelId) ?? null;
+  }
+
+  /**
    * Check if channel is text-based and supports message fetching
    * @param channel - Discord channel
    * @returns True if channel is text-based
@@ -337,12 +355,12 @@ export class LinkExtractor {
       // never a `PartialGroupDMChannel`). The invoker is either THE recipient
       // or not — there's no third option we need to worry about.
       //
-      // Note: `MessageLinkParser.MESSAGE_LINK_REGEX` requires `\d+` for the
-      // guild segment, so DM-format links (`/channels/@me/...`) are pre-
-      // filtered and never reach this method through normal user input. This
-      // branch is defensive for edge cases where a DM channel could be
-      // resolved via `client.channels.fetch()` fallback on a guild-format
-      // link that happens to reference a DM channel ID.
+      // This is the primary access-verification path for DM-format links
+      // (`/channels/@me/...`): `MessageLinkParser` parses such URLs with
+      // `guildId: null`, `resolveSourceChannel` fetches the DM channel
+      // directly, and execution lands here. The participant check enforces
+      // that a user can only resolve DM links to DMs they themselves are in
+      // — they can't paste another user's DM link and have it expanded.
       if (channel.isDMBased()) {
         const dmChannel = channel as DMChannel;
         return dmChannel.recipientId === invokerId;
