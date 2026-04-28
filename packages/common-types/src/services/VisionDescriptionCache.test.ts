@@ -1,15 +1,14 @@
 /**
  * Unit Tests for VisionDescriptionCache
  *
- * Tests the failure caching (negative cache) functionality
- * using mocked Redis and PersistentVisionCache.
+ * Covers Redis L1 cache for vision descriptions and per-category negative cache.
+ * (L2 PostgreSQL was removed in beta.110 — see VisionDescriptionCache.ts header.)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Redis } from 'ioredis';
 import { VisionDescriptionCache } from './VisionDescriptionCache.js';
-import type { PersistentVisionCache } from './PersistentVisionCache.js';
-import { INTERVALS, REDIS_KEY_PREFIXES } from '../constants/index.js';
+import { INTERVALS, REDIS_KEY_PREFIXES, ApiErrorCategory } from '../constants/index.js';
 
 // Mock logger
 vi.mock('../utils/logger.js', () => ({
@@ -26,12 +25,6 @@ describe('VisionDescriptionCache', () => {
     setex: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
   };
-  let mockL2Cache: {
-    setFailure: ReturnType<typeof vi.fn>;
-    getFailure: ReturnType<typeof vi.fn>;
-    get: ReturnType<typeof vi.fn>;
-    set: ReturnType<typeof vi.fn>;
-  };
   let cache: VisionDescriptionCache;
 
   beforeEach(() => {
@@ -40,153 +33,170 @@ describe('VisionDescriptionCache', () => {
       setex: vi.fn().mockResolvedValue('OK'),
       get: vi.fn().mockResolvedValue(null),
     };
-    mockL2Cache = {
-      setFailure: vi.fn().mockResolvedValue(undefined),
-      getFailure: vi.fn().mockResolvedValue(null),
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn().mockResolvedValue(undefined),
-    };
     cache = new VisionDescriptionCache(mockRedis as unknown as Redis);
-    cache.setL2Cache(mockL2Cache as unknown as PersistentVisionCache);
   });
 
-  describe('storeFailure', () => {
-    it('should store transient failure in L1 only with short TTL', async () => {
+  describe('storeFailure (per-category cache policy)', () => {
+    it('should cache AUTHENTICATION failures with SHORT TTL (5min)', async () => {
       await cache.storeFailure({
         attachmentId: '123',
         url: 'https://example.com/image.png',
-        category: 'timeout',
-        permanent: false,
+        category: ApiErrorCategory.AUTHENTICATION,
       });
 
       expect(mockRedis.setex).toHaveBeenCalledWith(
         `${REDIS_KEY_PREFIXES.VISION_FAILURE}id:123`,
-        INTERVALS.VISION_FAILURE_TTL,
-        JSON.stringify({ category: 'timeout', permanent: false })
+        INTERVALS.VISION_FAILURE_TTL_SHORT,
+        expect.stringContaining(`"category":"${ApiErrorCategory.AUTHENTICATION}"`)
       );
-      // Should NOT write to L2 for transient failures
-      expect(mockL2Cache.setFailure).not.toHaveBeenCalled();
     });
 
-    it('should store permanent failure in L1 and L2', async () => {
+    it('should cache QUOTA_EXCEEDED failures with SHORT TTL (5min)', async () => {
       await cache.storeFailure({
-        attachmentId: '456',
+        attachmentId: '123',
         url: 'https://example.com/image.png',
-        category: 'authentication',
-        permanent: true,
+        category: ApiErrorCategory.QUOTA_EXCEEDED,
       });
 
-      expect(mockRedis.setex).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.VISION_FAILURE}id:456`,
-        INTERVALS.VISION_FAILURE_PERMANENT_TTL,
-        JSON.stringify({ category: 'authentication', permanent: true })
-      );
-      expect(mockL2Cache.setFailure).toHaveBeenCalledWith('456', 'authentication');
+      const [, ttl] = mockRedis.setex.mock.calls[0];
+      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL_SHORT);
     });
 
-    it('should skip L2 write when attachmentId is empty', async () => {
+    it('should cache CONTENT_POLICY failures with LONG TTL (60min)', async () => {
       await cache.storeFailure({
+        attachmentId: '123',
         url: 'https://example.com/image.png',
-        category: 'content_policy',
-        permanent: true,
+        category: ApiErrorCategory.CONTENT_POLICY,
       });
 
-      expect(mockRedis.setex).toHaveBeenCalledTimes(1);
-      expect(mockL2Cache.setFailure).not.toHaveBeenCalled();
+      const [, ttl] = mockRedis.setex.mock.calls[0];
+      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL_LONG);
+    });
+
+    it('should cache MEDIA_NOT_FOUND failures with LONG TTL', async () => {
+      await cache.storeFailure({
+        attachmentId: '123',
+        url: 'https://example.com/image.png',
+        category: ApiErrorCategory.MEDIA_NOT_FOUND,
+      });
+
+      const [, ttl] = mockRedis.setex.mock.calls[0];
+      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL_LONG);
+    });
+
+    it('should cache RATE_LIMIT (transient retryable) with default TTL (10min)', async () => {
+      await cache.storeFailure({
+        attachmentId: '123',
+        url: 'https://example.com/image.png',
+        category: ApiErrorCategory.RATE_LIMIT,
+      });
+
+      const [, ttl] = mockRedis.setex.mock.calls[0];
+      expect(ttl).toBe(INTERVALS.VISION_FAILURE_TTL);
+    });
+
+    it('should embed cachedAt timestamp in the stored value', async () => {
+      await cache.storeFailure({
+        attachmentId: '123',
+        url: 'https://example.com/image.png',
+        category: ApiErrorCategory.AUTHENTICATION,
+      });
+
+      const [, , value] = mockRedis.setex.mock.calls[0];
+      const parsed = JSON.parse(value);
+      expect(parsed.cachedAt).toBeDefined();
+      expect(typeof parsed.cachedAt).toBe('string');
+      // Should parse as a valid ISO date
+      expect(() => new Date(parsed.cachedAt).toISOString()).not.toThrow();
+    });
+
+    it('should use URL-hash fallback key when attachmentId is missing', async () => {
+      await cache.storeFailure({
+        url: 'https://example.com/image.png?ex=abc',
+        category: ApiErrorCategory.AUTHENTICATION,
+      });
+
+      const [key] = mockRedis.setex.mock.calls[0];
+      expect(key).toMatch(new RegExp(`^${REDIS_KEY_PREFIXES.VISION_FAILURE}url:[a-f0-9]+$`));
     });
 
     it('should not throw on Redis errors', async () => {
-      mockRedis.setex.mockRejectedValue(new Error('Redis down'));
-
+      mockRedis.setex.mockRejectedValueOnce(new Error('Redis down'));
       await expect(
         cache.storeFailure({
           attachmentId: '123',
           url: 'https://example.com/image.png',
-          category: 'timeout',
-          permanent: false,
+          category: ApiErrorCategory.AUTHENTICATION,
         })
       ).resolves.toBeUndefined();
     });
   });
 
   describe('getFailure', () => {
-    it('should return failure entry from L1 cache', async () => {
-      mockRedis.get.mockResolvedValue(JSON.stringify({ category: 'rate_limit', permanent: false }));
-
+    it('should return null when no entry cached', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
       const result = await cache.getFailure({
         attachmentId: '123',
         url: 'https://example.com/image.png',
       });
-
-      expect(result).toEqual({ category: 'rate_limit', permanent: false });
-      expect(mockRedis.get).toHaveBeenCalledWith(`${REDIS_KEY_PREFIXES.VISION_FAILURE}id:123`);
+      expect(result).toBeNull();
     });
 
-    it('should fall through to L2 when L1 misses', async () => {
-      mockRedis.get.mockResolvedValue(null);
-      mockL2Cache.getFailure.mockResolvedValue({ category: 'authentication' });
-
+    it('should return entry with category + cachedAt on hit', async () => {
+      const cachedAt = '2026-04-28T18:22:42.000Z';
+      mockRedis.get.mockResolvedValueOnce(
+        JSON.stringify({ category: ApiErrorCategory.AUTHENTICATION, cachedAt })
+      );
       const result = await cache.getFailure({
-        attachmentId: '789',
+        attachmentId: '123',
         url: 'https://example.com/image.png',
       });
+      expect(result).toEqual({ category: ApiErrorCategory.AUTHENTICATION, cachedAt });
+    });
 
-      expect(result).toEqual({ category: 'authentication', permanent: true });
-      // Should repopulate L1 from L2
+    it('should return null on Redis errors (fail open)', async () => {
+      mockRedis.get.mockRejectedValueOnce(new Error('Redis down'));
+      const result = await cache.getFailure({
+        attachmentId: '123',
+        url: 'https://example.com/image.png',
+      });
+      expect(result).toBeNull();
+    });
+
+    it('should use URL-hash fallback key when attachmentId is missing', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
+      await cache.getFailure({ url: 'https://example.com/image.png' });
+      const [key] = mockRedis.get.mock.calls[0];
+      expect(key).toMatch(new RegExp(`^${REDIS_KEY_PREFIXES.VISION_FAILURE}url:[a-f0-9]+$`));
+    });
+  });
+
+  describe('store / get (success cache)', () => {
+    it('should store description with default TTL', async () => {
+      await cache.store({ attachmentId: '123', url: 'https://example.com/image.png' }, 'a cat');
       expect(mockRedis.setex).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.VISION_FAILURE}id:789`,
-        INTERVALS.VISION_FAILURE_PERMANENT_TTL,
-        JSON.stringify({ category: 'authentication', permanent: true })
+        `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}id:123`,
+        INTERVALS.VISION_DESCRIPTION_TTL,
+        'a cat'
       );
     });
 
-    it('should return null when both L1 and L2 miss', async () => {
-      mockRedis.get.mockResolvedValue(null);
-      mockL2Cache.getFailure.mockResolvedValue(null);
-
-      const result = await cache.getFailure({
-        attachmentId: '999',
-        url: 'https://example.com/image.png',
-      });
-
-      expect(result).toBeNull();
-    });
-
-    it('should skip L2 check when no attachmentId', async () => {
-      mockRedis.get.mockResolvedValue(null);
-
-      const result = await cache.getFailure({
-        url: 'https://example.com/image.png',
-      });
-
-      expect(result).toBeNull();
-      expect(mockL2Cache.getFailure).not.toHaveBeenCalled();
-    });
-
-    it('should not throw on Redis errors', async () => {
-      mockRedis.get.mockRejectedValue(new Error('Redis down'));
-
-      const result = await cache.getFailure({
+    it('should return cached description on hit', async () => {
+      mockRedis.get.mockResolvedValueOnce('a cat');
+      const result = await cache.get({
         attachmentId: '123',
         url: 'https://example.com/image.png',
       });
-
-      expect(result).toBeNull();
+      expect(result).toBe('a cat');
     });
 
-    it('should use URL hash key when no attachmentId', async () => {
-      mockRedis.get.mockResolvedValue(
-        JSON.stringify({ category: 'server_error', permanent: false })
-      );
-
-      const result = await cache.getFailure({
-        url: 'https://example.com/image.png?token=abc',
+    it('should return null on miss', async () => {
+      mockRedis.get.mockResolvedValueOnce(null);
+      const result = await cache.get({
+        attachmentId: '123',
+        url: 'https://example.com/image.png',
       });
-
-      expect(result).toEqual({ category: 'server_error', permanent: false });
-      // Key should use vision:fail: prefix with url: subprefix
-      const calledKey = mockRedis.get.mock.calls[0][0] as string;
-      expect(calledKey).toMatch(/^vision:fail:url:/);
+      expect(result).toBeNull();
     });
   });
 });

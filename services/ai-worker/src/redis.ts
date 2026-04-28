@@ -10,12 +10,7 @@
  * This eliminates the previous dual-client overhead (node-redis + ioredis).
  */
 
-import {
-  initCoreRedisServices,
-  VisionDescriptionCache,
-  PersistentVisionCache,
-  getPrismaClient,
-} from '@tzurot/common-types';
+import { initCoreRedisServices, VisionDescriptionCache } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
 import { modelSupportsVision, modelSupportsReasoning } from './services/ModelCapabilityChecker.js';
 
@@ -28,15 +23,9 @@ export const redisService = new RedisService(redis);
 // Singleton: shares Redis connection for transcript caching — see initCoreRedisServices
 export { voiceTranscriptCache };
 
-// Export singleton VisionDescriptionCache instance with L2 persistent cache
-// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: VisionDescriptionCache shares Redis connection with L2 PostgreSQL cache. Multiple instances would bypass cache layers and waste API calls.
+// Export singleton VisionDescriptionCache instance — L1 Redis only (no L2 PostgreSQL).
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would bypass the cache and waste API calls.
 export const visionDescriptionCache = new VisionDescriptionCache(redis);
-
-// Set up L2 (PostgreSQL) cache for persistent storage
-// This survives Redis restarts and reduces API costs
-const prisma = getPrismaClient();
-const persistentVisionCache = new PersistentVisionCache(prisma);
-visionDescriptionCache.setL2Cache(persistentVisionCache);
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.

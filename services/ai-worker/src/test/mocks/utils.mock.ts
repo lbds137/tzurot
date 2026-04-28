@@ -11,8 +11,18 @@ import { type Mock, vi } from 'vitest';
  */
 export const mockProcessAttachments: Mock = vi.fn().mockResolvedValue([]);
 
-export const mockMultimodalProcessor: { processAttachments: Mock } = {
+/** Mirrors the real `deriveApiKeySource` (in VisionProcessor.ts) for tests. */
+const mockDeriveApiKeySource = (
+  isGuestMode: boolean,
+  userApiKey: string | undefined
+): 'user' | 'system' => (!isGuestMode && userApiKey !== undefined ? 'user' : 'system');
+
+export const mockMultimodalProcessor: {
+  processAttachments: Mock;
+  deriveApiKeySource: typeof mockDeriveApiKeySource;
+} = {
   processAttachments: mockProcessAttachments,
+  deriveApiKeySource: mockDeriveApiKeySource,
 };
 
 /**

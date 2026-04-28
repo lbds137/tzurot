@@ -44,6 +44,8 @@ vi.mock('../../../../redis.js', () => ({
 const mockProcessAttachments = vi.fn();
 vi.mock('../../../../services/MultimodalProcessor.js', () => ({
   processAttachments: mockProcessAttachments,
+  deriveApiKeySource: (isGuestMode: boolean, userApiKey: string | undefined): 'user' | 'system' =>
+    !isGuestMode && userApiKey !== undefined ? 'user' : 'system',
 }));
 
 const TEST_PERSONALITY: LoadedPersonality = {
@@ -410,7 +412,8 @@ describe('DependencyStep', () => {
         TEST_PERSONALITY,
         false,
         undefined,
-        undefined
+        undefined,
+        expect.objectContaining({ apiKeySource: 'system' })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
       expect(result.preprocessing?.extendedContextAttachments?.[0].description).toBe(
@@ -471,7 +474,8 @@ describe('DependencyStep', () => {
         TEST_PERSONALITY,
         false, // isGuestMode from auth context
         'user-test-key-12345', // userApiKey from auth context (BYOK)
-        undefined // elevenlabsApiKey (not set in this test)
+        undefined, // elevenlabsApiKey (not set in this test)
+        expect.objectContaining({ userId: 'byok-user-789', apiKeySource: 'user' })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
@@ -525,13 +529,18 @@ describe('DependencyStep', () => {
       const result = await step.process(context);
 
       // Verify processAttachments receives the GUEST effective personality
-      // which has visionModel: 'google/gemma-3-27b-it:free' from the resolved config
+      // which has visionModel: 'google/gemma-3-27b-it:free' from the resolved config.
+      // Critical: apiKeySource MUST be 'system' for guest users — even though the
+      // `userApiKey` arg is non-undefined (it's the system key passed via auth.apiKey),
+      // a guest doesn't have a BYOK and shouldn't see "[your API key was rejected]"
+      // wording on AUTH failures.
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/bird.jpg' })],
         GUEST_EFFECTIVE_PERSONALITY, // Uses resolved config with free visionModel
         true, // isGuestMode = true for guest users
         'system-openrouter-key', // System key (guests don't have BYOK)
-        undefined // elevenlabsApiKey (guests don't have ElevenLabs key)
+        undefined, // elevenlabsApiKey (guests don't have ElevenLabs key)
+        expect.objectContaining({ userId: 'guest-user-123', apiKeySource: 'system' })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
 
@@ -679,7 +688,8 @@ describe('DependencyStep', () => {
         TEST_PERSONALITY,
         false, // isGuestMode defaults to false when auth missing
         undefined, // userApiKey is undefined (system key fallback)
-        undefined // elevenlabsApiKey (no auth context)
+        undefined, // elevenlabsApiKey (no auth context)
+        expect.objectContaining({ apiKeySource: 'system' })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
@@ -730,7 +740,8 @@ describe('DependencyStep', () => {
         TEST_PERSONALITY, // Falls back to job.data.personality
         false,
         undefined,
-        undefined // elevenlabsApiKey (no config context)
+        undefined, // elevenlabsApiKey (no config context)
+        expect.objectContaining({ apiKeySource: 'system' })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });

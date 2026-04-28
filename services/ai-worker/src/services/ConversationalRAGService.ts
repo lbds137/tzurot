@@ -39,7 +39,7 @@ import { redisService, visionDescriptionCache, checkModelReasoningSupport } from
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
-import { processAttachments } from './MultimodalProcessor.js';
+import { processAttachments, deriveApiKeySource } from './MultimodalProcessor.js';
 import {
   parseResponseMetadata,
   recordLlmConfigDiagnostic,
@@ -369,13 +369,25 @@ export class ConversationalRAGService {
         });
       }
 
-      // Step 1.5: Enrich history with inline image descriptions + hydrated stored references
+      // Step 1.5: Enrich history with inline image descriptions + hydrated stored references.
+      const visionLoggingContext = {
+        userId: context.userId,
+        apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),
+      };
       await enrichConversationHistory(
         context.rawConversationHistory,
         context.preprocessedExtendedContextAttachments,
         getPrismaClient(),
         visionDescriptionCache,
-        atts => processAttachments(atts, personality, isGuestMode, userApiKey, elevenlabsApiKey)
+        atts =>
+          processAttachments(
+            atts,
+            personality,
+            isGuestMode,
+            userApiKey,
+            elevenlabsApiKey,
+            visionLoggingContext
+          )
       );
 
       // Step 2: Load personas and resolve user references

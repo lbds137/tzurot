@@ -333,19 +333,6 @@ CREATE TABLE "job_results" (
 );
 
 -- CreateTable
-CREATE TABLE "image_description_cache" (
-    "id" UUID NOT NULL,
-    "attachment_id" VARCHAR(20) NOT NULL,
-    "description" TEXT NOT NULL,
-    "model" VARCHAR(255) NOT NULL,
-    "failure_category" VARCHAR(50),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "image_description_cache_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "llm_diagnostic_logs" (
     "id" UUID NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -636,9 +623,6 @@ CREATE INDEX "shapes_persona_mappings_persona_id_idx" ON "shapes_persona_mapping
 
 -- CreateIndex
 CREATE INDEX "job_results_status_completed_at_idx" ON "job_results"("status", "completed_at");
-
--- CreateIndex
-CREATE UNIQUE INDEX "image_description_cache_attachment_id_key" ON "image_description_cache"("attachment_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "llm_diagnostic_logs_request_id_key" ON "llm_diagnostic_logs"("request_id");

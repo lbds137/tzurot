@@ -10,6 +10,8 @@
  * - Error reference ID generation
  */
 
+import { INTERVALS } from './timing.js';
+
 /**
  * Transient network error codes that should trigger retries
  */
@@ -230,6 +232,48 @@ export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.CENSORED,
   ApiErrorCategory.BAD_REQUEST,
 ]);
+
+/**
+ * Per-category vision negative-cache policy (L1 Redis TTL only — no L2 persistence).
+ *
+ * Decoupled from retry policy: AUTHENTICATION and QUOTA_EXCEEDED stay in
+ * `PERMANENT_ERROR_CATEGORIES` so `withRetry` fails fast (correct for genuinely
+ * bad keys), but the cache must NOT remember those failures forever — OpenRouter
+ * intermittently returns 401 on transient edge issues, and quota state changes
+ * when users add credits or daily limits reset. Long-cooldown caching of
+ * transient-misclassified-as-permanent errors poisons the cache for the
+ * attachment lifetime, with no recovery path.
+ *
+ * TTL tiers:
+ * - SHORT (5min): auth/quota — short cooldown so transient state recovers
+ * - LONG (60min): content-policy, dead URL, missing model — attachment-bound
+ * - DEFAULT (10min): generic retryable-transient cooldown
+ */
+export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSeconds: number }> = {
+  // Possibly-transient mis-classified-as-permanent — keep cache cooldown short
+  [ApiErrorCategory.AUTHENTICATION]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_SHORT },
+  [ApiErrorCategory.QUOTA_EXCEEDED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_SHORT },
+
+  // Genuinely attachment-property failures — longer cooldown.
+  // CENSORED belongs here too: when the vision model returns the "ext"-sentinel
+  // refusal, it's the IMAGE content that triggered the filter. Retrying 6×/hour
+  // (the previous default-TTL behavior) for an image the model will consistently
+  // reject is wasted compute. System-prompt-driven sensitivity *could* vary by
+  // persona in theory, but in observed practice the model decision is image-bound.
+  [ApiErrorCategory.CONTENT_POLICY]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
+  [ApiErrorCategory.MEDIA_NOT_FOUND]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
+  [ApiErrorCategory.MODEL_NOT_FOUND]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
+  [ApiErrorCategory.CENSORED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
+
+  // Retryable-transient categories — generic cooldown
+  [ApiErrorCategory.RATE_LIMIT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  [ApiErrorCategory.SERVER_ERROR]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  [ApiErrorCategory.TIMEOUT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  [ApiErrorCategory.NETWORK]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  [ApiErrorCategory.EMPTY_RESPONSE]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  [ApiErrorCategory.BAD_REQUEST]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  [ApiErrorCategory.UNKNOWN]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+};
 
 /**
  * Generate a unique error reference ID
