@@ -121,6 +121,58 @@ describe('ResponsePostProcessor', () => {
 
       expect(result).toBeNull();
     });
+
+    it('should extract reasoning from additional_kwargs.reasoning_content (z.ai convention)', () => {
+      // z.ai's chat-completion API returns reasoning under the snake_case
+      // `reasoning_content` field (not OpenRouter's `reasoning`). For a z.ai-
+      // direct request, this is the only source — the OpenRouter `reasoning`
+      // field is absent.
+      const additionalKwargs = { reasoning_content: 'GLM thinking trace' };
+
+      const result = processor.extractApiReasoning(additionalKwargs, undefined);
+
+      expect(result).toBe('GLM thinking trace');
+      // Should not call the reasoning_details fallback
+      expect(mockExtractApiReasoningContent).not.toHaveBeenCalled();
+    });
+
+    it('should prefer reasoning over reasoning_content when both are set', () => {
+      // Defensive: if a future provider sets both fields, prefer the
+      // OpenRouter convention to keep existing behavior unchanged.
+      const additionalKwargs = {
+        reasoning: 'OpenRouter trace',
+        reasoning_content: 'z.ai trace',
+      };
+
+      const result = processor.extractApiReasoning(additionalKwargs, undefined);
+
+      expect(result).toBe('OpenRouter trace');
+    });
+
+    it('should fall back from empty reasoning to reasoning_content', () => {
+      // If `reasoning` is present but empty, skip past it to `reasoning_content`
+      // before falling all the way through to reasoning_details.
+      const additionalKwargs = { reasoning: '', reasoning_content: 'z.ai backup' };
+
+      const result = processor.extractApiReasoning(additionalKwargs, undefined);
+
+      expect(result).toBe('z.ai backup');
+    });
+
+    it('should ignore non-string reasoning_content values', () => {
+      mockExtractApiReasoningContent.mockReturnValue(null);
+      const additionalKwargs = {
+        reasoning_content: { nested: 'value' } as unknown as string,
+      };
+
+      const result = processor.extractApiReasoning(additionalKwargs, undefined);
+
+      expect(result).toBeNull();
+      // Explicit fallthrough check: when reasoning_content fails the typeof
+      // guard, we should reach the third source (reasoning_details) — not
+      // just return null from somewhere upstream.
+      expect(mockExtractApiReasoningContent).toHaveBeenCalled();
+    });
   });
 
   describe('processThinkingContent', () => {
