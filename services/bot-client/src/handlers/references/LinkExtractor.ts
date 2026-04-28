@@ -210,9 +210,10 @@ export class LinkExtractor {
         return null;
       }
 
-      const fetchedMessage = await (channel as TextChannel | ThreadChannel).messages.fetch(
-        link.messageId
-      );
+      // DM channels are a live code path here; all three types expose `.messages.fetch()`.
+      const fetchedMessage = await (
+        channel as TextChannel | ThreadChannel | DMChannel
+      ).messages.fetch(link.messageId);
 
       logger.info(
         {
