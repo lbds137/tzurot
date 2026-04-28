@@ -1,39 +1,35 @@
 /**
  * VisionDescriptionCache
- * Two-tier cache for image descriptions to avoid duplicate vision API calls
+ * Redis-backed L1 cache for image vision-API outputs and negative-cache cooldowns.
  *
- * Cache Architecture:
- * - L1 (Redis): Fast, ephemeral, TTL-based (1 hour default)
- * - L2 (PostgreSQL): Persistent, survives Redis restarts, no TTL
+ * Cache layout:
+ * - Success descriptions: 1h Redis TTL (`VISION_DESCRIPTION_TTL`).
+ * - Failure entries: per-category cooldown via `VISION_FAILURE_CACHE_POLICY`.
+ *   AUTH/QUOTA failures get 5min cooldowns so transient OpenRouter glitches
+ *   don't poison an attachment for its lifetime; attachment-bound failures
+ *   (content-policy, dead URL, missing model) get 60min cooldowns.
  *
- * Lookup Strategy:
- * 1. Check L1 (Redis) → return if found
- * 2. Check L2 (PostgreSQL) → populate L1 and return if found
- * 3. Return null (cache miss)
- *
- * Write Strategy:
- * - Always write to L1 (Redis)
- * - Write to L2 (PostgreSQL) only when attachmentId is available (stable key)
- *
- * Cache Key Strategy:
+ * Cache key strategy:
  * 1. Prefer Discord attachment ID (stable snowflake) when available
  * 2. Fall back to URL hash (with query params stripped) for embed images
  *
- * @see PersistentVisionCache for L2 implementation
+ * History note: a PostgreSQL L2 layer existed prior to v3.0.0-beta.110 to
+ * survive Redis restarts. It was removed because (a) Discord attachments are
+ * ephemeral, so the persistence value is small, and (b) lacking a TTL or
+ * eviction path, transient failures became permanent for affected attachments.
+ * See `backlog/production-issues.md` for the original incident.
  */
 
 import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import { createLogger } from '../utils/logger.js';
-import { REDIS_KEY_PREFIXES, INTERVALS, TEXT_LIMITS } from '../constants/index.js';
-import type { PersistentVisionCache } from './PersistentVisionCache.js';
-
-/** Configuration for L2 cache write retries */
-const L2_RETRY_CONFIG = {
-  maxRetries: 3,
-  baseDelayMs: 100,
-  maxDelayMs: 1000,
-} as const;
+import {
+  REDIS_KEY_PREFIXES,
+  INTERVALS,
+  TEXT_LIMITS,
+  VISION_FAILURE_CACHE_POLICY,
+  ApiErrorCategory,
+} from '../constants/index.js';
 
 const logger = createLogger('VisionDescriptionCache');
 
@@ -45,47 +41,32 @@ interface VisionCacheKeyOptions {
   url: string;
 }
 
-/** Options for storing with L2 cache */
-interface VisionStoreOptions extends VisionCacheKeyOptions {
-  /** Model that generated the description (for L2 cache) */
-  model?: string;
-}
+/** Options for storing a description (success path) */
+type VisionStoreOptions = VisionCacheKeyOptions;
 
 /** Options for storing a vision failure */
 interface VisionFailureOptions extends VisionCacheKeyOptions {
-  /** Error category (e.g., 'authentication', 'rate_limit') */
-  category: string;
-  /** True = permanent failure (auth, content policy); false = transient (timeout, rate limit) */
-  permanent: boolean;
+  /** Error category from `parseApiError`. TTL is selected via `VISION_FAILURE_CACHE_POLICY`. */
+  category: ApiErrorCategory;
 }
 
 /** Cached failure entry returned from getFailure */
-interface VisionFailureEntry {
+export interface VisionFailureEntry {
   /** Error category */
-  category: string;
-  /** Whether this is a permanent failure */
-  permanent: boolean;
+  category: ApiErrorCategory;
+  /**
+   * ISO timestamp of when this entry was cached — useful for diagnosing "how long has this been
+   * poisoned." Optional because pre-deploy Redis entries lack this field; consumers should treat
+   * a missing value as "unknown age" rather than "just now."
+   */
+  cachedAt?: string;
 }
 
 export class VisionDescriptionCache {
-  private l2Cache: PersistentVisionCache | null = null;
-
   constructor(private redis: Redis) {}
 
   /**
-   * Set the L2 (PostgreSQL) cache for persistent storage
-   * @param cache PersistentVisionCache instance
-   */
-  setL2Cache(cache: PersistentVisionCache): void {
-    this.l2Cache = cache;
-    logger.info('[VisionDescriptionCache] L2 cache enabled');
-  }
-
-  /**
-   * Store vision description in cache
-   * @param options Cache key options (attachmentId preferred, url as fallback)
-   * @param description Generated image description
-   * @param ttlSeconds Time to live in seconds (default: 1 hour)
+   * Store a vision description in Redis L1.
    */
   async store(
     options: VisionStoreOptions,
@@ -93,7 +74,6 @@ export class VisionDescriptionCache {
     ttlSeconds: number = INTERVALS.VISION_DESCRIPTION_TTL
   ): Promise<void> {
     try {
-      // Always write to L1 (Redis)
       const key = this.getCacheKey(options);
       await this.redis.setex(key, ttlSeconds, description);
       logger.debug(
@@ -103,38 +83,20 @@ export class VisionDescriptionCache {
         },
         '[VisionDescriptionCache] Stored description in L1'
       );
-
-      // Write to L2 (PostgreSQL) only when attachmentId is available
-      // L2 uses stable attachment IDs, not URL hashes
-      if (
-        this.l2Cache !== null &&
-        options.attachmentId !== undefined &&
-        options.attachmentId !== ''
-      ) {
-        // L2 write with retry logic for resilience
-        await this.writeToL2WithRetry(
-          options.attachmentId,
-          description,
-          options.model ?? 'unknown'
-        );
-      }
     } catch (error) {
       logger.error({ err: error }, '[VisionDescriptionCache] Failed to store description');
     }
   }
 
   /**
-   * Get cached vision description (checks L1, then L2)
-   * @param options Cache key options (attachmentId preferred, url as fallback)
-   * @returns Description text or null if not found
+   * Get cached vision description from Redis L1.
    */
   async get(options: VisionCacheKeyOptions): Promise<string | null> {
     try {
-      // Step 1: Check L1 (Redis)
       const key = this.getCacheKey(options);
-      const l1Description = await this.redis.get(key);
+      const description = await this.redis.get(key);
 
-      if (l1Description !== null && l1Description.length > 0) {
+      if (description !== null && description.length > 0) {
         logger.info(
           {
             attachmentId: options.attachmentId,
@@ -142,26 +104,7 @@ export class VisionDescriptionCache {
           },
           '[VisionDescriptionCache] L1 cache HIT'
         );
-        return l1Description;
-      }
-
-      // Step 2: Check L2 (PostgreSQL) if attachmentId is available
-      if (
-        this.l2Cache !== null &&
-        options.attachmentId !== undefined &&
-        options.attachmentId !== ''
-      ) {
-        const l2Entry = await this.l2Cache.get(options.attachmentId);
-
-        if (l2Entry !== null) {
-          // Populate L1 from L2 for future fast access
-          await this.redis.setex(key, INTERVALS.VISION_DESCRIPTION_TTL, l2Entry.description);
-          logger.info(
-            { attachmentId: options.attachmentId },
-            '[VisionDescriptionCache] L2 cache HIT - populated L1'
-          );
-          return l2Entry.description;
-        }
+        return description;
       }
 
       logger.debug(
@@ -169,7 +112,7 @@ export class VisionDescriptionCache {
           attachmentId: options.attachmentId,
           urlPrefix: options.url.substring(0, TEXT_LIMITS.URL_LOG_PREVIEW),
         },
-        '[VisionDescriptionCache] Cache MISS (L1 and L2)'
+        '[VisionDescriptionCache] Cache MISS'
       );
       return null;
     } catch (error) {
@@ -179,41 +122,28 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Store a vision failure in the negative cache
-   * Prevents re-hammering the same failing image
+   * Store a vision failure in the negative cache.
    *
-   * @param options Failure details including category and permanence
+   * TTL is selected per-category via `VISION_FAILURE_CACHE_POLICY` so that
+   * possibly-transient failures (auth glitches, quota resets) get short
+   * cooldowns and recover quickly, while attachment-bound failures (content
+   * policy, dead URL, missing model) get longer cooldowns to avoid re-hammering.
    */
   async storeFailure(options: VisionFailureOptions): Promise<void> {
     try {
       const key = this.getFailureKey(options);
-      const value = JSON.stringify({
-        category: options.category,
-        permanent: options.permanent,
-      });
+      const ttlSeconds = VISION_FAILURE_CACHE_POLICY[options.category].l1TtlSeconds;
+      const cachedAt = new Date().toISOString();
+      const value = JSON.stringify({ category: options.category, cachedAt });
 
-      if (options.permanent) {
-        // Permanent: L1 (1h TTL) + L2 (PostgreSQL, no TTL — source of truth)
-        // L2 persists indefinitely; L1 acts as a read-through cache repopulated from L2
-        await this.redis.setex(key, INTERVALS.VISION_FAILURE_PERMANENT_TTL, value);
-
-        if (
-          this.l2Cache !== null &&
-          options.attachmentId !== undefined &&
-          options.attachmentId !== ''
-        ) {
-          await this.l2Cache.setFailure(options.attachmentId, options.category);
-        }
-      } else {
-        // Transient: L1 only (10-min cooldown)
-        await this.redis.setex(key, INTERVALS.VISION_FAILURE_TTL, value);
-      }
+      await this.redis.setex(key, ttlSeconds, value);
 
       logger.info(
         {
           attachmentId: options.attachmentId,
           category: options.category,
-          permanent: options.permanent,
+          ttlSeconds,
+          cachedAt,
         },
         '[VisionDescriptionCache] Stored failure in negative cache'
       );
@@ -223,54 +153,28 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Check if a vision failure is cached (negative cache check)
-   *
-   * @param options Cache key options
-   * @returns Failure entry if cached, null if OK to retry
+   * Check if a vision failure is cached (negative cache check).
+   * Returns the entry on hit, null on miss / OK to retry.
    */
   async getFailure(options: VisionCacheKeyOptions): Promise<VisionFailureEntry | null> {
     try {
-      // Check L1 (Redis)
       const key = this.getFailureKey(options);
-      const l1Value = await this.redis.get(key);
+      const value = await this.redis.get(key);
 
-      if (l1Value !== null && l1Value.length > 0) {
-        const entry = JSON.parse(l1Value) as VisionFailureEntry;
-        logger.info(
-          {
-            attachmentId: options.attachmentId,
-            category: entry.category,
-            permanent: entry.permanent,
-          },
-          '[VisionDescriptionCache] Negative cache HIT (L1)'
-        );
-        return entry;
+      if (value === null || value.length === 0) {
+        return null;
       }
 
-      // Check L2 (PostgreSQL) for permanent failures
-      if (
-        this.l2Cache !== null &&
-        options.attachmentId !== undefined &&
-        options.attachmentId !== ''
-      ) {
-        const l2Entry = await this.l2Cache.getFailure(options.attachmentId);
-
-        if (l2Entry !== null) {
-          // Repopulate L1 from L2
-          const value = JSON.stringify({
-            category: l2Entry.category,
-            permanent: true,
-          });
-          await this.redis.setex(key, INTERVALS.VISION_FAILURE_PERMANENT_TTL, value);
-          logger.info(
-            { attachmentId: options.attachmentId, category: l2Entry.category },
-            '[VisionDescriptionCache] Negative cache HIT (L2 → L1)'
-          );
-          return { category: l2Entry.category, permanent: true };
-        }
-      }
-
-      return null;
+      const entry = JSON.parse(value) as VisionFailureEntry;
+      logger.info(
+        {
+          attachmentId: options.attachmentId,
+          category: entry.category,
+          cachedAt: entry.cachedAt,
+        },
+        '[VisionDescriptionCache] Negative cache HIT'
+      );
+      return entry;
     } catch (error) {
       logger.error({ err: error }, '[VisionDescriptionCache] Failed to check failure cache');
       return null;
@@ -278,53 +182,7 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Write to L2 cache with exponential backoff retry
-   * Fire-and-forget with logging - doesn't throw on failure
-   */
-  private async writeToL2WithRetry(
-    attachmentId: string,
-    description: string,
-    model: string
-  ): Promise<void> {
-    if (this.l2Cache === null) {
-      return;
-    }
-
-    let lastError: unknown;
-    for (let attempt = 0; attempt < L2_RETRY_CONFIG.maxRetries; attempt++) {
-      try {
-        await this.l2Cache.set({ attachmentId, description, model });
-        logger.debug(
-          { attachmentId, attempt: attempt + 1 },
-          '[VisionDescriptionCache] Stored description in L2'
-        );
-        return;
-      } catch (error) {
-        lastError = error;
-        if (attempt < L2_RETRY_CONFIG.maxRetries - 1) {
-          // Exponential backoff with jitter
-          const delay = Math.min(
-            L2_RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt) + Math.random() * 100,
-            L2_RETRY_CONFIG.maxDelayMs
-          );
-          await new Promise(resolve => setTimeout(resolve, delay));
-          logger.debug(
-            { attachmentId, attempt: attempt + 1, delayMs: delay },
-            '[VisionDescriptionCache] L2 write failed, retrying'
-          );
-        }
-      }
-    }
-
-    // All retries exhausted - log warning but don't throw
-    logger.warn(
-      { attachmentId, err: lastError, maxRetries: L2_RETRY_CONFIG.maxRetries },
-      '[VisionDescriptionCache] L2 write failed after all retries - L1 cache still valid'
-    );
-  }
-
-  /**
-   * Generate cache key from attachment ID (preferred) or URL (fallback)
+   * Generate cache key from attachment ID (preferred) or URL (fallback).
    *
    * Priority:
    * 1. If attachmentId is provided, use it directly (stable Discord snowflake)
@@ -332,7 +190,6 @@ export class VisionDescriptionCache {
    */
   private getCacheKey(options: VisionCacheKeyOptions): string {
     if (options.attachmentId !== undefined && options.attachmentId !== '') {
-      // Attachment ID is stable - use it directly
       return `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}id:${options.attachmentId}`;
     }
 
@@ -345,7 +202,7 @@ export class VisionDescriptionCache {
   }
 
   /**
-   * Generate failure cache key (separate namespace from success cache)
+   * Generate failure cache key (separate namespace from success cache).
    */
   private getFailureKey(options: VisionCacheKeyOptions): string {
     if (options.attachmentId !== undefined && options.attachmentId !== '') {

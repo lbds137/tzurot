@@ -81,10 +81,23 @@ export const INTERVALS = {
   VOICE_TRANSCRIPT_TTL: 5 * 60,
   /** Vision description cache TTL in Redis (1 hour in seconds - image URLs are stable for a while) */
   VISION_DESCRIPTION_TTL: 60 * 60,
-  /** Vision failure cache TTL for transient errors (10 minutes - cooldown before retry) */
+  /**
+   * Vision failure cache TTLs (L1 Redis only — no L2 PostgreSQL persistence).
+   *
+   * Per-category lookup lives in `VISION_FAILURE_CACHE_POLICY` in `error.ts`.
+   * These three TTLs cover the spectrum:
+   *
+   * - SHORT (5 min) — categories that fail-fast on retry but whose underlying state
+   *   may change (auth glitches, quota resets). Caching too long would freeze a
+   *   transient OpenRouter blip into permanent broken-vision for an attachment.
+   * - LONG (60 min) — categories bound to attachment properties that won't change
+   *   mid-conversation (content policy, dead URL, missing model).
+   * - DEFAULT (10 min) — generic retryable-transient cooldown to avoid re-hammering
+   *   the upstream during an outage; matches the prior `VISION_FAILURE_TTL`.
+   */
+  VISION_FAILURE_TTL_SHORT: 5 * 60,
   VISION_FAILURE_TTL: 10 * 60,
-  /** Vision failure cache TTL for permanent errors (1 hour - longer cooldown, L2 is source of truth) */
-  VISION_FAILURE_PERMANENT_TTL: 60 * 60,
+  VISION_FAILURE_TTL_LONG: 60 * 60,
   /** OpenRouter models cache TTL in Redis (24 hours in seconds) */
   OPENROUTER_MODELS_TTL: 24 * 60 * 60,
 } as const;

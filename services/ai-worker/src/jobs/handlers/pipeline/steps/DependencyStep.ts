@@ -101,7 +101,8 @@ export class DependencyStep implements IPipelineStep {
           isGuestMode: auth?.isGuestMode ?? false,
           userApiKey: auth?.apiKey,
           elevenlabsApiKey: auth?.elevenlabsApiKey,
-        }
+        },
+        jobContext.userId
       );
       preprocessing.extendedContextAttachments = extendedContextAttachments;
     }
@@ -202,7 +203,8 @@ export class DependencyStep implements IPipelineStep {
     attachments: AttachmentMetadata[],
     personality: GenerationContext['job']['data']['personality'],
     jobId: string | undefined,
-    authOptions: { isGuestMode: boolean; userApiKey?: string; elevenlabsApiKey?: string }
+    authOptions: { isGuestMode: boolean; userApiKey?: string; elevenlabsApiKey?: string },
+    userId: string
   ): Promise<ProcessedAttachment[]> {
     const { isGuestMode, userApiKey, elevenlabsApiKey } = authOptions;
     // Filter to only images
@@ -222,17 +224,19 @@ export class DependencyStep implements IPipelineStep {
     );
 
     try {
-      // Import processAttachments (lazy import to avoid circular deps)
-      const { processAttachments } = await import('../../../../services/MultimodalProcessor.js');
-
-      // Process images using MultimodalProcessor (uses VisionDescriptionCache)
-      // Pass auth context for BYOK support
+      // Lazy import to avoid circular deps with MultimodalProcessor.
+      // `apiKeySource` uses the shared `deriveApiKeySource` helper so guests resolve
+      // to 'system' even when `auth.apiKey` is non-undefined — this prevents the
+      // "your API key was rejected" wording from misfiring on system-key glitches.
+      const { processAttachments, deriveApiKeySource } =
+        await import('../../../../services/MultimodalProcessor.js');
       const processed = await processAttachments(
         imageAttachments,
         personality,
         isGuestMode,
         userApiKey,
-        elevenlabsApiKey
+        elevenlabsApiKey,
+        { userId, apiKeySource: deriveApiKeySource(isGuestMode, userApiKey) }
       );
 
       logger.info(

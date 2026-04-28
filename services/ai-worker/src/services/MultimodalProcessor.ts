@@ -22,13 +22,13 @@ import {
 } from '@tzurot/common-types';
 import { withParallelRetry } from '../utils/parallelRetry.js';
 import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
-import { describeImage } from './multimodal/VisionProcessor.js';
+import { describeImage, type VisionLoggingContext } from './multimodal/VisionProcessor.js';
 import { transcribeAudio } from './multimodal/AudioProcessor.js';
 
 const logger = createLogger('MultimodalProcessor');
 
 // Re-export public functions for backwards compatibility
-export { describeImage } from './multimodal/VisionProcessor.js';
+export { describeImage, deriveApiKeySource } from './multimodal/VisionProcessor.js';
 export { transcribeAudio } from './multimodal/AudioProcessor.js';
 
 export interface ProcessedAttachment {
@@ -47,17 +47,24 @@ export interface ProcessedAttachment {
  * @param userApiKey - User's BYOK API key (for BYOK users)
  * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
  */
+// eslint-disable-next-line max-params -- 6 conceptually-distinct params (data, personality, behavior, two auth keys, diagnostics) — bundling unrelated concerns harms call-site clarity
 async function processSingleAttachment(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
   isGuestMode: boolean,
-  userApiKey?: string,
-  elevenlabsApiKey?: string
+  userApiKey: string | undefined,
+  elevenlabsApiKey: string | undefined,
+  loggingContext: VisionLoggingContext
 ): Promise<ProcessedAttachment | null> {
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
-      skipNegativeCache: true,
-    });
+    const description = await describeImage(
+      attachment,
+      personality,
+      isGuestMode,
+      userApiKey,
+      { skipNegativeCache: true },
+      loggingContext
+    );
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
       type: AttachmentType.Image,
@@ -92,12 +99,14 @@ async function processSingleAttachment(
  * @param userApiKey - User's BYOK API key (for BYOK users)
  * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
  */
+// eslint-disable-next-line max-params -- mirrors processSingleAttachment positional shape; loggingContext kept distinct from the two auth keys for call-site clarity
 export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality,
   isGuestMode = false,
   userApiKey?: string,
-  elevenlabsApiKey?: string
+  elevenlabsApiKey?: string,
+  loggingContext: VisionLoggingContext = {}
 ): Promise<ProcessedAttachment[]> {
   logger.info(
     {
@@ -106,6 +115,8 @@ export async function processAttachments(
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       isGuestMode,
       hasUserApiKey: userApiKey !== undefined,
+      userId: loggingContext.userId,
+      apiKeySource: loggingContext.apiKeySource,
     },
     'Processing attachments in parallel'
   );
@@ -114,7 +125,14 @@ export async function processAttachments(
   const results = await withParallelRetry(
     attachments,
     attachment =>
-      processSingleAttachment(attachment, personality, isGuestMode, userApiKey, elevenlabsApiKey),
+      processSingleAttachment(
+        attachment,
+        personality,
+        isGuestMode,
+        userApiKey,
+        elevenlabsApiKey,
+        loggingContext
+      ),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,

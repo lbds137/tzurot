@@ -66,6 +66,7 @@ export {
   ApiErrorType,
   ApiErrorCategory,
   USER_ERROR_MESSAGES,
+  VISION_FAILURE_CACHE_POLICY,
   generateErrorReferenceId,
   classifyHttpStatus,
   isPermanentError,

@@ -26,6 +26,8 @@ const { mockProcessAttachments, mockExtractRecentHistoryWindow } = vi.hoisted(()
 
 vi.mock('./MultimodalProcessor.js', () => ({
   processAttachments: mockProcessAttachments,
+  deriveApiKeySource: (isGuestMode: boolean, userApiKey: string | undefined): 'user' | 'system' =>
+    !isGuestMode && userApiKey !== undefined ? 'user' : 'system',
 }));
 
 vi.mock('./RAGUtils.js', () => ({
@@ -190,7 +192,8 @@ describe('ConversationInputProcessor', () => {
         mockPersonality,
         false,
         'user-api-key',
-        undefined // elevenlabsApiKey
+        undefined, // elevenlabsApiKey
+        expect.objectContaining({ apiKeySource: 'user' })
       );
     });
 
