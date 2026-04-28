@@ -17,6 +17,7 @@ import {
   TIMEOUTS,
   MODEL_DEFAULTS,
   ERROR_MESSAGES,
+  ApiErrorCategory,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -28,20 +29,17 @@ import { isDataUrl } from '../../utils/attachmentFetch.js';
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
 
-/** User-friendly labels for error categories in fallback descriptions */
-const FAILURE_LABELS: Record<string, string> = {
-  authentication: 'API key issue',
-  quota_exceeded: 'quota exceeded',
-  content_policy: 'content filtered',
-  bad_request: 'invalid request',
-  model_not_found: 'model unavailable',
-  media_not_found: 'image unavailable',
-  rate_limit: 'rate limited',
-  server_error: 'server error',
-  timeout: 'timed out',
-  network: 'network error',
-  empty_response: 'empty response',
-  censored: 'content filtered',
+/**
+ * User-friendly labels for the ATTACHMENT-BOUND error categories that actually reach
+ * `FAILURE_LABELS` via `buildFailureFallback`. Other categories (auth, quota, rate-limit,
+ * server-error, timeout, network, etc.) return the generic "temporarily unavailable"
+ * fallback before ever consulting this map, so listing them here would be dead code.
+ */
+const FAILURE_LABELS: Partial<Record<ApiErrorCategory, string>> = {
+  [ApiErrorCategory.CONTENT_POLICY]: 'content filtered',
+  [ApiErrorCategory.MODEL_NOT_FOUND]: 'model unavailable',
+  [ApiErrorCategory.MEDIA_NOT_FOUND]: 'image unavailable',
+  [ApiErrorCategory.CENSORED]: 'content filtered',
 };
 
 /** Minimum length for a vision description to be considered valid for caching */
@@ -104,6 +102,40 @@ export interface DescribeImageOptions {
 }
 
 /**
+ * Diagnostic context for failure logging — answers "whose request was this, on what key,
+ * for what attachment" without forcing the caller to grep across multiple log lines.
+ *
+ * All fields are optional because callers have different subsets of context available
+ * at scope: `ImageDescriptionJob` has the full set; pipeline-inline callers
+ * (`ConversationalRAGService`, `DependencyStep`) have user/source but not jobId; the
+ * referenced-message formatter path has only personality info.
+ */
+export interface VisionLoggingContext {
+  /** Discord user ID of the request invoker */
+  userId?: string;
+  /** Whether the API key in use is the user's BYOK or the system fallback */
+  apiKeySource?: 'user' | 'system';
+  /** BullMQ job ID when invoked from `ImageDescriptionJob` */
+  jobId?: string;
+  /** AI provider routing the request (e.g., `'openrouter'`) */
+  provider?: string;
+}
+
+/**
+ * Derive the `apiKeySource` discriminator from the auth context available at a vision
+ * call site. `userApiKey !== undefined` alone is insufficient — for guest users, the
+ * resolved key passed through `auth.apiKey` is the SYSTEM OpenRouter key, not a BYOK.
+ * The discriminator must be `'system'` for guests so they don't see "your API key was
+ * rejected" wording on AUTH failures (they have no key to fix).
+ */
+export function deriveApiKeySource(
+  isGuestMode: boolean,
+  userApiKey: string | undefined
+): 'user' | 'system' {
+  return !isGuestMode && userApiKey !== undefined ? 'user' : 'system';
+}
+
+/**
  * Check if a model has vision support using OpenRouter's cached model data.
  *
  * This queries the Redis cache populated by api-gateway's OpenRouterModelCache,
@@ -125,12 +157,17 @@ export async function hasVisionSupport(modelName: string): Promise<boolean> {
  * @param modelName - Model identifier (e.g., "gpt-4o", "qwen/qwen3-vl")
  * @param systemPrompt - Optional system prompt (personality's system prompt with jailbreak)
  * @param userApiKey - Optional user's BYOK API key
+ * @param loggingContext - Diagnostic fields propagated to the failure log
+ * @param personalityName - Personality name for failure-log enrichment
  */
+// eslint-disable-next-line max-params -- 6 conceptually-distinct params (data, model config, auth, diagnostics) — bundling unrelated concerns into one bag harms call-site clarity
 async function invokeVisionModel(
   attachment: AttachmentMetadata,
   modelName: string,
   systemPrompt: string | undefined,
-  userApiKey?: string
+  userApiKey: string | undefined,
+  loggingContext: VisionLoggingContext,
+  personalityName: string
 ): Promise<string> {
   const { model } = createChatModel({
     modelName,
@@ -231,20 +268,88 @@ async function invokeVisionModel(
         statusCode: errorInfo.statusCode,
         shouldRetry: errorInfo.shouldRetry,
         technicalMessage: errorInfo.technicalMessage,
+        attachmentId: attachment.id,
+        personalityName,
+        userId: loggingContext.userId,
+        apiKeySource: loggingContext.apiKeySource,
+        jobId: loggingContext.jobId,
+        provider: loggingContext.provider,
       },
       'Vision model invocation failed'
     );
 
-    // Store failure in negative cache to prevent re-hammering
+    // Store failure in negative cache; per-category TTL is selected via
+    // `VISION_FAILURE_CACHE_POLICY` (see common-types/constants/error.ts).
     await visionDescriptionCache.storeFailure({
       attachmentId: attachment.id,
       url: attachment.url,
       category: errorInfo.category,
-      permanent: !errorInfo.shouldRetry,
     });
 
     throw error;
   }
+}
+
+/**
+ * Categories whose failures are bound to attachment properties (URL, content, model
+ * availability) and unlikely to recover for the same attachment. The user-facing
+ * fallback for these uses the specific `FAILURE_LABELS` wording; other categories
+ * (auth, quota, rate-limit, etc.) get the generic "temporarily unavailable" wording.
+ *
+ * **Invariant**: every member of this set MUST also have its `l1TtlSeconds` set to
+ * `INTERVALS.VISION_FAILURE_TTL_LONG` in `VISION_FAILURE_CACHE_POLICY`. The two
+ * structures encode the same "this failure is attachment-bound" decision in different
+ * shapes (one drives cache TTL, the other drives the user-facing message) and must
+ * stay in sync. Enforced by the invariant test in `VisionProcessor.test.ts` so that
+ * adding a category to one but not the other fails CI.
+ *
+ * Exported for the invariant test only — call sites should use
+ * `buildFailureFallback` / `VISION_FAILURE_CACHE_POLICY` rather than reading this set
+ * directly.
+ */
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set used as a constant. Exported only to enable the cache-policy/fallback-set invariant test in VisionProcessor.test.ts.
+export const ATTACHMENT_BOUND_FAILURE_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+  ApiErrorCategory.CONTENT_POLICY,
+  ApiErrorCategory.MEDIA_NOT_FOUND,
+  ApiErrorCategory.MODEL_NOT_FOUND,
+  // CENSORED is also image-bound in practice — the model refuses based on what's
+  // depicted, not on transient state. Mirrors the LONG cooldown classification in
+  // VISION_FAILURE_CACHE_POLICY.
+  ApiErrorCategory.CENSORED,
+]);
+
+/**
+ * Build a user-facing fallback string for a cached vision failure.
+ *
+ * AUTH gets a source-aware variant: a system-key failure shouldn't blame the user
+ * for "API key issue" wording (they'd think their Discord account is broken),
+ * while a user-key failure points them at `/wallet` to fix the underlying key.
+ * Other categories use either `FAILURE_LABELS` (attachment-bound) or the generic
+ * "temporarily unavailable" message.
+ */
+function buildFailureFallback(
+  category: ApiErrorCategory,
+  apiKeySource: 'user' | 'system' | undefined
+): string {
+  if (category === ApiErrorCategory.AUTHENTICATION) {
+    if (apiKeySource === 'user') {
+      return '[Image unavailable: your API key was rejected — check /wallet]';
+    }
+    // Unknown source defaults to the system-side wording (same as `apiKeySource === 'system'`):
+    // a user can't act on "API key issue" if they don't know whose key. Defaulting to the
+    // service-unavailable phrasing is the conservative choice — it doesn't blame the user
+    // when we can't be sure whose key failed, and the user has nothing to do anyway because
+    // any actionable wallet-level remediation only applies when source is definitely 'user'.
+    return '[Image unavailable: vision service temporarily unavailable, please retry shortly]';
+  }
+  if (ATTACHMENT_BOUND_FAILURE_CATEGORIES.has(category)) {
+    // `?? category` is a defensive safety net: every member of
+    // ATTACHMENT_BOUND_FAILURE_CATEGORIES has an entry in FAILURE_LABELS, so the
+    // fallback shouldn't be reachable. Kept in case the two collections drift apart.
+    const label = FAILURE_LABELS[category] ?? category;
+    return `[Image unavailable: ${label}]`;
+  }
+  return '[Image temporarily unavailable]';
 }
 
 /**
@@ -253,25 +358,23 @@ async function invokeVisionModel(
  */
 async function checkNegativeCache(
   cacheKeyOptions: { attachmentId?: string; url: string },
-  attachmentId: string | undefined
+  attachmentId: string | undefined,
+  apiKeySource: 'user' | 'system' | undefined
 ): Promise<string | null> {
   const failureEntry = await visionDescriptionCache.getFailure(cacheKeyOptions);
   if (failureEntry === null) {
     return null;
   }
-  if (failureEntry.permanent) {
-    logger.info(
-      { attachmentId, category: failureEntry.category },
-      'Skipping vision API call - permanent failure cached'
-    );
-    const label = FAILURE_LABELS[failureEntry.category] ?? failureEntry.category;
-    return `[Image unavailable: ${label}]`;
-  }
   logger.info(
-    { attachmentId, category: failureEntry.category },
-    'Skipping vision API call - transient failure cooldown active'
+    {
+      attachmentId,
+      category: failureEntry.category,
+      cachedAt: failureEntry.cachedAt,
+      apiKeySource,
+    },
+    'Skipping vision API call - failure cooldown active'
   );
-  return '[Image temporarily unavailable]';
+  return buildFailureFallback(failureEntry.category, apiKeySource);
 }
 
 /**
@@ -326,13 +429,18 @@ async function selectVisionModel(
  *                      Guest users use free vision models, BYOK users use paid models
  * @param userApiKey - Optional user's BYOK API key (for BYOK users, this should be passed
  *                     so their API key is used instead of the bot's primary key)
+ * @param options - Cache-skip flags
+ * @param loggingContext - Diagnostic fields propagated to the failure log + fallback string
+ *                         (only `apiKeySource` is consumed for fallback variants — others are log-only)
  */
+// eslint-disable-next-line max-params -- 6 conceptually-distinct params (data, personality, auth flags, behavior options, diagnostics); one big bag obscures auth/behavior boundaries at call sites
 export async function describeImage(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
   isGuestMode = false,
   userApiKey?: string,
-  options?: DescribeImageOptions
+  options?: DescribeImageOptions,
+  loggingContext: VisionLoggingContext = {}
 ): Promise<string> {
   logger.info(
     {
@@ -373,7 +481,11 @@ export async function describeImage(
   // Check negative cache to avoid re-hammering failed images
   // Skip when called within a retry loop — the negative cache would defeat retries
   if (options?.skipNegativeCache !== true) {
-    const failureFallback = await checkNegativeCache(cacheKeyOptions, attachment.id);
+    const failureFallback = await checkNegativeCache(
+      cacheKeyOptions,
+      attachment.id,
+      loggingContext.apiKeySource
+    );
     if (failureFallback !== null) {
       return failureFallback;
     }
@@ -385,13 +497,20 @@ export async function describeImage(
       : undefined;
 
   const usedModel = await selectVisionModel(personality, isGuestMode);
-  const description = await invokeVisionModel(attachment, usedModel, systemPrompt, userApiKey);
+  const description = await invokeVisionModel(
+    attachment,
+    usedModel,
+    systemPrompt,
+    userApiKey,
+    loggingContext,
+    personality.name
+  );
 
-  // Cache the description for future use (both L1 Redis and L2 PostgreSQL)
-  // Uses shared validation to prevent error-like descriptions from polluting the cache
+  // Cache the description for future use (Redis L1 only).
+  // Uses shared validation to prevent error-like descriptions from polluting the cache.
   if (isValidVisionDescription(description)) {
     await visionDescriptionCache.store(
-      { attachmentId: attachment.id, url: attachment.url, model: usedModel },
+      { attachmentId: attachment.id, url: attachment.url },
       description
     );
   }

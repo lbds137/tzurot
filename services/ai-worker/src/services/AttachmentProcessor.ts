@@ -14,6 +14,7 @@ import {
   RETRY_CONFIG,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
+import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
 import { withRetry } from '../utils/retry.js';
 
 const logger = createLogger('AttachmentProcessor');
@@ -48,6 +49,8 @@ interface ProcessSingleAttachmentOptions {
   userApiKey?: string;
   /** ElevenLabs BYOK API key for premium STT */
   elevenlabsApiKey?: string;
+  /** Diagnostic context for vision-failure logging (see VisionLoggingContext in VisionProcessor.ts) */
+  loggingContext?: VisionLoggingContext;
 }
 
 /**
@@ -62,6 +65,8 @@ interface ProcessImageOptions {
   preprocessed?: ProcessedAttachment;
   /** User's BYOK API key (for BYOK users) */
   userApiKey?: string;
+  /** Diagnostic context for vision-failure logging */
+  loggingContext?: VisionLoggingContext;
 }
 
 /**
@@ -76,6 +81,8 @@ export interface ProcessAttachmentsOptions {
   userApiKey?: string;
   /** ElevenLabs BYOK API key for premium STT */
   elevenlabsApiKey?: string;
+  /** Diagnostic context for vision-failure logging */
+  loggingContext?: VisionLoggingContext;
 }
 
 /**
@@ -96,6 +103,7 @@ export async function processAttachmentsParallel(
     preprocessedAttachments,
     userApiKey,
     elevenlabsApiKey,
+    loggingContext,
   } = options;
   if (!attachments || attachments.length === 0) {
     return [];
@@ -111,6 +119,7 @@ export async function processAttachmentsParallel(
       preprocessedAttachments,
       userApiKey,
       elevenlabsApiKey,
+      loggingContext,
     })
   );
 
@@ -187,8 +196,16 @@ async function processVoiceAttachment(
 async function processImageAttachment(
   options: ProcessImageOptions
 ): Promise<ProcessedAttachmentResult> {
-  const { attachment, index, referenceNumber, personality, isGuestMode, preprocessed, userApiKey } =
-    options;
+  const {
+    attachment,
+    index,
+    referenceNumber,
+    personality,
+    isGuestMode,
+    preprocessed,
+    userApiKey,
+    loggingContext = {},
+  } = options;
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
     return { index, line: `- Image (${attachment.name}): ${preprocessed.description}` };
@@ -206,9 +223,14 @@ async function processImageAttachment(
     );
     const result = await withRetry(
       () =>
-        describeImage(attachment, personality, isGuestMode, userApiKey, {
-          skipNegativeCache: true,
-        }),
+        describeImage(
+          attachment,
+          personality,
+          isGuestMode,
+          userApiKey,
+          { skipNegativeCache: true },
+          loggingContext
+        ),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         logger,
@@ -238,6 +260,7 @@ async function processSingleAttachment(
     preprocessedAttachments,
     userApiKey,
     elevenlabsApiKey,
+    loggingContext,
   } = options;
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
@@ -260,6 +283,7 @@ async function processSingleAttachment(
       isGuestMode,
       preprocessed,
       userApiKey,
+      loggingContext,
     });
   }
 

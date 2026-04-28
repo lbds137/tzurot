@@ -9,7 +9,11 @@
  */
 
 import { createLogger, type LoadedPersonality, type MessageContent } from '@tzurot/common-types';
-import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
+import {
+  processAttachments,
+  deriveApiKeySource,
+  type ProcessedAttachment,
+} from './MultimodalProcessor.js';
 import { extractRecentHistoryWindow } from './RAGUtils.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -76,7 +80,11 @@ export class ConversationInputProcessor {
         personality,
         isGuestMode,
         userApiKey,
-        elevenlabsApiKey
+        elevenlabsApiKey,
+        {
+          userId: context.userId,
+          apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),
+        }
       );
       logger.info(
         { count: processedAttachments.length },

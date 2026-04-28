@@ -88,7 +88,6 @@ export * from './services/ConfigCascadeCacheInvalidationService.js';
 export * from './services/DenylistCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
 export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
-export { PersistentVisionCache } from './services/PersistentVisionCache.js';
 
 // Export resolvers (cascading configuration resolution)
 export * from './services/resolvers/index.js';

@@ -3,9 +3,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { hasVisionSupport, describeImage } from './VisionProcessor.js';
+import {
+  hasVisionSupport,
+  describeImage,
+  ATTACHMENT_BOUND_FAILURE_CATEGORIES,
+} from './VisionProcessor.js';
 import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
-import { AI_DEFAULTS, ERROR_MESSAGES } from '@tzurot/common-types';
+import {
+  AI_DEFAULTS,
+  ERROR_MESSAGES,
+  INTERVALS,
+  VISION_FAILURE_CACHE_POLICY,
+} from '@tzurot/common-types';
 
 /**
  * Factory function to create a mock LoadedPersonality with sensible defaults.
@@ -57,12 +66,8 @@ vi.mock('../../redis.js', () => ({
       mockVisionCacheStore(options, description),
     getFailure: (options: { attachmentId?: string; url: string }) =>
       mockVisionCacheGetFailure(options),
-    storeFailure: (options: {
-      attachmentId?: string;
-      url: string;
-      category: string;
-      permanent: boolean;
-    }) => mockVisionCacheStoreFailure(options),
+    storeFailure: (options: { attachmentId?: string; url: string; category: string }) =>
+      mockVisionCacheStoreFailure(options),
   },
 }));
 
@@ -438,7 +443,7 @@ describe('VisionProcessor', () => {
         });
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(mockVisionCacheStore).toHaveBeenCalledWith(
-          { attachmentId: mockAttachment.id, url: mockAttachment.url, model: 'gpt-4o' },
+          { attachmentId: mockAttachment.id, url: mockAttachment.url },
           'Mocked image description'
         );
       });
@@ -468,10 +473,15 @@ describe('VisionProcessor', () => {
     });
 
     describe('negative caching (failure cache)', () => {
-      it('should return permanent failure fallback with friendly label', async () => {
+      it('should default AUTH failures with no apiKeySource to the system-side message', async () => {
+        // Conservative default: when we don't know whose key failed, use the
+        // service-unavailable phrasing rather than "API key issue" — the user has
+        // no actionable remediation if they don't know it's their key, and blaming
+        // them for a system-side glitch is a worse UX. (Source-aware variants are
+        // tested below with explicit apiKeySource.)
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'authentication',
-          permanent: true,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -481,15 +491,65 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image unavailable: API key issue]');
+        expect(result).toBe(
+          '[Image unavailable: vision service temporarily unavailable, please retry shortly]'
+        );
         expect(mockModelInvoke).not.toHaveBeenCalled();
         expect(mockVisionCacheStore).not.toHaveBeenCalled();
+      });
+
+      it('should return user-key-specific message when apiKeySource is "user"', async () => {
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'authentication',
+          cachedAt: '2026-04-28T18:22:42.000Z',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(
+          mockAttachment,
+          personality,
+          false,
+          'user-byok-key',
+          undefined,
+          { apiKeySource: 'user' }
+        );
+
+        expect(result).toBe('[Image unavailable: your API key was rejected — check /wallet]');
+      });
+
+      it('should return system-key-specific message when apiKeySource is "system"', async () => {
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'authentication',
+          cachedAt: '2026-04-28T18:22:42.000Z',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(
+          mockAttachment,
+          personality,
+          true,
+          undefined,
+          undefined,
+          { apiKeySource: 'system' }
+        );
+
+        expect(result).toBe(
+          '[Image unavailable: vision service temporarily unavailable, please retry shortly]'
+        );
       });
 
       it('should use friendly label for content_policy failures', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'content_policy',
-          permanent: true,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -505,7 +565,7 @@ describe('VisionProcessor', () => {
       it('should use friendly label for media_not_found failures', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'media_not_found',
-          permanent: true,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -518,10 +578,13 @@ describe('VisionProcessor', () => {
         expect(result).toBe('[Image unavailable: image unavailable]');
       });
 
-      it('should fall back to raw category for unknown categories', async () => {
+      it('should fall back to generic message for unrecognized categories', async () => {
+        // Defensive: a cache entry whose `category` doesn't match a known
+        // ApiErrorCategory (e.g., from a stale-format pre-deploy entry)
+        // should not crash — it falls through to the generic transient label.
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'some_new_category',
-          permanent: true,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -531,13 +594,34 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image unavailable: some_new_category]');
+        expect(result).toBe('[Image temporarily unavailable]');
       });
 
       it('should return transient failure fallback when cooldown is active', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
-          permanent: false,
+          cachedAt: '2026-04-28T18:22:42.000Z',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('[Image temporarily unavailable]');
+        expect(mockModelInvoke).not.toHaveBeenCalled();
+      });
+
+      it('should return generic transient fallback for QUOTA_EXCEEDED cooldown hits', async () => {
+        // QUOTA_EXCEEDED is classified non-attachment-bound: quotas reset on a clock
+        // (daily/monthly) or when the user adds credits, so the labeled
+        // "[Image unavailable: quota exceeded]" wording would imply a permanence
+        // we can't claim. The generic transient message is the right fallback.
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'quota_exceeded',
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -593,7 +677,6 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'transient',
-          permanent: false,
         });
       });
 
@@ -623,7 +706,6 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'authentication',
-          permanent: true,
         });
       });
 
@@ -655,7 +737,6 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'content_policy',
-          permanent: true,
         });
       });
 
@@ -687,7 +768,6 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'timeout',
-          permanent: false,
         });
       });
 
@@ -719,7 +799,6 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'rate_limit',
-          permanent: false,
         });
       });
 
@@ -742,7 +821,7 @@ describe('VisionProcessor', () => {
       it('should skip negative cache check when skipNegativeCache is true', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
-          permanent: false,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
@@ -765,7 +844,7 @@ describe('VisionProcessor', () => {
       it('should still check negative cache when skipNegativeCache is false', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
-          permanent: false,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -785,7 +864,7 @@ describe('VisionProcessor', () => {
       it('should still check negative cache when options is undefined', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
-          permanent: false,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -1066,7 +1145,7 @@ describe('VisionProcessor', () => {
       it('should still check negative cache when only skipCache is true', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
-          permanent: false,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
 
         const personality = createMockPersonality({
@@ -1087,7 +1166,7 @@ describe('VisionProcessor', () => {
         mockVisionCacheGet.mockResolvedValue('Previously cached valid description');
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'rate_limit',
-          permanent: false,
+          cachedAt: '2026-04-28T18:22:42.000Z',
         });
         mockCheckModelVisionSupport.mockResolvedValue(true);
 
@@ -1108,6 +1187,24 @@ describe('VisionProcessor', () => {
         expect(mockModelInvoke).toHaveBeenCalledTimes(1);
         expect(result).toBe('Mocked image description');
       });
+    });
+  });
+
+  describe('cache-policy / fallback-set invariant', () => {
+    it('every ATTACHMENT_BOUND_FAILURE_CATEGORIES member must use VISION_FAILURE_TTL_LONG', () => {
+      // The `ATTACHMENT_BOUND_FAILURE_CATEGORIES` set (in `VisionProcessor.ts`) drives
+      // the user-facing fallback message; the LONG-TTL entries in
+      // `VISION_FAILURE_CACHE_POLICY` (in `error.ts`) drive the negative-cache cooldown.
+      // Both encode the same "this failure is bound to the attachment, not transient
+      // state" decision in different shapes — they must stay in sync. Adding a new
+      // category to one structure but not the other would silently produce a TTL
+      // mismatch (short cooldown when long is expected) or fallback-message mismatch
+      // (generic "temporarily unavailable" when a specific label is expected).
+      for (const category of ATTACHMENT_BOUND_FAILURE_CATEGORIES) {
+        expect(VISION_FAILURE_CACHE_POLICY[category].l1TtlSeconds).toBe(
+          INTERVALS.VISION_FAILURE_TTL_LONG
+        );
+      }
     });
   });
 });

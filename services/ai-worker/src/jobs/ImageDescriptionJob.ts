@@ -45,6 +45,8 @@ interface ImageProcessResult {
 interface VisionApiKeyResult {
   isGuestMode: boolean;
   userApiKey?: string;
+  /** Whose key drives the request — used by VisionProcessor for fallback-string variants */
+  apiKeySource?: 'user' | 'system';
 }
 
 /**
@@ -73,6 +75,7 @@ async function resolveVisionApiKey(
     return {
       isGuestMode: keyResult.isGuestMode,
       userApiKey: keyResult.source === 'user' ? keyResult.apiKey : undefined,
+      apiKeySource: keyResult.source,
     };
   } catch (error) {
     logger.warn({ err: error, userId }, 'Failed to resolve API key, defaulting to guest mode');
@@ -87,14 +90,24 @@ async function processSingleImage(
   attachment: ImageDescriptionJobData['attachments'][0],
   personality: ImageDescriptionJobData['personality'],
   isGuestMode: boolean,
-  userApiKey?: string
+  userApiKey: string | undefined,
+  loggingContext: {
+    userId?: string;
+    apiKeySource?: 'user' | 'system';
+    jobId?: string;
+  }
 ): Promise<ImageProcessResult> {
   try {
     const result = await withRetry(
       () =>
-        describeImage(attachment, personality, isGuestMode, userApiKey, {
-          skipNegativeCache: true,
-        }),
+        describeImage(
+          attachment,
+          personality,
+          isGuestMode,
+          userApiKey,
+          { skipNegativeCache: true },
+          { ...loggingContext, provider: AIProvider.OpenRouter }
+        ),
       {
         maxAttempts: VISION_MAX_ATTEMPTS,
         globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,
@@ -164,12 +177,21 @@ export async function processImageDescriptionJob(
   }
 
   const { requestId, attachments, personality, context, sourceReferenceNumber } = job.data;
-  const { isGuestMode, userApiKey } = await resolveVisionApiKey(apiKeyResolver, context.userId);
+  const { isGuestMode, userApiKey, apiKeySource } = await resolveVisionApiKey(
+    apiKeyResolver,
+    context.userId
+  );
 
   logger.info(
     { jobId: job.id, requestId, imageCount: attachments.length, personalityName: personality.name },
     'Processing image description job'
   );
+
+  const loggingContext = {
+    userId: context.userId,
+    apiKeySource,
+    jobId: typeof job.id === 'string' ? job.id : undefined,
+  };
 
   try {
     // Validate attachments
@@ -182,7 +204,7 @@ export async function processImageDescriptionJob(
     // Process all images in parallel with graceful degradation
     const results = await Promise.all(
       attachments.map(attachment =>
-        processSingleImage(attachment, personality, isGuestMode, userApiKey)
+        processSingleImage(attachment, personality, isGuestMode, userApiKey, loggingContext)
       )
     );
 
