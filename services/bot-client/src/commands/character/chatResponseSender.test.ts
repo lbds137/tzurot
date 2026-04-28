@@ -80,7 +80,7 @@ describe('sendCharacterResponse', () => {
 
     const sentContent = mockSendAsPersonality.mock.calls[0][2] as string;
     expect(sentContent).toContain('[glm-4.7]');
-    expect(sentContent).toContain('z.ai/blog/glm-4.7');
+    expect(sentContent).toContain('docs.z.ai/guides/llm/glm-4.7');
   });
 
   it('should link to OpenRouter for openrouter route (post-fallthrough z-ai/-prefixed model)', async () => {

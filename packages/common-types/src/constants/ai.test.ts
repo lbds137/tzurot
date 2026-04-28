@@ -49,24 +49,44 @@ describe('GUEST_MODE', () => {
 
 describe('buildModelInfoUrl', () => {
   describe('z.ai-coding direct route', () => {
-    it('should map glm-4.5-air to the 4.5 family blog URL', () => {
-      expect(buildModelInfoUrl('glm-4.5-air', 'zai-coding')).toBe('https://z.ai/blog/glm-4.5');
+    it('should map glm-5.1 to its dedicated docs page', () => {
+      expect(buildModelInfoUrl('glm-5.1', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-5.1'
+      );
     });
 
-    it('should map glm-4.7 to the 4.7 family blog URL', () => {
-      expect(buildModelInfoUrl('glm-4.7', 'zai-coding')).toBe('https://z.ai/blog/glm-4.7');
+    it('should map glm-5-turbo to its dedicated docs page', () => {
+      expect(buildModelInfoUrl('glm-5-turbo', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-5-turbo'
+      );
     });
 
-    it('should map glm-5.1 to the GLM-5 family blog URL', () => {
-      expect(buildModelInfoUrl('glm-5.1', 'zai-coding')).toBe('https://z.ai/blog/glm-5');
+    it('should map glm-4.7 to its dedicated docs page', () => {
+      expect(buildModelInfoUrl('glm-4.7', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-4.7'
+      );
     });
 
-    it('should map glm-5-turbo to the GLM-5 family blog URL', () => {
-      expect(buildModelInfoUrl('glm-5-turbo', 'zai-coding')).toBe('https://z.ai/blog/glm-5');
+    it('should map glm-4.5-air to the parent glm-4.5 docs page (no per-Air page exists)', () => {
+      // z.ai documents the Air variant on the same page as regular glm-4.5;
+      // there is no dedicated /guides/llm/glm-4.5-air page (would 404).
+      expect(buildModelInfoUrl('glm-4.5-air', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-4.5'
+      );
+    });
+
+    it('should case-normalize the model name (user-typed preset configs)', () => {
+      // The catalog keys are lowercase; user-typed configs may use any case.
+      expect(buildModelInfoUrl('GLM-5.1', 'zai-coding')).toBe(
+        'https://docs.z.ai/guides/llm/glm-5.1'
+      );
     });
 
     it('should fall back to the coding-plan overview for unknown z.ai models', () => {
-      expect(buildModelInfoUrl('glm-7.0-future', 'zai-coding')).toBe(
+      // Defensive: shouldn't fire for promoted routes (promotion requires
+      // catalog membership), but covers stale/manual `provider: 'zai-coding'`
+      // configs that reach buildModelInfoUrl with an unknown model name.
+      expect(buildModelInfoUrl('glm-99-future', 'zai-coding')).toBe(
         'https://docs.z.ai/devpack/overview'
       );
     });

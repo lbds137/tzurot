@@ -203,57 +203,58 @@ export const ELEVENLABS_VOICE_NAME_PREFIX = 'tzurot-';
 export const ZAI_VALIDATION_MODEL = 'glm-4.5-air';
 
 /**
- * Models served by z.ai's GLM Coding Plan endpoint (`api.z.ai/api/coding/paas/v4`).
- * Used by `ProviderRouter` as a guardrail before auto-promoting an OpenRouter
- * `z-ai/<model>` request to z.ai-direct: if the bare model isn't on this list,
- * promotion would 404 (the model exists on OpenRouter but not on z.ai's
- * coding plan), so we leave the request on OpenRouter.
+ * Catalog of models served by z.ai's GLM Coding Plan endpoint
+ * (`api.z.ai/api/coding/paas/v4`). Single source of truth for two things:
  *
- * Source of truth: docs.z.ai/devpack/overview. Update when z.ai adds or
- * removes models from the plan; entries must stay lowercase to match the
- * case-normalized lookup in `isZaiCodingPlanModel`.
- */
-const ZAI_CODING_PLAN_MODEL_LIST = ['glm-5.1', 'glm-5-turbo', 'glm-4.7', 'glm-4.5-air'] as const;
-
-/**
- * Membership check for `ZAI_CODING_PLAN_MODEL_LIST`. Case-normalizes the
- * input to match the lowercase catalog entries — preset configs are
- * user-typed strings and may use any case.
- */
-export function isZaiCodingPlanModel(model: string): boolean {
-  return (ZAI_CODING_PLAN_MODEL_LIST as readonly string[]).includes(model.toLowerCase());
-}
-
-/**
- * Map of z.ai model-family prefix → blog announcement URL. z.ai doesn't
- * publish per-model documentation pages — family announcements (one per
- * model generation) are the closest analog to OpenRouter's per-model card
- * URLs. Used by `buildModelInfoUrl` for the response footer link.
+ * 1. **Membership** — `isZaiCodingPlanModel()` checks if a model exists on
+ *    the plan. Used by `ProviderRouter` as a guardrail before auto-promoting
+ *    an OpenRouter `z-ai/<model>` request to z.ai-direct: if the bare model
+ *    isn't here, promotion would 404, so the request stays on OpenRouter.
  *
- * Order matters: more-specific prefixes must appear before their more-general
- * counterparts. Today's entries don't overlap (4.5 / 4.7 / 5 are distinct
- * generations), but a future `glm-5.1` entry, for example, must precede the
- * `glm-5` catch-all or it will never match.
+ * 2. **Model docs URL** — `buildModelInfoUrl()` (z.ai branch) reads the
+ *    `docsUrl` for the response footer link. Most models have a dedicated
+ *    docs page at `docs.z.ai/guides/llm/<model>`; `glm-4.5-air` is the
+ *    exception — z.ai docs that variant on the parent `glm-4.5` page, so we
+ *    link there instead. (Confirmed 2026-04-28 via z.ai docs check.)
+ *
+ * Source of truth for membership: docs.z.ai/devpack/overview. Source of
+ * truth for docs URLs: docs.z.ai/llms.txt. Keys must stay lowercase to
+ * match the case-normalized lookups; user-typed preset configs may use any
+ * case so callers normalize before lookup.
  */
-const ZAI_MODEL_FAMILY_URLS: readonly { prefix: string; url: string }[] = [
-  { prefix: 'glm-4.5', url: 'https://z.ai/blog/glm-4.5' },
-  { prefix: 'glm-4.7', url: 'https://z.ai/blog/glm-4.7' },
-  { prefix: 'glm-5', url: 'https://z.ai/blog/glm-5' },
-];
+const ZAI_MODEL_CATALOG: Readonly<Record<string, { docsUrl: string }>> = {
+  'glm-5.1': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5.1' },
+  'glm-5-turbo': { docsUrl: 'https://docs.z.ai/guides/llm/glm-5-turbo' },
+  'glm-4.7': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.7' },
+  // glm-4.5-air uses the parent family page — z.ai docs the Air variant on
+  // the same page as the regular glm-4.5; no per-model URL exists.
+  'glm-4.5-air': { docsUrl: 'https://docs.z.ai/guides/llm/glm-4.5' },
+};
 
 /**
- * Fallback URL for z.ai-coding requests where the model name doesn't match
- * any known family prefix. Points to the coding-plan overview page so the
- * user at least lands somewhere meaningful.
+ * Fallback URL for z.ai-coding requests where the model name isn't in the
+ * catalog (defensive — should never fire for promoted routes since promotion
+ * itself requires catalog membership, but covers ConversationalRAGService
+ * receiving a stale/manual `provider: 'zai-coding'` config). Points to the
+ * coding-plan overview page so the user at least lands somewhere meaningful.
  */
 const ZAI_CODING_OVERVIEW_URL = 'https://docs.z.ai/devpack/overview';
 
 /**
+ * Membership check for the z.ai coding-plan catalog. Case-normalizes the
+ * input — preset configs are user-typed strings and may use any case.
+ */
+export function isZaiCodingPlanModel(model: string): boolean {
+  return model.toLowerCase() in ZAI_MODEL_CATALOG;
+}
+
+/**
  * Build a model-info URL for the response footer based on which provider
- * was actually used. For z.ai-coding direct routes, link to z.ai's blog
- * announcement for the model's family; for OpenRouter (including z.ai
- * fallthrough where ProviderRouter rewrote the model to `z-ai/<model>`),
- * link to OpenRouter's model card page.
+ * was actually used. For z.ai-coding direct routes, link to z.ai's docs
+ * page for the model (or the parent family page when no per-model page
+ * exists, e.g., glm-4.5-air); for OpenRouter (including z.ai fallthrough
+ * where ProviderRouter rewrote the model to `z-ai/<model>`), link to
+ * OpenRouter's model card page.
  *
  * `provider` is the *effective* provider — i.e., the one that actually
  * served the request, post-ProviderRouter — which is the value plumbed
@@ -267,12 +268,7 @@ export function buildModelInfoUrl(model: string, provider: string | undefined): 
   // module evaluation — by the time any consumer calls this function, the
   // enum is fully populated.
   if (provider === AIProvider.ZaiCoding) {
-    for (const { prefix, url } of ZAI_MODEL_FAMILY_URLS) {
-      if (model.startsWith(prefix)) {
-        return url;
-      }
-    }
-    return ZAI_CODING_OVERVIEW_URL;
+    return ZAI_MODEL_CATALOG[model.toLowerCase()]?.docsUrl ?? ZAI_CODING_OVERVIEW_URL;
   }
   // OpenRouter (and any unknown provider — falls through to OpenRouter as
   // the historical default; ElevenLabs is voice-only and never hits this
