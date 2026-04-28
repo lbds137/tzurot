@@ -63,7 +63,7 @@ export interface ResolvedPersona {
 export interface UserReferenceResolutionResult {
   /** Text with all user references replaced with persona names */
   processedText: string;
-  /** Personas that were resolved (for adding to participants) */
+  /** Personas that were resolved (text-replacement only; caller decides whether to use) */
   resolvedPersonas: ResolvedPersona[];
 }
 
@@ -73,7 +73,7 @@ export interface UserReferenceResolutionResult {
 export interface PersonalityResolutionResult {
   /** Personality with all text fields resolved */
   resolvedPersonality: LoadedPersonality;
-  /** Deduplicated personas found across all fields (for adding to participants) */
+  /** Deduplicated personas found across all fields (text-replacement only; caller decides whether to use) */
   resolvedPersonas: ResolvedPersona[];
 }
 
