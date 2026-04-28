@@ -225,6 +225,53 @@ describe('ConversationalRAGService', () => {
       });
     });
 
+    it('should NOT add personas resolved from personality fields to participants', async () => {
+      // Regression: personality static fields (systemPrompt, conversationalExamples, etc.)
+      // may contain `@username` references that resolve to real persona records. Those
+      // resolved personas must NOT be injected into the participants list — only users
+      // actually present in the live conversation (chat-log scan + current-message
+      // @mentions) should appear there. Including a referenced user's `about_user`
+      // content in another user's prompt context is a privacy leak.
+      const activeOnly = new Map([
+        ['active-speaker', { personaId: 'persona-active', personaName: 'Speaker', isActive: true }],
+      ]);
+      getMemoryRetrieverMock().getAllParticipantPersonas.mockResolvedValue(activeOnly);
+
+      // Personality field resolution returns a foreign persona (e.g. someone named in a
+      // `conversational_examples` entry like "Channeled message for @Foreign:")
+      getUserReferenceResolverMock().resolvePersonalityReferences.mockResolvedValue({
+        resolvedPersonality: createMockPersonality(),
+        resolvedPersonas: [
+          {
+            personaId: 'persona-foreign',
+            personaName: 'Foreign',
+            preferredName: 'Foreign',
+            pronouns: 'they/them',
+            content: 'PRIVATE about_user content that must not leak',
+          },
+        ],
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Hello', context);
+
+      const call = getPromptBuilderMock().buildFullSystemPrompt.mock.calls[0]?.[0] as
+        | { participantPersonas: Map<string, { personaId: string; content?: string }> }
+        | undefined;
+      expect(call).toBeDefined();
+      const participants = call!.participantPersonas;
+      expect(participants.has('Foreign')).toBe(false);
+      // Defense in depth: foreign content must not appear under any key
+      const allContent = Array.from(participants.values())
+        .map(p => p.content ?? '')
+        .join('|');
+      expect(allContent).not.toContain('PRIVATE about_user content');
+      // Active speaker is still present (sanity)
+      expect(participants.get('active-speaker')?.personaId).toBe('persona-active');
+    });
+
     it('should handle empty memory results gracefully', async () => {
       getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({
         memories: [],
