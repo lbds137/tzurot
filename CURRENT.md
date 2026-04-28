@@ -16,15 +16,22 @@ _No production issues active. z.ai integration end-to-end shipped (PR #921 + PR 
 
 ## Active Task
 
-_None. PR #928 (z.ai catalog refactor + retry-with-fallback C3) merged 2026-04-28 after 4 review rounds — closes the third of three pre-release z.ai items the user wanted before the next beta cut. **Next planned**: follow-up PR for the newly-added backlog items, per the user's "I refuse to let them pile up" stance. Concrete candidates:_
+_None. PR #929 (backlog cleanup batch 1: z.ai reasoning extraction + /wallet/list Zod validation + named FallbackRoute alias) merged 2026-04-28 after 3 review rounds. Three backlog items retired in one PR; all reviewer-flagged in past PRs (#908, #928) and unblocked. Plus DM link-resolution intake captured (user-flagged 2026-04-28, not yet investigated)._
 
-1. **z.ai reasoning extraction** (`reasoning_content` vs `reasoning` field name) — bug fix, real user-facing impact (thinking content from z.ai models is silently dropped today). Caught from a live diagnostic dump 2026-04-28.
-2. **z.ai-specific response field audit** — broader investigation; sibling to (1).
-3. **Narrow auto-promotion fallback trigger** — chore, blocked-on z.ai error-shape data (which we don't have yet).
-4. **Discriminated union + named `FallbackRoute` alias** — chore, not yet load-bearing.
-5. **Runtime invariant guard for `ResolvedRoute` mutual exclusion** — chore, from PR #927 round 4.
+_Remaining backlog (all production-data-blocked or design-blocked per their own promote-when criteria — no immediate low-hanging fruit):_
 
-_Best follow-up scope: items (1) + (2) bundled in one PR (real fixes, related investigation); items (3)+(4)+(5) in a second polish PR after we have z.ai usage data. Or: just (1) + (2) before release, defer (3)-(5) to post-release polish._
+- z.ai-specific field audit (sibling to reasoning fix; could ship anytime, lower urgency)
+- Narrow auto-promotion fallback trigger (z.ai error-shape data)
+- Discriminated union part (b) (production stabilization)
+- Runtime invariant guard for ResolvedRoute mutual exclusion (when 5th routing path is designed)
+- `tryResolveUserKey` no-key negative caching (production load data)
+- Validation model deprecation hardening (z.ai catalog signal)
+- 402 status verification (real expired-key probe)
+- DM link-resolution oversight (user intake; needs reproduction + diagnosis)
+- `claude-review` skip-on-dependabot (last-commit-before-release-merge)
+- knip + duplicate-exports CI gate (30-60min triage + flag flip)
+
+_**Next planned**: cut beta.109 release. Develop has 8 PRs unreleased since beta.108 (#920, #921, #924–929, plus dependabot #922/#923) — substantial release surface. Per `backlog/quick-wins.md`, the claude-review-skip-on-dependabot workflow change should be the LAST commit on develop before opening the release-merge PR (release-coupled timing constraint to minimize the dark window where claude-review is broken)._
 
 ---
 
@@ -37,6 +44,7 @@ _Best follow-up scope: items (1) + (2) bundled in one PR (real fixes, related in
 - **PR #926** (`fix/zai-coding-discord-choices-and-validation-model`, merged 2026-04-27) — z.ai end-to-end UX fix after manual dev testing surfaced two day-1 bugs from PR #921: (a) `DISCORD_PROVIDER_CHOICES` was missing the `zai-coding` entry (slash-command dropdown silently omitted z.ai), (b) `ZAI_VALIDATION_MODEL = 'glm-4.5-flash'` was a hallucinated model name (correct: `glm-4.5-air`, the only 1× quota Haiku-equivalent in z.ai's documented coding-plan catalog). Plus `buildModelInfoUrl` helper that routes the response footer link to z.ai's blog (direct route) or OpenRouter (post-fallthrough), bidirectional guard tests in `discord.test.ts` to prevent recurrence on future enum additions, and an incidental `encodeURIComponent` SSRF cleanup in `chatResponseSender.ts`. 4 review rounds (1 autosquash gate + 3 review-fix cycles).
 - **PR #927** (`fix/zai-coding-auto-promotion`, merged 2026-04-28) — z.ai single-preset UX completion: ProviderRouter auto-promotes OpenRouter `z-ai/<model>` requests to z.ai-direct when the user has a zai-coding key (whitelist-guarded against catalog drift via `isZaiCodingPlanModel`). Plus URL encoding regression fix from PR #926 (per-segment encoding preserves `/` between namespace and model; `encodeOpenRouterPathSegment` escapes `.`/`..` segments per `00-critical.md` SSRF defense). New `wasAutoPromoted` field on `ResolvedRoute` plumbed through AuthStep (override + log context) — sets the trigger for the upcoming retry-with-fallback (C3 in `backlog/inbox.md`). 5 review rounds + council pre-review (Opus 4.6). Council prescribed: whitelist guard, case normalization, wasAutoPromoted field, YAGNI on opt-out — all four followed.
 - **PR #928** (`feat/zai-coding-c3-and-docs-urls`, merged 2026-04-28) — Two coordinated changes closing the third of three pre-release z.ai items: (a) refactor catalog from prefix-array + whitelist-array → single `ZAI_MODEL_CATALOG` Record (one-line additions for new models, replaces fragile prefix matching); (b) retry-with-fallback when auto-promoted z.ai request fails (catalog drift defense in depth — ProviderRouter pre-computes OpenRouter fallback alongside promotion, GenerationStep wraps the LLM call in `runWithAutoPromotionFallback` to swap+retry on failure, propagates ORIGINAL error if both fail). Plus per-model docs URLs replace blog family pages (`docs.z.ai/guides/llm/<model>` for 3 of 4 catalog entries; `glm-4.5-air` uses parent family page). 4 review rounds; round 3 surfaced graceful-degradation gap when OpenRouter resolution fails during promotion (defense added). User-confirmed working live before merge.
+- **PR #929** (`chore/backlog-cleanup-batch-1`, merged 2026-04-28) — Three independent backlog items in one PR (per the user's "I refuse to let them pile up" stance): (a) extract named `FallbackRoute` type alias replacing inline anonymous types on both `ResolvedRoute.fallback` and `ResolvedAuth.fallback`; (b) extend reasoning extraction to recognize z.ai's `additional_kwargs.reasoning_content` alongside OpenRouter's `reasoning` (real bug fix — z.ai thinking content was silently dropped before this); (c) `ListWalletKeysResponseSchema.parse()` validation in the gateway handler before sending response (defense against future schema drift). 3 review rounds, no blockers, clean LGTM verdict.
 - **Dependabot PRs #922/#923** (merged 2026-04-27) — production + development dependency updates. Merged with explicit `claude-review` infra-fail (bot-actor reject); workflow fix to skip claude-review on dependabot is queued in `backlog/quick-wins.md` as "last commit on develop before next release-merge."
 
 ---
