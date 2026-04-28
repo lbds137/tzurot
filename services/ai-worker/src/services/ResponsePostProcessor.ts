@@ -119,8 +119,7 @@ export class ResponsePostProcessor {
    *
    * Field precedence (each source is tried only if the previous returns nothing):
    * 1. `additional_kwargs.reasoning` — OpenRouter / DeepSeek R1 convention
-   * 2. `additional_kwargs.reasoning_content` — z.ai convention (snake_case;
-   *    `encodeURIComponent` doesn't apply, this is a raw API response field name)
+   * 2. `additional_kwargs.reasoning_content` — z.ai convention (snake_case)
    * 3. `response_metadata.reasoning_details` array — alternate format some
    *    providers use (parsed by `extractApiReasoningContent`)
    */
