@@ -103,18 +103,25 @@ export interface ResolvedRoute {
    * extra `apiKeyResolver.resolveApiKey('openrouter')` call per promoted
    * request, which is cheap (cached after first hit per user).
    */
-  fallback?: {
-    apiKey: string;
-    /**
-     * Typed as `string` rather than `AIProvider` to match
-     * `ResolvedAuth.fallback.provider` downstream — the value is always
-     * `AIProvider.OpenRouter` at the producer site, but consumers receive it
-     * as a free-form string after passing through GenerationContext.
-     */
-    provider: string;
-    model: string;
-    isGuestMode: boolean;
-  };
+  fallback?: FallbackRoute;
+}
+
+/**
+ * Pre-computed fallback route attached to `ResolvedRoute.fallback` (and
+ * propagated as `ResolvedAuth.fallback`) when ProviderRouter auto-promotes a
+ * request to z.ai-direct. If the promoted request fails, GenerationStep swaps
+ * to this route and retries via OpenRouter.
+ *
+ * `provider` is typed as `string` rather than `AIProvider` to match the
+ * downstream `ResolvedAuth.fallback.provider` shape — the value is always
+ * `AIProvider.OpenRouter` at the producer site, but consumers receive it as
+ * a free-form string after passing through GenerationContext.
+ */
+export interface FallbackRoute {
+  apiKey: string;
+  provider: string;
+  model: string;
+  isGuestMode: boolean;
 }
 
 export class ProviderRouter {
