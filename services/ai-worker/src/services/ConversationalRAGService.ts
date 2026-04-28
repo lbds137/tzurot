@@ -111,29 +111,21 @@ export class ConversationalRAGService {
       logger.debug('No participant personas found in conversation history');
     }
 
-    // Resolve user references across all personality text fields (shapes.inc format mentions)
+    // Resolve user references across all personality text fields (shapes.inc format mentions).
+    // Text-only transform: `@Lila` / `@[Lila](user:UUID)` / `<@discord_id>` in static personality
+    // fields are replaced with the bare persona name in the rendered prompt. Resolved personas
+    // are NOT injected into the participants list — personality fields are author-defined static
+    // content, not live conversation. Live participants come from chat-log scan
+    // (`extractParticipants`) and current-message @mentions (`mentionedPersonas`); a name
+    // appearing in a personality's example text does not mean that user is in the conversation.
     const { resolvedPersonality: processedPersonality, resolvedPersonas } =
       await this.userReferenceResolver.resolvePersonalityReferences(personality);
 
-    // Add resolved personas to participants
     if (resolvedPersonas.length > 0) {
-      for (const persona of resolvedPersonas) {
-        if (!participantPersonas.has(persona.personaName)) {
-          participantPersonas.set(persona.personaName, {
-            preferredName: persona.preferredName ?? undefined,
-            pronouns: persona.pronouns ?? undefined,
-            content: persona.content,
-            isActive: false,
-            personaId: persona.personaId,
-          });
-          logger.debug(
-            { personaName: persona.personaName },
-            'Added referenced user to participants'
-          );
-        }
-      }
-
-      logger.info({ count: resolvedPersonas.length }, 'Resolved user refs in personality fields');
+      logger.info(
+        { count: resolvedPersonas.length },
+        'Resolved user refs in personality fields (text-only; not added to participants)'
+      );
     }
 
     return { participantPersonas, processedPersonality };

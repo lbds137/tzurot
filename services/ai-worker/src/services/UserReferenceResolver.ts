@@ -9,7 +9,9 @@
  *
  * For each resolved reference:
  * - Replaces the reference with the user's default persona's preferredName
- * - Returns the persona info for inclusion in the participants section
+ * - Returns the resolved persona info (callers use this for text substitution;
+ *   personality-field resolution does NOT inject these into the participants list —
+ *   live participants come from the chat-log scan and current-message @mentions)
  */
 
 import type { PrismaClient, LoadedPersonality } from '@tzurot/common-types';
@@ -92,7 +94,8 @@ export class UserReferenceResolver {
    * @param text - Text containing user references
    * @param activePersonaId - Optional ID of the currently active persona (for self-reference detection)
    *                          If a reference resolves to this persona, the reference is replaced with the name
-   *                          but the persona is NOT added to resolvedPersonas (to avoid adding yourself to participants)
+   *                          but the persona is NOT added to resolvedPersonas (the personality is speaking
+   *                          AS that persona, so a self-reference in static text isn't a separate participant)
    * @returns Processed text and list of resolved personas
    */
   async resolveUserReferences(
