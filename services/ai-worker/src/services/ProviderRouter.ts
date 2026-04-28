@@ -90,6 +90,31 @@ export interface ResolvedRoute {
    * may be true for a given route, never both.
    */
   wasAutoPromoted: boolean;
+
+  /**
+   * Pre-computed OpenRouter passthrough route, populated when (and only
+   * when) `wasAutoPromoted` is true. Contains the apiKey/provider/model
+   * triple that GenerationStep should swap to if the promoted z.ai request
+   * fails — defense in depth against catalog drift (the whitelist may go
+   * stale if z.ai deprecates a model without us noticing).
+   *
+   * Pre-computing here rather than re-resolving on retry keeps the retry
+   * path synchronous + decoupled from ProviderRouter; the cost is one
+   * extra `apiKeyResolver.resolveApiKey('openrouter')` call per promoted
+   * request, which is cheap (cached after first hit per user).
+   */
+  fallback?: {
+    apiKey: string;
+    /**
+     * Typed as `string` rather than `AIProvider` to match
+     * `ResolvedAuth.fallback.provider` downstream — the value is always
+     * `AIProvider.OpenRouter` at the producer site, but consumers receive it
+     * as a free-form string after passing through GenerationContext.
+     */
+    provider: string;
+    model: string;
+    isGuestMode: boolean;
+  };
 }
 
 export class ProviderRouter {
@@ -229,11 +254,17 @@ export class ProviderRouter {
       );
       return null;
     }
-    logger.info(
-      { userId, configuredModel, promotedModel: bareModel },
-      'Auto-promoting OpenRouter z-ai/ model to z.ai-direct (user has zai-coding key)'
-    );
-    return {
+    // Pre-compute the OpenRouter fallback route alongside the promotion.
+    // GenerationStep uses this to retry-with-fallback if the z.ai request
+    // fails (catalog drift defense). Computed even on the happy path so the
+    // retry decision stays synchronous — cheap one-time cost per request.
+    //
+    // Failure of the fallback resolution must NOT kill the promotion: the
+    // z.ai route is independently viable (we already have userZaiKey), so
+    // we proceed with promotion sans-fallback rather than throwing. Worst
+    // case: a future z.ai 404 surfaces directly to the user (same UX as
+    // pre-PR-#928), which is strictly no worse than the previous behavior.
+    const promotedRoute: ResolvedRoute = {
       effectiveProvider: AIProvider.ZaiCoding,
       effectiveModel: bareModel,
       apiKey: userZaiKey,
@@ -241,5 +272,29 @@ export class ProviderRouter {
       fallthroughTriggered: false,
       wasAutoPromoted: true,
     };
+    try {
+      const orFallback = await this.apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
+      promotedRoute.fallback = {
+        apiKey: orFallback.apiKey,
+        provider: AIProvider.OpenRouter,
+        model: configuredModel, // original z-ai/-prefixed model name
+        isGuestMode: orFallback.isGuestMode,
+      };
+    } catch (err) {
+      logger.warn(
+        { userId, configuredModel, err },
+        'Failed to pre-compute OpenRouter fallback during z.ai promotion — proceeding without retry-with-fallback safety net'
+      );
+    }
+    logger.info(
+      {
+        userId,
+        configuredModel,
+        promotedModel: bareModel,
+        fallbackAvailable: promotedRoute.fallback !== undefined,
+      },
+      'Auto-promoting OpenRouter z-ai/ model to z.ai-direct (user has zai-coding key)'
+    );
+    return promotedRoute;
   }
 }

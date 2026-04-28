@@ -267,11 +267,21 @@ describe('ProviderRouter', () => {
       // z.ai-coding key. ProviderRouter should detect this and route direct
       // to z.ai with the bare model name (stripped z-ai/ prefix).
       mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+      // Promotion pre-computes the OpenRouter fallback for retry-with-fallback;
+      // the mock must serve openrouter resolution even though the happy path
+      // never uses the result directly.
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-user-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: false,
+      } satisfies ApiKeyResolutionResult);
 
       const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123');
 
       expect(mockTryResolveUserKey).toHaveBeenCalledWith('user-123', AIProvider.ZaiCoding);
-      expect(mockResolveApiKey).not.toHaveBeenCalled(); // promoted, no OpenRouter resolution
+      expect(mockResolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.OpenRouter);
       expect(route).toEqual({
         effectiveProvider: AIProvider.ZaiCoding,
         effectiveModel: 'glm-5.1', // bare, stripped of z-ai/ prefix
@@ -279,6 +289,12 @@ describe('ProviderRouter', () => {
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: true,
+        fallback: {
+          apiKey: 'sk-or-user-key',
+          provider: AIProvider.OpenRouter,
+          model: 'z-ai/glm-5.1', // original namespaced form preserved for retry
+          isGuestMode: false,
+        },
       } satisfies typeof route);
     });
 
@@ -395,12 +411,67 @@ describe('ProviderRouter', () => {
       // the same as z-ai/glm-5.1. Promoted model name uses lowercase form
       // (z.ai's documented model names are lowercase).
       mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-user-key',
+        source: 'user',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: false,
+      } satisfies ApiKeyResolutionResult);
 
       const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/GLM-5.1', 'user-123');
 
       expect(route.wasAutoPromoted).toBe(true);
       expect(route.effectiveProvider).toBe(AIProvider.ZaiCoding);
       expect(route.effectiveModel).toBe('glm-5.1'); // normalized to lowercase
+      // Fallback preserves the original (uppercase) model name verbatim — if
+      // OpenRouter retry fires, it'll hit OpenRouter with whatever the preset
+      // had. OpenRouter handles case-insensitive matching on its side.
+      expect(route.fallback?.model).toBe('z-ai/GLM-5.1');
+    });
+
+    it('should still promote when OpenRouter fallback resolution fails (degrade to no-fallback)', async () => {
+      // Defensive edge case: if resolveApiKey throws for OpenRouter (DB hiccup,
+      // resolver bug), the z.ai promotion should still succeed — the z.ai
+      // route is independently viable. The route returns without a `fallback`
+      // field, so retry-with-fallback simply won't fire if z.ai later 404s
+      // (degrades to pre-PR-#928 UX, which is strictly no worse).
+      mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+      mockResolveApiKey.mockRejectedValue(new Error('OpenRouter resolver unavailable'));
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-5.1', 'user-123');
+
+      expect(route.wasAutoPromoted).toBe(true);
+      expect(route.effectiveProvider).toBe(AIProvider.ZaiCoding);
+      expect(route.effectiveModel).toBe('glm-5.1');
+      expect(route.apiKey).toBe('zai-user-key');
+      // Fallback couldn't be computed — but promotion still happened.
+      expect(route.fallback).toBeUndefined();
+    });
+
+    it('should pre-compute fallback route alongside promotion (for retry-with-fallback)', async () => {
+      // Defense in depth against catalog drift: the fallback contains the
+      // OpenRouter route ready to swap if z.ai 404s on a stale-whitelist
+      // model. Computed on the happy path so the retry decision stays
+      // synchronous in GenerationStep.
+      mockTryResolveUserKey.mockResolvedValue('zai-user-key');
+      mockResolveApiKey.mockResolvedValue({
+        apiKey: 'sk-or-system-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        userId: 'user-123',
+        isGuestMode: true,
+      } satisfies ApiKeyResolutionResult);
+
+      const route = await router.resolveRoute(AIProvider.OpenRouter, 'z-ai/glm-4.7', 'user-123');
+
+      expect(route.wasAutoPromoted).toBe(true);
+      expect(route.fallback).toEqual({
+        apiKey: 'sk-or-system-key',
+        provider: AIProvider.OpenRouter,
+        model: 'z-ai/glm-4.7',
+        isGuestMode: true, // propagated from openrouter resolution (system key)
+      });
     });
 
     it('should not promote when userId is undefined (no-key path)', async () => {

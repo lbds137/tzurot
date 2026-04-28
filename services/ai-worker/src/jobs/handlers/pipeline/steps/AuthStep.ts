@@ -43,7 +43,14 @@ export class AuthStep implements IPipelineStep {
     }
 
     const llmAuth = await this.resolveLlmAuth(config.effectivePersonality, jobContext.userId);
-    const { resolvedApiKey, resolvedProvider, isGuestMode, effectivePersonality } = llmAuth;
+    const {
+      resolvedApiKey,
+      resolvedProvider,
+      isGuestMode,
+      effectivePersonality,
+      wasAutoPromoted,
+      fallback,
+    } = llmAuth;
 
     // Resolve ElevenLabs key independently (voice provider, not LLM).
     // Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
@@ -88,6 +95,14 @@ export class AuthStep implements IPipelineStep {
         provider: resolvedProvider,
         isGuestMode,
         elevenlabsApiKey,
+        // wasAutoPromoted and fallback are co-invariant by ProviderRouter
+        // construction (always set together or neither). Spread separately
+        // here only because they're both optional on the type. If a future
+        // routing path sets wasAutoPromoted without fallback, the downstream
+        // guard in GenerationStep degrades gracefully (no retry attempted)
+        // rather than crashing — silent no-op is preferable to a runtime fault.
+        ...(wasAutoPromoted === true ? { wasAutoPromoted: true } : {}),
+        ...(fallback !== undefined ? { fallback } : {}),
       },
     };
   }
@@ -106,6 +121,8 @@ export class AuthStep implements IPipelineStep {
     resolvedProvider: string | undefined;
     isGuestMode: boolean;
     effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'];
+    wasAutoPromoted?: boolean;
+    fallback?: NonNullable<GenerationContext['auth']>['fallback'];
   }> {
     let effectivePersonality = initialPersonality;
 
@@ -164,6 +181,8 @@ export class AuthStep implements IPipelineStep {
         resolvedProvider: route.effectiveProvider,
         isGuestMode: route.isGuestMode,
         effectivePersonality,
+        wasAutoPromoted: route.wasAutoPromoted,
+        fallback: route.fallback,
       };
     } catch (error) {
       // Resolution failure is unexpected (normal guest mode is signaled via

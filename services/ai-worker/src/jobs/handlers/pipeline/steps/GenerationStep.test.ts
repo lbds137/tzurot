@@ -1585,5 +1585,125 @@ describe('GenerationStep', () => {
         expect(mockRAGService.storeDeferredMemory).toHaveBeenCalledOnce();
       });
     });
+
+    describe('auto-promotion retry-with-fallback', () => {
+      // Defense in depth against z.ai catalog drift. When ProviderRouter
+      // promoted an OpenRouter `z-ai/<model>` request to z.ai-direct, AuthStep
+      // attaches `wasAutoPromoted=true` + `fallback={openrouter route}`. If the
+      // z.ai call fails, GenerationStep retries once via OpenRouter — the user
+      // sees a successful response even when the whitelist is stale.
+
+      const promotedConfig: ResolvedConfig = {
+        // Post-AuthStep: provider already overridden to zai-coding, model stripped
+        effectivePersonality: { ...TEST_PERSONALITY, provider: 'zai-coding', model: 'glm-5.1' },
+        configSource: 'personality',
+      };
+
+      const promotedAuth: ResolvedAuth = {
+        apiKey: 'zai-user-key',
+        provider: 'zai-coding',
+        isGuestMode: false,
+        wasAutoPromoted: true,
+        fallback: {
+          apiKey: 'sk-or-user-key',
+          provider: 'openrouter',
+          model: 'z-ai/glm-5.1', // original namespaced form
+          isGuestMode: false,
+        },
+      };
+
+      it('should retry via fallback when z.ai call fails (catalog drift defense)', async () => {
+        const fallbackResponse: RAGResponse = {
+          content: 'Hello from OpenRouter fallback!',
+          retrievedMemories: 0,
+          tokensIn: 50,
+          tokensOut: 25,
+          modelUsed: 'z-ai/glm-5.1',
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockRejectedValueOnce(new Error('z.ai 404: model not found'))
+          .mockResolvedValueOnce(fallbackResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: promotedConfig,
+          auth: promotedAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        // Successful end-result via fallback
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe('Hello from OpenRouter fallback!');
+        // generateResponse called twice: once with promoted (zai-coding) personality, once with fallback (openrouter)
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+        const firstCallPersonality = vi.mocked(mockRAGService.generateResponse).mock.calls[0]?.[0];
+        const firstCallOpts = vi.mocked(mockRAGService.generateResponse).mock.calls[0]?.[3];
+        expect(firstCallPersonality?.provider).toBe('zai-coding');
+        expect(firstCallPersonality?.model).toBe('glm-5.1');
+        expect(firstCallOpts?.userApiKey).toBe('zai-user-key');
+        const secondCallPersonality = vi.mocked(mockRAGService.generateResponse).mock.calls[1]?.[0];
+        const secondCallOpts = vi.mocked(mockRAGService.generateResponse).mock.calls[1]?.[3];
+        expect(secondCallPersonality?.provider).toBe('openrouter');
+        expect(secondCallPersonality?.model).toBe('z-ai/glm-5.1');
+        expect(secondCallOpts?.userApiKey).toBe('sk-or-user-key');
+      });
+
+      it('should propagate ORIGINAL error when fallback retry also fails', async () => {
+        // Both z.ai and OpenRouter fail — surface the original z.ai error
+        // (the actual root cause), not the fallback failure.
+        vi.mocked(mockRAGService.generateResponse)
+          .mockRejectedValueOnce(new Error('z.ai 404: model not found'))
+          .mockRejectedValueOnce(new Error('OpenRouter rate limited'));
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: promotedConfig,
+          auth: promotedAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        // Failure result with the ORIGINAL z.ai error message
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.error).toBe('z.ai 404: model not found');
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+
+      it('should NOT trigger fallback retry when wasAutoPromoted is false (non-promoted requests)', async () => {
+        // Plain OpenRouter request fails — no auto-promotion in the chain, so
+        // no fallback to attempt. Fails at first call, propagates normally.
+        const plainAuth: ResolvedAuth = {
+          apiKey: 'sk-or-key',
+          provider: 'openrouter',
+          isGuestMode: false,
+          // wasAutoPromoted absent / undefined
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValueOnce(
+          new Error('OpenRouter timeout')
+        );
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: plainAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.error).toBe('OpenRouter timeout');
+        // Only ONE call — no retry was attempted because wasAutoPromoted is falsy
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });

@@ -1,0 +1,74 @@
+/**
+ * Tests for GenerationStep prerequisite validation.
+ *
+ * The same prerequisite errors are also asserted via integration in
+ * GenerationStep.test.ts ("should throw error if config/auth/preparedContext
+ * is missing"). These tests pin down the helper's contract directly.
+ */
+
+import { describe, it, expect } from 'vitest';
+import type { Job } from 'bullmq';
+import type { LLMGenerationJobData } from '@tzurot/common-types';
+import { validatePrerequisites } from './generationStepValidation.js';
+import type { GenerationContext } from '../types.js';
+
+const fakeJob = {} as Job<LLMGenerationJobData>;
+
+describe('validatePrerequisites', () => {
+  it('should throw when config is missing', () => {
+    expect(() =>
+      validatePrerequisites({
+        job: fakeJob,
+        startTime: 0,
+        auth: { apiKey: 'k', provider: 'openrouter', isGuestMode: false },
+        preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
+      } satisfies GenerationContext)
+    ).toThrow(/ConfigStep must run before GenerationStep/);
+  });
+
+  it('should throw when auth is missing', () => {
+    expect(() =>
+      validatePrerequisites({
+        job: fakeJob,
+        startTime: 0,
+        config: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally minimal for the validation-only test
+          effectivePersonality: {} as any,
+          configSource: 'personality',
+        },
+        preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
+      } satisfies GenerationContext)
+    ).toThrow(/AuthStep must run before GenerationStep/);
+  });
+
+  it('should throw when preparedContext is missing', () => {
+    expect(() =>
+      validatePrerequisites({
+        job: fakeJob,
+        startTime: 0,
+        config: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally minimal for the validation-only test
+          effectivePersonality: {} as any,
+          configSource: 'personality',
+        },
+        auth: { apiKey: 'k', provider: 'openrouter', isGuestMode: false },
+      } satisfies GenerationContext)
+    ).toThrow(/ContextStep must run before GenerationStep/);
+  });
+
+  it('should not throw when all prerequisites are present', () => {
+    expect(() =>
+      validatePrerequisites({
+        job: fakeJob,
+        startTime: 0,
+        config: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally minimal for the validation-only test
+          effectivePersonality: {} as any,
+          configSource: 'personality',
+        },
+        auth: { apiKey: 'k', provider: 'openrouter', isGuestMode: false },
+        preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
+      } satisfies GenerationContext)
+    ).not.toThrow();
+  });
+});
