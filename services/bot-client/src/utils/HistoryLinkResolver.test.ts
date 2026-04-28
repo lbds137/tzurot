@@ -402,6 +402,90 @@ describe('HistoryLinkResolver', () => {
       expect(result.failedCount).toBe(1);
     });
 
+    it('resolves DM-format links via direct channel fetch (guildId === null)', async () => {
+      // Regression: DM-format URLs (`/channels/@me/...`) parse with `guildId: null`.
+      // `fetchAndFormatMessage` skips the guild fetch and resolves the channel directly
+      // via `client.channels.fetch(channelId)`.
+      const DM_CHANNEL_ID = '111222333444555666';
+      const DM_MSG_ID = '777666555444333222';
+      const linkedMessage = createMockMessage({
+        id: DM_MSG_ID,
+        content: 'Content from a DM',
+      });
+
+      const messages = [
+        createMockMessage({
+          id: 'msg-1',
+          content: `Look at this: https://discord.com/channels/@me/${DM_CHANNEL_ID}/${DM_MSG_ID}`,
+        }),
+      ];
+
+      // Hand-rolled client with channels.fetch (createMockClient only mocks guilds.cache)
+      const client = {
+        guilds: { cache: { get: vi.fn(() => undefined) } },
+        channels: {
+          fetch: vi.fn().mockImplementation(async (channelId: string) => {
+            if (channelId === DM_CHANNEL_ID) {
+              return {
+                messages: {
+                  fetch: vi.fn().mockImplementation(async (messageId: string) => {
+                    if (messageId === DM_MSG_ID) return linkedMessage;
+                    throw new Error('Unknown Message');
+                  }),
+                },
+              };
+            }
+            throw new Error('Channel not accessible');
+          }),
+        },
+      } as unknown as Client;
+
+      const result = await resolveHistoryLinks(messages, {
+        client,
+        budget: 100,
+      });
+
+      expect(result.resolvedCount).toBe(1);
+      expect(result.failedCount).toBe(0);
+      const refs = result.resolvedReferences.get('msg-1');
+      expect(refs).toHaveLength(1);
+      // `buildMessageContent` is mocked to return 'Mocked resolved content' — we're
+      // asserting the resolution path completed, not the raw `linkedMessage.content`.
+      expect(refs![0].content).toBe('Mocked resolved content');
+    });
+
+    it('handles DM channel fetch failure gracefully (guildId === null)', async () => {
+      // Coverage for the catch branch in `fetchAndFormatMessage`'s DM path —
+      // when `client.channels.fetch(channelId)` throws (e.g., bot lost access to
+      // the DM, or the channel ID is invalid), the function logs and returns null,
+      // and the link is counted as a failure rather than crashing history resolution.
+      const DM_CHANNEL_ID = '111222333444555666';
+      const DM_MSG_ID = '777666555444333222';
+
+      const messages = [
+        createMockMessage({
+          id: 'msg-1',
+          content: `Look at this: https://discord.com/channels/@me/${DM_CHANNEL_ID}/${DM_MSG_ID}`,
+        }),
+      ];
+
+      const client = {
+        guilds: { cache: { get: vi.fn(() => undefined) } },
+        channels: {
+          fetch: vi.fn().mockRejectedValue(new Error('Channel not accessible')),
+        },
+      } as unknown as Client;
+
+      const result = await resolveHistoryLinks(messages, {
+        client,
+        budget: 100,
+      });
+
+      expect(result.resolvedCount).toBe(0);
+      expect(result.failedCount).toBe(1);
+      expect(result.resolvedReferences.size).toBe(0);
+    });
+
     it('replaces empty content with placeholder when message is only a link', async () => {
       const linkedMessage = createMockMessage({
         id: LINKED_MSG_ID,
