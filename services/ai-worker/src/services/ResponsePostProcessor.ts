@@ -115,10 +115,17 @@ export function looksLikeLeakedThinking(content: string): boolean {
 export class ResponsePostProcessor {
   /**
    * Extract API-level reasoning content from response metadata.
-   * Handles DeepSeek R1, Claude, and other reasoning model formats.
+   * Handles DeepSeek R1, Claude, z.ai, and other reasoning model formats.
+   *
+   * Field precedence (each source is tried only if the previous returns nothing):
+   * 1. `additional_kwargs.reasoning` — OpenRouter / DeepSeek R1 convention
+   * 2. `additional_kwargs.reasoning_content` — z.ai convention (snake_case;
+   *    `encodeURIComponent` doesn't apply, this is a raw API response field name)
+   * 3. `response_metadata.reasoning_details` array — alternate format some
+   *    providers use (parsed by `extractApiReasoningContent`)
    */
   extractApiReasoning(
-    additionalKwargs: { reasoning?: string } | undefined,
+    additionalKwargs: { reasoning?: string; reasoning_content?: string } | undefined,
     responseMetadata: { reasoning_details?: unknown[] } | undefined
   ): string | null {
     // First check additional_kwargs.reasoning (primary location for DeepSeek R1)
@@ -129,9 +136,21 @@ export class ResponsePostProcessor {
     ) {
       logger.debug(
         { reasoningLength: additionalKwargs.reasoning.length },
-        'Found reasoning in additional_kwargs'
+        'Found reasoning in additional_kwargs.reasoning (OpenRouter/DeepSeek convention)'
       );
       return additionalKwargs.reasoning;
+    }
+    // Then check additional_kwargs.reasoning_content (z.ai convention)
+    if (
+      additionalKwargs?.reasoning_content !== undefined &&
+      typeof additionalKwargs.reasoning_content === 'string' &&
+      additionalKwargs.reasoning_content.length > 0
+    ) {
+      logger.debug(
+        { reasoningLength: additionalKwargs.reasoning_content.length },
+        'Found reasoning in additional_kwargs.reasoning_content (z.ai convention)'
+      );
+      return additionalKwargs.reasoning_content;
     }
     // Fall back to reasoning_details array (some providers use this format)
     return extractApiReasoningContent(responseMetadata?.reasoning_details);
@@ -190,7 +209,7 @@ export class ResponsePostProcessor {
    */
   processResponse(
     rawContent: string,
-    additionalKwargs: { reasoning?: string } | undefined,
+    additionalKwargs: { reasoning?: string; reasoning_content?: string } | undefined,
     responseMetadata: { reasoning_details?: unknown[] } | undefined,
     context: ResponseProcessingContext
   ): ProcessedResponse {
