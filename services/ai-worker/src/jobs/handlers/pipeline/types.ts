@@ -15,6 +15,7 @@ import type {
 } from '@tzurot/common-types';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';
+import type { FallbackRoute } from '../../../services/ProviderRouter.js';
 
 /**
  * Conversation history entry (raw format from job data)
@@ -112,16 +113,11 @@ export interface ResolvedAuth {
    * needs to swap to OpenRouter on a z.ai failure (catalog drift defense
    * in depth — the whitelist may go stale if z.ai deprecates a model).
    *
-   * `model` here is the ORIGINAL `z-ai/<model>` namespaced form (not the
+   * `model` is the ORIGINAL `z-ai/<model>` namespaced form (not the
    * stripped form sent to z.ai), so the OpenRouter retry uses the right
-   * route on its end.
+   * route on its end. Shape defined in `services/ai-worker/src/services/ProviderRouter.ts`.
    */
-  fallback?: {
-    apiKey: string;
-    provider: string;
-    model: string;
-    isGuestMode: boolean;
-  };
+  fallback?: FallbackRoute;
 }
 
 /**
