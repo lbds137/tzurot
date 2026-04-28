@@ -28,6 +28,8 @@ import {
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
 import { isRecentDuplicateAsync } from '../../../../utils/crossTurnDetection.js';
+import { runWithAutoPromotionFallback } from './autoPromotionFallback.js';
+import { validatePrerequisites } from './generationStepValidation.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import {
@@ -45,19 +47,6 @@ import { logDuplicateDetectionSetup } from './duplicateDetectionDiagnostics.js';
 import { buildConversationContext } from './conversationContextBuilder.js';
 
 const logger = createLogger('GenerationStep');
-
-/** Validate that required pipeline steps have run */
-function validatePrerequisites(context: GenerationContext): void {
-  if (!context.config) {
-    throw new Error('[GenerationStep] ConfigStep must run before GenerationStep');
-  }
-  if (!context.auth) {
-    throw new Error('[GenerationStep] AuthStep must run before GenerationStep');
-  }
-  if (!context.preparedContext) {
-    throw new Error('[GenerationStep] ContextStep must run before GenerationStep');
-  }
-}
 
 export class GenerationStep implements IPipelineStep {
   readonly name = 'Generation';
@@ -259,16 +248,11 @@ export class GenerationStep implements IPipelineStep {
     const { job, startTime, preprocessing } = context;
     const { requestId, personality, message, context: jobContext } = job.data;
 
+    // The `asserts` annotation on validatePrerequisites narrows `context` to
+    // ReadyGenerationContext for the rest of this scope, so config/auth/
+    // preparedContext are typed as non-undefined without a redundant guard.
     validatePrerequisites(context);
-
-    // After validation, we know these are defined
-    const config = context.config;
-    const auth = context.auth;
-    const preparedContext = context.preparedContext;
-    if (!config || !auth || !preparedContext) {
-      throw new Error('[GenerationStep] Prerequisites validation failed');
-    }
-
+    const { config, auth, preparedContext } = context;
     const { effectivePersonality, configSource } = config;
     const { apiKey, provider, isGuestMode } = auth;
 
@@ -313,20 +297,28 @@ export class GenerationStep implements IPipelineStep {
         recentAssistantMessages,
       });
 
-      // Generate response with automatic retry on empty content and cross-turn duplication
+      // Generate response with automatic retry on empty content and cross-turn duplication.
+      // Wrapped in `runWithAutoPromotionFallback` when ProviderRouter auto-promoted the
+      // request to z.ai-direct: if the z.ai call fails entirely (any error — most likely
+      // catalog-drift 404 or auth issue from a stale whitelist), retry once via the
+      // pre-computed OpenRouter fallback route. Defense in depth on the whitelist.
       const { response, duplicateRetries, emptyRetries, leakedThinkingRetries } =
-        await this.generateWithDuplicateRetry({
-          personality: effectivePersonality,
-          message: message as MessageContent,
-          conversationContext,
-          recentAssistantMessages,
-          apiKey,
-          elevenlabsApiKey: auth.elevenlabsApiKey,
-          isGuestMode,
-          jobId: job.id,
-          diagnosticCollector,
-          configOverrides: context.configOverrides,
-        });
+        await runWithAutoPromotionFallback(
+          opts => this.generateWithDuplicateRetry(opts),
+          {
+            personality: effectivePersonality,
+            message: message as MessageContent,
+            conversationContext,
+            recentAssistantMessages,
+            apiKey,
+            elevenlabsApiKey: auth.elevenlabsApiKey,
+            isGuestMode,
+            jobId: job.id,
+            diagnosticCollector,
+            configOverrides: context.configOverrides,
+          },
+          auth.wasAutoPromoted === true ? auth.fallback : undefined
+        );
 
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the
