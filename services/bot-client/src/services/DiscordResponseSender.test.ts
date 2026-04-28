@@ -120,7 +120,7 @@ describe('DiscordResponseSender', () => {
 
       const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
       expect(calledContent).toContain('[glm-4.7]');
-      expect(calledContent).toContain('z.ai/blog/glm-4.7');
+      expect(calledContent).toContain('docs.z.ai/guides/llm/glm-4.7');
     });
 
     it('should link to OpenRouter for post-fallthrough z-ai/-prefixed openrouter route', async () => {
