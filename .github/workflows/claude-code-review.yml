@@ -12,11 +12,13 @@ on:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # Skip claude-review on dependabot PRs. The claude-code-action structurally
+    # rejects bot actors (`Action failed: Workflow initiated by non-human actor`),
+    # so without this guard every dependabot PR shows a red claude-review check
+    # that's pure infra noise — a version-bump diff in package.json wouldn't
+    # produce useful review output anyway. Job-level `if:` cleanly skips for
+    # bot-authored PRs without producing a fail.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
 
     runs-on: ubuntu-latest
     permissions:
