@@ -1084,6 +1084,10 @@ describe('ConversationalRAGService', () => {
         model: expect.anything(),
         messages: expect.any(Array),
         modelName: 'test-model',
+        // Tighter than `expect.any(String)`: catches a regression where
+        // `deriveCacheKeyId` silently returns an unexpected string shape
+        // (e.g., the raw API key value) instead of `system` or `user:<snowflake>`.
+        cacheKeyId: expect.stringMatching(/^(user:\d+|system)$/),
         imageCount: 2,
         audioCount: 1,
       });
