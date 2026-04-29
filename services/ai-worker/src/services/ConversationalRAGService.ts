@@ -36,6 +36,7 @@ import {
   countMediaAttachments,
 } from './RAGUtils.js';
 import { redisService, visionDescriptionCache, checkModelReasoningSupport } from '../redis.js';
+import { deriveCacheKeyId } from './RateLimitCache.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
@@ -231,11 +232,13 @@ export class ConversationalRAGService {
       diagnosticCollector.markLlmInvocationStart();
     }
 
-    // Invoke model
+    // cacheKeyId scopes rate-limit cache by user identity (not API key value); see InvokeWithRetryOptions JSDoc.
+    const cacheKeyId = deriveCacheKeyId(userApiKey, context.userId);
     const response = await this.llmInvoker.invokeWithRetry({
       model,
       messages,
       modelName,
+      cacheKeyId,
       imageCount,
       audioCount,
     });

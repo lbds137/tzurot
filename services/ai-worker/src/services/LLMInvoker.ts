@@ -19,6 +19,7 @@ import {
   calculateJobTimeout,
   ERROR_MESSAGES,
   FINISH_REASONS,
+  ApiErrorType,
   isNaturalStop,
   resolveFinishReason,
 } from '@tzurot/common-types';
@@ -29,9 +30,16 @@ import {
   type ModelConfig,
 } from './ModelFactory.js';
 import { extractAndPopulateOpenRouterReasoning } from './modelFactory/extractOpenRouterReasoning.js';
-import { withRetry } from '../utils/retry.js';
-import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
+import { withRetry, RetryError } from '../utils/retry.js';
+import {
+  shouldRetryError,
+  getErrorLogContext,
+  parseApiError,
+  ApiError,
+} from '../utils/apiErrorParser.js';
 import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
+import type { RateLimitCache } from './RateLimitCache.js';
+import { rateLimitCache } from '../redis.js';
 import {
   getReasoningModelConfig,
   transformMessagesForReasoningModel,
@@ -92,6 +100,19 @@ interface InvokeWithRetryOptions {
   messages: BaseMessage[];
   /** Model name for logging */
   modelName: string;
+  /**
+   * Opaque scope identifier for the rate-limit cache bucket. Typically
+   * `user:<discordUserId>` for BYOK callers, or `system` for guest mode /
+   * system-key fallback. Chosen by the caller to correctly isolate
+   * rate-limit state per (account, model) pair without being derived from
+   * any credential value. Optional with an empty-string default to keep
+   * legacy test fixtures compiling; production callers
+   * (e.g., `ConversationalRAGService`) always pass an explicit value.
+   *
+   * Empty string skips both cache read and cache write — the LLM call runs
+   * unguarded and any 429 follows the original retry path.
+   */
+  cacheKeyId?: string;
   /** Number of images in the request (for timeout calculation) */
   imageCount?: number;
   /** Number of audio attachments in the request (for timeout calculation) */
@@ -136,7 +157,24 @@ export class LLMInvoker {
    * - Stop sequences to enforce XML turn boundaries and prevent identity bleeding
    */
   async invokeWithRetry(options: InvokeWithRetryOptions): Promise<BaseMessage> {
-    const { model, messages, modelName, imageCount = 0, audioCount = 0, stopSequences } = options;
+    const {
+      model,
+      messages,
+      modelName,
+      cacheKeyId = '',
+      imageCount = 0,
+      audioCount = 0,
+      stopSequences,
+    } = options;
+
+    // Rate-limit cache short-circuit — when a previous 429 told us the
+    // (cacheKeyId, model) pair is in a known rate-limit window, fail fast
+    // instead of burning ~80s × 3 retry attempts to land on the same
+    // result. Skip when cacheKeyId is empty (legacy test path).
+    if (cacheKeyId.length > 0) {
+      await this.shortCircuitOnCachedRateLimit(rateLimitCache, cacheKeyId, modelName);
+    }
+
     // Calculate job timeout for logging (attachments processed in separate jobs)
     const jobTimeout = calculateJobTimeout(imageCount, audioCount);
     // LLM always gets full independent timeout budget (480s = 8 minutes)
@@ -197,23 +235,122 @@ export class LLMInvoker {
 
     // Use retryService for consistent retry behavior
     // Fast-fail on permanent errors (auth, quota, content policy, etc.)
-    const result = await withRetry(
-      () => this.invokeSingleAttempt(model, transformedMessages, modelName, effectiveStopSequences),
-      {
-        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-        globalTimeoutMs,
-        logger,
-        operationName: `LLM invocation (${modelName})`,
-        shouldRetry: shouldRetryError,
-        getErrorContext: getErrorLogContext,
+    let result;
+    try {
+      result = await withRetry(
+        () =>
+          this.invokeSingleAttempt(model, transformedMessages, modelName, effectiveStopSequences),
+        {
+          maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+          globalTimeoutMs,
+          logger,
+          operationName: `LLM invocation (${modelName})`,
+          shouldRetry: shouldRetryError,
+          getErrorContext: getErrorLogContext,
+        }
+      );
+    } catch (err) {
+      // Cache rate-limit state on 429 with a usable reset header so the next
+      // call in the same window short-circuits at the top of this function.
+      // No-throw failure mode: marker write errors are swallowed inside the
+      // cache itself (degraded write logs warn, returns void).
+      if (cacheKeyId.length > 0) {
+        await this.cacheRateLimitOnFailure(rateLimitCache, cacheKeyId, modelName, err);
       }
-    );
+      throw err;
+    }
 
     // Note: Thinking tag extraction is handled by ResponsePostProcessor downstream.
     // We do NOT strip tags here to avoid losing reasoning content before it can be
     // extracted and displayed to users (when showThinking is enabled).
 
     return result.value;
+  }
+
+  /**
+   * Throw a synthetic ApiError when the rate-limit cache says this
+   * (cacheKeyId, model) pair is in a known rate-limit window. The thrown
+   * error has the same shape downstream consumers see for real 429s, so
+   * error handling in `ConversationalRAGService` and friends works unchanged.
+   */
+  private async shortCircuitOnCachedRateLimit(
+    cache: RateLimitCache,
+    cacheKeyId: string,
+    modelName: string
+  ): Promise<void> {
+    const result = await cache.isRateLimited({ cacheKeyId, model: modelName });
+    if (!result.rateLimited) {
+      return;
+    }
+    logger.info(
+      {
+        cacheKeyId,
+        model: modelName,
+        ttlSeconds: result.ttlSeconds,
+        resetIso: new Date(result.resetMs).toISOString(),
+      },
+      'Skipped LLM call — rate-limit cache hit'
+    );
+    // Round-trip through parseApiError to inherit the RATE_LIMIT category +
+    // user message without duplicating the category-to-message mapping. The
+    // override below replaces only `shouldRetry` and `type` (which classify
+    // wrongly for a synthetic short-circuit) while keeping the inherited
+    // fields stable.
+    const errorInfo = parseApiError(
+      Object.assign(new Error(`Rate limit cached: model is rate-limited until ${result.resetMs}`), {
+        status: 429,
+      })
+    );
+    // Override `shouldRetry` and `type` from `parseApiError`'s default
+    // RATE_LIMIT classification: a synthetic short-circuit represents a
+    // KNOWN rate-limit window with a reset time, not a transient error
+    // worth retrying. Without this override, a future caller using
+    // `shouldRetryError()` on the thrown error would re-enter
+    // `invokeWithRetry` → cache hits → throws → loops until exhausted.
+    //
+    // Override `referenceId` to a stable sentinel: `parseApiError` calls
+    // `generateReferenceId()` for every error it sees, but for a synthetic
+    // short-circuit the generated ID points to a fake error object — there
+    // is no real provider call to trace if the ID surfaces in a user-facing
+    // message or support ticket. The sentinel makes it unambiguous in logs
+    // and UX that the reference traces to cache logic, not an upstream call.
+    throw new ApiError('Rate limit cached', {
+      ...errorInfo,
+      rateLimitResetMs: result.resetMs,
+      shouldRetry: false,
+      type: ApiErrorType.PERMANENT,
+      referenceId: 'rate-limit-cache-hit',
+    });
+  }
+
+  /**
+   * Inspect a thrown error from `withRetry` and, if it's a 429 carrying a
+   * usable `X-RateLimit-Reset`, mark the (apiKey, model) pair as rate-limited
+   * in the cache. Subsequent calls during the window will short-circuit.
+   *
+   * `withRetry` wraps the underlying provider error in a `RetryError` whose
+   * `lastError` field holds the original 429. Parsing the wrapper directly
+   * loses the status code + headers, so unwrap when present before parsing.
+   */
+  private async cacheRateLimitOnFailure(
+    cache: RateLimitCache,
+    cacheKeyId: string,
+    modelName: string,
+    err: unknown
+  ): Promise<void> {
+    // `withRetry` wraps the original provider error in `RetryError.lastError`.
+    // Use `instanceof` rather than a duck-type check on `'lastError' in err`
+    // so the dependency on RetryError's shape is compiler-checked.
+    const underlying = err instanceof RetryError ? err.lastError : err;
+    const errorInfo = parseApiError(underlying);
+    if (errorInfo.statusCode !== 429 || errorInfo.rateLimitResetMs === undefined) {
+      return;
+    }
+    await cache.markRateLimited({
+      cacheKeyId,
+      model: modelName,
+      resetTimestampMs: errorInfo.rateLimitResetMs,
+    });
   }
 
   /**

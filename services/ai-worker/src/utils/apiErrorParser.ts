@@ -157,6 +157,84 @@ function extractRequestId(error: unknown): string | undefined {
 }
 
 /**
+ * Pull a header value out of a header bag using a case-insensitive lookup.
+ * OpenRouter (and the OpenAI SDK that wraps it) inconsistently lowercases
+ * header keys depending on the response path; treat both forms as equivalent.
+ */
+function lookupHeaderCaseInsensitive(
+  headers: Record<string, unknown>,
+  name: string
+): string | undefined {
+  const lowerName = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === lowerName && typeof value === 'string') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Extract `X-RateLimit-Reset` (Unix milliseconds) from a 429 error.
+ *
+ * The OpenAI SDK nests headers in two known shapes:
+ * - `error.response.headers` — when the SDK populated the response object
+ * - `error.error.metadata.headers` — when OpenRouter forwarded the upstream
+ *   provider's headers via its standard error envelope (most common path)
+ *
+ * Returns undefined when no reset header is present (e.g., per-minute rate
+ * limits without daily-quota framing) or when the value isn't parseable.
+ */
+function extractRateLimitResetMs(error: unknown): number | undefined {
+  if (!isErrorObject(error)) {
+    return undefined;
+  }
+
+  let resetRaw: string | undefined;
+
+  // Path precedence: SDK-populated `response.headers` is checked before the
+  // OpenRouter envelope, so a value present in both is read from Path 1. The
+  // envelope (Path 2) is the more common production path for OpenRouter 429s,
+  // but Path 1 winning when both are populated is intentional — the SDK shape
+  // is the canonical one when the SDK has parsed the response, and we should
+  // prefer what the SDK saw to what OpenRouter forwarded.
+
+  // Path 1: error.response.headers (SDK-populated response object)
+  if (isErrorObject(error.response) && isErrorObject(error.response.headers)) {
+    resetRaw = lookupHeaderCaseInsensitive(error.response.headers, 'X-RateLimit-Reset');
+  }
+
+  // Path 2: error.error.metadata.headers (OpenRouter envelope — most common production path)
+  if (
+    resetRaw === undefined &&
+    isErrorObject(error.error) &&
+    isErrorObject(error.error.metadata) &&
+    isErrorObject(error.error.metadata.headers)
+  ) {
+    resetRaw = lookupHeaderCaseInsensitive(error.error.metadata.headers, 'X-RateLimit-Reset');
+  }
+
+  if (resetRaw === undefined) {
+    return undefined;
+  }
+
+  const parsed = parseInt(resetRaw, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  // Normalize to milliseconds. The HTTP convention for `X-RateLimit-Reset` is
+  // **seconds** (10-digit Unix epoch, e.g., `1745961600`), but OpenRouter's
+  // `:free` daily-quota responses ship **milliseconds** (13-digit, e.g.,
+  // `1777507200000`). Detect by magnitude: anything below ~1e11 is too small
+  // to be a year-2026+ ms timestamp, so treat as seconds and multiply.
+  // Threshold of 1e11 = year 5138 if interpreted as seconds, year 1973 if
+  // interpreted as ms — well clear of any plausible production timestamp.
+  const SECONDS_TO_MS_THRESHOLD = 1e11;
+  return parsed < SECONDS_TO_MS_THRESHOLD ? parsed * 1000 : parsed;
+}
+
+/**
  * Detect error category from error message using pattern matching
  */
 function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
@@ -367,6 +445,22 @@ export function parseApiError(error: unknown): ApiErrorInfo {
   // Get user-friendly message
   const userMessage = USER_ERROR_MESSAGES[category];
 
+  // Reset header is only meaningful for rate-limit responses; populating it
+  // for other categories would invite consumers to wait for irrelevant
+  // timestamps that may have been carried over from upstream noise.
+  //
+  // **Intentionally excludes QUOTA_EXCEEDED.** OpenRouter routes
+  // `daily.*limit/i` and `free tier.*limit/i` patterns to QUOTA_EXCEEDED
+  // (classified PERMANENT). A "reset window" timestamp implies a
+  // time-bounded transient block; QUOTA_EXCEEDED is a hard limit that
+  // doesn't correspond to a wait-and-retry semantics. If OpenRouter ever
+  // rephrases the daily-quota response in a way that makes it land in
+  // QUOTA_EXCEEDED, the rate-limit cache would correctly NOT cache it —
+  // the error is a permanent state for that key+window, not a transient
+  // retry opportunity. The test in apiErrorParser.test.ts locks this in.
+  const rateLimitResetMs =
+    category === ApiErrorCategory.RATE_LIMIT ? extractRateLimitResetMs(error) : undefined;
+
   return {
     type,
     category,
@@ -376,6 +470,7 @@ export function parseApiError(error: unknown): ApiErrorInfo {
     referenceId,
     shouldRetry,
     requestId,
+    rateLimitResetMs,
   };
 }
 
@@ -403,9 +498,21 @@ export class ApiError extends Error {
 
 /**
  * Check if an error should be retried based on its classification
- * Convenience function for retry logic
+ * Convenience function for retry logic.
+ *
+ * **Honor explicit `ApiError.info.shouldRetry` overrides**: when the error is
+ * an `ApiError` instance, its `.info.shouldRetry` field is the authoritative
+ * answer (the constructor encoded a deliberate decision, e.g., the rate-limit
+ * cache short-circuit overriding `shouldRetry: false` on what would otherwise
+ * classify as transient). Re-parsing via `parseApiError` for an `ApiError`
+ * instance would discard the override and re-derive from the message — which,
+ * for synthetic errors with rate-limit-shaped messages, would falsely return
+ * `true` and re-enter retry loops the override exists to prevent.
  */
 export function shouldRetryError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.info.shouldRetry;
+  }
   const info = parseApiError(error);
   return info.shouldRetry;
 }

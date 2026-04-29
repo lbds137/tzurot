@@ -12,6 +12,7 @@
 
 import { initCoreRedisServices, VisionDescriptionCache } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
+import { RateLimitCache } from './services/RateLimitCache.js';
 import { modelSupportsVision, modelSupportsReasoning } from './services/ModelCapabilityChecker.js';
 
 const { redis, voiceTranscriptCache } = initCoreRedisServices('WorkerRedis');
@@ -26,6 +27,11 @@ export { voiceTranscriptCache };
 // Export singleton VisionDescriptionCache instance — L1 Redis only (no L2 PostgreSQL).
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would bypass the cache and waste API calls.
 export const visionDescriptionCache = new VisionDescriptionCache(redis);
+
+// Export singleton RateLimitCache instance — short-circuits LLM calls when a
+// (apiKey, model) pair is in a known rate-limit window.
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each maintain a separate view of rate-limit state and miss the short-circuit.
+export const rateLimitCache = new RateLimitCache(redis);
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.

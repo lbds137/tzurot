@@ -367,6 +367,146 @@ describe('parseApiError', () => {
     });
   });
 
+  describe('rate-limit reset header extraction', () => {
+    it('extracts X-RateLimit-Reset from error.error.metadata.headers (OpenRouter envelope, ms)', () => {
+      const error = {
+        status: 429,
+        message: 'Rate limit exceeded: free-models-per-day-high-balance',
+        error: {
+          metadata: {
+            headers: {
+              'X-RateLimit-Limit': '2000',
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': '1777507200000',
+            },
+          },
+        },
+      };
+      const result = parseApiError(error);
+      expect(result.rateLimitResetMs).toBe(1777507200000);
+    });
+
+    it('normalizes seconds-format reset (HTTP convention) to milliseconds', () => {
+      // HTTP standard for X-RateLimit-Reset is seconds (10-digit Unix epoch);
+      // most providers (GitHub, Stripe, Twitter) follow that convention. We
+      // detect by magnitude and multiply by 1000 if needed.
+      const error = {
+        status: 429,
+        message: 'Rate limit exceeded',
+        error: {
+          metadata: {
+            headers: {
+              'X-RateLimit-Reset': '1777507200', // seconds, 10-digit
+            },
+          },
+        },
+      };
+      const result = parseApiError(error);
+      expect(result.rateLimitResetMs).toBe(1777507200000); // converted to ms
+    });
+
+    it('extracts X-RateLimit-Reset from error.response.headers (SDK shape)', () => {
+      const error = {
+        status: 429,
+        message: 'Rate limit exceeded',
+        response: {
+          status: 429,
+          headers: {
+            'X-RateLimit-Reset': '1777507200000',
+          },
+        },
+      };
+      const result = parseApiError(error);
+      expect(result.rateLimitResetMs).toBe(1777507200000);
+    });
+
+    it('handles case-insensitive header name', () => {
+      const error = {
+        status: 429,
+        message: 'Rate limit exceeded',
+        error: {
+          metadata: {
+            headers: {
+              'x-ratelimit-reset': '1777507200000',
+            },
+          },
+        },
+      };
+      const result = parseApiError(error);
+      expect(result.rateLimitResetMs).toBe(1777507200000);
+    });
+
+    it('returns undefined when reset header missing on 429', () => {
+      const error = {
+        status: 429,
+        message: 'Rate limit exceeded',
+      };
+      const result = parseApiError(error);
+      expect(result.rateLimitResetMs).toBeUndefined();
+    });
+
+    it('does not populate resetMs for non-rate-limit errors even if a header is present', () => {
+      // Defensive: if some upstream error happens to carry a reset header
+      // unrelated to rate limiting, don't surface it as a rate-limit signal.
+      const error = {
+        status: 500,
+        message: 'Internal server error',
+        error: {
+          metadata: {
+            headers: {
+              'X-RateLimit-Reset': '1777507200000',
+            },
+          },
+        },
+      };
+      const result = parseApiError(error);
+      expect(result.rateLimitResetMs).toBeUndefined();
+    });
+
+    it('does not populate resetMs for QUOTA_EXCEEDED errors (intentional exclusion)', () => {
+      // QUOTA_EXCEEDED is a hard PERMANENT classification — no time-bounded
+      // reset window applies. The rate-limit cache should NOT cache these,
+      // even if a header is present. The exclusion keeps the cache from
+      // trying to wait-and-retry against a permanent state. See parseApiError
+      // docs.
+      //
+      // NB: status 429 is routed to RATE_LIMIT by classifyHttpStatus before
+      // message-pattern matching runs, so the QUOTA_EXCEEDED classification
+      // only fires for non-429 statuses (like 402 below) or for errors with
+      // no status that match QUOTA_EXCEEDED message patterns.
+      const error = {
+        status: 402,
+        message: 'Insufficient credits — daily limit reached',
+        error: {
+          metadata: {
+            headers: {
+              'X-RateLimit-Reset': '1777507200000',
+            },
+          },
+        },
+      };
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.QUOTA_EXCEEDED);
+      expect(result.rateLimitResetMs).toBeUndefined();
+    });
+
+    it('returns undefined for malformed reset value', () => {
+      const error = {
+        status: 429,
+        message: 'Rate limit exceeded',
+        error: {
+          metadata: {
+            headers: {
+              'X-RateLimit-Reset': 'not-a-number',
+            },
+          },
+        },
+      };
+      const result = parseApiError(error);
+      expect(result.rateLimitResetMs).toBeUndefined();
+    });
+  });
+
   describe('reference ID generation', () => {
     it('should always generate a reference ID', () => {
       const error = new Error('Some error');
@@ -477,6 +617,28 @@ describe('shouldRetryError', () => {
 
   it('should return true for unknown errors (conservative approach)', () => {
     expect(shouldRetryError(new Error('Unknown error'))).toBe(true);
+  });
+
+  it('honors explicit ApiError.info.shouldRetry override (does not re-parse)', () => {
+    // Regression guard for the rate-limit cache short-circuit pattern: a
+    // synthetic ApiError carrying message 'Rate limit cached' would re-parse
+    // as RATE_LIMIT (transient → shouldRetry: true) if we didn't honor the
+    // explicit override. Without this short-circuit, the cached-rate-limit
+    // error could trigger an outer retry loop that bounces against the
+    // cache → throws → loops until exhausted.
+    const syntheticError = new ApiError('Rate limit cached', {
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.RATE_LIMIT,
+      shouldRetry: false,
+      userMessage: 'rate limited',
+      referenceId: 'test-ref',
+    });
+    expect(shouldRetryError(syntheticError)).toBe(false);
+  });
+
+  it('falls back to re-parse for non-ApiError instances', () => {
+    // Plain Error with rate-limit message → re-parsed as RATE_LIMIT transient.
+    expect(shouldRetryError(new Error('Rate limit exceeded'))).toBe(true);
   });
 });
 
