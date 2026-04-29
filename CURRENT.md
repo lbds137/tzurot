@@ -7,12 +7,11 @@
 
 ## Next Session Goal
 
-_Beta.111 shipped the cross-provider vision auth fix to prod. Persona-leak entry from beta.110 still awaits in-prod verification._
+_All production-issues entries cleared 2026-04-29. Beta.110 + beta.111 fixes user-verified on dev/prod. No active production bugs._
 
-1. **Post-deploy verification on beta.111** — confirm cross-provider vision (z.ai main + OpenRouter vision) succeeds on prod after Railway auto-deploys main. User-verified on dev pre-release.
-2. **Persona-leak verification** — beta.110 entry; trigger fresh DM diagnostic dump and confirm no foreign `<about>` blocks in `<participants>`.
-3. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-4. **Backlog: knip + duplicate-exports CI gate** — 30-60min triage + flag flip.
+1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
+2. **Backlog: knip + duplicate-exports CI gate** — 30-60min triage + flag flip. The only remaining quick-win that's actionable.
+3. **Vision pipeline cleanup sweep** — fold the 5 backlog entries from PR #938 (`visionProvider` required, `effectiveVisionModelName` helper, double `selectVisionModel` call, `USER_AUTH_PROBE_PROVIDERS` drift, round-13 polish) into one focused refactor PR when the next vision-touching feature lands.
 
 ## Active Task
 
