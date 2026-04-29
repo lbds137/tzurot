@@ -28,17 +28,22 @@ Line count is not a classifier. A one-line regex-flag change is semantic; a 20-l
 
 Compare the reviewer's severity label against the edit shape from rule 1:
 
-| Reviewer says                                 | Agent classifies | Result                                     |
-| --------------------------------------------- | ---------------- | ------------------------------------------ |
-| "nit / minor / not blocking"                  | trivial          | **Continue** (aligned)                     |
-| "nit / minor / not blocking"                  | semantic         | **ASK** (disagreement)                     |
-| "medium / blocking / must fix"                | trivial          | **ASK** (disagreement)                     |
-| "medium / blocking / must fix"                | semantic         | **ASK** (aligned on severity)              |
-| Self-dismisses ("actually fine")              | Agent agrees     | **DISMISS** (note in summary)              |
-| Self-dismisses                                | Agent disagrees  | **ASK** (with dissenting analysis)         |
-| Contradicts own round-(N-1) call on same item | Any              | **DISMISS** (cite prior round's rationale) |
+| Reviewer says                                                                                                           | Agent classifies | Result                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| "nit / minor / not blocking"                                                                                            | trivial          | **Continue** (aligned)                                                                                                         |
+| "nit / minor / not blocking"                                                                                            | semantic         | **ASK** (disagreement)                                                                                                         |
+| "medium / blocking / must fix"                                                                                          | trivial          | **ASK** (disagreement)                                                                                                         |
+| "medium / blocking / must fix"                                                                                          | semantic         | **ASK** (aligned on severity)                                                                                                  |
+| Self-dismisses ("actually fine")                                                                                        | Agent agrees     | **DISMISS** (note in summary)                                                                                                  |
+| Self-dismisses                                                                                                          | Agent disagrees  | **ASK** (with dissenting analysis)                                                                                             |
+| Contradicts own round-(N-1) call on same item                                                                           | Any              | **DISMISS** (cite prior round's rationale)                                                                                     |
+| Defers action ("monitor over time" / "watch for" / "worth keeping in mind" / "if X happens" / "when [condition]" / ...) | Any              | **BACKLOG CANDIDATE** (only if a condition or event is named; pure-aesthetic deferrals → Dismissed; track per `06-backlog.md`) |
 
 **Any disagreement between reviewer and agent defaults to ASK.** Neither side has special authority, and uncertainty is the honest state when signals conflict.
+
+**Dismissed vs. Backlog candidates** — both are "no action this round," but they differ on whether a future trigger exists. **Key question: does the reviewer name a specific event, metric, or threshold that should reopen the question? If yes → Backlog candidate. If no → Dismissed.** A reviewer self-dismissal ("actually fine," "non-issue," "current is correct") has no trigger; the matter is closed. A **pure-aesthetic deferral** ("the naming could be cleaner someday," "might be worth polishing later," "if you're ever doing a follow-up pass" — vague preference with no named event) also has no actionable trigger; treat it as Dismissed. A reviewer deferral with a **named condition** ("worth keeping in mind if the retry count grows," "monitor over time," "if X happens, narrow Y") has an implicit trigger; without tracking, the trigger silently expires when memory fades.
+
+**When the reviewer's framing names a future event or condition that should reopen the question, the entry belongs in Backlog candidates, not Dismissed.** Use the inbox entry to capture both the deferred concern and the promote-when criterion. Established 2026-04-29 after PR #941 round 1: a `claude-review` "worth keeping an eye on over the next few PR cycles" framing was incorrectly bucketed as Dismissed; the reviewer's later round 2 sharpened the framing to a concrete monitoring criterion + fallback action, surfacing the gap.
 
 **Reviewer self-contradiction across rounds**: when round-N reviewer reverses its round-(N-1) stance on the same item (e.g., round 3 says "drop the `?? ''` as unreachable," round 4 says "add `?? ''` back for defensive typing"), the reviewer is not authoritative on its own prior disagreement. Dismiss and cite the earlier round's reasoning in the summary. Don't ping-pong. This is distinct from genuine new information surfacing — a round-N reviewer observation that _builds on_ round-(N-1) (adds context, corrects an error) is normal; a direct reversal on the same fact-pattern is noise.
 
@@ -195,6 +200,7 @@ Before each round's consolidated message:
 
 - [ ] Every review item classified against trivial / non-trivial / unknown (rule 1)
 - [ ] Every auto-apply candidate checked against reviewer label for signal conflict (rule 2)
+- [ ] Every "no action now" item further classified as Dismissed (no future trigger) vs. Backlog candidate (has future trigger) per rule 2's deferred-action row
 - [ ] Every auto-applied fixup commit has a green package-level test run (rule 3)
 - [ ] Round-N message contains all four sections, even empty ones (rule 4)
 - [ ] If this is round 4+, consolidated status menu presented instead of another iteration (rule 5)
