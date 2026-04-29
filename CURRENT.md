@@ -1,27 +1,27 @@
 # Current
 
-> **Session**: 2026-04-28 → 2026-04-29 (vision cache overhaul + cross-provider auth fix + beta.110 / beta.111 releases)
-> **Version**: v3.0.0-beta.111 (released 2026-04-29)
+> **Session**: 2026-04-29 (vision pipeline cleanup PR #940, post-beta.111)
+> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PR #940
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared 2026-04-29. Beta.110 + beta.111 fixes user-verified on dev/prod. No active production bugs._
+_All production-issues entries cleared. No active production bugs. Vision pipeline cleanup sweep landed in PR #940; 3 of 5 PR #938 inbox follow-ups fully resolved, 2 partially with explicit deferral._
 
 1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
 2. **Backlog: knip + duplicate-exports CI gate** — 30-60min triage + flag flip. The only remaining quick-win that's actionable.
-3. **Vision pipeline cleanup sweep** — fold the 5 backlog entries from PR #938 (`visionProvider` required, `effectiveVisionModelName` helper, double `selectVisionModel` call, `USER_AUTH_PROBE_PROVIDERS` drift, round-13 polish) into one focused refactor PR when the next vision-touching feature lands.
+3. **Optional next release (beta.112)** — would bundle PR #940 (vision pipeline cleanup) and the new silent-fallback warn telemetry. No production-driving urgency; cut at the user's discretion.
 
 ## Active Task
 
-_None. v3.0.0-beta.111 released 2026-04-29 (this session). Develop is now SHA-aligned with main; "Unreleased on Develop" section is empty._
+_None. PR #940 merged 2026-04-29 (this session). 1 cleanup item added to inbox: NON_LLM_PROVIDERS shared-module move (conditional on second consumer)._
 
 ---
 
 ## Unreleased on Develop (since beta.111)
 
-_Empty. Last release was beta.111 on 2026-04-29._
+- **PR #940** (2026-04-29) — **Vision pipeline cleanup post PR #938**: 5-item bundle. `effectiveVisionModelName` helper extracted to `ProviderRouter.ts` and used by `visionAuthResolver` + `ImageDescriptionJob`. `USER_AUTH_PROBE_PROVIDERS` rewired to enum-derived list with `NON_LLM_PROVIDERS` filter — new LLM providers auto-include, ElevenLabs filtered as voice-only. Silent-fallback `logger.warn` added at `invokeVisionModel` chokepoint (interim signal before the eventual `visionProvider?` → `visionProvider` tightening; promote-when criterion: clean Railway logs for a few weeks). Hoisted double `MultimodalProcessor` lazy import in `DependencyStep`. Loud-failed 4 silent `vi.fn()` mock sites in `ImageDescriptionJob.test.ts`. 7 files, +199/-34. 2 review rounds, both convergent.
 
 ---
 
