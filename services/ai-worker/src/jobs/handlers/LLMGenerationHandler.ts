@@ -126,7 +126,7 @@ export class LLMGenerationHandler {
       new ConfigStep(configResolver, cascadeResolver),
       new AuthStep(apiKeyResolver, configResolver),
       new DownloadAttachmentsStep(),
-      new DependencyStep(),
+      new DependencyStep(apiKeyResolver),
       new ContextStep(),
       new GenerationStep(ragService, embeddingService),
       new TTSStep(),

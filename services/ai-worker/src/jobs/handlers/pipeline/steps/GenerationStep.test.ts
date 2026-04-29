@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
 import {
+  AIProvider,
   JobType,
   MessageRole,
   AttachmentType,
@@ -104,7 +105,7 @@ describe('GenerationStep', () => {
 
     const baseAuth: ResolvedAuth = {
       apiKey: 'sk-test-key',
-      provider: 'openrouter',
+      provider: AIProvider.OpenRouter,
       isGuestMode: false,
     };
 
@@ -230,7 +231,7 @@ describe('GenerationStep', () => {
         },
         auth: {
           apiKey: undefined,
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: true,
         },
         preparedContext: basePreparedContext,
@@ -419,7 +420,7 @@ describe('GenerationStep', () => {
         config: baseConfig,
         auth: {
           apiKey: 'key',
-          provider: 'gemini',
+          provider: AIProvider.ZaiCoding,
           isGuestMode: false,
         },
         preparedContext: basePreparedContext,
@@ -427,7 +428,7 @@ describe('GenerationStep', () => {
 
       const result = await step.process(context);
 
-      expect(result.result?.metadata?.providerUsed).toBe('gemini');
+      expect(result.result?.metadata?.providerUsed).toBe(AIProvider.ZaiCoding);
     });
 
     describe('showModelFooter propagation', () => {
@@ -1459,7 +1460,7 @@ describe('GenerationStep', () => {
 
       const baseAuthForMemory: ResolvedAuth = {
         apiKey: 'sk-test-key',
-        provider: 'openrouter',
+        provider: AIProvider.OpenRouter,
         isGuestMode: false,
       };
 
@@ -1601,7 +1602,7 @@ describe('GenerationStep', () => {
 
       const promotedAuth: ResolvedAuth = {
         apiKey: 'zai-user-key',
-        provider: 'zai-coding',
+        provider: AIProvider.ZaiCoding,
         isGuestMode: false,
         wasAutoPromoted: true,
         fallback: {
@@ -1680,7 +1681,7 @@ describe('GenerationStep', () => {
         // no fallback to attempt. Fails at first call, propagates normally.
         const plainAuth: ResolvedAuth = {
           apiKey: 'sk-or-key',
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: false,
           // wasAutoPromoted absent / undefined
         };

@@ -323,3 +323,39 @@ export class ProviderRouter {
     return route;
   }
 }
+
+/**
+ * Detect which provider a model name belongs to, based purely on its shape.
+ *
+ * Used by call sites that need to route a model to the correct provider
+ * independently from the request's main-model provider — most notably vision
+ * calls, where a personality may pair a z.ai-coding main model with an
+ * OpenRouter vision model (or vice versa).
+ *
+ * Intentionally simpler than `ProviderRouter.resolveRoute` — no auto-promote,
+ * no auto-fallthrough, no API key lookup. The personality has explicitly
+ * chosen the model; we honor that choice.
+ *
+ * Detection rules (evaluated in order):
+ * 1. `z-ai/<model>` → ZaiCoding (the auto-promote namespace)
+ * 2. `glm-*` bare name → ZaiCoding (z.ai's direct format, e.g. `glm-5.1`, `glm-4.7`)
+ * 3. Anything else → OpenRouter (the catch-all — `vendor/model` slash form,
+ *    bare legacy names like `gpt-4-vision-preview`, future provider formats)
+ *
+ * The OpenRouter default reflects reality: OpenRouter is the broadest catalog,
+ * routes most models, and is the safe fallthrough when a model name doesn't
+ * match a known z.ai pattern. Adding a new provider requires inserting an
+ * explicit case before the OpenRouter default.
+ */
+export function detectVisionProvider(modelName: string): AIProvider {
+  if (modelName.startsWith(ZAI_PREFIX)) {
+    return AIProvider.ZaiCoding;
+  }
+  // Bare GLM names (no slash). The `glm-` prefix is z.ai's direct API
+  // namespace; anything else without a slash is more likely a legacy or
+  // OpenRouter-shorthand name and routes via OpenRouter's catalog.
+  if (!modelName.includes('/') && modelName.toLowerCase().startsWith('glm-')) {
+    return AIProvider.ZaiCoding;
+  }
+  return AIProvider.OpenRouter;
+}

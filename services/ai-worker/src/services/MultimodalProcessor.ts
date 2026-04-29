@@ -17,6 +17,7 @@ import {
   AttachmentType,
   CONTENT_TYPES,
   RETRY_CONFIG,
+  AIProvider,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -45,12 +46,24 @@ export interface ProcessedAttachment {
 export interface ProcessAttachmentOptions {
   /** Whether user is in guest mode (uses free models) */
   isGuestMode: boolean;
-  /** User's BYOK API key (for BYOK users) */
+  /**
+   * User's BYOK API key, resolved for the **vision provider** (not the main-model
+   * provider). Cross-provider personalities (e.g., main=z.ai-coding, vision=OpenRouter)
+   * require the caller to re-resolve the key for the vision provider before invoking
+   * `processAttachments` — passing the main-model key here will result in a 401 from
+   * the vision provider's API.
+   */
   userApiKey?: string;
   /** Optional ElevenLabs BYOK key for premium STT */
   elevenlabsApiKey?: string;
   /** Diagnostic context for vision-failure logging + source-aware fallback strings */
   loggingContext?: VisionLoggingContext;
+  /**
+   * Explicit provider for vision calls, derived from the personality's vision model
+   * name by the caller (typically via `detectVisionProvider` in `ProviderRouter`).
+   * Threaded down to `createChatModel` so cross-provider personalities route correctly.
+   */
+  visionProvider?: AIProvider;
 }
 
 /**
@@ -61,11 +74,18 @@ async function processSingleAttachment(
   personality: LoadedPersonality,
   options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment | null> {
-  const { isGuestMode, userApiKey, elevenlabsApiKey, loggingContext = {} } = options;
+  const {
+    isGuestMode,
+    userApiKey,
+    elevenlabsApiKey,
+    loggingContext = {},
+    visionProvider,
+  } = options;
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
     const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
       skipNegativeCache: true,
       loggingContext,
+      provider: visionProvider,
     });
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
@@ -100,7 +120,13 @@ export async function processAttachments(
   personality: LoadedPersonality,
   options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment[]> {
-  const { isGuestMode, userApiKey, elevenlabsApiKey, loggingContext = {} } = options;
+  const {
+    isGuestMode,
+    userApiKey,
+    elevenlabsApiKey,
+    loggingContext = {},
+    visionProvider,
+  } = options;
   logger.info(
     {
       attachmentCount: attachments.length,
@@ -110,6 +136,7 @@ export async function processAttachments(
       hasUserApiKey: userApiKey !== undefined,
       userId: loggingContext.userId,
       apiKeySource: loggingContext.apiKeySource,
+      visionProvider,
     },
     'Processing attachments in parallel'
   );
@@ -123,6 +150,7 @@ export async function processAttachments(
         userApiKey,
         elevenlabsApiKey,
         loggingContext,
+        visionProvider,
       }),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,

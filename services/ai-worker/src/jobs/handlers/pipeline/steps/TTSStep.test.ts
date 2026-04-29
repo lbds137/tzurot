@@ -13,7 +13,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
-import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  AIProvider,
+  JobType,
+  type LLMGenerationJobData,
+  type LoadedPersonality,
+} from '@tzurot/common-types';
 import type { GenerationContext } from '../types.js';
 
 // --- Mocks ---
@@ -383,7 +388,7 @@ describe('TTSStep', () => {
       const ctx = createContext({
         auth: {
           apiKey: 'sk-or-key',
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
         },
@@ -419,7 +424,7 @@ describe('TTSStep', () => {
       const ctx = createContext({
         auth: {
           apiKey: 'sk-or-key',
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
         },
@@ -454,7 +459,7 @@ describe('TTSStep', () => {
       const ctx = createContext({
         auth: {
           apiKey: 'sk-or-key',
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
         },
@@ -488,7 +493,7 @@ describe('TTSStep', () => {
       const ctx = createContext({
         auth: {
           apiKey: 'sk-or-key',
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
         },
@@ -516,7 +521,7 @@ describe('TTSStep', () => {
       const ctx = createContext({
         auth: {
           apiKey: 'sk-or-key',
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
         },
@@ -542,7 +547,7 @@ describe('TTSStep', () => {
       const ctx = createContext({
         auth: {
           apiKey: 'sk-or-key',
-          provider: 'openrouter',
+          provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
         },
@@ -588,7 +593,7 @@ describe('TTSStep', () => {
     return createContext({
       auth: {
         apiKey: 'sk-or-key',
-        provider: 'openrouter',
+        provider: AIProvider.OpenRouter,
         isGuestMode: false,
         elevenlabsApiKey: 'sk_el_test',
       },

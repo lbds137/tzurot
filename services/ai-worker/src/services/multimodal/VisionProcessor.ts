@@ -18,6 +18,7 @@ import {
   MODEL_DEFAULTS,
   ERROR_MESSAGES,
   ApiErrorCategory,
+  AIProvider,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -115,8 +116,12 @@ export interface VisionLoggingContext {
   apiKeySource?: 'user' | 'system';
   /** BullMQ job ID when invoked from `ImageDescriptionJob` */
   jobId?: string;
-  /** AI provider routing the request (e.g., `'openrouter'`) */
-  provider?: string;
+  /**
+   * AI provider routing the request. Typed as `AIProvider` (not `string`) to
+   * catch typos at compile time — a `loggingContext.provider = 'openroter'`
+   * silently passes a free-form string check but fails the enum check.
+   */
+  provider?: AIProvider;
 }
 
 /**
@@ -130,6 +135,19 @@ export interface DescribeImageOptions {
   skipCache?: boolean;
   /** Diagnostic context for failure logging + source-aware fallback strings */
   loggingContext?: VisionLoggingContext;
+  /**
+   * Explicit provider for the vision call, derived from the vision model name
+   * by the caller (typically via `detectVisionProvider` in `ProviderRouter`).
+   *
+   * **WARNING — all new callers MUST provide this.** Omitting it makes
+   * `createChatModel` fall back to the env-default `config.AI_PROVIDER`,
+   * which silently misroutes cross-provider personalities (e.g., main=z.ai-coding
+   * + vision=OpenRouter) and reproduces the exact 401 bug this resolver exists
+   * to prevent. The `?` is retained ONLY for backward compat with legacy tests
+   * predating the cross-provider fix; tracked in `backlog/inbox.md` as
+   * "Make `visionProvider` required in vision-pipeline option bags."
+   */
+  provider?: AIProvider;
 }
 
 /**
@@ -165,6 +183,13 @@ export async function hasVisionSupport(modelName: string): Promise<boolean> {
 interface InvokeVisionModelOptions {
   systemPrompt?: string;
   userApiKey?: string;
+  /**
+   * Explicit provider for the vision call. When provided, overrides the
+   * `config.AI_PROVIDER` env-default lookup inside `createChatModel`. Required
+   * for cross-provider personalities (e.g., main=z.ai-coding, vision=OpenRouter)
+   * where the env-default would route to the wrong provider's API.
+   */
+  provider?: AIProvider;
   loggingContext: VisionLoggingContext;
   personalityName: string;
 }
@@ -179,10 +204,11 @@ async function invokeVisionModel(
   modelName: string,
   options: InvokeVisionModelOptions
 ): Promise<string> {
-  const { systemPrompt, userApiKey, loggingContext, personalityName } = options;
+  const { systemPrompt, userApiKey, provider, loggingContext, personalityName } = options;
   const { model } = createChatModel({
     modelName,
     apiKey: userApiKey,
+    provider,
     temperature: AI_DEFAULTS.VISION_TEMPERATURE,
   });
 
@@ -391,8 +417,16 @@ async function checkNegativeCache(
 /**
  * Select the vision model to use based on personality config and model capabilities.
  * Priority: personality.visionModel > main model with vision > fallback model.
+ *
+ * Exported so callers (e.g., `DependencyStep`) can pre-compute the effective
+ * vision model name and pass it to `resolveVisionAuth.effectiveVisionModel` —
+ * keeps provider detection and model selection consistent. Without that
+ * pre-computation, a personality whose main model lacks native vision (so
+ * `selectVisionModel` falls through to `VISION_FALLBACK_MODEL`) would have
+ * its provider detected against the main model name, not the actual model
+ * used at request time.
  */
-async function selectVisionModel(
+export async function selectVisionModel(
   personality: LoadedPersonality,
   isGuestMode: boolean
 ): Promise<string> {
@@ -510,6 +544,7 @@ export async function describeImage(
   const description = await invokeVisionModel(attachment, usedModel, {
     systemPrompt,
     userApiKey,
+    provider: options.provider,
     loggingContext,
     personalityName: personality.name,
   });

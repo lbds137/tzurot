@@ -28,6 +28,16 @@ vi.mock('../utils/apiErrorParser.js', () => ({
   getErrorLogContext: vi.fn((_error: unknown) => ({})),
 }));
 
+// `buildFailFastResult` lazy-imports `visionDescriptionCache` from redis.js;
+// stub the cache method so the dynamic import resolves without hitting a real
+// Redis client at test time. Thunks defer reference resolution past hoisting.
+const mockStoreFailure = vi.fn();
+vi.mock('../redis.js', () => ({
+  visionDescriptionCache: {
+    storeFailure: (...args: unknown[]) => mockStoreFailure(...args),
+  },
+}));
+
 // Import the mocked modules
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
@@ -471,8 +481,11 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // Mock ApiKeyResolver returning guest mode
+      // Mock ApiKeyResolver: genuine guest — no user keys for any provider.
+      // tryResolveUserKey returns null for both probe providers, then
+      // resolveApiKey returns the system key with isGuestMode: true.
       const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn().mockResolvedValue(null),
         resolveApiKey: vi.fn().mockResolvedValue({
           apiKey: null,
           source: 'fallback',
@@ -482,7 +495,9 @@ describe('ImageDescriptionJob', () => {
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Verify ApiKeyResolver was called with correct params
+      // Verify resolveApiKey was called with the detected vision provider
+      // (OpenRouter, since mockPersonality.visionModel='gpt-4-vision-preview').
+      // Only fires for the guest path — auth check happens via tryResolveUserKey.
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
         'guest-user-123',
         AIProvider.OpenRouter
@@ -534,22 +549,23 @@ describe('ImageDescriptionJob', () => {
         data: jobData,
       } as Job<ImageDescriptionJobData>;
 
-      // Mock ApiKeyResolver returning BYOK user (not guest mode)
+      // Mock ApiKeyResolver: BYOK user has the vision provider's key.
+      // tryResolveUserKey returns the user key on the first call; resolveApiKey
+      // is NOT called for authenticated users with the right key.
       const mockApiKeyResolver = {
-        resolveApiKey: vi.fn().mockResolvedValue({
-          apiKey: 'sk-user-provided-key',
-          source: 'user',
-          isGuestMode: false,
-        }),
+        tryResolveUserKey: vi.fn().mockResolvedValue('sk-user-provided-key'),
+        resolveApiKey: vi.fn(),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
 
-      // Verify ApiKeyResolver was called
-      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
+      // Verify tryResolveUserKey was called for the vision provider (OpenRouter).
+      // The authenticated path doesn't fall through to resolveApiKey.
+      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
         'byok-user-456',
         AIProvider.OpenRouter
       );
+      expect(mockApiKeyResolver.resolveApiKey).not.toHaveBeenCalled();
 
       // Execute the retry function to verify describeImage receives correct params
       const retryFn = mockWithRetry.mock.calls[0][0];
@@ -567,6 +583,141 @@ describe('ImageDescriptionJob', () => {
           }),
         })
       );
+    });
+
+    it('routes to ZaiCoding when personality.visionModel is a glm-* z.ai model', async () => {
+      // Regression test: pre-fix, resolveVisionApiKey hardcoded
+      // AIProvider.OpenRouter — a personality with z.ai vision would
+      // mistakenly look up the user's OpenRouter key instead of their
+      // z.ai key. Now provider is detected from the visionModel name.
+      const zaiVisionPersonality = { ...mockPersonality, visionModel: 'glm-5v' };
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-zai-vision',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: zaiVisionPersonality,
+        context: { userId: 'user-zai', channelId: 'channel-1' },
+        responseDestination: { type: 'discord', channelId: 'channel-1' },
+      };
+      const job = { id: 'image-zai', data: jobData } as Job<ImageDescriptionJobData>;
+      // Authenticated user has the z.ai key for the vision provider.
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn().mockResolvedValue('zai-key'),
+        resolveApiKey: vi.fn(),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // tryResolveUserKey is called for the detected vision provider (ZaiCoding).
+      // The hardcoded-OpenRouter regression would have failed this assertion.
+      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
+        'user-zai',
+        AIProvider.ZaiCoding
+      );
+    });
+
+    it('falls back to main model when visionModel is empty and main is a glm-* z.ai model', async () => {
+      // The visionModel→main fallback chain mirrors selectVisionModel's logic:
+      // when no explicit override, we use the main model name to detect the
+      // vision provider (since the main model would also be used for vision
+      // if it has native support). Schema validation rejects null on this
+      // job-data field, so we use the empty-string sentinel which the
+      // resolveVisionApiKey fallback also accepts.
+      const noOverridePersonality = {
+        ...mockPersonality,
+        visionModel: '',
+        model: 'glm-5.1',
+      };
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-fallback',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: noOverridePersonality,
+        context: { userId: 'user-fallback', channelId: 'channel-1' },
+        responseDestination: { type: 'discord', channelId: 'channel-1' },
+      };
+      const job = { id: 'image-fb', data: jobData } as Job<ImageDescriptionJobData>;
+      const mockApiKeyResolver = {
+        tryResolveUserKey: vi.fn().mockResolvedValue('zai-key'),
+        resolveApiKey: vi.fn(),
+      } as unknown as ApiKeyResolver;
+
+      await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // Provider detected from main model (visionModel was empty); user has
+      // the ZaiCoding key, so tryResolveUserKey returns it.
+      expect(mockApiKeyResolver.tryResolveUserKey).toHaveBeenCalledWith(
+        'user-fallback',
+        AIProvider.ZaiCoding
+      );
+    });
+
+    it('fails fast when authenticated user lacks key for vision provider (matches DependencyStep policy)', async () => {
+      // Regression for the asymmetry the round-10 reviewer flagged: an
+      // authenticated user (has SOME user key) but no key for the personality's
+      // vision provider must NOT silently fall back to the system key here —
+      // they should get the same "configure your key" fallback that
+      // DependencyStep produces via buildVisionAuthFailureResults.
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-fail-fast',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality, // visionModel='gpt-4-vision-preview' → OpenRouter
+        context: { userId: 'auth-user-no-or-key', channelId: 'channel-1' },
+        responseDestination: { type: 'discord', channelId: 'channel-1' },
+      };
+      const job = {
+        id: 'image-failfast',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      // tryResolveUserKey returns null for OpenRouter (vision provider) but
+      // returns a user key for ZaiCoding — i.e., user IS authenticated, just
+      // not for the vision provider.
+      const tryResolveUserKey = vi
+        .fn()
+        .mockImplementation(async (_userId: string, provider: AIProvider) =>
+          provider === AIProvider.ZaiCoding ? 'zai-user-key' : null
+        );
+      const mockApiKeyResolver = {
+        tryResolveUserKey,
+        resolveApiKey: vi.fn(),
+      } as unknown as ApiKeyResolver;
+
+      const result = await processImageDescriptionJob(job, mockApiKeyResolver);
+
+      // resolveApiKey is NOT called — fail-fast bypasses the system fallback
+      // entirely for authenticated users without the vision-provider key.
+      expect(mockApiKeyResolver.resolveApiKey).not.toHaveBeenCalled();
+      // Each image gets the source-aware fallback description.
+      expect(result.success).toBe(true);
+      expect(result.descriptions).toHaveLength(1);
+      expect(result.descriptions?.[0]?.description).toContain('check /wallet');
+      // describeImage / withRetry NOT invoked — the short-circuit fired before
+      // any vision call.
+      expect(mockWithRetry).not.toHaveBeenCalled();
+      expect(mockDescribeImage).not.toHaveBeenCalled();
     });
 
     it('should default to guest mode when ApiKeyResolver fails', async () => {

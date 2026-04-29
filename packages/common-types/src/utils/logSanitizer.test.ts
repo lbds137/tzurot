@@ -109,6 +109,20 @@ describe('logSanitizer', () => {
       expect(result.normalField).toBe('visible');
     });
 
+    it('should NOT redact apiKeySource metadata field — it carries no key value', () => {
+      // Regression test for an over-redaction bug discovered 2026-04-29:
+      // the broad `lowerKey.includes('apikey')` check matched `apiKeySource`
+      // even though that field is a `'user'`/`'system'` discriminator with
+      // no sensitive content. Tightened via `API_KEY_METADATA_FIELDS` allowlist.
+      const obj = {
+        apiKey: 'sk-1234567890abcdefghijklmnop',
+        apiKeySource: 'user' as const,
+      };
+      const result = sanitizeObject(obj) as Record<string, unknown>;
+      expect(result.apiKey).toBe('[REDACTED]');
+      expect(result.apiKeySource).toBe('user');
+    });
+
     it('should handle nested objects', () => {
       const obj = {
         request: {

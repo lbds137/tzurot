@@ -12,6 +12,7 @@ import {
   CONTENT_TYPES,
   TIMEOUTS,
   AIProvider,
+  ApiErrorCategory,
   type ImageDescriptionJobData,
   type ImageDescriptionResult,
   imageDescriptionJobDataSchema,
@@ -20,6 +21,8 @@ import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
+import { detectVisionProvider } from '../services/ProviderRouter.js';
+import { VISION_AUTH_FAIL_FAST_DESCRIPTION } from '../services/multimodal/visionAuthResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
 
@@ -40,69 +43,183 @@ interface ImageProcessResult {
 }
 
 /**
- * Result of API key resolution for vision processing
+ * Result of API key resolution for vision processing.
+ *
+ * Discriminated union: a normal `proceed` result with the resolved auth context,
+ * or a `failFast` signal when the user is authenticated for some provider but
+ * lacks a key for the vision provider — matches the policy enforced in
+ * `DependencyStep` via `resolveVisionAuth` so a Discord user gets the same
+ * fallback string regardless of which path serves their image (direct upload
+ * vs. channel-history extended context).
  */
-interface VisionApiKeyResult {
-  isGuestMode: boolean;
-  userApiKey?: string;
-  /** Whose key drives the request — used by VisionProcessor for fallback-string variants */
-  apiKeySource?: 'user' | 'system';
+type VisionApiKeyResult =
+  | {
+      kind: 'proceed';
+      isGuestMode: boolean;
+      userApiKey?: string;
+      apiKeySource?: 'user' | 'system';
+      visionProvider?: AIProvider;
+    }
+  | {
+      kind: 'failFast';
+      visionProvider: AIProvider;
+    };
+
+/**
+ * Providers checked when determining whether a user is "authenticated" — i.e.
+ * has at least one user-configured key for SOME provider. Drives the
+ * fail-fast vs system-fallback discriminator inside `resolveVisionApiKey`.
+ *
+ * Order doesn't matter for correctness — short-circuits on first hit. Listed
+ * with OpenRouter first because it's the most common BYOK target. ElevenLabs
+ * intentionally excluded: it's voice-only, not an LLM/vision provider, and
+ * a user with only an ElevenLabs key shouldn't be classified as "LLM
+ * authenticated" for vision purposes.
+ */
+const USER_AUTH_PROBE_PROVIDERS: AIProvider[] = [AIProvider.OpenRouter, AIProvider.ZaiCoding];
+
+/**
+ * Determine whether a user has at least one user-configured key for any LLM
+ * provider. Used as the "authenticated vs genuine guest" discriminator
+ * inside this job, since (unlike DependencyStep) ImageDescriptionJob has no
+ * upstream `auth.isGuestMode` signal — it runs as a standalone preprocessing
+ * job at upload time.
+ *
+ * Each call hits ApiKeyResolver's internal cache after the first lookup per
+ * `userId × provider` pair, so the cost is bounded.
+ */
+async function userHasAnyKey(apiKeyResolver: ApiKeyResolver, userId: string): Promise<boolean> {
+  for (const provider of USER_AUTH_PROBE_PROVIDERS) {
+    const key = await apiKeyResolver.tryResolveUserKey(userId, provider);
+    if (key !== null) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
- * Resolve API key for vision processing via BYOK lookup
+ * Resolve API key for vision processing via BYOK lookup.
  *
- * Returns the user's API key if they have one (BYOK), otherwise indicates guest mode.
- * The API key is resolved at job processing time to avoid storing keys in Redis.
+ * Decision tree (matches `resolveVisionAuth` policy in `DependencyStep`):
+ * - User has key for vision provider → use user key
+ * - User has no key for vision provider, but is authenticated for some other
+ *   provider → fail fast (no silent system-key fallback for authenticated users)
+ * - User has no keys anywhere → genuine guest, system-key fallback
+ *
+ * Detects the vision provider from the personality's vision model (vs the
+ * old hardcoded `AIProvider.OpenRouter`) so that personalities with z.ai
+ * vision models route to z.ai instead of mistakenly looking up the user's
+ * OpenRouter key.
  */
 async function resolveVisionApiKey(
   apiKeyResolver: ApiKeyResolver | undefined,
-  userId: string
+  userId: string,
+  personality: ImageDescriptionJobData['personality']
 ): Promise<VisionApiKeyResult> {
   if (!apiKeyResolver) {
-    return { isGuestMode: false };
+    return { kind: 'proceed', isGuestMode: false };
   }
+
+  // Provider detection runs against the actual vision-model name. The fallback
+  // chain (visionModel → main model → env default) mirrors `selectVisionModel`
+  // in VisionProcessor, but we don't have hasVisionSupport access here, so we
+  // take the explicit visionModel override if set, else default to the main
+  // model's provider (which is what selectVisionModel would also pick when
+  // the main model has native vision).
+  const visionModelName =
+    personality.visionModel !== undefined &&
+    personality.visionModel !== null &&
+    personality.visionModel.length > 0
+      ? personality.visionModel
+      : personality.model;
+  const visionProvider = detectVisionProvider(visionModelName);
 
   try {
-    const keyResult = await apiKeyResolver.resolveApiKey(userId, AIProvider.OpenRouter);
-    logger.debug(
-      { userId, isGuestMode: keyResult.isGuestMode, source: keyResult.source },
-      'Resolved API key for vision processing'
-    );
+    // First: try user's key for the vision provider directly. No system
+    // fallback here — that would silently consume the system key for an
+    // authenticated user, contradicting the user-confirmed policy.
+    const userKey = await apiKeyResolver.tryResolveUserKey(userId, visionProvider);
+    if (userKey !== null) {
+      logger.debug(
+        { userId, visionProvider, source: 'user' },
+        'Resolved user API key for vision processing'
+      );
+      return {
+        kind: 'proceed',
+        isGuestMode: false,
+        userApiKey: userKey,
+        apiKeySource: 'user',
+        visionProvider,
+      };
+    }
 
-    // Return the user's API key if they have one (source='user')
-    // For system keys (source='system'), we still pass undefined so VisionProcessor uses its fallback
+    // No user key for vision provider. Discriminate: authenticated user
+    // missing this provider's key (fail fast) vs. genuine guest (system
+    // fallback).
+    const isAuthenticatedForSomeProvider = await userHasAnyKey(apiKeyResolver, userId);
+    if (isAuthenticatedForSomeProvider) {
+      logger.info(
+        { userId, visionProvider },
+        'Authenticated user lacks key for vision provider — failing fast (no system fallback)'
+      );
+      return { kind: 'failFast', visionProvider };
+    }
+
+    // Genuine guest — no user keys configured anywhere. System fallback is
+    // the only path that works for them; consistent with main-model auth
+    // resolution for guests.
+    const guestResult = await apiKeyResolver.resolveApiKey(userId, visionProvider);
+    logger.debug(
+      { userId, visionProvider, source: guestResult.source },
+      'Guest path — using system key fallback for vision'
+    );
     return {
-      isGuestMode: keyResult.isGuestMode,
-      userApiKey: keyResult.source === 'user' ? keyResult.apiKey : undefined,
-      apiKeySource: keyResult.source,
+      kind: 'proceed',
+      isGuestMode: guestResult.isGuestMode,
+      userApiKey: guestResult.source === 'user' ? guestResult.apiKey : undefined,
+      apiKeySource: guestResult.source,
+      visionProvider,
     };
   } catch (error) {
-    logger.warn({ err: error, userId }, 'Failed to resolve API key, defaulting to guest mode');
-    return { isGuestMode: true };
+    logger.warn(
+      { err: error, userId, visionProvider },
+      'Failed to resolve API key, defaulting to guest mode'
+    );
+    return { kind: 'proceed', isGuestMode: true, visionProvider };
   }
+}
+
+/**
+ * Per-image processing context — options-bag bundles auth + diagnostic fields
+ * to keep `processSingleImage` within the max-params lint limit.
+ */
+interface ProcessSingleImageOptions {
+  attachment: ImageDescriptionJobData['attachments'][0];
+  personality: ImageDescriptionJobData['personality'];
+  isGuestMode: boolean;
+  userApiKey: string | undefined;
+  visionProvider: AIProvider | undefined;
+  loggingContext: {
+    userId?: string;
+    apiKeySource?: 'user' | 'system';
+    jobId?: string;
+  };
 }
 
 /**
  * Process a single image attachment with retry logic
  */
-async function processSingleImage(
-  attachment: ImageDescriptionJobData['attachments'][0],
-  personality: ImageDescriptionJobData['personality'],
-  isGuestMode: boolean,
-  userApiKey: string | undefined,
-  loggingContext: {
-    userId?: string;
-    apiKeySource?: 'user' | 'system';
-    jobId?: string;
-  }
-): Promise<ImageProcessResult> {
+async function processSingleImage(options: ProcessSingleImageOptions): Promise<ImageProcessResult> {
+  const { attachment, personality, isGuestMode, userApiKey, visionProvider, loggingContext } =
+    options;
   try {
     const result = await withRetry(
       () =>
         describeImage(attachment, personality, isGuestMode, userApiKey, {
           skipNegativeCache: true,
-          loggingContext: { ...loggingContext, provider: AIProvider.OpenRouter },
+          provider: visionProvider,
+          loggingContext: { ...loggingContext, provider: visionProvider },
         }),
       {
         maxAttempts: VISION_MAX_ATTEMPTS,
@@ -127,6 +244,68 @@ async function processSingleImage(
       success: false,
     };
   }
+}
+
+/**
+ * Build a fail-fast `ImageDescriptionResult` for the case where the user is
+ * authenticated for some provider but lacks a key for the vision provider.
+ *
+ * Each image gets a "configure your key" description (visible to the LLM
+ * when it consumes the dependency-job result) and a synthetic AUTHENTICATION
+ * cache entry so subsequent retries within the 5-min window hit cache and
+ * skip re-resolving + re-failing — same UX shape as a real auth-rejection
+ * from the upstream provider's API.
+ *
+ * Mirrors `buildVisionAuthFailureResults` in `visionAuthResolver.ts` (the
+ * channel-history path's equivalent helper). The two paths produce identical
+ * fallback strings + cache shapes so the user sees consistent behavior
+ * regardless of how the image arrived.
+ */
+async function buildFailFastResult(opts: {
+  requestId: string;
+  attachments: ImageDescriptionJobData['attachments'];
+  visionProvider: AIProvider;
+  sourceReferenceNumber: number | undefined;
+  startTime: number;
+}): Promise<ImageDescriptionResult> {
+  const { requestId, attachments, visionProvider, sourceReferenceNumber, startTime } = opts;
+
+  // Lazy import only for `visionDescriptionCache` — `redis.js` instantiates
+  // a Redis client singleton at module-load, which we want to defer past
+  // test-time imports. The other dependencies (`ApiErrorCategory` enum,
+  // `VISION_AUTH_FAIL_FAST_DESCRIPTION` string constant) have no init-time
+  // side effects and live in the static import block at the top.
+  const { visionDescriptionCache } = await import('../redis.js');
+
+  // Cache writes parallelize because each cache key is distinct (per attachment).
+  await Promise.all(
+    attachments.map(attachment =>
+      visionDescriptionCache.storeFailure({
+        attachmentId: attachment.id,
+        url: attachment.url,
+        category: ApiErrorCategory.AUTHENTICATION,
+      })
+    )
+  );
+
+  const descriptions = attachments.map(attachment => ({
+    url: attachment.url,
+    description: VISION_AUTH_FAIL_FAST_DESCRIPTION,
+  }));
+
+  const processingTimeMs = Date.now() - startTime;
+  logger.info(
+    { requestId, visionProvider, imageCount: attachments.length, processingTimeMs },
+    'Vision auth fail-fast — authenticated user has no key for vision provider'
+  );
+
+  return {
+    requestId,
+    success: true, // "successful" in that we have a description for each image
+    descriptions,
+    sourceReferenceNumber,
+    metadata: { processingTimeMs, imageCount: descriptions.length, failedCount: 0 },
+  };
 }
 
 /**
@@ -173,16 +352,30 @@ export async function processImageDescriptionJob(
   }
 
   const { requestId, attachments, personality, context, sourceReferenceNumber } = job.data;
-  const { isGuestMode, userApiKey, apiKeySource } = await resolveVisionApiKey(
-    apiKeyResolver,
-    context.userId
-  );
+  const authResult = await resolveVisionApiKey(apiKeyResolver, context.userId, personality);
 
   logger.info(
     { jobId: job.id, requestId, imageCount: attachments.length, personalityName: personality.name },
     'Processing image description job'
   );
 
+  // Fail-fast: authenticated user has no key for the vision provider. Mirrors
+  // DependencyStep's `buildVisionAuthFailureResults` behavior so direct upload
+  // and channel-history paths produce the same fallback shape for the same
+  // user setup. Each image gets the source-aware "configure your key"
+  // description and a synthetic AUTH cache entry so retries within the 5-min
+  // window hit cache instead of repeating the resolution + failing again.
+  if (authResult.kind === 'failFast') {
+    return buildFailFastResult({
+      requestId,
+      attachments,
+      visionProvider: authResult.visionProvider,
+      sourceReferenceNumber,
+      startTime,
+    });
+  }
+
+  const { isGuestMode, userApiKey, apiKeySource, visionProvider } = authResult;
   const loggingContext = {
     userId: context.userId,
     apiKeySource,
@@ -200,7 +393,14 @@ export async function processImageDescriptionJob(
     // Process all images in parallel with graceful degradation
     const results = await Promise.all(
       attachments.map(attachment =>
-        processSingleImage(attachment, personality, isGuestMode, userApiKey, loggingContext)
+        processSingleImage({
+          attachment,
+          personality,
+          isGuestMode,
+          userApiKey,
+          visionProvider,
+          loggingContext,
+        })
       )
     );
 
