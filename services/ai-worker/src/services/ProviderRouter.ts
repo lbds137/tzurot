@@ -359,3 +359,34 @@ export function detectVisionProvider(modelName: string): AIProvider {
   }
   return AIProvider.OpenRouter;
 }
+
+/**
+ * Resolve the effective vision model name for a personality.
+ *
+ * Mirrors the priority chain `selectVisionModel` uses for its first branch:
+ * a non-empty `visionModel` override wins over `model`. Extracted so the
+ * "use visionModel if set, else fall back to model" rule lives in one place
+ * — the resolver and the upload-time job both need it before any I/O, and
+ * inlining the expression in two locations risked one drifting from the
+ * other (e.g., one accepting empty string as "set", the other rejecting it).
+ *
+ * The `visionModel` parameter is `string | null | undefined` deliberately:
+ * the Zod schema for `LoadedPersonality` narrows it to `string | undefined`
+ * but the upstream `LlmConfigResolver` shape is `string | null`, and tests
+ * pass null directly to verify defensive behavior. The helper accepts all
+ * three states and treats null/undefined/empty-string identically.
+ *
+ * Does NOT handle the `selectVisionModel` priority-2/3 branches (vision-support
+ * detection via Redis, fallback model). Those involve I/O and live in
+ * `selectVisionModel` itself; this helper is the cheap synchronous prefix.
+ */
+export function effectiveVisionModelName(personality: {
+  model: string;
+  visionModel?: string | null;
+}): string {
+  return personality.visionModel !== undefined &&
+    personality.visionModel !== null &&
+    personality.visionModel.length > 0
+    ? personality.visionModel
+    : personality.model;
+}
