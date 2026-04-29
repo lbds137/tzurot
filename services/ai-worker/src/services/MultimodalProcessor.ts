@@ -39,32 +39,34 @@ export interface ProcessedAttachment {
 }
 
 /**
- * Process a single attachment (helper function for retry logic)
- *
- * @param attachment - Attachment metadata to process
- * @param personality - Personality configuration for vision/transcription
- * @param isGuestMode - Whether user is in guest mode (uses free models)
- * @param userApiKey - User's BYOK API key (for BYOK users)
- * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
+ * Auth + diagnostic options for vision/audio processing — bundled to keep param count
+ * within max-params and mirror the per-call-site context plumbing.
  */
-// eslint-disable-next-line max-params -- 6 conceptually-distinct params (data, personality, behavior, two auth keys, diagnostics) — bundling unrelated concerns harms call-site clarity
+export interface ProcessAttachmentOptions {
+  /** Whether user is in guest mode (uses free models) */
+  isGuestMode: boolean;
+  /** User's BYOK API key (for BYOK users) */
+  userApiKey?: string;
+  /** Optional ElevenLabs BYOK key for premium STT */
+  elevenlabsApiKey?: string;
+  /** Diagnostic context for vision-failure logging + source-aware fallback strings */
+  loggingContext?: VisionLoggingContext;
+}
+
+/**
+ * Process a single attachment (helper function for retry logic)
+ */
 async function processSingleAttachment(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
-  isGuestMode: boolean,
-  userApiKey: string | undefined,
-  elevenlabsApiKey: string | undefined,
-  loggingContext: VisionLoggingContext
+  options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment | null> {
+  const { isGuestMode, userApiKey, elevenlabsApiKey, loggingContext = {} } = options;
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    const description = await describeImage(
-      attachment,
-      personality,
-      isGuestMode,
-      userApiKey,
-      { skipNegativeCache: true },
-      loggingContext
-    );
+    const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
+      skipNegativeCache: true,
+      loggingContext,
+    });
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
       type: AttachmentType.Image,
@@ -90,24 +92,15 @@ async function processSingleAttachment(
 }
 
 /**
- * Process all attachments to extract text descriptions
- * Uses retryService for consistent parallel retry behavior (RETRY_CONFIG.MAX_ATTEMPTS = 3)
- *
- * @param attachments - Attachments to process
- * @param personality - Personality configuration for vision/transcription
- * @param isGuestMode - Whether user is in guest mode (uses free models)
- * @param userApiKey - User's BYOK API key (for BYOK users)
- * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
+ * Process all attachments to extract text descriptions.
+ * Uses retryService for consistent parallel retry behavior (RETRY_CONFIG.MAX_ATTEMPTS = 3).
  */
-// eslint-disable-next-line max-params -- mirrors processSingleAttachment positional shape; loggingContext kept distinct from the two auth keys for call-site clarity
 export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality,
-  isGuestMode = false,
-  userApiKey?: string,
-  elevenlabsApiKey?: string,
-  loggingContext: VisionLoggingContext = {}
+  options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment[]> {
+  const { isGuestMode, userApiKey, elevenlabsApiKey, loggingContext = {} } = options;
   logger.info(
     {
       attachmentCount: attachments.length,
@@ -125,14 +118,12 @@ export async function processAttachments(
   const results = await withParallelRetry(
     attachments,
     attachment =>
-      processSingleAttachment(
-        attachment,
-        personality,
+      processSingleAttachment(attachment, personality, {
         isGuestMode,
         userApiKey,
         elevenlabsApiKey,
-        loggingContext
-      ),
+        loggingContext,
+      }),
     {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,

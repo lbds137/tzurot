@@ -75,17 +75,15 @@ export class ConversationInputProcessor {
       );
     } else if (context.attachments && context.attachments.length > 0) {
       // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
-      processedAttachments = await processAttachments(
-        context.attachments,
-        personality,
+      processedAttachments = await processAttachments(context.attachments, personality, {
         isGuestMode,
         userApiKey,
         elevenlabsApiKey,
-        {
+        loggingContext: {
           userId: context.userId,
           apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),
-        }
-      );
+        },
+      });
       logger.info(
         { count: processedAttachments.length },
         'Processed attachments to text descriptions (inline fallback)'

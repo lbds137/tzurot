@@ -190,10 +190,11 @@ describe('ConversationInputProcessor', () => {
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         attachments,
         mockPersonality,
-        false,
-        'user-api-key',
-        undefined, // elevenlabsApiKey
-        expect.objectContaining({ apiKeySource: 'user' })
+        expect.objectContaining({
+          isGuestMode: false,
+          userApiKey: 'user-api-key',
+          loggingContext: expect.objectContaining({ apiKeySource: 'user' }),
+        })
       );
     });
 

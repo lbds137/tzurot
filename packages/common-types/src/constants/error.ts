@@ -260,10 +260,16 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   // (the previous default-TTL behavior) for an image the model will consistently
   // reject is wasted compute. System-prompt-driven sensitivity *could* vary by
   // persona in theory, but in observed practice the model decision is image-bound.
+  // BAD_REQUEST is also bucketed here for the vision-cache path — most 400s from
+  // vision endpoints are attachment-bound (unsupported format, malformed Discord
+  // CDN URL) rather than truly transient. (Note: this only affects the vision
+  // negative cache; `withRetry` still treats BAD_REQUEST as TRANSIENT for the
+  // retry-or-fail-fast decision per `TRANSIENT_ERROR_CATEGORIES`.)
   [ApiErrorCategory.CONTENT_POLICY]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
   [ApiErrorCategory.MEDIA_NOT_FOUND]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
   [ApiErrorCategory.MODEL_NOT_FOUND]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
   [ApiErrorCategory.CENSORED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
+  [ApiErrorCategory.BAD_REQUEST]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
 
   // Retryable-transient categories — generic cooldown
   [ApiErrorCategory.RATE_LIMIT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
@@ -271,7 +277,6 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   [ApiErrorCategory.TIMEOUT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.NETWORK]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.EMPTY_RESPONSE]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
-  [ApiErrorCategory.BAD_REQUEST]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.UNKNOWN]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
 };
 
