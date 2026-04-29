@@ -280,6 +280,30 @@ describe('findDuplicates', () => {
 
     expect(findDuplicates(exports, 'api-gateway')).toEqual([]);
   });
+
+  it('does not report TypeScript function overloads (multi-export same-file)', () => {
+    // A function with N overload signatures emits N `export function` lines
+    // in ONE file for ONE runtime function. Without same-file dedup these
+    // would false-positive as duplicates.
+    const exports: ExportInfo[] = [
+      { name: 'buildBrowseButtons', file: 'buttonBuilder.ts', line: 160, kind: 'function' },
+      { name: 'buildBrowseButtons', file: 'buttonBuilder.ts', line: 171, kind: 'function' },
+      { name: 'buildBrowseButtons', file: 'buttonBuilder.ts', line: 178, kind: 'function' },
+    ];
+    expect(findDuplicates(exports, 'bot-client')).toEqual([]);
+  });
+
+  it('reports overloads PLUS a separate cross-file definition as a duplicate', () => {
+    // Sanity check: same-file dedup must not mask actual cross-file collisions.
+    const exports: ExportInfo[] = [
+      { name: 'transform', file: 'a.ts', line: 1, kind: 'function' },
+      { name: 'transform', file: 'a.ts', line: 5, kind: 'function' },
+      { name: 'transform', file: 'b.ts', line: 1, kind: 'function' },
+    ];
+    const result = findDuplicates(exports, 'api-gateway');
+    expect(result).toHaveLength(1);
+    expect(result[0].exports).toHaveLength(3);
+  });
 });
 
 describe('isAllowed', () => {
