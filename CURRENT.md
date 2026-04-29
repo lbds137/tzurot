@@ -1,28 +1,28 @@
 # Current
 
 > **Session**: 2026-04-28 → 2026-04-29 (vision cache overhaul + cross-provider auth fix + beta.110 / beta.111 releases)
-> **Version**: v3.0.0-beta.111 (release in progress 2026-04-29)
+> **Version**: v3.0.0-beta.111 (released 2026-04-29)
 
 ---
 
 ## Next Session Goal
 
-_Beta.111 just shipped the cross-provider vision auth fix. Persona-leak entry from beta.110 still awaits in-prod verification._
+_Beta.111 shipped the cross-provider vision auth fix to prod. Persona-leak entry from beta.110 still awaits in-prod verification._
 
-1. **Post-deploy verification on beta.111** — confirm cross-provider vision (z.ai main + OpenRouter vision) succeeds on prod once beta.111 is deployed. User already verified on dev 2026-04-29.
+1. **Post-deploy verification on beta.111** — confirm cross-provider vision (z.ai main + OpenRouter vision) succeeds on prod after Railway auto-deploys main. User-verified on dev pre-release.
 2. **Persona-leak verification** — beta.110 entry; trigger fresh DM diagnostic dump and confirm no foreign `<about>` blocks in `<participants>`.
 3. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
 4. **Backlog: knip + duplicate-exports CI gate** — 30-60min triage + flag flip.
 
 ## Active Task
 
-_v3.0.0-beta.111 release in progress 2026-04-29 — cuts the cross-provider vision auth fix (PR #938) into prod._
+_None. v3.0.0-beta.111 released 2026-04-29 (this session). Develop is now SHA-aligned with main; "Unreleased on Develop" section is empty._
 
 ---
 
 ## Unreleased on Develop (since beta.111)
 
-_Empty. Release in progress._
+_Empty. Last release was beta.111 on 2026-04-29._
 
 ---
 
@@ -45,7 +45,7 @@ _Empty. Release in progress._
 
 ## Recent Releases
 
-- **v3.0.0-beta.111** (2026-04-29, release in progress) — **Cross-provider vision auth fix** (#938): root-cause fix for the "vision permanently broken" symptom that beta.110 architecturally mitigated. When a personality has main model on one provider (e.g., z.ai-coding `glm-5.1`) and vision-model override on another (e.g., OpenRouter `qwen/qwen3.5-...`), API key resolution now happens **per-provider** instead of inheriting the main-model key. New `visionAuthResolver.ts` seam + `detectVisionProvider` helper enforce a fail-fast policy: authenticated users without a key for the vision provider get a "configure your /wallet" message rather than silently consuming the system key. Both the channel-history path (`DependencyStep`) and the direct-upload path (`ImageDescriptionJob`) share the same decision tree + fallback string. Plus: `ResolvedAuth.provider` narrowed to `AIProvider | undefined` (was `string | undefined`), `logSanitizer` allowlist for `apiKeySource` metadata field. 13 review rounds, council-validated, user-verified on dev pre-release.
+- **v3.0.0-beta.111** (2026-04-29) — **Cross-provider vision auth fix** (#938): root-cause fix for the "vision permanently broken" symptom that beta.110 architecturally mitigated. When a personality has main model on one provider (e.g., z.ai-coding `glm-5.1`) and vision-model override on another (e.g., OpenRouter `qwen/qwen3.5-...`), API key resolution now happens **per-provider** instead of inheriting the main-model key. New `visionAuthResolver.ts` seam + `detectVisionProvider` helper enforce a fail-fast policy: authenticated users without a key for the vision provider get a "configure your /wallet" message rather than silently consuming the system key. Both the channel-history path (`DependencyStep`) and the direct-upload path (`ImageDescriptionJob`) share the same decision tree + fallback string. Plus: `ResolvedAuth.provider` narrowed to `AIProvider | undefined` (was `string | undefined`), `logSanitizer` allowlist for `apiKeySource` metadata field. 13 review rounds, council-validated, user-verified on dev pre-release.
 - **v3.0.0-beta.110** (2026-04-29) — **Vision negative-cache overhaul** (#935): drops L2 PostgreSQL cache (`image_description_cache` table dropped), decouples per-category TTL from retry policy (`VISION_FAILURE_CACHE_POLICY` map: 5min for AUTH/QUOTA, 60min for attachment-bound, 10min for transient), adds source-aware fallback strings (system-key glitches → "vision service temporarily unavailable" instead of "your API key was rejected"), adds `userId/apiKeySource/cachedAt/personalityName/jobId/provider` to failure logs. **Privacy fix** (#932): personality-field-resolved users no longer leak into other users' DM contexts via `about_user`. **DM-context message references** (#933, #934, #936): native replies + pasted DM links now resolve in DMs and out-of-DM contexts. **Pipeline refactor** (#936): vision-pipeline options-object pattern drops 4 max-params suppressions; CI-enforced invariant tests for `ATTACHMENT_BOUND_FAILURE_CATEGORIES` ↔ `VISION_FAILURE_CACHE_POLICY` ↔ `FAILURE_LABELS`. ProviderRouter `ResolvedRoute` mutual-exclusion runtime guard. Council-validated (Gemini 3.1 Pro Preview).
 - **v3.0.0-beta.109** (2026-04-28) — z.ai Coding Plan integration end-to-end functional.
 - **v3.0.0-beta.108** (2026-04-27) — **Post-deploy DM-silence resolved end-to-end** across six PRs of progressive diagnosis (SIGTERM handler #913, Partials.Message + User #914, diagnostic listeners #915, DM cache warmer #916, startup pre-warm Layer 1 #917, retry-with-backoff for startup race #918). **Identity & Provisioning Hardening Epic CLOSED** (#911) — `requireProvisionedUser` middleware tightened to strict 400/403/500, `getOrCreateUserShell` deleted, -1404 lines net. **IPv6 mixed-compression hardening** in SSRF guard (#908). Repo improvements: vestigial `setAsDefault` removed (#912), test-utils consolidation (#909), MOCK_USER_ID UUID normalization (#910), `09-interaction-style.md` rule promotion (#915).
