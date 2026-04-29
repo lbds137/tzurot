@@ -168,14 +168,14 @@ export class ProviderRouter {
         userId,
         configuredProvider as AIProvider
       );
-      return {
+      return this.assertResolvedRouteInvariant({
         effectiveProvider: configuredProvider as AIProvider,
         effectiveModel: configuredModel,
         apiKey: result.apiKey,
         isGuestMode: result.isGuestMode,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
-      };
+      });
     }
 
     // z.ai-coding path: prefer user's key, fall back to OpenRouter on absence.
@@ -185,14 +185,14 @@ export class ProviderRouter {
         { userId, model: configuredModel },
         'Routing direct to z.ai coding plan with user key'
       );
-      return {
+      return this.assertResolvedRouteInvariant({
         effectiveProvider: AIProvider.ZaiCoding,
         effectiveModel: configuredModel,
         apiKey: userZaiKey,
         isGuestMode: false,
         fallthroughTriggered: false,
         wasAutoPromoted: false,
-      };
+      });
     }
 
     // Auto-fallthrough: rewrite model name and resolve via OpenRouter.
@@ -217,14 +217,14 @@ export class ProviderRouter {
       },
       'z.ai-coding fallthrough → OpenRouter (no user z.ai key)'
     );
-    return {
+    return this.assertResolvedRouteInvariant({
       effectiveProvider: AIProvider.OpenRouter,
       effectiveModel: fallthroughModel,
       apiKey: fallthroughResult.apiKey,
       isGuestMode: fallthroughResult.isGuestMode,
       fallthroughTriggered: true,
       wasAutoPromoted: false,
-    };
+    });
   }
 
   /**
@@ -302,6 +302,24 @@ export class ProviderRouter {
       },
       'Auto-promoting OpenRouter z-ai/ model to z.ai-direct (user has zai-coding key)'
     );
-    return promotedRoute;
+    return this.assertResolvedRouteInvariant(promotedRoute);
+  }
+
+  /**
+   * Defensive runtime guard for the `fallthroughTriggered` / `wasAutoPromoted` mutual
+   * exclusion documented on `ResolvedRoute`. The invariant is verified at the type
+   * level only by tests for the four current routing paths; this catches future
+   * regressions if a fifth routing path is added and the author forgets the
+   * mutual-exclusion contract. Funneling all `resolveRoute` returns through this
+   * helper means a violation throws immediately rather than producing a malformed
+   * route that downstream consumers misinterpret.
+   */
+  private assertResolvedRouteInvariant(route: ResolvedRoute): ResolvedRoute {
+    if (route.fallthroughTriggered && route.wasAutoPromoted) {
+      throw new Error(
+        'Invariant violation: ResolvedRoute cannot have both fallthroughTriggered and wasAutoPromoted set'
+      );
+    }
+    return route;
   }
 }

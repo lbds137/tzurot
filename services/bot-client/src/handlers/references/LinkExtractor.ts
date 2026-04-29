@@ -10,6 +10,7 @@ import type {
   TextChannel,
   ThreadChannel,
   DMChannel,
+  NewsChannel,
   GuildMember,
 } from 'discord.js';
 import { ChannelType, PermissionsBitField } from 'discord.js';
@@ -210,9 +211,11 @@ export class LinkExtractor {
         return null;
       }
 
-      // DM channels are a live code path here; all three types expose `.messages.fetch()`.
+      // All four channel types resolved upstream expose `.messages.fetch()`.
+      // NewsChannel is included because Discord announcement channels are text-based
+      // and pass `isTextBasedChannel()`, even if uncommon in practice.
       const fetchedMessage = await (
-        channel as TextChannel | ThreadChannel | DMChannel
+        channel as TextChannel | ThreadChannel | DMChannel | NewsChannel
       ).messages.fetch(link.messageId);
 
       logger.info(

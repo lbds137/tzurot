@@ -380,14 +380,12 @@ export class ConversationalRAGService {
         getPrismaClient(),
         visionDescriptionCache,
         atts =>
-          processAttachments(
-            atts,
-            personality,
+          processAttachments(atts, personality, {
             isGuestMode,
             userApiKey,
             elevenlabsApiKey,
-            visionLoggingContext
-          )
+            loggingContext: visionLoggingContext,
+          })
       );
 
       // Step 2: Load personas and resolve user references

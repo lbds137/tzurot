@@ -223,14 +223,10 @@ async function processImageAttachment(
     );
     const result = await withRetry(
       () =>
-        describeImage(
-          attachment,
-          personality,
-          isGuestMode,
-          userApiKey,
-          { skipNegativeCache: true },
-          loggingContext
-        ),
+        describeImage(attachment, personality, isGuestMode, userApiKey, {
+          skipNegativeCache: true,
+          loggingContext,
+        }),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         logger,

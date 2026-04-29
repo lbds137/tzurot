@@ -7,6 +7,7 @@ import {
   hasVisionSupport,
   describeImage,
   ATTACHMENT_BOUND_FAILURE_CATEGORIES,
+  FAILURE_LABELS,
 } from './VisionProcessor.js';
 import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
 import {
@@ -509,14 +510,9 @@ describe('VisionProcessor', () => {
           visionModel: undefined,
         });
 
-        const result = await describeImage(
-          mockAttachment,
-          personality,
-          false,
-          'user-byok-key',
-          undefined,
-          { apiKeySource: 'user' }
-        );
+        const result = await describeImage(mockAttachment, personality, false, 'user-byok-key', {
+          loggingContext: { apiKeySource: 'user' },
+        });
 
         expect(result).toBe('[Image unavailable: your API key was rejected — check /wallet]');
       });
@@ -532,14 +528,9 @@ describe('VisionProcessor', () => {
           visionModel: undefined,
         });
 
-        const result = await describeImage(
-          mockAttachment,
-          personality,
-          true,
-          undefined,
-          undefined,
-          { apiKeySource: 'system' }
-        );
+        const result = await describeImage(mockAttachment, personality, true, undefined, {
+          loggingContext: { apiKeySource: 'system' },
+        });
 
         expect(result).toBe(
           '[Image unavailable: vision service temporarily unavailable, please retry shortly]'
@@ -1204,6 +1195,17 @@ describe('VisionProcessor', () => {
         expect(VISION_FAILURE_CACHE_POLICY[category].l1TtlSeconds).toBe(
           INTERVALS.VISION_FAILURE_TTL_LONG
         );
+      }
+    });
+
+    it('every ATTACHMENT_BOUND_FAILURE_CATEGORIES member must have a FAILURE_LABELS entry', () => {
+      // Without an entry here, `buildFailureFallback` falls through to the `?? category`
+      // safety net and surfaces raw enum strings (e.g. `[Image unavailable: new_thing]`)
+      // to users. The runtime fallback is defensive but the invariant catches the gap
+      // at PR time instead of waiting for a user to hit it.
+      for (const category of ATTACHMENT_BOUND_FAILURE_CATEGORIES) {
+        expect(FAILURE_LABELS[category]).toBeDefined();
+        expect(FAILURE_LABELS[category]?.length ?? 0).toBeGreaterThan(0);
       }
     });
   });

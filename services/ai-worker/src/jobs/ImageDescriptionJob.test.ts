@@ -499,8 +499,10 @@ describe('ImageDescriptionJob', () => {
         mockPersonality,
         true, // isGuestMode
         undefined, // userApiKey (guests don't have one)
-        { skipNegativeCache: true },
-        expect.objectContaining({ userId: expect.any(String) })
+        expect.objectContaining({
+          skipNegativeCache: true,
+          loggingContext: expect.objectContaining({ userId: expect.any(String) }),
+        })
       );
     });
 
@@ -557,8 +559,13 @@ describe('ImageDescriptionJob', () => {
         mockPersonality,
         false, // isGuestMode
         'sk-user-provided-key', // userApiKey (BYOK users get their key passed)
-        { skipNegativeCache: true },
-        expect.objectContaining({ userId: 'byok-user-456', apiKeySource: 'user' })
+        expect.objectContaining({
+          skipNegativeCache: true,
+          loggingContext: expect.objectContaining({
+            userId: 'byok-user-456',
+            apiKeySource: 'user',
+          }),
+        })
       );
     });
 
@@ -605,8 +612,10 @@ describe('ImageDescriptionJob', () => {
         mockPersonality,
         true, // isGuestMode defaults to true on error
         undefined, // userApiKey is undefined on error (no key resolved)
-        { skipNegativeCache: true },
-        expect.objectContaining({ userId: 'user-error' })
+        expect.objectContaining({
+          skipNegativeCache: true,
+          loggingContext: expect.objectContaining({ userId: 'user-error' }),
+        })
       );
     });
 
@@ -648,8 +657,10 @@ describe('ImageDescriptionJob', () => {
         mockPersonality,
         false,
         undefined,
-        { skipNegativeCache: true },
-        expect.objectContaining({ jobId: 'image-test-req-skip-cache' })
+        expect.objectContaining({
+          skipNegativeCache: true,
+          loggingContext: expect.objectContaining({ jobId: 'image-test-req-skip-cache' }),
+        })
       );
     });
 
