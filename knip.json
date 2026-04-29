@@ -1,14 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreWorkspaces": ["scripts", "tests"],
+  "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
       "vitest": false,
-      "ignoreDependencies": [
-        "@typescript-eslint/eslint-plugin",
-        "@typescript-eslint/parser",
-        "@vitest/coverage-v8"
-      ]
+      "ignoreDependencies": ["@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
     },
     "services/bot-client": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/commands/*/index.ts"],
@@ -20,7 +17,7 @@
     },
     "services/ai-worker": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
-      "ignoreDependencies": ["langchain", "onnxruntime-node", "redis", "sharp"]
+      "ignoreDependencies": ["langchain", "onnxruntime-node", "redis"]
     },
     "packages/common-types": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
@@ -38,11 +35,19 @@
       "ignoreDependencies": ["onnxruntime-node"]
     },
     "packages/test-utils": {
-      "includeEntryExports": true
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
+      "includeEntryExports": true,
+      "ignoreDependencies": ["@tzurot/common-types"]
     }
   },
-  "ignore": ["tzurot-legacy/**", "**/vitest.config.ts", "**/test/setup.ts", "vitest.workspace.ts"],
-  "ignoreBinaries": ["dot", "railway"],
+  "ignore": [
+    "tzurot-legacy/**",
+    "**/vitest.config.ts",
+    "**/test/setup.ts",
+    "vitest.workspace.ts",
+    "**/__mocks__/**"
+  ],
+  "ignoreBinaries": ["dot", "railway", "ruff"],
   "ignoreDependencies": [
     "@secretlint/secretlint-rule-preset-recommend",
     "eslint-formatter-pretty",

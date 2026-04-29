@@ -27,27 +27,6 @@ export function createMockIsBotOwner(): ((...args: unknown[]) => boolean) & {
 export const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
 export const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000Z');
 
-/** Create mock Express request/response pair */
-export function createMockReqRes(
-  body: Record<string, unknown> = {},
-  params: Record<string, string> = {},
-  query: Record<string, string> = {}
-): { req: Request & { userId: string }; res: Response } {
-  const req = {
-    body,
-    params,
-    query,
-    userId: 'discord-user-123',
-  } as unknown as Request & { userId: string };
-
-  const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  } as unknown as Response;
-
-  return { req, res };
-}
-
 /**
  * Create a mock request with `provisionedUserId` + `provisionedDefaultPersonaId`
  * already attached — the post-middleware state of a user-scoped route.
