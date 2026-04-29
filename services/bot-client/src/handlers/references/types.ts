@@ -4,9 +4,6 @@
  * Lightweight DTOs to reduce Discord.js dependencies and improve testability
  */
 
-import type { Message } from 'discord.js';
-import { MessageReferenceType } from 'discord.js';
-
 /**
  * Reference type enum
  */
@@ -15,16 +12,13 @@ export enum ReferenceType {
   LINK = 'LINK',
 }
 
-/**
- * Check if a Discord message is a forwarded message with snapshots.
- * Centralizes the Discord.js MessageReferenceType.Forward check.
- */
-export function isForwardedMessage(message: Message): boolean {
-  return (
-    message.reference?.type === MessageReferenceType.Forward &&
-    (message.messageSnapshots?.size ?? 0) > 0
-  );
-}
+// Re-export the canonical `isForwardedMessage` so existing imports from this
+// module keep working. The canonical implementation in `forwardedMessageUtils`
+// handles `null | undefined` and has a `messageSnapshots` fallback for cases
+// where Discord.js doesn't populate `reference.type` correctly. Previously
+// this file had its own narrower implementation, which `guard:duplicate-exports`
+// surfaced as a divergence risk.
+export { isForwardedMessage } from '../../utils/forwardedMessageUtils.js';
 
 /**
  * Raw reference result from strategy extraction

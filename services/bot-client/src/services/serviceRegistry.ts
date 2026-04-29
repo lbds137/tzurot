@@ -175,17 +175,6 @@ export function getConversationPersistence(): ConversationPersistence {
 }
 
 /**
- * Get the DenylistCache instance
- * @throws Error if services not registered
- */
-export function getDenylistCache(): DenylistCache {
-  if (denylistCache === undefined) {
-    throw new Error('DenylistCache not registered. Call registerServices() first.');
-  }
-  return denylistCache;
-}
-
-/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {

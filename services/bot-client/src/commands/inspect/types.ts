@@ -51,12 +51,6 @@ export interface DiagnosticLogSummary {
   createdAt: string;
 }
 
-/** API response for recent diagnostic logs */
-export interface RecentLogsResponse {
-  logs: DiagnosticLogSummary[];
-  count: number;
-}
-
 /** Available debug view types for interactive selection */
 export enum DebugViewType {
   FullJson = 'full-json',

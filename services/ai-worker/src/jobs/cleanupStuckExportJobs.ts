@@ -8,9 +8,7 @@
  * Called by the scheduled-jobs worker every 15 minutes.
  */
 
-import { createStuckJobCleanup, type StuckJobCleanupResult } from './cleanupStuckJobs.js';
-
-export type StuckExportCleanupResult = StuckJobCleanupResult;
+import { createStuckJobCleanup } from './cleanupStuckJobs.js';
 
 export const cleanupStuckExportJobs = createStuckJobCleanup({
   loggerName: 'cleanup-stuck-exports',

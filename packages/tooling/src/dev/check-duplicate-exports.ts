@@ -60,6 +60,10 @@ const ALLOWLIST: Record<string, Set<string>> = {
     'createSetHandler',
     'createClearHandler',
   ]),
+  // api-gateway: production module + Vitest auto-mock under `__mocks__/`
+  // duplicate by design. The auto-mock pattern is how Vitest hoists
+  // `vi.mock()` replacements; the production export remains canonical.
+  'api-gateway': new Set(['requireUserAuth', 'requireProvisionedUser']),
   // bot-client command handlers — each command module exports same-named handlers
   // for its domain (character/browse, persona/browse, etc.)
   'bot-client': new Set([
@@ -91,6 +95,20 @@ const ALLOWLIST: Record<string, Set<string>> = {
     'buildDetailEmbed',
     'buildDetailButtons',
     'REQUIRED_IMPORT_FIELDS',
+    // Per-command thin wrappers around shared autocomplete utilities —
+    // `commands/<feature>/autocomplete.ts` imports the canonical handler
+    // from `utils/autocomplete/` and re-exports a parameterized variant.
+    // See `commands/history/autocomplete.ts` for the canonical shape.
+    'handlePersonalityAutocomplete',
+    'handlePersonaAutocomplete',
+    // Same-name button handlers across distinct domains — character section
+    // editing (truncationWarning.ts) and memory editing (memory/detailModals.ts,
+    // memory/detail.ts). Different state machines, different custom-id
+    // namespaces, different tests. Renaming to disambiguate would touch the
+    // custom-id wiring in 6+ places — out of scope for this gate.
+    'handleEditTruncatedButton',
+    'handleViewFullButton',
+    'handleCancelEditButton',
   ]),
 };
 
@@ -166,7 +184,7 @@ export function parseReExportName(nameSpec: string): string | null {
   if (trimmed.startsWith('type ')) {
     return null;
   }
-  const asMatch = /(\w+)\s+as\s+(\w+)/.exec(trimmed);
+  const asMatch = /^(\w+)\s+as\s+(\w+)/.exec(trimmed);
   const name = asMatch !== null ? asMatch[2] : trimmed;
   return name.replace(/^type\s+/, '');
 }
@@ -245,9 +263,15 @@ export function findDuplicates(allExports: ExportInfo[], packageName: string): D
       continue;
     }
 
-    // Skip if all re-exports, or only one actual definition
+    // Skip if all re-exports, or only one actual definition.
+    // "Definition" here means "same name in a distinct file" — TypeScript
+    // function overloads (multiple `export function foo` lines in ONE file
+    // for one runtime function) collapse to a single definition. Without
+    // this dedup, a 3-overload signature triggers a false-positive duplicate
+    // for the in-file overloads themselves.
     const definitions = exports.filter(e => e.kind !== 'reexport');
-    if (definitions.length <= 1) {
+    const uniqueFiles = new Set(definitions.map(d => d.file));
+    if (uniqueFiles.size <= 1) {
       continue;
     }
 
