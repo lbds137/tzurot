@@ -1,25 +1,26 @@
 # Current
 
-> **Session**: 2026-04-29 (vision pipeline cleanup PR #940, post-beta.111)
-> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PR #940
+> **Session**: 2026-04-29 (vision pipeline cleanup PR #940 + knip/duplicate-exports CI gate PR #941)
+> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PR #940 + PR #941
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared. No active production bugs. Vision pipeline cleanup sweep landed in PR #940; 3 of 5 PR #938 inbox follow-ups fully resolved, 2 partially with explicit deferral._
+_All production-issues entries cleared. No active production bugs. Both PR #940 and PR #941 merged this session. Quick-wins backlog now empty._
 
 1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-2. **Backlog: knip + duplicate-exports CI gate** — 30-60min triage + flag flip. The only remaining quick-win that's actionable.
-3. **Optional next release (beta.112)** — would bundle PR #940 (vision pipeline cleanup) and the new silent-fallback warn telemetry. No production-driving urgency; cut at the user's discretion.
+2. **Optional next release (beta.112)** — would bundle PR #940 (vision pipeline cleanup) + PR #941 (CI gate hardening + dead-code cleanup). No production-driving urgency; cut at the user's discretion.
 
 ## Active Task
 
-_None. PR #940 merged 2026-04-29 (this session). 1 cleanup item added to inbox: NON_LLM_PROVIDERS shared-module move (conditional on second consumer)._
+_None. PR #941 merged 2026-04-29. 1 cleanup item added to inbox: rename/relocate `services/context/PromptContext.ts` (now contains only `MemoryDocument` after dead-code deletion)._
 
 ---
 
 ## Unreleased on Develop (since beta.111)
+
+- **PR #941** (2026-04-29) — **Make `guard:duplicate-exports` + `knip` blocking in CI**. Tooling fixes: dedup logic for TS function overloads (false-positive class eliminated), regex super-linear-move anchor, ALLOWLIST extension. Real DRY violation fixed: `isForwardedMessage` consolidation across 3 importers. Dead-code removed: `PromptContext` + `TokenBudget` interfaces, `RecentLogsResponse`, `StuckExportCleanupResult` / `StuckImportCleanupResult`, `getDenylistCache`, `createMockReqRes`. `knip.json` configured with `ignoreExportsUsedInFile: true` (~99% noise reduction). 11 files, +78/-133 (net -55 LOC). 1 review round, 0 asks.
 
 - **PR #940** (2026-04-29) — **Vision pipeline cleanup post PR #938**: 5-item bundle. `effectiveVisionModelName` helper extracted to `ProviderRouter.ts` and used by `visionAuthResolver` + `ImageDescriptionJob`. `USER_AUTH_PROBE_PROVIDERS` rewired to enum-derived list with `NON_LLM_PROVIDERS` filter — new LLM providers auto-include, ElevenLabs filtered as voice-only. Silent-fallback `logger.warn` added at `invokeVisionModel` chokepoint (interim signal before the eventual `visionProvider?` → `visionProvider` tightening; promote-when criterion: clean Railway logs for a few weeks). Hoisted double `MultimodalProcessor` lazy import in `DependencyStep`. Loud-failed 4 silent `vi.fn()` mock sites in `ImageDescriptionJob.test.ts`. 7 files, +199/-34. 2 review rounds, both convergent.
 
