@@ -194,7 +194,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      const promise = processAttachments(attachments, mockPersonality);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
 
       // Fast-forward timers for any potential retries
       await vi.runAllTimersAsync();
@@ -222,7 +222,9 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      const results = await processAttachments(attachments, mockPersonality);
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
 
       expect(results).toHaveLength(1);
       expect(results[0].type).toBe(AttachmentType.Audio);
@@ -257,7 +259,9 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      const results = await processAttachments(attachments, mockPersonality);
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
 
       expect(results).toHaveLength(3);
       expect(results[0].type).toBe(AttachmentType.Image);
@@ -283,7 +287,7 @@ describe('MultimodalProcessor', () => {
         .mockRejectedValueOnce(new Error('Temporary error'))
         .mockResolvedValueOnce({ content: 'Success after retries' });
 
-      const promise = processAttachments(attachments, mockPersonality);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
 
       // Fast-forward through retry delays
       await vi.runAllTimersAsync();
@@ -307,7 +311,7 @@ describe('MultimodalProcessor', () => {
 
       mockModelInvoke.mockRejectedValue(new Error('Permanent failure'));
 
-      const promise = processAttachments(attachments, mockPersonality);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
 
       // Fast-forward through all retry attempts
       await vi.runAllTimersAsync();
@@ -356,7 +360,7 @@ describe('MultimodalProcessor', () => {
         }
       });
 
-      const promise = processAttachments(attachments, mockPersonality);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
 
       await vi.runAllTimersAsync();
 
@@ -380,7 +384,7 @@ describe('MultimodalProcessor', () => {
 
       mockTranscribeAudio.mockRejectedValue(new Error('Network error'));
 
-      const promise = processAttachments(attachments, mockPersonality);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
 
       await vi.runAllTimersAsync();
 
@@ -398,7 +402,9 @@ describe('MultimodalProcessor', () => {
     it('should process empty attachment array', async () => {
       const attachments: AttachmentMetadata[] = [];
 
-      const results = await processAttachments(attachments, mockPersonality);
+      const results = await processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+      });
 
       expect(results).toHaveLength(0);
     });
@@ -429,7 +435,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      const promise = processAttachments(attachments, mockPersonality);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
       await vi.runAllTimersAsync();
       const results = await promise;
 
@@ -461,7 +467,10 @@ describe('MultimodalProcessor', () => {
       ];
 
       const userApiKey = 'user-test-key-12345';
-      const promise = processAttachments(attachments, mockPersonality, false, userApiKey);
+      const promise = processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+        userApiKey,
+      });
 
       await vi.runAllTimersAsync();
       await promise;
@@ -484,7 +493,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      const promise = processAttachments(attachments, mockPersonality, false, undefined);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: false });
 
       await vi.runAllTimersAsync();
       await promise;
@@ -506,7 +515,7 @@ describe('MultimodalProcessor', () => {
       ];
 
       // Guest mode with no user API key
-      const promise = processAttachments(attachments, mockPersonality, true, undefined);
+      const promise = processAttachments(attachments, mockPersonality, { isGuestMode: true });
 
       await vi.runAllTimersAsync();
       await promise;
@@ -526,7 +535,10 @@ describe('MultimodalProcessor', () => {
       ];
 
       const userApiKey = 'user-test-key-67890';
-      const promise = processAttachments(attachments, mockPersonality, false, userApiKey);
+      const promise = processAttachments(attachments, mockPersonality, {
+        isGuestMode: false,
+        userApiKey,
+      });
 
       await vi.runAllTimersAsync();
       await promise;

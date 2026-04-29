@@ -410,10 +410,10 @@ describe('DependencyStep', () => {
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/cat.jpg' })],
         TEST_PERSONALITY,
-        false,
-        undefined,
-        undefined,
-        expect.objectContaining({ apiKeySource: 'system' })
+        expect.objectContaining({
+          isGuestMode: false,
+          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+        })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
       expect(result.preprocessing?.extendedContextAttachments?.[0].description).toBe(
@@ -472,10 +472,14 @@ describe('DependencyStep', () => {
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/dog.jpg' })],
         TEST_PERSONALITY,
-        false, // isGuestMode from auth context
-        'user-test-key-12345', // userApiKey from auth context (BYOK)
-        undefined, // elevenlabsApiKey (not set in this test)
-        expect.objectContaining({ userId: 'byok-user-789', apiKeySource: 'user' })
+        expect.objectContaining({
+          isGuestMode: false,
+          userApiKey: 'user-test-key-12345',
+          loggingContext: expect.objectContaining({
+            userId: 'byok-user-789',
+            apiKeySource: 'user',
+          }),
+        })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
@@ -537,10 +541,14 @@ describe('DependencyStep', () => {
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/bird.jpg' })],
         GUEST_EFFECTIVE_PERSONALITY, // Uses resolved config with free visionModel
-        true, // isGuestMode = true for guest users
-        'system-openrouter-key', // System key (guests don't have BYOK)
-        undefined, // elevenlabsApiKey (guests don't have ElevenLabs key)
-        expect.objectContaining({ userId: 'guest-user-123', apiKeySource: 'system' })
+        expect.objectContaining({
+          isGuestMode: true,
+          userApiKey: 'system-openrouter-key',
+          loggingContext: expect.objectContaining({
+            userId: 'guest-user-123',
+            apiKeySource: 'system',
+          }),
+        })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
 
@@ -686,10 +694,10 @@ describe('DependencyStep', () => {
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/noauth.jpg' })],
         TEST_PERSONALITY,
-        false, // isGuestMode defaults to false when auth missing
-        undefined, // userApiKey is undefined (system key fallback)
-        undefined, // elevenlabsApiKey (no auth context)
-        expect.objectContaining({ apiKeySource: 'system' })
+        expect.objectContaining({
+          isGuestMode: false,
+          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+        })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });
@@ -738,10 +746,10 @@ describe('DependencyStep', () => {
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         [expect.objectContaining({ url: 'https://example.com/fallback.jpg' })],
         TEST_PERSONALITY, // Falls back to job.data.personality
-        false,
-        undefined,
-        undefined, // elevenlabsApiKey (no config context)
-        expect.objectContaining({ apiKeySource: 'system' })
+        expect.objectContaining({
+          isGuestMode: false,
+          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+        })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
     });

@@ -100,14 +100,10 @@ async function processSingleImage(
   try {
     const result = await withRetry(
       () =>
-        describeImage(
-          attachment,
-          personality,
-          isGuestMode,
-          userApiKey,
-          { skipNegativeCache: true },
-          { ...loggingContext, provider: AIProvider.OpenRouter }
-        ),
+        describeImage(attachment, personality, isGuestMode, userApiKey, {
+          skipNegativeCache: true,
+          loggingContext: { ...loggingContext, provider: AIProvider.OpenRouter },
+        }),
       {
         maxAttempts: VISION_MAX_ATTEMPTS,
         globalTimeoutMs: TIMEOUTS.VISION_MODEL * VISION_MAX_ATTEMPTS,

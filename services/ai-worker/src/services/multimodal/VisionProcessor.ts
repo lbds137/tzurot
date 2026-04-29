@@ -34,8 +34,16 @@ const config = getConfig();
  * `FAILURE_LABELS` via `buildFailureFallback`. Other categories (auth, quota, rate-limit,
  * server-error, timeout, network, etc.) return the generic "temporarily unavailable"
  * fallback before ever consulting this map, so listing them here would be dead code.
+ *
+ * **Invariant**: every member of `ATTACHMENT_BOUND_FAILURE_CATEGORIES` MUST have an entry
+ * here. The two structures encode the same "this category gets a specific label" decision
+ * and must stay in sync — adding a new attachment-bound category to the set without an
+ * entry here would surface raw enum strings to users (e.g. `[Image unavailable: new_thing]`).
+ * Enforced by an invariant test in `VisionProcessor.test.ts`.
+ *
+ * Exported for the invariant test only — call sites should use `buildFailureFallback`.
  */
-const FAILURE_LABELS: Partial<Record<ApiErrorCategory, string>> = {
+export const FAILURE_LABELS: Partial<Record<ApiErrorCategory, string>> = {
   [ApiErrorCategory.CONTENT_POLICY]: 'content filtered',
   [ApiErrorCategory.MODEL_NOT_FOUND]: 'model unavailable',
   [ApiErrorCategory.MEDIA_NOT_FOUND]: 'image unavailable',
@@ -92,16 +100,6 @@ function isValidVisionDescription(description: string): boolean {
 }
 
 /**
- * Options for describeImage behavior
- */
-export interface DescribeImageOptions {
-  /** Skip negative cache check — set to true when called within a retry loop */
-  skipNegativeCache?: boolean;
-  /** Skip positive cache check — set to true to force re-processing */
-  skipCache?: boolean;
-}
-
-/**
  * Diagnostic context for failure logging — answers "whose request was this, on what key,
  * for what attachment" without forcing the caller to grep across multiple log lines.
  *
@@ -119,6 +117,19 @@ export interface VisionLoggingContext {
   jobId?: string;
   /** AI provider routing the request (e.g., `'openrouter'`) */
   provider?: string;
+}
+
+/**
+ * Options for describeImage behavior + logging context.
+ * Bundling these reduces param count (was 6 with separate `loggingContext`).
+ */
+export interface DescribeImageOptions {
+  /** Skip negative cache check — set to true when called within a retry loop */
+  skipNegativeCache?: boolean;
+  /** Skip positive cache check — set to true to force re-processing */
+  skipCache?: boolean;
+  /** Diagnostic context for failure logging + source-aware fallback strings */
+  loggingContext?: VisionLoggingContext;
 }
 
 /**
@@ -149,26 +160,26 @@ export async function hasVisionSupport(modelName: string): Promise<boolean> {
 }
 
 /**
+ * Internal options for `invokeVisionModel`.
+ */
+interface InvokeVisionModelOptions {
+  systemPrompt?: string;
+  userApiKey?: string;
+  loggingContext: VisionLoggingContext;
+  personalityName: string;
+}
+
+/**
  * Invoke a vision model with the given attachment and optional system prompt.
  * Uses ModelFactory's createChatModel for consistent API key routing,
  * parameter filtering, and OpenRouter integration.
- *
- * @param attachment - Image attachment to describe
- * @param modelName - Model identifier (e.g., "gpt-4o", "qwen/qwen3-vl")
- * @param systemPrompt - Optional system prompt (personality's system prompt with jailbreak)
- * @param userApiKey - Optional user's BYOK API key
- * @param loggingContext - Diagnostic fields propagated to the failure log
- * @param personalityName - Personality name for failure-log enrichment
  */
-// eslint-disable-next-line max-params -- 6 conceptually-distinct params (data, model config, auth, diagnostics) — bundling unrelated concerns into one bag harms call-site clarity
 async function invokeVisionModel(
   attachment: AttachmentMetadata,
   modelName: string,
-  systemPrompt: string | undefined,
-  userApiKey: string | undefined,
-  loggingContext: VisionLoggingContext,
-  personalityName: string
+  options: InvokeVisionModelOptions
 ): Promise<string> {
+  const { systemPrompt, userApiKey, loggingContext, personalityName } = options;
   const { model } = createChatModel({
     modelName,
     apiKey: userApiKey,
@@ -429,19 +440,18 @@ async function selectVisionModel(
  *                      Guest users use free vision models, BYOK users use paid models
  * @param userApiKey - Optional user's BYOK API key (for BYOK users, this should be passed
  *                     so their API key is used instead of the bot's primary key)
- * @param options - Cache-skip flags
- * @param loggingContext - Diagnostic fields propagated to the failure log + fallback string
- *                         (only `apiKeySource` is consumed for fallback variants — others are log-only)
+ * @param options - Cache-skip flags + `loggingContext` for diagnostic enrichment and
+ *                  source-aware fallback strings (only `apiKeySource` is consumed for
+ *                  fallback variants — other context fields are log-only)
  */
-// eslint-disable-next-line max-params -- 6 conceptually-distinct params (data, personality, auth flags, behavior options, diagnostics); one big bag obscures auth/behavior boundaries at call sites
 export async function describeImage(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
   isGuestMode = false,
   userApiKey?: string,
-  options?: DescribeImageOptions,
-  loggingContext: VisionLoggingContext = {}
+  options: DescribeImageOptions = {}
 ): Promise<string> {
+  const loggingContext: VisionLoggingContext = options.loggingContext ?? {};
   logger.info(
     {
       personalityName: personality.name,
@@ -497,14 +507,12 @@ export async function describeImage(
       : undefined;
 
   const usedModel = await selectVisionModel(personality, isGuestMode);
-  const description = await invokeVisionModel(
-    attachment,
-    usedModel,
+  const description = await invokeVisionModel(attachment, usedModel, {
     systemPrompt,
     userApiKey,
     loggingContext,
-    personality.name
-  );
+    personalityName: personality.name,
+  });
 
   // Cache the description for future use (Redis L1 only).
   // Uses shared validation to prevent error-like descriptions from polluting the cache.

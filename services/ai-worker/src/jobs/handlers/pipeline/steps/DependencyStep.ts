@@ -230,14 +230,12 @@ export class DependencyStep implements IPipelineStep {
       // "your API key was rejected" wording from misfiring on system-key glitches.
       const { processAttachments, deriveApiKeySource } =
         await import('../../../../services/MultimodalProcessor.js');
-      const processed = await processAttachments(
-        imageAttachments,
-        personality,
+      const processed = await processAttachments(imageAttachments, personality, {
         isGuestMode,
         userApiKey,
         elevenlabsApiKey,
-        { userId, apiKeySource: deriveApiKeySource(isGuestMode, userApiKey) }
-      );
+        loggingContext: { userId, apiKeySource: deriveApiKeySource(isGuestMode, userApiKey) },
+      });
 
       logger.info(
         { jobId, processedCount: processed.length },

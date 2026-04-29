@@ -661,15 +661,16 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'What is this?', context);
 
-      // Includes isGuestMode (false), userApiKey (undefined), elevenlabsApiKey (undefined),
-      // and a loggingContext with userId/apiKeySource for diagnostic enrichment.
+      // Options bag carries isGuestMode (false), userApiKey (undefined),
+      // elevenlabsApiKey (undefined), and a loggingContext with userId/apiKeySource
+      // for diagnostic enrichment.
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         attachments,
         personality,
-        false,
-        undefined,
-        undefined,
-        expect.objectContaining({ apiKeySource: 'system' })
+        expect.objectContaining({
+          isGuestMode: false,
+          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+        })
       );
     });
 
@@ -692,10 +693,10 @@ describe('ConversationalRAGService', () => {
       expect(mockProcessAttachments).toHaveBeenCalledWith(
         attachments,
         personality,
-        false,
-        undefined,
-        undefined,
-        expect.objectContaining({ apiKeySource: 'system' })
+        expect.objectContaining({
+          isGuestMode: false,
+          loggingContext: expect.objectContaining({ apiKeySource: 'system' }),
+        })
       );
     });
 
