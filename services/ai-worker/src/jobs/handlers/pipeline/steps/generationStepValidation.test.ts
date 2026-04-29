@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { Job } from 'bullmq';
-import type { LLMGenerationJobData } from '@tzurot/common-types';
+import { AIProvider, type LLMGenerationJobData } from '@tzurot/common-types';
 import { validatePrerequisites } from './generationStepValidation.js';
 import type { GenerationContext } from '../types.js';
 
@@ -20,7 +20,7 @@ describe('validatePrerequisites', () => {
       validatePrerequisites({
         job: fakeJob,
         startTime: 0,
-        auth: { apiKey: 'k', provider: 'openrouter', isGuestMode: false },
+        auth: { apiKey: 'k', provider: AIProvider.OpenRouter, isGuestMode: false },
         preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
       } satisfies GenerationContext)
     ).toThrow(/ConfigStep must run before GenerationStep/);
@@ -51,7 +51,7 @@ describe('validatePrerequisites', () => {
           effectivePersonality: {} as any,
           configSource: 'personality',
         },
-        auth: { apiKey: 'k', provider: 'openrouter', isGuestMode: false },
+        auth: { apiKey: 'k', provider: AIProvider.OpenRouter, isGuestMode: false },
       } satisfies GenerationContext)
     ).toThrow(/ContextStep must run before GenerationStep/);
   });
@@ -66,7 +66,7 @@ describe('validatePrerequisites', () => {
           effectivePersonality: {} as any,
           configSource: 'personality',
         },
-        auth: { apiKey: 'k', provider: 'openrouter', isGuestMode: false },
+        auth: { apiKey: 'k', provider: AIProvider.OpenRouter, isGuestMode: false },
         preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
       } satisfies GenerationContext)
     ).not.toThrow();

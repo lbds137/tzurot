@@ -11,12 +11,19 @@ import {
   REDIS_KEY_PREFIXES,
   AttachmentType,
   JobType,
+  type AIProvider,
+  type AttachmentMetadata,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
 } from '@tzurot/common-types';
-import type { AttachmentMetadata } from '@tzurot/common-types';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
 import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
+import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
+import {
+  resolveVisionAuth,
+  buildVisionAuthFailureResults,
+} from '../../../../services/multimodal/visionAuthResolver.js';
+import { selectVisionModel } from '../../../../services/multimodal/VisionProcessor.js';
 
 const logger = createLogger('DependencyStep');
 
@@ -41,6 +48,15 @@ interface ImageInfo {
 
 export class DependencyStep implements IPipelineStep {
   readonly name = 'DependencyResolution';
+
+  /**
+   * `apiKeyResolver` is required for cross-provider vision auth resolution
+   * (e.g., main=z.ai-coding + vision=OpenRouter). Optional for backwards
+   * compatibility with existing test fixtures that instantiate `DependencyStep()`
+   * without args; runtime instantiation in `LLMGenerationHandler` always
+   * passes the resolver.
+   */
+  constructor(private readonly apiKeyResolver?: ApiKeyResolver) {}
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, auth, config } = context;
@@ -101,6 +117,7 @@ export class DependencyStep implements IPipelineStep {
           isGuestMode: auth?.isGuestMode ?? false,
           userApiKey: auth?.apiKey,
           elevenlabsApiKey: auth?.elevenlabsApiKey,
+          mainProvider: auth?.provider,
         },
         jobContext.userId
       );
@@ -203,10 +220,15 @@ export class DependencyStep implements IPipelineStep {
     attachments: AttachmentMetadata[],
     personality: GenerationContext['job']['data']['personality'],
     jobId: string | undefined,
-    authOptions: { isGuestMode: boolean; userApiKey?: string; elevenlabsApiKey?: string },
+    authOptions: {
+      isGuestMode: boolean;
+      userApiKey?: string;
+      elevenlabsApiKey?: string;
+      mainProvider?: AIProvider;
+    },
     userId: string
   ): Promise<ProcessedAttachment[]> {
-    const { isGuestMode, userApiKey, elevenlabsApiKey } = authOptions;
+    const { isGuestMode, userApiKey, elevenlabsApiKey, mainProvider } = authOptions;
     // Filter to only images
     const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'));
     if (imageAttachments.length === 0) {
@@ -223,25 +245,122 @@ export class DependencyStep implements IPipelineStep {
       'Processing extended context images inline'
     );
 
+    // Cross-provider vision auth: detect the personality's vision provider
+    // and re-resolve the API key for that provider if it differs from the
+    // main-model provider. Without this, a personality with main=z.ai-coding
+    // + vision=OpenRouter (or vice versa) sends the wrong key to the wrong
+    // provider's API and gets a 401.
+    //
+    // Note: `userApiKey` may be undefined here in the AuthStep error-recovery
+    // case (degraded guest mode where ProviderRouter.resolveRoute threw).
+    // We forward it as-is — `resolveVisionAuth` skips its same-provider fast
+    // path when `mainApiKey` is empty, so per-provider resolution always runs
+    // for that case rather than falling through to the legacy path that lacks
+    // explicit `provider` plumbing.
+    if (this.apiKeyResolver !== undefined && mainProvider !== undefined) {
+      // Outer try/catch covers the entire cross-provider block — including
+      // `selectVisionModel`, `resolveVisionAuth`, and `processAttachments`.
+      // A transient Redis blip inside `apiKeyResolver.resolveApiKey` (guest
+      // path) or `tryResolveUserKey` (authenticated path) would otherwise
+      // throw out of `processExtendedContextImages` entirely, skipping the
+      // graceful "continuing without them" degradation that the legacy path
+      // already had. Wrapping at this scope keeps the failure UX consistent
+      // across all branches: a resolver throw degrades the same as a
+      // `processAttachments` throw — return empty, log, let the chat
+      // continue without the images.
+      try {
+        // Pre-compute the effective vision model with the same selection logic
+        // `describeImage` uses internally — so when `selectVisionModel` falls
+        // through to `VISION_FALLBACK_MODEL` (main lacks native vision and no
+        // override), provider detection sees the actual model rather than the
+        // main model. Without this, a personality with main=glm-5.1 (no vision)
+        // would have its provider detected as ZaiCoding even though the
+        // fallback model is on OpenRouter.
+        const effectiveVisionModel = await selectVisionModel(personality, isGuestMode);
+        const visionAuth = await resolveVisionAuth({
+          personality,
+          mainProvider,
+          mainApiKey: userApiKey,
+          isGuestMode,
+          userId,
+          apiKeyResolver: this.apiKeyResolver,
+          effectiveVisionModel,
+        });
+        if (visionAuth === null) {
+          // Authenticated user with no key for the vision provider. Fail-fast
+          // with synthetic-failure entries; the negative cache absorbs retries
+          // for 5min so the user sees a stable fallback string until they fix
+          // the key.
+          return buildVisionAuthFailureResults(imageAttachments);
+        }
+        // Lazy import to avoid circular deps with MultimodalProcessor.
+        const { processAttachments } = await import('../../../../services/MultimodalProcessor.js');
+        const processed = await processAttachments(imageAttachments, personality, {
+          isGuestMode,
+          userApiKey: visionAuth.apiKey,
+          elevenlabsApiKey,
+          visionProvider: visionAuth.provider,
+          loggingContext: {
+            userId,
+            apiKeySource: visionAuth.source,
+            provider: visionAuth.provider,
+          },
+        });
+
+        logger.info(
+          { jobId, processedCount: processed.length, visionProvider: visionAuth.provider },
+          'Extended context images processed successfully'
+        );
+
+        return processed;
+      } catch (error) {
+        logger.error(
+          { err: error, jobId },
+          'Failed to process extended context images - continuing without them'
+        );
+        return [];
+      }
+    }
+
+    // Fallback path — reached when EITHER apiKeyResolver is undefined (legacy
+    // test fixture path; production always passes it via LLMGenerationHandler)
+    // OR mainProvider is undefined (AuthStep error-recovery branch). Both
+    // sub-cases proceed with the upstream-resolved main key verbatim — same as
+    // pre-fix behavior, may misroute cross-provider personalities, but no
+    // worse than before.
+    //
+    // The `apiKeyResolver === undefined` sub-case logs at error level because
+    // it indicates a regression: the resolver should always be wired up in
+    // production. The subsequent `logger.info('processed successfully',
+    // path: 'legacy-fallback')` is intentional — together the two log lines
+    // narrate "this shouldn't have happened, but we recovered." Operators
+    // searching Railway logs for the error will see both entries and understand
+    // the request did complete via the degraded path.
+    if (this.apiKeyResolver === undefined) {
+      logger.error(
+        { jobId, mainProvider, hasUserApiKey: userApiKey !== undefined },
+        'apiKeyResolver missing in DependencyStep — using legacy fallback path. ' +
+          'Cross-provider personalities may misroute. This should not happen in production.'
+      );
+    }
     try {
-      // Lazy import to avoid circular deps with MultimodalProcessor.
-      // `apiKeySource` uses the shared `deriveApiKeySource` helper so guests resolve
-      // to 'system' even when `auth.apiKey` is non-undefined — this prevents the
-      // "your API key was rejected" wording from misfiring on system-key glitches.
+      // Lazy import to avoid circular deps with MultimodalProcessor (mirrors
+      // the cross-provider path's lazy import above for the same reason).
       const { processAttachments, deriveApiKeySource } =
         await import('../../../../services/MultimodalProcessor.js');
       const processed = await processAttachments(imageAttachments, personality, {
         isGuestMode,
         userApiKey,
         elevenlabsApiKey,
-        loggingContext: { userId, apiKeySource: deriveApiKeySource(isGuestMode, userApiKey) },
+        loggingContext: {
+          userId,
+          apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),
+        },
       });
-
       logger.info(
-        { jobId, processedCount: processed.length },
+        { jobId, processedCount: processed.length, path: 'legacy-fallback' },
         'Extended context images processed successfully'
       );
-
       return processed;
     } catch (error) {
       logger.error(

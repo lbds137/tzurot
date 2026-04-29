@@ -118,7 +118,7 @@ export class AuthStep implements IPipelineStep {
     userId: string
   ): Promise<{
     resolvedApiKey: string | undefined;
-    resolvedProvider: string | undefined;
+    resolvedProvider: AIProvider | undefined;
     isGuestMode: boolean;
     effectivePersonality: NonNullable<GenerationContext['config']>['effectivePersonality'];
     wasAutoPromoted?: boolean;
