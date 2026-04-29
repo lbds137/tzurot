@@ -3,7 +3,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { processImageDescriptionJob } from './ImageDescriptionJob.js';
+import {
+  processImageDescriptionJob,
+  USER_AUTH_PROBE_PROVIDERS,
+  NON_LLM_PROVIDERS,
+} from './ImageDescriptionJob.js';
 import type { Job } from 'bullmq';
 import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
 import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS } from '@tzurot/common-types';
@@ -554,7 +558,11 @@ describe('ImageDescriptionJob', () => {
       // is NOT called for authenticated users with the right key.
       const mockApiKeyResolver = {
         tryResolveUserKey: vi.fn().mockResolvedValue('sk-user-provided-key'),
-        resolveApiKey: vi.fn(),
+        resolveApiKey: vi
+          .fn()
+          .mockRejectedValue(
+            new Error('resolveApiKey should not be called — fail-fast bypass expected')
+          ),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
@@ -610,7 +618,11 @@ describe('ImageDescriptionJob', () => {
       // Authenticated user has the z.ai key for the vision provider.
       const mockApiKeyResolver = {
         tryResolveUserKey: vi.fn().mockResolvedValue('zai-key'),
-        resolveApiKey: vi.fn(),
+        resolveApiKey: vi
+          .fn()
+          .mockRejectedValue(
+            new Error('resolveApiKey should not be called — fail-fast bypass expected')
+          ),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
@@ -653,7 +665,11 @@ describe('ImageDescriptionJob', () => {
       const job = { id: 'image-fb', data: jobData } as Job<ImageDescriptionJobData>;
       const mockApiKeyResolver = {
         tryResolveUserKey: vi.fn().mockResolvedValue('zai-key'),
-        resolveApiKey: vi.fn(),
+        resolveApiKey: vi
+          .fn()
+          .mockRejectedValue(
+            new Error('resolveApiKey should not be called — fail-fast bypass expected')
+          ),
       } as unknown as ApiKeyResolver;
 
       await processImageDescriptionJob(job, mockApiKeyResolver);
@@ -702,7 +718,11 @@ describe('ImageDescriptionJob', () => {
         );
       const mockApiKeyResolver = {
         tryResolveUserKey,
-        resolveApiKey: vi.fn(),
+        resolveApiKey: vi
+          .fn()
+          .mockRejectedValue(
+            new Error('resolveApiKey should not be called — fail-fast bypass expected')
+          ),
       } as unknown as ApiKeyResolver;
 
       const result = await processImageDescriptionJob(job, mockApiKeyResolver);
@@ -852,5 +872,36 @@ describe('ImageDescriptionJob', () => {
         })
       );
     });
+  });
+});
+
+describe('USER_AUTH_PROBE_PROVIDERS', () => {
+  it('excludes every provider tagged in NON_LLM_PROVIDERS', () => {
+    // Locks in the contract that drove the refactor: NON_LLM_PROVIDERS is the
+    // single source of truth for "which providers should NOT make a user
+    // count as LLM-authenticated." If a future contributor removes a tag
+    // from NON_LLM_PROVIDERS without intending to, this test fires.
+    for (const nonLlm of NON_LLM_PROVIDERS) {
+      expect(USER_AUTH_PROBE_PROVIDERS).not.toContain(nonLlm);
+    }
+  });
+
+  it('includes every AIProvider variant that is not in NON_LLM_PROVIDERS', () => {
+    // The inverse: a new LLM provider added to AIProvider must auto-include
+    // in the probe list. If someone refactors USER_AUTH_PROBE_PROVIDERS back
+    // to a hardcoded array and forgets to update it when a new provider lands,
+    // this test fires.
+    const nonLlmSet = new Set<AIProvider>(NON_LLM_PROVIDERS);
+    const expected = Object.values(AIProvider).filter(p => !nonLlmSet.has(p));
+    expect([...USER_AUTH_PROBE_PROVIDERS].sort()).toEqual([...expected].sort());
+  });
+
+  it('currently includes OpenRouter and ZaiCoding, excludes ElevenLabs', () => {
+    // Snapshot of the current concrete state — supplements the structural
+    // assertions above with a value-level check so a reader of the test file
+    // can see at a glance which providers are in scope today.
+    expect(USER_AUTH_PROBE_PROVIDERS).toContain(AIProvider.OpenRouter);
+    expect(USER_AUTH_PROBE_PROVIDERS).toContain(AIProvider.ZaiCoding);
+    expect(USER_AUTH_PROBE_PROVIDERS).not.toContain(AIProvider.ElevenLabs);
   });
 });

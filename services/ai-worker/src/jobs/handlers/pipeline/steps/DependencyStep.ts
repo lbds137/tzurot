@@ -245,6 +245,18 @@ export class DependencyStep implements IPipelineStep {
       'Processing extended context images inline'
     );
 
+    // Lazy import once for both branches below. Module-level static import is
+    // blocked by a circular dep with MultimodalProcessor (the type-only import
+    // at the top of this file is fine — types are erased). ES module caching
+    // means the cost of `await import()` is a microtask after the first call,
+    // so doing it once vs. twice is structurally identical at runtime — but
+    // duplicating the import line in both branches was visual noise and made
+    // the symmetry between the cross-provider and legacy paths harder to see.
+    // `deriveApiKeySource` is only consumed by the legacy branch; destructuring
+    // it here is fine — the cross-provider branch ignores the unused name.
+    const { processAttachments, deriveApiKeySource } =
+      await import('../../../../services/MultimodalProcessor.js');
+
     // Cross-provider vision auth: detect the personality's vision provider
     // and re-resolve the API key for that provider if it differs from the
     // main-model provider. Without this, a personality with main=z.ai-coding
@@ -293,8 +305,6 @@ export class DependencyStep implements IPipelineStep {
           // the key.
           return buildVisionAuthFailureResults(imageAttachments);
         }
-        // Lazy import to avoid circular deps with MultimodalProcessor.
-        const { processAttachments } = await import('../../../../services/MultimodalProcessor.js');
         const processed = await processAttachments(imageAttachments, personality, {
           isGuestMode,
           userApiKey: visionAuth.apiKey,
@@ -344,10 +354,6 @@ export class DependencyStep implements IPipelineStep {
       );
     }
     try {
-      // Lazy import to avoid circular deps with MultimodalProcessor (mirrors
-      // the cross-provider path's lazy import above for the same reason).
-      const { processAttachments, deriveApiKeySource } =
-        await import('../../../../services/MultimodalProcessor.js');
       const processed = await processAttachments(imageAttachments, personality, {
         isGuestMode,
         userApiKey,

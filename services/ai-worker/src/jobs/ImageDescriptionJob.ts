@@ -21,7 +21,7 @@ import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError, getErrorLogContext } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
-import { detectVisionProvider } from '../services/ProviderRouter.js';
+import { detectVisionProvider, effectiveVisionModelName } from '../services/ProviderRouter.js';
 import { VISION_AUTH_FAIL_FAST_DESCRIPTION } from '../services/multimodal/visionAuthResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
@@ -66,17 +66,35 @@ type VisionApiKeyResult =
     };
 
 /**
+ * Providers explicitly excluded from "is this user authenticated for LLM/vision
+ * purposes?" probing. ElevenLabs is voice-only; a user with only an ElevenLabs
+ * key isn't an LLM-authenticated user and should not bypass system fallback.
+ *
+ * Exported as a readonly tuple so any future non-LLM provider added to
+ * `AIProvider` (e.g., a dedicated TTS or STT provider) has a single canonical
+ * place to opt out of authentication probing.
+ */
+export const NON_LLM_PROVIDERS = [AIProvider.ElevenLabs] as const;
+
+const NON_LLM_PROVIDER_SET: ReadonlySet<AIProvider> = new Set(NON_LLM_PROVIDERS);
+
+/**
  * Providers checked when determining whether a user is "authenticated" — i.e.
  * has at least one user-configured key for SOME provider. Drives the
  * fail-fast vs system-fallback discriminator inside `resolveVisionApiKey`.
  *
- * Order doesn't matter for correctness — short-circuits on first hit. Listed
- * with OpenRouter first because it's the most common BYOK target. ElevenLabs
- * intentionally excluded: it's voice-only, not an LLM/vision provider, and
- * a user with only an ElevenLabs key shouldn't be classified as "LLM
- * authenticated" for vision purposes.
+ * Derived from `AIProvider` (minus `NON_LLM_PROVIDERS`) so that adding a new
+ * LLM provider to the enum auto-includes it in the probe list. The previous
+ * hardcoded form went stale with z.ai and was a documented drift risk —
+ * future-us would have silently misclassified new-provider-only users as
+ * guests until someone noticed.
+ *
+ * Order doesn't matter for correctness — `userHasAnyKey` short-circuits on
+ * first hit.
  */
-const USER_AUTH_PROBE_PROVIDERS: AIProvider[] = [AIProvider.OpenRouter, AIProvider.ZaiCoding];
+export const USER_AUTH_PROBE_PROVIDERS: readonly AIProvider[] = Object.values(AIProvider).filter(
+  (p): p is AIProvider => !NON_LLM_PROVIDER_SET.has(p)
+);
 
 /**
  * Determine whether a user has at least one user-configured key for any LLM
@@ -127,13 +145,7 @@ async function resolveVisionApiKey(
   // take the explicit visionModel override if set, else default to the main
   // model's provider (which is what selectVisionModel would also pick when
   // the main model has native vision).
-  const visionModelName =
-    personality.visionModel !== undefined &&
-    personality.visionModel !== null &&
-    personality.visionModel.length > 0
-      ? personality.visionModel
-      : personality.model;
-  const visionProvider = detectVisionProvider(visionModelName);
+  const visionProvider = detectVisionProvider(effectiveVisionModelName(personality));
 
   try {
     // First: try user's key for the vision provider directly. No system

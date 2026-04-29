@@ -28,7 +28,7 @@ import {
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
-import { detectVisionProvider } from '../ProviderRouter.js';
+import { detectVisionProvider, effectiveVisionModelName } from '../ProviderRouter.js';
 import { visionDescriptionCache } from '../../redis.js';
 import type { ApiKeyResolver } from '../ApiKeyResolver.js';
 import type { ProcessedAttachment } from '../MultimodalProcessor.js';
@@ -109,13 +109,7 @@ export async function resolveVisionAuth(
 ): Promise<VisionAuth | null> {
   const { personality, mainProvider, mainApiKey, isGuestMode, userId, apiKeyResolver } = options;
 
-  const visionModelName =
-    options.effectiveVisionModel ??
-    (personality.visionModel !== undefined &&
-    personality.visionModel !== null &&
-    personality.visionModel.length > 0
-      ? personality.visionModel
-      : personality.model);
+  const visionModelName = options.effectiveVisionModel ?? effectiveVisionModelName(personality);
 
   const visionProvider = detectVisionProvider(visionModelName);
 

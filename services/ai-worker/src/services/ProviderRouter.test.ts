@@ -10,7 +10,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AIProvider } from '@tzurot/common-types';
-import { ProviderRouter, detectVisionProvider } from './ProviderRouter.js';
+import {
+  ProviderRouter,
+  detectVisionProvider,
+  effectiveVisionModelName,
+} from './ProviderRouter.js';
 import type { ApiKeyResolver, ApiKeyResolutionResult } from './ApiKeyResolver.js';
 
 // Mock logger via the shared common-types mock pattern
@@ -529,5 +533,49 @@ describe('detectVisionProvider', () => {
     // prefix are safer to route via OpenRouter than to mis-detect as z.ai.
     expect(detectVisionProvider('gpt-4-vision-preview')).toBe(AIProvider.OpenRouter);
     expect(detectVisionProvider('claude-3.5-sonnet')).toBe(AIProvider.OpenRouter);
+  });
+});
+
+describe('effectiveVisionModelName', () => {
+  it('returns visionModel when set and non-empty', () => {
+    expect(
+      effectiveVisionModelName({
+        model: 'glm-5.1',
+        visionModel: 'qwen/qwen3.5-397b-a17b',
+      })
+    ).toBe('qwen/qwen3.5-397b-a17b');
+  });
+
+  it('falls back to model when visionModel is undefined', () => {
+    expect(
+      effectiveVisionModelName({
+        model: 'gpt-4o',
+        visionModel: undefined,
+      })
+    ).toBe('gpt-4o');
+  });
+
+  it('falls back to model when visionModel is null', () => {
+    // Zod-narrowed `LoadedPersonality` declares `string | undefined`, but the
+    // upstream `LlmConfigResolver` shape is `string | null`. Defensive null
+    // handling matches what the inline expressions used to do at the call sites.
+    expect(
+      effectiveVisionModelName({
+        model: 'gpt-4o',
+        visionModel: null,
+      })
+    ).toBe('gpt-4o');
+  });
+
+  it('falls back to model when visionModel is empty string', () => {
+    // Schema validation rejects null on this job-data field, so callers
+    // sometimes use empty-string as the "unset" sentinel. The helper
+    // treats empty-string the same as null/undefined.
+    expect(
+      effectiveVisionModelName({
+        model: 'glm-5.1',
+        visionModel: '',
+      })
+    ).toBe('glm-5.1');
   });
 });
