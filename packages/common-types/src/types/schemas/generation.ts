@@ -42,6 +42,9 @@ const errorInfoSchema = z.object({
   shouldRetry: z.boolean(),
   /** OpenRouter request ID for support (from x-request-id header) */
   requestId: z.string().optional(),
+  /** Unix timestamp (ms) when an active rate-limit window resets.
+   *  Populated only on 429 errors that surfaced an `X-RateLimit-Reset` header. */
+  rateLimitResetMs: z.number().optional(),
 });
 
 /**

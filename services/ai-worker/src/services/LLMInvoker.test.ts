@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker, supportsStopSequences } from './LLMInvoker.js';
 import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { TIMEOUTS } from '@tzurot/common-types';
+import { TIMEOUTS, ApiErrorType } from '@tzurot/common-types';
 
 // Mock ModelFactory
 vi.mock('./ModelFactory.js', () => ({
@@ -54,6 +54,17 @@ vi.mock('./modelFactory/extractOpenRouterReasoning.js', () => ({
   extractAndPopulateOpenRouterReasoning: (msg: unknown) => mockExtractReasoning(msg),
 }));
 
+// Mock the rate-limit cache singleton so tests can assert cache-read/cache-write
+// behavior at the LLMInvoker boundary without standing up a real Redis instance.
+const mockIsRateLimited = vi.fn().mockResolvedValue({ rateLimited: false });
+const mockMarkRateLimited = vi.fn().mockResolvedValue(undefined);
+vi.mock('../redis.js', () => ({
+  rateLimitCache: {
+    isRateLimited: (...args: unknown[]) => mockIsRateLimited(...args),
+    markRateLimited: (...args: unknown[]) => mockMarkRateLimited(...args),
+  },
+}));
+
 describe('LLMInvoker', () => {
   let invoker: LLMInvoker;
 
@@ -70,6 +81,13 @@ describe('LLMInvoker', () => {
     // leak into subsequent tests.
     mockExtractReasoning.mockReset();
     mockExtractReasoning.mockImplementation(<T>(msg: T) => msg);
+    // Same pattern for the rate-limit cache mocks: clearAllMocks +
+    // restoreAllMocks erase the resolved-value defaults set at module
+    // scope, so re-establish them between tests.
+    mockIsRateLimited.mockReset();
+    mockIsRateLimited.mockResolvedValue({ rateLimited: false });
+    mockMarkRateLimited.mockReset();
+    mockMarkRateLimited.mockResolvedValue(undefined);
   });
 
   describe('getModel', () => {
@@ -1383,6 +1401,162 @@ describe('LLMInvoker', () => {
         // Array content → typeof check fails → falls through to isNaturalStop
         expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('rate-limit cache integration', () => {
+    it('skips the LLM call when cache says (cacheKeyId, model) is rate-limited', async () => {
+      // Cache reports an active rate-limit window
+      const cachedResetMs = Date.now() + 3600 * 1000;
+      mockIsRateLimited.mockResolvedValueOnce({
+        rateLimited: true,
+        resetMs: cachedResetMs,
+        ttlSeconds: 3600,
+      });
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const mockInvoke = vi.fn();
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      // Stronger assertion than `.toThrow()`: the synthetic short-circuit error
+      // MUST carry the same shape downstream consumers see for real 429s. If
+      // `shortCircuitOnCachedRateLimit` ever stops constructing this shape
+      // (e.g., a refactor swaps the ApiError builder), every caller's error
+      // handling silently regresses. The shape includes `info.rateLimitResetMs`
+      // populated from the cache so callers can surface wait-time UX.
+      await expect(
+        invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'z-ai/glm-4.5-air:free',
+          cacheKeyId: 'user:111111111111111111',
+        })
+      ).rejects.toMatchObject({
+        message: 'Rate limit cached',
+        info: expect.objectContaining({
+          rateLimitResetMs: cachedResetMs,
+          // The synthetic short-circuit MUST advertise PERMANENT + shouldRetry=false
+          // so future callers using `shouldRetryError()` don't re-enter the cache
+          // → throw → loop. The cache hit represents a deterministic block until
+          // the reset window, not a transient error worth retrying.
+          shouldRetry: false,
+          type: ApiErrorType.PERMANENT,
+          // Stable sentinel referenceId: a generated ID would point to a fake
+          // error object with no upstream call to trace. The sentinel makes it
+          // unambiguous in logs/support that the reference traces to cache logic.
+          referenceId: 'rate-limit-cache-hit',
+        }),
+      });
+
+      // model.invoke should NOT have been called — short-circuit happened first
+      expect(mockInvoke).not.toHaveBeenCalled();
+    });
+
+    it('skips cache integration entirely when cacheKeyId is empty', async () => {
+      // Even if cache somehow says rate-limited, an empty cacheKeyId opts out
+      mockIsRateLimited.mockResolvedValueOnce({
+        rateLimited: true,
+        resetMs: Date.now() + 3600 * 1000,
+        ttlSeconds: 3600,
+      });
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.5-air:free',
+        cacheKeyId: '',
+      });
+
+      expect(mockIsRateLimited).not.toHaveBeenCalled();
+      expect(mockInvoke).toHaveBeenCalled();
+    });
+
+    it('writes to cache on 429 with X-RateLimit-Reset header', async () => {
+      vi.useFakeTimers();
+
+      const resetMs = Date.now() + 3600 * 1000;
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      // Simulate a real LangChain 429 with the OpenRouter envelope shape
+      const error = Object.assign(new Error('Rate limit exceeded'), {
+        status: 429,
+        error: {
+          metadata: {
+            headers: {
+              'X-RateLimit-Reset': String(resetMs),
+            },
+          },
+        },
+      });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.5-air:free',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkRateLimited).toHaveBeenCalledWith({
+        cacheKeyId: 'user:111111111111111111',
+        model: 'z-ai/glm-4.5-air:free',
+        resetTimestampMs: resetMs,
+      });
+
+      vi.useRealTimers();
+    });
+
+    it('does not write to cache when 429 lacks a reset header', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('Rate limit exceeded'), { status: 429 });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.5-air:free',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkRateLimited).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('does not write to cache for non-429 errors', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('Server error'), { status: 500 });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.5-air:free',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkRateLimited).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
     });
   });
 });
