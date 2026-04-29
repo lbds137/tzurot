@@ -14,6 +14,20 @@
  */
 
 /**
+ * Allowlist of `apikey*` field names whose VALUES are metadata, not the key
+ * itself. Without this allowlist, the field-name pattern check redacts these
+ * because they contain `apikey` as a substring — even though the value is
+ * just a discriminator like `'user'` / `'system'` / `'openrouter'` that
+ * carries no sensitive material. Add new entries here as the codebase grows.
+ *
+ * Field names are stored lowercase to match `lowerKey` comparisons.
+ */
+const API_KEY_METADATA_FIELDS = new Set<string>([
+  // VisionLoggingContext.apiKeySource — discriminates user vs. system path
+  'apikeysource',
+]);
+
+/**
  * Sensitive patterns to redact from logs.
  * Each pattern captures the key format and replaces with [REDACTED].
  *
@@ -112,14 +126,20 @@ export function sanitizeObject(obj: unknown, depth = 0): unknown {
     for (const [key, value] of Object.entries(obj)) {
       // Check if the key itself suggests sensitive data
       const lowerKey = key.toLowerCase();
-      if (
-        lowerKey.includes('apikey') ||
-        lowerKey.includes('api_key') ||
+      const matchesApiKeyPattern = lowerKey.includes('apikey') || lowerKey.includes('api_key');
+      // Allowlist for `apikey*` metadata fields whose VALUE is a discriminator
+      // (e.g., `'user'` / `'system'`) — not the key itself. Without this, fields
+      // like `apiKeySource` get over-redacted because they contain `apikey` as
+      // a substring but reveal nothing sensitive. Add explicit names here when
+      // adding new metadata fields with `apikey`-prefixed names.
+      const isApiKeyMetadata = matchesApiKeyPattern && API_KEY_METADATA_FIELDS.has(lowerKey);
+      const isSensitiveKey =
+        (matchesApiKeyPattern && !isApiKeyMetadata) ||
         lowerKey.includes('secret') ||
         lowerKey.includes('token') ||
         lowerKey.includes('password') ||
-        lowerKey.includes('authorization')
-      ) {
+        lowerKey.includes('authorization');
+      if (isSensitiveKey) {
         sanitized[key] = '[REDACTED]';
       } else {
         sanitized[key] = sanitizeObject(value, depth + 1);

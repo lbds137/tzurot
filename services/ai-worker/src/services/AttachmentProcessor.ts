@@ -12,6 +12,7 @@ import {
   type LoadedPersonality,
   CONTENT_TYPES,
   RETRY_CONFIG,
+  AIProvider,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
@@ -45,12 +46,14 @@ interface ProcessSingleAttachmentOptions {
   isGuestMode: boolean;
   /** Pre-processed attachments for this reference (optional) */
   preprocessedAttachments?: ProcessedAttachment[];
-  /** User's BYOK API key (for BYOK users) */
+  /** User's BYOK API key (resolved for the **vision provider**) */
   userApiKey?: string;
   /** ElevenLabs BYOK API key for premium STT */
   elevenlabsApiKey?: string;
   /** Diagnostic context for vision-failure logging (see VisionLoggingContext in VisionProcessor.ts) */
   loggingContext?: VisionLoggingContext;
+  /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
+  visionProvider?: AIProvider;
 }
 
 /**
@@ -63,10 +66,12 @@ interface ProcessImageOptions {
   personality: LoadedPersonality;
   isGuestMode: boolean;
   preprocessed?: ProcessedAttachment;
-  /** User's BYOK API key (for BYOK users) */
+  /** User's BYOK API key (resolved for the **vision provider**) */
   userApiKey?: string;
   /** Diagnostic context for vision-failure logging */
   loggingContext?: VisionLoggingContext;
+  /** Explicit provider for vision calls */
+  visionProvider?: AIProvider;
 }
 
 /**
@@ -78,11 +83,14 @@ export interface ProcessAttachmentsOptions {
   personality: LoadedPersonality;
   isGuestMode: boolean;
   preprocessedAttachments?: ProcessedAttachment[];
+  /** User's BYOK API key (resolved for the **vision provider**) */
   userApiKey?: string;
   /** ElevenLabs BYOK API key for premium STT */
   elevenlabsApiKey?: string;
   /** Diagnostic context for vision-failure logging */
   loggingContext?: VisionLoggingContext;
+  /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
+  visionProvider?: AIProvider;
 }
 
 /**
@@ -104,6 +112,7 @@ export async function processAttachmentsParallel(
     userApiKey,
     elevenlabsApiKey,
     loggingContext,
+    visionProvider,
   } = options;
   if (!attachments || attachments.length === 0) {
     return [];
@@ -120,6 +129,7 @@ export async function processAttachmentsParallel(
       userApiKey,
       elevenlabsApiKey,
       loggingContext,
+      visionProvider,
     })
   );
 
@@ -205,6 +215,7 @@ async function processImageAttachment(
     preprocessed,
     userApiKey,
     loggingContext = {},
+    visionProvider,
   } = options;
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug({ referenceNumber, url: attachment.url }, 'Using preprocessed image description');
@@ -226,6 +237,7 @@ async function processImageAttachment(
         describeImage(attachment, personality, isGuestMode, userApiKey, {
           skipNegativeCache: true,
           loggingContext,
+          provider: visionProvider,
         }),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
@@ -257,6 +269,7 @@ async function processSingleAttachment(
     userApiKey,
     elevenlabsApiKey,
     loggingContext,
+    visionProvider,
   } = options;
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
@@ -280,6 +293,7 @@ async function processSingleAttachment(
       preprocessed,
       userApiKey,
       loggingContext,
+      visionProvider,
     });
   }
 

@@ -8,6 +8,7 @@
 
 import type { Job } from 'bullmq';
 import type {
+  AIProvider,
   CrossChannelHistoryGroupEntry,
   LLMGenerationJobData,
   LLMGenerationResult,
@@ -95,8 +96,14 @@ export interface ResolvedAuth {
    * `LlmConfig.provider` when ProviderRouter applied a fallthrough (e.g.,
    * configured `zai-coding` redirected to `openrouter` for a user without a
    * z.ai-coding key).
+   *
+   * Typed as `AIProvider | undefined` (not `string | undefined`) because the
+   * sole producer is `ProviderRouter.resolveRoute`, whose `effectiveProvider`
+   * field is `AIProvider`. Narrowing here lets consumers (e.g., the vision
+   * cross-provider auth path) avoid `as AIProvider` casts and catches
+   * mis-assignments at compile time.
    */
-  provider: string | undefined;
+  provider: AIProvider | undefined;
   /** Whether in guest mode (free models only) */
   isGuestMode: boolean;
   /** ElevenLabs API key for BYOK voice (undefined = use self-hosted voice-engine) */

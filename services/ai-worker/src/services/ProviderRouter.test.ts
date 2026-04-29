@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AIProvider } from '@tzurot/common-types';
-import { ProviderRouter } from './ProviderRouter.js';
+import { ProviderRouter, detectVisionProvider } from './ProviderRouter.js';
 import type { ApiKeyResolver, ApiKeyResolutionResult } from './ApiKeyResolver.js';
 
 // Mock logger via the shared common-types mock pattern
@@ -493,5 +493,41 @@ describe('ProviderRouter', () => {
       expect(route.effectiveProvider).toBe(AIProvider.OpenRouter);
       expect(route.isGuestMode).toBe(true);
     });
+  });
+});
+
+describe('detectVisionProvider', () => {
+  it('routes z-ai/-prefixed models to ZaiCoding', () => {
+    expect(detectVisionProvider('z-ai/glm-4.5-air')).toBe(AIProvider.ZaiCoding);
+    expect(detectVisionProvider('z-ai/glm-5.1')).toBe(AIProvider.ZaiCoding);
+  });
+
+  it('routes bare GLM model names to ZaiCoding (z.ai-direct format)', () => {
+    expect(detectVisionProvider('glm-5.1')).toBe(AIProvider.ZaiCoding);
+    expect(detectVisionProvider('glm-4.7')).toBe(AIProvider.ZaiCoding);
+    expect(detectVisionProvider('glm-4.5-air')).toBe(AIProvider.ZaiCoding);
+  });
+
+  it('routes vendor/model formats to OpenRouter', () => {
+    expect(detectVisionProvider('qwen/qwen3.5-397b-a17b')).toBe(AIProvider.OpenRouter);
+    expect(detectVisionProvider('anthropic/claude-sonnet-4')).toBe(AIProvider.OpenRouter);
+    expect(detectVisionProvider('openai/gpt-4o')).toBe(AIProvider.OpenRouter);
+    expect(detectVisionProvider('google/gemini-2.5-pro')).toBe(AIProvider.OpenRouter);
+    expect(detectVisionProvider('meta-llama/llama-3.3-70b')).toBe(AIProvider.OpenRouter);
+  });
+
+  it('does not auto-promote z-ai/ prefixes (deliberately differs from resolveRoute)', () => {
+    // detectVisionProvider's purpose is to honor explicit personality choice;
+    // a personality that says vision = `z-ai/glm-5v` wants z.ai, not OpenRouter.
+    // resolveRoute's auto-promote behavior is for main-model resolution where
+    // we adapt to the user's available subscriptions; vision is explicit.
+    expect(detectVisionProvider('z-ai/glm-5v')).toBe(AIProvider.ZaiCoding);
+  });
+
+  it('routes legacy bare names (no slash, non-glm) to OpenRouter as the catch-all', () => {
+    // OpenRouter is the broader catalog; bare names without a recognized z.ai
+    // prefix are safer to route via OpenRouter than to mis-detect as z.ai.
+    expect(detectVisionProvider('gpt-4-vision-preview')).toBe(AIProvider.OpenRouter);
+    expect(detectVisionProvider('claude-3.5-sonnet')).toBe(AIProvider.OpenRouter);
   });
 });

@@ -9,6 +9,7 @@ import {
   JobStatus,
   AttachmentType,
   AIProvider,
+  ApiErrorCategory,
   REDIS_KEY_PREFIXES,
   type LLMGenerationJobData,
   type LoadedPersonality,
@@ -32,11 +33,19 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock redis service
+// Mock redis service. Mock factories are hoisted by vitest, so we wrap the
+// `vi.fn()` references in arrow-function thunks — the closures defer the
+// reference resolution until the mocked module is actually invoked, sidestepping
+// the temporal-dead-zone error that otherwise fires when transitive imports
+// (e.g., visionAuthResolver) trigger redis.js loading at module-init time.
 const mockGetJobResult = vi.fn();
+const mockStoreFailure = vi.fn();
 vi.mock('../../../../redis.js', () => ({
   redisService: {
-    getJobResult: mockGetJobResult,
+    getJobResult: (...args: unknown[]) => mockGetJobResult(...args),
+  },
+  visionDescriptionCache: {
+    storeFailure: (...args: unknown[]) => mockStoreFailure(...args),
   },
 }));
 
@@ -752,6 +761,244 @@ describe('DependencyStep', () => {
         })
       );
       expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+  });
+
+  describe('cross-provider vision auth (with injected apiKeyResolver)', () => {
+    // Personality with cross-provider config: main=z.ai-coding, vision=OpenRouter
+    const CROSS_PROVIDER_PERSONALITY: LoadedPersonality = {
+      ...TEST_PERSONALITY,
+      model: 'glm-5.1', // → ZaiCoding via detectVisionProvider
+      visionModel: 'qwen/qwen3.5-397b-a17b', // → OpenRouter
+    };
+
+    const buildCrossProviderContext = (
+      authOverride: Partial<NonNullable<GenerationContext['auth']>> = {}
+    ): GenerationContext => ({
+      job: createMockJob({
+        context: {
+          userId: 'cross-provider-user',
+          userName: 'CrossUser',
+          channelId: 'channel-cp',
+          extendedContextAttachments: [
+            {
+              url: 'https://example.com/cp.jpg',
+              name: 'cp.jpg',
+              contentType: 'image/jpeg',
+              size: 1024,
+            },
+          ],
+        },
+      }),
+      config: {
+        effectivePersonality: CROSS_PROVIDER_PERSONALITY,
+        configSource: 'user-personality',
+      },
+      auth: {
+        apiKey: 'user-zai-key',
+        isGuestMode: false,
+        provider: AIProvider.ZaiCoding,
+        ...authOverride,
+      },
+      startTime: Date.now(),
+    });
+
+    it('re-resolves API key for vision provider when authenticated user has it', async () => {
+      const tryResolveUserKey = vi.fn().mockResolvedValue('user-or-key');
+      const apiKeyResolver = {
+        tryResolveUserKey,
+        resolveApiKey: vi.fn(),
+      } as unknown as ConstructorParameters<typeof DependencyStep>[0];
+      const stepWithResolver = new DependencyStep(apiKeyResolver);
+
+      mockProcessAttachments.mockResolvedValueOnce([
+        {
+          type: AttachmentType.Image,
+          description: 'cross-provider success',
+          originalUrl: 'https://example.com/cp.jpg',
+          metadata: {
+            url: 'https://example.com/cp.jpg',
+            name: 'cp.jpg',
+            contentType: 'image/jpeg',
+            size: 1024,
+          },
+        },
+      ]);
+
+      const result = await stepWithResolver.process(buildCrossProviderContext());
+
+      // The OpenRouter user key was looked up — not the main z.ai key.
+      expect(tryResolveUserKey).toHaveBeenCalledWith('cross-provider-user', AIProvider.OpenRouter);
+      // processAttachments received the OpenRouter key + provider, not z.ai.
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/cp.jpg' })],
+        CROSS_PROVIDER_PERSONALITY,
+        expect.objectContaining({
+          userApiKey: 'user-or-key',
+          visionProvider: AIProvider.OpenRouter,
+          loggingContext: expect.objectContaining({
+            userId: 'cross-provider-user',
+            apiKeySource: 'user',
+            provider: AIProvider.OpenRouter,
+          }),
+        })
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+
+    it('degrades gracefully when apiKeyResolver throws (e.g., transient Redis failure)', async () => {
+      // Outer try/catch in processExtendedContextImages must catch resolver
+      // exceptions thrown OUTSIDE the processAttachments try (e.g., during
+      // `tryResolveUserKey` or `resolveApiKey`). Without that wrapping, a
+      // transient blip in apiKeyResolver would propagate up through the
+      // pipeline step and skip the graceful fallback the legacy path already
+      // has. This test pins the wrap so a future refactor can't quietly
+      // remove it.
+      const tryResolveUserKey = vi.fn().mockRejectedValue(new Error('Redis blip'));
+      const apiKeyResolver = {
+        tryResolveUserKey,
+        resolveApiKey: vi.fn(),
+      } as unknown as NonNullable<ConstructorParameters<typeof DependencyStep>[0]>;
+      const stepWithResolver = new DependencyStep(apiKeyResolver);
+
+      const ctx = buildCrossProviderContext(); // authenticated, cross-provider
+      // Should not throw — graceful degradation kicks in.
+      const result = await stepWithResolver.process(ctx);
+
+      expect(tryResolveUserKey).toHaveBeenCalled();
+      expect(mockProcessAttachments).not.toHaveBeenCalled();
+      // Empty array signals "couldn't process, but pipeline continues."
+      expect(result.preprocessing?.extendedContextAttachments).toEqual([]);
+    });
+
+    it('routes guest-mode cross-provider through resolveApiKey (system fallback path)', async () => {
+      // Guest with main=z.ai-coding (impossible in practice — z.ai has no
+      // system fallback — but the input shape is valid and the code must
+      // handle it correctly: visionAuthResolver's guest branch calls
+      // `resolveApiKey(visionProvider)` instead of `tryResolveUserKey`.
+      // This test pins the integration through DependencyStep so a future
+      // refactor can't accidentally collapse the guest/auth branches.
+      const tryResolveUserKey = vi.fn();
+      const resolveApiKey = vi.fn().mockResolvedValue({
+        apiKey: 'system-or-key',
+        source: 'system',
+        provider: AIProvider.OpenRouter,
+        isGuestMode: true,
+        userId: undefined,
+      });
+      const apiKeyResolver = {
+        tryResolveUserKey,
+        resolveApiKey,
+      } as unknown as NonNullable<ConstructorParameters<typeof DependencyStep>[0]>;
+      const stepWithResolver = new DependencyStep(apiKeyResolver);
+
+      mockProcessAttachments.mockResolvedValueOnce([
+        {
+          type: AttachmentType.Image,
+          description: 'guest cross-provider success',
+          originalUrl: 'https://example.com/cp.jpg',
+          metadata: {
+            url: 'https://example.com/cp.jpg',
+            name: 'cp.jpg',
+            contentType: 'image/jpeg',
+            size: 1024,
+          },
+        },
+      ]);
+
+      const ctx = buildCrossProviderContext({ isGuestMode: true });
+      const result = await stepWithResolver.process(ctx);
+
+      // Guest path uses resolveApiKey (with system fallback), NOT
+      // tryResolveUserKey (which would have skipped system entirely).
+      expect(resolveApiKey).toHaveBeenCalledWith('cross-provider-user', AIProvider.OpenRouter);
+      expect(tryResolveUserKey).not.toHaveBeenCalled();
+      // processAttachments received the system key + OpenRouter provider.
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        [expect.objectContaining({ url: 'https://example.com/cp.jpg' })],
+        expect.any(Object),
+        expect.objectContaining({
+          userApiKey: 'system-or-key',
+          visionProvider: AIProvider.OpenRouter,
+          loggingContext: expect.objectContaining({
+            apiKeySource: 'system',
+          }),
+        })
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+
+    it('falls back to legacy path when mainProvider is undefined (degraded auth)', async () => {
+      // The cross-provider guard requires both apiKeyResolver AND mainProvider
+      // to be defined. AuthStep's resolution-failure catch branch leaves
+      // `auth.provider` undefined; this test pins the legacy-fallback behavior
+      // for that case (logs error, processes via main key verbatim).
+      const tryResolveUserKey = vi.fn();
+      const resolveApiKey = vi.fn();
+      const apiKeyResolver = {
+        tryResolveUserKey,
+        resolveApiKey,
+      } as unknown as NonNullable<ConstructorParameters<typeof DependencyStep>[0]>;
+      const stepWithResolver = new DependencyStep(apiKeyResolver);
+
+      mockProcessAttachments.mockResolvedValueOnce([
+        {
+          type: AttachmentType.Image,
+          description: 'legacy-fallback success',
+          originalUrl: 'https://example.com/cp.jpg',
+          metadata: {
+            url: 'https://example.com/cp.jpg',
+            name: 'cp.jpg',
+            contentType: 'image/jpeg',
+            size: 1024,
+          },
+        },
+      ]);
+
+      // Override the auth context so provider is undefined
+      const ctx = buildCrossProviderContext({ provider: undefined });
+      const result = await stepWithResolver.process(ctx);
+
+      // Cross-provider path was NOT entered — resolver was not called.
+      expect(tryResolveUserKey).not.toHaveBeenCalled();
+      expect(resolveApiKey).not.toHaveBeenCalled();
+      // Legacy path ran — processAttachments invoked without visionProvider.
+      expect(mockProcessAttachments).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.any(Object),
+        expect.not.objectContaining({ visionProvider: expect.anything() })
+      );
+      expect(result.preprocessing?.extendedContextAttachments).toHaveLength(1);
+    });
+
+    it('builds synthetic-failure entries when authenticated user lacks vision-provider key (fail-fast)', async () => {
+      const tryResolveUserKey = vi.fn().mockResolvedValue(null);
+      const apiKeyResolver = {
+        tryResolveUserKey,
+        resolveApiKey: vi.fn(),
+      } as unknown as ConstructorParameters<typeof DependencyStep>[0];
+      const stepWithResolver = new DependencyStep(apiKeyResolver);
+
+      const result = await stepWithResolver.process(buildCrossProviderContext());
+
+      // Critically: processAttachments was NOT called — short-circuit fired.
+      expect(mockProcessAttachments).not.toHaveBeenCalled();
+      // Fail-fast result: 1 attachment → 1 synthetic-failure entry with the
+      // source-aware fallback string. Cache write happened via storeFailure.
+      // Asserting the full argument shape (not just call count) self-documents
+      // that `attachmentId: undefined` is intentional — fixtures don't include
+      // an `id` field, and `getFailureKey` falls through to URL-hash keying.
+      // A future refactor that breaks the storeFailure contract would fail
+      // this assertion instead of slipping past on the count alone.
+      expect(mockStoreFailure).toHaveBeenCalledTimes(1);
+      expect(mockStoreFailure).toHaveBeenCalledWith({
+        attachmentId: undefined,
+        url: 'https://example.com/cp.jpg',
+        category: ApiErrorCategory.AUTHENTICATION,
+      });
+      const synthetic = result.preprocessing?.extendedContextAttachments;
+      expect(synthetic).toHaveLength(1);
+      expect(synthetic?.[0]?.description).toContain('check /wallet');
     });
   });
 });
