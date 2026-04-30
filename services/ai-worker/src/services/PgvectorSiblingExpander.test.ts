@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchChunkSiblings, expandWithSiblings } from './PgvectorSiblingExpander.js';
-import type { MemoryDocument } from './PgvectorTypes.js';
+import type { PgvectorMemoryDocument } from './PgvectorTypes.js';
 
 vi.mock('@tzurot/common-types', () => ({
   createLogger: () => ({
@@ -105,7 +105,7 @@ describe('PgvectorSiblingExpander', () => {
   describe('expandWithSiblings', () => {
     it('should return documents with sibling chunks when chunk groups exist', async () => {
       // Mock the initial query result (chunk 1 of 3)
-      const initialResult: MemoryDocument[] = [
+      const initialResult: PgvectorMemoryDocument[] = [
         {
           pageContent: 'Chunk 1 content',
           metadata: {
@@ -199,7 +199,7 @@ describe('PgvectorSiblingExpander', () => {
 
     it('should not duplicate chunks when multiple chunks from same group match', async () => {
       // Initial results include 2 chunks from same group
-      const initialResults: MemoryDocument[] = [
+      const initialResults: PgvectorMemoryDocument[] = [
         {
           pageContent: 'Chunk 1 content',
           metadata: {
@@ -301,7 +301,7 @@ describe('PgvectorSiblingExpander', () => {
 
     it('should return original documents when no chunk groups exist', async () => {
       // Documents without chunk metadata
-      const documents: MemoryDocument[] = [
+      const documents: PgvectorMemoryDocument[] = [
         { pageContent: 'Regular memory 1', metadata: { id: 'mem-1' } },
         { pageContent: 'Regular memory 2', metadata: { id: 'mem-2' } },
       ];
@@ -316,7 +316,7 @@ describe('PgvectorSiblingExpander', () => {
 
     it('should handle null chunkGroupId from database (PostgreSQL null vs undefined)', async () => {
       // Documents with explicit null chunkGroupId (as PostgreSQL would return)
-      const documents: MemoryDocument[] = [
+      const documents: PgvectorMemoryDocument[] = [
         {
           pageContent: 'Memory with null chunkGroupId',
           metadata: {
@@ -343,7 +343,7 @@ describe('PgvectorSiblingExpander', () => {
 
     it('should handle null id in metadata from database', async () => {
       // Documents with null id (edge case from database)
-      const documents: MemoryDocument[] = [
+      const documents: PgvectorMemoryDocument[] = [
         {
           pageContent: 'Memory with null id',
           metadata: {
@@ -409,7 +409,7 @@ describe('PgvectorSiblingExpander', () => {
 
     it('should handle empty string chunkGroupId', async () => {
       // Document with empty string chunkGroupId
-      const documents: MemoryDocument[] = [
+      const documents: PgvectorMemoryDocument[] = [
         {
           pageContent: 'Memory with empty chunkGroupId',
           metadata: {

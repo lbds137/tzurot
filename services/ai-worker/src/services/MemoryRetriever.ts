@@ -208,7 +208,13 @@ export class MemoryRetriever {
       );
     }
 
-    // Query memories only if memory manager is available
+    // Query memories only if memory manager is available.
+    //
+    // Storage→RAG boundary: `queryMemories*` returns `PgvectorMemoryDocument[]`
+    // (wider `metadata?: Record<string, unknown>`), assigned here into the
+    // RAG-layer `MemoryDocument[]` shape (narrower typed metadata). The two
+    // are structurally compatible because all RAG-layer metadata fields are
+    // optional — see `PgvectorTypes.ts` for the change-together invariant.
     const relevantMemories =
       this.memoryManager !== undefined
         ? memoryQueryOptions.channelIds !== undefined && memoryQueryOptions.channelIds.length > 0

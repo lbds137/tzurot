@@ -68,7 +68,22 @@ export interface MemoryQueryOptions {
   includeSiblings?: boolean;
 }
 
-export interface MemoryDocument {
+/**
+ * Storage-layer memory document — what the pgvector adapter returns from raw
+ * similarity queries. Distinct from the RAG-layer `MemoryDocument` defined in
+ * `ConversationalRAGTypes.ts` (which has typed `metadata` fields like `score`
+ * and `createdAt`). Both shapes share `pageContent` + optional `metadata`, but
+ * the storage layer's metadata is wider (`Record<string, unknown>`) because
+ * downstream stages may add fields the storage layer doesn't know about.
+ *
+ * The two interfaces remain structurally compatible at the boundary where
+ * storage flows into RAG context — if you change either shape, verify the
+ * other still narrows correctly at the consumption site
+ * (`MemoryRetriever.retrieveMemoriesAndDecideFocus`).
+ *
+ * @see ./ConversationalRAGTypes.ts for the RAG-layer `MemoryDocument`
+ */
+export interface PgvectorMemoryDocument {
   pageContent: string;
   metadata?: Record<string, unknown>;
 }
