@@ -131,6 +131,10 @@ gh pr checks N --watch --interval=30 > /dev/null 2>&1; echo "CI_COMPLETE"; gh pr
 
 Note the `;` between each command (not `&&`). `echo "CI_COMPLETE"` and the final `gh pr checks N` run unconditionally — the sentinel fires even if `--watch` exits non-zero (network blip, bad flag). That's intentional: the trailing `gh pr checks N` surfaces the true state regardless, and "watch exited" is always a useful signal. `CI_COMPLETE` means "watch exited," not "all checks passed."
 
+**Exit-code semantics — "Monitor script failed (exit 1)" can be cosmetic.** The trailing `gh pr checks N` exits non-zero whenever ANY check is red. Branches with active `fixup!` commits will have `fixup-check` red intentionally until autosquash, so the Monitor tool will report "script failed" on every fixup-bearing branch even though the script ran perfectly and emitted the event stream. **Read the event stream for the actual outcome; treat the exit code as informational only.** Do not append `; true` to muzzle this — that would also suppress real `gh` CLI failures (network errors, rate limits) which are useful signal.
+
+**Don't reinvent the watch loop.** When tempted to "improve" the canonical pattern (e.g., custom `until` loops parsing `gh pr checks --json bucket` to wait for "all non-pending"), don't. `gh pr checks --watch` already correctly waits for all checks to reach a terminal state, including ones that haven't registered yet. Homegrown JSON-snapshot polling has a race: `gh pr checks --json` can return a partial check list, and "all non-pending" can be momentarily true before slow checks (lint, test, claude-review, CodeQL) register. The canonical `--watch` pattern doesn't have this race. If the canonical pattern reports "failed" on a fixup-bearing branch, that's the cosmetic-exit-code case above, not a reason to rebuild the wait loop.
+
 Pass to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL usually finishes well inside that; if it exceeds, re-arm).
 
 When the monitor fires, **all four** of the following must happen before the cycle is complete — do not stop after step 1 even if every check passed:
