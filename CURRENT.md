@@ -1,25 +1,27 @@
 # Current
 
-> **Session**: 2026-04-29 (vision cleanup #940 + knip CI gate #941 + rule update #942 + Redis rate-limit cache #943)
-> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PRs #940, #941, #942, #943
+> **Session**: 2026-04-29 (vision #940 + knip CI #941 + rule update #942 + rate-limit cache #943 + post-#943 cleanup #944)
+> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PRs #940, #941, #942, #943, #944
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared. No active production bugs. Four PRs merged this session._
+_All production-issues entries cleared. No active production bugs. Five PRs merged this session._
 
-1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-2. **Vision 402 fast-follow** — User-requested investigation into the per-account credit-exhaustion 402s observed in production logs. Tracked as inbox item ("402 caching for vision (per-account credit-exhaustion)"). Likely a separate caching layer alongside the rate-limit cache from PR #943.
-3. **Optional next release (beta.112)** — would bundle PRs #940/941/942/943. Production-driving piece is #943 (4-5min user-facing latency on rate-limited free-tier requests → <100ms fast-fail).
+1. **402 credit-exhaustion cache PR (active fast-follow)** — Production-log investigation 2026-04-29 found 10× `code: 402` events from one user with a broken BYOK key (zero credits) hitting chat completions on `z-ai/glm-4.7`, NOT vision (the original backlog entry was mis-scoped). Each request burns ~70-440ms on a known-failed OpenRouter ping that returns the same "Account never purchased credits" 402. Fix shape: ~100-150 LOC similar to PR #943's `RateLimitCache` — new `CreditExhaustionCache` class, account-scoped key (`nocredits:openrouter:user:<discordId>`), TTL 1-4h (no provider-supplied reset signal), write on 402-with-credit-message, read at top of `invokeWithRetry` before rate-limit-cache check. Updated inbox entry reflects correct scope.
+2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
+3. **Optional next release (beta.112)** — would bundle PRs #940/941/942/943/944. Production-driving piece is #943 (4-5min user-facing latency on rate-limited free-tier requests → <100ms fast-fail). #944 adds Discord-UX polish (URL embed-suppression in error messages).
 
 ## Active Task
 
-_None. PR #943 merged 2026-04-29 after 16 review rounds (Option-5 architectural refactor mid-iteration to resolve CodeQL `js/insufficient-password-hash` without dismissal). 2 cleanup items added to inbox: `cacheKeyId` required-or-debug-log, `buildKey` no-colon invariant runtime guard._
+_None. PR #944 merged 2026-04-29 — bundle of 2 mechanical cleanup items (MemoryDocument dedup + Discord URL embed-suppression). Single round of review with 0 actionable items, 8 ✅ verdicts, 2 backlog candidates added (third MemoryDocument in PgvectorTypes.ts; parenthesized-URL truncation in wrapUrlsForNoEmbed). After this session ends, next concrete pull-from is the 402 cache PR._
 
 ---
 
 ## Unreleased on Develop (since beta.111)
+
+- **PR #944** (2026-04-29) — **Post-PR-#943 misc cleanup bundle**: (1) `refactor(ai-worker)`: deleted `services/context/PromptContext.ts` (duplicate `MemoryDocument` definition; pointed sole importer at canonical `ConversationalRAGTypes.ts` home); (2) `fix(common-types)`: new `wrapUrlsForNoEmbed` utility wraps bare http(s) URLs in `<…>` to suppress Discord auto-embed cards inside error spoilers (production rate-limit messages were rendering with embed previews of LangChain troubleshooting URLs). 2 commits, 5 files, +102/-18. Single round of review, 0 actionable items, 2 backlog candidates added. Transient claude-review auth flake on round 1 cleared via user rerun.
 
 - **PR #943** (2026-04-29) — **Redis-backed rate-limit cache for OpenRouter 429s**. Production `:free`-tier daily-quota 429s previously burned 3 retry attempts × ~80s (4-5min user-visible latency); now the first 429 caches `{cacheKeyId, model} → resetMs` in Redis with TTL clamped to `[60s, 24h]`, and subsequent requests in the window short-circuit synthetically with `referenceId: 'rate-limit-cache-hit'` for trace clarity. Mid-PR architectural refactor (Option 5) replaced the SHA-256 fingerprint approach with opaque `cacheKeyId` (`user:<discordId>` or `'system'`) to resolve CodeQL `js/insufficient-password-hash` structurally instead of dismissing the alert (user policy: "uncompromising on security"). 16 review rounds, single squashed commit, monotonic convergence (3 issues → 1 medium + 2 polish → 0 actionable + 2 backlog). Gate added: `shouldRetryError` `instanceof ApiError` fast-path honors explicit `shouldRetry: false` overrides to prevent retry loops on the synthetic short-circuit.
 
