@@ -4,7 +4,7 @@
  */
 
 import { AI_DEFAULTS, filterValidDiscordIds, createLogger } from '@tzurot/common-types';
-import type { MemoryQueryOptions, MemoryDocument } from './PgvectorTypes.js';
+import type { MemoryQueryOptions, PgvectorMemoryDocument } from './PgvectorTypes.js';
 
 const logger = createLogger('PgvectorChannelScoping');
 
@@ -12,7 +12,7 @@ const logger = createLogger('PgvectorChannelScoping');
 export type QueryMemoriesFn = (
   query: string,
   options: MemoryQueryOptions
-) => Promise<MemoryDocument[]>;
+) => Promise<PgvectorMemoryDocument[]>;
 
 /**
  * Query memories with channel scoping using the "waterfall" method
@@ -35,7 +35,7 @@ export async function waterfallMemoryQuery(
   queryFn: QueryMemoriesFn,
   query: string,
   options: MemoryQueryOptions
-): Promise<MemoryDocument[]> {
+): Promise<PgvectorMemoryDocument[]> {
   const totalLimit = options.limit ?? 10;
   // Clamp channelBudgetRatio to valid 0-1 range to prevent invalid budget calculations
   const rawRatio = options.channelBudgetRatio ?? AI_DEFAULTS.CHANNEL_MEMORY_BUDGET_RATIO;
@@ -82,7 +82,7 @@ export async function waterfallMemoryQuery(
   );
 
   // Step 1: Query channel-scoped memories first
-  let channelResults: MemoryDocument[] = [];
+  let channelResults: PgvectorMemoryDocument[] = [];
   try {
     channelResults = await queryFn(query, {
       ...options,
@@ -109,7 +109,7 @@ export async function waterfallMemoryQuery(
     .filter((id): id is string => id !== undefined && id !== null);
 
   // Step 3: Global semantic query with exclusion (no channel filter)
-  let globalResults: MemoryDocument[] = [];
+  let globalResults: PgvectorMemoryDocument[] = [];
   if (remainingBudget > 0) {
     try {
       globalResults = await queryFn(query, {

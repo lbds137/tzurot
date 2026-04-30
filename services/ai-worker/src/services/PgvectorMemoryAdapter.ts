@@ -32,7 +32,7 @@ export { MemoryQueryOptions, MemoryMetadata, MemoryMetadataSchema } from './Pgve
 
 import type {
   MemoryQueryOptions,
-  MemoryDocument,
+  PgvectorMemoryDocument,
   MemoryMetadata,
   MemoryQueryResult,
 } from './PgvectorTypes.js';
@@ -58,7 +58,10 @@ export class PgvectorMemoryAdapter {
   /**
    * Query memories using vector similarity search
    */
-  async queryMemories(query: string, options: MemoryQueryOptions): Promise<MemoryDocument[]> {
+  async queryMemories(
+    query: string,
+    options: MemoryQueryOptions
+  ): Promise<PgvectorMemoryDocument[]> {
     try {
       // Validate query input before calling OpenAI API
       if (!isValidId(query)) {
@@ -97,7 +100,7 @@ export class PgvectorMemoryAdapter {
       );
 
       const memories = await this.prisma.$queryRaw<MemoryQueryResult[]>(sqlQuery);
-      let documents: MemoryDocument[] = memories.map(mapQueryResultToDocument);
+      let documents: PgvectorMemoryDocument[] = memories.map(mapQueryResultToDocument);
 
       // Expand results with sibling chunks (default: true for complete memory retrieval)
       if (options.includeSiblings !== false && documents.length > 0) {
@@ -312,7 +315,7 @@ export class PgvectorMemoryAdapter {
   async queryMemoriesWithChannelScoping(
     query: string,
     options: MemoryQueryOptions
-  ): Promise<MemoryDocument[]> {
+  ): Promise<PgvectorMemoryDocument[]> {
     return waterfallMemoryQuery((q, o) => this.queryMemories(q, o), query, options);
   }
 

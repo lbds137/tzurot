@@ -9,7 +9,7 @@ import {
   extractChunkGroups,
   mergeSiblings,
 } from '../utils/memoryUtils.js';
-import type { MemoryQueryResult, MemoryDocument } from './PgvectorTypes.js';
+import type { MemoryQueryResult, PgvectorMemoryDocument } from './PgvectorTypes.js';
 
 const logger = createLogger('PgvectorSiblingExpander');
 
@@ -21,7 +21,7 @@ export async function fetchChunkSiblings(
   prisma: PrismaClient,
   chunkGroupId: string,
   personaId: string
-): Promise<MemoryDocument[]> {
+): Promise<PgvectorMemoryDocument[]> {
   const memories = await prisma.$queryRaw<MemoryQueryResult[]>`
     SELECT m.id, m.content, m.persona_id, m.personality_id, m.session_id,
            m.canon_scope, m.summary_type, m.channel_id, m.guild_id,
@@ -52,9 +52,9 @@ export async function fetchChunkSiblings(
  */
 export async function expandWithSiblings(
   prisma: PrismaClient,
-  documents: MemoryDocument[],
+  documents: PgvectorMemoryDocument[],
   personaId: string
-): Promise<MemoryDocument[]> {
+): Promise<PgvectorMemoryDocument[]> {
   const { chunkGroups, seenIds } = extractChunkGroups(documents);
   if (chunkGroups.size === 0) {
     return documents;
