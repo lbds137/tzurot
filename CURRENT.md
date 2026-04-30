@@ -1,40 +1,35 @@
 # Current
 
-> **Session**: 2026-04-29 → 2026-04-30 (vision #940 + knip CI #941 + rule update #942 + rate-limit cache #943 + post-#943 cleanup #944 + credit-exhaustion cache #945)
-> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PRs #940, #941, #942, #943, #944, #945
+> **Session**: 2026-04-29 → 2026-04-30 (six PRs merged + beta.112 release cut)
+> **Version**: v3.0.0-beta.112 (released 2026-04-30) — develop is at the release baseline
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared. No active production bugs. Six PRs merged this session._
+_All production-issues entries cleared. No active production bugs. Six PRs merged + release cut + Railway prod auto-deploying._
 
-1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-2. **Optional next release (beta.112)** — would bundle PRs #940/941/942/943/944/945. Production-driving pieces are #943 (rate-limit fast-fail) + #945 (credit-exhaustion fast-fail) — together they turn known-failed OpenRouter calls into <100ms short-circuits instead of 70-440ms (per-request) or 4-5min (retry-storm) waits.
+1. **Post-deploy validation of beta.112** — Confirm the new caches fire in production:
+   - Search Railway prod for `"Cached rate-limit state"` (write) + `"Skipped LLM call — rate-limit cache hit"` (read) — fires when next 429 surfaces on a `:free` model
+   - Search for `"Cached credit-exhaustion state"` + `"Skipped LLM call — credit-exhaustion cache hit"` — fires when next zero-credit BYOK account hits 402
+   - Behavioral confirmation: cache hits show `<100ms` instead of `~70-440ms` per request
+2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
 
 ## Active Task
 
-_None. PR #945 merged 2026-04-30 — credit-exhaustion cache (~700 LOC, 4 commits, 46 new tests). 3 review rounds, monotonic convergence (3 medium/minor → 4 polish → 0 actionable). Strict plan-mode discipline including default-to-include-not-defer correction (operator escape valve + user UX message both in scope; only max_tokens auto-reduction deferred with strong reason). Two backlog items added: regex-breadth follow-up + max_tokens auto-reduction._
+_None. v3.0.0-beta.112 shipped 2026-04-30 with all six session PRs (#940/941/942/943/944/945). Release-PR holistic review converged with 0 blocking items, 6 ✅ strengths, 1 backlog candidate added (KEY_PREFIX duplication across cache services + tooling)._
 
 ---
 
-## Unreleased on Develop (since beta.111)
+## Unreleased on Develop (since beta.112)
 
-- **PR #945** (2026-04-30) — **Redis-backed credit-exhaustion cache for OpenRouter 402s**. Production logs showed 10× consecutive 402s from one user with a zero-credit BYOK key over a 3-min window, each request burning ~70-440ms on a known-failed OpenRouter ping. New `CreditExhaustionCache` parallel to PR #943's `RateLimitCache` with semantically-distinct shape: account-scoped key (`nocredits:openrouter:<cacheKeyId>`, no model dimension), default 1h TTL clamped [60s, 24h], JSON value `{ ts, ttl }` for accurate remaining-time on read. New `ApiErrorCategory.CREDIT_EXHAUSTION` distinguishes account-level 402s from request-level (max_tokens overflow); `parseApiError` sub-classifies via new `isAccountCreditExhaustion(error)` helper with conservative pattern-match (request-level "afford" qualifier wins over account-level "insufficient credits"). User-facing message includes OpenRouter top-up URL, auto-wrapped by PR #944's `wrapUrlsForNoEmbed`. Operator escape valve `pnpm ops cache:clear-credit-exhaustion --user-id <id>` for top-up-before-TTL-expiry cases. 4 commits (category enum → parser sub-classification → cache+integration → operator tooling), 15 files, ~700 LOC, 46 new tests. 3 review rounds, monotonic convergence.
-
-- **PR #944** (2026-04-29) — **Post-PR-#943 misc cleanup bundle**: (1) `refactor(ai-worker)`: deleted `services/context/PromptContext.ts` (duplicate `MemoryDocument` definition; pointed sole importer at canonical `ConversationalRAGTypes.ts` home); (2) `fix(common-types)`: new `wrapUrlsForNoEmbed` utility wraps bare http(s) URLs in `<…>` to suppress Discord auto-embed cards inside error spoilers (production rate-limit messages were rendering with embed previews of LangChain troubleshooting URLs). 2 commits, 5 files, +102/-18. Single round of review, 0 actionable items, 2 backlog candidates added. Transient claude-review auth flake on round 1 cleared via user rerun.
-
-- **PR #943** (2026-04-29) — **Redis-backed rate-limit cache for OpenRouter 429s**. Production `:free`-tier daily-quota 429s previously burned 3 retry attempts × ~80s (4-5min user-visible latency); now the first 429 caches `{cacheKeyId, model} → resetMs` in Redis with TTL clamped to `[60s, 24h]`, and subsequent requests in the window short-circuit synthetically with `referenceId: 'rate-limit-cache-hit'` for trace clarity. Mid-PR architectural refactor (Option 5) replaced the SHA-256 fingerprint approach with opaque `cacheKeyId` (`user:<discordId>` or `'system'`) to resolve CodeQL `js/insufficient-password-hash` structurally instead of dismissing the alert (user policy: "uncompromising on security"). 16 review rounds, single squashed commit, monotonic convergence (3 issues → 1 medium + 2 polish → 0 actionable + 2 backlog). Gate added: `shouldRetryError` `instanceof ApiError` fast-path honors explicit `shouldRetry: false` overrides to prevent retry loops on the synthetic short-circuit.
-
-- **PR #942** (2026-04-29) — **Rule update: distinguish Dismissed from Backlog candidates by future trigger** (`.claude/rules/08-review-response.md`). Codifies a misclassification pattern surfaced during PR #941 review: reviewer deferrals naming a future event/condition (`"monitor over time"`, `"if X happens"`) are Backlog candidates, not Dismissed. Adds new table row in rule 2's signal-conflict table, "Key question" decision-first framing, "pure-aesthetic deferral" definition with examples, and a per-round checklist item. 4 review rounds, all converged with explicit user intervention; rule itself routed its own round-4 reviewer observations correctly (validation that the new distinction is robust enough for self-application).
-
-- **PR #941** (2026-04-29) — **Make `guard:duplicate-exports` + `knip` blocking in CI**. Tooling fixes: dedup logic for TS function overloads (false-positive class eliminated), regex super-linear-move anchor, ALLOWLIST extension. Real DRY violation fixed: `isForwardedMessage` consolidation across 3 importers. Dead-code removed: `PromptContext` + `TokenBudget` interfaces, `RecentLogsResponse`, `StuckExportCleanupResult` / `StuckImportCleanupResult`, `getDenylistCache`, `createMockReqRes`. `knip.json` configured with `ignoreExportsUsedInFile: true` (~99% noise reduction). 11 files, +78/-133 (net -55 LOC). 1 review round, 0 asks.
-
-- **PR #940** (2026-04-29) — **Vision pipeline cleanup post PR #938**: 5-item bundle. `effectiveVisionModelName` helper extracted to `ProviderRouter.ts` and used by `visionAuthResolver` + `ImageDescriptionJob`. `USER_AUTH_PROBE_PROVIDERS` rewired to enum-derived list with `NON_LLM_PROVIDERS` filter — new LLM providers auto-include, ElevenLabs filtered as voice-only. Silent-fallback `logger.warn` added at `invokeVisionModel` chokepoint (interim signal before the eventual `visionProvider?` → `visionProvider` tightening; promote-when criterion: clean Railway logs for a few weeks). Hoisted double `MultimodalProcessor` lazy import in `DependencyStep`. Loud-failed 4 silent `vi.fn()` mock sites in `ImageDescriptionJob.test.ts`. 7 files, +199/-34. 2 review rounds, both convergent.
+_Empty — develop is at the release baseline._
 
 ---
 
 ## Previous Sessions
+
+- **2026-04-29 → 2026-04-30**: Six PRs merged + beta.112 release cut. PR #940 (vision pipeline cleanup post PR #938: `effectiveVisionModelName` helper, enum-derived `USER_AUTH_PROBE_PROVIDERS`, silent-fallback warn). PR #941 (made `guard:duplicate-exports` + `knip` CI checks blocking; fixed TS function overload dedup logic; deleted 6 dead exports; `isForwardedMessage` DRY consolidation). PR #942 (rule update: distinguish Dismissed from Backlog candidates by future trigger). PR #943 (Redis-backed rate-limit cache for OpenRouter 429s; 16 review rounds with mid-PR architectural pivot to resolve CodeQL `js/insufficient-password-hash` structurally; turns 4-5min user-visible latency into <100ms fast-fail). PR #944 (post-#943 misc cleanup bundle: MemoryDocument dedup + `wrapUrlsForNoEmbed` utility for Discord URL embed-suppression). PR #945 (Redis-backed credit-exhaustion cache for OpenRouter 402s with new `CREDIT_EXHAUSTION` error category, JSON cache shape `{ ts, ttl }` for accurate remaining-time, operator escape valve `pnpm ops cache:clear-credit-exhaustion`). PR #946 release-PR holistic review converged 0-blocking. v3.0.0-beta.112 shipped 2026-04-30; Railway prod auto-deployed.
 
 - **2026-04-28 → 2026-04-29 (continued)**: Cross-provider vision auth fix (#938) — discovered post-beta.110 deploy that the "transient AUTH glitch" was actually deterministic z.ai-key-sent-to-OpenRouter mis-routing. 13 review rounds, single fixup-squashed commit. User-verified on dev. Beta.111 cut to land it in prod.
 - **2026-04-28 → 2026-04-29**: Persona-owner DM participant leak fix (#932), DM-context message reference resolution (#933, #934, #936), vision negative-cache overhaul + observability (#935), bundled cleanup PR (#936), beta.110 cut (#937). Vision cache architecture: dropped L2 PostgreSQL entirely, decoupled cache TTL policy from retry policy via `VISION_FAILURE_CACHE_POLICY`, added source-aware fallback strings. Council-validated (Gemini 3.1 Pro Preview). Both dev + prod migrations applied.
