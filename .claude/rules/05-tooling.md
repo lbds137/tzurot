@@ -133,7 +133,13 @@ Note the `;` between each command (not `&&`). `echo "CI_COMPLETE"` and the final
 
 **Exit-code semantics — "Monitor script failed (exit 1)" can be cosmetic.** The trailing `gh pr checks N` exits non-zero whenever ANY check is red. Branches with active `fixup!` commits will have `fixup-check` red intentionally until autosquash, so the Monitor tool will report "script failed" on every fixup-bearing branch even though the script ran perfectly and emitted the event stream. **Read the event stream for the actual outcome; treat the exit code as informational only.** Do not append `; true` to muzzle this — that would also suppress real `gh` CLI failures (network errors, rate limits) which are useful signal.
 
-**Don't reinvent the watch loop.** When tempted to "improve" the canonical pattern (e.g., custom `until` loops parsing `gh pr checks --json bucket` to wait for "all non-pending"), don't. `gh pr checks --watch` already correctly waits for all checks to reach a terminal state, including ones that haven't registered yet. Homegrown JSON-snapshot polling has a race: `gh pr checks --json` can return a partial check list, and "all non-pending" can be momentarily true before slow checks (lint, test, claude-review, CodeQL) register. The canonical `--watch` pattern doesn't have this race. If the canonical pattern reports "failed" on a fixup-bearing branch, that's the cosmetic-exit-code case above, not a reason to rebuild the wait loop.
+**Don't reinvent the watch loop, but DO add a startup `sleep` for fresh pushes.** `gh pr checks --watch` snapshots the check list at start time — it does NOT correctly wait for checks that register after polling begins. On a fresh push, slow checks (CodeQL, claude-review) may take 10-30s to register; if `--watch` starts before they appear, it watches only the fast-registering checks (GitGuardian, voice-engine-test) and exits when those reach terminal states, leaving the slow checks pending. Mitigation: prepend a `sleep 60` before `--watch` so all checks have time to register first. The canonical pattern with the delay is:
+
+```
+sleep 60; gh pr checks N --watch --interval=30 > /dev/null 2>&1; sleep 5; echo "CI_COMPLETE"; gh pr checks N
+```
+
+The 60s prefix lets check-runs register; the `--watch` then correctly waits for all of them; the trailing 5s lets state propagate before the final-state query. This pattern is required for any monitor armed immediately after a `git push` — including post-autosquash. Custom `until` loops parsing `gh pr checks --json bucket` are still wrong (different race: partial check lists momentarily appearing "all non-pending" before slow checks register), but the bare `--watch` without startup delay is also wrong on fresh pushes. Use the sleep-prefixed canonical pattern.
 
 Pass to `Monitor` with `timeout_ms: 900000` (15 min — GitHub CI + CodeQL usually finishes well inside that; if it exceeds, re-arm).
 
