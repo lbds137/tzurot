@@ -5,7 +5,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseApiError, ApiError, shouldRetryError, getErrorLogContext } from './apiErrorParser.js';
+import {
+  parseApiError,
+  ApiError,
+  shouldRetryError,
+  getErrorLogContext,
+  isAccountCreditExhaustion,
+} from './apiErrorParser.js';
 import {
   ApiErrorType,
   ApiErrorCategory,
@@ -681,5 +687,108 @@ describe('getErrorLogContext', () => {
     expect(context).not.toHaveProperty('apiKey');
     expect(context).not.toHaveProperty('token');
     expect(context).not.toHaveProperty('password');
+  });
+});
+
+describe('isAccountCreditExhaustion', () => {
+  it('returns true for the canonical OpenRouter account-level message', () => {
+    // Verbatim production-log fixture from 2026-04-29 18:11.
+    const error = new Error(
+      '402 Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits'
+    );
+    expect(isAccountCreditExhaustion(error)).toBe(true);
+  });
+
+  it('returns true for "Insufficient credits" without an "afford" qualifier', () => {
+    const error = new Error('402 Insufficient credits.');
+    expect(isAccountCreditExhaustion(error)).toBe(true);
+  });
+
+  it('returns false for request-level "can only afford" messages', () => {
+    // Request-level 402 — different remediation (reduce max_tokens), not cacheable.
+    const error = new Error(
+      '402 Insufficient credits. This request requested up to 65536 tokens, but can only afford 11111.'
+    );
+    expect(isAccountCreditExhaustion(error)).toBe(false);
+  });
+
+  it('returns false when "requested up to N tokens" appears (alternate request-level wording)', () => {
+    const error = new Error('Insufficient: requested up to 8000 tokens, balance 200');
+    expect(isAccountCreditExhaustion(error)).toBe(false);
+  });
+
+  it('returns false when both signatures co-occur (request-level qualifier wins)', () => {
+    // Production OpenRouter messages could combine "Insufficient credits"
+    // with the request-level "can only afford" qualifier. The request-level
+    // signature must dominate so we don't cache a 402 that could succeed
+    // with a smaller max_tokens.
+    const error = new Error('Insufficient credits. This request can only afford 5000 tokens.');
+    expect(isAccountCreditExhaustion(error)).toBe(false);
+  });
+
+  it('returns false for ambiguous messages with no recognized signature', () => {
+    // Conservative default: when neither pattern hits, don't cache (false positive
+    // would block valid requests for up to 24h; false negative wastes a round-trip).
+    const error = new Error('402 Payment required (some unknown wording)');
+    expect(isAccountCreditExhaustion(error)).toBe(false);
+  });
+
+  it('matches "insufficient credits" pattern even for 429s — status-code gating is parseApiError\'s responsibility', () => {
+    // The helper is pattern-only; gating on statusCode === 402 happens in
+    // parseApiError. Documents the layered check explicitly: helper says
+    // yes for ANY message matching the credit-pattern, parser layer is what
+    // ensures only 402s get routed to CREDIT_EXHAUSTION.
+    const error = new Error('429 too many requests; insufficient credits-per-minute throttle');
+    expect(isAccountCreditExhaustion(error)).toBe(true);
+  });
+
+  it('handles non-Error inputs (defensive)', () => {
+    expect(isAccountCreditExhaustion('Insufficient credits')).toBe(true);
+    expect(isAccountCreditExhaustion(null)).toBe(false);
+    expect(isAccountCreditExhaustion(undefined)).toBe(false);
+    expect(isAccountCreditExhaustion(42)).toBe(false);
+  });
+});
+
+describe('parseApiError - 402 sub-classification', () => {
+  it('routes account-level 402 to CREDIT_EXHAUSTION category', () => {
+    const error = Object.assign(
+      new Error(
+        '402 Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits'
+      ),
+      { status: 402 }
+    );
+    const result = parseApiError(error);
+    expect(result.category).toBe(ApiErrorCategory.CREDIT_EXHAUSTION);
+    expect(result.type).toBe(ApiErrorType.PERMANENT);
+    expect(result.shouldRetry).toBe(false);
+  });
+
+  it('keeps request-level 402 ("can only afford") at QUOTA_EXCEEDED', () => {
+    const error = Object.assign(
+      new Error(
+        '402 Insufficient credits. This request requested up to 65536 tokens, but can only afford 11111.'
+      ),
+      { status: 402 }
+    );
+    const result = parseApiError(error);
+    expect(result.category).toBe(ApiErrorCategory.QUOTA_EXCEEDED);
+    expect(result.type).toBe(ApiErrorType.PERMANENT);
+  });
+
+  it('does NOT route a 429 with credit-mention to CREDIT_EXHAUSTION', () => {
+    // Status code is the gating layer — even if message matches credit-pattern,
+    // a non-402 stays at its native category (RATE_LIMIT in this case).
+    const error = Object.assign(new Error('429 Rate limited (insufficient credits-per-minute)'), {
+      status: 429,
+    });
+    const result = parseApiError(error);
+    expect(result.category).toBe(ApiErrorCategory.RATE_LIMIT);
+  });
+
+  it('keeps a generic 402 with no credit-pattern at QUOTA_EXCEEDED', () => {
+    const error = Object.assign(new Error('402 Payment Required'), { status: 402 });
+    const result = parseApiError(error);
+    expect(result.category).toBe(ApiErrorCategory.QUOTA_EXCEEDED);
   });
 });
