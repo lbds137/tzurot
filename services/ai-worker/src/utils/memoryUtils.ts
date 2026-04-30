@@ -7,7 +7,7 @@ import type {
   MemoryMetadata,
   NormalizedMetadata,
   MemoryQueryResult,
-  MemoryDocument,
+  PgvectorMemoryDocument,
 } from '../services/PgvectorTypes.js';
 import { replacePromptPlaceholders } from './promptPlaceholders.js';
 
@@ -55,10 +55,10 @@ export function normalizeMetadata(metadata: MemoryMetadata): NormalizedMetadata 
 }
 
 /**
- * Transform a raw database query result into a MemoryDocument
+ * Transform a raw database query result into a PgvectorMemoryDocument
  * Handles placeholder replacement and metadata normalization
  */
-export function mapQueryResultToDocument(memory: MemoryQueryResult): MemoryDocument {
+export function mapQueryResultToDocument(memory: MemoryQueryResult): PgvectorMemoryDocument {
   // Replace {user} and {assistant} tokens with actual names
   // Pass owner_username for disambiguation when persona name matches personality name
   const content = replacePromptPlaceholders(
@@ -96,7 +96,7 @@ export function mapQueryResultToDocument(memory: MemoryQueryResult): MemoryDocum
  * Extract unique chunk group IDs and seen document IDs from a list of documents
  * Used for sibling chunk expansion
  */
-export function extractChunkGroups(documents: MemoryDocument[]): {
+export function extractChunkGroups(documents: PgvectorMemoryDocument[]): {
   chunkGroups: Set<string>;
   seenIds: Set<string>;
 } {
@@ -121,10 +121,10 @@ export function extractChunkGroups(documents: MemoryDocument[]): {
  * Merge sibling documents into the main document list, avoiding duplicates
  */
 export function mergeSiblings(
-  documents: MemoryDocument[],
-  siblings: MemoryDocument[],
+  documents: PgvectorMemoryDocument[],
+  siblings: PgvectorMemoryDocument[],
   seenIds: Set<string>
-): MemoryDocument[] {
+): PgvectorMemoryDocument[] {
   const result = [...documents];
   for (const sibling of siblings) {
     const sibId = sibling.metadata?.id as string | null | undefined;
