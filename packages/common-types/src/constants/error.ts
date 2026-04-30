@@ -129,6 +129,15 @@ export enum ApiErrorCategory {
   AUTHENTICATION = 'authentication',
   /** 402 - Payment required / quota exceeded / daily limit */
   QUOTA_EXCEEDED = 'quota_exceeded',
+  /**
+   * 402 - Account-level credit exhaustion (BYOK key has zero credits or
+   * organisation hasn't purchased credits). Distinct from QUOTA_EXCEEDED
+   * because the remediation is account-level (top up at the provider) rather
+   * than waiting for a daily-limit reset. Routed by message-pattern in
+   * `parseApiError` when the 402 response identifies the account as out of
+   * credits, not the request as exceeding a per-request budget.
+   */
+  CREDIT_EXHAUSTION = 'credit_exhaustion',
   /** 403 - Content policy violation or forbidden */
   CONTENT_POLICY = 'content_policy',
   /** 400 - Bad request (context window exceeded, invalid params) */
@@ -162,6 +171,8 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
     "There's an issue with the API key configuration. Please check your wallet settings or contact support.",
   [ApiErrorCategory.QUOTA_EXCEEDED]:
     "You've reached your API usage limit. Please add credits to your OpenRouter account or wait until your limit resets.",
+  [ApiErrorCategory.CREDIT_EXHAUSTION]:
+    'Your OpenRouter account has no credits. Top up at https://openrouter.ai/settings/credits to continue.',
   [ApiErrorCategory.CONTENT_POLICY]:
     'The AI declined to respond due to content guidelines. Please try rephrasing your message.',
   [ApiErrorCategory.BAD_REQUEST]:
@@ -210,6 +221,7 @@ export const HTTP_STATUS_TO_CATEGORY: Record<number, ApiErrorCategory> = {
 export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   ApiErrorCategory.AUTHENTICATION,
   ApiErrorCategory.QUOTA_EXCEEDED,
+  ApiErrorCategory.CREDIT_EXHAUSTION,
   ApiErrorCategory.CONTENT_POLICY,
   ApiErrorCategory.MODEL_NOT_FOUND,
   ApiErrorCategory.MEDIA_NOT_FOUND,
@@ -253,6 +265,10 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   // Possibly-transient mis-classified-as-permanent — keep cache cooldown short
   [ApiErrorCategory.AUTHENTICATION]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_SHORT },
   [ApiErrorCategory.QUOTA_EXCEEDED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_SHORT },
+  // CREDIT_EXHAUSTION: same SHORT cooldown as QUOTA_EXCEEDED — credit state
+  // recovers when the user tops up; long cooldown would block legitimate
+  // recovery for hours.
+  [ApiErrorCategory.CREDIT_EXHAUSTION]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_SHORT },
 
   // Genuinely attachment-property failures — longer cooldown.
   // CENSORED belongs here too: when the vision model returns the "ext"-sentinel
