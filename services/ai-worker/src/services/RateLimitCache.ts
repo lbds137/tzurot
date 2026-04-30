@@ -39,13 +39,23 @@
  */
 
 import type { Redis } from 'ioredis';
-import { createLogger } from '@tzurot/common-types';
+import { CACHE_KEY_PREFIXES, createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('RateLimitCache');
 
-const KEY_PREFIX = 'ratelimit:openrouter:';
+const KEY_PREFIX = CACHE_KEY_PREFIXES.RATE_LIMIT_OPENROUTER;
 const MIN_TTL_SECONDS = 60;
 const MAX_TTL_SECONDS = 24 * 60 * 60;
+
+/**
+ * Format invariant for `cacheKeyId` — the dynamic segment of the cache key.
+ * Either the literal string `system`, `user:<digits>`, or empty (cache opt-out).
+ * Critically excludes any colon in the dynamic segment after `user:` so the
+ * `<prefix>:<id>:<model>` key shape stays unambiguous. Future scope extensions
+ * (e.g., `org:<name>`) MUST update this regex AND audit all callers to confirm
+ * the new dynamic segment cannot itself contain a colon.
+ */
+const VALID_CACHE_KEY_ID = /^(?:system|user:\d+|)$/;
 
 interface MarkOptions {
   /**
@@ -198,8 +208,38 @@ function clampTtl(seconds: number): number {
  */
 export function deriveCacheKeyId(userApiKey: string | undefined, userId: string): string {
   const hasByokKey = userApiKey !== undefined && userApiKey.length > 0;
+  let result: string;
   if (hasByokKey) {
-    return userId.length > 0 ? `user:${userId}` : '';
+    result = userId.length > 0 ? `user:${userId}` : '';
+  } else {
+    result = 'system';
   }
-  return 'system';
+  assertValidCacheKeyId(result);
+  return result;
+}
+
+/**
+ * Runtime belt for the documented `cacheKeyId` format invariant. Logs `warn`
+ * on violation rather than throwing — the cache is a performance optimisation,
+ * never a correctness gate, so a degraded read is preferable to a hard
+ * failure mid-request.
+ *
+ * Dormant against the current `deriveCacheKeyId` outputs, which all match
+ * `VALID_CACHE_KEY_ID` by construction. The check is a sentinel for future
+ * extensions: a contributor adding a new scope (e.g., `org:<name>`) must
+ * update both `deriveCacheKeyId` and `VALID_CACHE_KEY_ID`, or this assertion
+ * will fire and surface the gap.
+ *
+ * Exported for direct unit testing of the invariant — callers that route
+ * through `deriveCacheKeyId` get the check for free.
+ */
+export function assertValidCacheKeyId(cacheKeyId: string): void {
+  if (!VALID_CACHE_KEY_ID.test(cacheKeyId)) {
+    logger.warn(
+      { cacheKeyId },
+      'Cache key ID violates expected shape — Redis key lookups may collide. ' +
+        'Expected: "system" | "user:<digits>" | "". ' +
+        'Update VALID_CACHE_KEY_ID + deriveCacheKeyId together when adding a new scope.'
+    );
+  }
 }

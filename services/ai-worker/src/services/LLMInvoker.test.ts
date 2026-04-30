@@ -1759,6 +1759,65 @@ describe('LLMInvoker', () => {
       expect(mockIsRateLimited).not.toHaveBeenCalled();
     });
   });
+
+  describe('cacheKeyId invariant validation at invokeWithRetry call site', () => {
+    // The producer-side `assertValidCacheKeyId` inside `deriveCacheKeyId` is
+    // dormant against current outputs by construction, so it doesn't catch
+    // callers that bypass the producer and pass arbitrary strings into
+    // `InvokeWithRetryOptions.cacheKeyId`. The consumer-side guard inside
+    // `invokeWithRetry`'s else branch closes that gap.
+    it('does not throw on an invalid `cacheKeyId` shape — warn-only contract', async () => {
+      // Cache reports no active block so the call proceeds past the
+      // short-circuit guards and exercises the full validation + cache path.
+      mockIsCreditExhausted.mockResolvedValueOnce({ exhausted: false });
+      mockIsRateLimited.mockResolvedValueOnce({ rateLimited: false });
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      await expect(
+        invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'z-ai/glm-4.5-air:free',
+          // Colon-bearing scope that violates the format invariant — this
+          // is exactly the future-misuse case the consumer-side guard exists
+          // to detect.
+          cacheKeyId: 'org:my-team:special',
+        })
+      ).resolves.toBeDefined();
+
+      // Cache calls still execute — the validator is a non-blocking sentinel,
+      // not a control-flow guard. If a future refactor escalates the
+      // assertion to a throw, this expectation surfaces the regression.
+      expect(mockIsCreditExhausted).toHaveBeenCalledTimes(1);
+      expect(mockIsRateLimited).toHaveBeenCalledTimes(1);
+      expect(mockInvoke).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not invoke the validator when cacheKeyId is empty (cache opt-out path)', async () => {
+      // The empty-string branch goes through the debug-log path, not the
+      // else branch — so the consumer-side `assertValidCacheKeyId` call
+      // does not fire. Verified by exercising the empty path and
+      // confirming the cache calls don't happen (which would imply the
+      // else branch wasn't taken).
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.5-air:free',
+        cacheKeyId: '',
+      });
+
+      expect(mockIsCreditExhausted).not.toHaveBeenCalled();
+      expect(mockIsRateLimited).not.toHaveBeenCalled();
+      expect(mockInvoke).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe('supportsStopSequences', () => {

@@ -41,6 +41,7 @@ import {
 } from '../utils/apiErrorParser.js';
 import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
 import type { RateLimitCache } from './RateLimitCache.js';
+import { assertValidCacheKeyId } from './RateLimitCache.js';
 import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
 import { rateLimitCache, creditExhaustionCache } from '../redis.js';
 import {
@@ -170,20 +171,37 @@ export class LLMInvoker {
       stopSequences,
     } = options;
 
-    // Credit-exhaustion cache short-circuit runs FIRST: a 402 is a permanent
-    // account state until top-up, while a 429 is a time-bounded transient
-    // block. If both cache hits exist, surface the worse one — credit
-    // exhaustion blocks all OpenRouter calls regardless of model, so a
-    // CREDIT_EXHAUSTION error is more informative than a per-model RATE_LIMIT.
-    if (cacheKeyId.length > 0) {
+    if (cacheKeyId.length === 0) {
+      // An empty `cacheKeyId` skips both caches entirely — currently used by
+      // legacy test fixtures and any production caller that forgets to thread
+      // the value through. Surface it as a debug log so the silent opt-out is
+      // at least visible in local dev when wiring up a new caller. (Promoting
+      // the field to required in the type is tracked in `backlog/inbox.md`.)
+      logger.debug(
+        { modelName },
+        'Empty cacheKeyId — rate-limit + credit-exhaustion caches skipped'
+      );
+    } else {
+      // Validate the caller-supplied `cacheKeyId` shape before it flows into
+      // Redis key construction. The check is also applied inside
+      // `deriveCacheKeyId` (the canonical producer), but `cacheKeyId` is typed
+      // as optional on `InvokeWithRetryOptions` and callers can pass any
+      // string without going through `deriveCacheKeyId`. This second guard
+      // catches future callers that bypass the producer — without it a
+      // colon-bearing scope (e.g., `org:my-team:special`) would silently
+      // corrupt the `<prefix>:<id>:<model>` key shape with no log signal.
+      // Warn-only contract: assertion never throws, so cache short-circuit
+      // continues unchanged for currently-valid shapes.
+      assertValidCacheKeyId(cacheKeyId);
+      // Credit-exhaustion cache short-circuit runs FIRST: a 402 is a permanent
+      // account state until top-up, while a 429 is a time-bounded transient
+      // block. If both cache hits exist, surface the worse one — credit
+      // exhaustion blocks all OpenRouter calls regardless of model, so a
+      // CREDIT_EXHAUSTION error is more informative than a per-model RATE_LIMIT.
       await this.shortCircuitOnCreditExhaustion(creditExhaustionCache, cacheKeyId);
-    }
-
-    // Rate-limit cache short-circuit — when a previous 429 told us the
-    // (cacheKeyId, model) pair is in a known rate-limit window, fail fast
-    // instead of burning ~80s × 3 retry attempts to land on the same
-    // result. Skip when cacheKeyId is empty (legacy test path).
-    if (cacheKeyId.length > 0) {
+      // Rate-limit cache short-circuit — when a previous 429 told us the
+      // (cacheKeyId, model) pair is in a known rate-limit window, fail fast
+      // instead of burning ~80s × 3 retry attempts to land on the same result.
       await this.shortCircuitOnCachedRateLimit(rateLimitCache, cacheKeyId, modelName);
     }
 

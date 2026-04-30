@@ -12,11 +12,12 @@
 
 import { Redis } from 'ioredis';
 import chalk from 'chalk';
+import { CACHE_KEY_PREFIXES } from '@tzurot/common-types';
 
 import { getRailwayRedisUrl } from '../inspect/bullmqConnection.js';
 import type { Environment } from '../utils/env-runner.js';
 
-const KEY_PREFIX = 'nocredits:openrouter:';
+const KEY_PREFIX = CACHE_KEY_PREFIXES.CREDIT_EXHAUSTION_OPENROUTER;
 
 export interface ClearOptions {
   env: Environment;
