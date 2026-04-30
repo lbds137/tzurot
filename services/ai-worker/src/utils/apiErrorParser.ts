@@ -270,6 +270,48 @@ function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
 }
 
 /**
+ * Detect whether a 402 error represents **account-level credit exhaustion**
+ * (the BYOK key/account has zero credits) versus **request-level affordability**
+ * (the request exceeds what the remaining balance allows). The two are
+ * structurally similar (both 402, both QUOTA_EXCEEDED-classifiable) but have
+ * different remediations:
+ *
+ * - **Account-level**: user must top up at the provider. Cacheable — every
+ *   subsequent request from the same account will fail the same way until the
+ *   account is funded. Pattern: `"Insufficient credits..."` /
+ *   `"never purchased credits"` without a "can only afford N" qualifier.
+ * - **Request-level**: the same account could succeed with a smaller request
+ *   (`max_tokens` reduced). NOT cacheable — different requests have different
+ *   token budgets. Pattern: `"requested up to N tokens, but can only afford M"`.
+ *
+ * Conservative default: when the message is ambiguous (matches neither pattern
+ * cleanly), return `false`. Wrong-positive cost (caching a request-level 402 →
+ * blocking smaller-request retries for up to 24h) outweighs wrong-negative cost
+ * (missing a cache opportunity → ~70-440ms extra OpenRouter ping per request).
+ *
+ * Used by `parseApiError` to override the default 402 → QUOTA_EXCEEDED routing
+ * with `CREDIT_EXHAUSTION` when the account-level signature matches.
+ */
+export function isAccountCreditExhaustion(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+
+  // Request-level signature: "can only afford" or "requested up to N tokens"
+  // appears in the message body. Both indicate the request, not the account,
+  // is the issue. Even if "Insufficient credits" also appears, the qualifier
+  // wins — the request can succeed with a smaller token budget.
+  const requestLevel = /can only afford/i.test(message) || /requested up to.*tokens/i.test(message);
+  if (requestLevel) {
+    return false;
+  }
+
+  // Account-level signature: "never purchased credits" is unambiguous
+  // (OpenRouter's verbatim language for accounts that never funded). Falls
+  // back to "insufficient credits" when the verbatim phrase isn't present
+  // and the request-level qualifier is absent.
+  return /never purchased credits/i.test(message) || /insufficient.*credits/i.test(message);
+}
+
+/**
  * Detect classifier special cases that must run before HTTP status extraction.
  *
  * AbortError: thrown by the OpenAI SDK when LangChain's internal `timeout`
@@ -437,7 +479,20 @@ export function parseApiError(error: unknown): ApiErrorInfo {
   const requestId = extractRequestId(error);
   const errorMessage = error instanceof Error ? error.message : String(error);
 
-  const { category, type } = resolveCategoryAndType(error, statusCode, errorMessage);
+  const resolved = resolveCategoryAndType(error, statusCode, errorMessage);
+  // Sub-classify 402s: account-level credit exhaustion gets its own category
+  // (CREDIT_EXHAUSTION) so the user-facing message can be sharper (top-up URL)
+  // and `LLMInvoker` can write to a dedicated cache that fast-fails subsequent
+  // requests from the same account until TTL expiry. Request-level 402s ("can
+  // only afford N tokens") stay as QUOTA_EXCEEDED — they're per-request, not
+  // per-account, so caching would block valid smaller-budget retries.
+  const category =
+    statusCode === 402 &&
+    resolved.category === ApiErrorCategory.QUOTA_EXCEEDED &&
+    isAccountCreditExhaustion(error)
+      ? ApiErrorCategory.CREDIT_EXHAUSTION
+      : resolved.category;
+  const { type } = resolved;
 
   // Determine if we should retry
   const shouldRetry = type !== ApiErrorType.PERMANENT;
