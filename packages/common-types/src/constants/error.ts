@@ -333,6 +333,27 @@ export function isTransientError(category: ApiErrorCategory): boolean {
 const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
 
 /**
+ * Wrap bare http(s) URLs in `<…>` to suppress Discord's auto-embed previews.
+ *
+ * Discord renders an embed/preview card for any bare URL it finds in a message,
+ * even when the URL sits inside a spoiler block (`||…||`). For technical-error
+ * messages (e.g., a LangChain troubleshooting link), the embed is noisy and
+ * defeats the spoiler's purpose. Wrapping the URL with `<…>` is Discord's
+ * documented opt-out from preview rendering.
+ *
+ * Skips URLs that are already wrapped (`<https://…>`) or already inside a
+ * markdown link (`[text](https://…)`). Trailing sentence punctuation
+ * (`.,;:!?`) stays outside the wrap so the visible text reads naturally.
+ *
+ * The lookbehind only inspects one character — a URL can only be wrapped if
+ * the character preceding it is NOT `<` or `(`. This handles both the
+ * already-wrapped and the markdown-link cases without a more complex lookbehind.
+ */
+export function wrapUrlsForNoEmbed(text: string): string {
+  return text.replace(/(?<![<(])\b(https?:\/\/[^\s<>)]+?)([.,;:!?]?)(?=\s|$|[)\]>])/g, '<$1>$2');
+}
+
+/**
  * Format error details for Discord spoiler tags
  * @param category - Error category for context
  * @param referenceId - Unique reference ID
@@ -345,8 +366,13 @@ export function formatErrorSpoiler(
   technicalMessage?: string
 ): string {
   const categoryLabel = category.replace(/_/g, ' ');
+  // technicalMessage frequently carries provider URLs (e.g., the LangChain
+  // troubleshooting link); wrap them so the spoiler doesn't trigger
+  // Discord embeds.
   const techPart =
-    technicalMessage !== undefined && technicalMessage.length > 0 ? ` — "${technicalMessage}"` : '';
+    technicalMessage !== undefined && technicalMessage.length > 0
+      ? ` — "${wrapUrlsForNoEmbed(technicalMessage)}"`
+      : '';
   return `||*(error: ${categoryLabel}${techPart}; ref: ${referenceId})*||`;
 }
 

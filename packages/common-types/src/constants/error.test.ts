@@ -16,6 +16,7 @@ import {
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
   stripErrorSpoiler,
+  wrapUrlsForNoEmbed,
   HTTP_STATUS_TO_CATEGORY,
   PERMANENT_ERROR_CATEGORIES,
   TRANSIENT_ERROR_CATEGORIES,
@@ -201,6 +202,78 @@ describe('formatErrorSpoiler', () => {
   it('should omit technicalMessage when empty string', () => {
     const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001', '');
     expect(result).toBe('||*(error: timeout; ref: ref001)*||');
+  });
+
+  it('wraps bare URLs in technicalMessage to suppress Discord auto-embed', () => {
+    // The LangChain MODEL_RATE_LIMIT message is the canonical production case
+    // — a bare URL inside the spoiler block triggered embed cards.
+    const technicalMessage =
+      '429 Rate limit. Troubleshooting URL: https://docs.langchain.com/oss/javascript/langchain/errors/MODEL_RATE_LIMIT/';
+    const result = formatErrorSpoiler(ApiErrorCategory.RATE_LIMIT, 'abc123', technicalMessage);
+    expect(result).toContain(
+      '<https://docs.langchain.com/oss/javascript/langchain/errors/MODEL_RATE_LIMIT/>'
+    );
+    expect(result).not.toMatch(/[^<]https:\/\/docs\.langchain\.com/);
+  });
+});
+
+describe('wrapUrlsForNoEmbed', () => {
+  it('wraps a bare https URL', () => {
+    expect(wrapUrlsForNoEmbed('See https://example.com for details.')).toBe(
+      'See <https://example.com> for details.'
+    );
+  });
+
+  it('wraps a bare http URL', () => {
+    expect(wrapUrlsForNoEmbed('Old: http://legacy.example.com')).toBe(
+      'Old: <http://legacy.example.com>'
+    );
+  });
+
+  it('keeps trailing punctuation outside the wrap', () => {
+    // "<https://x.com>." renders cleanly; "<https://x.com.>" would 404 if clicked
+    expect(wrapUrlsForNoEmbed('Check https://example.com.')).toBe('Check <https://example.com>.');
+    expect(wrapUrlsForNoEmbed('Then https://example.com,')).toBe('Then <https://example.com>,');
+    expect(wrapUrlsForNoEmbed('And https://example.com?')).toBe('And <https://example.com>?');
+  });
+
+  it('does NOT double-wrap a URL already inside <…>', () => {
+    expect(wrapUrlsForNoEmbed('See <https://example.com> for details.')).toBe(
+      'See <https://example.com> for details.'
+    );
+  });
+
+  it('does NOT wrap a URL inside a markdown link', () => {
+    // [text](https://...) — preceded by `(`, lookbehind skips it
+    expect(wrapUrlsForNoEmbed('Click [here](https://example.com) to continue')).toBe(
+      'Click [here](https://example.com) to continue'
+    );
+  });
+
+  it('wraps multiple URLs in the same string', () => {
+    expect(
+      wrapUrlsForNoEmbed('First https://a.example.com and second https://b.example.com.')
+    ).toBe('First <https://a.example.com> and second <https://b.example.com>.');
+  });
+
+  it('returns text unchanged when no URLs are present', () => {
+    expect(wrapUrlsForNoEmbed('No URLs here, just plain text.')).toBe(
+      'No URLs here, just plain text.'
+    );
+  });
+
+  it('handles empty string', () => {
+    expect(wrapUrlsForNoEmbed('')).toBe('');
+  });
+
+  it('handles a URL at end-of-string with no trailing whitespace', () => {
+    expect(wrapUrlsForNoEmbed('See https://example.com')).toBe('See <https://example.com>');
+  });
+
+  it('handles URL paths with query strings and fragments', () => {
+    expect(wrapUrlsForNoEmbed('See https://example.com/path?q=1&r=2#section')).toBe(
+      'See <https://example.com/path?q=1&r=2#section>'
+    );
   });
 });
 
