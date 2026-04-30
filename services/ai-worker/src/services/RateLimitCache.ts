@@ -39,13 +39,51 @@
  */
 
 import type { Redis } from 'ioredis';
-import { CACHE_KEY_PREFIXES, createLogger } from '@tzurot/common-types';
+import { ApiErrorCategory, CACHE_KEY_PREFIXES, createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('RateLimitCache');
 
 const KEY_PREFIX = CACHE_KEY_PREFIXES.RATE_LIMIT_OPENROUTER;
 const MIN_TTL_SECONDS = 60;
 const MAX_TTL_SECONDS = 24 * 60 * 60;
+
+/**
+ * Cached value shape, persisted as JSON in Redis.
+ *
+ * Stores the full user-facing context from the original 429 — not just the
+ * reset timestamp — so the synthetic short-circuit at read time can replay
+ * the exact category + message the user would have seen on a real upstream
+ * call. Without this, every cache hit collapsed to the generic
+ * `RATE_LIMIT` user message, losing the `QUOTA_EXCEEDED` distinction
+ * (which carries actionable wording about credits + limit-reset windows).
+ *
+ * Schema migration: prior versions of this cache stored only
+ * `String(resetTimestampMs)` as the value. The read path
+ * (`parseStoredValue` below) handles both shapes — legacy numeric values
+ * fall back to `RATE_LIMIT` category with the generic user message
+ * (preserving prior behavior for in-flight cache entries). Existing prod
+ * entries naturally expire within 24h via TTL clamping, so the migration
+ * self-completes within a deployment cycle.
+ */
+interface StoredValue {
+  /** Unix-ms timestamp when the rate-limit window resets. */
+  resetMs: number;
+  /**
+   * Original ApiErrorCategory from the upstream 429. Persisted as a
+   * string for forward-compat with new categories; the read path falls
+   * back to RATE_LIMIT on unknown values.
+   */
+  category: ApiErrorCategory;
+  /** User-facing message corresponding to `category` (verbatim from `USER_ERROR_MESSAGES`). */
+  userMessage: string;
+  /**
+   * Original upstream technical message text (e.g.,
+   * "Rate limit exceeded: free-models-per-day-high-balance"). Bounded
+   * length is the caller's responsibility — `parseApiError` already
+   * applies `MAX_ERROR_MESSAGE_LENGTH` truncation.
+   */
+  technicalMessage: string;
+}
 
 /**
  * Format invariant for `cacheKeyId` — the dynamic segment of the cache key.
@@ -66,6 +104,16 @@ interface MarkOptions {
   cacheKeyId: string;
   model: string;
   resetTimestampMs: number;
+  /**
+   * Original error category from `parseApiError` — preserved so the
+   * synthetic short-circuit at read time can replay the same user
+   * message the user would have seen on a real upstream 429.
+   */
+  category: ApiErrorCategory;
+  /** User-facing message corresponding to `category`. */
+  userMessage: string;
+  /** Original upstream error text. */
+  technicalMessage: string;
 }
 
 interface CheckOptions {
@@ -77,6 +125,16 @@ interface RateLimitedResult {
   rateLimited: true;
   resetMs: number;
   ttlSeconds: number;
+  /**
+   * Original error category preserved across the cache. Falls back to
+   * `RATE_LIMIT` for legacy entries that were written before the JSON
+   * schema migration (those entries had only a numeric resetMs).
+   */
+  category: ApiErrorCategory;
+  /** User-facing message preserved across the cache. */
+  userMessage: string;
+  /** Original upstream error text preserved across the cache. */
+  technicalMessage: string;
 }
 
 interface NotLimitedResult {
@@ -94,7 +152,8 @@ export class RateLimitCache {
    * or evaporate immediately.
    */
   async markRateLimited(options: MarkOptions): Promise<void> {
-    const { cacheKeyId, model, resetTimestampMs } = options;
+    const { cacheKeyId, model, resetTimestampMs, category, userMessage, technicalMessage } =
+      options;
     const rawTtlSeconds = Math.floor((resetTimestampMs - Date.now()) / 1000);
     if (rawTtlSeconds <= 0) {
       logger.warn(
@@ -105,12 +164,19 @@ export class RateLimitCache {
     }
     const ttlSeconds = clampTtl(rawTtlSeconds);
     const key = buildKey(cacheKeyId, model);
+    const value: StoredValue = {
+      resetMs: resetTimestampMs,
+      category,
+      userMessage,
+      technicalMessage,
+    };
     try {
-      await this.redis.setex(key, ttlSeconds, String(resetTimestampMs));
+      await this.redis.setex(key, ttlSeconds, JSON.stringify(value));
       logger.info(
         {
           cacheKeyId,
           model,
+          category,
           ttlSeconds,
           resetIso: new Date(resetTimestampMs).toISOString(),
         },
@@ -144,8 +210,8 @@ export class RateLimitCache {
       if (stored === null) {
         return { rateLimited: false };
       }
-      const resetMs = Number(stored);
-      if (Number.isNaN(resetMs)) {
+      const parsed = parseStoredValue(stored);
+      if (parsed === null) {
         return { rateLimited: false };
       }
       // Treat the cached resetMs as the canonical truth. If the reset has
@@ -154,11 +220,18 @@ export class RateLimitCache {
       // short-circuiting on a stale cached value would block a request that
       // should succeed.
       const nowMs = Date.now();
-      if (resetMs < nowMs) {
+      if (parsed.resetMs < nowMs) {
         return { rateLimited: false };
       }
-      const ttlSeconds = Math.floor((resetMs - nowMs) / 1000);
-      return { rateLimited: true, resetMs, ttlSeconds };
+      const ttlSeconds = Math.floor((parsed.resetMs - nowMs) / 1000);
+      return {
+        rateLimited: true,
+        resetMs: parsed.resetMs,
+        ttlSeconds,
+        category: parsed.category,
+        userMessage: parsed.userMessage,
+        technicalMessage: parsed.technicalMessage,
+      };
     } catch (err) {
       logger.warn({ err, model }, 'Rate-limit cache read failed — degrading to retry path');
       return { rateLimited: false };
@@ -188,6 +261,101 @@ function buildKey(cacheKeyId: string, model: string): string {
 
 function clampTtl(seconds: number): number {
   return Math.min(MAX_TTL_SECONDS, Math.max(MIN_TTL_SECONDS, seconds));
+}
+
+/**
+ * Generic fallback user message for the legacy-cache-entry case (when the
+ * stored value is a bare numeric `resetMs` from the pre-JSON-migration cache
+ * shape). Identical to `USER_ERROR_MESSAGES[ApiErrorCategory.RATE_LIMIT]`
+ * but inlined here to avoid a circular dependency between the cache layer
+ * and the user-message constants. If `USER_ERROR_MESSAGES[RATE_LIMIT]`
+ * changes upstream, this string should be kept in sync — the cache fallback
+ * is a transitional safety net, not a permanent state.
+ */
+const LEGACY_FALLBACK_USER_MESSAGE =
+  "I'm receiving too many requests right now. Please wait a moment and try again.";
+
+/**
+ * Parse a Redis cache value into the structured shape, with backward-compat
+ * for the legacy numeric-only format. Returns null for malformed values
+ * (cache read fails closed, callers fall through to the retry path).
+ *
+ * Schema migration handling:
+ * - **New JSON shape** (`{ resetMs, category, userMessage, technicalMessage }`):
+ *   parsed faithfully, all fields preserved.
+ * - **Legacy numeric shape** (just `String(resetMs)` from pre-JSON cache
+ *   entries still in flight): returns the resetMs with `RATE_LIMIT` category
+ *   and the generic user message. This preserves the user-facing behavior
+ *   exactly as it was before the JSON migration for entries that haven't
+ *   expired yet. New writes always use JSON.
+ *
+ * Existing prod entries naturally expire within 24h via the TTL clamp, so
+ * the legacy-fallback branch can be removed in a follow-up PR after one
+ * deployment cycle.
+ */
+function parseStoredValue(raw: string): StoredValue | null {
+  // Legacy numeric path: pre-JSON cache entries persisted just `resetMs`
+  // as a stringified number. The first-character check distinguishes:
+  // JSON values always start with `{`, numeric values always start with
+  // a digit.
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  if (trimmed.startsWith('{')) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+    if (parsed === null || typeof parsed !== 'object') {
+      return null;
+    }
+    const candidate = parsed as Record<string, unknown>;
+    if (
+      typeof candidate.resetMs !== 'number' ||
+      Number.isNaN(candidate.resetMs) ||
+      typeof candidate.category !== 'string' ||
+      typeof candidate.userMessage !== 'string' ||
+      typeof candidate.technicalMessage !== 'string'
+    ) {
+      return null;
+    }
+    // Validate the persisted category against the known enum values. The
+    // primary failure mode this guards against is a forward/backward
+    // deployment skew: a future version of ai-worker adds a new
+    // `ApiErrorCategory`, writes it into the cache, then a rollback to the
+    // current code reads the unknown string. Without this check, the
+    // unknown value would flow unchecked through `ApiError` and into
+    // downstream consumers that switch on `category` (e.g., the bot-client
+    // error renderer). On unknown values, fall back to `RATE_LIMIT` —
+    // safe since we know the entry was written for a 429-class event,
+    // and the persisted `userMessage`/`technicalMessage` are still used
+    // verbatim so the user sees the original wording.
+    const isKnownCategory = (Object.values(ApiErrorCategory) as string[]).includes(
+      candidate.category
+    );
+    return {
+      resetMs: candidate.resetMs,
+      category: isKnownCategory
+        ? (candidate.category as ApiErrorCategory)
+        : ApiErrorCategory.RATE_LIMIT,
+      userMessage: candidate.userMessage,
+      technicalMessage: candidate.technicalMessage,
+    };
+  }
+  // Legacy numeric path.
+  const resetMs = Number(trimmed);
+  if (Number.isNaN(resetMs)) {
+    return null;
+  }
+  return {
+    resetMs,
+    category: ApiErrorCategory.RATE_LIMIT,
+    userMessage: LEGACY_FALLBACK_USER_MESSAGE,
+    technicalMessage: `Rate limit cached: model is rate-limited until ${resetMs}`,
+  };
 }
 
 /**

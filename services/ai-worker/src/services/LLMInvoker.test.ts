@@ -1515,11 +1515,21 @@ describe('LLMInvoker', () => {
       await vi.runAllTimersAsync();
       await assertion;
 
-      expect(mockMarkRateLimited).toHaveBeenCalledWith({
-        cacheKeyId: 'user:111111111111111111',
-        model: 'z-ai/glm-4.5-air:free',
-        resetTimestampMs: resetMs,
-      });
+      // Cache write now persists the original error context (category +
+      // user message + technical message) so synthetic short-circuits at
+      // read time can replay the exact context the user would have seen
+      // on a real upstream 429. expect.objectContaining lets future
+      // additions to the persisted context not break this assertion.
+      expect(mockMarkRateLimited).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cacheKeyId: 'user:111111111111111111',
+          model: 'z-ai/glm-4.5-air:free',
+          resetTimestampMs: resetMs,
+          category: ApiErrorCategory.RATE_LIMIT,
+          userMessage: expect.any(String),
+          technicalMessage: expect.any(String),
+        })
+      );
 
       vi.useRealTimers();
     });

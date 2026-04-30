@@ -117,6 +117,47 @@ const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
   /^\s*<from_id>[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}<\/from_id>\s*<user>[^<]*<\/user>\s*<message>([\s\S]*?)<\/message>\s*/;
 
 /**
+ * Standalone `<from_id>` echo — bare variant of the 4.5-Air leak.
+ *
+ * Observed 2026-04-30 in production (Lilith persona, image-vision context,
+ * `z-ai/glm-4.7 • 📍 auto`). GLM-4.7 emitted just
+ * `<from_id>UUID</from_id>` followed by the in-character response, without
+ * the rest of the GLM-4.5-Air vocabulary (`<user>`, `<message>`). The
+ * `GLM_FAKE_USER_MESSAGE_ECHO_PATTERN` above requires the full sequence to
+ * match and silently passes through this bare variant — leaking the
+ * `<from_id>UUID</from_id>` tag into the user-facing Discord output.
+ *
+ * Source of the leak: prompt scaffolding includes `<message from="..."
+ * from_id="UUID" role="..."...>...</message>`. The model treats `from_id`
+ * as a standalone element rather than an attribute and echoes it as
+ * leading scaffolding. `HardcodedConstraints.ts` already tells the model
+ * not to do this; GLM-4.7 ignores the constraint inconsistently.
+ *
+ * Safety: same UUID-format anchor as the 4.5-Air pattern. A real response
+ * won't statistically start with `<from_id>UUID-shaped-text</from_id>`
+ * because UUIDs are not natural prose. Strip without side effects.
+ *
+ * Order in Pass 1: must run AFTER `GLM_FAKE_USER_MESSAGE_ECHO_PATTERN`. If
+ * the 4.5-Air full-sequence is present, the leading `<from_id>` is part of
+ * that block and should be consumed by the more-specific extractor (which
+ * also captures the `<message>` body as reasoning). Only when the
+ * 4.5-Air pattern doesn't match (because `<user>`/`<message>` follow-up is
+ * absent) does this fallback fire on the residual bare `<from_id>`.
+ *
+ * No reasoning content — `from_id` is just a UUID, not a CoT block. Strip
+ * silently without contributing to `thinkingParts`.
+ *
+ * Deletion plan: same as the other GLM patterns — once OpenRouter's
+ * reasoning middleware polyfills this leak shape upstream, remove this
+ * extractor. Removal trigger: a production log sample showing GLM-4.7
+ * responses NO LONGER include a leading `<from_id>UUID</from_id>` block
+ * for several days running. File with the raw API response as evidence
+ * before removing.
+ */
+const STANDALONE_FROM_ID_ECHO_PATTERN =
+  /^\s*<from_id>[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}<\/from_id>\s*/;
+
+/**
  * GLM-4.7 meta-preamble pattern.
  *
  * Observed 2026-04-24 (req 9b2aa0f3-d659-4f00-95f4-36da3a9b40f3): with
@@ -193,6 +234,25 @@ const GLM_FAKE_USER_MESSAGE_ECHO_PATTERN =
  */
 const GLM_47_META_PREAMBLE_PATTERN =
   /^\s*(?:<(user|character)>[^<]*<\/\1>\s*){0,2}(?:<analysis>([\s\S]*?)(?:<\/analysis>|$))\s*/i;
+
+/**
+ * Pass-1 strip helper for the standalone `<from_id>` echo. Extracted from
+ * `extractThinkingBlocks` to keep that function under the cognitive-complexity
+ * limit — a Pass-1 entry that doesn't capture content (the bare `<from_id>`
+ * carries no reasoning) is cleaner as a separate one-liner caller.
+ */
+function stripStandaloneFromId(content: string): string {
+  const match = STANDALONE_FROM_ID_ECHO_PATTERN.exec(content);
+  if (match === null) {
+    return content;
+  }
+  const stripped = content.slice(match[0].length);
+  logger.warn(
+    { remainingLength: stripped.length },
+    'Stripped leading standalone <from_id> scaffolding (GLM-4.7 bare-from-id echo)'
+  );
+  return stripped;
+}
 
 /**
  * Alternation pattern fragment for use in regex: `think|thinking|...`
@@ -468,6 +528,8 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     );
   }
 
+  visibleContent = stripStandaloneFromId(visibleContent);
+
   const glm47MetaMatch = GLM_47_META_PREAMBLE_PATTERN.exec(visibleContent);
   if (glm47MetaMatch !== null) {
     // Group 2 is the <analysis> body (group 1 is the preamble tag name used
@@ -570,6 +632,9 @@ export function hasThinkingBlocks(content: string): boolean {
   // pure-GLM responses where the scaffolding is the only thinking-content
   // signal, and `/inspect` diagnostics would under-report GLM reasoning
   // occurrences.
+  if (STANDALONE_FROM_ID_ECHO_PATTERN.test(normalized)) {
+    return true;
+  }
   if (GLM_FAKE_USER_MESSAGE_ECHO_PATTERN.test(normalized)) {
     return true;
   }
