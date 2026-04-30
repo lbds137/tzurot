@@ -353,6 +353,7 @@ describe('PERMANENT_ERROR_CATEGORIES', () => {
   it('should contain expected permanent categories', () => {
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.AUTHENTICATION)).toBe(true);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(true);
+    expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.CREDIT_EXHAUSTION)).toBe(true);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.CONTENT_POLICY)).toBe(true);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.MODEL_NOT_FOUND)).toBe(true);
   });
@@ -363,6 +364,34 @@ describe('PERMANENT_ERROR_CATEGORIES', () => {
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.TIMEOUT)).toBe(false);
     // BAD_REQUEST is now transient - some AI APIs incorrectly return 400 for transient issues
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.BAD_REQUEST)).toBe(false);
+  });
+});
+
+describe('CREDIT_EXHAUSTION user message', () => {
+  it('contains the OpenRouter top-up URL for actionability', () => {
+    const message = USER_ERROR_MESSAGES[ApiErrorCategory.CREDIT_EXHAUSTION];
+    expect(message).toContain('https://openrouter.ai/settings/credits');
+  });
+
+  it('reads as account-level remediation, distinct from generic quota wording', () => {
+    // Credit-exhaustion users top up; quota-exceeded users wait. The two
+    // messages must not be interchangeable.
+    const credit = USER_ERROR_MESSAGES[ApiErrorCategory.CREDIT_EXHAUSTION];
+    const quota = USER_ERROR_MESSAGES[ApiErrorCategory.QUOTA_EXCEEDED];
+    expect(credit).not.toBe(quota);
+    expect(credit.toLowerCase()).toContain('no credits');
+  });
+
+  it('renders cleanly in formatErrorSpoiler with URL auto-wrap', () => {
+    // The URL in the user-facing message is also passed through technicalMessage
+    // in some paths; verify the wrap utility handles the OR top-up URL idempotently.
+    const result = formatErrorSpoiler(
+      ApiErrorCategory.CREDIT_EXHAUSTION,
+      'ref-credit',
+      'Insufficient credits. This account never purchased credits. https://openrouter.ai/settings/credits'
+    );
+    expect(result).toContain('<https://openrouter.ai/settings/credits>');
+    expect(result).toContain('credit exhaustion'); // category label with underscore replaced
   });
 });
 
