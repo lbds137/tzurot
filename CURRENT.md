@@ -1,25 +1,26 @@
 # Current
 
-> **Session**: 2026-04-29 (vision #940 + knip CI #941 + rule update #942 + rate-limit cache #943 + post-#943 cleanup #944)
-> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PRs #940, #941, #942, #943, #944
+> **Session**: 2026-04-29 → 2026-04-30 (vision #940 + knip CI #941 + rule update #942 + rate-limit cache #943 + post-#943 cleanup #944 + credit-exhaustion cache #945)
+> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PRs #940, #941, #942, #943, #944, #945
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared. No active production bugs. Five PRs merged this session._
+_All production-issues entries cleared. No active production bugs. Six PRs merged this session._
 
-1. **402 credit-exhaustion cache PR (active fast-follow)** — Production-log investigation 2026-04-29 found 10× `code: 402` events from one user with a broken BYOK key (zero credits) hitting chat completions on `z-ai/glm-4.7`, NOT vision (the original backlog entry was mis-scoped). Each request burns ~70-440ms on a known-failed OpenRouter ping that returns the same "Account never purchased credits" 402. Fix shape: ~100-150 LOC similar to PR #943's `RateLimitCache` — new `CreditExhaustionCache` class, account-scoped key (`nocredits:openrouter:user:<discordId>`), TTL 1-4h (no provider-supplied reset signal), write on 402-with-credit-message, read at top of `invokeWithRetry` before rate-limit-cache check. Updated inbox entry reflects correct scope.
-2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-3. **Optional next release (beta.112)** — would bundle PRs #940/941/942/943/944. Production-driving piece is #943 (4-5min user-facing latency on rate-limited free-tier requests → <100ms fast-fail). #944 adds Discord-UX polish (URL embed-suppression in error messages).
+1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
+2. **Optional next release (beta.112)** — would bundle PRs #940/941/942/943/944/945. Production-driving pieces are #943 (rate-limit fast-fail) + #945 (credit-exhaustion fast-fail) — together they turn known-failed OpenRouter calls into <100ms short-circuits instead of 70-440ms (per-request) or 4-5min (retry-storm) waits.
 
 ## Active Task
 
-_None. PR #944 merged 2026-04-29 — bundle of 2 mechanical cleanup items (MemoryDocument dedup + Discord URL embed-suppression). Single round of review with 0 actionable items, 8 ✅ verdicts, 2 backlog candidates added (third MemoryDocument in PgvectorTypes.ts; parenthesized-URL truncation in wrapUrlsForNoEmbed). After this session ends, next concrete pull-from is the 402 cache PR._
+_None. PR #945 merged 2026-04-30 — credit-exhaustion cache (~700 LOC, 4 commits, 46 new tests). 3 review rounds, monotonic convergence (3 medium/minor → 4 polish → 0 actionable). Strict plan-mode discipline including default-to-include-not-defer correction (operator escape valve + user UX message both in scope; only max_tokens auto-reduction deferred with strong reason). Two backlog items added: regex-breadth follow-up + max_tokens auto-reduction._
 
 ---
 
 ## Unreleased on Develop (since beta.111)
+
+- **PR #945** (2026-04-30) — **Redis-backed credit-exhaustion cache for OpenRouter 402s**. Production logs showed 10× consecutive 402s from one user with a zero-credit BYOK key over a 3-min window, each request burning ~70-440ms on a known-failed OpenRouter ping. New `CreditExhaustionCache` parallel to PR #943's `RateLimitCache` with semantically-distinct shape: account-scoped key (`nocredits:openrouter:<cacheKeyId>`, no model dimension), default 1h TTL clamped [60s, 24h], JSON value `{ ts, ttl }` for accurate remaining-time on read. New `ApiErrorCategory.CREDIT_EXHAUSTION` distinguishes account-level 402s from request-level (max_tokens overflow); `parseApiError` sub-classifies via new `isAccountCreditExhaustion(error)` helper with conservative pattern-match (request-level "afford" qualifier wins over account-level "insufficient credits"). User-facing message includes OpenRouter top-up URL, auto-wrapped by PR #944's `wrapUrlsForNoEmbed`. Operator escape valve `pnpm ops cache:clear-credit-exhaustion --user-id <id>` for top-up-before-TTL-expiry cases. 4 commits (category enum → parser sub-classification → cache+integration → operator tooling), 15 files, ~700 LOC, 46 new tests. 3 review rounds, monotonic convergence.
 
 - **PR #944** (2026-04-29) — **Post-PR-#943 misc cleanup bundle**: (1) `refactor(ai-worker)`: deleted `services/context/PromptContext.ts` (duplicate `MemoryDocument` definition; pointed sole importer at canonical `ConversationalRAGTypes.ts` home); (2) `fix(common-types)`: new `wrapUrlsForNoEmbed` utility wraps bare http(s) URLs in `<…>` to suppress Discord auto-embed cards inside error spoilers (production rate-limit messages were rendering with embed previews of LangChain troubleshooting URLs). 2 commits, 5 files, +102/-18. Single round of review, 0 actionable items, 2 backlog candidates added. Transient claude-review auth flake on round 1 cleared via user rerun.
 
