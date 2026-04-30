@@ -56,6 +56,10 @@ vi.mock('@tzurot/common-types', async () => {
     deterministicMemoryUuid: actual.deterministicMemoryUuid,
     // Mock countTextTokens for defensive validation check
     countTextTokens: () => 100, // Return safe value under limit
+    // Pass through the real `Prisma` namespace — `PgvectorQueryBuilder` calls
+    // `Prisma.sql` / `Prisma.join` to construct similarity-search SQL, and a
+    // missing entry here makes those calls throw and the catch path return [].
+    Prisma: actual.Prisma,
   };
 });
 
@@ -206,6 +210,158 @@ describe('PgvectorMemoryAdapter', () => {
       // All 4 should be the same chunkGroupId
       const uniqueGroupIds = new Set(chunkGroupIds);
       expect(uniqueGroupIds.size).toBe(1); // All have same group ID (deterministic)
+    });
+  });
+
+  describe('queryMemories', () => {
+    // Covers the read path: validation short-circuit, storage→RAG mapping,
+    // and graceful DB-failure degradation. PgvectorChannelScoping.test.ts and
+    // PgvectorSiblingExpander.test.ts own the helper-level assertions.
+
+    /**
+     * Build a `MemoryQueryResult` row matching the shape `prisma.$queryRaw`
+     * returns. Overrides are typed against the snake_case row shape so a
+     * typo like `persona_idd` fails the type check rather than silently
+     * overwriting nothing.
+     */
+    interface MemoryQueryResultRowOverrides {
+      id?: string;
+      content?: string;
+      persona_id?: string;
+      persona_name?: string;
+      owner_username?: string;
+      personality_id?: string;
+      personality_name?: string;
+      session_id?: string | null;
+      canon_scope?: string;
+      summary_type?: string | null;
+      channel_id?: string | null;
+      guild_id?: string | null;
+      message_ids?: string[] | null;
+      senders?: string[] | null;
+      created_at?: Date | string;
+      distance?: number;
+      chunk_group_id?: string | null;
+      chunk_index?: number | null;
+      total_chunks?: number | null;
+    }
+    function buildQueryResultRow(overrides: MemoryQueryResultRowOverrides = {}): unknown {
+      return {
+        id: 'mem-1',
+        content: 'Test memory content',
+        persona_id: 'persona-123',
+        persona_name: 'Test Persona',
+        owner_username: 'testuser',
+        personality_id: 'personality-456',
+        personality_name: 'Test Personality',
+        session_id: null,
+        canon_scope: 'personal',
+        summary_type: null,
+        channel_id: null,
+        guild_id: null,
+        message_ids: null,
+        senders: null,
+        created_at: new Date('2026-04-30T12:00:00Z'),
+        distance: 0.1,
+        chunk_group_id: null,
+        chunk_index: null,
+        total_chunks: null,
+        ...overrides,
+      };
+    }
+
+    it('returns empty array for an empty query string (validation short-circuit)', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn(),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('', {
+        personaId: 'persona-123',
+      });
+
+      expect(result).toEqual([]);
+      // The validation gate runs before any DB call — confirms we never
+      // burn an embedding-API request on a known-bad input.
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('maps prisma rows into PgvectorMemoryDocument[] with normalized metadata', async () => {
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue([
+            buildQueryResultRow({ id: 'mem-1', content: 'First memory', distance: 0.05 }),
+            buildQueryResultRow({ id: 'mem-2', content: 'Second memory', distance: 0.2 }),
+          ]),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('what did we discuss yesterday', {
+        personaId: 'persona-123',
+        // Disable sibling expansion to keep the test scope tight to
+        // queryMemories itself; PgvectorSiblingExpander.test.ts owns
+        // the expansion-path assertions.
+        includeSiblings: false,
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0].pageContent).toBe('First memory');
+      expect(result[0].metadata?.id).toBe('mem-1');
+      // `score = 1 - distance` per `mapQueryResultToDocument`, locking in
+      // the storage-layer normalization that downstream RAG context relies on.
+      expect(result[0].metadata?.score).toBeCloseTo(0.95);
+      expect(result[1].pageContent).toBe('Second memory');
+      expect(result[1].metadata?.score).toBeCloseTo(0.8);
+    });
+
+    it('returns empty array when prisma query throws (graceful degradation)', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockRejectedValue(new Error('Connection refused')),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+
+      const result = await adapter.queryMemories('any query', {
+        personaId: 'persona-123',
+        includeSiblings: false,
+      });
+
+      // The catch path returns [] rather than propagating — DB unavailability
+      // should never block the LLM response, just result in no retrieved
+      // memories for that turn.
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('queryMemoriesWithChannelScoping', () => {
+    // Pins delegation wiring — confirms this method routes through the
+    // adapter's own queryMemories rather than a separate code path.
+
+    it('delegates to waterfallMemoryQuery using its own queryMemories', async () => {
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValue([]),
+      };
+
+      const adapter = new PgvectorMemoryAdapter(mockPrisma as never, createMockEmbeddingService());
+      // Spy on `queryMemories` so we can confirm the delegator routes
+      // through it rather than skipping the adapter's own validation
+      // and mapping logic.
+      const queryMemoriesSpy = vi.spyOn(adapter, 'queryMemories');
+
+      const result = await adapter.queryMemoriesWithChannelScoping('test query', {
+        personaId: 'persona-123',
+        // No channelIds → waterfall falls back to a single normal query
+        // through the delegated function (kept simple for this unit test;
+        // the full waterfall behavior is covered in
+        // PgvectorChannelScoping.test.ts).
+        includeSiblings: false,
+      });
+
+      expect(result).toEqual([]);
+      expect(queryMemoriesSpy).toHaveBeenCalledTimes(1);
     });
   });
 });
