@@ -73,6 +73,7 @@ export {
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
   stripErrorSpoiler,
+  wrapUrlsForNoEmbed,
   API_ERROR_SUBCODE,
   type ApiErrorSubcode,
 } from './error.js';
