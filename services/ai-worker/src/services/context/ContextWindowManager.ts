@@ -13,7 +13,7 @@ import {
   type CrossChannelHistoryGroupEntry,
   type DiscordEnvironment,
 } from '@tzurot/common-types';
-import type { MemoryDocument } from './PromptContext.js';
+import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 import {
   type RawHistoryEntry,
   formatConversationHistoryAsXml,
