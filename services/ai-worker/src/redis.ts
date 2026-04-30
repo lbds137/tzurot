@@ -13,6 +13,7 @@
 import { initCoreRedisServices, VisionDescriptionCache } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
 import { RateLimitCache } from './services/RateLimitCache.js';
+import { CreditExhaustionCache } from './services/CreditExhaustionCache.js';
 import { modelSupportsVision, modelSupportsReasoning } from './services/ModelCapabilityChecker.js';
 
 const { redis, voiceTranscriptCache } = initCoreRedisServices('WorkerRedis');
@@ -32,6 +33,11 @@ export const visionDescriptionCache = new VisionDescriptionCache(redis);
 // (apiKey, model) pair is in a known rate-limit window.
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each maintain a separate view of rate-limit state and miss the short-circuit.
 export const rateLimitCache = new RateLimitCache(redis);
+
+// Export singleton CreditExhaustionCache instance — short-circuits LLM calls
+// when a BYOK account is known to be out of credits (per-account 402).
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: shared Redis client; multiple instances would each maintain a separate view of credit-exhaustion state and miss the short-circuit.
+export const creditExhaustionCache = new CreditExhaustionCache(redis);
 
 /**
  * Check if a model supports vision input using OpenRouter's cached model data.
