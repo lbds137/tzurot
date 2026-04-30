@@ -1,9 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
+import { ApiErrorCategory } from '@tzurot/common-types';
 import { RateLimitCache, deriveCacheKeyId, assertValidCacheKeyId } from './RateLimitCache.js';
 
 // Frozen "now" for deterministic TTL math in clamping tests
 const FIXED_NOW_MS = 1_777_500_000_000;
+
+/**
+ * Default error context for tests that don't care about the cached
+ * category/message replay path. Tests focusing on key shape, TTL math,
+ * isolation, etc. can spread this into their `markRateLimited` calls
+ * to avoid repeating the boilerplate. Tests that DO care about the
+ * preserved category (e.g., the QUOTA_EXCEEDED replay path) override
+ * these fields explicitly.
+ */
+const DEFAULT_ERROR_CTX = {
+  category: ApiErrorCategory.RATE_LIMIT,
+  userMessage: "I'm receiving too many requests right now. Please wait a moment and try again.",
+  technicalMessage: 'Rate limit exceeded',
+};
 
 describe('RateLimitCache', () => {
   let mockRedis: {
@@ -36,6 +51,7 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'user:278863839632818186',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
 
       expect(mockRedis.setex).toHaveBeenCalledTimes(1);
@@ -43,7 +59,15 @@ describe('RateLimitCache', () => {
       // Cache key is opaque scope ID + model, no hashing layer.
       expect(key).toBe('ratelimit:openrouter:user:278863839632818186:z-ai/glm-4.5-air:free');
       expect(ttl).toBe(3600);
-      expect(value).toBe(String(resetMs));
+      // Value is JSON-encoded since the cache schema migration. Preserves
+      // category + userMessage + technicalMessage for synthetic-error replay
+      // at read time.
+      expect(JSON.parse(value)).toEqual({
+        resetMs,
+        category: ApiErrorCategory.RATE_LIMIT,
+        userMessage: DEFAULT_ERROR_CTX.userMessage,
+        technicalMessage: DEFAULT_ERROR_CTX.technicalMessage,
+      });
     });
 
     it('uses literal "system" for guest-mode / system-key fallback bucket', async () => {
@@ -52,6 +76,7 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       const [key] = mockRedis.setex.mock.calls[0];
       expect(key).toBe('ratelimit:openrouter:system:z-ai/glm-4.5-air:free');
@@ -63,6 +88,7 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       expect(mockRedis.setex).not.toHaveBeenCalled();
     });
@@ -73,6 +99,7 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       const [, ttl] = mockRedis.setex.mock.calls[0];
       expect(ttl).toBe(60);
@@ -84,6 +111,7 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       const [, ttl] = mockRedis.setex.mock.calls[0];
       expect(ttl).toBe(86400);
@@ -97,6 +125,7 @@ describe('RateLimitCache', () => {
           cacheKeyId: 'system',
           model: 'z-ai/glm-4.5-air:free',
           resetTimestampMs: resetMs,
+          ...DEFAULT_ERROR_CTX,
         })
       ).resolves.toBeUndefined();
     });
@@ -112,21 +141,93 @@ describe('RateLimitCache', () => {
       expect(result).toEqual({ rateLimited: false });
     });
 
-    it('returns rateLimited result with reset + inferred ttl for present key', async () => {
+    it('returns rateLimited result with full context for present JSON-shaped key', async () => {
       const resetMs = FIXED_NOW_MS + 3600 * 1000;
-      mockRedis.get.mockResolvedValue(String(resetMs));
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          resetMs,
+          category: ApiErrorCategory.QUOTA_EXCEEDED,
+          userMessage:
+            "You've reached your API usage limit. Please add credits to your OpenRouter account or wait until your limit resets.",
+          technicalMessage: 'Rate limit exceeded: free-models-per-day-high-balance',
+        })
+      );
       const result = await cache.isRateLimited({
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
       });
       // ttlSeconds is computed from (resetMs - now), not queried from Redis —
       // saves a round-trip on every cache hit and avoids a GET/TTL race window.
+      // Category + userMessage + technicalMessage are preserved across the
+      // cache so the synthetic short-circuit at read time can replay the
+      // exact context from the original 429 (e.g., QUOTA_EXCEEDED's
+      // credits-and-reset-window message instead of the generic
+      // RATE_LIMIT "too many requests" string).
       expect(result).toEqual({
         rateLimited: true,
         resetMs,
         ttlSeconds: 3600,
+        category: ApiErrorCategory.QUOTA_EXCEEDED,
+        userMessage:
+          "You've reached your API usage limit. Please add credits to your OpenRouter account or wait until your limit resets.",
+        technicalMessage: 'Rate limit exceeded: free-models-per-day-high-balance',
       });
       expect(mockRedis.ttl).not.toHaveBeenCalled();
+    });
+
+    it('falls back to RATE_LIMIT category for legacy numeric-only cache entries', async () => {
+      // Legacy entries (pre-JSON-migration cache writes still in flight)
+      // stored just `String(resetMs)`. Read-path compat preserves the prior
+      // user-facing behavior: RATE_LIMIT category + generic message.
+      // Existing prod entries naturally expire within 24h via TTL clamp,
+      // so this branch is bounded transitional.
+      const resetMs = FIXED_NOW_MS + 3600 * 1000;
+      mockRedis.get.mockResolvedValue(String(resetMs));
+      const result = await cache.isRateLimited({
+        cacheKeyId: 'system',
+        model: 'z-ai/glm-4.5-air:free',
+      });
+      expect(result).toEqual({
+        rateLimited: true,
+        resetMs,
+        ttlSeconds: 3600,
+        category: ApiErrorCategory.RATE_LIMIT,
+        userMessage:
+          "I'm receiving too many requests right now. Please wait a moment and try again.",
+        technicalMessage: `Rate limit cached: model is rate-limited until ${resetMs}`,
+      });
+    });
+
+    it('falls back to RATE_LIMIT category when persisted category is unknown (forward-deploy + rollback safety)', async () => {
+      // Guards the forward/backward deployment skew scenario: a future
+      // ai-worker adds a new ApiErrorCategory, writes it into the cache,
+      // then rollback reads the unknown string. Without the runtime
+      // membership check, the unknown value flows unchecked through
+      // ApiError and into downstream consumers that switch on category.
+      // The fallback uses RATE_LIMIT since we know the entry was written
+      // for a 429-class event; the persisted user/technical messages are
+      // still used verbatim so the user sees the original wording.
+      const resetMs = FIXED_NOW_MS + 3600 * 1000;
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          resetMs,
+          category: 'category_from_the_future',
+          userMessage: "Future version's user message — preserved verbatim.",
+          technicalMessage: 'Future version technical detail',
+        })
+      );
+      const result = await cache.isRateLimited({
+        cacheKeyId: 'system',
+        model: 'z-ai/glm-4.5-air:free',
+      });
+      expect(result).toEqual({
+        rateLimited: true,
+        resetMs,
+        ttlSeconds: 3600,
+        category: ApiErrorCategory.RATE_LIMIT,
+        userMessage: "Future version's user message — preserved verbatim.",
+        technicalMessage: 'Future version technical detail',
+      });
     });
 
     it('returns false for malformed cache value (non-numeric)', async () => {
@@ -169,11 +270,13 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'user:111111111111111111',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       await cache.markRateLimited({
         cacheKeyId: 'user:222222222222222222',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       const keyA = mockRedis.setex.mock.calls[0][0];
       const keyB = mockRedis.setex.mock.calls[1][0];
@@ -186,11 +289,13 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'user:111111111111111111',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       await cache.markRateLimited({
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       const keyUser = mockRedis.setex.mock.calls[0][0];
       const keySystem = mockRedis.setex.mock.calls[1][0];
@@ -203,11 +308,13 @@ describe('RateLimitCache', () => {
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       await cache.markRateLimited({
         cacheKeyId: 'system',
         model: 'google/gemma-4-31b-it:free',
         resetTimestampMs: resetMs,
+        ...DEFAULT_ERROR_CTX,
       });
       const key1 = mockRedis.setex.mock.calls[0][0];
       const key2 = mockRedis.setex.mock.calls[1][0];

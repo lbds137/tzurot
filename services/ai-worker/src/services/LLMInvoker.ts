@@ -317,40 +317,39 @@ export class LLMInvoker {
       {
         cacheKeyId,
         model: modelName,
+        category: result.category,
         ttlSeconds: result.ttlSeconds,
         resetIso: new Date(result.resetMs).toISOString(),
       },
       'Skipped LLM call — rate-limit cache hit'
     );
-    // Round-trip through parseApiError to inherit the RATE_LIMIT category +
-    // user message without duplicating the category-to-message mapping. The
-    // override below replaces only `shouldRetry` and `type` (which classify
-    // wrongly for a synthetic short-circuit) while keeping the inherited
-    // fields stable.
-    const errorInfo = parseApiError(
-      Object.assign(new Error(`Rate limit cached: model is rate-limited until ${result.resetMs}`), {
-        status: 429,
-      })
-    );
-    // Override `shouldRetry` and `type` from `parseApiError`'s default
-    // RATE_LIMIT classification: a synthetic short-circuit represents a
-    // KNOWN rate-limit window with a reset time, not a transient error
-    // worth retrying. Without this override, a future caller using
+    // Use the cached category + userMessage + technicalMessage directly
+    // instead of re-parsing through a stub message. This preserves the
+    // user-facing distinction between RATE_LIMIT and QUOTA_EXCEEDED that
+    // the original 429 had — pre-cache, the user saw a category-specific
+    // message; collapsing everything to a generic "too many requests"
+    // string at synthetic-error construction would silently drop the
+    // QUOTA_EXCEEDED routing (which carries actionable wording about
+    // credits + the limit-reset window).
+    //
+    // `shouldRetry: false` + `type: PERMANENT`: a synthetic short-circuit
+    // represents a KNOWN rate-limit window with a reset time, not a
+    // transient error worth retrying. Without these, a future caller using
     // `shouldRetryError()` on the thrown error would re-enter
     // `invokeWithRetry` → cache hits → throws → loops until exhausted.
     //
-    // Override `referenceId` to a stable sentinel: `parseApiError` calls
-    // `generateReferenceId()` for every error it sees, but for a synthetic
-    // short-circuit the generated ID points to a fake error object — there
-    // is no real provider call to trace if the ID surfaces in a user-facing
-    // message or support ticket. The sentinel makes it unambiguous in logs
-    // and UX that the reference traces to cache logic, not an upstream call.
+    // `referenceId: 'rate-limit-cache-hit'`: stable sentinel since there's
+    // no real upstream call to trace. Makes it unambiguous in logs/UX
+    // that the reference traces to cache logic, not an upstream call.
     throw new ApiError('Rate limit cached', {
-      ...errorInfo,
-      rateLimitResetMs: result.resetMs,
-      shouldRetry: false,
       type: ApiErrorType.PERMANENT,
+      category: result.category,
+      statusCode: 429,
+      userMessage: result.userMessage,
+      technicalMessage: result.technicalMessage,
       referenceId: 'rate-limit-cache-hit',
+      shouldRetry: false,
+      rateLimitResetMs: result.resetMs,
     });
   }
 
@@ -381,6 +380,20 @@ export class LLMInvoker {
       cacheKeyId,
       model: modelName,
       resetTimestampMs: errorInfo.rateLimitResetMs,
+      // Persist category + messages so the synthetic short-circuit at read
+      // time can replay the same user-facing message the user would have
+      // seen on a real upstream call. Without these, every cache hit
+      // collapsed to the generic RATE_LIMIT message even when the original
+      // 429 routed to QUOTA_EXCEEDED (different actionable wording about
+      // credits + limit-reset windows).
+      //
+      // `technicalMessage` is optional on `errorInfo` (parseApiError's
+      // post-truncation `?.substring` can produce undefined); fall back to
+      // empty string rather than persist `undefined` (which would JSON-
+      // serialize to absent and trip the read-side schema check).
+      category: errorInfo.category,
+      userMessage: errorInfo.userMessage,
+      technicalMessage: errorInfo.technicalMessage ?? '',
     });
   }
 

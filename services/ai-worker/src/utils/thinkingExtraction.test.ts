@@ -744,8 +744,13 @@ Response.`;
       expect(result.visibleContent).toContain('<from_id>');
     });
 
-    it('does NOT match when a UUID is present but the tag sequence is incomplete', () => {
-      // Missing <user> tag — structural sequence check protects extraction.
+    it('does NOT extract reasoning from an incomplete sequence; standalone <from_id> strips bare', () => {
+      // Missing <user> tag — the 4.5-Air full-sequence pattern won't match,
+      // so no <message> body is captured as reasoning. The bare <from_id>
+      // falls through to the standalone extractor (added 2026-04-30 for
+      // GLM-4.7's bare-from-id leak) and gets stripped. The <message> tag
+      // without preceding <user> isn't recognized as scaffolding and stays
+      // in visibleContent.
       const content = `<from_id>${VALID_UUID}</from_id>
 <message>content without user tag</message>
 
@@ -753,8 +758,14 @@ Response.`;
 
       const result = extractThinkingBlocks(content);
 
+      // No reasoning extracted (the <message> body wasn't claimed by either
+      // extractor — the 4.5-Air pattern needed <user> first; the standalone
+      // pattern doesn't capture body content).
       expect(result.thinkingContent).toBeNull();
-      expect(result.visibleContent).toContain('<from_id>');
+      // The bare <from_id> got stripped by the standalone extractor.
+      expect(result.visibleContent).not.toContain('<from_id>');
+      // The orphaned <message> tag without scaffolding context is preserved.
+      expect(result.visibleContent).toContain('<message>content without user tag</message>');
     });
 
     it('composes with standard <think> tag extraction on the remaining content', () => {
@@ -879,6 +890,93 @@ Response.`;
 
       expect(result.thinkingContent).toBe('reasoning');
       expect(result.visibleContent).toBe('Response.');
+    });
+  });
+
+  describe('Standalone <from_id> echo pattern (GLM-4.7 bare-from-id leak)', () => {
+    // Observed 2026-04-30 in production. GLM-4.7 emitted just
+    // <from_id>UUID</from_id> followed by the response, without the rest of
+    // the 4.5-Air vocabulary (<user>, <message>). The 4.5-Air full-sequence
+    // pattern requires all three tags and silently passes through this bare
+    // variant, leaking the <from_id>UUID</from_id> tag into the user-facing
+    // output. The standalone extractor catches this case.
+    const VALID_UUID = '62a59660-cd89-51dc-8c54-7100f4e33329';
+
+    it('strips the bare <from_id>UUID</from_id> when it stands alone', () => {
+      const content = `<from_id>${VALID_UUID}</from_id>
+
+The darkness shifts around me as I take in this image.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Bare from_id carries no reasoning content — strip silently without
+      // contributing to thinkingParts.
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe('The darkness shifts around me as I take in this image.');
+      expect(result.visibleContent).not.toContain('<from_id>');
+    });
+
+    it('does NOT match when the from_id lacks a valid UUID', () => {
+      // Same UUID-format strictness as the 4.5-Air pattern. Random text
+      // between <from_id> tags must not trigger extraction.
+      const content = `<from_id>not-a-uuid</from_id>
+
+Response with garbage tag preserved.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Tag is preserved as-is — we only strip recognized leak shapes.
+      expect(result.visibleContent).toContain('<from_id>');
+    });
+
+    it('does NOT fire when the 4.5-Air full sequence is present (4.5-Air extractor wins)', () => {
+      // The full-sequence extractor is more specific (captures <message>
+      // body as reasoning); it must consume the leading <from_id> as part
+      // of its block. The standalone extractor only catches residual bare
+      // <from_id> tags that the full-sequence pattern didn't match.
+      const content = `<from_id>${VALID_UUID}</from_id>
+<user>User</user>
+<message>full reasoning block</message>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Reasoning came from the <message> body via the 4.5-Air extractor;
+      // the visibleContent has the whole leading scaffolding stripped.
+      expect(result.thinkingContent).toBe('full reasoning block');
+      expect(result.visibleContent).toBe('Response.');
+    });
+
+    it('handles uppercase UUIDs (case-insensitivity on hex digits)', () => {
+      const upperUuid = VALID_UUID.toUpperCase();
+      const content = `<from_id>${upperUuid}</from_id>
+
+Response.`;
+
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).toBe('Response.');
+      expect(result.visibleContent).not.toContain('<from_id>');
+    });
+
+    it('does NOT match a <from_id> appearing mid-response (start-of-response anchor)', () => {
+      const content = `Some prose first. <from_id>${VALID_UUID}</from_id> then more prose.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Mid-response from_id (e.g., model quoting an attribute name in a
+      // meta-discussion about its own input format) must be preserved.
+      expect(result.visibleContent).toContain('<from_id>');
+    });
+
+    it('hasThinkingBlocks reports true on bare from_id (Pass-2 secondary check)', () => {
+      // DiagnosticRecorders.hasReasoningTagsInContent uses hasThinkingBlocks
+      // to count GLM scaffolding occurrences in /inspect output. Without
+      // this guard, bare-from_id leaks would be reported as zero
+      // reasoning-content occurrences, under-reporting the GLM quirk rate.
+      const content = `<from_id>${VALID_UUID}</from_id>\n\nResponse.`;
+      expect(hasThinkingBlocks(content)).toBe(true);
     });
   });
 
