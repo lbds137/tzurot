@@ -24,6 +24,8 @@ _None. PR #947 (cache infrastructure cleanup — `CACHE_KEY_PREFIXES` extraction
 
 - **PR #948** (`b0c44cfcd` + `eab475ae3`) — `refactor(ai-worker): rename storage-layer MemoryDocument → PgvectorMemoryDocument` (commit 1) + `test(ai-worker): cover queryMemories + queryMemoriesWithChannelScoping` (commit 2). Disambiguates the storage-layer interface in `PgvectorTypes.ts` from the RAG-layer `MemoryDocument` in `ConversationalRAGTypes.ts` — both shapes share `pageContent` + optional `metadata` but the storage layer's metadata is wider (`Record<string, unknown>`). 8 consumer files updated. The test commit closes a codecov patch-coverage gap surfaced when the rename touched previously-uncovered `queryMemories` lines: 4 new tests (validation short-circuit, row-mapping with `score = 1 - distance` normalization, graceful prisma-throw degradation, channel-scoping delegation wiring) plus a `Prisma: actual.Prisma` mock-passthrough fix that revealed a silent pre-existing test-infrastructure bug (the catch path was swallowing `Prisma.sql` failures and returning `[]`, making prior tests pass for the wrong reason). 5 review rounds, 5 fixup commits autosquashed at merge.
 
+- **PR #949** (`71d3dc3fe`) — `test(ai-worker): assert createdAt mapping in queryMemories result`. Single-assertion follow-up closing obs-#2 from PR #948's squashed-commit review. Locks in the `created_at` Date → epoch-ms normalization that `mapQueryResultToDocument` performs and that `MemoryFormatter` consumes for timestamp display. Reviewer noted this seam is distinct from `memoryUtils.test.ts`'s existing unit tests of `mapQueryResultToDocument` — adapter integration test confirms wiring, unit test confirms transformation logic. Single-round LGTM, no fixups.
+
 ---
 
 ## Previous Sessions
