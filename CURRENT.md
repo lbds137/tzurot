@@ -1,33 +1,34 @@
 # Current
 
-> **Session**: 2026-04-29 → 2026-04-30 (six PRs merged + beta.112 release cut)
-> **Version**: v3.0.0-beta.112 (released 2026-04-30) — develop is at the release baseline
+> **Session**: 2026-04-30 (post-beta.112 inbox triage — 2 PRs merged closing 4 inbox items + opening 2 follow-ups)
+> **Version**: v3.0.0-beta.112 (released 2026-04-30) — develop is one beta-cycle worth of inbox cleanup ahead of the release baseline
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared. No active production bugs. Six PRs merged + release cut + Railway prod auto-deploying._
+_All production-issues entries cleared. No active production bugs. PR #947 + PR #948 merged on top of beta.112; develop has 2 unreleased commits + the 2 doc moves from this session._
 
-1. **Post-deploy validation of beta.112** — Confirm the new caches fire in production:
-   - Search Railway prod for `"Cached rate-limit state"` (write) + `"Skipped LLM call — rate-limit cache hit"` (read) — fires when next 429 surfaces on a `:free` model
-   - Search for `"Cached credit-exhaustion state"` + `"Skipped LLM call — credit-exhaustion cache hit"` — fires when next zero-credit BYOK account hits 402
-   - Behavioral confirmation: cache hits show `<100ms` instead of `~70-440ms` per request
-2. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
+1. **TTS Engine Upgrade (Active Epic)** — User has settled the quality question (Chatterbox samples sound better than Pocket TTS, comparable-or-better to ElevenLabs — no A/B test needed). Real open question is **CPU vs GPU performance** under Railway's CPU-only constraint. Plus: **OpenRouter now offers voice synthesis models** worth surveying — must support voice cloning to qualify (preset-voice-only models excluded). Frame the next session as "perf characterization + OpenRouter survey" not "quality eval."
+2. **Post-deploy validation of beta.112** — Still applicable from prior session; cache-hit log queries on Railway prod whenever next 429/402 surfaces.
 
 ## Active Task
 
-_None. v3.0.0-beta.112 shipped 2026-04-30 with all six session PRs (#940/941/942/943/944/945). Release-PR holistic review converged with 0 blocking items, 6 ✅ strengths, 1 backlog candidate added (KEY_PREFIX duplication across cache services + tooling)._
+_None. PR #947 (cache infrastructure cleanup — `CACHE_KEY_PREFIXES` extraction + `assertValidCacheKeyId` runtime invariant + `cacheKeyId` debug-log opt-out) and PR #948 (storage-layer `MemoryDocument` → `PgvectorMemoryDocument` rename + 4 new `queryMemories` tests closing a pre-existing patch-coverage gap) both merged 2026-04-30. Each went through 4-5 review iteration rounds and converged cleanly. 4 inbox items closed; 2 new follow-ups opened (LLMInvoker.ts file-size split + `satisfies` structural-typing follow-up + `createdAt` mapping test gap)._
 
 ---
 
 ## Unreleased on Develop (since beta.112)
 
-_Empty — develop is at the release baseline._
+- **PR #947** (`63c783372`) — `chore(common-types): centralize cache KEY_PREFIX, enforce cacheKeyId invariant, surface opt-out`. Three opportunistic cleanups from the PR #943/#946 review-cycle inboxes: (1) extracted `CACHE_KEY_PREFIXES` to `@tzurot/common-types/constants/redis-keys` so the `nocredits:openrouter:` prefix duplication between `CreditExhaustionCache` and `clear-credit-exhaustion` ops tooling can't silently desync; (2) added `assertValidCacheKeyId` runtime invariant in `RateLimitCache` exported and called at both producer (`deriveCacheKeyId`) and consumer (`invokeWithRetry` else-branch) sites — warn-only contract; (3) `logger.debug` opt-out log in `LLMInvoker.invokeWithRetry` for empty-`cacheKeyId` callers. Net complexity-neutral via collapsing the two existing `if (cacheKeyId.length > 0)` guards into one `if/else`. 4 review rounds, 4 fixup commits autosquashed at merge.
+
+- **PR #948** (`b0c44cfcd` + `eab475ae3`) — `refactor(ai-worker): rename storage-layer MemoryDocument → PgvectorMemoryDocument` (commit 1) + `test(ai-worker): cover queryMemories + queryMemoriesWithChannelScoping` (commit 2). Disambiguates the storage-layer interface in `PgvectorTypes.ts` from the RAG-layer `MemoryDocument` in `ConversationalRAGTypes.ts` — both shapes share `pageContent` + optional `metadata` but the storage layer's metadata is wider (`Record<string, unknown>`). 8 consumer files updated. The test commit closes a codecov patch-coverage gap surfaced when the rename touched previously-uncovered `queryMemories` lines: 4 new tests (validation short-circuit, row-mapping with `score = 1 - distance` normalization, graceful prisma-throw degradation, channel-scoping delegation wiring) plus a `Prisma: actual.Prisma` mock-passthrough fix that revealed a silent pre-existing test-infrastructure bug (the catch path was swallowing `Prisma.sql` failures and returning `[]`, making prior tests pass for the wrong reason). 5 review rounds, 5 fixup commits autosquashed at merge.
 
 ---
 
 ## Previous Sessions
+
+- **2026-04-30** (post-beta.112 inbox triage): 2 PRs merged on top of the beta.112 baseline. PR #947 absorbed three opportunistic cleanups from the recent six-PR cluster's review inboxes — `CACHE_KEY_PREFIXES` centralization (closing the `nocredits:openrouter:` duplication risk between ai-worker + ops tooling), `assertValidCacheKeyId` runtime invariant on the cache-key shape grammar (with consumer-side guard at `invokeWithRetry` after Round 2 reviewer caught the producer-only blind spot), and `logger.debug` opt-out log for empty `cacheKeyId`. PR #948 disambiguated the two `MemoryDocument` interfaces by renaming the storage-layer one to `PgvectorMemoryDocument`, plus closed a codecov patch-coverage gap with 4 new `queryMemories` tests — discovered along the way that the existing `PgvectorMemoryAdapter.test.ts` mock was missing `Prisma: actual.Prisma`, causing prior tests to pass for the wrong reason. Both PRs went through 4-5 review rounds; reviewer self-contradictions and one regression I introduced (broken `@see` path) handled per `08-review-response.md`. 4 inbox items closed (KEY_PREFIX duplication, buildKey invariant, cacheKeyId option-b, triple MemoryDocument). 3 new follow-ups opened (LLMInvoker.ts at 641 lines exceeds max-lines limit, `satisfies` constraint at storage→RAG boundary, `createdAt` mapping test gap).
 
 - **2026-04-29 → 2026-04-30**: Six PRs merged + beta.112 release cut. PR #940 (vision pipeline cleanup post PR #938: `effectiveVisionModelName` helper, enum-derived `USER_AUTH_PROBE_PROVIDERS`, silent-fallback warn). PR #941 (made `guard:duplicate-exports` + `knip` CI checks blocking; fixed TS function overload dedup logic; deleted 6 dead exports; `isForwardedMessage` DRY consolidation). PR #942 (rule update: distinguish Dismissed from Backlog candidates by future trigger). PR #943 (Redis-backed rate-limit cache for OpenRouter 429s; 16 review rounds with mid-PR architectural pivot to resolve CodeQL `js/insufficient-password-hash` structurally; turns 4-5min user-visible latency into <100ms fast-fail). PR #944 (post-#943 misc cleanup bundle: MemoryDocument dedup + `wrapUrlsForNoEmbed` utility for Discord URL embed-suppression). PR #945 (Redis-backed credit-exhaustion cache for OpenRouter 402s with new `CREDIT_EXHAUSTION` error category, JSON cache shape `{ ts, ttl }` for accurate remaining-time, operator escape valve `pnpm ops cache:clear-credit-exhaustion`). PR #946 release-PR holistic review converged 0-blocking. v3.0.0-beta.112 shipped 2026-04-30; Railway prod auto-deployed.
 
