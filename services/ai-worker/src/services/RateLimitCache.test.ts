@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Redis } from 'ioredis';
-import { RateLimitCache, deriveCacheKeyId } from './RateLimitCache.js';
+import { RateLimitCache, deriveCacheKeyId, assertValidCacheKeyId } from './RateLimitCache.js';
 
 // Frozen "now" for deterministic TTL math in clamping tests
 const FIXED_NOW_MS = 1_777_500_000_000;
@@ -243,5 +243,43 @@ describe('deriveCacheKeyId', () => {
     // bucket — the system key is shared across all guest-mode callers
     // anyway, so there's no cross-account leakage.
     expect(deriveCacheKeyId(undefined, '')).toBe('system');
+  });
+});
+
+describe('assertValidCacheKeyId', () => {
+  // The assertion is a runtime sentinel against future scope-extensions silently
+  // breaking the `<prefix>:<id>:<model>` key shape via colon-collision in the
+  // dynamic segment. It logs `warn` rather than throwing (cache is never a
+  // correctness gate), so the contract being tested here is "never throws"
+  // for either valid or invalid shapes — a future regression that escalates
+  // to a throw would surface immediately in the bad-shape cases below.
+
+  it('passes for the literal "system" scope', () => {
+    expect(() => assertValidCacheKeyId('system')).not.toThrow();
+  });
+
+  it('passes for "user:<digits>" with a Discord snowflake', () => {
+    expect(() => assertValidCacheKeyId('user:278863839632818186')).not.toThrow();
+  });
+
+  it('passes for the empty-string skip-cache sentinel', () => {
+    expect(() => assertValidCacheKeyId('')).not.toThrow();
+  });
+
+  it('does not throw on a non-numeric user ID (warn-only contract — signals grammar drift)', () => {
+    // A future contributor expanding the grammar to alphanumeric IDs without
+    // updating VALID_CACHE_KEY_ID lands here.
+    expect(() => assertValidCacheKeyId('user:alice')).not.toThrow();
+  });
+
+  it('does not throw on a colon in the dynamic segment (warn-only contract — the collision case this guards against)', () => {
+    // `org:my-team:special` would corrupt the `<prefix>:<id>:<model>` key
+    // shape — operator queries on `<prefix>:org:my-team:*` would clash with
+    // legitimate `<prefix>:org:my-team:<model>` writes.
+    expect(() => assertValidCacheKeyId('org:my-team:special')).not.toThrow();
+  });
+
+  it('does not throw on an unknown scope prefix entirely (warn-only contract)', () => {
+    expect(() => assertValidCacheKeyId('account:12345')).not.toThrow();
   });
 });

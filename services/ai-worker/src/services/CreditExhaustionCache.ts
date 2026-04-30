@@ -32,11 +32,11 @@
  */
 
 import type { Redis } from 'ioredis';
-import { createLogger } from '@tzurot/common-types';
+import { CACHE_KEY_PREFIXES, createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('CreditExhaustionCache');
 
-const KEY_PREFIX = 'nocredits:openrouter:';
+const KEY_PREFIX = CACHE_KEY_PREFIXES.CREDIT_EXHAUSTION_OPENROUTER;
 const MIN_TTL_SECONDS = 60;
 const MAX_TTL_SECONDS = 24 * 60 * 60;
 const DEFAULT_TTL_SECONDS = 60 * 60; // 1 hour
