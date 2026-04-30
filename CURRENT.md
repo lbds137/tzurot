@@ -1,24 +1,27 @@
 # Current
 
-> **Session**: 2026-04-29 (vision pipeline cleanup PR #940 + knip/duplicate-exports CI gate PR #941)
-> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PR #940 + PR #941
+> **Session**: 2026-04-29 (vision cleanup #940 + knip CI gate #941 + rule update #942 + Redis rate-limit cache #943)
+> **Version**: v3.0.0-beta.111 (released 2026-04-29) — develop now ahead by PRs #940, #941, #942, #943
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared. No active production bugs. Both PR #940 and PR #941 merged this session. Quick-wins backlog now empty._
+_All production-issues entries cleared. No active production bugs. Four PRs merged this session._
 
 1. **TTS Engine Upgrade (Active Epic)** — Chatterbox Turbo is the primary candidate. Next concrete step: spin up Chatterbox in a test container (Railway dev or local), feed it a character reference audio, compare quality vs. Pocket TTS and ElevenLabs. Cost-bleed-driven (~$200/mo ElevenLabs).
-2. **Optional next release (beta.112)** — would bundle PR #940 (vision pipeline cleanup) + PR #941 (CI gate hardening + dead-code cleanup). No production-driving urgency; cut at the user's discretion.
+2. **Vision 402 fast-follow** — User-requested investigation into the per-account credit-exhaustion 402s observed in production logs. Tracked as inbox item ("402 caching for vision (per-account credit-exhaustion)"). Likely a separate caching layer alongside the rate-limit cache from PR #943.
+3. **Optional next release (beta.112)** — would bundle PRs #940/941/942/943. Production-driving piece is #943 (4-5min user-facing latency on rate-limited free-tier requests → <100ms fast-fail).
 
 ## Active Task
 
-_None. PR #941 merged 2026-04-29. 1 cleanup item added to inbox: rename/relocate `services/context/PromptContext.ts` (now contains only `MemoryDocument` after dead-code deletion)._
+_None. PR #943 merged 2026-04-29 after 16 review rounds (Option-5 architectural refactor mid-iteration to resolve CodeQL `js/insufficient-password-hash` without dismissal). 2 cleanup items added to inbox: `cacheKeyId` required-or-debug-log, `buildKey` no-colon invariant runtime guard._
 
 ---
 
 ## Unreleased on Develop (since beta.111)
+
+- **PR #943** (2026-04-29) — **Redis-backed rate-limit cache for OpenRouter 429s**. Production `:free`-tier daily-quota 429s previously burned 3 retry attempts × ~80s (4-5min user-visible latency); now the first 429 caches `{cacheKeyId, model} → resetMs` in Redis with TTL clamped to `[60s, 24h]`, and subsequent requests in the window short-circuit synthetically with `referenceId: 'rate-limit-cache-hit'` for trace clarity. Mid-PR architectural refactor (Option 5) replaced the SHA-256 fingerprint approach with opaque `cacheKeyId` (`user:<discordId>` or `'system'`) to resolve CodeQL `js/insufficient-password-hash` structurally instead of dismissing the alert (user policy: "uncompromising on security"). 16 review rounds, single squashed commit, monotonic convergence (3 issues → 1 medium + 2 polish → 0 actionable + 2 backlog). Gate added: `shouldRetryError` `instanceof ApiError` fast-path honors explicit `shouldRetry: false` overrides to prevent retry loops on the synthetic short-circuit.
 
 - **PR #942** (2026-04-29) — **Rule update: distinguish Dismissed from Backlog candidates by future trigger** (`.claude/rules/08-review-response.md`). Codifies a misclassification pattern surfaced during PR #941 review: reviewer deferrals naming a future event/condition (`"monitor over time"`, `"if X happens"`) are Backlog candidates, not Dismissed. Adds new table row in rule 2's signal-conflict table, "Key question" decision-first framing, "pure-aesthetic deferral" definition with examples, and a per-round checklist item. 4 review rounds, all converged with explicit user intervention; rule itself routed its own round-4 reviewer observations correctly (validation that the new distinction is robust enough for self-application).
 
