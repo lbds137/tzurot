@@ -209,7 +209,7 @@ describe('memoryUtils', () => {
   });
 
   describe('mapQueryResultToDocument', () => {
-    it('transforms database result to MemoryDocument', () => {
+    it('transforms database result to PgvectorMemoryDocument', () => {
       const queryResult: MemoryQueryResult = {
         id: 'mem-123',
         content: 'Test memory content',

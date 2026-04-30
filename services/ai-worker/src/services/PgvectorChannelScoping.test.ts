@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { waterfallMemoryQuery, type QueryMemoriesFn } from './PgvectorChannelScoping.js';
-import type { MemoryDocument, MemoryQueryOptions } from './PgvectorTypes.js';
+import type { PgvectorMemoryDocument, MemoryQueryOptions } from './PgvectorTypes.js';
 
 // Valid Discord snowflake IDs for testing (17-19 digit numeric strings)
 const VALID_CHANNEL_ID_1 = '123456789012345678';
@@ -41,7 +41,7 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should fall back to normal query when no channelIds provided', async () => {
-    const mockResults: MemoryDocument[] = [
+    const mockResults: PgvectorMemoryDocument[] = [
       { pageContent: 'memory 1', metadata: { id: 'mem-1' } },
       { pageContent: 'memory 2', metadata: { id: 'mem-2' } },
     ];
@@ -55,7 +55,9 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should fall back to normal query when channelIds is empty array', async () => {
-    const mockResults: MemoryDocument[] = [{ pageContent: 'memory 1', metadata: { id: 'mem-1' } }];
+    const mockResults: PgvectorMemoryDocument[] = [
+      { pageContent: 'memory 1', metadata: { id: 'mem-1' } },
+    ];
     mockQueryFn.mockResolvedValue(mockResults);
 
     const options = { ...baseOptions, channelIds: [] };
@@ -67,13 +69,13 @@ describe('waterfallMemoryQuery', () => {
 
   it('should perform waterfall query with default 50% budget ratio', async () => {
     // Channel-scoped results (5 memories - 50% of 10)
-    const channelResults: MemoryDocument[] = [
+    const channelResults: PgvectorMemoryDocument[] = [
       { pageContent: 'channel memory 1', metadata: { id: 'ch-1' } },
       { pageContent: 'channel memory 2', metadata: { id: 'ch-2' } },
       { pageContent: 'channel memory 3', metadata: { id: 'ch-3' } },
     ];
     // Global backfill results (remaining budget: 10 - 3 = 7)
-    const globalResults: MemoryDocument[] = [
+    const globalResults: PgvectorMemoryDocument[] = [
       { pageContent: 'global memory 1', metadata: { id: 'gl-1' } },
       { pageContent: 'global memory 2', metadata: { id: 'gl-2' } },
     ];
@@ -112,10 +114,10 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should respect custom channelBudgetRatio', async () => {
-    const channelResults: MemoryDocument[] = [
+    const channelResults: PgvectorMemoryDocument[] = [
       { pageContent: 'channel memory', metadata: { id: 'ch-1' } },
     ];
-    const globalResults: MemoryDocument[] = [
+    const globalResults: PgvectorMemoryDocument[] = [
       { pageContent: 'global memory', metadata: { id: 'gl-1' } },
     ];
 
@@ -150,7 +152,7 @@ describe('waterfallMemoryQuery', () => {
 
   it('should skip global backfill when channel results fill the budget', async () => {
     // Channel-scoped returns exactly the full limit worth
-    const channelResults: MemoryDocument[] = Array.from({ length: 10 }, (_, i) => ({
+    const channelResults: PgvectorMemoryDocument[] = Array.from({ length: 10 }, (_, i) => ({
       pageContent: `channel memory ${i}`,
       metadata: { id: `ch-${i}` },
     }));
@@ -173,7 +175,7 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should handle empty channel results and only return global results', async () => {
-    const globalResults: MemoryDocument[] = [
+    const globalResults: PgvectorMemoryDocument[] = [
       { pageContent: 'global memory 1', metadata: { id: 'gl-1' } },
       { pageContent: 'global memory 2', metadata: { id: 'gl-2' } },
     ];
@@ -201,12 +203,12 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should handle memories without IDs in metadata', async () => {
-    const channelResults: MemoryDocument[] = [
+    const channelResults: PgvectorMemoryDocument[] = [
       { pageContent: 'channel memory 1', metadata: { score: 0.9 } }, // No id
       { pageContent: 'channel memory 2', metadata: { id: 'ch-2' } },
       { pageContent: 'channel memory 3' }, // No metadata at all
     ];
-    const globalResults: MemoryDocument[] = [
+    const globalResults: PgvectorMemoryDocument[] = [
       { pageContent: 'global memory', metadata: { id: 'gl-1' } },
     ];
 
@@ -230,8 +232,8 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should use default limit of 10 when not specified', async () => {
-    const channelResults: MemoryDocument[] = [];
-    const globalResults: MemoryDocument[] = [];
+    const channelResults: PgvectorMemoryDocument[] = [];
+    const globalResults: PgvectorMemoryDocument[] = [];
 
     mockQueryFn.mockResolvedValueOnce(channelResults).mockResolvedValueOnce(globalResults);
 
@@ -303,7 +305,7 @@ describe('waterfallMemoryQuery', () => {
 
   it('should ensure minimum channel budget of 1 even with small limit', async () => {
     // Edge case: totalLimit=1, ratio=0.5 → should still get channelBudget=1, not 0
-    const channelResults: MemoryDocument[] = [
+    const channelResults: PgvectorMemoryDocument[] = [
       { pageContent: 'channel memory', metadata: { id: 'ch-1' } },
     ];
 
@@ -375,7 +377,7 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should return channel results even when global query fails', async () => {
-    const channelResults: MemoryDocument[] = [
+    const channelResults: PgvectorMemoryDocument[] = [
       { pageContent: 'channel memory 1', metadata: { id: 'ch-1' } },
       { pageContent: 'channel memory 2', metadata: { id: 'ch-2' } },
     ];
@@ -397,10 +399,10 @@ describe('waterfallMemoryQuery', () => {
   });
 
   it('should filter invalid channel IDs and proceed with valid ones in waterfall', async () => {
-    const channelResults: MemoryDocument[] = [
+    const channelResults: PgvectorMemoryDocument[] = [
       { pageContent: 'channel memory', metadata: { id: 'ch-1' } },
     ];
-    const globalResults: MemoryDocument[] = [
+    const globalResults: PgvectorMemoryDocument[] = [
       { pageContent: 'global memory', metadata: { id: 'gl-1' } },
     ];
 
@@ -425,13 +427,13 @@ describe('waterfallMemoryQuery', () => {
   describe('null value handling', () => {
     it('should handle channel results with null ids when building excludeIds', async () => {
       // Channel results include documents with null/undefined ids
-      const channelResults: MemoryDocument[] = [
+      const channelResults: PgvectorMemoryDocument[] = [
         { pageContent: 'memory 1', metadata: { id: null as unknown as string } }, // null id
         { pageContent: 'memory 2', metadata: { id: 'ch-2' } }, // valid id
         { pageContent: 'memory 3', metadata: { id: undefined as unknown as string } }, // undefined
         { pageContent: 'memory 4' }, // no metadata
       ];
-      const globalResults: MemoryDocument[] = [
+      const globalResults: PgvectorMemoryDocument[] = [
         { pageContent: 'global memory', metadata: { id: 'gl-1' } },
       ];
 
