@@ -313,6 +313,10 @@ describe('PgvectorMemoryAdapter', () => {
       // `score = 1 - distance` per `mapQueryResultToDocument`, locking in
       // the storage-layer normalization that downstream RAG context relies on.
       expect(result[0].metadata?.score).toBeCloseTo(0.95);
+      // `createdAt` is normalized from the row's `created_at` Date/string into
+      // a number-of-ms-since-epoch — `MemoryFormatter` reads this field for
+      // timestamp display, so the contract matters at the storage→RAG seam.
+      expect(result[0].metadata?.createdAt).toBe(new Date('2026-04-30T12:00:00Z').getTime());
       expect(result[1].pageContent).toBe('Second memory');
       expect(result[1].metadata?.score).toBeCloseTo(0.8);
     });
