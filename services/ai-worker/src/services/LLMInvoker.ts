@@ -20,6 +20,8 @@ import {
   ERROR_MESSAGES,
   FINISH_REASONS,
   ApiErrorType,
+  ApiErrorCategory,
+  USER_ERROR_MESSAGES,
   isNaturalStop,
   resolveFinishReason,
 } from '@tzurot/common-types';
@@ -39,7 +41,8 @@ import {
 } from '../utils/apiErrorParser.js';
 import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
 import type { RateLimitCache } from './RateLimitCache.js';
-import { rateLimitCache } from '../redis.js';
+import type { CreditExhaustionCache } from './CreditExhaustionCache.js';
+import { rateLimitCache, creditExhaustionCache } from '../redis.js';
 import {
   getReasoningModelConfig,
   transformMessagesForReasoningModel,
@@ -167,6 +170,15 @@ export class LLMInvoker {
       stopSequences,
     } = options;
 
+    // Credit-exhaustion cache short-circuit runs FIRST: a 402 is a permanent
+    // account state until top-up, while a 429 is a time-bounded transient
+    // block. If both cache hits exist, surface the worse one — credit
+    // exhaustion blocks all OpenRouter calls regardless of model, so a
+    // CREDIT_EXHAUSTION error is more informative than a per-model RATE_LIMIT.
+    if (cacheKeyId.length > 0) {
+      await this.shortCircuitOnCreditExhaustion(creditExhaustionCache, cacheKeyId);
+    }
+
     // Rate-limit cache short-circuit — when a previous 429 told us the
     // (cacheKeyId, model) pair is in a known rate-limit window, fail fast
     // instead of burning ~80s × 3 retry attempts to land on the same
@@ -256,6 +268,7 @@ export class LLMInvoker {
       // cache itself (degraded write logs warn, returns void).
       if (cacheKeyId.length > 0) {
         await this.cacheRateLimitOnFailure(rateLimitCache, cacheKeyId, modelName, err);
+        await this.cacheCreditExhaustionOnFailure(creditExhaustionCache, cacheKeyId, err);
       }
       throw err;
     }
@@ -351,6 +364,78 @@ export class LLMInvoker {
       model: modelName,
       resetTimestampMs: errorInfo.rateLimitResetMs,
     });
+  }
+
+  /**
+   * Throw a synthetic ApiError when the credit-exhaustion cache says this
+   * `cacheKeyId` is known to be out of credits. The thrown error has the
+   * same shape downstream consumers see for real 402s, with a stable
+   * sentinel `referenceId` that traces unambiguously to cache logic.
+   */
+  private async shortCircuitOnCreditExhaustion(
+    cache: CreditExhaustionCache,
+    cacheKeyId: string
+  ): Promise<void> {
+    const result = await cache.isCreditExhausted({ cacheKeyId });
+    if (!result.exhausted) {
+      return;
+    }
+    logger.info(
+      {
+        cacheKeyId,
+        ttlSeconds: result.ttlSeconds,
+        exhaustedAtIso: new Date(result.exhaustedAtMs).toISOString(),
+      },
+      'Skipped LLM call — credit-exhaustion cache hit'
+    );
+    // The synthetic message carries "Insufficient credits" so
+    // `isAccountCreditExhaustion` routes it to CREDIT_EXHAUSTION inside
+    // parseApiError; the explicit `category` + `userMessage` overrides
+    // below are belt-and-suspenders against any future change to either
+    // the synthetic message text or the pattern-matching helper.
+    const errorInfo = parseApiError(
+      Object.assign(
+        new Error('Insufficient credits. This account has no credits — top up to continue.'),
+        { status: 402 }
+      )
+    );
+    throw new ApiError('Credit exhaustion cached', {
+      ...errorInfo,
+      shouldRetry: false,
+      type: ApiErrorType.PERMANENT,
+      category: ApiErrorCategory.CREDIT_EXHAUSTION,
+      // Explicit override: don't rely on the spread carrying the right
+      // userMessage from parseApiError's category-routing. If the synthetic
+      // message ever stops matching `isAccountCreditExhaustion` (e.g., a
+      // future text edit), the spread would inherit the generic
+      // QUOTA_EXCEEDED message even with the explicit category override —
+      // category and userMessage would silently disagree.
+      userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.CREDIT_EXHAUSTION],
+      referenceId: 'credit-exhaustion-cache-hit',
+    });
+  }
+
+  /**
+   * Inspect a thrown error from `withRetry` and, if it parses as
+   * `CREDIT_EXHAUSTION` (account-level 402), mark the `cacheKeyId` account as
+   * out of credits in the cache. Subsequent calls during the TTL window will
+   * short-circuit at the top of `invokeWithRetry`.
+   *
+   * Single source of truth: keys on `errorInfo.category` rather than
+   * `statusCode === 402 + isAccountCreditExhaustion`. The category routing in
+   * `parseApiError` already encodes the account-vs-request-level distinction.
+   */
+  private async cacheCreditExhaustionOnFailure(
+    cache: CreditExhaustionCache,
+    cacheKeyId: string,
+    err: unknown
+  ): Promise<void> {
+    const underlying = err instanceof RetryError ? err.lastError : err;
+    const errorInfo = parseApiError(underlying);
+    if (errorInfo.category !== ApiErrorCategory.CREDIT_EXHAUSTION) {
+      return;
+    }
+    await cache.markCreditExhausted({ cacheKeyId });
   }
 
   /**

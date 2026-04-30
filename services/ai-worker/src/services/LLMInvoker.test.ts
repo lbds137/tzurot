@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker, supportsStopSequences } from './LLMInvoker.js';
 import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { TIMEOUTS, ApiErrorType } from '@tzurot/common-types';
+import { TIMEOUTS, ApiErrorType, ApiErrorCategory } from '@tzurot/common-types';
 
 // Mock ModelFactory
 vi.mock('./ModelFactory.js', () => ({
@@ -58,10 +58,17 @@ vi.mock('./modelFactory/extractOpenRouterReasoning.js', () => ({
 // behavior at the LLMInvoker boundary without standing up a real Redis instance.
 const mockIsRateLimited = vi.fn().mockResolvedValue({ rateLimited: false });
 const mockMarkRateLimited = vi.fn().mockResolvedValue(undefined);
+// Same for credit-exhaustion cache.
+const mockIsCreditExhausted = vi.fn().mockResolvedValue({ exhausted: false });
+const mockMarkCreditExhausted = vi.fn().mockResolvedValue(undefined);
 vi.mock('../redis.js', () => ({
   rateLimitCache: {
     isRateLimited: (...args: unknown[]) => mockIsRateLimited(...args),
     markRateLimited: (...args: unknown[]) => mockMarkRateLimited(...args),
+  },
+  creditExhaustionCache: {
+    isCreditExhausted: (...args: unknown[]) => mockIsCreditExhausted(...args),
+    markCreditExhausted: (...args: unknown[]) => mockMarkCreditExhausted(...args),
   },
 }));
 
@@ -88,6 +95,10 @@ describe('LLMInvoker', () => {
     mockIsRateLimited.mockResolvedValue({ rateLimited: false });
     mockMarkRateLimited.mockReset();
     mockMarkRateLimited.mockResolvedValue(undefined);
+    mockIsCreditExhausted.mockReset();
+    mockIsCreditExhausted.mockResolvedValue({ exhausted: false });
+    mockMarkCreditExhausted.mockReset();
+    mockMarkCreditExhausted.mockResolvedValue(undefined);
   });
 
   describe('getModel', () => {
@@ -1557,6 +1568,195 @@ describe('LLMInvoker', () => {
       expect(mockMarkRateLimited).not.toHaveBeenCalled();
 
       vi.useRealTimers();
+    });
+  });
+
+  describe('credit-exhaustion cache integration', () => {
+    it('skips the LLM call when cache says cacheKeyId is credit-exhausted', async () => {
+      const exhaustedAtMs = Date.now() - 600 * 1000; // 10 min ago
+      mockIsCreditExhausted.mockResolvedValueOnce({
+        exhausted: true,
+        exhaustedAtMs,
+        ttlSeconds: 3000,
+      });
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const mockInvoke = vi.fn();
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      // Strong shape assertion: synthetic short-circuit MUST carry the
+      // CREDIT_EXHAUSTION category and the stable sentinel referenceId.
+      // A regression where the synthetic error loses these would silently
+      // surface a generic-quota error to users instead of the sharper
+      // "your account is out of credits" message.
+      await expect(
+        invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'z-ai/glm-4.7',
+          cacheKeyId: 'user:111111111111111111',
+        })
+      ).rejects.toMatchObject({
+        message: 'Credit exhaustion cached',
+        info: expect.objectContaining({
+          category: ApiErrorCategory.CREDIT_EXHAUSTION,
+          shouldRetry: false,
+          type: ApiErrorType.PERMANENT,
+          referenceId: 'credit-exhaustion-cache-hit',
+          // userMessage must explicitly match the CREDIT_EXHAUSTION entry,
+          // not the generic QUOTA_EXCEEDED message — the throw site uses
+          // an explicit override (not just spread inheritance) to keep
+          // category and userMessage from drifting apart if the synthetic
+          // message text or pattern matcher ever changes.
+          userMessage: expect.stringContaining('https://openrouter.ai/settings/credits'),
+        }),
+      });
+
+      expect(mockInvoke).not.toHaveBeenCalled();
+    });
+
+    it('skips both caches entirely when cacheKeyId is empty', async () => {
+      mockIsCreditExhausted.mockResolvedValueOnce({
+        exhausted: true,
+        exhaustedAtMs: Date.now() - 600 * 1000,
+        ttlSeconds: 3000,
+      });
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const mockInvoke = vi.fn().mockResolvedValue({ content: 'ok' });
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      await invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: '',
+      });
+
+      expect(mockIsCreditExhausted).not.toHaveBeenCalled();
+      expect(mockInvoke).toHaveBeenCalled();
+    });
+
+    it('writes to cache on account-level 402 ("never purchased credits")', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(
+        new Error(
+          '402 Insufficient credits. This account never purchased credits. Make sure your key is on the correct account or org, and if so, purchase more at https://openrouter.ai/settings/credits'
+        ),
+        { status: 402 }
+      );
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkCreditExhausted).toHaveBeenCalledWith({
+        cacheKeyId: 'user:111111111111111111',
+      });
+
+      vi.useRealTimers();
+    });
+
+    it('does NOT write to cache on request-level 402 ("can only afford")', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      // Request-level 402 — different remediation (smaller max_tokens), not
+      // an account-level credit-exhaustion. Caching this would block valid
+      // smaller-budget retries.
+      const error = Object.assign(
+        new Error(
+          '402 Insufficient credits. This request requested up to 65536 tokens, but can only afford 11111.'
+        ),
+        { status: 402 }
+      );
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkCreditExhausted).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('does NOT write to cache for non-402 errors', async () => {
+      vi.useFakeTimers();
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const error = Object.assign(new Error('Server error'), { status: 500 });
+      const mockInvoke = vi.fn().mockRejectedValue(error);
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      const promise = invoker.invokeWithRetry({
+        model: mockModel,
+        messages,
+        modelName: 'z-ai/glm-4.7',
+        cacheKeyId: 'user:111111111111111111',
+      });
+      const assertion = expect(promise).rejects.toThrow();
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(mockMarkCreditExhausted).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('credit-exhaustion check runs BEFORE rate-limit check', async () => {
+      // Both caches return hits. The credit-exhaustion error must surface
+      // because it represents a worse (account-wide) failure mode than a
+      // per-model rate-limit. Verified by the call order on the mocks.
+      mockIsCreditExhausted.mockResolvedValueOnce({
+        exhausted: true,
+        exhaustedAtMs: Date.now() - 600 * 1000,
+        ttlSeconds: 3000,
+      });
+      mockIsRateLimited.mockResolvedValueOnce({
+        rateLimited: true,
+        resetMs: Date.now() + 3600 * 1000,
+        ttlSeconds: 3600,
+      });
+
+      const messages: BaseMessage[] = [new HumanMessage('test')];
+      const mockInvoke = vi.fn();
+      const mockModel = { invoke: mockInvoke } as unknown as BaseChatModel;
+
+      await expect(
+        invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'z-ai/glm-4.7',
+          cacheKeyId: 'user:111111111111111111',
+        })
+      ).rejects.toMatchObject({
+        info: expect.objectContaining({
+          category: ApiErrorCategory.CREDIT_EXHAUSTION,
+        }),
+      });
+
+      // The rate-limit check should NOT even fire — the credit-exhaustion
+      // throw happens first and never falls through to the rate-limit guard.
+      expect(mockIsCreditExhausted).toHaveBeenCalledTimes(1);
+      expect(mockIsRateLimited).not.toHaveBeenCalled();
     });
   });
 });
