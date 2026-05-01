@@ -275,6 +275,59 @@ describe('wrapUrlsForNoEmbed', () => {
       'See <https://example.com/path?q=1&r=2#section>'
     );
   });
+
+  it('preserves balanced parens inside the URL (Wikipedia-style)', () => {
+    expect(wrapUrlsForNoEmbed('See https://en.wikipedia.org/wiki/Foo_(bar) for context.')).toBe(
+      'See <https://en.wikipedia.org/wiki/Foo_(bar)> for context.'
+    );
+  });
+
+  it('preserves multiple balanced paren groups', () => {
+    expect(wrapUrlsForNoEmbed('Path: https://example.com/(a)/(b) end')).toBe(
+      'Path: <https://example.com/(a)/(b)> end'
+    );
+  });
+
+  it('cuts URL at first unmatched closing paren (parenthesized prose)', () => {
+    // `(see https://example.com)` — the closing `)` is prose, not part of the URL.
+    expect(wrapUrlsForNoEmbed('(see https://example.com) for details')).toBe(
+      '(see <https://example.com>) for details'
+    );
+  });
+
+  it('handles balanced paren followed by trailing sentence punctuation', () => {
+    expect(wrapUrlsForNoEmbed('Read https://en.wikipedia.org/wiki/Foo_(bar).')).toBe(
+      'Read <https://en.wikipedia.org/wiki/Foo_(bar)>.'
+    );
+  });
+
+  it('cuts URL at first `]` (Markdown-context terminator)', () => {
+    // `]` mid-URL terminates the URL — consistent with the original lookahead
+    // treatment of `]` as a structural delimiter. Worth tracking if a real
+    // URL containing `]` ever surfaces in production error messages.
+    expect(wrapUrlsForNoEmbed('See https://example.com/path]rest of text')).toBe(
+      'See <https://example.com/path>]rest of text'
+    );
+  });
+
+  it('cuts URL at mid-URL `>` (defends against malformed wraps)', () => {
+    // A bare `>` inside the URL stops the wrap so we don't double-wrap or
+    // collide with an existing `<...>` boundary in the surrounding text.
+    // The `>>` in the expected output is intentional: the first `>` closes
+    // the wrap, the second is the verbatim character from the original text.
+    expect(wrapUrlsForNoEmbed('Try https://example.com>rest')).toBe(
+      'Try <https://example.com>>rest'
+    );
+  });
+
+  it('does NOT re-wrap an already-wrapped URL with balanced parens', () => {
+    // The lookbehind `(?<![<(])` excludes already-wrapped URLs from matching;
+    // this test locks in the invariant for the paren-bearing case so a future
+    // refactor that changes the lookbehind has to update this test.
+    expect(wrapUrlsForNoEmbed('<https://en.wikipedia.org/wiki/Foo_(bar)>')).toBe(
+      '<https://en.wikipedia.org/wiki/Foo_(bar)>'
+    );
+  });
 });
 
 describe('formatPersonalityErrorMessage', () => {
