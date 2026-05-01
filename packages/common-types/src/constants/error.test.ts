@@ -301,12 +301,58 @@ describe('wrapUrlsForNoEmbed', () => {
     );
   });
 
-  it('cuts URL at first `]` (Markdown-context terminator)', () => {
-    // `]` mid-URL terminates the URL — consistent with the original lookahead
-    // treatment of `]` as a structural delimiter. Worth tracking if a real
-    // URL containing `]` ever surfaces in production error messages.
+  it('cuts URL at first unmatched `]` (closing-bracket prose terminator)', () => {
+    // `]` with no preceding `[` in the URL is treated as surrounding-prose
+    // terminator — the URL itself didn't contain a bracket pair, so this `]`
+    // belongs to the text around it (e.g., a footnote-style `[1]` reference
+    // adjacent to a URL).
     expect(wrapUrlsForNoEmbed('See https://example.com/path]rest of text')).toBe(
       'See <https://example.com/path>]rest of text'
+    );
+  });
+
+  it('preserves balanced `[]` brackets inside the URL (IPv6 literal)', () => {
+    // RFC 3986 allows `[`/`]` in URLs for IPv6 literal hosts. The walker
+    // mirrors the paren-balancing logic — depth tracked separately, only
+    // unmatched closers terminate the URL.
+    expect(wrapUrlsForNoEmbed('Try https://[::1]/path for the local IPv6 host.')).toBe(
+      'Try <https://[::1]/path> for the local IPv6 host.'
+    );
+  });
+
+  it('preserves balanced `[]` brackets inside the URL (array-index path)', () => {
+    expect(wrapUrlsForNoEmbed('Hit https://api.example.com/items[0]/value here')).toBe(
+      'Hit <https://api.example.com/items[0]/value> here'
+    );
+  });
+
+  it('preserves balanced `[]` followed by trailing sentence punctuation', () => {
+    expect(wrapUrlsForNoEmbed('Read https://api.example.com/items[0]/value.')).toBe(
+      'Read <https://api.example.com/items[0]/value>.'
+    );
+  });
+
+  it('preserves multiple balanced bracket groups', () => {
+    expect(wrapUrlsForNoEmbed('See https://example.com/a[b]/c[d] end')).toBe(
+      'See <https://example.com/a[b]/c[d]> end'
+    );
+  });
+
+  it('preserves nested balanced brackets', () => {
+    // Defensive: `[a[b]c]` is structurally balanced even if rare in practice.
+    // Confirms the depth counter works for nesting, not just adjacency.
+    expect(wrapUrlsForNoEmbed('Path: https://example.com/[a[b]c]/end')).toBe(
+      'Path: <https://example.com/[a[b]c]/end>'
+    );
+  });
+
+  it('wraps URL with unclosed `[` (no matching close bracket)', () => {
+    // Malformed URL — opens `[` but never closes it. The walker reaches end-
+    // of-candidate with bracketDepth > 0 and includes the orphan `[`. Including
+    // the whole candidate is safer than cutting at the orphan opener since
+    // there's no prose terminator to draw the line at.
+    expect(wrapUrlsForNoEmbed('See https://example.com/foo[bar here')).toBe(
+      'See <https://example.com/foo[bar> here'
     );
   });
 
