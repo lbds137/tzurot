@@ -750,6 +750,235 @@ describe('VoiceTranscriptionService', () => {
       expect(call).toHaveLength(1);
       expect(call[0].url).toBe('https://cdn.discord.com/voice/audio.ogg');
     });
+
+    describe('bot-authored audio (forwarded persona voice messages)', () => {
+      // Bot's clientId is 'bot-user-999' per createMockMessage's default.
+      // Filenames matching `bot-user-999-{slug}-{ts}.{ext}` are recognized
+      // as our own TTS output and should bypass STT entirely.
+      const ownFilename = 'bot-user-999-lila-zot-lilit-mon8lv05.ogg';
+
+      it('skips gateway STT call when forwarded snapshot audio is bot-authored', async () => {
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                  contentType: 'audio/ogg',
+                  name: ownFilename,
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+
+        const result = await service.transcribe(message, false, false);
+
+        expect(mockGatewayClient.transcribe).not.toHaveBeenCalled();
+        expect(result?.transcript).toContain('Forwarded voice message');
+        expect(result?.transcript).toContain('lila-zot-lilit');
+      });
+
+      it('caches the placeholder so re-forwards reuse the same text', async () => {
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                  contentType: 'audio/ogg',
+                  name: ownFilename,
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+
+        await service.transcribe(message, false, false);
+
+        expect(voiceTranscriptCache.store).toHaveBeenCalledWith(
+          'https://cdn.discord.com/voice/forwarded.ogg',
+          expect.stringContaining('Forwarded voice message')
+        );
+      });
+
+      it('posts a visible Discord reply for channel acknowledgment', async () => {
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                  contentType: 'audio/ogg',
+                  name: ownFilename,
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+
+        await service.transcribe(message, false, false);
+
+        const replyMock = (message as unknown as { reply: ReturnType<typeof vi.fn> }).reply;
+        expect(replyMock).toHaveBeenCalledTimes(1);
+        const replyArg = replyMock.mock.calls[0]?.[0] as { content: string };
+        expect(replyArg.content).toContain('Forwarded voice message');
+        expect(replyArg.content).toContain('lila-zot-lilit');
+      });
+
+      it('preserves continueToPersonalityHandler when forward has a mention/reply', async () => {
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                  contentType: 'audio/ogg',
+                  name: ownFilename,
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+
+        const result = await service.transcribe(message, true, false);
+
+        expect(result?.continueToPersonalityHandler).toBe(true);
+      });
+
+      it('does NOT skip STT when filename is from a different bot identity', async () => {
+        // Filename is well-formed but uses someone else's clientId. This bot
+        // should treat it as a regular forwarded audio (transcribe normally).
+        const otherBotFilename = '111111111111111111-lila-zot-lilit-mon8lv05.ogg';
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                  contentType: 'audio/ogg',
+                  name: otherBotFilename,
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+
+        await service.transcribe(message, false, false);
+
+        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+      });
+
+      it('falls through to normal STT when batch has mixed bot/human attachments', async () => {
+        // Documented edge case in `classifyAsOwnBotAudio`: only short-circuits
+        // when ALL attachments are bot-authored. A mixed batch (rare in
+        // practice — voice messages are typically single-attachment) preserves
+        // the human-authored audio's transcription by going through the
+        // normal STT path.
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/bot.ogg',
+                  contentType: 'audio/ogg',
+                  name: ownFilename,
+                  size: 50000,
+                  duration: 5.2,
+                },
+                {
+                  url: 'https://cdn.discord.com/voice/human.ogg',
+                  contentType: 'audio/ogg',
+                  name: 'human-recording.ogg',
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+
+        await service.transcribe(message, false, false);
+
+        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+      });
+
+      it('falls through to normal STT when message.client.user is undefined', async () => {
+        // discord.js types `client.user` as optional. Symmetric with the
+        // send-side fallback in DiscordResponseSender: if we can't read the
+        // bot's clientId, we can't classify, so we degrade to normal STT.
+        // The fallback path is otherwise covered implicitly by the
+        // `attachments.length === 0` guard, but this test makes the
+        // contract explicit.
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/forwarded.ogg',
+                  contentType: 'audio/ogg',
+                  name: ownFilename,
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+        // Override the default mock client.user.id to undefined.
+        (message as unknown as { client: { user: undefined } }).client = { user: undefined };
+        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+
+        await service.transcribe(message, false, false);
+
+        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+      });
+
+      it('does NOT skip STT for legacy voice.ogg filenames', async () => {
+        // Pre-fix uploads used `voice.{ext}`. Forwards of those should fall
+        // through to normal STT (no clientId match in the filename).
+        const message = createMockMessage({
+          attachments: [],
+          messageSnapshots: [
+            {
+              attachments: [
+                {
+                  url: 'https://cdn.discord.com/voice/legacy.ogg',
+                  contentType: 'audio/ogg',
+                  name: 'voice.ogg',
+                  size: 50000,
+                  duration: 5.2,
+                },
+              ],
+            },
+          ],
+        });
+        mockGatewayClient.transcribe.mockResolvedValue({ content: 'transcribed text' });
+
+        await service.transcribe(message, false, false);
+
+        expect(mockGatewayClient.transcribe).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });
 
