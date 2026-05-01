@@ -4,6 +4,14 @@
  * Handles text-to-speech synthesis with chunking for long text.
  * Splits text at sentence boundaries, synthesizes each chunk via
  * the voice-engine, and concatenates PCM data into a single WAV file.
+ *
+ * Newline-on-the-wire invariant: the chunker normalizes `\n` to `\r\n`
+ * before any length measurement. WHATWG `multipart/form-data` mandates
+ * CRLF in field values (RFC 7578 §4.4), so a payload with bare `\n`
+ * grows by one byte per newline once `FormData` serializes it. Without
+ * normalization, JS `.length` understates the size voice-engine actually
+ * receives, and a 2000-char chunk can become a 2001+-char request body
+ * that voice-engine rejects with HTTP 400.
  */
 
 import { createLogger } from '@tzurot/common-types';
@@ -62,6 +70,12 @@ function accumulateSentence(chunks: string[], currentChunk: string, sentence: st
 }
 
 /**
+ * **Precondition**: chunks must already be CRLF-normalized (see
+ * `splitTextIntoChunks`). Calling this on un-normalized input would mis-cap
+ * because JS `.length` would understate the post-FormData wire size. All
+ * callers in this module satisfy this — `splitTextIntoChunks` is the only
+ * entry point and normalizes at its own entry.
+ *
  * Defensive cap: if any chunk exceeds MAX_CHUNK_LENGTH despite the splitting
  * logic, truncate to the cap and warn. Safety net against edge cases the
  * static analysis of accumulateSentence/forceSplitLongSentence misses, plus
@@ -91,16 +105,24 @@ export function enforceChunkLengthCap(chunks: string[]): string[] {
  * Split text into chunks that fit within the TTS character limit.
  * Splits at sentence boundaries to maintain natural speech flow.
  *
+ * Normalizes newlines to CRLF before measuring/splitting so JS `.length`
+ * matches the byte size FormData will produce on the wire. See file header
+ * for the multipart/form-data CRLF rationale.
+ *
  * @internal Exported for testing
  */
 export function splitTextIntoChunks(text: string): string[] {
+  // Normalize newlines to CRLF before any length check. The `\r?` prevents
+  // double-normalization of input that already has `\r\n` (avoiding `\r\r\n`).
+  const normalized = text.replace(/\r?\n/g, '\r\n');
+
   // Fast path: bypasses enforceChunkLengthCap because the condition itself
   // guarantees output is already at or below MAX_CHUNK_LENGTH.
-  if (text.length <= MAX_CHUNK_LENGTH) {
-    return [text];
+  if (normalized.length <= MAX_CHUNK_LENGTH) {
+    return [normalized];
   }
 
-  const sentences = text.split(SENTENCE_BOUNDARY);
+  const sentences = normalized.split(SENTENCE_BOUNDARY);
   const chunks: string[] = [];
   let currentChunk = '';
 
@@ -256,12 +278,23 @@ export async function synthesizeWithChunking(
 
   // Invariant: splitTextIntoChunks always returns >= 1 element (line 69–71 early return)
   if (chunks.length === 1) {
-    logger.debug({ voiceId, textLength: text.length }, 'Single-chunk TTS synthesis');
+    // wireLength = post-normalization size = exactly what voice-engine receives.
+    // Distinct from `text.length` because CRLF normalization can inflate the
+    // payload by N (= bare-`\n` count); using wireLength makes voice-engine 400s
+    // diagnosable from the log without needing to reconstruct the request body.
+    logger.debug({ voiceId, wireLength: chunks[0].length }, 'Single-chunk TTS synthesis');
     return client.synthesize(chunks[0], voiceId);
   }
 
+  // For multi-chunk, log maxChunkLength (worst-case per-request size — the chunk
+  // closest to MAX_CHUNK_LENGTH and most likely to trip voice-engine's cap) rather
+  // than total wire size, which isn't a meaningful per-request metric.
   logger.info(
-    { voiceId, textLength: text.length, chunkCount: chunks.length },
+    {
+      voiceId,
+      chunkCount: chunks.length,
+      maxChunkLength: Math.max(...chunks.map(c => c.length)),
+    },
     'Multi-chunk TTS synthesis'
   );
 
