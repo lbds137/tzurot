@@ -175,27 +175,21 @@ describe('RateLimitCache', () => {
       expect(mockRedis.ttl).not.toHaveBeenCalled();
     });
 
-    it('falls back to RATE_LIMIT category for legacy numeric-only cache entries', async () => {
-      // Legacy entries (pre-JSON-migration cache writes still in flight)
-      // stored just `String(resetMs)`. Read-path compat preserves the prior
-      // user-facing behavior: RATE_LIMIT category + generic message.
-      // Existing prod entries naturally expire within 24h via TTL clamp,
-      // so this branch is bounded transitional.
+    it('returns false for legacy numeric-only cache entries', async () => {
+      // Pre-JSON-migration cache shape stored just `String(resetMs)`. Those
+      // entries naturally expire within 24h via the TTL clamp, so by the time
+      // this code runs there should be none in production. If a stray legacy
+      // entry survives, the read fails closed (rateLimited: false) and the
+      // caller falls through to a real upstream call — strictly safer than
+      // synthesizing a generic-message short-circuit on an entry that's about
+      // to expire anyway.
       const resetMs = FIXED_NOW_MS + 3600 * 1000;
       mockRedis.get.mockResolvedValue(String(resetMs));
       const result = await cache.isRateLimited({
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
       });
-      expect(result).toEqual({
-        rateLimited: true,
-        resetMs,
-        ttlSeconds: 3600,
-        category: ApiErrorCategory.RATE_LIMIT,
-        userMessage:
-          "I'm receiving too many requests right now. Please wait a moment and try again.",
-        technicalMessage: `Rate limit cached: model is rate-limited until ${resetMs}`,
-      });
+      expect(result).toEqual({ rateLimited: false });
     });
 
     it('falls back to RATE_LIMIT category when persisted category is unknown (forward-deploy + rollback safety)', async () => {
@@ -230,8 +224,32 @@ describe('RateLimitCache', () => {
       });
     });
 
-    it('returns false for malformed cache value (non-numeric)', async () => {
+    it('returns false for malformed cache value (non-JSON)', async () => {
       mockRedis.get.mockResolvedValue('garbage');
+      const result = await cache.isRateLimited({
+        cacheKeyId: 'system',
+        model: 'z-ai/glm-4.5-air:free',
+      });
+      expect(result).toEqual({ rateLimited: false });
+    });
+
+    it('returns false for invalid JSON that starts with `{`', async () => {
+      // Reaches the JSON.parse catch path: input passes the startsWith('{')
+      // gate but JSON.parse throws on the malformed content.
+      mockRedis.get.mockResolvedValue('{ this is broken json');
+      const result = await cache.isRateLimited({
+        cacheKeyId: 'system',
+        model: 'z-ai/glm-4.5-air:free',
+      });
+      expect(result).toEqual({ rateLimited: false });
+    });
+
+    it('returns false for valid JSON missing required fields', async () => {
+      // Reaches the field-shape validation path: parses successfully but
+      // doesn't carry the required { resetMs, category, userMessage,
+      // technicalMessage } shape. Could happen if a cache write from a
+      // future version persisted a different shape.
+      mockRedis.get.mockResolvedValue(JSON.stringify({ resetMs: 1234567890 }));
       const result = await cache.isRateLimited({
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
@@ -252,9 +270,18 @@ describe('RateLimitCache', () => {
       // The cached resetMs is the canonical truth. If GET succeeds but
       // resetMs is already in the past (e.g., a clock-skew window made the
       // cache linger past its real expiry), short-circuiting would block a
-      // request the real provider would now accept.
+      // request the real provider would now accept. Uses JSON shape so the
+      // value reaches the parsed.resetMs guard rather than the
+      // legacy-numeric early-return.
       const expiredResetMs = FIXED_NOW_MS - 1000;
-      mockRedis.get.mockResolvedValue(String(expiredResetMs));
+      mockRedis.get.mockResolvedValue(
+        JSON.stringify({
+          resetMs: expiredResetMs,
+          category: ApiErrorCategory.RATE_LIMIT,
+          userMessage: 'cached message',
+          technicalMessage: 'cached technical',
+        })
+      );
       const result = await cache.isRateLimited({
         cacheKeyId: 'system',
         model: 'z-ai/glm-4.5-air:free',
