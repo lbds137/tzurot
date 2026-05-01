@@ -36,7 +36,16 @@ export interface ParsedResponseMetadata {
     };
   };
   additionalKwargs?: {
+    /** OpenRouter (and most OpenAI-compatible providers) put reasoning here. */
     reasoning?: string;
+    /**
+     * z.ai uses `reasoning_content` instead of `reasoning` on its direct
+     * API. LangChain's `ChatOpenAI` converter forwards unrecognized fields
+     * verbatim into `additional_kwargs`, so z.ai-direct responses surface
+     * their reasoning text under this key. Read by `buildReasoningDebug`
+     * so the diagnostic counters reflect z.ai extraction accurately.
+     */
+    reasoning_content?: string;
   };
 }
 
@@ -122,12 +131,21 @@ function buildReasoningDebug(
 ): NonNullable<LlmResponseData['reasoningDebug']> {
   const { additionalKwargs, responseMetadata } = metadata;
   const openrouter = responseMetadata?.openrouter;
+  // Recognize both OpenRouter's `reasoning` and z.ai-direct's
+  // `reasoning_content` so the counter is accurate across providers.
+  // Without this, z.ai-direct responses report `false`/`0` even when
+  // reasoning was successfully extracted, which is misleading in the
+  // /inspect dump.
+  const reasoningText =
+    typeof additionalKwargs?.reasoning === 'string'
+      ? additionalKwargs.reasoning
+      : typeof additionalKwargs?.reasoning_content === 'string'
+        ? additionalKwargs.reasoning_content
+        : null;
   return {
     additionalKwargsKeys: additionalKwargs !== undefined ? Object.keys(additionalKwargs) : [],
-    hasReasoningInKwargs:
-      additionalKwargs?.reasoning !== undefined && typeof additionalKwargs.reasoning === 'string',
-    reasoningKwargsLength:
-      typeof additionalKwargs?.reasoning === 'string' ? additionalKwargs.reasoning.length : 0,
+    hasReasoningInKwargs: reasoningText !== null,
+    reasoningKwargsLength: reasoningText?.length ?? 0,
     responseMetadataKeys: responseMetadata !== undefined ? Object.keys(responseMetadata) : [],
     hasReasoningDetails: Array.isArray(responseMetadata?.reasoning_details),
     hasReasoningTagsInContent: hasThinkingBlocks(rawContent),
