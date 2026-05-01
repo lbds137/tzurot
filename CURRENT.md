@@ -1,21 +1,21 @@
 # Current
 
-> **Session**: 2026-04-30 (extended marathon — 4 PRs merged: 2 inbox-triage + 1 production-bug + 1 incident-response hook)
-> **Version**: v3.0.0-beta.112 (released 2026-04-30) — develop is now one beta-cycle worth of cleanup + a confirmed-production-fix ahead of the release baseline
+> **Session**: 2026-04-30 → 2026-05-01 (extended marathon — 6 PRs merged + beta.113 release shipped)
+> **Version**: v3.0.0-beta.113 (released 2026-05-01) — develop SHA-aligned with main post-finalize
 
 ---
 
 ## Next Session Goal
 
-_All production-issues entries cleared. No active production bugs (the TTS chunker bug is fixed and merged; awaits dev-deploy smoke test). Develop has 5 unreleased PRs since beta.112._
+_All production-issues entries cleared. No unreleased commits on develop. Beta.113 just shipped with the TTS chunker production fix; user is smoke-testing in prod with normal usage._
 
-1. **Verify the TTS chunker fix in dev** (post-merge of PR #952) — Railway dev auto-deploys from develop, so PR #952's CRLF fix is on its way. Smoke test: send a personality prompt that elicits a multi-paragraph response (with embedded `\n` between paragraphs); confirm voice synthesis completes end-to-end without `Text too long` 400s in voice-engine logs. Specifically watch for messages > 1900 chars where prior incidents fired.
-2. **TTS Engine Upgrade (Active Epic)** — User has settled the quality question (Chatterbox samples sound better than Pocket TTS, comparable-or-better to ElevenLabs — no A/B test needed). Real open question is **CPU vs GPU performance** under Railway's CPU-only constraint. Plus: **OpenRouter now offers voice synthesis models** worth surveying — must support voice cloning to qualify (preset-voice-only models excluded). Frame the next session as "perf characterization + OpenRouter survey" not "quality eval."
-3. **Post-deploy validation of beta.112** — Still applicable from prior session; cache-hit log queries on Railway prod whenever next 429/402 surfaces.
+1. **Post-deploy validation of beta.113** — User said they'll "use the bot like I always do" and check logs tomorrow. Specifically watch voice-engine logs for `Text too long` 400s — they should be gone. Also watch for any startup/regression errors from the cache infrastructure changes (#947) or the storage-rename refactor (#948).
+2. **TTS Engine Upgrade (Active Epic)** — Still queued. User has settled the quality question (Chatterbox samples sound better than Pocket TTS, comparable-or-better to ElevenLabs — no A/B test needed). Real open question is **CPU vs GPU performance** under Railway's CPU-only constraint. Plus: **OpenRouter now offers voice synthesis models** worth surveying — must support voice cloning to qualify. Frame the next session as "perf characterization + OpenRouter survey" not "quality eval."
+3. **Bot-audio STT skip investigation** — Queued in `backlog/inbox.md` from this session's earlier triage; the conversation-loop concern (bot transcribes its own TTS output) is the third item the user wanted to dig into.
 
 ## Active Task
 
-_None. PR #952 (TTS chunker CRLF normalization — production root-cause fix for voice-engine 400s) merged 2026-05-01. **Eight review-respond rounds** — round 7+ entered reviewer-mode-decay-failure territory (repeating already-dismissed nits, contradicting prior rounds), exercising rule 6's aspirational decay logic in practice. Final reviewer verdict converged at "ready to merge after dev smoke test." Pre-merge autosquash flattened 7 fixup commits into 1 clean commit; CI's `fixup-check` finally turned green for the first time this PR cycle._
+_None. Beta.113 shipped 2026-05-01 03:29 UTC. Six PRs in this release: #947 (cache infrastructure), #948 (storage rename), #949 (createdAt test), #950 (release-finalize hook), #951 (429 category preservation + GLM-4.7 leak), #952 (TTS chunker CRLF fix). The release-finalize hook from #950 protected this release's develop↔main resync — first release where the structural fix actually exercised against a real merge._
 
 ---
 
