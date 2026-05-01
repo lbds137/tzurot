@@ -1158,7 +1158,15 @@ describe('DiscordResponseSender', () => {
       expect(redisService.getTTSAudio).toHaveBeenCalledWith('tts-audio:job-123');
       // 4th argument is the files array
       const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
-      expect(filesArg).toEqual([{ attachment: audioBuffer, name: 'voice.wav' }]);
+      expect(filesArg).toEqual([
+        {
+          attachment: audioBuffer,
+          // Filename embeds bot clientId + personality slug + timestamp so the
+          // STT path can recognize forwards of our own TTS output. See
+          // botAudioClassifier.ts.
+          name: expect.stringMatching(/^mock-bot-client-id-testbot-[a-z0-9]+\.wav$/) as string,
+        },
+      ]);
     });
 
     it('should not attach audio when ttsAudioKey is not present', async () => {
@@ -1243,7 +1251,7 @@ describe('DiscordResponseSender', () => {
         | { attachment: Buffer; name: string }[]
         | undefined;
       expect(filesArg).toBeDefined();
-      expect(filesArg![0].name).toBe('voice.ogg');
+      expect(filesArg![0].name).toMatch(/^mock-bot-client-id-testbot-[a-z0-9]+\.ogg$/);
     });
 
     it('should attach audio to last chunk only for multi-chunk responses', async () => {
@@ -1271,7 +1279,12 @@ describe('DiscordResponseSender', () => {
 
       // Last chunk: has files
       const lastFiles = mockWebhookManager.sendAsPersonality.mock.calls[1][3];
-      expect(lastFiles).toEqual([{ attachment: audioBuffer, name: 'voice.wav' }]);
+      expect(lastFiles).toEqual([
+        {
+          attachment: audioBuffer,
+          name: expect.stringMatching(/^mock-bot-client-id-testbot-[a-z0-9]+\.wav$/) as string,
+        },
+      ]);
     });
 
     it('should use .mp3 extension when ttsAudioContentType is audio/mpeg', async () => {
@@ -1291,7 +1304,39 @@ describe('DiscordResponseSender', () => {
       });
 
       const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
-      expect(filesArg).toEqual([{ attachment: audioBuffer, name: 'voice.mp3' }]);
+      expect(filesArg).toEqual([
+        {
+          attachment: audioBuffer,
+          name: expect.stringMatching(/^mock-bot-client-id-testbot-[a-z0-9]+\.mp3$/) as string,
+        },
+      ]);
+    });
+
+    it('falls back to legacy voice.{ext} filename when client identity is unavailable', async () => {
+      // Defensive fallback: discord.js types `client.user` as optional, so
+      // when it's undefined we use the legacy filename shape rather than
+      // crashing or building a malformed `undefined-{slug}-...` filename.
+      // The receive-side classifier won't recognize the legacy shape, so a
+      // forward of such audio would re-transcribe — strictly safer than
+      // blocking the upload.
+      const { redisService } = await import('../redis.js');
+      const audioBuffer = Buffer.from([0x52, 0x49, 0x46, 0x46]);
+      vi.mocked(redisService.getTTSAudio).mockResolvedValue(audioBuffer);
+
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+      // Override the default mock client.user.id to undefined.
+      (mockMessage as unknown as { client: { user: undefined } }).client = { user: undefined };
+
+      await sender.sendResponse({
+        content: 'Hello!',
+        personality: mockPersonality,
+        message: mockMessage,
+        ttsAudioKey: 'tts-audio:job-no-client',
+      });
+
+      const filesArg = mockWebhookManager.sendAsPersonality.mock.calls[0][3];
+      expect(filesArg).toEqual([{ attachment: audioBuffer, name: 'voice.wav' }]);
     });
 
     it('should attach audio to DM via object send form', async () => {
@@ -1312,7 +1357,12 @@ describe('DiscordResponseSender', () => {
 
       expect(mockChannel.send).toHaveBeenCalledWith({
         content: expect.stringContaining('Test Bot:'),
-        files: [{ attachment: audioBuffer, name: 'voice.wav' }],
+        files: [
+          {
+            attachment: audioBuffer,
+            name: expect.stringMatching(/^mock-bot-client-id-testbot-[a-z0-9]+\.wav$/) as string,
+          },
+        ],
       });
     });
   });
@@ -1337,5 +1387,9 @@ function createMockMessage(channel: unknown, guild: { id: string } | null): Mess
     channel,
     guild,
     reply: vi.fn(),
+    // Bot's identity is read from `message.client.user.id` to embed the
+    // bot's clientId into the TTS attachment filename. discord.js always
+    // populates this in production; the mock mirrors that.
+    client: { user: { id: 'mock-bot-client-id' } },
   } as unknown as Message<boolean>;
 }
