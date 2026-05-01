@@ -358,15 +358,48 @@ const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
  * documented opt-out from preview rendering.
  *
  * Skips URLs that are already wrapped (`<https://…>`) or already inside a
- * markdown link (`[text](https://…)`). Trailing sentence punctuation
- * (`.,;:!?`) stays outside the wrap so the visible text reads naturally.
+ * markdown link (`[text](https://…)`) — the lookbehind excludes `<` and `(`
+ * preceding the scheme. Trailing sentence punctuation (`.,;:!?`) stays
+ * outside the wrap so the visible text reads naturally.
  *
- * The lookbehind only inspects one character — a URL can only be wrapped if
- * the character preceding it is NOT `<` or `(`. This handles both the
- * already-wrapped and the markdown-link cases without a more complex lookbehind.
+ * Internal closing parens are preserved when matched by an earlier opener,
+ * so `https://en.wikipedia.org/wiki/Foo_(bar)` wraps as
+ * `<https://en.wikipedia.org/wiki/Foo_(bar)>` instead of being truncated.
+ * The match is intentionally permissive (`\S+`); the callback walks the
+ * candidate, balancing parens and stripping trailing punctuation.
  */
 export function wrapUrlsForNoEmbed(text: string): string {
-  return text.replace(/(?<![<(])\b(https?:\/\/[^\s<>)]+?)([.,;:!?]?)(?=\s|$|[)\]>])/g, '<$1>$2');
+  return text.replace(/(?<![<(])\bhttps?:\/\/\S+/g, candidate => {
+    let depth = 0;
+    let cutAt = candidate.length;
+    for (let i = 0; i < candidate.length; i++) {
+      const ch = candidate[i];
+      if (ch === '(') {
+        depth++;
+      } else if (ch === ')') {
+        if (depth === 0) {
+          cutAt = i;
+          break;
+        }
+        depth--;
+      } else if (ch === ']' || ch === '>') {
+        cutAt = i;
+        break;
+      }
+    }
+    let url = candidate.slice(0, cutAt);
+    const rest = candidate.slice(cutAt);
+    // url is guaranteed non-empty here: the candidate starts with `https://`
+    // (regex), and the walker can't cut at index 0 because `h` matches no
+    // cut marker — so cutAt > 0 always, and url.slice(-1) is always 1 char.
+    let trailingPunct = '';
+    const lastChar = url.slice(-1);
+    if ('.,;:!?'.includes(lastChar)) {
+      trailingPunct = lastChar;
+      url = url.slice(0, -1);
+    }
+    return `<${url}>${trailingPunct}${rest}`;
+  });
 }
 
 /**
