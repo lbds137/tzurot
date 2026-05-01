@@ -273,6 +273,58 @@ describe('DiagnosticRecorders', () => {
       expect(debug.apiReasoningLength).toBeUndefined();
     });
 
+    it('should count reasoning length from additionalKwargs.reasoning (OpenRouter shape)', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        additionalKwargs: { reasoning: 'I am thinking about this carefully.' },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      const debug = call.reasoningDebug as Record<string, unknown>;
+      expect(debug.hasReasoningInKwargs).toBe(true);
+      expect(debug.reasoningKwargsLength).toBe(35);
+    });
+
+    it('should fall back to additionalKwargs.reasoning_content when `reasoning` is absent (z.ai shape)', () => {
+      // z.ai-direct responses (e.g., glm-4.7 via the coding-plan endpoint)
+      // surface their reasoning under `reasoning_content` rather than
+      // `reasoning`. Without the fallback, the counter would misleadingly
+      // report `false`/`0` for successful z.ai extractions.
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        additionalKwargs: { reasoning_content: 'z.ai reasoning text here' },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'z-ai/glm-4.7', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      const debug = call.reasoningDebug as Record<string, unknown>;
+      expect(debug.hasReasoningInKwargs).toBe(true);
+      expect(debug.reasoningKwargsLength).toBe(24);
+    });
+
+    it('should prefer `reasoning` over `reasoning_content` when both are present', () => {
+      // Defensive — no provider should send both, but if one ever does,
+      // `reasoning` (the broader-ecosystem convention) wins so the counter
+      // stays consistent with apiReasoningLength.
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        additionalKwargs: {
+          reasoning: 'primary',
+          reasoning_content: 'secondary',
+        },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'response', 'model', metadata);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      const debug = call.reasoningDebug as Record<string, unknown>;
+      expect(debug.hasReasoningInKwargs).toBe(true);
+      expect(debug.reasoningKwargsLength).toBe(7);
+    });
+
     it('should infer stop sequence when finish_reason is stop but content lacks </message>', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
       const metadata: ParsedResponseMetadata = {
