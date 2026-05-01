@@ -2,24 +2,47 @@
 
 _Focus: Eliminate the ~$200/month ElevenLabs recurring cost via self-hosted + BYOK alternatives. Promoted 2026-04-21 from "Current Focus → Other in-flight" after priority-validation discussion (cost bleed outprioritizes tech debt)._
 
-**Status**: Research done 2026-04-12 identified Chatterbox (self-hosted) and Voxtral (BYOK) as top candidates. Gemini 3.1 Flash TTS (announced 2026-04-15, preview) added as third BYOK candidate. **Quality question settled 2026-05-01** — user has heard Chatterbox samples and confirmed they sound better than Pocket TTS and comparable-or-better to ElevenLabs; no A/B test needed. **Open gate is now performance characterization**: CPU vs GPU latency under Railway's CPU-only constraint, plus a survey of OpenRouter's recently-announced voice-synthesis models (must support voice cloning to qualify).
+**Status**: Decisions locked 2026-05-01. Pre-implementation gates remaining: plan-mode + council review on the architecture, then Phase 1 implementation.
 
-**The goal**: ~90% cost reduction (self-hosted) or ~75% (BYOK Voxtral/Fish) on the TTS line item.
+**The goal**: ~85% cost reduction on the ElevenLabs line item via BYOK Voxtral, plus a self-hosted free tier with optional voice cloning via NeuTTS Air alongside the existing Kyutai/Pocket TTS.
 
-**Additive design** (per user preference — see Claude auto-memory `project_tts_additive_design.md`): new engines selectable alongside existing Pocket TTS; nothing replaced wholesale. Users pick their local TTS engine.
+**Full research + decision log**: [`docs/research/voice-cloning-2026.md`](../docs/research/voice-cloning-2026.md) — the "2026-05-01 TTS Upgrade Decision" section captures the OpenRouter catalog survey, CPU-only candidate ranking, Chatterbox-CPU non-viability finding, and the rationale for each decision.
 
-### Candidates
+### Settled decisions (2026-05-01)
 
-**Self-hosted (replace Pocket TTS):**
+- **BYOK provider** (Phase 1): **Voxtral** at $16/1M chars. Beats ElevenLabs Flash v2.5 in 68.4% of blind tests; matches v3. 3-30s reference-audio range covers existing audio library. Zonos at $7/1M is a viable Phase 3 fallback if Voxtral spend remains too high.
+- **Free-tier engine** (Phase 2): **Keep Kyutai/Pocket TTS, ADD NeuTTS Air alongside** (additive design). Hands-on eval after Phase 2 ships will decide whether Kyutai gets deprecated.
+- **Reference audio storage**: stays in api-gateway's `/voice-references/{slug}` endpoint (already implemented; works for both self-hosted and ElevenLabs paths today).
+- **Architecture order**: abstraction-first. Build the `TtsProvider` interface + `tts_configs` cascade before plugging in providers.
+- **Chatterbox**: dropped from active consideration. Documented as not CPU-viable on Railway. NeuTTS Air takes its place as the cloning-capable self-hosted candidate.
 
-- **Chatterbox Turbo** (350M, Resemble AI, MIT) — beats ElevenLabs in 63.75% of blind tests; native zero-shot voice cloning + emotion control; explicit CPU Docker support; OpenAI-compatible API servers exist. **Primary candidate.**
-- **Kokoro 82M** (Apache) — #1 TTS Arena, tiny and CPU-optimized. No native voice cloning (needs third-party KokoClone addon). Backup if Chatterbox is too heavy for Railway 4GB.
+### Architecture starting point
 
-**BYOK (replace ElevenLabs as premium tier):**
+Most of the abstraction already exists in shape. `services/ai-worker/src/services/voice/` has:
 
-- **Gemini 3.1 Flash TTS** (Google, 2026-04-15) — 70+ languages, **#2 on Artificial Analysis Speech Arena Leaderboard** (ahead of ElevenLabs Eleven v3, only behind Inworld TTS 1.5 Max — confirmed 2026-04-15 via @ArtificialAnlys), Elo 1,211, "Audio Profiles" via natural-language Director's Notes, SynthID watermarking. **Open questions**: pricing not disclosed (preview), whether "Audio Profiles" includes true zero-shot cloning or preset-voice selection only, latency, API stability.
-- **Voxtral** (Mistral, $16/1M chars) — 73% cheaper than ElevenLabs, wins 68% vs EL Flash in human prefs, zero-shot cloning from 3s audio confirmed. Open-weight available as self-host fallback.
-- **Fish Audio** ($15/1M chars) — #1 TTS-Arena, 75% cheaper than ElevenLabs.
+- `VoiceRegistrationService` — lazy-register lifecycle for self-hosted voice-engine
+- `ElevenLabsVoiceService` — lazy-clone lifecycle with slot-eviction ("musical chairs") for BYOK
+- Both consume `fetchVoiceReference(slug)` → api-gateway
+
+The Phase 1 work is **extract `TtsProvider` interface + add config-driven routing + add Voxtral as a third provider** following the existing pattern. Not "build from scratch."
+
+### Phased plan
+
+**Phase 1** _(next session — single PR, 1-2 evenings of focused work)_:
+
+1. **Plan-mode pass** to design `TtsProvider` interface shape, schema, and gotchas
+2. **Council review** of the design (abstraction shape is the canonical "multiple viable approaches" case)
+3. New `tts_configs` table mirroring `llm_configs` cascade
+4. New `TtsConfigResolver` parallel to `LlmConfigResolver`
+5. Extract `TtsProvider` interface from the two existing services
+6. Refactor existing services into providers (slot-eviction logic intact for ElevenLabs)
+7. Add `OpenRouterTtsProvider` (Voxtral via `/audio/speech`); no slot management needed
+8. TTSStep dispatches via resolver instead of hardcoded BYOK-vs-self-hosted check
+9. Settings UX: `/settings tts ...` parallel to `/settings preset ...`
+
+**Phase 2** _(separate PR after Phase 1)_: NeuTTS Air as second self-hosted engine in `services/voice-engine/server.py`. TTS preset gains `selfHostedEngine: 'kyutai' | 'neutts-air'`. Hands-on eval gates the Kyutai-deprecation question.
+
+**Phase 3** _(deferred)_: Zonos, Gemini Flash TTS, others as OpenRouter expands. Cheap to plug in once abstraction exists.
 
 ### Ancillary work folded in
 
@@ -27,10 +50,13 @@ _Focus: Eliminate the ~$200/month ElevenLabs recurring cost via self-hosted + BY
 - **Reduce ElevenLabs per-attempt timeout from 60s to 30-45s** — Beta.97 cut ElevenLabs retries 2→1, but per-attempt timeout is still 60s (hardcoded in `elevenLabsFetch` via `AbortController`). When ElevenLabs genuinely can't respond, detecting failure 15-30s earlier gives voice-engine fallback more headroom. Requires measurement: what's the p99 ElevenLabs successful-call duration? If <30s, the 60s budget is 2x overkill. **Start**: `services/ai-worker/src/services/voice/ElevenLabsClient.ts` `elevenLabsFetch`; pair with the retry telemetry added to `withRetry` in beta.97.
 - **Audit ElevenLabs STT + voice-engine retry counts for same bug pattern** — Beta.97 reduced `ELEVENLABS_MAX_ATTEMPTS` (TTS) 2→1. Parallel code paths likely have the same latent bug: `ELEVENLABS_STT_RETRY.MAX_ATTEMPTS` in `services/ai-worker/src/services/multimodal/AudioProcessor.ts:28`, and voice-engine retry in `services/ai-worker/src/services/voice/VoiceEngineClient.ts:219` (comment says "matches ElevenLabs retry budget"). Likely need the same 2→1 cut. Not bundled into beta.97 to keep scope tight; folding into this epic once telemetry shows retry success rates for STT and voice-engine paths. **Adjacent**: when any `MAX_ATTEMPTS` is raised again, add direct unit tests for the relevant `isTransient*Error` classifier before the bump — at `maxAttempts=1` the classifier is dormant (never invoked by `withRetry`), so a silent classification regression wouldn't fail any current test (`services/ai-worker/src/jobs/handlers/pipeline/steps/TTSStep.ts` `isTransientElevenLabsError` flagged in PR #805 review).
 
-### Next steps
+### Cost projection at current ElevenLabs spend (~$200/mo, ~1.8M chars/mo)
 
-1. **OpenRouter voice-synthesis survey** — list models on OpenRouter that offer TTS; filter for those supporting voice cloning (zero-shot or reference-audio); compare per-character pricing against ElevenLabs ($110/1M chars) and Voxtral ($16/1M chars). If a strong candidate emerges, the BYOK path becomes "wire OpenRouter TTS into the voice-engine fallback chain" — single integration point that already plumbs auth, retries, and error classification.
-2. **Chatterbox Turbo CPU vs GPU perf characterization** — spin up [devnen/Chatterbox-TTS-Server](https://github.com/devnen/Chatterbox-TTS-Server) (`docker compose -f docker/docker-compose.cpu.yml up -d` for CPU; equivalent GPU compose for comparison). Measure: cold-start time, per-second-of-audio synthesis latency on CPU vs GPU, peak RSS under Railway's 4GB constraint. The decision criterion is whether CPU-only is fast enough for the live-message TTS budget; if not, the self-hosted path requires GPU hosting outside Railway and the cost calculus shifts.
-3. **Voice-engine integration plan** — once one candidate (OpenRouter BYOK or self-hosted Chatterbox) clears its perf gate, design the swap-in: extend `services/voice-engine/server.py`'s TTS backend abstraction to add the new engine alongside Pocket TTS (additive design — see Claude auto-memory `project_tts_additive_design.md`), expose engine selection via existing settings cascade, keep STT as-is.
+| Path                     | $/mo  | Reduction             |
+| ------------------------ | ----- | --------------------- |
+| ElevenLabs (status quo)  | ~$200 | 0%                    |
+| Voxtral (Phase 1)        | ~$30  | 85%                   |
+| Zonos (Phase 3 fallback) | ~$13  | 94%                   |
+| Free-tier NeuTTS Air     | $0    | 100% (free tier only) |
 
-**Start**: `services/voice-engine/server.py` (current Pocket TTS integration); `services/ai-worker/src/services/voice/ElevenLabsClient.ts` for the existing TTS surface area; research links in Claude auto-memory (`project_voice_tts_research.md`); OpenRouter model catalog at [openrouter.ai/models](https://openrouter.ai/models).
+**Start tomorrow**: plan-mode pass on the Phase 1 design — read `services/ai-worker/src/services/voice/` end-to-end, propose the `TtsProvider` interface, design the `tts_configs` schema, identify schema-migration considerations. Then council review. Then implementation.
