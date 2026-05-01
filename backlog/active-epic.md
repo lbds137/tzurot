@@ -8,13 +8,36 @@ _Focus: Eliminate the ~$200/month ElevenLabs recurring cost via self-hosted + BY
 
 **Full research + decision log**: [`docs/research/voice-cloning-2026.md`](../docs/research/voice-cloning-2026.md) — the "2026-05-01 TTS Upgrade Decision" section captures the OpenRouter catalog survey, CPU-only candidate ranking, Chatterbox-CPU non-viability finding, and the rationale for each decision.
 
-### Settled decisions (2026-05-01)
+### Settled decisions (2026-05-01, three-council reconciled)
 
-- **BYOK provider** (Phase 1): **Voxtral** at $16/1M chars. Beats ElevenLabs Flash v2.5 in 68.4% of blind tests; matches v3. 3-30s reference-audio range covers existing audio library. Zonos at $7/1M is a viable Phase 3 fallback if Voxtral spend remains too high.
+- **BYOK provider** (Phase 1): **Voxtral via DIRECT Mistral API** ($16/1M chars). Beats ElevenLabs Flash v2.5 in 68.4% of blind tests; matches v3. 3-30s reference-audio range covers existing audio library. Discovered during council review: OpenRouter doesn't expose voices management API needed for cloning, only proxies `/audio/speech`. Cloning requires direct Mistral integration. Same pricing, same model, no markup. Zonos at $7/1M is a viable Phase 3 fallback if spend remains too high.
 - **Free-tier engine** (Phase 2): **Keep Kyutai/Pocket TTS, ADD NeuTTS Air alongside** (additive design). Hands-on eval after Phase 2 ships will decide whether Kyutai gets deprecated.
-- **Reference audio storage**: stays in api-gateway's `/voice-references/{slug}` endpoint (already implemented; works for both self-hosted and ElevenLabs paths today).
+- **Reference audio storage**: stays in api-gateway's `/voice-references/{slug}` endpoint. PR 1 verifies it returns canonical format (PCM WAV 16-bit 24kHz mono) or adds `normalizeAudio()` helper.
 - **Architecture order**: abstraction-first. Build the `TtsProvider` interface + `tts_configs` cascade before plugging in providers.
 - **Chatterbox**: dropped from active consideration. Documented as not CPU-viable on Railway. NeuTTS Air takes its place as the cloning-capable self-hosted candidate.
+
+### Three-council reconciled design (2026-05-01)
+
+Plan reviewed by Gemini 3.1 Pro Preview → GLM 5.1 → Kimi K2.6. Convergent decisions:
+
+- **No `Symbol.asyncDispose`** (2-1 vote: GLM + Kimi against Gemini). No current provider needs cleanup. Optional `dispose?()` non-breaking to add later.
+- **No `referenceAudioVersion` schema column** (2-1 vote). Hash lives in provider-internal `Map<slug, hash>` + ElevenLabs/Mistral voice description field for restart resilience.
+- **Keep PR 1+2 separate** (2-1 vote). Existing 2 service refactors validate the interface in PR 1; combined PR hurts claude-bot review of large diffs.
+- **Buffer return type, not streaming union** (2-1 vote). Add separate `synthesizeStream()` method later if needed.
+- **Hard cutover migration, kill dual-write shim** (3-0). Single user, Prisma migration is 30 min.
+- **Reuse existing `ApiErrorCategory`** (3-0). Add `VOICE_NOT_FOUND` + `CLONING_FAILED`. Add `provider` field on errors.
+- **Eviction mutex on stateful providers** (3-0). 5 lines, prevents non-deterministic capacity-exceeded race.
+- **Curl Mistral API first** (3-0). Pre-PR-2 gate.
+
+Kimi's net-new findings (both prior councils missed):
+
+- **`capabilities` object** on `TtsProvider` (`maxCharacters`, `requiresPrepare`, `supportsReferenceAudio`, `outputFormat`).
+- **`isFallbackEligible: boolean`** on errors (not all errors should retry on fallback provider — 400 burns credits).
+- **`PreparedTts` as opaque discriminated union** unifying stateful voiceId + stateless inlineAudio under one interface.
+- **Resolver-level `PreparedTts` cache** (single-instance Map, no Redis needed; avoids re-clone per Discord message).
+- **`isAvailable()` predicate** for clean provider gating without auth-error-catch.
+
+Plus: cost telemetry log line per synthesis call, audio format normalization at gateway boundary, isolated `buildVoxtralSpeechBody()` for OpenRouter/Mistral API volatility.
 
 ### Architecture starting point
 

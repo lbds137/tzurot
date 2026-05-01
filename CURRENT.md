@@ -13,13 +13,23 @@
 2. **Council review** of the proposed design (abstraction shape is the canonical "multiple viable approaches" case the project memory says to consult on).
 3. **Phase 1 implementation** as a single PR: TTS preset infrastructure + Voxtral as first new provider. Estimated 1-2 evenings of focused work after design is locked.
 
-**TL;DR of the locked decisions** (full context in the research doc):
+**TL;DR of the locked decisions** (full context in `docs/proposals/backlog/tts-engine-upgrade-phase-1-plan.md`):
 
-- BYOK Phase 1: Voxtral (~85% cost reduction, blind-tested beats ElevenLabs Flash v2.5)
+- BYOK Phase 1: **Mistral Voxtral via direct API (NOT OpenRouter)** — discovered late in 3-council review that OpenRouter only proxies `/audio/speech` and doesn't expose voices management; cloning requires direct Mistral API. Same $16/1M pricing, same model, ~85% cost reduction holds.
 - Free tier: keep Kyutai/Pocket TTS, ADD NeuTTS Air alongside (additive design; deprecate Kyutai later only if NeuTTS Air clearly dominates)
-- Reference audio storage: existing api-gateway `/voice-references/{slug}` endpoint stays
-- Architecture order: build `TtsProvider` abstraction first, then plug providers in
-- Chatterbox: dropped — not CPU-viable on Railway
+- 3-council reconciled design: opaque `PreparedTts` discriminated union (stateful voiceId vs stateless inlineAudio), `capabilities` introspection on providers, `isFallbackEligible` on errors, `isAvailable()` gating, resolver-level `PreparedTts` cache, eviction mutex on stateful providers, audio format normalization at gateway, cost telemetry log line per call.
+- Reference audio storage: existing api-gateway `/voice-references/{slug}` endpoint stays (verify canonical-format output during PR 1).
+- Architecture order: build `TtsProvider` abstraction first, then plug providers in. 3-PR split: foundation → Mistral provider + dispatch → settings UX.
+- Chatterbox: dropped — not CPU-viable on Railway.
+
+**Pre-PR-1 gates (TOMORROW'S FIRST WORK)**:
+
+1. **Set up Mistral account** (console.mistral.ai). Free tier covers smoke test.
+2. **Smoke test Mistral API** (two-step curl): `POST /v1/voices` (base64 reference audio) + `POST /v1/audio/speech` (use returned voice_id). Document empirical request/response shapes in `docs/research/voice-cloning-2026.md`.
+3. **Verify gateway audio format**: does `/voice-references/{slug}` return canonical PCM WAV 16-bit 24kHz mono today, or does it pass through raw user upload? Determines if `normalizeAudio()` helper is needed in PR 1.
+4. **Auth plumbing decision**: does `auth.apiKey` carry the Mistral key when configured, or do we need a parallel `mistralApiKey?: string` field on `ResolvedAuth`?
+
+Then start PR 1 implementation per the plan doc.
 
 ## Active Task
 
