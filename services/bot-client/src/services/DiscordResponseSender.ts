@@ -19,6 +19,7 @@ import {
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
 import { redisService } from '../redis.js';
+import { buildBotAudioFilename } from '../utils/botAudioClassifier.js';
 
 const logger = createLogger('DiscordResponseSender');
 
@@ -133,7 +134,12 @@ export class DiscordResponseSender {
     }
 
     const footer = this.buildFooter(options);
-    const ttsFiles = await this.fetchTTSFiles(options.ttsAudioKey, options.ttsAudioContentType);
+    const ttsFiles = await this.fetchTTSFiles(
+      options.ttsAudioKey,
+      options.ttsAudioContentType,
+      options.personality.slug,
+      options.message.client.user?.id
+    );
 
     // Determine routing and build chunks
     const isWebhookChannel =
@@ -249,10 +255,18 @@ export class DiscordResponseSender {
    * attachment in its place so the user has a visible signal that voice was
    * attempted but couldn't be delivered — rather than a silent drop where the
    * text arrives without audio and the user assumes the bot is broken.
+   *
+   * The audio attachment filename encodes the bot's clientId and personality
+   * slug (`{clientId}-{slug}-{timestamp}.{ext}`) so the receive-side STT path
+   * can recognize forwards of our own TTS output and skip transcription —
+   * Discord's `MessageSnapshot` strips author metadata from forwards, but
+   * preserves attachment names. See `botAudioClassifier.ts` for full rationale.
    */
   private async fetchTTSFiles(
-    ttsAudioKey?: string,
-    contentType?: string
+    ttsAudioKey: string | undefined,
+    contentType: string | undefined,
+    personalitySlug: string,
+    clientId: string | undefined
   ): Promise<{ attachment: Buffer; name: string }[] | undefined> {
     if (ttsAudioKey === undefined) {
       return undefined;
@@ -291,7 +305,16 @@ export class DiscordResponseSender {
     // fit well under 8 MiB. WAV fallback remains for the multi-chunk synthesis path.
     const extension =
       contentType === 'audio/mpeg' ? 'mp3' : contentType === 'audio/ogg' ? 'ogg' : 'wav';
-    return [{ attachment: audioBuffer, name: `voice.${extension}` }];
+    // When the client identity isn't available (shouldn't happen post-login,
+    // but typed as optional on discord.js), fall back to the legacy `voice.{ext}`
+    // shape. The receive-side classifier won't recognize it, so a forward of
+    // such a message would re-transcribe — strictly safer than blocking the
+    // upload.
+    const name =
+      clientId !== undefined
+        ? buildBotAudioFilename({ clientId, personalitySlug, extension })
+        : `voice.${extension}`;
+    return [{ attachment: audioBuffer, name }];
   }
 
   /**
