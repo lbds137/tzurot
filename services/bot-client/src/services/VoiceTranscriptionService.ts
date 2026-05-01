@@ -11,6 +11,7 @@ import { splitMessage, createLogger, CONTENT_TYPES, isTimeoutError } from '@tzur
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
 import { handleTypingError } from '../utils/typingErrorClassifier.js';
+import { classifyBotAudio } from '../utils/botAudioClassifier.js';
 
 const logger = createLogger('VoiceTranscriptionService');
 
@@ -179,6 +180,24 @@ export class VoiceTranscriptionService {
       return null;
     }
 
+    // Extract voice attachment metadata first (direct + forwarded snapshot
+    // paths). Doing this BEFORE the typing indicator + gateway call lets us
+    // bail out early when the audio is our own bot's TTS output (encoded in
+    // the filename) — no STT cost, no fake typing indicator, no wait.
+    const attachments = this.resolveTranscriptionAttachments(message);
+
+    // Bot-authored audio short-circuit. Discord's MessageSnapshot strips
+    // author metadata from forwards (see botAudioClassifier.ts), so the only
+    // reliable signal that the inner audio came from our own TTS is the
+    // attachment filename, which we control at upload time. The classifier
+    // check itself is synchronous (regex per attachment) — the async cache
+    // write + reply only fire on the matched branch, keeping the unmatched
+    // path microtask-equivalent to the pre-fix behavior.
+    const ownAuthoredSlugs = this.classifyAsOwnBotAudio(message, attachments);
+    if (ownAuthoredSlugs !== null) {
+      return this.handleOwnBotAudio(message, attachments, ownAuthoredSlugs, hasMention, isReply);
+    }
+
     let typingInterval: NodeJS.Timeout | undefined;
     try {
       // Show typing indicator (if channel supports it)
@@ -198,19 +217,6 @@ export class VoiceTranscriptionService {
             });
           });
         }, TYPING_INDICATOR_INTERVAL_MS);
-      }
-
-      // Extract voice attachment metadata from direct attachments (audio-only)
-      let attachments = extractAudioFromSnapshot({ attachments: message.attachments });
-
-      // If no direct audio attachments, check forwarded message snapshots
-      // Uses centralized utility for consistent forwarded message handling
-      if (attachments.length === 0 && hasForwardedSnapshots(message)) {
-        const forwardedAudio = extractAudioFromForwardedSnapshots(message);
-        if (forwardedAudio.length > 0) {
-          attachments = forwardedAudio;
-          logger.debug('Found audio in forwarded message snapshot');
-        }
       }
 
       // Send transcribe job to api-gateway (include userId for BYOK key resolution)
@@ -286,5 +292,99 @@ export class VoiceTranscriptionService {
         clearInterval(typingInterval);
       }
     }
+  }
+
+  /**
+   * Resolve the audio attachments that should drive transcription, checking
+   * direct attachments first and falling back to forwarded-message snapshots.
+   * Returns an empty array when neither path has audio.
+   */
+  private resolveTranscriptionAttachments(message: Message): TranscriptionAttachment[] {
+    const direct = extractAudioFromSnapshot({ attachments: message.attachments });
+    if (direct.length > 0) {
+      return direct;
+    }
+    if (!hasForwardedSnapshots(message)) {
+      return [];
+    }
+    const forwarded = extractAudioFromForwardedSnapshots(message);
+    if (forwarded.length > 0) {
+      logger.debug('Found audio in forwarded message snapshot');
+    }
+    return forwarded;
+  }
+
+  /**
+   * Synchronous classifier: returns the personality slugs when ALL
+   * attachments came from this bot's own TTS output, or null otherwise.
+   *
+   * Mixed-authorship handling: only matches when ALL attachments are
+   * bot-authored. A mixed batch (rare in practice — voice messages are
+   * typically single-attachment) returns null so the normal STT path
+   * preserves the human-authored audio's transcription.
+   */
+  private classifyAsOwnBotAudio(
+    message: Message,
+    attachments: TranscriptionAttachment[]
+  ): string[] | null {
+    const clientId = message.client.user?.id;
+    if (clientId === undefined || attachments.length === 0) {
+      return null;
+    }
+    const slugs: string[] = [];
+    for (const attachment of attachments) {
+      const classification = classifyBotAudio(attachment.name, clientId);
+      if (!classification.isOwnBotAudio) {
+        return null;
+      }
+      if (classification.personalitySlug !== undefined) {
+        slugs.push(classification.personalitySlug);
+      }
+    }
+    return slugs;
+  }
+
+  /**
+   * Async path for bot-authored audio: cache the placeholder, post a
+   * visible reply for channel acknowledgment, return placeholder as the
+   * transcript. Called only when `classifyAsOwnBotAudio` matched.
+   */
+  private async handleOwnBotAudio(
+    message: Message,
+    attachments: TranscriptionAttachment[],
+    slugs: string[],
+    hasMention: boolean,
+    isReply: boolean
+  ): Promise<VoiceTranscriptionResult> {
+    const slugLabel = slugs.length > 0 ? slugs.join(', ') : 'one of our personas';
+    const placeholder = `🔁 *Forwarded voice message originally spoken by \`${slugLabel}\` — original audio not re-transcribed.*`;
+    logger.info(
+      { slugs, attachmentCount: attachments.length },
+      'Skipping STT for own-bot forwarded voice message'
+    );
+    // Cache the placeholder so a re-forward of the same attachment URL hits
+    // the cache instead of re-running this classifier (cheap, but consistent
+    // with the existing cache pattern for human-authored transcripts).
+    for (const attachment of attachments) {
+      await voiceTranscriptCache.store(attachment.url, placeholder);
+    }
+    // Visible reply so the user (and channel) see acknowledgment of the
+    // forward. Without this, a forwarded voice message would produce no
+    // visible bot output, which reads as the bot ignoring the message.
+    await message
+      .reply({
+        content: placeholder,
+        allowedMentions: { parse: [], repliedUser: false },
+      })
+      .catch(replyError => {
+        logger.warn(
+          { err: replyError, messageId: message.id },
+          'Failed to send own-bot-audio placeholder reply'
+        );
+      });
+    return {
+      transcript: placeholder,
+      continueToPersonalityHandler: hasMention || isReply,
+    };
   }
 }
