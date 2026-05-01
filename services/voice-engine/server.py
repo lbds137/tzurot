@@ -528,15 +528,22 @@ async def text_to_speech(
         raise HTTPException(status_code=503, detail="TTS model not loaded")
 
     try:
-        if len(text) > MAX_TTS_TEXT_LENGTH:
+        # Strip `\r` once: (a) measure visible-character count so callers that
+        # correctly send CRLF (per multipart/form-data spec) aren't penalized
+        # vs callers that send bare `\n`, and (b) feed the same `\r`-free text
+        # into PocketTTS synthesis so we don't forward stray `\r` chars into
+        # the model. The TS chunker normalizes to CRLF so wire-size matches
+        # JS `.length`; this strip restores parity on the receiving side.
+        normalized_text = text.replace("\r", "")
+        if len(normalized_text) > MAX_TTS_TEXT_LENGTH:
             raise HTTPException(
                 status_code=400,
-                detail=f"Text too long ({len(text)} chars). Maximum: {MAX_TTS_TEXT_LENGTH}",
+                detail=f"Text too long ({len(normalized_text)} chars). Maximum: {MAX_TTS_TEXT_LENGTH}",
             )
 
         # Strip ElevenLabs-style audio tags (not supported by Pocket TTS)
-        clean_text = _AUDIO_TAG_RE.sub("", text).strip()
-        if clean_text != text.strip():
+        clean_text = _AUDIO_TAG_RE.sub("", normalized_text).strip()
+        if clean_text != normalized_text.strip():
             logger.info("Stripped audio tags from TTS text", extra={"voice_id": voice_id})
 
         if not clean_text:

@@ -129,9 +129,114 @@ describe('splitTextIntoChunks', () => {
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toBe('');
   });
+
+  describe('FormData CRLF expansion safety', () => {
+    // Production root cause confirmed 2026-04-30 via council analysis:
+    // multipart/form-data spec mandates `\n` → `\r\n` normalization before
+    // serialization (WHATWG HTML standard, RFC 7578). Node's built-in
+    // FormData implements this. So a JS-side 2000-char chunk containing N
+    // newlines becomes a 2000+N-char payload on the wire, and Python's
+    // voice-engine `len(text)` check rejects it. The historical "off-by-six"
+    // (2026-04-27) and today's "off-by-one" (2026-04-30) both fit:
+    // off-by-N = newline count.
+    //
+    // Existing tests use `'A'.repeat(2000)` which has zero newlines, so
+    // the bug shipped despite static analysis + defensive cap appearing
+    // correct. The chunker now normalizes `\n` → `\r\n` BEFORE chunking
+    // so JS .length accurately reflects what FormData will transmit.
+
+    it('normalizes \\n to \\r\\n before chunking so JS length matches wire size', () => {
+      // 1995 'A's + 5 \n at end. Pre-fix: JS sees 2000 chars, FormData
+      // expands to 2005, voice-engine rejects (off-by-five). Post-fix:
+      // chunker normalizes input → JS sees 2005 chars before chunking →
+      // splits or truncates to ≤ 2000.
+      const text = 'A'.repeat(1995) + '\n'.repeat(5);
+      const chunks = splitTextIntoChunks(text);
+
+      for (const chunk of chunks) {
+        expect(chunk.length).toBeLessThanOrEqual(2000);
+      }
+      // All newlines in the output are CRLF, never bare LF — negative lookbehind
+      // catches a bare `\n` even if the same chunk also contains a separate `\r\n`,
+      // and matches a leading `\n` at position 0 (which `[^\r]\n` would miss).
+      for (const chunk of chunks) {
+        expect(chunk).not.toMatch(/(?<!\r)\n/);
+      }
+    });
+
+    it('does not double-normalize already-CRLF input (no \\r\\r\\n drift)', () => {
+      // The normalization regex is `\r?\n/g` (the `?` is load-bearing).
+      // Naive `\n` → `\r\n` would turn `\r\n` into `\r\r\n`, inflating
+      // length by N on every chunker call and accumulating across
+      // upstream-already-normalized inputs.
+      const text = 'A'.repeat(100) + '\r\n' + 'B'.repeat(100);
+      const chunks = splitTextIntoChunks(text);
+
+      // No \r\r\n drift — should still see exactly one \r\n in the output
+      const joined = chunks.join('');
+      expect(joined).not.toContain('\r\r\n');
+      expect(joined.match(/\r\n/g)?.length ?? 0).toBe(1);
+    });
+
+    it('handles mixed \\n and \\r\\n input correctly', () => {
+      // Real LLM output sometimes mixes line endings depending on training.
+      // All should normalize to CRLF without drift.
+      const text = 'A'.repeat(50) + '\n' + 'B'.repeat(50) + '\r\n' + 'C'.repeat(50);
+      const chunks = splitTextIntoChunks(text);
+
+      const joined = chunks.join('');
+      // Two newlines in input, both should be CRLF in output
+      expect(joined.match(/\r\n/g)?.length ?? 0).toBe(2);
+      // No bare LF (lookbehind handles position-0 case) and no bare CR
+      expect(joined).not.toMatch(/(?<!\r)\n/);
+      expect(joined).not.toMatch(/\r(?!\n)/);
+    });
+
+    it('returns CRLF-normalized output as the single chunk for short text with bare LF', () => {
+      // Locks in the post-normalization identity contract: when input fits in
+      // one chunk, the function returns `[normalized]` rather than `[input]`.
+      // The "should return single chunk for short text" case earlier uses
+      // newline-free input, so it incidentally satisfies both contracts;
+      // this case disambiguates which one is load-bearing.
+      const text = 'Hello,\nworld.';
+      const chunks = splitTextIntoChunks(text);
+
+      expect(chunks).toHaveLength(1);
+      expect(chunks[0]).toBe('Hello,\r\nworld.');
+    });
+
+    it('SENTENCE_BOUNDARY consumes CRLF between sentences (rejoined with space)', () => {
+      // SENTENCE_BOUNDARY = /(?<=[.!?])\s+/ matches `\r\n` as `\s+`, so the
+      // CRLF between sentences is consumed during the split. accumulateSentence
+      // recombines fitting sentences with a single space — the CRLF is not
+      // preserved verbatim. This is intentional: TTS doesn't care about newline
+      // positions between sentences, only about chunks fitting the wire cap.
+      // Confirming here so future readers don't mistake it for a normalization bug.
+      //
+      // To observe the space-rejoin, the input must (a) exceed MAX_CHUNK_LENGTH
+      // so the slow path runs, and (b) contain at least two sentences small
+      // enough to combine into one output chunk. Three 700-char sentences
+      // satisfy both: total 2107 chars > 2000 (slow path), but s1+s2 = ~1402
+      // chars < 2000 (combine in chunk 0); s3 spills to chunk 1.
+      const sentence = 'A'.repeat(700) + '.';
+      const text = sentence + '\n' + sentence + '\n' + sentence;
+      const chunks = splitTextIntoChunks(text);
+
+      // chunk[0] = "AAA...A. AAA...A." — period + space + A (rejoin), no CRLF
+      expect(chunks[0]).toContain('. A');
+      expect(chunks[0]).not.toContain('.\r\nA');
+    });
+  });
 });
 
 describe('enforceChunkLengthCap', () => {
+  // Precondition reminder: enforceChunkLengthCap assumes its inputs are
+  // already CRLF-normalized (see the function's docstring). All test cases
+  // in this describe block use ASCII-only / newline-free strings, which
+  // trivially satisfy the precondition. If you add a case with embedded
+  // newlines, normalize first (e.g., wrap in `splitTextIntoChunks` or
+  // pre-replace `\n` → `\r\n`) so the test exercises a state the production
+  // code can actually produce.
   beforeEach(() => {
     mockLogger.warn.mockClear();
   });
