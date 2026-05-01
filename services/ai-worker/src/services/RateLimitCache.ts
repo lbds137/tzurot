@@ -56,14 +56,6 @@ const MAX_TTL_SECONDS = 24 * 60 * 60;
  * call. Without this, every cache hit collapsed to the generic
  * `RATE_LIMIT` user message, losing the `QUOTA_EXCEEDED` distinction
  * (which carries actionable wording about credits + limit-reset windows).
- *
- * Schema migration: prior versions of this cache stored only
- * `String(resetTimestampMs)` as the value. The read path
- * (`parseStoredValue` below) handles both shapes — legacy numeric values
- * fall back to `RATE_LIMIT` category with the generic user message
- * (preserving prior behavior for in-flight cache entries). Existing prod
- * entries naturally expire within 24h via TTL clamping, so the migration
- * self-completes within a deployment cycle.
  */
 interface StoredValue {
   /** Unix-ms timestamp when the rate-limit window resets. */
@@ -125,11 +117,7 @@ interface RateLimitedResult {
   rateLimited: true;
   resetMs: number;
   ttlSeconds: number;
-  /**
-   * Original error category preserved across the cache. Falls back to
-   * `RATE_LIMIT` for legacy entries that were written before the JSON
-   * schema migration (those entries had only a numeric resetMs).
-   */
+  /** Original error category preserved across the cache. */
   category: ApiErrorCategory;
   /** User-facing message preserved across the cache. */
   userMessage: string;
@@ -264,97 +252,54 @@ function clampTtl(seconds: number): number {
 }
 
 /**
- * Generic fallback user message for the legacy-cache-entry case (when the
- * stored value is a bare numeric `resetMs` from the pre-JSON-migration cache
- * shape). Identical to `USER_ERROR_MESSAGES[ApiErrorCategory.RATE_LIMIT]`
- * but inlined here to avoid a circular dependency between the cache layer
- * and the user-message constants. If `USER_ERROR_MESSAGES[RATE_LIMIT]`
- * changes upstream, this string should be kept in sync — the cache fallback
- * is a transitional safety net, not a permanent state.
- */
-const LEGACY_FALLBACK_USER_MESSAGE =
-  "I'm receiving too many requests right now. Please wait a moment and try again.";
-
-/**
- * Parse a Redis cache value into the structured shape, with backward-compat
- * for the legacy numeric-only format. Returns null for malformed values
- * (cache read fails closed, callers fall through to the retry path).
+ * Parse a Redis cache value into the structured shape. Returns null for
+ * malformed values (cache read fails closed, callers fall through to the
+ * retry path).
  *
- * Schema migration handling:
- * - **New JSON shape** (`{ resetMs, category, userMessage, technicalMessage }`):
- *   parsed faithfully, all fields preserved.
- * - **Legacy numeric shape** (just `String(resetMs)` from pre-JSON cache
- *   entries still in flight): returns the resetMs with `RATE_LIMIT` category
- *   and the generic user message. This preserves the user-facing behavior
- *   exactly as it was before the JSON migration for entries that haven't
- *   expired yet. New writes always use JSON.
- *
- * Existing prod entries naturally expire within 24h via the TTL clamp, so
- * the legacy-fallback branch can be removed in a follow-up PR after one
- * deployment cycle.
+ * The forward/backward deployment skew check below is the only non-obvious
+ * piece: a future version of ai-worker may write a new `ApiErrorCategory`
+ * value into the cache, then a rollback to current code reads the unknown
+ * string. Without the runtime membership check, the unknown value would
+ * flow unchecked through `ApiError` and into downstream consumers that
+ * switch on `category` (e.g., the bot-client error renderer). On unknown
+ * values we fall back to `RATE_LIMIT` — safe since we know the entry was
+ * written for a 429-class event, and the persisted user/technical messages
+ * are still used verbatim so the user sees the original wording.
  */
 function parseStoredValue(raw: string): StoredValue | null {
-  // Legacy numeric path: pre-JSON cache entries persisted just `resetMs`
-  // as a stringified number. The first-character check distinguishes:
-  // JSON values always start with `{`, numeric values always start with
-  // a digit.
   const trimmed = raw.trim();
-  if (trimmed.length === 0) {
+  if (!trimmed.startsWith('{')) {
     return null;
   }
-  if (trimmed.startsWith('{')) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      return null;
-    }
-    if (parsed === null || typeof parsed !== 'object') {
-      return null;
-    }
-    const candidate = parsed as Record<string, unknown>;
-    if (
-      typeof candidate.resetMs !== 'number' ||
-      Number.isNaN(candidate.resetMs) ||
-      typeof candidate.category !== 'string' ||
-      typeof candidate.userMessage !== 'string' ||
-      typeof candidate.technicalMessage !== 'string'
-    ) {
-      return null;
-    }
-    // Validate the persisted category against the known enum values. The
-    // primary failure mode this guards against is a forward/backward
-    // deployment skew: a future version of ai-worker adds a new
-    // `ApiErrorCategory`, writes it into the cache, then a rollback to the
-    // current code reads the unknown string. Without this check, the
-    // unknown value would flow unchecked through `ApiError` and into
-    // downstream consumers that switch on `category` (e.g., the bot-client
-    // error renderer). On unknown values, fall back to `RATE_LIMIT` —
-    // safe since we know the entry was written for a 429-class event,
-    // and the persisted `userMessage`/`technicalMessage` are still used
-    // verbatim so the user sees the original wording.
-    const isKnownCategory = (Object.values(ApiErrorCategory) as string[]).includes(
-      candidate.category
-    );
-    return {
-      resetMs: candidate.resetMs,
-      category: isKnownCategory
-        ? (candidate.category as ApiErrorCategory)
-        : ApiErrorCategory.RATE_LIMIT,
-      userMessage: candidate.userMessage,
-      technicalMessage: candidate.technicalMessage,
-    };
-  }
-  // Legacy numeric path.
-  const resetMs = Number(trimmed);
-  if (Number.isNaN(resetMs)) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
     return null;
   }
+  // Given startsWith('{'), JSON.parse either throws (caught above) or returns
+  // an object literal — non-object outcomes (null, array, primitive) require
+  // an input that doesn't start with '{', so no defensive type-check is needed.
+  const candidate = parsed as Record<string, unknown>;
+  if (
+    typeof candidate.resetMs !== 'number' ||
+    Number.isNaN(candidate.resetMs) ||
+    typeof candidate.category !== 'string' ||
+    typeof candidate.userMessage !== 'string' ||
+    typeof candidate.technicalMessage !== 'string'
+  ) {
+    return null;
+  }
+  const isKnownCategory = (Object.values(ApiErrorCategory) as string[]).includes(
+    candidate.category
+  );
   return {
-    resetMs,
-    category: ApiErrorCategory.RATE_LIMIT,
-    userMessage: LEGACY_FALLBACK_USER_MESSAGE,
-    technicalMessage: `Rate limit cached: model is rate-limited until ${resetMs}`,
+    resetMs: candidate.resetMs,
+    category: isKnownCategory
+      ? (candidate.category as ApiErrorCategory)
+      : ApiErrorCategory.RATE_LIMIT,
+    userMessage: candidate.userMessage,
+    technicalMessage: candidate.technicalMessage,
   };
 }
 
