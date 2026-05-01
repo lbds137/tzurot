@@ -362,27 +362,38 @@ const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
  * preceding the scheme. Trailing sentence punctuation (`.,;:!?`) stays
  * outside the wrap so the visible text reads naturally.
  *
- * Internal closing parens are preserved when matched by an earlier opener,
- * so `https://en.wikipedia.org/wiki/Foo_(bar)` wraps as
- * `<https://en.wikipedia.org/wiki/Foo_(bar)>` instead of being truncated.
+ * Internal balanced brackets are preserved per RFC 3986 — `(`/`)` and `[`/`]`
+ * pairs are tracked independently. So `https://en.wikipedia.org/wiki/Foo_(bar)`
+ * and `https://[::1]/path` and `https://api.example.com/items[0]/value` all
+ * wrap correctly without truncation. Unmatched closing brackets cut the URL,
+ * which is what surrounding-prose contexts like `(see https://…)` need.
  * The match is intentionally permissive (`\S+`); the callback walks the
- * candidate, balancing parens and stripping trailing punctuation.
+ * candidate, balancing brackets and stripping trailing punctuation.
  */
 export function wrapUrlsForNoEmbed(text: string): string {
   return text.replace(/(?<![<(])\bhttps?:\/\/\S+/g, candidate => {
-    let depth = 0;
+    let parenDepth = 0;
+    let bracketDepth = 0;
     let cutAt = candidate.length;
     for (let i = 0; i < candidate.length; i++) {
       const ch = candidate[i];
       if (ch === '(') {
-        depth++;
+        parenDepth++;
       } else if (ch === ')') {
-        if (depth === 0) {
+        if (parenDepth === 0) {
           cutAt = i;
           break;
         }
-        depth--;
-      } else if (ch === ']' || ch === '>') {
+        parenDepth--;
+      } else if (ch === '[') {
+        bracketDepth++;
+      } else if (ch === ']') {
+        if (bracketDepth === 0) {
+          cutAt = i;
+          break;
+        }
+        bracketDepth--;
+      } else if (ch === '>') {
         cutAt = i;
         break;
       }
