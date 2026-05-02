@@ -1,8 +1,8 @@
 # TTS Engine Upgrade Epic — Phase 1 Implementation Plan
 
-> **Status**: Decisions locked 2026-05-01 via three-council review (Gemini 3.1 Pro Preview → GLM 5.1 → Kimi K2.6). Pre-implementation gate remaining: empirical Mistral API smoke test (deferred to next session pending Mistral account setup).
+> **Status**: Decisions locked 2026-05-01 (three-council review: Gemini 3.1 Pro Preview → GLM 5.1 → Kimi K2.6). Pre-implementation gates closed 2026-05-02 via empirical Mistral smoke test (gates 2/3/4) + supplementary council pass for newly-surfaced design questions (Gemini 3.1 Pro Preview, single-shot consultation 2026-05-02). **Cleared for PR 1 implementation.**
 > **Lifecycle**: Build-process doc — DELETE after Phase 1 ships. Architectural rationale lives in `docs/research/voice-cloning-2026.md`; the code itself documents the shipped feature.
-> **Created**: 2026-05-01. Last revised: 2026-05-01 post-council.
+> **Created**: 2026-05-01. Last revised: 2026-05-02 post-smoke-test + supplementary council.
 
 **Cross-references**:
 
@@ -13,11 +13,23 @@
 
 ## Pivot from initial plan: Voxtral via direct Mistral, not OpenRouter
 
-**Critical finding during council review**: OpenRouter only proxies `/audio/speech` — it does NOT expose the voices management API needed for Voxtral cloning. Voxtral cloning at the Mistral level uses a two-step pattern: `POST /v1/voices` (create voice from base64 reference audio, returns `voice_id`) → `POST /v1/audio/speech` (synthesize text with `voice_id`). Structurally identical to ElevenLabs.
+**Critical finding during council review**: OpenRouter only proxies `/audio/speech` — it does NOT expose the voices management API needed for Voxtral cloning. Voxtral cloning at the Mistral level uses a two-step pattern: `POST /v1/audio/voices` (create voice from base64 reference audio, returns voice object with `id`) → `POST /v1/audio/speech` (synthesize text with `voice_id`). Structurally identical to ElevenLabs.
 
 **Same $16/1M pricing direct as via OpenRouter** — no markup, free tier available for testing. The 85% cost reduction holds.
 
 **Implication**: Phase 1 BYOK provider is `MistralTtsProvider` (not `OpenRouterTtsProvider`). OpenRouter remains a future option for preset-voice models (Kokoro 82M at $0.62/1M, GPT-4o Mini TTS at $0.60/1M) if a budget tier is ever needed — track as Phase 3.
+
+### Smoke-test confirmed empirical shapes (2026-05-02)
+
+Endpoint paths use the `/v1/audio/` namespace, not `/v1/`:
+
+- `POST /v1/audio/voices` — clone. JSON body: `{ name, sample_audio: <base64>, sample_filename, languages, gender, age, tags, slug }`. Returns full voice object — extract `id`. Mistral SILENTLY DROPS `slug`/`languages`/`gender`/`age`/`tags` on creation; only `name` survives. Implication: cache-key strategy MUST use `name` as the find-or-create key (`tzurot-{personality_slug}`), identical to existing ElevenLabs pattern.
+- `POST /v1/audio/speech` — synthesize. JSON body: `{ input, voice_id, model: 'voxtral-mini-tts-latest', response_format: 'wav' | 'mp3' | 'pcm' | 'flac' | 'opus' }`. Response is **always `application/json` with base64 `audio_data` field** (never raw binary, even when `response_format: 'wav'`). `MistralTtsClient` decodes base64 before returning Buffer to caller — ~33% on-wire inflation tolerated.
+- `GET /v1/audio/voices` — list. Paginated `?page=1&page_size=50` (default 10, max-confirmed 50). Returns `{ items[], total, page, page_size, total_pages }`. Each item has `user_id: null` for presets, populated UUID for cloned voices. Phase 1 uses `page_size=50` with single-page assumption (>50 user voices is unrealistic at one-voice-per-personality scale); log a warning if pagination boundary is reached without finding the target voice.
+- `DELETE /v1/audio/voices/{id}` — remove. Returns 200 with deleted voice body.
+- Model name: `voxtral-mini-tts-latest` (or pinned `voxtral-mini-tts-2603`). Distinct from STT siblings (`voxtral-mini-transcribe-2507`, `voxtral-mini-realtime-2602`).
+- Latencies (smoke test): clone 332-852ms, synthesize 2-7s for 200-400 char inputs (~14ms/char), delete ~200ms. Within Discord's post-defer budget.
+- Input tolerance: Mistral cloned MP3 stereo at 44.1/48kHz without normalization. Gate-3 conclusion: **no `normalizeAudio()` helper needed for Mistral** — pass through gateway bytes verbatim. (See section 6 for output-side normalization which IS required, for an unrelated reason.)
 
 ---
 
@@ -273,21 +285,24 @@ export interface ResolvedTtsConfig {
 
 **Location**: `services/ai-worker/src/services/voice/providers/MistralTtsProvider.ts`. Companion stateless HTTP module: `services/ai-worker/src/services/voice/MistralTtsClient.ts` (parallels `ElevenLabsClient.ts`).
 
-**Endpoints** (per Mistral docs, confirmed by smoke test in next session):
+**Endpoints** (smoke-test confirmed 2026-05-02):
 
-- `POST /v1/voices` — create voice. Body: `{ name, sample_audio: <base64>, sample_filename, languages?, gender?, age?, tags?, slug? }`. Returns `{ voice_id, ... }`.
-- `GET /v1/voices` — list voices in account.
-- `DELETE /v1/voices/{voice_id}` — remove voice (for slot eviction if Mistral has account quota).
-- `POST /v1/audio/speech` — synthesize. Body shape TBD by smoke test, but expected: `{ model: 'voxtral-mini-2603', input: <text>, voice: <voice_id>, response_format: 'mp3' | 'wav' }`.
+- `POST /v1/audio/voices` — create voice. JSON body: `{ name, sample_audio: <base64>, sample_filename, languages, gender, age, tags, slug }`. Returns full voice object; extract `id`. Mistral silently drops `slug`/`languages`/`gender`/`age`/`tags` on creation — DO NOT rely on them for lookup.
+- `GET /v1/audio/voices` — paginated list. Use `?page=1&page_size=50` to get user voices in one call.
+- `DELETE /v1/audio/voices/{id}` — remove voice (for slot eviction if Mistral has account quota).
+- `POST /v1/audio/speech` — synthesize. JSON body: `{ input, voice_id, model: 'voxtral-mini-tts-latest', response_format: 'wav' }`. Response is always `application/json` with base64 `audio_data` field — `MistralTtsClient` decodes before returning Buffer.
 
-**Auth**: `Authorization: Bearer ${MISTRAL_API_KEY}`. New API key in user config alongside existing ElevenLabs/OpenRouter keys.
+**Auth**: `Authorization: Bearer ${MISTRAL_API_KEY}`. Plumbed via `audioProviderKeys: Map<AudioProviderId, string>` per the supplementary council decision (see section 7a). One key, all Mistral audio endpoints (TTS now, STT later).
 
 **Voice lifecycle** (mirrors `ElevenLabsVoiceService.ts:74-113`):
 
-1. List voices on first prepare(): `GET /v1/voices`.
-2. If voice with name `tzurot-${slug}` exists, cache its `voice_id` → return `PreparedTts { kind: 'voiceId', id, provider: 'mistral' }`.
-3. If not, fetch reference audio from `fetchVoiceReference(slug)`, base64-encode, POST to `/v1/voices`. Cache result.
-4. On account quota error: provider-internal eviction (same `evictAndClone` pattern as ElevenLabs, gated by mutex per below). TBD if Mistral has slot quotas — confirm via smoke test.
+1. List voices on first prepare(): `GET /v1/audio/voices?page=1&page_size=50`.
+2. If voice with name `tzurot-${slug}` exists in `items[]`, cache its `id` → return `PreparedTts { kind: 'voiceId', id, provider: 'mistral' }`.
+3. If not, fetch reference audio from `fetchVoiceReference(slug)`, base64-encode, POST to `/v1/audio/voices` with `name: \`tzurot-${slug}\``. Cache returned `id`.
+4. If pagination boundary is reached (>50 user voices) without finding the target name, log a warning and treat as "not found" → clone path. Pagination loop deferred to a backlog item if it ever bites.
+5. On account quota error: provider-internal eviction (same `evictAndClone` pattern as ElevenLabs, gated by mutex per below). Mistral slot quota behavior TBD — observed during real usage; if no quota exists, eviction code is dead but mutex still defends against concurrent first-time-create races.
+
+**Critical: name-as-find-key, no DB mapping** — same pattern as `ElevenLabsVoiceService`. The `name` field is the canonical identifier on Mistral's side; the in-memory `TTLCache` is the local fast path. Process restart clears the cache → next request lists Mistral and finds by `name`. NO new DB table, NO `personality_slug → voice_id` migration needed.
 
 **`buildVoxtralSpeechBody()` isolated function** (GLM + Kimi catch): wraps the speech-synthesis request body construction. When Mistral changes API shape, you touch one function. Free engineering hygiene.
 
@@ -310,13 +325,85 @@ Five lines, no library, prevents the double-evict race GLM traced.
 
 ---
 
-## 6. Audio format normalization (Kimi's catch)
+## 6. Output-side loudness normalization (NEW — supplementary-council 2026-05-02)
 
-Different providers accept/return different formats. ElevenLabs accepts MP3/WAV/m4a, Voxtral accepts what Mistral docs describe as base64 with `sample_filename` for format detection (probably MP3/WAV/Opus), Kyutai may need specific sample rate.
+**Background**: smoke testing 4 real persona voice references through Mistral surfaced a **13.8 LU spread in synthesis loudness** across personas at default. Mistral preserves per-voice loudness baselines as an emergent function of voice identity — not directly inheritable from reference clip levels.
 
-**Decision**: gateway returns canonical format. `fetchVoiceReference(slug)` in `services/api-gateway/src/routes/public/voiceReferences.ts` returns PCM WAV 16-bit 24kHz mono. If gateway can't run ffmpeg (Railway constraints), fall back: shared `normalizeAudio(buffer): Promise<Buffer>` utility in `packages/common-types/src/utils/` that providers call from `prepare()` before encoding/uploading.
+**Reference-side normalization fails twice**: it only narrowed the spread to 10.3 LU AND audibly distorted vocal character (EBU R128's LRA target applies dynamic range compression that crushes the expressive peaks the model conditions on). User confirmed the distortion subjectively. Skip reference-side normalization entirely.
 
-**Verify during PR 1**: does the existing api-gateway voice-reference endpoint already normalize, or pass through raw user-uploaded audio? If pass-through, the normalization layer is part of PR 1. If already normalized, just confirm format matches what providers expect.
+**Output-side EBU R128 loudnorm works decisively**: 13.8 LU → 1.7 LU spread on the same four personas, no character distortion (output is already post-synthesis flat-ish speech with no expressive dynamics to crush).
+
+### Locked design
+
+- **Target: -14 LUFS** (Spotify standard, supplementary-council verdict over -16 LUFS podcast standard). Reasoning: Discord has no native loudness normalization, users on phones in noisy environments, AI voice has to compete with human-microphone audio. Louder target fits the playback context.
+- **Filter spec**: ffmpeg `loudnorm=I=-14:LRA=11:TP=-1.5` (single-pass, sub-second cost on typical Discord voice durations).
+- **Output format invariant**: `-ar 24000 -ac 1 -sample_fmt s16 -f wav` (canonical PCM WAV 16-bit / 24kHz / mono — already what Mistral returns; explicit invariant survives provider changes).
+- **Placement**: `TTSStep.process()` direct call, post-synthesis, pre-Redis-write. Provider-agnostic (works for ElevenLabs, Mistral, NeuTTS Air, anything we plug in later); centralizes the loudness invariant in one place; no Redis I/O round-trip.
+
+### Implementation sketch
+
+New file `services/ai-worker/src/services/voice/audioNormalizer.ts`:
+
+```ts
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
+export interface NormalizeOptions {
+  /** Integrated loudness target in LUFS. Default -14 (Spotify standard). */
+  targetLufs?: number;
+  /** Loudness range in LU. Default 11. */
+  lra?: number;
+  /** True peak ceiling in dBTP. Default -1.5. */
+  truePeak?: number;
+}
+
+export async function normalizeLoudness(
+  audioBuffer: Buffer,
+  options: NormalizeOptions = {}
+): Promise<Buffer> {
+  const { targetLufs = -14, lra = 11, truePeak = -1.5 } = options;
+  const filter = `loudnorm=I=${targetLufs}:LRA=${lra}:TP=${truePeak}`;
+  // execFile with array args: shell-injection-safe per .claude/rules/00-critical.md
+  const args = [
+    '-i',
+    'pipe:0',
+    '-af',
+    filter,
+    '-ar',
+    '24000',
+    '-ac',
+    '1',
+    '-sample_fmt',
+    's16',
+    '-f',
+    'wav',
+    'pipe:1',
+  ];
+  const { stdout } = await execFileAsync('ffmpeg', args, {
+    input: audioBuffer,
+    maxBuffer: 50 * 1024 * 1024,
+  });
+  return Buffer.from(stdout, 'binary');
+}
+```
+
+Called from `TTSStep` between provider synthesis and Redis storage:
+
+```ts
+const rawAudio = await dispatcher.synthesize(text, prepared);
+const normalized = await normalizeLoudness(rawAudio);
+const ttsAudioKey = await redisService.storeTTSAudio(normalized, 'audio/wav');
+```
+
+### Gateway-side audio normalization: SKIPPED
+
+Original section 6 plan suggested verifying or adding gateway-side `normalizeAudio()`. Smoke test resolved this: Mistral accepts MP3 stereo at 44.1/48kHz directly with no input normalization. **Gate-3 conclusion**: gateway stays pass-through. If a future provider rejects raw user-uploaded audio, that provider's `prepare()` does its own normalization — the abstraction supports per-provider input handling.
+
+### ffmpeg dependency note
+
+Verify ffmpeg is available in the ai-worker container image. If not present, the existing TTS chunker in `services/ai-worker/src/services/voice/ttsSynthesizer.ts` may already shell out to it (the beta.113 CRLF fix touched the multipart pipeline) — check before assuming a new container dependency is needed. If ffmpeg is missing from the image, adding it is a Dockerfile one-liner.
 
 ---
 
@@ -344,6 +431,56 @@ Aggregate later via log sink. Free observability win. Surfaces cost reduction em
 
 ---
 
+## 7a. Auth shape: `audioProviderKeys` map (NEW — supplementary-council 2026-05-02)
+
+The existing `ResolvedAuth.elevenlabsApiKey?: string` named field was a v1 expedient. Adding Mistral surfaces the question: parallel field (`mistralApiKey?: string`) or generalize?
+
+**Locked decision: `audioProviderKeys: Map<AudioProviderId, string>` covering BOTH TTS and STT.**
+
+Rationale: a single Mistral API key authorizes ALL Mistral audio endpoints (`/v1/audio/speech`, `/v1/audio/voices`, `/v1/audio/transcriptions`). Same for ElevenLabs (cloning + TTS + Scribe STT all use one key). The natural domain unit is "audio-provider credentials," not "TTS credentials."
+
+```ts
+// packages/common-types/src/types/audio-provider.ts (new)
+export type AudioProviderId = 'elevenlabs' | 'mistral';
+
+// services/ai-worker/src/jobs/handlers/pipeline/types.ts — modify ResolvedAuth
+export interface ResolvedAuth {
+  apiKey: string | undefined; // LLM key (unchanged)
+  provider: AIProvider | undefined;
+  isGuestMode: boolean;
+  // NEW: replaces `elevenlabsApiKey?: string`
+  audioProviderKeys: ReadonlyMap<AudioProviderId, string>;
+  wasAutoPromoted?: boolean;
+  fallback?: FallbackRoute;
+}
+```
+
+`AuthStep.process()` populates the map by iterating known audio providers and calling `apiKeyResolver.resolveApiKey(userId, AIProvider.<X>)` for each (existing pattern used for ElevenLabs today). Empty map = no audio-provider keys configured = guest path.
+
+**Migration of existing consumers**:
+
+- `TTSStep.ts:138`: `const elevenlabsApiKey = context.auth?.elevenlabsApiKey;` → resolved via dispatcher from map.
+- `MultimodalProcessor.ts`, `ConversationInputProcessor.ts`, `AttachmentProcessor.ts`, `ConversationalRAGTypes.ts`, `ConversationalRAGService.ts` (all currently consume `elevenlabsApiKey`) → swap to `auth.audioProviderKeys.get('elevenlabs')` or accept the map and let downstream pick. STT consumer (`AudioProcessor.transcribeAudio`) reads from the map but stays pinned to ElevenLabs as the active STT engine until the deferred cutover decision (section 7b).
+
+This consolidates ~6 files' worth of named-field plumbing into one consistent shape. The diff is bigger than mirroring ElevenLabs would be, but it pays for itself the moment we add the second consumer (STT cutover, future provider, anything).
+
+`ApiKeyResolver` already keys by `AIProvider` enum — no change needed there. `AIProvider.Mistral = 'mistral'` enum entry is added in PR 1 for the resolver's benefit; the audio-provider map and the LLM-provider enum are independent namespaces (audio-provider IDs are stable DB strings; LLM-provider enum is internal routing).
+
+## 7b. STT cutover scope: Phase 1 plumbs only; flip happens in epic Phase 3 (NEW — supplementary-council 2026-05-02; revised 2026-05-02 by user to in-epic framing)
+
+**Locked decision: PR 1 ships the auth plumbing for both TTS and STT (via `audioProviderKeys` map per section 7a) but only the TTS consumer is migrated. The STT consumer (`AudioProcessor.transcribeAudio`) stays pointed at ElevenLabs Scribe. The actual STT cutover happens in Phase 3 of the epic, gated on a quality benchmark.**
+
+Rationale: Mistral STT (Voxtral Mini Transcribe / Realtime) quality on multilingual content is unmeasured. Bundling an unmeasured STT swap into Phase 1's PR 1 risks a UX regression that blocks the TTS deployment for unrelated reasons. By using the `audioProviderKeys` map shape now, the auth plumbing is in place when Phase 3 fires — Phase 3's actual code change is a one-line consumer swap.
+
+**Why in-epic, not "deferred until renewal"**: the user's framing (2026-05-02) is that the epic-complete bar requires the FULL ElevenLabs cutover — both subscription line items. Punting STT to "renewal time" turns the epic into a half-victory and risks the cutover never actually shipping. Pulling STT inside as Phase 3 makes the completion criteria explicit: ElevenLabs subscription gone entirely.
+
+**Phase 3 work** (lives in `backlog/active-epic.md`, not this build-process doc):
+
+- Capture ~20 representative real voice messages (English + Hebrew/multilingual mix).
+- Run benchmark: WER + qualitative accuracy comparison Mistral Voxtral Transcribe vs ElevenLabs Scribe on the sample.
+- If pass: flip the consumer (one-line change in `AudioProcessor`), add STT cost telemetry log line parallel to TTS, document benchmark methodology + result, cancel ElevenLabs subscription.
+- If fail: escalate. Alternatives include keeping ElevenLabs Scribe but downgrading plan, evaluating other STT providers, or accepting partial cutover (TTS cost reduction without STT). Phase 3 ships either way — even a "stay on ElevenLabs Scribe" outcome is documented as the gate's verdict.
+
 ## 8. `TTSStep` refactor
 
 **Current** (`TTSStep.ts:137-159`): hardcoded "if BYOK ElevenLabs key, use that, else self-hosted."
@@ -351,9 +488,10 @@ Aggregate later via log sink. Free observability win. Surfaces cost reduction em
 **Future**:
 
 1. Resolve `ResolvedTtsConfig` from `TtsConfigResolver.resolve(userId, personalityId)`.
-2. Build the **fallback chain**: ordered list of available providers based on resolved config + `isAvailable(ctx)`.
+2. Build the **fallback chain**: ordered list of available providers based on resolved config + `isAvailable(ctx)`. Provider availability uses `auth.audioProviderKeys.has(providerId)` for BYOK providers.
 3. Walk the chain via `TtsDispatcher`: for each provider, check `canHandle(config, ctx)`; if yes, call `prepare()` (cached at resolver level), then `synthesize()`. On any error where `isFallbackEligible: true`, try next. On `isFallbackEligible: false`, propagate immediately.
-4. Outer `Promise.race` with `TTS_MAX_TOTAL_MS` (240s) preserved but applied to the **entire lifecycle** (prepare + synthesize), not just synthesis (Gemini's gotcha caught the budget-scope issue).
+4. **Output-side loudness normalization** (section 6): `await normalizeLoudness(rawAudio)` before Redis write. One call site, applies regardless of which provider produced the audio. Keep inside the outer timeout race so a stuck normalizer doesn't deadlock the pipeline.
+5. Outer `Promise.race` with `TTS_MAX_TOTAL_MS` (240s) preserved but applied to the **entire lifecycle** (prepare + synthesize + normalize), not just synthesis (Gemini's gotcha caught the budget-scope issue).
 
 **Default fallback order**: resolved provider first → self-hosted always last (if `VOICE_ENGINE_URL` configured) — the safety net stays.
 
@@ -403,23 +541,25 @@ Schema + interface + refactor of existing services. Hard-cutover migration scrip
 
 - Prisma migration: `tts_configs`, `personality_default_tts_configs`, `User.defaultTtsConfigId`, `UserPersonalityConfig.ttsConfigId`. Seed system-global rows. Migrate `configOverrides.elevenlabsTtsModel` → `tts_configs` row. Drop `elevenlabsTtsModel` field.
 - `packages/common-types/src/services/tts/`: `TtsProvider`, `PreparedTts`, `TtsCapabilities`, `TtsProviderError`, `TtsConfigResolver`, `TtsConfigCacheInvalidationService`, `TtsAdvancedParamsSchema`. Extend `ApiErrorCategory` with `VOICE_NOT_FOUND` + `CLONING_FAILED`.
+- `packages/common-types/src/types/audio-provider.ts`: `AudioProviderId` type alias (`'elevenlabs' | 'mistral'`). Add `AIProvider.Mistral` enum entry.
+- **Auth shape change**: `ResolvedAuth.elevenlabsApiKey?: string` → `audioProviderKeys: ReadonlyMap<AudioProviderId, string>`. Update `AuthStep` to populate map; migrate ~6 consumer files (TTSStep, MultimodalProcessor, ConversationInputProcessor, AttachmentProcessor, ConversationalRAGTypes, ConversationalRAGService). STT consumer reads from map but stays pinned to ElevenLabs (per section 7b).
 - `services/ai-worker/src/services/voice/providers/SelfHostedTtsProvider.ts` wrapping `VoiceRegistrationService` (kept as internal).
 - `services/ai-worker/src/services/voice/providers/ElevenLabsTtsProvider.ts` wrapping `ElevenLabsVoiceService` (kept as internal). Adds `evictionLock` mutex.
 - Provider registry module.
 - Resolver-level `PreparedTts` cache.
 - Cost telemetry log line in both providers.
-- Audio format normalization (verify gateway, add `normalizeAudio()` if needed).
+- **Output-side loudness normalizer** (section 6): `services/ai-worker/src/services/voice/audioNormalizer.ts` with `normalizeLoudness()`. Called from `TTSStep.process()` post-synthesis. Verify ffmpeg availability in ai-worker container.
 - Tests for everything new (`structure.test.ts` colocation enforced).
 
 **PR 2 — Mistral provider + dispatch refactor** _(new BYOK provider)_
 
-Pre-PR-2 gate: Mistral API smoke test confirms request/response shapes.
+Pre-PR-2 gate: ✅ smoke test cleared 2026-05-02. Endpoint paths, request/response shapes, model name, latencies all empirically confirmed.
 
-- `services/ai-worker/src/services/voice/MistralTtsClient.ts` — stateless HTTP functions parallel to `ElevenLabsClient.ts`. Includes `buildVoxtralSpeechBody()` and `buildVoxtralVoiceCreateBody()` as isolated named functions.
-- `services/ai-worker/src/services/voice/providers/MistralTtsProvider.ts` — clone-and-cache lifecycle, eviction mutex if Mistral has slot quotas.
-- `services/ai-worker/src/services/voice/TtsDispatcher.ts` — the fallback chain walker, respects `isFallbackEligible`.
-- `TTSStep.ts` refactor: replace hardcoded branching with `TtsConfigResolver` + dispatcher.
-- Plumb Mistral API key via `ApiKeyResolver` (extend, not parallel-build). Add `mistralApiKey?: string` to `ResolvedAuth` if `auth.apiKey` doesn't already cover it (decide empirically).
+- `services/ai-worker/src/services/voice/MistralTtsClient.ts` — stateless HTTP functions parallel to `ElevenLabsClient.ts`. Includes `buildVoxtralSpeechBody()` and `buildVoxtralVoiceCreateBody()` as isolated named functions. Decodes JSON-wrapped base64 `audio_data` → Buffer at the boundary.
+- `services/ai-worker/src/services/voice/providers/MistralTtsProvider.ts` — clone-and-cache lifecycle keyed by `name: \`tzurot-${slug}\``, page_size=50 list-and-find on cache miss, eviction mutex if Mistral has slot quotas (defensive; quota behavior TBD).
+- `services/ai-worker/src/services/voice/TtsDispatcher.ts` — the fallback chain walker, respects `isFallbackEligible`. Reads `auth.audioProviderKeys` for BYOK availability checks.
+- `TTSStep.ts` refactor: replace hardcoded branching with `TtsConfigResolver` + dispatcher. Output normalizer call sits between dispatch and Redis write.
+- API key for Mistral is plumbed via the `audioProviderKeys` map already established in PR 1 — PR 2 just adds Mistral as an `AudioProviderId` enum value the map populates.
 - Wire `TtsConfigCacheInvalidationService` Redis subscription in ai-worker bootstrap.
 
 **PR 3 — Settings UX + admin routes** _(opt-in user-facing feature)_
@@ -436,7 +576,7 @@ Each PR ships green tests, no behavioral regression. PR 1 invisible to users. PR
 
 **(a) Outer timeout budget covers full lifecycle, not just synthesis**: Gemini's catch. `prepare()` (cloning) might take 10s; `synthesize()` 2s; budget must wrap both. Move the `Promise.race(TTS_MAX_TOTAL_MS)` outside the dispatcher's per-attempt loop.
 
-**(b) Mistral slot quota — unknown until smoke test**: ElevenLabs has explicit slot caps that drive `evictAndClone`. Mistral docs don't mention a quota. Smoke test should attempt to create more voices than expected free-tier limit and observe error shape. If Mistral has no quota, eviction code is dead — keep the mutex anyway since concurrent clone races can still happen on first-time creation.
+**(b) Mistral slot quota — still TBD**: smoke test (4 clones + deletes) was insufficient to probe quota limits. Mistral docs don't mention an account-level limit. PR 2 keeps the eviction code defensively, but it may never fire in practice. The mutex is kept regardless to defend against concurrent first-time-create races (two simultaneous prepare() calls for different slugs at fresh-account state could otherwise both POST and produce duplicate `tzurot-X` voices).
 
 **(c) Migration ordering & rollback safety**: `tts_configs` rows referenced by `User.defaultTtsConfigId` mean a rollback that drops the table also nulls the FK. Mitigation: `onDelete: SetNull` on user/personality FK references.
 
@@ -444,7 +584,7 @@ Each PR ships green tests, no behavioral regression. PR 1 invisible to users. PR
 
 **(e) Concurrent slot-eviction races**: existing logic in `ElevenLabsVoiceService.evictAndClone:187-254` handles 404-on-double-delete but NOT "both clone over each other" race per GLM trace. Eviction mutex closes this gap. Test: explicit concurrent prepare() calls for two different slugs at max-capacity.
 
-**(f) Smoke test gates PR 2**: Mistral API request/response shapes must be empirically confirmed before code lands. Free tier covers this. Tasks queued for tomorrow: account setup, two-step curl, document in scratch file.
+**(f) Smoke test gates PR 2**: ✅ CLOSED 2026-05-02. Empirical confirmation of endpoints, request bodies, response shapes, model name, latencies, input format tolerance. Findings folded into section 5 + the top-of-doc "Smoke-test confirmed empirical shapes" block. Real-voice round-trip (Emily, Emberlynn, Charlie, Speaker of God) validated cloning quality as comparable to ElevenLabs per user listening test.
 
 **(g) Test infrastructure**: existing voice tests are mock-heavy. New providers follow same pattern. `structure.test.ts` enforces colocation — every new `.ts` needs `.test.ts`. Estimated 12-15 new test files across PRs.
 
@@ -453,6 +593,12 @@ Each PR ships green tests, no behavioral regression. PR 1 invisible to users. PR
 **(i) ESLint max-lines on TTSStep**: currently 407 lines. PR 1 may temporarily add lines before PR 2's dispatcher extraction reduces it. Watch for it.
 
 **(j) `fallback eligible` taxonomy gotcha**: Kimi's catch. Get it wrong and falling back on a 400 burns credits failing again. Test: synthesize with text >maxCharacters (should NOT fall back), with bogus voice slug (should NOT fall back), with rate-limit injection (should fall back).
+
+**(k) Output normalizer in the timeout race** (NEW 2026-05-02): `normalizeLoudness()` shells out to ffmpeg and could in theory hang. Keep it inside the outer `Promise.race(TTS_MAX_TOTAL_MS)` so a stuck ffmpeg child process doesn't deadlock the pipeline. ffmpeg has its own internal limits but a `child_process.execFile` with `maxBuffer` and external `signal: AbortSignal.timeout()` gives belt-and-suspenders. Test: inject a misbehaving normalizer mock and verify outer timeout still fires.
+
+**(l) Empirical-verified pagination assumption** (NEW 2026-05-02): smoke-tested `?page_size=50` works. Phase 1 assumes a single page is sufficient for typical usage (one voice per personality; bot's persona count is well under 50). If a user accumulates >50 cloned voices, list-and-find could miss the target on cache miss → re-clone → duplicate `tzurot-X` voice. Mitigation: PR 2 logs a warning when the boundary is hit; a follow-up backlog item adds a proper pagination loop only if the warning ever fires.
+
+**(m) Output-normalization is provider-policy in PR 1** (NEW 2026-05-02): hardcoded -14 LUFS / LRA=11 / TP=-1.5 in the helper. Per `02-code-standards.md` "no premature abstraction": don't add a knob nobody asked for. If a future per-personality "soft voice" preference emerges, lifting the constants to a `TtsConfigResolver`-derived value is straightforward — the call site already has the resolved config. Don't pre-design for it now.
 
 ---
 
@@ -486,17 +632,16 @@ Each PR ships green tests, no behavioral regression. PR 1 invisible to users. PR
 
 ---
 
-## 13. Pre-implementation checklist (tomorrow)
+## 13. Pre-implementation checklist — ✅ ALL CLOSED 2026-05-02
 
-Before any PR 1 code lands:
+- [x] Mistral account setup. Free tier validated.
+- [x] Empirical smoke test: clone (`POST /v1/audio/voices`) + synthesize (`POST /v1/audio/speech`) + delete (`DELETE /v1/audio/voices/{id}`) round-trip with real persona references (Emily, Emberlynn, Charlie, Speaker of God). User confirmed cloning quality comparable to ElevenLabs.
+- [x] Findings documented in `docs/research/voice-cloning-2026.md` "2026-05-02 Mistral smoke test" section.
+- [x] Gateway audio format question settled: Mistral accepts MP3 stereo at 44.1/48kHz directly. **No `normalizeAudio()` gateway helper needed.** Output-side EBU R128 loudnorm at -14 LUFS in TTSStep is the actual normalization layer (section 6).
+- [x] Auth plumbing decision: `audioProviderKeys: ReadonlyMap<AudioProviderId, string>` covering both TTS and STT for both providers (section 7a).
+- [x] Supplementary council pass on Q1 (LUFS target), Q2 (normalizer placement), Q3 (auth shape), Q4 (STT scope), Q5 (ref_audio): all 5 decisions locked.
 
-- [ ] Mistral account setup (console.mistral.ai). Free tier covers smoke test.
-- [ ] Empirical smoke test: two-step curl against Mistral API. Confirm `POST /v1/voices` body (base64 reference, response shape) and `POST /v1/audio/speech` body (voice_id usage, response format).
-- [ ] Document smoke test in scratch file or directly in `voice-cloning-2026.md`.
-- [ ] Confirm gateway `/voice-references/{slug}` returns canonical format or plan `normalizeAudio()` helper.
-- [ ] Verify `auth.apiKey` plumbing for Mistral key (reuse vs. new field decision).
-
-Then start PR 1.
+**PR 1 cleared to start.**
 
 ---
 

@@ -133,6 +133,69 @@ Before Phase 1 implementation:
 | Zonos (Phase 3 if pursued)       | ~$13  | 94%                   |
 | Self-hosted NeuTTS Air free tier | $0    | 100% (free tier only) |
 
+## 2026-05-02 Mistral smoke test results
+
+Empirical pre-PR-1 gates closed. All findings folded into [`docs/proposals/backlog/tts-engine-upgrade-phase-1-plan.md`](../proposals/backlog/tts-engine-upgrade-phase-1-plan.md); summarized here as the durable record (the plan doc is build-process and gets deleted post-merge).
+
+### Endpoint corrections from the 2026-05-01 plan
+
+The original plan referenced `/v1/voices` endpoints; smoke test confirmed Mistral uses the `/v1/audio/` namespace:
+
+| Operation        | Endpoint                        | Notes                                                                                                                                                |
+| ---------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Clone voice      | `POST /v1/audio/voices`         | JSON body with base64 reference audio. Mistral silently drops `slug`/`languages`/`gender`/`age`/`tags` on creation; only `name` survives.            |
+| Synthesize       | `POST /v1/audio/speech`         | Always returns `application/json` with base64 `audio_data` field — never raw binary, even with `response_format: 'wav'`. Client decodes at boundary. |
+| List voices      | `GET /v1/audio/voices`          | Paginated; `?page=1&page_size=50` works. Items have `user_id: null` for presets, populated UUID for cloned.                                          |
+| Delete voice     | `DELETE /v1/audio/voices/{id}`  | Returns 200 with deleted voice body.                                                                                                                 |
+| Transcribe (STT) | `POST /v1/audio/transcriptions` | Same key authorizes. Not used in PR 1 — STT cutover deferred.                                                                                        |
+
+**TTS model name**: `voxtral-mini-tts-latest` (or pinned `voxtral-mini-tts-2603`). Distinct from STT siblings `voxtral-mini-transcribe-2507` and `voxtral-mini-realtime-2602`.
+
+### Latency observations (smoke test, 4 personas, real references)
+
+| Operation  | Range       | Notes                                                                                        |
+| ---------- | ----------- | -------------------------------------------------------------------------------------------- |
+| Clone      | 332–852ms   | Reference duration weakly correlated; even 4s reference → ~330ms clone.                      |
+| Synthesize | 2378–6502ms | Roughly ~14ms per character of input text. 200-char passage ≈ 2.4s; 354-char passage ≈ 3.7s. |
+| Delete     | 182–427ms   | Fast and consistent.                                                                         |
+
+### Input format tolerance
+
+Mistral's `POST /v1/audio/voices` accepted MP3 stereo at 44.1/48kHz directly with no normalization required. Earlier WAV/22kHz/mono synthetic test also worked. Conclusion: **gateway can stay pass-through; no upload-time `normalizeAudio()` helper needed for Mistral.** If a future provider does require canonical input, that provider's `prepare()` does its own normalization.
+
+### Output loudness experiment
+
+A real concern surfaced during the user listening test: **Mistral's per-voice synthesis loudness varies by 13.8 LU across personas** (default; no normalization). The four personas measured at:
+
+| Persona             | LUFS (raw) |
+| ------------------- | ---------- |
+| Charlie Morningstar | -32.3      |
+| Emily               | -26.9      |
+| Speaker of God      | -22.2      |
+| Emberlynn           | -18.5      |
+
+That spread is well above perceptual threshold — listeners reach for the volume knob. Two normalization strategies tested:
+
+**Reference-side normalization (FAILED)**: applying EBU R128 loudnorm to references before clone narrowed output spread to 10.3 LU only (Emily got QUIETER, contra hypothesis) AND audibly distorted vocal character. Root cause: `loudnorm`'s LRA (loudness range) target applies dynamic range compression that crushes the expressive peaks the model conditions on for voice character. Cloned voices became flatter, less themselves. User confirmed subjective distortion.
+
+**Output-side normalization (WORKS)**: applying same `loudnorm=I=-14:LRA=11:TP=-1.5` to synthesized output collapsed the spread to **1.7 LU** with no character distortion — the output is post-synthesis flat-ish speech with no expressive dynamics to crush.
+
+**Decision**: output-side normalization in `TTSStep.process()`, target -14 LUFS (Spotify standard), provider-agnostic. -14 chosen over podcast-standard -16 because Discord has no native loudness normalization and AI voice has to compete with human-mic audio in mobile/noisy environments. Selected via supplementary council pass (Gemini 3.1 Pro Preview, 2026-05-02).
+
+### Architectural decisions surfaced by smoke test
+
+Beyond the gates themselves, three additional decisions came out of the supplementary council pass:
+
+| Decision                           | Choice                                                    | Why                                                                                                                                                                                                                                                       |
+| ---------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth shape for Mistral key         | `audioProviderKeys: ReadonlyMap<AudioProviderId, string>` | Single Mistral key authorizes both `/v1/audio/speech` AND `/v1/audio/transcriptions` (same for ElevenLabs). Natural domain unit is "audio-provider credentials," not "TTS credentials." Generic map replaces the named `elevenlabsApiKey?: string` field. |
+| STT cutover scope                  | Deferred until ElevenLabs renewal                         | Mistral STT quality on multilingual content (English + occasional Hebrew) is unmeasured. PR 1 plumbs auth in the new map shape but STT consumer (`AudioProcessor.transcribeAudio`) stays pinned to ElevenLabs. Cutover gated on a benchmark.              |
+| Mistral `ref_audio` zero-shot mode | Skip                                                      | Stateful clone-and-cache wins on per-call latency vs ~1MB base64 reference per synthesize call. Matches existing ElevenLabs lifecycle pattern; no architectural duplication.                                                                              |
+
+### Cache strategy correction
+
+An earlier (now-superseded) architectural assumption suggested Mistral's silent-drop of metadata fields meant we needed a DB mapping table for `personality_slug → voice_id`. That was wrong: the existing `ElevenLabsVoiceService` doesn't use a DB table either — it uses the `name` field as the canonical identifier (`tzurot-{slug}`) plus an in-memory `TTLCache` for fast-path. Mistral preserves `name` faithfully, so the same pattern works directly. **No DB schema change for voice-id mapping.**
+
 ## References
 
 - Backlog: BACKLOG.md → Future Themes → Voice Engine
@@ -142,3 +205,5 @@ Before Phase 1 implementation:
 - Voxtral Mini TTS (OpenRouter): https://openrouter.ai/mistralai/voxtral-mini-tts-2603
 - Zonos GitHub: https://github.com/Zyphra/Zonos
 - OpenRouter TTS catalog API: https://openrouter.ai/api/v1/models?output_modalities=speech
+- Mistral API audio endpoints: https://docs.mistral.ai/api/endpoint/audio/speech, https://docs.mistral.ai/api/endpoint/audio/voices
+- EBU R128 loudness standard: https://tech.ebu.ch/loudness
