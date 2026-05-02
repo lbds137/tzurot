@@ -9,23 +9,29 @@
  * 3. Personality default (already baked into LoadedPersonality)
  * 4. System global default (already handled as fallback in LoadedPersonality)
  *
- * This service only handles levels 1 and 2 - levels 3 and 4 are already in the personality.
+ * This service only handles levels 1 and 2 — levels 3 and 4 are already in the personality.
+ *
+ * The cascade waterfall structure + cache lifecycle live in `BaseConfigResolver`.
+ * This subclass provides LLM-specific Prisma queries, field extraction/merging,
+ * and the LLM-specific `getFreeDefaultConfig` lookup.
  */
 
-import { createLogger } from '../utils/logger.js';
-import { TTLCache } from '../utils/TTLCache.js';
-import { INTERVALS } from '../constants/timing.js';
 import { LLM_CONFIG_OVERRIDE_KEYS, type ConvertedLlmParams } from '../schemas/llmAdvancedParams.js';
 import {
   LLM_CONFIG_SELECT_WITH_NAME,
   mapLlmConfigFromDbWithName,
   type MappedLlmConfigWithName,
 } from './LlmConfigMapper.js';
+import {
+  BaseConfigResolver,
+  type BaseConfigResolverOptions,
+  type ConfigOverrideEntry,
+  type ConfigResolutionResult as BaseConfigResolutionResult,
+  type UserWithDefault,
+} from './BaseConfigResolver.js';
 import type { PrismaClient } from './prisma.js';
 import type { LoadedPersonality } from '../types/schemas/index.js';
 import type { ResolvedConfigOverrides } from '../schemas/api/configOverrides.js';
-
-const logger = createLogger('LlmConfigResolver');
 
 /** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
 const FREE_DEFAULT_CACHE_KEY = '__free_default__';
@@ -49,168 +55,90 @@ export interface ResolvedLlmConfig extends ConvertedLlmParams {
 }
 
 /**
- * Result of config resolution
+ * Result of LLM config resolution.
+ *
+ * Extends `BaseConfigResolutionResult<ResolvedLlmConfig>` with the optional
+ * `overrides` field that the gateway `/user/llm-config/resolve` endpoint adds
+ * (cascade-resolved config overrides from `ConfigCascadeResolver`). The
+ * resolver itself never sets `overrides` — it's populated by API callers
+ * downstream of resolution.
  */
-export interface ConfigResolutionResult {
-  /** The resolved config (merged with personality defaults) */
-  config: ResolvedLlmConfig;
-  /** Source of the override (or 'personality' if no override) */
-  source: 'user-personality' | 'user-default' | 'personality';
-  /** Name of the config used (if override) */
-  configName?: string;
+export interface ConfigResolutionResult extends BaseConfigResolutionResult<ResolvedLlmConfig> {
   /** Cascade-resolved config overrides (from ConfigCascadeResolver, returned by resolve endpoint) */
   overrides?: ResolvedConfigOverrides;
 }
 
 /**
- * LLM Config Resolver - resolves user-specific config overrides
+ * LLM Config Resolver — resolves user-specific config overrides.
  */
-export class LlmConfigResolver {
+export class LlmConfigResolver extends BaseConfigResolver<
+  LoadedPersonality,
+  MappedLlmConfigWithName,
+  ResolvedLlmConfig
+> {
   private prisma: PrismaClient;
-  private readonly cache: TTLCache<ConfigResolutionResult>;
 
-  constructor(
-    prisma: PrismaClient,
-    options?: {
-      cacheTtlMs?: number;
-      enableCleanup?: boolean;
-      /** Test-only: inject a clock function for fake-timer compatibility with TTLCache. */
-      now?: () => number;
-    }
-  ) {
+  constructor(prisma: PrismaClient, options?: BaseConfigResolverOptions) {
+    super('LlmConfigResolver', options);
     this.prisma = prisma;
-    this.cache = new TTLCache<ConfigResolutionResult>({
-      ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
-      now: options?.now,
+  }
+
+  /**
+   * Look up user by Discord ID with their global default LlmConfig joined.
+   * Single Prisma query keeps the cascade fast.
+   */
+  protected async findUserWithDefault(
+    discordId: string
+  ): Promise<UserWithDefault<MappedLlmConfigWithName> | null> {
+    const user = await this.prisma.user.findFirst({
+      where: { discordId },
+      select: {
+        id: true,
+        defaultLlmConfigId: true,
+        defaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME },
+      },
     });
-    // `enableCleanup` is preserved on the options shape for backwards compatibility
-    // with callers that previously toggled the manual cleanup interval. TTLCache
-    // bounds memory via LRU (default maxSize=100) and expires on access, so no
-    // periodic sweep is needed; the option is now a no-op.
-    void options?.enableCleanup;
+
+    if (user === null) {
+      return null;
+    }
+
+    if (user.defaultLlmConfig) {
+      const mapped = mapLlmConfigFromDbWithName(user.defaultLlmConfig);
+      return {
+        internalId: user.id,
+        defaultOverride: { override: mapped, name: mapped.name },
+      };
+    }
+
+    return { internalId: user.id, defaultOverride: null };
   }
 
   /**
-   * No-op preserved for backwards compatibility with callers that managed the
-   * old manual cleanup interval. TTLCache handles its own lifecycle, so there
-   * is nothing to stop. Safe to remove once no callers reference it.
+   * Look up the user's per-personality LlmConfig override row.
    */
-  stopCleanup(): void {
-    // intentionally empty
-  }
+  protected async findPerPersonalityOverride(
+    userInternalId: string,
+    personalityId: string
+  ): Promise<ConfigOverrideEntry<MappedLlmConfigWithName> | null> {
+    const personalityOverride = await this.prisma.userPersonalityConfig.findFirst({
+      where: { userId: userInternalId, personalityId, llmConfigId: { not: null } },
+      select: { llmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
+    });
 
-  /**
-   * Resolve the effective LLM config for a user and personality.
-   *
-   * @param userId - Discord user ID (or undefined for anonymous)
-   * @param personalityId - The personality being used
-   * @param personalityConfig - The personality's default config (already loaded)
-   * @returns Resolved config with source information
-   */
-  async resolveConfig(
-    userId: string | undefined,
-    personalityId: string,
-    personalityConfig: LoadedPersonality
-  ): Promise<ConfigResolutionResult> {
-    // If no userId, just return the personality default
-    if (userId === undefined || userId.length === 0) {
-      return {
-        config: this.extractConfig(personalityConfig),
-        source: 'personality',
-      };
+    if (!personalityOverride?.llmConfig) {
+      return null;
     }
 
-    // Check cache (TTLCache returns null on miss; expiry is enforced internally)
-    const cacheKey = `${userId}-${personalityId}`;
-    const cached = this.cache.get(cacheKey);
-    if (cached !== null) {
-      logger.debug({ userId, personalityId, source: 'cache' }, 'Config resolved from cache');
-      return cached;
-    }
-
-    try {
-      // Get the user's internal ID first
-      const user = await this.prisma.user.findFirst({
-        where: { discordId: userId },
-        select: {
-          id: true,
-          defaultLlmConfigId: true,
-          defaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME },
-        },
-      });
-
-      if (user === null) {
-        // User doesn't exist in DB - use personality default
-        const result: ConfigResolutionResult = {
-          config: this.extractConfig(personalityConfig),
-          source: 'personality',
-        };
-        this.cacheResult(cacheKey, result);
-        return result;
-      }
-
-      // Priority 1: Check for per-personality override
-      const personalityOverride = await this.prisma.userPersonalityConfig.findFirst({
-        where: { userId: user.id, personalityId, llmConfigId: { not: null } },
-        select: { llmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
-      });
-
-      if (personalityOverride?.llmConfig) {
-        const mapped = mapLlmConfigFromDbWithName(personalityOverride.llmConfig);
-        const result: ConfigResolutionResult = {
-          config: this.mergeConfig(personalityConfig, mapped),
-          source: 'user-personality',
-          configName: mapped.name,
-        };
-        this.cacheResult(cacheKey, result);
-        logger.debug(
-          { userId, personalityId, configName: result.configName },
-          'Config resolved from per-personality override'
-        );
-        return result;
-      }
-
-      // Priority 2: Check for user global default
-      if (user.defaultLlmConfig) {
-        const mapped = mapLlmConfigFromDbWithName(user.defaultLlmConfig);
-        const result: ConfigResolutionResult = {
-          config: this.mergeConfig(personalityConfig, mapped),
-          source: 'user-default',
-          configName: mapped.name,
-        };
-        this.cacheResult(cacheKey, result);
-        logger.debug(
-          { userId, personalityId, configName: result.configName },
-          'Config resolved from user global default'
-        );
-        return result;
-      }
-
-      // No user override - use personality default
-      const result: ConfigResolutionResult = {
-        config: this.extractConfig(personalityConfig),
-        source: 'personality',
-      };
-      this.cacheResult(cacheKey, result);
-      logger.debug({ userId, personalityId }, 'Config resolved from personality default');
-      return result;
-    } catch (error) {
-      logger.error(
-        { err: error, userId, personalityId },
-        'Failed to resolve config, using default'
-      );
-      return {
-        config: this.extractConfig(personalityConfig),
-        source: 'personality',
-      };
-    }
+    const mapped = mapLlmConfigFromDbWithName(personalityOverride.llmConfig);
+    return { override: mapped, name: mapped.name };
   }
 
   /**
    * Extract config values from a LoadedPersonality.
-   * Used when no user override exists - returns all params from personality.
+   * Used when no user override exists — returns all params from personality.
    */
-  private extractConfig(personality: LoadedPersonality): ResolvedLlmConfig {
+  protected extractFromPersonality(personality: LoadedPersonality): ResolvedLlmConfig {
     // Start with required field
     const result = { model: personality.model } as ResolvedLlmConfig;
 
@@ -228,10 +156,9 @@ export class LlmConfigResolver {
 
   /**
    * Merge override config into personality defaults.
-   * Uses pre-mapped config from LlmConfigMapper (already converted to camelCase).
    * Override values take precedence; personality values are fallbacks.
    */
-  private mergeConfig(
+  protected mergeWithPersonality(
     personality: LoadedPersonality,
     override: MappedLlmConfigWithName
   ): ResolvedLlmConfig {
@@ -253,29 +180,6 @@ export class LlmConfigResolver {
   }
 
   /**
-   * Cache a resolution result
-   */
-  private cacheResult(key: string, result: ConfigResolutionResult): void {
-    this.cache.set(key, result);
-  }
-
-  /**
-   * Invalidate cache for a user (call when they update their config overrides)
-   */
-  invalidateUserCache(userId: string): void {
-    this.cache.invalidateByPrefix(`${userId}-`);
-    logger.debug({ userId }, 'Invalidated config cache for user');
-  }
-
-  /**
-   * Clear all cache entries
-   */
-  clearCache(): void {
-    this.cache.clear();
-    logger.debug('Cleared config cache');
-  }
-
-  /**
    * Get the default free config for guest mode users.
    *
    * Resolution order:
@@ -288,7 +192,7 @@ export class LlmConfigResolver {
     // Check cache first
     const cached = this.cache.get(FREE_DEFAULT_CACHE_KEY);
     if (cached !== null) {
-      logger.debug({ source: 'cache' }, 'Free default config resolved from cache');
+      this.logger.debug({ source: 'cache' }, 'Free default config resolved from cache');
       return cached.config;
     }
 
@@ -299,7 +203,7 @@ export class LlmConfigResolver {
       });
 
       if (freeConfig === null) {
-        logger.debug('No free default config found in database');
+        this.logger.debug('No free default config found in database');
         return null;
       }
 
@@ -347,13 +251,13 @@ export class LlmConfigResolver {
         configName: mapped.name,
       });
 
-      logger.info(
+      this.logger.info(
         { configName: mapped.name, model: config.model },
         'Free default config loaded from database'
       );
       return config;
     } catch (error) {
-      logger.error({ err: error }, 'Failed to get free default config');
+      this.logger.error({ err: error }, 'Failed to get free default config');
       return null;
     }
   }
