@@ -240,6 +240,11 @@ export class TtsConfigResolver extends BaseConfigResolver<
         configName: mapped.name,
       };
 
+      // Outer wrapper source: 'personality' is the closest valid value in the
+      // base's `ConfigResolutionSource` union (which is 3-tier: 'user-personality'
+      // | 'user-default' | 'personality'). The inner `config.source` carries the
+      // precise tier ('free-default' here). Anyone inspecting the cache entry
+      // directly should read `config.source`, not the wrapper.
       this.cache.set(FREE_DEFAULT_CACHE_KEY, {
         config,
         source: 'personality',
