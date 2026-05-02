@@ -19,6 +19,7 @@
  */
 
 import { createLogger } from '../utils/logger.js';
+import { TTLCache } from '../utils/TTLCache.js';
 import { INTERVALS } from '../constants/timing.js';
 import {
   ConfigOverridesSchema,
@@ -32,12 +33,6 @@ import type { PrismaClient } from './prisma.js';
 
 const logger = createLogger('ConfigCascadeResolver');
 
-/** Cache entry with TTL */
-interface CacheEntry {
-  result: ResolvedConfigOverrides;
-  expiresAt: number;
-}
-
 /** Tier data for merge: source label and parsed overrides */
 interface TierData {
   source: ConfigOverrideSource;
@@ -49,17 +44,26 @@ interface TierData {
  */
 export class ConfigCascadeResolver {
   private prisma: PrismaClient;
-  private cache = new Map<string, CacheEntry>();
-  private readonly cacheTtlMs: number;
-  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly cache: TTLCache<ResolvedConfigOverrides>;
 
-  constructor(prisma: PrismaClient, options?: { cacheTtlMs?: number; enableCleanup?: boolean }) {
-    this.prisma = prisma;
-    this.cacheTtlMs = options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL;
-
-    if (options?.enableCleanup !== false) {
-      this.startCleanupInterval();
+  constructor(
+    prisma: PrismaClient,
+    options?: {
+      cacheTtlMs?: number;
+      enableCleanup?: boolean;
+      /** Test-only: inject a clock function for fake-timer compatibility with TTLCache. */
+      now?: () => number;
     }
+  ) {
+    this.prisma = prisma;
+    this.cache = new TTLCache<ResolvedConfigOverrides>({
+      ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
+      now: options?.now,
+    });
+    // `enableCleanup` is preserved on the options shape for backwards compatibility
+    // with callers that previously toggled the manual cleanup interval. TTLCache
+    // bounds memory via LRU and expires on access; the option is now a no-op.
+    void options?.enableCleanup;
   }
 
   /**
@@ -78,14 +82,14 @@ export class ConfigCascadeResolver {
     // Sentinels ('anon','none','no-ch') can't collide: snowflakes are numeric, UUIDs are hex+hyphens
     const cacheKey = `${userId ?? 'anon'}|${personalityId ?? 'none'}|${channelId ?? 'no-ch'}`;
 
-    // Check cache
+    // Check cache (TTLCache returns null on miss; expiry is enforced internally)
     const cached = this.cache.get(cacheKey);
-    if (cached !== undefined && cached.expiresAt > Date.now()) {
+    if (cached !== null) {
       logger.debug(
         { userId, personalityId, channelId, source: 'cache' },
         'Config overrides resolved from cache'
       );
-      return cached.result;
+      return cached;
     }
 
     // Load tiers from DB
@@ -95,7 +99,7 @@ export class ConfigCascadeResolver {
     const result = this.mergeTiers(tiers);
 
     // Cache result
-    this.cache.set(cacheKey, { result, expiresAt: Date.now() + this.cacheTtlMs });
+    this.cache.set(cacheKey, result);
 
     logger.debug(
       { userId, personalityId, channelId, tierCount: tiers.length },
@@ -281,18 +285,15 @@ export class ConfigCascadeResolver {
 
   /** Invalidate cache for a specific user */
   invalidateUserCache(userId: string): void {
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(`${userId}|`)) {
-        this.cache.delete(key);
-      }
-    }
+    this.cache.invalidateByPrefix(`${userId}|`);
     logger.debug({ userId }, 'Invalidated config cascade cache for user');
   }
 
   /** Invalidate cache for a specific personality */
   invalidatePersonalityCache(personalityId: string): void {
+    // Cache key format: userId|personalityId|channelId — personality is at position 1.
+    // Prefix-match doesn't fit; iterate keys directly.
     for (const key of this.cache.keys()) {
-      // Cache key format: userId|personalityId|channelId
       const parts = key.split('|');
       if (parts[1] === personalityId) {
         this.cache.delete(key);
@@ -303,8 +304,9 @@ export class ConfigCascadeResolver {
 
   /** Invalidate cache for a specific channel */
   invalidateChannelCache(channelId: string): void {
+    // Cache key format: userId|personalityId|channelId — channel is at position 2.
+    // Suffix-match doesn't fit invalidateByPrefix; iterate keys directly.
     for (const key of this.cache.keys()) {
-      // Cache key format: userId|personalityId|channelId
       const parts = key.split('|');
       if (parts[2] === channelId) {
         this.cache.delete(key);
@@ -319,40 +321,12 @@ export class ConfigCascadeResolver {
     logger.debug('Cleared config cascade cache');
   }
 
-  /** Stop the cleanup interval (call on shutdown) */
-  stopCleanup(): void {
-    if (this.cleanupInterval !== null) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-    }
-  }
-
   /**
-   * Start periodic cleanup of expired cache entries.
-   *
-   * Note: This uses a local setInterval, so each service instance maintains its own
-   * cleanup schedule. This is fine for single-instance deployment but would cause
-   * redundant work under horizontal scaling. If scaling, consider replacing with
-   * a BullMQ repeatable job or Redis TTL-based caching.
+   * No-op preserved for backwards compatibility with callers that managed the
+   * old manual cleanup interval. TTLCache handles its own lifecycle, so there
+   * is nothing to stop. Safe to remove once no callers reference it.
    */
-  private startCleanupInterval(): void {
-    this.cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      let removedCount = 0;
-      for (const [key, entry] of this.cache) {
-        if (entry.expiresAt <= now) {
-          this.cache.delete(key);
-          removedCount++;
-        }
-      }
-      if (removedCount > 0) {
-        logger.debug(
-          { removedCount, remaining: this.cache.size },
-          'Cleaned up expired cache entries'
-        );
-      }
-    }, INTERVALS.CACHE_CLEANUP);
-
-    this.cleanupInterval.unref();
+  stopCleanup(): void {
+    // intentionally empty
   }
 }

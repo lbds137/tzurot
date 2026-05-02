@@ -41,7 +41,12 @@ describe('ConfigCascadeResolver', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockPrisma = createMockPrisma();
-    resolver = new ConfigCascadeResolver(mockPrisma as any, { enableCleanup: false });
+    // `now: () => Date.now()` makes TTLCache's TTL respect vi.useFakeTimers
+    // (lru-cache's default `performance.now()` is NOT mocked by fake timers).
+    resolver = new ConfigCascadeResolver(mockPrisma as any, {
+      enableCleanup: false,
+      now: () => Date.now(),
+    });
   });
 
   afterEach(() => {

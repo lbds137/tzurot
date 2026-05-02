@@ -71,10 +71,12 @@ describe('LlmConfigResolver', () => {
         findFirst: vi.fn(),
       },
     };
-    // Disable cleanup interval in tests to avoid timer issues
+    // `now: () => Date.now()` makes TTLCache's TTL respect vi.useFakeTimers
+    // (lru-cache's default `performance.now()` is NOT mocked by fake timers).
     resolver = new LlmConfigResolver(mockPrisma as unknown as PrismaClient, {
       cacheTtlMs: 60000,
       enableCleanup: false,
+      now: () => Date.now(),
     });
   });
 
@@ -513,10 +515,13 @@ describe('LlmConfigResolver', () => {
     });
 
     it('should clean up expired cache entries when cleanup runs', async () => {
-      // Create a new resolver with cleanup enabled
+      // After the TTLCache refactor, eviction happens on access (lru-cache TTL semantics)
+      // rather than via a periodic interval. The behavior tested here — that an expired
+      // entry is no longer returned and the underlying query re-runs — still holds.
       const cleanupResolver = new LlmConfigResolver(mockPrisma as unknown as PrismaClient, {
         cacheTtlMs: 1000, // 1 second TTL
         enableCleanup: true,
+        now: () => Date.now(),
       });
 
       mockPrisma.user.findFirst.mockResolvedValue({
@@ -537,14 +542,11 @@ describe('LlmConfigResolver', () => {
       // Advance time past TTL
       vi.advanceTimersByTime(2000); // 2 seconds - past the 1 second TTL
 
-      // Advance time to trigger cleanup interval (5 minutes)
-      vi.advanceTimersByTime(5 * 60 * 1000);
-
-      // Entry should be expired and cleaned up, new query should happen
+      // Entry should be expired (lru-cache evicts on access), new query should happen
       await cleanupResolver.resolveConfig('user-123', 'personality-1', mockPersonality);
       expect(mockPrisma.user.findFirst).toHaveBeenCalledTimes(2);
 
-      // Clean up
+      // stopCleanup is now a no-op preserved for backwards compat; calling it shouldn't error
       cleanupResolver.stopCleanup();
     });
 
