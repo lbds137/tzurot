@@ -144,7 +144,11 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
       const userPersonality = await this.findPerPersonalityOverride(user.internalId, personalityId);
       if (userPersonality !== null) {
         const result: BaseConfigResolutionResult<TResolved> = {
-          config: this.mergeWithPersonality(personalityConfig, userPersonality.override),
+          config: this.mergeWithPersonality(
+            personalityConfig,
+            userPersonality.override,
+            'user-personality'
+          ),
           source: 'user-personality',
           configName: userPersonality.name,
         };
@@ -159,7 +163,11 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
       // Priority 2: user global default (joined into findUserWithDefault to save a query).
       if (user.defaultOverride !== null) {
         const result: BaseConfigResolutionResult<TResolved> = {
-          config: this.mergeWithPersonality(personalityConfig, user.defaultOverride.override),
+          config: this.mergeWithPersonality(
+            personalityConfig,
+            user.defaultOverride.override,
+            'user-default'
+          ),
           source: 'user-default',
           configName: user.defaultOverride.name,
         };
@@ -256,9 +264,15 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
    * Merge an override row with personality defaults. Override values take
    * precedence; personality values fill in any fields the override doesn't
    * specify.
+   *
+   * `tier` indicates which cascade tier produced this merge — subclasses
+   * with an inner `source` field (TtsConfigResolver) use it to bake the
+   * correct tier into the resolved config; subclasses without an inner
+   * source field (LlmConfigResolver) ignore it.
    */
   protected abstract mergeWithPersonality(
     personality: TPersonality,
-    override: TMappedOverride
+    override: TMappedOverride,
+    tier: 'user-personality' | 'user-default'
   ): TResolved;
 }

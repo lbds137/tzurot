@@ -157,10 +157,17 @@ export class LlmConfigResolver extends BaseConfigResolver<
   /**
    * Merge override config into personality defaults.
    * Override values take precedence; personality values are fallbacks.
+   *
+   * `_tier` is unused here — `ResolvedLlmConfig` has no inner `source` field
+   * (the cascade tier is exposed via the outer `ConfigResolutionResult.source`
+   * the base wraps around the merged config). Required by the abstract
+   * signature so TtsConfigResolver and any future subclasses with inner
+   * source can use it.
    */
   protected mergeWithPersonality(
     personality: LoadedPersonality,
-    override: MappedLlmConfigWithName
+    override: MappedLlmConfigWithName,
+    _tier: 'user-personality' | 'user-default'
   ): ResolvedLlmConfig {
     // Start with required field (model is always from override)
     const result = { model: override.model } as ResolvedLlmConfig;
