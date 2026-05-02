@@ -136,15 +136,20 @@ export class PersonalityMessageHandler {
       };
     }
 
-    // Fallback: LlmConfig-based resolution (pre-cascade)
+    // Fallback: LlmConfig-based resolution (pre-cascade).
+    // ConfigResolutionSource includes the TTS-only tier 'free-default' that
+    // SettingSource (dashboard taxonomy) doesn't share — LLM resolution
+    // never produces it in practice, but we narrow defensively in case the
+    // union surface widens.
+    const settingSource: SettingSource = source === 'free-default' ? 'hardcoded' : source;
     return {
       maxMessages: config.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       maxAge: config.maxAge ?? null,
       maxImages: config.maxImages ?? 10,
       sources: {
-        maxMessages: source,
-        maxAge: source,
-        maxImages: source,
+        maxMessages: settingSource,
+        maxAge: settingSource,
+        maxImages: settingSource,
       },
     };
   }

@@ -80,6 +80,16 @@ export class ConfigStep implements IPipelineStep {
           personality
         );
 
+        // ConfigResolutionSource includes TTS-only tiers ('free-default',
+        // 'hardcoded') that LlmConfigResolver should never produce — the
+        // base resolver only routes those tiers through TtsConfigResolver's
+        // `getExtractSource` override. Treat as a contract violation rather
+        // than silently mapping, so a future resolver bug surfaces loudly.
+        if (configResult.source === 'free-default' || configResult.source === 'hardcoded') {
+          throw new Error(
+            `LlmConfigResolver returned unexpected source "${configResult.source}" — only TtsConfigResolver should produce TTS-tier sources`
+          );
+        }
         configSource = configResult.source;
 
         // If user has an override, apply it to the personality
