@@ -11,7 +11,11 @@ import { ConversationalRAGService } from '../services/ConversationalRAGService.j
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { EmbeddingServiceInterface } from '../utils/duplicateDetection.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
-import { LlmConfigResolver, type ConfigCascadeResolver } from '@tzurot/common-types';
+import {
+  LlmConfigResolver,
+  TtsConfigResolver,
+  type ConfigCascadeResolver,
+} from '@tzurot/common-types';
 import { PersonaResolver } from '../services/resolvers/index.js';
 import {
   createLogger,
@@ -55,6 +59,8 @@ interface AIJobProcessorOptions {
   apiKeyResolver?: ApiKeyResolver;
   /** Optional: LLM config resolver (for DI in tests) */
   configResolver?: LlmConfigResolver;
+  /** Optional: TTS config resolver (for DI in tests) */
+  ttsConfigResolver?: TtsConfigResolver;
   /** Optional: Persona resolver for persona-based memory retrieval (for DI in tests) */
   personaResolver?: PersonaResolver;
   /** Optional: Local embedding service for semantic duplicate detection */
@@ -70,6 +76,7 @@ export class AIJobProcessor {
   private llmGenerationHandler: LLMGenerationHandler;
   private apiKeyResolver: ApiKeyResolver;
   private configResolver: LlmConfigResolver;
+  private ttsConfigResolver: TtsConfigResolver;
 
   constructor(options: AIJobProcessorOptions) {
     const {
@@ -78,6 +85,7 @@ export class AIJobProcessor {
       ragService,
       apiKeyResolver,
       configResolver,
+      ttsConfigResolver,
       personaResolver,
       embeddingService,
       cascadeResolver,
@@ -98,13 +106,16 @@ export class AIJobProcessor {
     // LlmConfigResolver handles user config overrides (per-personality and global default)
     this.configResolver = configResolver ?? new LlmConfigResolver(prisma);
 
-    this.llmGenerationHandler = new LLMGenerationHandler(
-      this.ragService,
-      this.apiKeyResolver,
-      this.configResolver,
+    // Same pattern for TtsConfigResolver — production wires the cache-invalidation
+    // subscription via cacheInvalidation.ts; tests can construct an isolated one.
+    this.ttsConfigResolver = ttsConfigResolver ?? new TtsConfigResolver(prisma);
+
+    this.llmGenerationHandler = new LLMGenerationHandler(this.ragService, this.apiKeyResolver, {
+      configResolver: this.configResolver,
       embeddingService,
-      cascadeResolver
-    );
+      cascadeResolver,
+      ttsConfigResolver: this.ttsConfigResolver,
+    });
   }
 
   /**

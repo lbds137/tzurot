@@ -29,7 +29,11 @@ import {
   type LLMGenerationResult,
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
-import type { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/common-types';
+import type {
+  LlmConfigResolver,
+  TtsConfigResolver,
+  ConfigCascadeResolver,
+} from '@tzurot/common-types';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import {
   type IPipelineStep,
@@ -96,10 +100,14 @@ export class LLMGenerationHandler {
   constructor(
     ragService: ConversationalRAGService,
     apiKeyResolver?: ApiKeyResolver,
-    configResolver?: LlmConfigResolver,
-    embeddingService?: EmbeddingServiceInterface,
-    cascadeResolver?: ConfigCascadeResolver
+    options: {
+      configResolver?: LlmConfigResolver;
+      embeddingService?: EmbeddingServiceInterface;
+      cascadeResolver?: ConfigCascadeResolver;
+      ttsConfigResolver?: TtsConfigResolver;
+    } = {}
   ) {
+    const { configResolver, embeddingService, cascadeResolver, ttsConfigResolver } = options;
     // Build the pipeline with all steps
     // Order matters: each step may depend on results from previous steps
     //
@@ -129,7 +137,7 @@ export class LLMGenerationHandler {
       new DependencyStep(apiKeyResolver),
       new ContextStep(),
       new GenerationStep(ragService, embeddingService),
-      new TTSStep(),
+      new TTSStep(ttsConfigResolver),
     ];
   }
 

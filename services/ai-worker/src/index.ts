@@ -319,8 +319,14 @@ async function main(): Promise<void> {
 
   // Set up cache invalidation for all resolvers
   const cacheResult = await setupCacheInvalidation({ cacheRedis, prisma });
-  const { apiKeyResolver, llmConfigResolver, personaResolver, cascadeResolver, cleanupFns } =
-    cacheResult;
+  const {
+    apiKeyResolver,
+    llmConfigResolver,
+    ttsConfigResolver,
+    personaResolver,
+    cascadeResolver,
+    cleanupFns,
+  } = cacheResult;
 
   // Initialize local embedding service (required for both vector memory and duplicate detection)
   const localEmbeddingService = await initializeLocalEmbedding();
@@ -342,6 +348,7 @@ async function main(): Promise<void> {
     memoryManager,
     apiKeyResolver,
     configResolver: llmConfigResolver,
+    ttsConfigResolver,
     personaResolver,
     embeddingService: localEmbeddingService,
     cascadeResolver,

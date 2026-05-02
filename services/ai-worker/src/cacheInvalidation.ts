@@ -17,6 +17,8 @@ import {
   ConfigCascadeResolver,
   ConfigCascadeCacheInvalidationService,
   LlmConfigResolver,
+  TtsConfigResolver,
+  TtsConfigCacheInvalidationService,
   type PrismaClient,
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
@@ -36,6 +38,7 @@ export interface CacheInvalidationResult {
   cacheInvalidationService: CacheInvalidationService;
   apiKeyResolver: ApiKeyResolver;
   llmConfigResolver: LlmConfigResolver;
+  ttsConfigResolver: TtsConfigResolver;
   personaResolver: PersonaResolver;
   cascadeResolver: ConfigCascadeResolver;
   cleanupFns: (() => Promise<void>)[];
@@ -74,21 +77,21 @@ export async function setupCacheInvalidation(
 
   // LlmConfigResolver with cache invalidation
   const llmConfigResolver = new LlmConfigResolver(prisma);
-  const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
-  await llmConfigCacheInvalidation.subscribe(event => {
-    if (event.type === 'all') {
-      llmConfigResolver.clearCache();
-      logger.info('Cleared all LLM config cache entries');
-    } else if (event.type === 'user') {
-      llmConfigResolver.invalidateUserCache(event.discordId);
-      logger.info({ discordId: event.discordId }, 'Invalidated LLM config cache for user');
-    } else {
-      llmConfigResolver.clearCache();
-      logger.info({ configId: event.configId }, 'Cleared LLM config cache (config changed)');
-    }
+  await wireConfigResolver({
+    resolver: llmConfigResolver,
+    invalidationService: new LlmConfigCacheInvalidationService(cacheRedis),
+    label: 'LLM',
+    cleanupFns,
   });
-  cleanupFns.push(() => llmConfigCacheInvalidation.unsubscribe());
-  logger.info('LlmConfigResolver initialized with cache invalidation');
+
+  // TtsConfigResolver with cache invalidation
+  const ttsConfigResolver = new TtsConfigResolver(prisma);
+  await wireConfigResolver({
+    resolver: ttsConfigResolver,
+    invalidationService: new TtsConfigCacheInvalidationService(cacheRedis),
+    label: 'TTS',
+    cleanupFns,
+  });
 
   // PersonaResolver with cache invalidation
   const personaResolver = new PersonaResolver(prisma);
@@ -137,8 +140,64 @@ export async function setupCacheInvalidation(
     cacheInvalidationService,
     apiKeyResolver,
     llmConfigResolver,
+    ttsConfigResolver,
     personaResolver,
     cascadeResolver,
     cleanupFns,
   };
+}
+
+/**
+ * Resolver-agnostic shape: every config resolver supports clear-all + per-user
+ * invalidation. New resolver types just need to satisfy this interface.
+ */
+interface InvalidatableResolver {
+  clearCache(): void;
+  invalidateUserCache(discordId: string): void;
+}
+
+/** Three-event invalidation shape shared by LlmConfig + TtsConfig services. */
+type ConfigInvalidationEvent =
+  | { type: 'user'; discordId: string }
+  | { type: 'config'; configId: string }
+  | { type: 'all' };
+
+interface ConfigInvalidationService {
+  subscribe(handler: (event: ConfigInvalidationEvent) => void): Promise<void>;
+  unsubscribe(): Promise<void>;
+}
+
+/**
+ * Wire a config resolver to its cache invalidation service. Same shape for
+ * LlmConfig + TtsConfig (and any future config resolver with the same
+ * three-event taxonomy). Subscribes, registers the unsubscribe in cleanupFns,
+ * and logs setup completion.
+ */
+async function wireConfigResolver(opts: {
+  resolver: InvalidatableResolver;
+  invalidationService: ConfigInvalidationService;
+  label: string;
+  cleanupFns: (() => Promise<void>)[];
+}): Promise<void> {
+  const { resolver, invalidationService, label, cleanupFns } = opts;
+  await invalidationService.subscribe(event => {
+    if (event.type === 'all') {
+      resolver.clearCache();
+      logger.info({ resolver: label }, 'Cleared all config cache entries');
+    } else if (event.type === 'user') {
+      resolver.invalidateUserCache(event.discordId);
+      logger.info(
+        { resolver: label, discordId: event.discordId },
+        'Invalidated config cache for user'
+      );
+    } else {
+      resolver.clearCache();
+      logger.info(
+        { resolver: label, configId: event.configId },
+        'Cleared config cache (config changed)'
+      );
+    }
+  });
+  cleanupFns.push(() => invalidationService.unsubscribe());
+  logger.info({ resolver: label }, 'Config resolver initialized with cache invalidation');
 }
