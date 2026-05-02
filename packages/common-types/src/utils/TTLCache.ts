@@ -95,6 +95,27 @@ export class TTLCache<T extends NonNullable<unknown>> {
   }
 
   /**
+   * Invalidate every entry whose key starts with the given prefix.
+   *
+   * Used by config-style resolvers that key their cache as `${userId}-${...}`
+   * — passing `${userId}-` invalidates all of one user's entries when their
+   * config or keys change. Returns the number of entries removed.
+   *
+   * Iterates `cache.keys()` synchronously; the underlying `LRUCache.delete`
+   * is safe to call mid-iteration.
+   */
+  invalidateByPrefix(prefix: string): number {
+    let removed = 0;
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.cache.delete(key);
+        removed++;
+      }
+    }
+    return removed;
+  }
+
+  /**
    * Get current cache size
    */
   size(): number {
