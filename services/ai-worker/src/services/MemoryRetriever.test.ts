@@ -699,7 +699,6 @@ describe('MemoryRetriever', () => {
         showModelFooter: true,
         voiceResponseMode: 'always' as const,
         voiceTranscriptionEnabled: true,
-        elevenlabsTtsModel: 'eleven_multilingual_v2',
         sources: {
           maxMessages: 'user-personality',
           maxAge: 'hardcoded',
@@ -712,7 +711,6 @@ describe('MemoryRetriever', () => {
           showModelFooter: 'hardcoded' as const,
           voiceResponseMode: 'hardcoded' as const,
           voiceTranscriptionEnabled: 'hardcoded' as const,
-          elevenlabsTtsModel: 'hardcoded' as const,
         },
       };
 

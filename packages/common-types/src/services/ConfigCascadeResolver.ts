@@ -278,7 +278,6 @@ export class ConfigCascadeResolver {
       showModelFooter: values.showModelFooter as boolean,
       voiceResponseMode: values.voiceResponseMode as 'always' | 'voice-only' | 'never',
       voiceTranscriptionEnabled: values.voiceTranscriptionEnabled as boolean,
-      elevenlabsTtsModel: values.elevenlabsTtsModel as string,
       sources,
     };
   }
