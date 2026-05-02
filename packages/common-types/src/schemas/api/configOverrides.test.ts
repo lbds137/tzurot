@@ -60,15 +60,6 @@ describe('ConfigOverridesSchema', () => {
       );
     });
 
-    it('should accept elevenlabsTtsModel as a valid string', () => {
-      expect(
-        ConfigOverridesSchema.safeParse({ elevenlabsTtsModel: 'eleven_multilingual_v2' }).success
-      ).toBe(true);
-      expect(
-        ConfigOverridesSchema.safeParse({ elevenlabsTtsModel: 'eleven_turbo_v2_5' }).success
-      ).toBe(true);
-    });
-
     it('should accept maxAge as null (no limit)', () => {
       const result = ConfigOverridesSchema.safeParse({ maxAge: null });
       expect(result.success).toBe(true);
@@ -165,16 +156,6 @@ describe('ConfigOverridesSchema', () => {
       const result = ConfigOverridesSchema.safeParse({ voiceTranscriptionEnabled: 'yes' });
       expect(result.success).toBe(false);
     });
-
-    it('should reject empty elevenlabsTtsModel', () => {
-      const result = ConfigOverridesSchema.safeParse({ elevenlabsTtsModel: '' });
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject elevenlabsTtsModel exceeding max length', () => {
-      const result = ConfigOverridesSchema.safeParse({ elevenlabsTtsModel: 'x'.repeat(101) });
-      expect(result.success).toBe(false);
-    });
   });
 
   describe('unknown key handling', () => {
@@ -211,7 +192,6 @@ describe('HARDCODED_CONFIG_DEFAULTS', () => {
     expect(HARDCODED_CONFIG_DEFAULTS.showModelFooter).toBe(true);
     expect(HARDCODED_CONFIG_DEFAULTS.voiceResponseMode).toBe('always');
     expect(HARDCODED_CONFIG_DEFAULTS.voiceTranscriptionEnabled).toBe(true);
-    expect(HARDCODED_CONFIG_DEFAULTS.elevenlabsTtsModel).toBe('eleven_multilingual_v2');
   });
 
   it('should pass schema validation', () => {

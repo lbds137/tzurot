@@ -483,7 +483,6 @@ describe('AuthStep', () => {
       const result = await step.process(context);
 
       expect(result.auth?.apiKey).toBe('sk-or-test');
-      expect(result.auth?.elevenlabsApiKey).toBe('sk_el_test');
       expect(result.auth?.audioProviderKeys?.get('elevenlabs')).toBe('sk_el_test');
       expect(result.auth?.audioProviderKeys?.has('mistral')).toBe(false); // not configured
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(3);
@@ -520,7 +519,7 @@ describe('AuthStep', () => {
 
       const result = await step.process(context);
 
-      expect(result.auth?.elevenlabsApiKey).toBeUndefined();
+      expect(result.auth?.audioProviderKeys?.has('elevenlabs')).toBe(false);
       // Only called once (OpenRouter), not twice
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(1);
     });
@@ -553,7 +552,7 @@ describe('AuthStep', () => {
       const result = await step.process(context);
 
       expect(result.auth?.apiKey).toBe('sk-or-test');
-      expect(result.auth?.elevenlabsApiKey).toBeUndefined();
+      expect(result.auth?.audioProviderKeys?.has('elevenlabs')).toBe(false);
       expect(result.auth?.isGuestMode).toBe(false);
     });
 

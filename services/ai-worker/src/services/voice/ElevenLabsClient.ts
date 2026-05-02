@@ -200,9 +200,9 @@ async function readBody<T>(
  * Returns MP3 audio (~10x smaller than WAV from voice-engine).
  */
 export async function elevenLabsTTS(options: ElevenLabsTTSOptions): Promise<ElevenLabsTTSResult> {
-  // Default matches HARDCODED_CONFIG_DEFAULTS.elevenlabsTtsModel in configOverrides.ts.
-  // In practice, TTSStep always passes an explicit modelId from the resolved config cascade,
-  // so this default is a safety net for direct callers only.
+  // Default model — TtsConfigResolver supplies an explicit modelId via the
+  // dispatcher path, so this default applies only to direct callers without
+  // a resolved config (rare).
   const { text, voiceId, apiKey, modelId = 'eleven_multilingual_v2' } = options;
 
   // SSRF prevention: encode voiceId in URL path
