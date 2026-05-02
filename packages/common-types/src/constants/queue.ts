@@ -89,6 +89,8 @@ export const REDIS_CHANNELS = {
   API_KEY_CACHE_INVALIDATION: 'cache:api-key-invalidation',
   /** Channel for broadcasting LLM config cache invalidation events across services */
   LLM_CONFIG_CACHE_INVALIDATION: 'cache:llm-config-invalidation',
+  /** Channel for broadcasting TTS config cache invalidation events across services */
+  TTS_CONFIG_CACHE_INVALIDATION: 'cache:tts-config-invalidation',
   /** Channel for broadcasting persona cache invalidation events across services */
   PERSONA_CACHE_INVALIDATION: 'cache:persona-invalidation',
   /** Channel for broadcasting channel activation cache invalidation events across bot-client instances */

@@ -114,7 +114,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
     // No userId → personality default (anonymous / system path).
     if (userId === undefined || userId.length === 0) {
       return {
-        config: this.extractFromPersonality(personalityConfig),
+        config: await Promise.resolve(this.extractFromPersonality(personalityConfig)),
         source: 'personality',
       };
     }
@@ -133,7 +133,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
       if (user === null) {
         // User doesn't exist in DB → personality default.
         const result: BaseConfigResolutionResult<TResolved> = {
-          config: this.extractFromPersonality(personalityConfig),
+          config: await Promise.resolve(this.extractFromPersonality(personalityConfig)),
           source: 'personality',
         };
         this.cache.set(cacheKey, result);
@@ -173,7 +173,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
 
       // Fallback: personality default.
       const result: BaseConfigResolutionResult<TResolved> = {
-        config: this.extractFromPersonality(personalityConfig),
+        config: await Promise.resolve(this.extractFromPersonality(personalityConfig)),
         source: 'personality',
       };
       this.cache.set(cacheKey, result);
@@ -188,7 +188,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
       // a stale-but-functional config is better than blocking the LLM call.
       // Not cached so a subsequent call retries the DB.
       return {
-        config: this.extractFromPersonality(personalityConfig),
+        config: await Promise.resolve(this.extractFromPersonality(personalityConfig)),
         source: 'personality',
       };
     }
@@ -240,8 +240,17 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
   /**
    * Extract the resolved config from a loaded personality (baked-in defaults).
    * Called when no user override exists.
+   *
+   * Return type is `TResolved | Promise<TResolved>` so subclasses with
+   * pre-loaded defaults (LlmConfigResolver — defaults baked into
+   * LoadedPersonality) can stay synchronous, while subclasses that need
+   * additional DB I/O (TtsConfigResolver — queries PersonalityDefaultTtsConfig
+   * + system free default at extract time) can do async work. The caller
+   * uses `await Promise.resolve(...)` which is a no-op on sync values.
    */
-  protected abstract extractFromPersonality(personality: TPersonality): TResolved;
+  protected abstract extractFromPersonality(
+    personality: TPersonality
+  ): TResolved | Promise<TResolved>;
 
   /**
    * Merge an override row with personality defaults. Override values take
