@@ -183,11 +183,17 @@ export interface TtsProvider {
    * responsibility (chunking handled internally OR delegated to a shared
    * chunker if the provider has a hard character cap).
    *
+   * The `ctx` is passed through alongside the handle so providers that
+   * need auth at synthesize time (ElevenLabs, Mistral — both consume
+   * `ctx.byokKey` and `ctx.modelId`) can read it without us baking
+   * provider-specific fields into the opaque handle. Stateless providers
+   * that don't need ctx ignore it.
+   *
    * Errors should be thrown as `TtsProviderError` with appropriate
    * `category` and `isFallbackEligible` so the dispatcher can route fallback
    * decisions correctly.
    */
-  synthesize(text: string, handle: PreparedTts): Promise<Buffer>;
+  synthesize(text: string, handle: PreparedTts, ctx: TtsContext): Promise<Buffer>;
 
   /**
    * Optional cleanup hook called by the dispatcher when a handle is no longer
