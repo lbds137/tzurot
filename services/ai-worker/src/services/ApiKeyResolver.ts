@@ -284,6 +284,12 @@ export class ApiKeyResolver {
         // fallthrough on missing z.ai key handle that at the routing layer
         // (see ProviderRouter.resolveRoute).
         return null;
+      case AIProvider.Mistral:
+        // No system fallback for Mistral — BYOK only. Users without a
+        // configured Mistral key won't be able to use Mistral providers
+        // (Voxtral TTS, Voxtral STT). The TtsDispatcher fallback chain
+        // routes them to ElevenLabs or self-hosted instead.
+        return null;
       default: {
         // Type guard for exhaustive check - add new providers above
         const _exhaustive: never = provider;

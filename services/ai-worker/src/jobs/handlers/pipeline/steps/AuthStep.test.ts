@@ -453,9 +453,10 @@ describe('AuthStep', () => {
       };
 
       // After PR 1 audioProviderKeys dual-write: AuthStep ALSO probes Mistral
-      // alongside ElevenLabs. Mock returns "no key" for Mistral.
+      // alongside ElevenLabs. Mock returns guest-mode (system fallback, isGuestMode=true)
+      // — AuthStep skips populating the map entry for guest-mode resolutions.
       const mistralNotConfigured: ApiKeyResolutionResult = {
-        apiKey: undefined,
+        apiKey: '',
         provider: AIProvider.Mistral,
         source: 'system',
         isGuestMode: true,
@@ -483,8 +484,8 @@ describe('AuthStep', () => {
 
       expect(result.auth?.apiKey).toBe('sk-or-test');
       expect(result.auth?.elevenlabsApiKey).toBe('sk_el_test');
-      expect(result.auth?.audioProviderKeys.get('elevenlabs')).toBe('sk_el_test');
-      expect(result.auth?.audioProviderKeys.has('mistral')).toBe(false); // not configured
+      expect(result.auth?.audioProviderKeys?.get('elevenlabs')).toBe('sk_el_test');
+      expect(result.auth?.audioProviderKeys?.has('mistral')).toBe(false); // not configured
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(3);
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
         'user-456',
