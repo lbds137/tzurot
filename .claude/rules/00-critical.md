@@ -134,7 +134,9 @@ gh pr merge 714 --rebase                  # develop survives
 
 ### Standing permission: feature-branch commits and pushes
 
-Routine `git add <files>` + `git commit` + `git push` to feature branches is **pre-authorized**. After implementation work passes its verification (tests + quality), proceed straight to: branch → stage specific files → commit → push → `gh pr create`. Don't ask "want me to commit?" — the user reviews on the PR diff, not on a per-commit prompt.
+Routine `git add <files>` + `git commit` + `git push` + `gh pr create` to feature branches is **pre-authorized**. After implementation work passes its verification (tests + quality), proceed straight to: branch → stage specific files → commit → push → `gh pr create`. Don't ask "want me to commit?" or "should I open the PR now?" — the user reviews on the PR diff, not on a per-commit prompt.
+
+**`gh pr create` is part of the routine cycle, not a separate checkpoint.** Even though opening a PR is publicly visible (notifications fire, the URL appears in the GitHub UI), the user has chosen the PR diff as their review surface — the standing permission overrides the generic "confirm before user-visible actions" guidance for this specific action. Arm the CI Monitor immediately after `gh pr create` per `05-tooling.md`'s PR-monitoring rule; don't ask first.
 
 **Gate**: `pnpm test` and `pnpm quality` must be green before the commit-push-PR cycle runs. Don't commit to get CI to check for you — CI is a second line of defense, not a substitute for local verification. If either fails, fix the failure (or escalate to the user if the failure is unclear) before commit; do not commit a known-broken state with the intent to follow up.
 
