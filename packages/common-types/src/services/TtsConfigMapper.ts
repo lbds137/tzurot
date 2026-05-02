@@ -7,6 +7,7 @@
  * JSONB and are validated per-provider.
  */
 
+import { isTtsProviderId } from './tts/TtsProvider.js';
 import type { TtsAdvancedParams, TtsProviderId } from './tts/TtsProvider.js';
 
 /**
@@ -58,19 +59,18 @@ export interface MappedTtsConfigWithName {
 /**
  * Map a raw Prisma TtsConfig row to the application shape.
  *
- * - `provider` is narrowed from `string` to `TtsProviderId` via runtime check.
- *   Non-matching values fall back to `'self-hosted'` and are logged at the
- *   call site (resolver) — DB rows with stale provider strings shouldn't
- *   crash the cascade.
+ * - `provider` is narrowed from `string` to `TtsProviderId` via the shared
+ *   `isTtsProviderId` type guard from `TtsProvider.ts` — single source of
+ *   truth so future provider additions (NeuTTS Air in Phase 2) don't
+ *   require updating both places. Non-matching values fall back silently
+ *   to `'self-hosted'` (no logging) — DB rows with stale provider strings
+ *   shouldn't crash the cascade. The dispatcher will produce a normal
+ *   "no usable provider" error path for the affected row.
  * - `advancedParameters` is parsed leniently: `null` becomes `{}`. Validation
  *   against the per-provider schema happens at the provider layer, not here.
  */
 export function mapTtsConfigFromDbWithName(raw: RawTtsConfigFromDb): MappedTtsConfigWithName {
-  const provider = (
-    raw.provider === 'self-hosted' || raw.provider === 'elevenlabs' || raw.provider === 'mistral'
-      ? raw.provider
-      : 'self-hosted'
-  );
+  const provider: TtsProviderId = isTtsProviderId(raw.provider) ? raw.provider : 'self-hosted';
 
   return {
     name: raw.name,
