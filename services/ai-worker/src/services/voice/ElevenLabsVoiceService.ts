@@ -15,7 +15,7 @@
  * Voice naming: "tzurot-{slug}" — identifiable in ElevenLabs dashboard.
  */
 
-import { createLogger, TTLCache, ELEVENLABS_VOICE_NAME_PREFIX } from '@tzurot/common-types';
+import { createLogger, TTLCache, TTS_VOICE_NAME_PREFIX } from '@tzurot/common-types';
 import {
   elevenLabsCloneVoice,
   elevenLabsListVoices,
@@ -113,7 +113,7 @@ export class ElevenLabsVoiceService {
   }
 
   private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
-    const voiceName = `${ELEVENLABS_VOICE_NAME_PREFIX}${slug}`;
+    const voiceName = `${TTS_VOICE_NAME_PREFIX}${slug}`;
 
     // 1. List voices → find existing → cache & return
     // Captured here for eviction fallback if clone hits voice limit (step 3)
@@ -190,14 +190,14 @@ export class ElevenLabsVoiceService {
     const keySuffix = this.getKeySuffix(apiKey);
 
     const candidates = voices.filter(v => {
-      if (!v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)) {
+      if (!v.name.startsWith(TTS_VOICE_NAME_PREFIX)) {
         return false;
       }
       // Defense-in-depth: voice could be created externally between list and clone
       if (v.name === voiceName) {
         return false;
       }
-      const candidateSlug = v.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length);
+      const candidateSlug = v.name.slice(TTS_VOICE_NAME_PREFIX.length);
       const candidateKey = `${candidateSlug}:${keySuffix}`;
       return !this.cloneCache.has(candidateKey) && !this.inflight.has(candidateKey);
     });
@@ -236,7 +236,7 @@ export class ElevenLabsVoiceService {
 
     // Clear any stale negative cache for the evicted voice's slug so it can be
     // re-cloned immediately if requested (rather than waiting for 5-min expiry)
-    const victimSlug = victim.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length);
+    const victimSlug = victim.name.slice(TTS_VOICE_NAME_PREFIX.length);
     this.negativeCache.delete(`${victimSlug}:${keySuffix}`);
 
     // Retry clone
