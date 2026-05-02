@@ -44,8 +44,23 @@ export interface UserWithDefault<TMappedOverride> {
   defaultOverride: ConfigOverrideEntry<TMappedOverride> | null;
 }
 
-/** Source tier that provided the resolved config. */
-export type ConfigResolutionSource = 'user-personality' | 'user-default' | 'personality';
+/**
+ * Source tier that provided the resolved config.
+ *
+ * The base waterfall walks `'user-personality' → 'user-default' → 'personality'`
+ * — those three tiers are produced directly by the base. `'free-default'` and
+ * `'hardcoded'` are tiers some subclasses (currently `TtsConfigResolver`)
+ * fall through to inside `extractFromPersonality` when the personality has
+ * no inline default. Subclasses signal those tiers via `getExtractSource()`
+ * so the outer wrapper's `source` field matches the inner config's source
+ * (closes the mismatch claude-review flagged on PR #958).
+ */
+export type ConfigResolutionSource =
+  | 'user-personality'
+  | 'user-default'
+  | 'personality'
+  | 'free-default'
+  | 'hardcoded';
 
 /** Result of cascade resolution, with source tracking. */
 export interface BaseConfigResolutionResult<TResolved> {
@@ -113,10 +128,8 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
   ): Promise<BaseConfigResolutionResult<TResolved>> {
     // No userId → personality default (anonymous / system path).
     if (userId === undefined || userId.length === 0) {
-      return {
-        config: await Promise.resolve(this.extractFromPersonality(personalityConfig)),
-        source: 'personality',
-      };
+      const config = await this.extractFromPersonality(personalityConfig);
+      return { config, source: this.getExtractSource(config) };
     }
 
     // Cache check (TTLCache returns null on miss; expiry is enforced internally).
@@ -132,9 +145,10 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
 
       if (user === null) {
         // User doesn't exist in DB → personality default.
+        const config = await this.extractFromPersonality(personalityConfig);
         const result: BaseConfigResolutionResult<TResolved> = {
-          config: await Promise.resolve(this.extractFromPersonality(personalityConfig)),
-          source: 'personality',
+          config,
+          source: this.getExtractSource(config),
         };
         this.cache.set(cacheKey, result);
         return result;
@@ -180,12 +194,16 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
       }
 
       // Fallback: personality default.
+      const config = await this.extractFromPersonality(personalityConfig);
       const result: BaseConfigResolutionResult<TResolved> = {
-        config: await Promise.resolve(this.extractFromPersonality(personalityConfig)),
-        source: 'personality',
+        config,
+        source: this.getExtractSource(config),
       };
       this.cache.set(cacheKey, result);
-      this.logger.debug({ userId, personalityId }, 'Config resolved from personality default');
+      this.logger.debug(
+        { userId, personalityId, source: result.source },
+        'Config resolved from extractFromPersonality fallback'
+      );
       return result;
     } catch (error) {
       this.logger.error(
@@ -249,16 +267,30 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
    * Extract the resolved config from a loaded personality (baked-in defaults).
    * Called when no user override exists.
    *
-   * Return type is `TResolved | Promise<TResolved>` so subclasses with
-   * pre-loaded defaults (LlmConfigResolver — defaults baked into
-   * LoadedPersonality) can stay synchronous, while subclasses that need
-   * additional DB I/O (TtsConfigResolver — queries PersonalityDefaultTtsConfig
-   * + system free default at extract time) can do async work. The caller
-   * uses `await Promise.resolve(...)` which is a no-op on sync values.
+   * Always async — synchronous subclasses (LlmConfigResolver) just return a
+   * resolved Promise. The microtask hop is negligible compared to the DB I/O
+   * the cascade typically performs, and forcing async at the contract level
+   * avoids the `T | Promise<T>` union and the `await Promise.resolve(syncValue)`
+   * dance at every call site.
    */
-  protected abstract extractFromPersonality(
-    personality: TPersonality
-  ): TResolved | Promise<TResolved>;
+  protected abstract extractFromPersonality(personality: TPersonality): Promise<TResolved>;
+
+  /**
+   * Optional override: tell the base which tier `extractFromPersonality`
+   * actually produced. Defaults to `'personality'` — the case for
+   * subclasses (LlmConfigResolver) that source defaults from the loaded
+   * personality row. Subclasses that fall through to additional tiers
+   * inside `extractFromPersonality` (TtsConfigResolver — falls through
+   * personality default → free default → hardcoded) override this to
+   * surface the actual tier in the outer `source` field.
+   *
+   * The implementation receives the resolved config so it can inspect any
+   * inner `source` field (TtsConfigResolver's pattern) without the base
+   * needing to know about those subclass-specific shapes.
+   */
+  protected getExtractSource(_extracted: TResolved): ConfigResolutionSource {
+    return 'personality';
+  }
 
   /**
    * Merge an override row with personality defaults. Override values take

@@ -57,7 +57,10 @@ describe('TtsConfigResolver', () => {
 
       expect(result.config.provider).toBe('self-hosted');
       expect(result.config.modelId).toBeNull();
-      expect(result.source).toBe('personality'); // base wraps the extract result
+      // Outer source now matches the inner config.source (carry-over from
+      // PR #958: ConfigResolutionSource union extended + getExtractSource hook)
+      expect(result.source).toBe('hardcoded');
+      expect(result.config.source).toBe('hardcoded');
     });
 
     it('returns user-personality override (priority 1)', async () => {
@@ -181,8 +184,10 @@ describe('TtsConfigResolver', () => {
 
       const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
 
-      // The base wraps extractFromPersonality output's source as 'personality'.
-      // Inside extract we set source: 'personality' for tier 3, which gets through.
+      // PersonalityDefaultTtsConfig produces inner source 'personality',
+      // which getExtractSource leaves alone — outer source matches.
+      expect(result.source).toBe('personality');
+      expect(result.config.source).toBe('personality');
       expect(result.config.provider).toBe('mistral');
       expect(result.config.modelId).toBe('voxtral-mini-tts-2603');
     });
@@ -207,6 +212,9 @@ describe('TtsConfigResolver', () => {
 
       const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
 
+      // free-default tier surfaces in the outer source field.
+      expect(result.source).toBe('free-default');
+      expect(result.config.source).toBe('free-default');
       expect(result.config.provider).toBe('self-hosted');
       expect(result.config.modelId).toBeNull();
     });
@@ -223,6 +231,8 @@ describe('TtsConfigResolver', () => {
 
       const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
 
+      expect(result.source).toBe('hardcoded');
+      expect(result.config.source).toBe('hardcoded');
       expect(result.config.provider).toBe('self-hosted');
       expect(result.config.modelId).toBeNull();
       expect(result.config.advancedParameters).toEqual({});
