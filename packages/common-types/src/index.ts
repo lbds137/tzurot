@@ -6,6 +6,7 @@ export * from './constants/index.js';
 
 // Export types
 export * from './types/ai.js';
+export * from './types/audio-provider.js';
 export * from './types/diagnostic.js';
 export * from './types/incognito.js';
 
@@ -71,8 +72,11 @@ export { normalizeRole, normalizeTimestamp } from './utils/messageNormalization.
 // Export services
 export * from './services/prisma.js';
 export * from './services/personality/index.js';
+export * from './services/BaseConfigResolver.js';
 export * from './services/LlmConfigMapper.js';
 export * from './services/LlmConfigResolver.js';
+export * from './services/tts/TtsProvider.js';
+export * from './services/tts/TtsProviderError.js';
 export * from './services/ConversationHistoryService.js';
 export * from './services/ConversationRetentionService.js';
 export * from './services/ConversationSyncService.js';

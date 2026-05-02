@@ -158,6 +158,19 @@ export enum ApiErrorCategory {
   EMPTY_RESPONSE = 'empty_response',
   /** Content was censored/filtered by the model */
   CENSORED = 'censored',
+  /**
+   * TTS-specific: voice-id not found on the provider side. May happen if a
+   * cached voiceId was deleted externally, or if the personality's voice
+   * reference clip was never registered. Provider-internal cache should
+   * invalidate and retry once before surfacing this.
+   */
+  VOICE_NOT_FOUND = 'voice_not_found',
+  /**
+   * TTS-specific: voice cloning failed (malformed reference audio, provider
+   * rejected the clip, account-level cloning quota exceeded). Distinct from
+   * VOICE_NOT_FOUND — this is a CREATE failure, not a lookup miss.
+   */
+  CLONING_FAILED = 'cloning_failed',
   /** Unknown error type */
   UNKNOWN = 'unknown',
 }
@@ -192,6 +205,10 @@ export const USER_ERROR_MESSAGES: Record<ApiErrorCategory, string> = {
   [ApiErrorCategory.EMPTY_RESPONSE]:
     "I couldn't generate a response. Please try rephrasing your message.",
   [ApiErrorCategory.CENSORED]: 'The AI filtered its response. Please try rephrasing your message.',
+  [ApiErrorCategory.VOICE_NOT_FOUND]:
+    'The voice for this personality is no longer available. Try again — the bot will re-register it automatically.',
+  [ApiErrorCategory.CLONING_FAILED]:
+    "Voice cloning failed for this personality's reference audio. The text response was delivered without voice; please contact support if this persists.",
   [ApiErrorCategory.UNKNOWN]: 'Something went wrong while generating a response. Please try again.',
 };
 
@@ -293,6 +310,12 @@ export const VISION_FAILURE_CACHE_POLICY: Record<ApiErrorCategory, { l1TtlSecond
   [ApiErrorCategory.TIMEOUT]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.NETWORK]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
   [ApiErrorCategory.EMPTY_RESPONSE]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
+  // TTS-specific categories — VISION cache won't see these in practice (TTS
+  // failures don't go through the vision negative-cache path), but the
+  // Record<ApiErrorCategory, ...> type contract requires every enum value.
+  // Default to LONG cooldown matching attachment-bound failures.
+  [ApiErrorCategory.VOICE_NOT_FOUND]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
+  [ApiErrorCategory.CLONING_FAILED]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL_LONG },
   [ApiErrorCategory.UNKNOWN]: { l1TtlSeconds: INTERVALS.VISION_FAILURE_TTL },
 };
 
