@@ -62,7 +62,7 @@ class FakeResolver extends BaseConfigResolver<FakePersonality, FakeOverride, Fak
     return this.mockPerPersonalityOverride();
   }
 
-  protected extractFromPersonality(personality: FakePersonality): FakeResolved {
+  protected async extractFromPersonality(personality: FakePersonality): Promise<FakeResolved> {
     return { resolvedName: personality.defaultName };
   }
 

@@ -217,6 +217,21 @@ export class TtsConfigResolver extends BaseConfigResolver<
   }
 
   /**
+   * Surface the actual tier from `extractFromPersonality` to the outer
+   * wrapper. `extractFromPersonality` may fall through tiers
+   * (PersonalityDefaultTtsConfig → free default → hardcoded) and writes the
+   * result into `config.source`; the base wraps that into the
+   * `ConfigResolutionResult.source` so callers see one consistent value.
+   */
+  protected getExtractSource(
+    extracted: ResolvedTtsConfig
+  ): 'personality' | 'free-default' | 'hardcoded' {
+    return extracted.source === 'free-default' || extracted.source === 'hardcoded'
+      ? extracted.source
+      : 'personality';
+  }
+
+  /**
    * Get the system free default TtsConfig (the row with isFreeDefault=true).
    *
    * Cached separately from per-user resolution under FREE_DEFAULT_CACHE_KEY.
@@ -250,18 +265,12 @@ export class TtsConfigResolver extends BaseConfigResolver<
         configName: mapped.name,
       };
 
-      // NOTE: the outer wrapper's `source: 'personality'` is a sentinel
-      // placeholder — callers MUST NOT read it for free-default cache entries.
-      // The base's `ConfigResolutionSource` union is 3-tier ('user-personality'
-      // | 'user-default' | 'personality') and doesn't include 'free-default',
-      // so 'personality' is the closest valid type-safe value. Read the INNER
-      // `config.source` for the precise tier ('free-default' here). A type-level
-      // fix (extending the union to include 'free-default'/'hardcoded') is a
-      // candidate refactor for PR 2 once TtsConfigResolver has real consumers
-      // — see PR #958 review comment.
+      // The base's `ConfigResolutionSource` union now includes 'free-default'
+      // (PR 2 carry-over from #958), so the outer source matches the inner
+      // config.source — no more sentinel placeholder.
       this.cache.set(FREE_DEFAULT_CACHE_KEY, {
         config,
-        source: 'personality',
+        source: config.source,
         configName: mapped.name,
       });
 

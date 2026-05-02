@@ -137,8 +137,14 @@ export class LlmConfigResolver extends BaseConfigResolver<
   /**
    * Extract config values from a LoadedPersonality.
    * Used when no user override exists — returns all params from personality.
+   *
+   * Synchronous work wrapped in a Promise to satisfy the always-async base
+   * contract (no DB I/O — defaults are pre-loaded into LoadedPersonality).
    */
-  protected extractFromPersonality(personality: LoadedPersonality): ResolvedLlmConfig {
+  // eslint-disable-next-line @typescript-eslint/require-await -- async to satisfy the always-async BaseConfigResolver contract; LLM defaults are pre-loaded in LoadedPersonality, no DB I/O needed
+  protected async extractFromPersonality(
+    personality: LoadedPersonality
+  ): Promise<ResolvedLlmConfig> {
     // Start with required field
     const result = { model: personality.model } as ResolvedLlmConfig;
 
