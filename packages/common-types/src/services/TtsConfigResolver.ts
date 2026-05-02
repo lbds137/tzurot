@@ -185,16 +185,23 @@ export class TtsConfigResolver extends BaseConfigResolver<
    * dimension where merge could conceptually apply, but we treat it as
    * atomic too for predictability (an override config carries its OWN
    * complete advancedParameters or none).
+   *
+   * `tier` is the cascade tier the base waterfall is currently resolving
+   * (either 'user-personality' or 'user-default'). It's baked into the inner
+   * `ResolvedTtsConfig.source` so callers reading the inner field get the
+   * same answer as the outer `ConfigResolutionResult.source` — closes the
+   * mismatch claude-review flagged on PR #958.
    */
   protected mergeWithPersonality(
     _personality: LoadedTtsPersonality,
-    override: MappedTtsConfigWithName
+    override: MappedTtsConfigWithName,
+    tier: 'user-personality' | 'user-default'
   ): ResolvedTtsConfig {
     return {
       provider: override.provider,
       modelId: override.modelId,
       advancedParameters: override.advancedParameters,
-      source: 'user-personality', // overwritten by base waterfall when source === 'user-default'
+      source: tier,
       configName: override.name,
     };
   }
