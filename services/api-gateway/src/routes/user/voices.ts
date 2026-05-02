@@ -15,7 +15,7 @@ import { z } from 'zod';
 import {
   createLogger,
   AI_ENDPOINTS,
-  ELEVENLABS_VOICE_NAME_PREFIX,
+  TTS_VOICE_NAME_PREFIX,
   VALIDATION_TIMEOUTS,
   type PrismaClient,
 } from '@tzurot/common-types';
@@ -71,7 +71,7 @@ async function fetchTzurotVoices(
   }
 
   const allVoices = result.data.voices;
-  const tzurotVoices = allVoices.filter(v => v.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX));
+  const tzurotVoices = allVoices.filter(v => v.name.startsWith(TTS_VOICE_NAME_PREFIX));
 
   return { voices: tzurotVoices, totalVoices: allVoices.length };
 }
@@ -166,7 +166,7 @@ async function handleListVoices(
     voices: voices.map(v => ({
       voiceId: v.voice_id,
       name: v.name,
-      slug: v.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length),
+      slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
     })),
     totalVoices,
     tzurotCount: voices.length,
@@ -205,7 +205,7 @@ async function handleDeleteVoice(
 
   const { voice } = voiceResult;
 
-  if (!voice.name.startsWith(ELEVENLABS_VOICE_NAME_PREFIX)) {
+  if (!voice.name.startsWith(TTS_VOICE_NAME_PREFIX)) {
     sendError(res, ErrorResponses.notFound('Tzurot-cloned voice'));
     return;
   }
@@ -232,7 +232,7 @@ async function handleDeleteVoice(
     deleted: true,
     voiceId,
     name: voice.name,
-    slug: voice.name.slice(ELEVENLABS_VOICE_NAME_PREFIX.length),
+    slug: voice.name.slice(TTS_VOICE_NAME_PREFIX.length),
   });
 }
 
