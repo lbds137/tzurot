@@ -95,6 +95,15 @@ export class TTLCache<T extends NonNullable<unknown>> {
   }
 
   /**
+   * Iterate keys currently in the cache. Use sparingly — most callers want
+   * `invalidateByPrefix` instead. This is the escape hatch for positional or
+   * predicate-based invalidation that the prefix helper doesn't cover.
+   */
+  keys(): IterableIterator<string> {
+    return this.cache.keys();
+  }
+
+  /**
    * Invalidate every entry whose key starts with the given prefix.
    *
    * Used by config-style resolvers that key their cache as `${userId}-${...}`

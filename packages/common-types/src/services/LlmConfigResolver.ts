@@ -13,6 +13,7 @@
  */
 
 import { createLogger } from '../utils/logger.js';
+import { TTLCache } from '../utils/TTLCache.js';
 import { INTERVALS } from '../constants/timing.js';
 import { LLM_CONFIG_OVERRIDE_KEYS, type ConvertedLlmParams } from '../schemas/llmAdvancedParams.js';
 import {
@@ -25,6 +26,9 @@ import type { LoadedPersonality } from '../types/schemas/index.js';
 import type { ResolvedConfigOverrides } from '../schemas/api/configOverrides.js';
 
 const logger = createLogger('LlmConfigResolver');
+
+/** Sentinel cache key for the free-default lookup (no userId/personalityId axis). */
+const FREE_DEFAULT_CACHE_KEY = '__free_default__';
 
 /**
  * Resolved LLM config values that can override personality defaults.
@@ -59,75 +63,40 @@ export interface ConfigResolutionResult {
 }
 
 /**
- * Cache entry for config resolution
- */
-interface CacheEntry {
-  result: ConfigResolutionResult;
-  expiresAt: number;
-}
-
-/**
  * LLM Config Resolver - resolves user-specific config overrides
  */
 export class LlmConfigResolver {
   private prisma: PrismaClient;
-  private cache = new Map<string, CacheEntry>();
-  private readonly cacheTtlMs: number;
-  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly cache: TTLCache<ConfigResolutionResult>;
 
-  constructor(prisma: PrismaClient, options?: { cacheTtlMs?: number; enableCleanup?: boolean }) {
+  constructor(
+    prisma: PrismaClient,
+    options?: {
+      cacheTtlMs?: number;
+      enableCleanup?: boolean;
+      /** Test-only: inject a clock function for fake-timer compatibility with TTLCache. */
+      now?: () => number;
+    }
+  ) {
     this.prisma = prisma;
-    this.cacheTtlMs = options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL;
-
-    // Start periodic cleanup of expired cache entries (prevents memory leak)
-    // Default enabled in production, can be disabled for testing
-    if (options?.enableCleanup !== false) {
-      this.startCleanupInterval();
-    }
+    this.cache = new TTLCache<ConfigResolutionResult>({
+      ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
+      now: options?.now,
+    });
+    // `enableCleanup` is preserved on the options shape for backwards compatibility
+    // with callers that previously toggled the manual cleanup interval. TTLCache
+    // bounds memory via LRU (default maxSize=100) and expires on access, so no
+    // periodic sweep is needed; the option is now a no-op.
+    void options?.enableCleanup;
   }
 
   /**
-   * Start periodic cleanup of expired cache entries
-   */
-  private startCleanupInterval(): void {
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupExpiredEntries();
-    }, INTERVALS.CACHE_CLEANUP);
-
-    // Ensure interval doesn't prevent process exit
-    this.cleanupInterval.unref();
-  }
-
-  /**
-   * Remove expired entries from the cache
-   */
-  private cleanupExpiredEntries(): void {
-    const now = Date.now();
-    let removedCount = 0;
-
-    for (const [key, entry] of this.cache) {
-      if (entry.expiresAt <= now) {
-        this.cache.delete(key);
-        removedCount++;
-      }
-    }
-
-    if (removedCount > 0) {
-      logger.debug(
-        { removedCount, remaining: this.cache.size },
-        'Cleaned up expired cache entries'
-      );
-    }
-  }
-
-  /**
-   * Stop the cleanup interval (call on shutdown)
+   * No-op preserved for backwards compatibility with callers that managed the
+   * old manual cleanup interval. TTLCache handles its own lifecycle, so there
+   * is nothing to stop. Safe to remove once no callers reference it.
    */
   stopCleanup(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-    }
+    // intentionally empty
   }
 
   /**
@@ -151,12 +120,12 @@ export class LlmConfigResolver {
       };
     }
 
-    // Check cache
+    // Check cache (TTLCache returns null on miss; expiry is enforced internally)
     const cacheKey = `${userId}-${personalityId}`;
     const cached = this.cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (cached !== null) {
       logger.debug({ userId, personalityId, source: 'cache' }, 'Config resolved from cache');
-      return cached.result;
+      return cached;
     }
 
     try {
@@ -287,21 +256,14 @@ export class LlmConfigResolver {
    * Cache a resolution result
    */
   private cacheResult(key: string, result: ConfigResolutionResult): void {
-    this.cache.set(key, {
-      result,
-      expiresAt: Date.now() + this.cacheTtlMs,
-    });
+    this.cache.set(key, result);
   }
 
   /**
    * Invalidate cache for a user (call when they update their config overrides)
    */
   invalidateUserCache(userId: string): void {
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(`${userId}-`)) {
-        this.cache.delete(key);
-      }
-    }
+    this.cache.invalidateByPrefix(`${userId}-`);
     logger.debug({ userId }, 'Invalidated config cache for user');
   }
 
@@ -324,11 +286,10 @@ export class LlmConfigResolver {
    */
   async getFreeDefaultConfig(): Promise<ResolvedLlmConfig | null> {
     // Check cache first
-    const cacheKey = '__free_default__';
-    const cached = this.cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
+    const cached = this.cache.get(FREE_DEFAULT_CACHE_KEY);
+    if (cached !== null) {
       logger.debug({ source: 'cache' }, 'Free default config resolved from cache');
-      return cached.result.config;
+      return cached.config;
     }
 
     try {
@@ -380,9 +341,10 @@ export class LlmConfigResolver {
       };
 
       // Cache the result
-      this.cache.set(cacheKey, {
-        result: { config, source: 'personality', configName: mapped.name },
-        expiresAt: Date.now() + this.cacheTtlMs,
+      this.cache.set(FREE_DEFAULT_CACHE_KEY, {
+        config,
+        source: 'personality',
+        configName: mapped.name,
       });
 
       logger.info(

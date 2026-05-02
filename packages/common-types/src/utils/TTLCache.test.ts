@@ -344,6 +344,23 @@ describe('TTLCache', () => {
     });
   });
 
+  describe('keys', () => {
+    it('should return an iterator over current keys', () => {
+      const cache = new TTLCache<number>();
+      cache.set('a', 1);
+      cache.set('b', 2);
+      cache.set('c', 3);
+
+      const keys = Array.from(cache.keys()).sort();
+      expect(keys).toEqual(['a', 'b', 'c']);
+    });
+
+    it('should return an empty iterator on an empty cache', () => {
+      const cache = new TTLCache<number>();
+      expect(Array.from(cache.keys())).toEqual([]);
+    });
+  });
+
   describe('invalidateByPrefix', () => {
     it('should remove all entries whose key starts with the given prefix', () => {
       const cache = new TTLCache<number>();
