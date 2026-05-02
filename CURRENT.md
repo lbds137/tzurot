@@ -1,7 +1,8 @@
 # Current
 
-> **Session**: 2026-05-01 (single day, ~5 hours of focused work)
-> **Version**: v3.0.0-beta.113 (released 2026-04-30 — no new release this session; ready to cut beta.114 when desired)
+> **Session**: 2026-05-01 (single day, ~5 hours of focused work) → 2026-05-02 (continuation: TTS smoke-test + Phase 1 plan finalization)
+> **Version**: v3.0.0-beta.113 (released 2026-04-30 — develop accumulating PRs #954 + #955 + 2026-05-02 plan-finalization commits, all unreleased)
+> **🚧 Release freeze**: NO new beta releases until the TTS Engine Upgrade epic completes (Phases 1+2+3 — TTS BYOK + NeuTTS Air + STT cutover). Develop is the staging area until full ElevenLabs cutover ships. Rationale lives in `backlog/active-epic.md` header.
 
 ---
 
