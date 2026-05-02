@@ -452,9 +452,19 @@ describe('AuthStep', () => {
         isGuestMode: false,
       };
 
+      // After PR 1 audioProviderKeys dual-write: AuthStep ALSO probes Mistral
+      // alongside ElevenLabs. Mock returns "no key" for Mistral.
+      const mistralNotConfigured: ApiKeyResolutionResult = {
+        apiKey: undefined,
+        provider: AIProvider.Mistral,
+        source: 'system',
+        isGuestMode: true,
+      };
+
       vi.mocked(mockApiKeyResolver.resolveApiKey)
         .mockResolvedValueOnce(openRouterResult)
-        .mockResolvedValueOnce(elevenLabsResult);
+        .mockResolvedValueOnce(elevenLabsResult)
+        .mockResolvedValueOnce(mistralNotConfigured);
 
       step = new AuthStep(mockApiKeyResolver);
 
@@ -473,11 +483,14 @@ describe('AuthStep', () => {
 
       expect(result.auth?.apiKey).toBe('sk-or-test');
       expect(result.auth?.elevenlabsApiKey).toBe('sk_el_test');
-      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(2);
+      expect(result.auth?.audioProviderKeys.get('elevenlabs')).toBe('sk_el_test');
+      expect(result.auth?.audioProviderKeys.has('mistral')).toBe(false); // not configured
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledTimes(3);
       expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith(
         'user-456',
         AIProvider.ElevenLabs
       );
+      expect(mockApiKeyResolver.resolveApiKey).toHaveBeenCalledWith('user-456', AIProvider.Mistral);
     });
 
     it('should skip ElevenLabs resolution in guest mode', async () => {
