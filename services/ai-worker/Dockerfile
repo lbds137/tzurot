@@ -65,8 +65,10 @@ RUN pnpm turbo run build --filter=@tzurot/ai-worker...
 # -----------------------------------------------------------------------------
 FROM node:25-slim AS runner
 
-# Install OpenSSL for Prisma runtime (required for query execution)
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# Install OpenSSL for Prisma runtime (required for query execution).
+# Install ffmpeg for audio post-processing — output-side EBU R128 loudness
+# normalization in audioNormalizer.ts shells out to ffmpeg loudnorm.
+RUN apt-get update -y && apt-get install -y openssl ffmpeg && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g pnpm
 
