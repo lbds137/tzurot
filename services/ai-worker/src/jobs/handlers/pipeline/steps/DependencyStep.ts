@@ -116,7 +116,7 @@ export class DependencyStep implements IPipelineStep {
         {
           isGuestMode: auth?.isGuestMode ?? false,
           userApiKey: auth?.apiKey,
-          elevenlabsApiKey: auth?.elevenlabsApiKey,
+          elevenlabsApiKey: auth?.audioProviderKeys.get('elevenlabs'),
           mainProvider: auth?.provider,
         },
         jobContext.userId

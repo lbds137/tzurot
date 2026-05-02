@@ -21,7 +21,6 @@ const SETTING_FIELDS = [
   'showModelFooter',
   'voiceResponseMode',
   'voiceTranscriptionEnabled',
-  'elevenlabsTtsModel',
 ] as const;
 
 /**

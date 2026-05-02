@@ -52,7 +52,6 @@ const fullResolvedCascade = {
   showModelFooter: true,
   voiceResponseMode: 'never',
   voiceTranscriptionEnabled: false,
-  elevenlabsTtsModel: 'eleven_turbo_v2_5',
   sources: {
     maxMessages: 'personality',
     maxAge: 'admin',
@@ -65,7 +64,6 @@ const fullResolvedCascade = {
     showModelFooter: 'hardcoded',
     voiceResponseMode: 'hardcoded',
     voiceTranscriptionEnabled: 'hardcoded',
-    elevenlabsTtsModel: 'hardcoded',
   },
 } as never;
 

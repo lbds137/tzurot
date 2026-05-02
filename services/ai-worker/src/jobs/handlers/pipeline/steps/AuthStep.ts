@@ -60,15 +60,12 @@ export class AuthStep implements IPipelineStep {
 
     // Resolve audio-provider keys (ElevenLabs + Mistral). Each provider's key
     // authorizes ALL of that provider's audio endpoints — TTS, STT, cloning.
-    // Populates BOTH the new `audioProviderKeys` map AND the legacy named
-    // `elevenlabsApiKey` field during the PR 1 dual-write transition.
     //
     // Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
     // so a user with ONLY an audio key (no OpenRouter) won't get BYOK TTS/STT.
     // This is an intentional v1 coupling — decoupling requires per-provider
     // guest mode logic and is tracked as a follow-up.
     const audioKeysBuilder = new Map<AudioProviderId, string>();
-    let elevenlabsApiKey: string | undefined;
     if (this.apiKeyResolver && !isGuestMode) {
       // ElevenLabs (existing)
       try {
@@ -77,7 +74,6 @@ export class AuthStep implements IPipelineStep {
           AIProvider.ElevenLabs
         );
         if (!elResult.isGuestMode && elResult.apiKey !== undefined) {
-          elevenlabsApiKey = elResult.apiKey;
           audioKeysBuilder.set('elevenlabs', elResult.apiKey);
           logger.debug(
             { userId: jobContext.userId, source: elResult.source },
@@ -129,7 +125,6 @@ export class AuthStep implements IPipelineStep {
         apiKey: resolvedApiKey,
         provider: resolvedProvider,
         isGuestMode,
-        elevenlabsApiKey,
         audioProviderKeys,
         // wasAutoPromoted and fallback are co-invariant by ProviderRouter
         // construction (always set together or neither). Spread separately

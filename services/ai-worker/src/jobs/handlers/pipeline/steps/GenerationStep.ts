@@ -311,7 +311,7 @@ export class GenerationStep implements IPipelineStep {
             conversationContext,
             recentAssistantMessages,
             apiKey,
-            elevenlabsApiKey: auth.elevenlabsApiKey,
+            elevenlabsApiKey: auth.audioProviderKeys.get('elevenlabs'),
             isGuestMode,
             jobId: job.id,
             diagnosticCollector,

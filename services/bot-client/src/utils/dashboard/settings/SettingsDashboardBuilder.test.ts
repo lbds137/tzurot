@@ -105,11 +105,6 @@ const createTestSession = (
       effectiveValue: true,
       source: 'hardcoded',
     },
-    elevenlabsTtsModel: {
-      localValue: null,
-      effectiveValue: 'eleven_multilingual_v2',
-      source: 'hardcoded',
-    },
     ...dataOverrides,
   },
 });
