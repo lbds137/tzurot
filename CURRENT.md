@@ -68,11 +68,9 @@ Full survey + decision log captured in [`docs/research/voice-cloning-2026.md`](d
 
 ---
 
-## Unreleased on Develop (since beta.113)
+## Unreleased on Develop (since beta.114)
 
-- **PR #954** (`9d18fa54a`) — RateLimitCache legacy fallback removal + wrapUrlsForNoEmbed paren fix + reasoningDebug z.ai counter
-- **PR #955** (`50af387f2`) — Skip STT for forwarded own-bot voice messages (filename-marker classification)
-- Backlog hygiene direct commits (`e97dd24c5`, `032acc1cf`, `a592c2655`, plus this session-end commit)
+_(none — release-frozen until TTS Engine Upgrade Epic completes)_
 
 ---
 
