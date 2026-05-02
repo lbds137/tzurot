@@ -311,6 +311,13 @@ export enum AIProvider {
   OpenRouter = 'openrouter',
   ElevenLabs = 'elevenlabs',
   ZaiCoding = 'zai-coding',
+  /**
+   * Mistral direct API. Authorizes both `/v1/audio/speech` (Voxtral TTS, used
+   * in TTS Engine Upgrade Phase 1) and `/v1/audio/transcriptions` (Voxtral
+   * STT, used in Phase 3). Same key for both endpoints — see
+   * `audioProviderKeys` map shape in `ResolvedAuth`.
+   */
+  Mistral = 'mistral',
 }
 
 /**
