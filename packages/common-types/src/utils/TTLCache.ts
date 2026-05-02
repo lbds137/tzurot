@@ -110,12 +110,16 @@ export class TTLCache<T extends NonNullable<unknown>> {
    * — passing `${userId}-` invalidates all of one user's entries when their
    * config or keys change. Returns the number of entries removed.
    *
-   * Iterates `cache.keys()` synchronously; the underlying `LRUCache.delete`
-   * is safe to call mid-iteration.
+   * Snapshots `keys()` to a plain array BEFORE deleting — `lru-cache`'s
+   * generator iterator can compact its backing key list mid-iteration,
+   * which would skip entries (per claude-review on PR #958). The snapshot
+   * adds O(N) memory but is the only safe pattern given lru-cache's
+   * implementation-detail iterator behavior.
    */
   invalidateByPrefix(prefix: string): number {
+    const snapshot = [...this.cache.keys()];
     let removed = 0;
-    for (const key of this.cache.keys()) {
+    for (const key of snapshot) {
       if (key.startsWith(prefix)) {
         this.cache.delete(key);
         removed++;

@@ -129,12 +129,13 @@ export interface ResolvedAuth {
    * provider, Phase 3 STT cutover) should read from this map; legacy code
    * paths still read `elevenlabsApiKey` until migrated.
    *
-   * Optional on the type so existing test fixtures that pre-date the map
-   * shape don't compile-break. Production code constructs it via AuthStep
-   * which always sets the field (empty Map if no audio keys configured).
-   * Consumers that read the map should use `?? new Map()` defensive default.
+   * **Required on the type** (per claude-review on PR #958). AuthStep always
+   * sets it — empty `Map` if no audio keys are configured. Required-but-
+   * possibly-empty is the right shape: PR 2 consumers can do
+   * `auth.audioProviderKeys.get('elevenlabs')` without a defensive `?? new Map()`,
+   * and TS rejects test fixtures that forget the field.
    */
-  audioProviderKeys?: ReadonlyMap<AudioProviderId, string>;
+  audioProviderKeys: ReadonlyMap<AudioProviderId, string>;
   /**
    * `true` when ProviderRouter auto-promoted an OpenRouter `z-ai/<model>`
    * request to z.ai-direct. Together with `fallback`, enables GenerationStep

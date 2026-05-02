@@ -107,6 +107,7 @@ describe('GenerationStep', () => {
       apiKey: 'sk-test-key',
       provider: AIProvider.OpenRouter,
       isGuestMode: false,
+      audioProviderKeys: new Map(),
     };
 
     const basePreparedContext: PreparedContext = {
@@ -233,6 +234,7 @@ describe('GenerationStep', () => {
           apiKey: undefined,
           provider: AIProvider.OpenRouter,
           isGuestMode: true,
+          audioProviderKeys: new Map(),
         },
         preparedContext: basePreparedContext,
       };
@@ -422,6 +424,7 @@ describe('GenerationStep', () => {
           apiKey: 'key',
           provider: AIProvider.ZaiCoding,
           isGuestMode: false,
+          audioProviderKeys: new Map(),
         },
         preparedContext: basePreparedContext,
       };
@@ -1462,6 +1465,7 @@ describe('GenerationStep', () => {
         apiKey: 'sk-test-key',
         provider: AIProvider.OpenRouter,
         isGuestMode: false,
+        audioProviderKeys: new Map(),
       };
 
       it('should call storeDeferredMemory when deferredMemoryData is present', async () => {
@@ -1604,6 +1608,7 @@ describe('GenerationStep', () => {
         apiKey: 'zai-user-key',
         provider: AIProvider.ZaiCoding,
         isGuestMode: false,
+        audioProviderKeys: new Map(),
         wasAutoPromoted: true,
         fallback: {
           apiKey: 'sk-or-user-key',
@@ -1683,6 +1688,7 @@ describe('GenerationStep', () => {
           apiKey: 'sk-or-key',
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
+          audioProviderKeys: new Map(),
           // wasAutoPromoted absent / undefined
         };
 

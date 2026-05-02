@@ -398,6 +398,7 @@ describe('TTSStep', () => {
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
+          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
         },
       });
 
@@ -436,6 +437,7 @@ describe('TTSStep', () => {
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
+          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
         },
       });
 
@@ -471,6 +473,7 @@ describe('TTSStep', () => {
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
+          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
         },
       });
 
@@ -505,6 +508,7 @@ describe('TTSStep', () => {
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
+          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
         },
       });
 
@@ -533,6 +537,7 @@ describe('TTSStep', () => {
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
+          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
         },
       });
 
@@ -559,6 +564,7 @@ describe('TTSStep', () => {
           provider: AIProvider.OpenRouter,
           isGuestMode: false,
           elevenlabsApiKey: 'sk_el_test',
+          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
         },
         configOverrides: {
           voiceResponseMode: 'always',
@@ -605,6 +611,7 @@ describe('TTSStep', () => {
         provider: AIProvider.OpenRouter,
         isGuestMode: false,
         elevenlabsApiKey: 'sk_el_test',
+        audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
       },
       ...overrides,
     });
