@@ -141,6 +141,7 @@ export class MistralTtsProvider implements TtsProvider {
     if (ctx.byokKey === undefined || ctx.byokKey.length === 0) {
       throw new Error('MistralTtsProvider.synthesize requires ctx.byokKey to be set');
     }
+    const start = Date.now();
     let result: Awaited<ReturnType<typeof mistralTTS>>;
     try {
       result = await mistralTTS({
@@ -163,6 +164,21 @@ export class MistralTtsProvider implements TtsProvider {
       }
       throw error;
     }
+    logger.info(
+      {
+        event: 'tts.synthesize',
+        provider: PROVIDER_ID,
+        // null when no explicit model resolved upstream — matches ElevenLabs +
+        // SelfHosted log shape so a telemetry consumer aggregating by model
+        // sees the same nullish convention everywhere. Actual model resolution
+        // lives in TtsConfigResolver, not in the synthesize log line.
+        model: ctx.modelId ?? null,
+        charCount: text.length,
+        outputBytes: result.audioBuffer.length,
+        durationMs: Date.now() - start,
+      },
+      'TTS synthesis'
+    );
     return result.audioBuffer;
   }
 
