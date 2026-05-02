@@ -86,6 +86,56 @@ describe('TtsConfigResolver', () => {
       expect(result.configName).toBe('user-pers-override');
     });
 
+    it('user-personality result has matching inner config.source (regression — PR #958)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultTtsConfigId: null,
+        defaultTtsConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
+        ttsConfig: {
+          name: 'cfg',
+          provider: 'mistral',
+          modelId: 'voxtral-mini-tts-2603',
+          advancedParameters: null,
+          isGlobal: false,
+          isDefault: false,
+          isFreeDefault: false,
+        },
+      });
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.source).toBe('user-personality');
+      // Inner config.source must match outer source — the fix for the
+      // mergeWithPersonality bug claude-review flagged on PR #958.
+      expect(result.config.source).toBe('user-personality');
+    });
+
+    it('user-default result has matching inner config.source (regression — PR #958)', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultTtsConfigId: 'cfg-id',
+        defaultTtsConfig: {
+          name: 'cfg',
+          provider: 'elevenlabs',
+          modelId: 'eleven_v3',
+          advancedParameters: null,
+          isGlobal: false,
+          isDefault: true,
+          isFreeDefault: false,
+        },
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      expect(result.source).toBe('user-default');
+      // Pre-fix this was incorrectly 'user-personality' — mergeWithPersonality
+      // hardcoded the inner source. Fix passes the tier as a parameter.
+      expect(result.config.source).toBe('user-default');
+    });
+
     it('returns user-default when no per-personality override (priority 2)', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'internal-x',

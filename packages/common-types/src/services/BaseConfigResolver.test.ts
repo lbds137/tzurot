@@ -68,7 +68,8 @@ class FakeResolver extends BaseConfigResolver<FakePersonality, FakeOverride, Fak
 
   protected mergeWithPersonality(
     personality: FakePersonality,
-    override: FakeOverride
+    override: FakeOverride,
+    _tier: 'user-personality' | 'user-default'
   ): FakeResolved {
     return { resolvedName: override.name || personality.defaultName };
   }
