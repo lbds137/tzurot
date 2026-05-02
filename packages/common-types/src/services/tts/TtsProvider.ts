@@ -204,5 +204,7 @@ export interface TtsProvider {
   dispose?(handle: PreparedTts): Promise<void>;
 }
 
-// Re-export error type for convenience — most consumers want both.
-export type { TtsProviderError } from './TtsProviderError.js';
+// `TtsProviderError` is exported from its own module to avoid a circular
+// import. Consumers wanting both types should import:
+//   import type { TtsProvider } from '.../tts/TtsProvider.js';
+//   import { TtsProviderError } from '.../tts/TtsProviderError.js';
