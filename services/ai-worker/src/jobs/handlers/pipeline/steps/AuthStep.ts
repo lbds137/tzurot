@@ -5,7 +5,13 @@
  * API keys are NEVER passed through BullMQ jobs - they're resolved at runtime.
  */
 
-import { createLogger, AIProvider, GUEST_MODE, isFreeModel } from '@tzurot/common-types';
+import {
+  createLogger,
+  AIProvider,
+  GUEST_MODE,
+  isFreeModel,
+  type AudioProviderId,
+} from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';
 import type { LlmConfigResolver } from '@tzurot/common-types';
@@ -52,13 +58,19 @@ export class AuthStep implements IPipelineStep {
       fallback,
     } = llmAuth;
 
-    // Resolve ElevenLabs key independently (voice provider, not LLM).
+    // Resolve audio-provider keys (ElevenLabs + Mistral). Each provider's key
+    // authorizes ALL of that provider's audio endpoints — TTS, STT, cloning.
+    // Populates BOTH the new `audioProviderKeys` map AND the legacy named
+    // `elevenlabsApiKey` field during the PR 1 dual-write transition.
+    //
     // Skipped in guest mode: isGuestMode is determined by OpenRouter resolution,
-    // so a user with ONLY an ElevenLabs key (no OpenRouter) won't get BYOK TTS.
-    // This is an intentional v1 coupling — decoupling requires ElevenLabs-specific
+    // so a user with ONLY an audio key (no OpenRouter) won't get BYOK TTS/STT.
+    // This is an intentional v1 coupling — decoupling requires per-provider
     // guest mode logic and is tracked as a follow-up.
+    const audioKeysBuilder = new Map<AudioProviderId, string>();
     let elevenlabsApiKey: string | undefined;
     if (this.apiKeyResolver && !isGuestMode) {
+      // ElevenLabs (existing)
       try {
         const elResult = await this.apiKeyResolver.resolveApiKey(
           jobContext.userId,
@@ -66,20 +78,43 @@ export class AuthStep implements IPipelineStep {
         );
         if (!elResult.isGuestMode && elResult.apiKey !== undefined) {
           elevenlabsApiKey = elResult.apiKey;
+          audioKeysBuilder.set('elevenlabs', elResult.apiKey);
           logger.debug(
             { userId: jobContext.userId, source: elResult.source },
             'Resolved ElevenLabs API key'
           );
         }
       } catch (error) {
-        // Distinguish "no key configured" (expected) from unexpected failures
-        // so DB outages/decryption errors are visible, not silently swallowed.
         logger.warn(
           { err: error, userId: jobContext.userId },
           'ElevenLabs key resolution failed, falling back to voice-engine'
         );
       }
+
+      // Mistral (new — TTS Phase 1). Same shape: failure to resolve is logged
+      // and tolerated; the dispatcher will skip Mistral providers when its
+      // entry is missing from the map.
+      try {
+        const mistralResult = await this.apiKeyResolver.resolveApiKey(
+          jobContext.userId,
+          AIProvider.Mistral
+        );
+        if (!mistralResult.isGuestMode && mistralResult.apiKey !== undefined) {
+          audioKeysBuilder.set('mistral', mistralResult.apiKey);
+          logger.debug(
+            { userId: jobContext.userId, source: mistralResult.source },
+            'Resolved Mistral API key'
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, userId: jobContext.userId },
+          'Mistral key resolution failed (non-fatal — TTS dispatcher will skip Mistral)'
+        );
+      }
     }
+    // Map is ReadonlyMap on the type contract; constructed Map narrows fine.
+    const audioProviderKeys: ReadonlyMap<AudioProviderId, string> = audioKeysBuilder;
 
     // Update config with potentially modified personality
     const updatedConfig = {
@@ -95,6 +130,7 @@ export class AuthStep implements IPipelineStep {
         provider: resolvedProvider,
         isGuestMode,
         elevenlabsApiKey,
+        audioProviderKeys,
         // wasAutoPromoted and fallback are co-invariant by ProviderRouter
         // construction (always set together or neither). Spread separately
         // here only because they're both optional on the type. If a future

@@ -103,6 +103,13 @@ vi.mock('../../../../redis.js', () => ({
   },
 }));
 
+// Mock audioNormalizer — pass the buffer through unchanged so tests don't
+// shell out to ffmpeg. The normalizer's actual behavior is exercised in
+// audioNormalizer.test.ts; here we just need TTSStep to not break.
+vi.mock('../../../../services/voice/audioNormalizer.js', () => ({
+  normalizeLoudness: vi.fn(async (buf: Buffer) => buf),
+}));
+
 // Import after mocks
 const { TTSStep, resetTTSStepState } = await import('./TTSStep.js');
 
@@ -406,7 +413,9 @@ describe('TTSStep', () => {
         modelId: undefined,
       });
       expect(result.result?.metadata?.ttsAudioKey).toBe('tts:el-job');
-      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/mpeg');
+      // After PR 1 audioNormalizer integration, all outputs are normalized to
+      // canonical PCM WAV regardless of source provider (ElevenLabs MP3 → WAV).
+      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
       // Should NOT use voice-engine path
       expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
       expect(mockEnsureVoiceRegistered).not.toHaveBeenCalled();
