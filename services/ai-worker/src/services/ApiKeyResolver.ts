@@ -21,6 +21,7 @@ import {
   decryptApiKey,
   AIProvider,
   INTERVALS,
+  TTLCache,
   type PrismaClient,
 } from '@tzurot/common-types';
 
@@ -58,24 +59,29 @@ export interface ApiKeyResolutionResult {
  * publishes invalidation events via Redis pub/sub for instant cache
  * invalidation across all worker instances.
  */
-interface CacheEntry {
-  result: ApiKeyResolutionResult;
-  expiresAt: number;
-}
-
 /**
  * API Key Resolver - handles BYOK key lookup and decryption
  */
 export class ApiKeyResolver {
   private prisma: PrismaClient;
   private encryptionKey: string;
-  private cache = new Map<string, CacheEntry>();
-  private readonly cacheTtlMs: number;
+  private readonly cache: TTLCache<ApiKeyResolutionResult>;
 
-  constructor(prisma: PrismaClient, encryptionKey?: string, options?: { cacheTtlMs?: number }) {
+  constructor(
+    prisma: PrismaClient,
+    encryptionKey?: string,
+    options?: {
+      cacheTtlMs?: number;
+      /** Test-only: inject a clock function for fake-timer compatibility with TTLCache. */
+      now?: () => number;
+    }
+  ) {
     this.prisma = prisma;
     this.encryptionKey = encryptionKey ?? config.API_KEY_ENCRYPTION_KEY ?? '';
-    this.cacheTtlMs = options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL;
+    this.cache = new TTLCache<ApiKeyResolutionResult>({
+      ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
+      now: options?.now,
+    });
 
     if (this.encryptionKey.length === 0) {
       logger.warn(
@@ -104,9 +110,9 @@ export class ApiKeyResolver {
     // Check cache first
     const cacheKey = `${userId ?? 'system'}-${provider}`;
     const cached = this.cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (cached !== null) {
       logger.debug({ userId, provider, source: 'cache' }, 'API key resolved from cache');
-      return cached.result;
+      return cached;
     }
 
     // Try to get user's API key if userId provided and encryption is configured
@@ -188,13 +194,13 @@ export class ApiKeyResolver {
     // should still return null here so ProviderRouter triggers fallthrough.
     const cacheKey = `${userId}-${provider}`;
     const cached = this.cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      if (cached.result.source === 'user') {
+    if (cached !== null) {
+      if (cached.source === 'user') {
         logger.debug(
           { userId, provider, source: 'cache' },
           'User API key resolved from cache (tryResolveUserKey)'
         );
-        return cached.result.apiKey;
+        return cached.apiKey;
       }
       // Cached as system-source → user has no key. Skip DB lookup.
       return null;
@@ -291,21 +297,14 @@ export class ApiKeyResolver {
    * Cache an API key resolution result
    */
   private cacheResult(key: string, result: ApiKeyResolutionResult): void {
-    this.cache.set(key, {
-      result,
-      expiresAt: Date.now() + this.cacheTtlMs,
-    });
+    this.cache.set(key, result);
   }
 
   /**
    * Invalidate cache for a user (call when they update their API keys)
    */
   invalidateUserCache(userId: string): void {
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(`${userId}-`)) {
-        this.cache.delete(key);
-      }
-    }
+    this.cache.invalidateByPrefix(`${userId}-`);
     logger.debug({ userId }, 'Invalidated API key cache for user');
   }
 

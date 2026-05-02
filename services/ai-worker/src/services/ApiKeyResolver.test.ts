@@ -52,7 +52,9 @@ describe('ApiKeyResolver', () => {
     resolver = new ApiKeyResolver(
       mockPrisma as unknown as PrismaClient,
       'test-encryption-key-32-bytes-long!',
-      { cacheTtlMs: 1000 } // Short TTL for testing
+      // `now: () => Date.now()` makes TTLCache's TTL respect vi.useFakeTimers
+      // (lru-cache's default `performance.now()` is NOT mocked by fake timers).
+      { cacheTtlMs: 1000, now: () => Date.now() } // Short TTL for testing
     );
   });
 
