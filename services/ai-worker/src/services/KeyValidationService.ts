@@ -208,6 +208,13 @@ export class KeyValidationService {
           return await this.validateElevenLabsKey(apiKey);
         case AIProvider.ZaiCoding:
           return await this.validateZaiCodingKey(apiKey);
+        case AIProvider.Mistral:
+          // Mistral key validation is handled at first-use rather than via
+          // a probe endpoint here — the TTS Phase 1 plan doesn't include
+          // a key-validation route for Mistral. Optimistic accept; first
+          // failed `/v1/audio/speech` call surfaces the auth error.
+          // TODO(PR 2): add a `/v1/models` probe similar to validateOpenRouterKey.
+          return { valid: true, provider };
         default: {
           const _exhaustive: never = provider;
           logger.warn({ provider: _exhaustive }, 'Unsupported provider for validation');
