@@ -16,6 +16,8 @@ export function getProviderDisplayName(provider: AIProvider): string {
       return 'ElevenLabs';
     case AIProvider.ZaiCoding:
       return 'Z.AI Coding Plan';
+    case AIProvider.Mistral:
+      return 'Mistral (Voxtral TTS/STT)';
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;

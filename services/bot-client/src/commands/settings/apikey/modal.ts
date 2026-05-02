@@ -222,6 +222,11 @@ function validateKeyFormat(apiKey: string, provider: AIProvider): string | null 
       // Validation happens server-side via a minimal chat-completions probe
       return null;
 
+    case AIProvider.Mistral:
+      // Mistral keys have no documented strict prefix (32-char base64-ish) —
+      // accept any non-empty key; validation happens server-side at first use.
+      return null;
+
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;
