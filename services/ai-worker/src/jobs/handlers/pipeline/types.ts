@@ -128,8 +128,13 @@ export interface ResolvedAuth {
    * PR 1 transition). New code (TtsConfigResolver consumers, future Mistral
    * provider, Phase 3 STT cutover) should read from this map; legacy code
    * paths still read `elevenlabsApiKey` until migrated.
+   *
+   * Optional on the type so existing test fixtures that pre-date the map
+   * shape don't compile-break. Production code constructs it via AuthStep
+   * which always sets the field (empty Map if no audio keys configured).
+   * Consumers that read the map should use `?? new Map()` defensive default.
    */
-  audioProviderKeys: ReadonlyMap<AudioProviderId, string>;
+  audioProviderKeys?: ReadonlyMap<AudioProviderId, string>;
   /**
    * `true` when ProviderRouter auto-promoted an OpenRouter `z-ai/<model>`
    * request to z.ai-direct. Together with `fallback`, enables GenerationStep

@@ -1,111 +1,142 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { Writable } from 'node:stream';
 
-// vi.hoisted lifts the mock declaration above the module-mock factories so
-// the closure references resolve correctly at hoist time.
-const { mockExecFile } = vi.hoisted(() => ({ mockExecFile: vi.fn() }));
+// vi.hoisted lifts the mock declaration above the module-mock factories.
+const { mockSpawn } = vi.hoisted(() => ({ mockSpawn: vi.fn() }));
 
 vi.mock('node:child_process', () => ({
-  execFile: mockExecFile,
-}));
-
-vi.mock('node:util', () => ({
-  promisify:
-    () =>
-    (...args: unknown[]): Promise<unknown> => {
-      return new Promise((resolve, reject) => {
-        const cb = (err: unknown, stdout?: unknown, stderr?: unknown): void => {
-          if (err) reject(err);
-          else resolve({ stdout, stderr });
-        };
-        mockExecFile(...args, cb);
-      });
-    },
+  spawn: mockSpawn,
 }));
 
 import { normalizeLoudness } from './audioNormalizer.js';
 
+/**
+ * Build a fake child process whose `close` event the test can drive
+ * synchronously. stdin captures the piped audio so we can assert on it;
+ * stdout emits the configured chunks then closes.
+ */
+interface FakeChildOptions {
+  exitCode?: number;
+  signal?: NodeJS.Signals | null;
+  stdoutChunks?: Buffer[];
+  stderrChunks?: string[];
+  spawnError?: Error;
+}
+
+function makeFakeChild(opts: FakeChildOptions = {}): {
+  emitter: EventEmitter;
+  capturedStdin: Buffer[];
+} {
+  const emitter = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    stdin: Writable;
+    kill: (sig?: NodeJS.Signals) => void;
+  };
+  emitter.stdout = new EventEmitter();
+  emitter.stderr = new EventEmitter();
+  const captured: Buffer[] = [];
+  emitter.stdin = new Writable({
+    write(chunk: Buffer | string, _enc, cb) {
+      captured.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      cb();
+    },
+  });
+  emitter.kill = vi.fn();
+
+  // Schedule events on the next tick so the caller can attach handlers first.
+  setImmediate(() => {
+    if (opts.spawnError) {
+      emitter.emit('error', opts.spawnError);
+      return;
+    }
+    for (const chunk of opts.stdoutChunks ?? [Buffer.from('output-bytes')]) {
+      emitter.stdout.emit('data', chunk);
+    }
+    for (const chunk of opts.stderrChunks ?? []) {
+      emitter.stderr.emit('data', Buffer.from(chunk));
+    }
+    emitter.emit('close', opts.exitCode ?? 0, opts.signal ?? null);
+  });
+
+  return { emitter, capturedStdin: captured };
+}
+
 describe('normalizeLoudness', () => {
   beforeEach(() => {
-    mockExecFile.mockReset();
+    mockSpawn.mockReset();
   });
 
   it('invokes ffmpeg with loudnorm filter at -14 LUFS by default', async () => {
-    const inputBytes = Buffer.from([0x52, 0x49, 0x46, 0x46]); // "RIFF"
-    const outputBytes = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x00, 0x00]);
-    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
-      cb(null, outputBytes, Buffer.from(''));
+    const { emitter } = makeFakeChild({
+      stdoutChunks: [Buffer.from('normalized-wav-bytes')],
     });
+    mockSpawn.mockReturnValue(emitter);
 
-    const result = await normalizeLoudness(inputBytes);
+    const result = await normalizeLoudness(Buffer.from('input-bytes'));
 
     expect(result).toBeInstanceOf(Buffer);
-    expect(result.length).toBe(outputBytes.length);
+    expect(result.toString('utf8')).toBe('normalized-wav-bytes');
 
-    const calledArgs = mockExecFile.mock.calls[0][1] as string[];
-    expect(mockExecFile.mock.calls[0][0]).toBe('ffmpeg');
+    const calledArgs = mockSpawn.mock.calls[0][1] as string[];
+    expect(mockSpawn.mock.calls[0][0]).toBe('ffmpeg');
     expect(calledArgs).toContain('loudnorm=I=-14:LRA=11:TP=-1.5');
     expect(calledArgs).toContain('24000'); // sample rate
     expect(calledArgs).toContain('s16'); // sample format
   });
 
   it('honors custom targetLufs / lra / truePeak', async () => {
-    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
-      cb(null, Buffer.from([0]), Buffer.from(''));
-    });
+    const { emitter } = makeFakeChild();
+    mockSpawn.mockReturnValue(emitter);
 
-    await normalizeLoudness(Buffer.from([0]), { targetLufs: -16, lra: 13, truePeak: -2.0 });
+    await normalizeLoudness(Buffer.from('x'), { targetLufs: -16, lra: 13, truePeak: -2.0 });
 
-    const calledArgs = mockExecFile.mock.calls[0][1] as string[];
+    const calledArgs = mockSpawn.mock.calls[0][1] as string[];
     expect(calledArgs).toContain('loudnorm=I=-16:LRA=13:TP=-2');
   });
 
-  it('uses array-arg execFile (shell-injection safe per rules/00-critical.md)', async () => {
-    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
-      cb(null, Buffer.from([0]), Buffer.from(''));
-    });
+  it('uses array-arg spawn (shell-injection safe per rules/00-critical.md)', async () => {
+    const { emitter } = makeFakeChild();
+    mockSpawn.mockReturnValue(emitter);
 
-    await normalizeLoudness(Buffer.from([0]));
+    await normalizeLoudness(Buffer.from('x'));
 
-    // The first arg is the binary path — must be just 'ffmpeg', no shell metacharacters.
-    expect(mockExecFile.mock.calls[0][0]).toBe('ffmpeg');
-    // The second arg must be an array (not a single shell command string).
-    expect(Array.isArray(mockExecFile.mock.calls[0][1])).toBe(true);
+    expect(mockSpawn.mock.calls[0][0]).toBe('ffmpeg');
+    expect(Array.isArray(mockSpawn.mock.calls[0][1])).toBe(true);
   });
 
   it('pipes audio via stdin (no temp files on disk)', async () => {
-    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
-      cb(null, Buffer.from([0]), Buffer.from(''));
-    });
+    const { emitter, capturedStdin } = makeFakeChild();
+    mockSpawn.mockReturnValue(emitter);
 
     const audio = Buffer.from('test audio bytes');
     await normalizeLoudness(audio);
 
-    const opts = mockExecFile.mock.calls[0][2] as { input?: Buffer };
-    expect(opts.input).toBe(audio);
+    const piped = Buffer.concat(capturedStdin).toString('utf8');
+    expect(piped).toBe('test audio bytes');
 
-    const calledArgs = mockExecFile.mock.calls[0][1] as string[];
+    const calledArgs = mockSpawn.mock.calls[0][1] as string[];
     expect(calledArgs).toContain('pipe:0'); // stdin input
     expect(calledArgs).toContain('pipe:1'); // stdout output
   });
 
-  it('propagates ffmpeg errors', async () => {
-    const ffmpegError = new Error('ffmpeg: invalid input');
-    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
-      cb(ffmpegError, undefined, undefined);
+  it('rejects when ffmpeg exits non-zero, surfacing stderr in the error', async () => {
+    const { emitter } = makeFakeChild({
+      exitCode: 1,
+      stderrChunks: ['ffmpeg: invalid input format\n'],
     });
+    mockSpawn.mockReturnValue(emitter);
 
-    await expect(normalizeLoudness(Buffer.from([0]))).rejects.toThrow('ffmpeg: invalid input');
+    await expect(normalizeLoudness(Buffer.from('bad'))).rejects.toThrow(/code=1/);
   });
 
-  it('passes timeout option to execFile', async () => {
-    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
-      cb(null, Buffer.from([0]), Buffer.from(''));
+  it('propagates spawn-level errors (e.g. ffmpeg binary missing)', async () => {
+    const { emitter } = makeFakeChild({
+      spawnError: Object.assign(new Error('spawn ffmpeg ENOENT'), { code: 'ENOENT' }),
     });
+    mockSpawn.mockReturnValue(emitter);
 
-    await normalizeLoudness(Buffer.from([0]));
-
-    const opts = mockExecFile.mock.calls[0][2] as { timeout?: number; maxBuffer?: number };
-    expect(opts.timeout).toBeGreaterThan(0);
-    expect(opts.maxBuffer).toBeGreaterThan(0);
+    await expect(normalizeLoudness(Buffer.from('x'))).rejects.toThrow(/ENOENT/);
   });
 });

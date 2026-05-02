@@ -23,11 +23,9 @@
  * needs it; future providers (NeuTTS Air in Phase 2) inherit it for free.
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import { createLogger } from '@tzurot/common-types';
 
-const execFileAsync = promisify(execFile);
 const logger = createLogger('audioNormalizer');
 
 /** ffmpeg execution buffer cap. Typical Discord voice messages are <5MB raw,
@@ -107,13 +105,7 @@ export async function normalizeLoudness(
 
   const start = Date.now();
   try {
-    const { stdout, stderr } = await execFileAsync('ffmpeg', args, {
-      input: audioBuffer,
-      maxBuffer: FFMPEG_MAX_BUFFER_BYTES,
-      timeout: FFMPEG_TIMEOUT_MS,
-      // stdout is binary audio; encoding 'buffer' keeps it as a Buffer.
-      encoding: 'buffer',
-    });
+    const stdout = await runFfmpeg(args, audioBuffer);
     const elapsedMs = Date.now() - start;
     logger.debug(
       {
@@ -124,10 +116,7 @@ export async function normalizeLoudness(
       },
       'Audio normalized'
     );
-    // ffmpeg writes loudness analysis to stderr at info level; useful when
-    // debugging but not surfaced as a log entry by default to keep volume down.
-    void stderr;
-    return Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout);
+    return stdout;
   } catch (error) {
     logger.error(
       { err: error, targetLufs, inputBytes: audioBuffer.length },
@@ -135,4 +124,76 @@ export async function normalizeLoudness(
     );
     throw error;
   }
+}
+
+/**
+ * Spawn ffmpeg with array args (shell-injection safe), pipe input via stdin,
+ * collect stdout, enforce timeout + maxBuffer caps.
+ *
+ * Extracted as a helper so the test-mock surface is just spawn + stream
+ * collection, not the higher-level normalizeLoudness flow.
+ */
+function runFfmpeg(args: string[], input: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    // execFile via promisify doesn't expose an `input` option; spawn does
+    // via stdin pipe. Array args = no shell interpretation per
+    // .claude/rules/00-critical.md.
+    const child = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+
+    const stdoutChunks: Buffer[] = [];
+    let stdoutLen = 0;
+    let stderrTail = '';
+    let killed = false;
+
+    const timeout = setTimeout(() => {
+      killed = true;
+      child.kill('SIGTERM');
+      reject(new Error(`ffmpeg timed out after ${FFMPEG_TIMEOUT_MS}ms`));
+    }, FFMPEG_TIMEOUT_MS);
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdoutLen += chunk.length;
+      if (stdoutLen > FFMPEG_MAX_BUFFER_BYTES) {
+        killed = true;
+        child.kill('SIGTERM');
+        reject(new Error(`ffmpeg stdout exceeded ${FFMPEG_MAX_BUFFER_BYTES} bytes`));
+        return;
+      }
+      stdoutChunks.push(chunk);
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      // Keep only the tail of stderr — ffmpeg can be verbose, and we only
+      // want it when reporting a failure.
+      stderrTail = (stderrTail + chunk.toString('utf8')).slice(-2000);
+    });
+
+    child.on('error', err => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+
+    child.on('close', (code, signal) => {
+      clearTimeout(timeout);
+      if (killed) {
+        return; // Already rejected via the timeout/maxBuffer paths above.
+      }
+      if (code === 0) {
+        resolve(Buffer.concat(stdoutChunks));
+        return;
+      }
+      reject(
+        new Error(
+          `ffmpeg exited with code=${String(code)} signal=${String(signal)}: ${stderrTail.trim()}`
+        )
+      );
+    });
+
+    // Pipe the input audio to ffmpeg's stdin.
+    child.stdin.on('error', () => {
+      // Suppress EPIPE — ffmpeg may close stdin early on its own; the close
+      // event handler above is the source of truth for outcome.
+    });
+    child.stdin.end(input);
+  });
 }

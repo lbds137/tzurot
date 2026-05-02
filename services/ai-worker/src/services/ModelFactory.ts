@@ -523,6 +523,10 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
       throw new Error(
         'ElevenLabs is a voice provider, not an LLM provider. Use VoiceEngineClient or ElevenLabsClient for voice operations.'
       );
+    case AIProvider.Mistral:
+      throw new Error(
+        'Mistral is a voice provider (Voxtral TTS/STT), not an LLM provider. Use the TTS provider stack for voice operations.'
+      );
     default: {
       const _exhaustive: never = provider;
       throw new Error(`Unsupported AI provider: ${String(_exhaustive)}`);

@@ -277,6 +277,11 @@ export async function validateApiKey(
       return validateElevenLabsKey(apiKey);
     case AIProvider.ZaiCoding:
       return validateZaiCodingKey(apiKey);
+    case AIProvider.Mistral:
+      // Mistral validation deferred to PR 2 — accept-and-defer pattern, same
+      // as ai-worker's KeyValidationService. First failed `/v1/audio/speech`
+      // call surfaces the auth error.
+      return { valid: true };
     default: {
       const _exhaustive: never = provider;
       return {
