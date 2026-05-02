@@ -471,6 +471,7 @@ describe('DependencyStep', () => {
           apiKey: 'user-test-key-12345',
           isGuestMode: false,
           provider: AIProvider.OpenRouter,
+          audioProviderKeys: new Map(),
         },
         startTime: Date.now(),
       };
@@ -535,6 +536,7 @@ describe('DependencyStep', () => {
           apiKey: 'system-openrouter-key', // System key used for guests
           isGuestMode: true,
           provider: AIProvider.OpenRouter,
+          audioProviderKeys: new Map(),
         },
         startTime: Date.now(),
       };
@@ -798,6 +800,7 @@ describe('DependencyStep', () => {
         apiKey: 'user-zai-key',
         isGuestMode: false,
         provider: AIProvider.ZaiCoding,
+        audioProviderKeys: new Map(),
         ...authOverride,
       },
       startTime: Date.now(),
