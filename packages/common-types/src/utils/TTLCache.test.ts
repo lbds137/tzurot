@@ -343,4 +343,48 @@ describe('TTLCache', () => {
       expect(cache.get('key1')).toBeNull();
     });
   });
+
+  describe('invalidateByPrefix', () => {
+    it('should remove all entries whose key starts with the given prefix', () => {
+      const cache = new TTLCache<number>();
+      cache.set('user-123-foo', 1);
+      cache.set('user-123-bar', 2);
+      cache.set('user-456-foo', 3);
+      cache.set('admin-x', 4);
+
+      const removed = cache.invalidateByPrefix('user-123-');
+
+      expect(removed).toBe(2);
+      expect(cache.get('user-123-foo')).toBeNull();
+      expect(cache.get('user-123-bar')).toBeNull();
+      expect(cache.get('user-456-foo')).toBe(3);
+      expect(cache.get('admin-x')).toBe(4);
+    });
+
+    it('should return 0 when no keys match', () => {
+      const cache = new TTLCache<number>();
+      cache.set('foo', 1);
+      cache.set('bar', 2);
+
+      expect(cache.invalidateByPrefix('baz-')).toBe(0);
+      expect(cache.size()).toBe(2);
+    });
+
+    it('should handle empty prefix as match-all', () => {
+      const cache = new TTLCache<number>();
+      cache.set('a', 1);
+      cache.set('b', 2);
+      cache.set('c', 3);
+
+      const removed = cache.invalidateByPrefix('');
+
+      expect(removed).toBe(3);
+      expect(cache.size()).toBe(0);
+    });
+
+    it('should be safe on an empty cache', () => {
+      const cache = new TTLCache<number>();
+      expect(cache.invalidateByPrefix('anything')).toBe(0);
+    });
+  });
 });
