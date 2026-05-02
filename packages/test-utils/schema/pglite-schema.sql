@@ -17,6 +17,7 @@ CREATE TABLE "users" (
     "nsfw_verified" BOOLEAN NOT NULL DEFAULT false,
     "nsfw_verified_at" TIMESTAMP(3),
     "default_llm_config_id" UUID,
+    "default_tts_config_id" UUID,
     "default_persona_id" UUID NOT NULL,
     "config_defaults" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -129,6 +130,33 @@ CREATE TABLE "personality_default_configs" (
 );
 
 -- CreateTable
+CREATE TABLE "tts_configs" (
+    "id" UUID NOT NULL,
+    "name" CITEXT NOT NULL,
+    "description" TEXT,
+    "owner_id" UUID NOT NULL,
+    "is_global" BOOLEAN NOT NULL DEFAULT false,
+    "is_default" BOOLEAN NOT NULL DEFAULT false,
+    "is_free_default" BOOLEAN NOT NULL DEFAULT false,
+    "provider" VARCHAR(40) NOT NULL,
+    "model_id" VARCHAR(255),
+    "advanced_parameters" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "tts_configs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "personality_default_tts_configs" (
+    "personality_id" UUID NOT NULL,
+    "tts_config_id" UUID NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "personality_default_tts_configs_pkey" PRIMARY KEY ("personality_id")
+);
+
+-- CreateTable
 CREATE TABLE "personalities" (
     "id" UUID NOT NULL,
     "name" VARCHAR(255) NOT NULL,
@@ -194,6 +222,7 @@ CREATE TABLE "user_personality_configs" (
     "personality_id" UUID NOT NULL,
     "persona_id" UUID,
     "llm_config_id" UUID,
+    "tts_config_id" UUID,
     "config_overrides" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -433,6 +462,9 @@ CREATE INDEX "users_discord_id_idx" ON "users"("discord_id");
 CREATE INDEX "users_default_llm_config_id_idx" ON "users"("default_llm_config_id");
 
 -- CreateIndex
+CREATE INDEX "users_default_tts_config_id_idx" ON "users"("default_tts_config_id");
+
+-- CreateIndex
 CREATE INDEX "users_default_persona_id_idx" ON "users"("default_persona_id");
 
 -- CreateIndex
@@ -488,6 +520,24 @@ CREATE UNIQUE INDEX "personality_default_configs_personality_id_key" ON "persona
 
 -- CreateIndex
 CREATE INDEX "personality_default_configs_llm_config_id_idx" ON "personality_default_configs"("llm_config_id");
+
+-- CreateIndex
+CREATE INDEX "tts_configs_owner_id_idx" ON "tts_configs"("owner_id");
+
+-- CreateIndex
+CREATE INDEX "tts_configs_is_global_idx" ON "tts_configs"("is_global");
+
+-- CreateIndex
+CREATE INDEX "tts_configs_is_free_default_idx" ON "tts_configs"("is_free_default");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "tts_configs_owner_id_name_key" ON "tts_configs"("owner_id", "name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "personality_default_tts_configs_personality_id_key" ON "personality_default_tts_configs"("personality_id");
+
+-- CreateIndex
+CREATE INDEX "personality_default_tts_configs_tts_config_id_idx" ON "personality_default_tts_configs"("tts_config_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "personalities_slug_key" ON "personalities"("slug");
@@ -688,6 +738,9 @@ CREATE UNIQUE INDEX "export_jobs_user_id_source_slug_source_service_format_key" 
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "users" ADD CONSTRAINT "users_default_tts_config_id_fkey" FOREIGN KEY ("default_tts_config_id") REFERENCES "tts_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_default_persona_id_fkey" FOREIGN KEY ("default_persona_id") REFERENCES "personas"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -712,6 +765,15 @@ ALTER TABLE "personality_default_configs" ADD CONSTRAINT "personality_default_co
 ALTER TABLE "personality_default_configs" ADD CONSTRAINT "personality_default_configs_personality_id_fkey" FOREIGN KEY ("personality_id") REFERENCES "personalities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "tts_configs" ADD CONSTRAINT "tts_configs_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "personality_default_tts_configs" ADD CONSTRAINT "personality_default_tts_configs_tts_config_id_fkey" FOREIGN KEY ("tts_config_id") REFERENCES "tts_configs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "personality_default_tts_configs" ADD CONSTRAINT "personality_default_tts_configs_personality_id_fkey" FOREIGN KEY ("personality_id") REFERENCES "personalities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "personalities" ADD CONSTRAINT "personalities_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -728,6 +790,9 @@ ALTER TABLE "personality_aliases" ADD CONSTRAINT "personality_aliases_personalit
 
 -- AddForeignKey
 ALTER TABLE "user_personality_configs" ADD CONSTRAINT "user_personality_configs_llm_config_id_fkey" FOREIGN KEY ("llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_personality_configs" ADD CONSTRAINT "user_personality_configs_tts_config_id_fkey" FOREIGN KEY ("tts_config_id") REFERENCES "tts_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "user_personality_configs" ADD CONSTRAINT "user_personality_configs_persona_id_fkey" FOREIGN KEY ("persona_id") REFERENCES "personas"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -783,11 +848,3 @@ ALTER TABLE "import_jobs" ADD CONSTRAINT "import_jobs_personality_id_fkey" FOREI
 -- AddForeignKey
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CHECK constraints harvested from prisma/migrations/**/migration.sql
--- (Prisma's schema-diff generator has no CHECK-constraint representation,
--- so they're merged back in here at schema-generation time.)
-ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_month" CHECK ("birth_month" IS NULL OR ("birth_month" >= 1 AND "birth_month" <= 12));
-ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_day" CHECK ("birth_day" IS NULL OR ("birth_day" >= 1 AND "birth_day" <= 31));
-ALTER TABLE "personalities" ADD CONSTRAINT "valid_birth_year" CHECK ("birth_year" IS NULL OR ("birth_year" >= 1 AND "birth_year" <= 9999));
-ALTER TABLE "personas" ADD CONSTRAINT "personas_name_non_empty" CHECK (LENGTH(TRIM("name")) > 0);
-ALTER TABLE "personas" ADD CONSTRAINT "personas_name_not_snowflake" CHECK ("name" !~ '^\d{17,19}$');
