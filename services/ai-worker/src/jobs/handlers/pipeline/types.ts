@@ -9,6 +9,7 @@
 import type { Job } from 'bullmq';
 import type {
   AIProvider,
+  AudioProviderId,
   CrossChannelHistoryGroupEntry,
   LLMGenerationJobData,
   LLMGenerationResult,
@@ -106,8 +107,29 @@ export interface ResolvedAuth {
   provider: AIProvider | undefined;
   /** Whether in guest mode (free models only) */
   isGuestMode: boolean;
-  /** ElevenLabs API key for BYOK voice (undefined = use self-hosted voice-engine) */
+  /**
+   * ElevenLabs API key for BYOK voice (undefined = use self-hosted voice-engine).
+   *
+   * @deprecated Reads from `audioProviderKeys.get('elevenlabs')` are preferred
+   *   for new code. This named field is kept dual-written by AuthStep for
+   *   backwards compatibility with the ~6 consumer sites in MultimodalProcessor,
+   *   AttachmentProcessor, ConversationInputProcessor, ConversationalRAG{Types,Service},
+   *   and ReferencedMessageFormatter. Migration to the map shape happens in a
+   *   follow-up commit; consumers can flip site-by-site without coordination.
+   */
   elevenlabsApiKey?: string;
+  /**
+   * Audio-provider credentials keyed by provider id. One key authorizes ALL
+   * of that provider's audio endpoints (TTS + STT + cloning) — Mistral's
+   * `/v1/audio/speech` and `/v1/audio/transcriptions` use the same key, as
+   * does ElevenLabs across cloning + TTS + Scribe.
+   *
+   * Populated by AuthStep alongside `elevenlabsApiKey` (dual-write during the
+   * PR 1 transition). New code (TtsConfigResolver consumers, future Mistral
+   * provider, Phase 3 STT cutover) should read from this map; legacy code
+   * paths still read `elevenlabsApiKey` until migrated.
+   */
+  audioProviderKeys: ReadonlyMap<AudioProviderId, string>;
   /**
    * `true` when ProviderRouter auto-promoted an OpenRouter `z-ai/<model>`
    * request to z.ai-direct. Together with `fallback`, enables GenerationStep

@@ -28,6 +28,7 @@ import { synthesizeWithChunking } from '../../../../services/voice/ttsSynthesize
 import { waitForVoiceEngine } from '../../../../services/voice/voiceEngineWarmup.js';
 import { ElevenLabsVoiceService } from '../../../../services/voice/ElevenLabsVoiceService.js';
 import { elevenLabsTTS, ElevenLabsApiError } from '../../../../services/voice/ElevenLabsClient.js';
+import { normalizeLoudness } from '../../../../services/voice/audioNormalizer.js';
 import { withRetry, RetryError } from '../../../../utils/retry.js';
 import { redisService } from '../../../../redis.js';
 
@@ -400,7 +401,31 @@ export class TTSStep implements IPipelineStep {
       logger.warn({ slug }, 'TTS: no job ID available, skipping audio storage');
       return null;
     }
-    const key = await redisService.storeTTSAudio(jobId, audioBuffer);
-    return { key, audioSize: audioBuffer.length, contentType };
+
+    // Output-side EBU R128 loudness normalization to -14 LUFS (Spotify standard).
+    // Provider-agnostic — applied regardless of which provider produced the
+    // audio (ElevenLabs, Mistral, NeuTTS Air, etc.). Mistral's per-voice
+    // loudness varies wildly without this; ElevenLabs has internal normalization
+    // so this is a near-noop for that path.
+    //
+    // Failure-tolerant: if ffmpeg is missing or the normalize call fails, fall
+    // back to the unnormalized buffer rather than dropping the TTS entirely.
+    // The user gets quieter/louder audio than ideal but still gets audio.
+    let storedBuffer = audioBuffer;
+    let storedContentType = contentType;
+    try {
+      const normalized = await normalizeLoudness(audioBuffer);
+      storedBuffer = normalized;
+      // normalizeLoudness always emits canonical PCM WAV 16-bit 24kHz mono.
+      storedContentType = 'audio/wav';
+    } catch (error) {
+      logger.warn(
+        { err: error, slug, originalBytes: audioBuffer.length },
+        'Audio loudness normalization failed — storing unnormalized output'
+      );
+    }
+
+    const key = await redisService.storeTTSAudio(jobId, storedBuffer);
+    return { key, audioSize: storedBuffer.length, contentType: storedContentType };
   }
 }
