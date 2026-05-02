@@ -293,7 +293,10 @@ export class ConfigCascadeResolver {
   invalidatePersonalityCache(personalityId: string): void {
     // Cache key format: userId|personalityId|channelId — personality is at position 1.
     // Prefix-match doesn't fit; iterate keys directly.
-    for (const key of this.cache.keys()) {
+    // Snapshot before delete — lru-cache's generator iterator can compact
+    // mid-iteration (per claude-review on PR #958).
+    const snapshot = [...this.cache.keys()];
+    for (const key of snapshot) {
       const parts = key.split('|');
       if (parts[1] === personalityId) {
         this.cache.delete(key);
@@ -306,7 +309,9 @@ export class ConfigCascadeResolver {
   invalidateChannelCache(channelId: string): void {
     // Cache key format: userId|personalityId|channelId — channel is at position 2.
     // Suffix-match doesn't fit invalidateByPrefix; iterate keys directly.
-    for (const key of this.cache.keys()) {
+    // Snapshot before delete — same reason as invalidatePersonalityCache above.
+    const snapshot = [...this.cache.keys()];
+    for (const key of snapshot) {
       const parts = key.split('|');
       if (parts[2] === channelId) {
         this.cache.delete(key);

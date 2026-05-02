@@ -20,7 +20,12 @@ describe('validatePrerequisites', () => {
       validatePrerequisites({
         job: fakeJob,
         startTime: 0,
-        auth: { apiKey: 'k', provider: AIProvider.OpenRouter, isGuestMode: false },
+        auth: {
+          apiKey: 'k',
+          provider: AIProvider.OpenRouter,
+          isGuestMode: false,
+          audioProviderKeys: new Map(),
+        },
         preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
       } satisfies GenerationContext)
     ).toThrow(/ConfigStep must run before GenerationStep/);
@@ -51,7 +56,12 @@ describe('validatePrerequisites', () => {
           effectivePersonality: {} as any,
           configSource: 'personality',
         },
-        auth: { apiKey: 'k', provider: AIProvider.OpenRouter, isGuestMode: false },
+        auth: {
+          apiKey: 'k',
+          provider: AIProvider.OpenRouter,
+          isGuestMode: false,
+          audioProviderKeys: new Map(),
+        },
       } satisfies GenerationContext)
     ).toThrow(/ContextStep must run before GenerationStep/);
   });
@@ -66,7 +76,12 @@ describe('validatePrerequisites', () => {
           effectivePersonality: {} as any,
           configSource: 'personality',
         },
-        auth: { apiKey: 'k', provider: AIProvider.OpenRouter, isGuestMode: false },
+        auth: {
+          apiKey: 'k',
+          provider: AIProvider.OpenRouter,
+          isGuestMode: false,
+          audioProviderKeys: new Map(),
+        },
         preparedContext: { conversationHistory: [], rawConversationHistory: [], participants: [] },
       } satisfies GenerationContext)
     ).not.toThrow();

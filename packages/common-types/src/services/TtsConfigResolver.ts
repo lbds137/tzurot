@@ -38,13 +38,20 @@ const FREE_DEFAULT_CACHE_KEY = '__free_default__';
  * Hardcoded fallback when no DB config is available at any tier.
  * Self-hosted Kyutai is the universal floor — always works (assuming the
  * voice-engine service is reachable).
+ *
+ * `Object.freeze` on both the outer object AND the nested
+ * `advancedParameters` map prevents callers from mutating the shared
+ * module-level constant — a defensive guard against the failure mode
+ * claude-review caught on PR #958: `result.config.advancedParameters['k'] = v`
+ * silently poisoning the constant for every subsequent caller. We also
+ * spread on return below; defense-in-depth.
  */
-const HARDCODED_FALLBACK: ResolvedTtsConfig = {
+const HARDCODED_FALLBACK: ResolvedTtsConfig = Object.freeze({
   provider: 'self-hosted',
   modelId: null,
-  advancedParameters: {},
+  advancedParameters: Object.freeze({}),
   source: 'hardcoded',
-};
+});
 
 /**
  * Lightweight wrapper passed as the `personalityConfig` argument to
@@ -167,12 +174,15 @@ export class TtsConfigResolver extends BaseConfigResolver<
       return freeDefault;
     }
 
-    // Tier 5: hardcoded fallback
+    // Tier 5: hardcoded fallback. Spread to give callers a fresh object —
+    // belt-and-suspenders alongside the Object.freeze on HARDCODED_FALLBACK
+    // itself. advancedParameters is also a fresh empty object per call so
+    // callers can safely mutate without poisoning siblings.
     this.logger.warn(
       { personalityId: personality.id },
       'No PersonalityDefaultTtsConfig, no free default in DB — using hardcoded self-hosted fallback'
     );
-    return HARDCODED_FALLBACK;
+    return { ...HARDCODED_FALLBACK, advancedParameters: {} };
   }
 
   /**
@@ -240,11 +250,15 @@ export class TtsConfigResolver extends BaseConfigResolver<
         configName: mapped.name,
       };
 
-      // Outer wrapper source: 'personality' is the closest valid value in the
-      // base's `ConfigResolutionSource` union (which is 3-tier: 'user-personality'
-      // | 'user-default' | 'personality'). The inner `config.source` carries the
-      // precise tier ('free-default' here). Anyone inspecting the cache entry
-      // directly should read `config.source`, not the wrapper.
+      // NOTE: the outer wrapper's `source: 'personality'` is a sentinel
+      // placeholder — callers MUST NOT read it for free-default cache entries.
+      // The base's `ConfigResolutionSource` union is 3-tier ('user-personality'
+      // | 'user-default' | 'personality') and doesn't include 'free-default',
+      // so 'personality' is the closest valid type-safe value. Read the INNER
+      // `config.source` for the precise tier ('free-default' here). A type-level
+      // fix (extending the union to include 'free-default'/'hardcoded') is a
+      // candidate refactor for PR 2 once TtsConfigResolver has real consumers
+      // — see PR #958 review comment.
       this.cache.set(FREE_DEFAULT_CACHE_KEY, {
         config,
         source: 'personality',
