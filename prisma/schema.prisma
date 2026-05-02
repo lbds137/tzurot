@@ -24,6 +24,7 @@ model User {
   nsfwVerified          Boolean                    @default(false) @map("nsfw_verified")
   nsfwVerifiedAt        DateTime?                  @map("nsfw_verified_at")
   defaultLlmConfigId    String?                    @map("default_llm_config_id") @db.Uuid
+  defaultTtsConfigId    String?                    @map("default_tts_config_id") @db.Uuid
   defaultPersonaId      String                     @map("default_persona_id") @db.Uuid
   /// JSONB config cascade defaults (user tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults        Json?                      @map("config_defaults")
@@ -37,8 +38,10 @@ model User {
   channelSettings       ChannelSettings[]
   adminSettingsUpdates  AdminSettings[]
   defaultLlmConfig      LlmConfig?                 @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
+  defaultTtsConfig      TtsConfig?                 @relation("UserDefaultTtsConfig", fields: [defaultTtsConfigId], references: [id], onDelete: SetNull)
   defaultPersona        Persona?                   @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: Restrict)
   ownedLlmConfigs       LlmConfig[]                @relation("LlmConfigOwner")
+  ownedTtsConfigs       TtsConfig[]                @relation("TtsConfigOwner")
   ownedPersonalities    Personality[]              @relation("PersonalityOwner")
   personalityOwners     PersonalityOwner[]
   ownedPersonas         Persona[]                  @relation("PersonaOwner")
@@ -47,6 +50,7 @@ model User {
 
   @@index([discordId])
   @@index([defaultLlmConfigId])
+  @@index([defaultTtsConfigId])
   @@index([defaultPersonaId])
   @@map("users")
 }
@@ -199,6 +203,50 @@ model PersonalityDefaultConfig {
   @@map("personality_default_configs")
 }
 
+model TtsConfig {
+  id                          String                        @id @db.Uuid
+  name                        String                        @db.Citext
+  description                 String?
+  ownerId                     String                        @map("owner_id") @db.Uuid
+  isGlobal                    Boolean                       @default(false) @map("is_global")
+  isDefault                   Boolean                       @default(false) @map("is_default")
+  /// Default config for guest mode (users without TTS configured). Only one should be true.
+  /// Enforced by partial unique index: tts_configs_free_default_unique (WHERE is_free_default = true)
+  isFreeDefault               Boolean                       @default(false) @map("is_free_default")
+  /// Stable provider id — `'self-hosted' | 'elevenlabs' | 'mistral'`. Wider VarChar than
+  /// LlmConfig's 20 to accommodate longer TTS provider names if added later.
+  provider                    String                        @db.VarChar(40)
+  /// Provider-specific model id (e.g. `'eleven_multilingual_v2'`, `'voxtral-mini-tts-2603'`).
+  /// NULL for providers with no model dimension (e.g. self-hosted).
+  modelId                     String?                       @map("model_id") @db.VarChar(255)
+  /// JSONB for provider-specific knobs (stability, similarity, etc.). Validated by
+  /// TtsAdvancedParamsSchema in common-types.
+  advancedParameters          Json?                         @map("advanced_parameters")
+  createdAt                   DateTime                      @default(now()) @map("created_at")
+  updatedAt                   DateTime                      @updatedAt @map("updated_at")
+  owner                       User                          @relation("TtsConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  personalitiesUsingAsDefault PersonalityDefaultTtsConfig[]
+  userPersonalityConfigs      UserPersonalityConfig[]       @relation("UserPersonalityTtsConfig")
+  usersWithAsDefault          User[]                        @relation("UserDefaultTtsConfig")
+
+  @@unique([ownerId, name], map: "tts_configs_owner_id_name_key")
+  @@index([ownerId])
+  @@index([isGlobal])
+  @@index([isFreeDefault])
+  @@map("tts_configs")
+}
+
+model PersonalityDefaultTtsConfig {
+  personalityId String      @id @unique @map("personality_id") @db.Uuid
+  ttsConfigId   String      @map("tts_config_id") @db.Uuid
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  ttsConfig     TtsConfig   @relation(fields: [ttsConfigId], references: [id], onDelete: Cascade)
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  @@index([ttsConfigId])
+  @@map("personality_default_tts_configs")
+}
+
 model Personality {
   id                         String   @id @db.Uuid
   name                       String   @db.VarChar(255)
@@ -237,9 +285,10 @@ model Personality {
   aliases               PersonalityAlias[]
   conversationHistory   ConversationHistory[]
   memories              Memory[]
-  owner                 User                       @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  systemPrompt          SystemPrompt?              @relation(fields: [systemPromptId], references: [id])
+  owner                 User                          @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  systemPrompt          SystemPrompt?                 @relation(fields: [systemPromptId], references: [id])
   defaultConfigLink     PersonalityDefaultConfig?
+  defaultTtsConfigLink  PersonalityDefaultTtsConfig?
   owners                PersonalityOwner[]
   userConfigs           UserPersonalityConfig[]
   personaHistoryConfigs UserPersonaHistoryConfig[]
@@ -288,12 +337,14 @@ model UserPersonalityConfig {
   personalityId    String   @map("personality_id") @db.Uuid
   personaId        String?  @map("persona_id") @db.Uuid
   llmConfigId      String?  @map("llm_config_id") @db.Uuid
+  ttsConfigId      String?  @map("tts_config_id") @db.Uuid
   /// JSONB config cascade overrides (user+personality tier). Validated against ConfigOverridesSchema at runtime.
   configOverrides  Json?    @map("config_overrides")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   llmConfig   LlmConfig?  @relation(fields: [llmConfigId], references: [id])
+  ttsConfig   TtsConfig?  @relation("UserPersonalityTtsConfig", fields: [ttsConfigId], references: [id])
   persona     Persona?    @relation(fields: [personaId], references: [id])
   personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
