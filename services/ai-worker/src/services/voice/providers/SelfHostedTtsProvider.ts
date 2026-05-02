@@ -14,6 +14,7 @@
 
 import {
   buildPreparedVoiceId,
+  createLogger,
   type PreparedTts,
   type ResolvedTtsConfig,
   type TtsCapabilities,
@@ -23,6 +24,8 @@ import {
 } from '@tzurot/common-types';
 import { VoiceRegistrationService } from '../VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../ttsSynthesizer.js';
+
+const logger = createLogger('SelfHostedTtsProvider');
 
 const PROVIDER_ID: TtsProviderId = 'self-hosted';
 
@@ -85,7 +88,19 @@ export class SelfHostedTtsProvider implements TtsProvider {
         `SelfHostedTtsProvider received an inlineAudio handle — expected voiceId. Got: ${handle.kind}`
       );
     }
+    const start = Date.now();
     const result = await synthesizeWithChunking(this.registrationService.client, text, handle.id);
+    logger.info(
+      {
+        event: 'tts.synthesize',
+        provider: PROVIDER_ID,
+        model: null,
+        charCount: text.length,
+        outputBytes: result.audioBuffer.length,
+        durationMs: Date.now() - start,
+      },
+      'TTS synthesis'
+    );
     return result.audioBuffer;
   }
 }

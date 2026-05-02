@@ -22,6 +22,7 @@
 
 import {
   buildPreparedVoiceId,
+  createLogger,
   type PreparedTts,
   type ResolvedTtsConfig,
   type TtsCapabilities,
@@ -30,6 +31,8 @@ import {
 } from '@tzurot/common-types';
 import { ElevenLabsVoiceService } from '../ElevenLabsVoiceService.js';
 import { elevenLabsTTS } from '../ElevenLabsClient.js';
+
+const logger = createLogger('ElevenLabsTtsProvider');
 
 /** Static capabilities of the ElevenLabs path. */
 const ELEVENLABS_CAPABILITIES: TtsCapabilities = {
@@ -119,12 +122,24 @@ export class ElevenLabsTtsProvider implements TtsProvider {
     if (ctx.byokKey === undefined || ctx.byokKey.length === 0) {
       throw new Error('ElevenLabsTtsProvider.synthesize requires ctx.byokKey to be set');
     }
+    const start = Date.now();
     const result = await elevenLabsTTS({
       text,
       voiceId: handle.id,
       apiKey: ctx.byokKey,
       modelId: ctx.modelId,
     });
+    logger.info(
+      {
+        event: 'tts.synthesize',
+        provider: 'elevenlabs',
+        model: ctx.modelId ?? null,
+        charCount: text.length,
+        outputBytes: result.audioBuffer.length,
+        durationMs: Date.now() - start,
+      },
+      'TTS synthesis'
+    );
     return result.audioBuffer;
   }
 }
