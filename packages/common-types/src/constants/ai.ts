@@ -152,6 +152,12 @@ export const AI_ENDPOINTS = {
    * of per-token billing. See https://z.ai/subscribe for plan details.
    */
   ZAI_CODING_BASE_URL: 'https://api.z.ai/api/coding/paas/v4',
+  /**
+   * Mistral API base URL — Voxtral TTS + STT live under `/v1/audio/*`.
+   * Same key authorizes voice cloning, speech synthesis, and transcription;
+   * see `audioProviderKeys` map shape in `ResolvedAuth`.
+   */
+  MISTRAL_BASE_URL: 'https://api.mistral.ai/v1',
 } as const;
 
 /** Primary free multimodal model — shared between vision fallback and guest mode */
@@ -181,13 +187,14 @@ export const MODEL_DEFAULTS = {
 } as const;
 
 /**
- * ElevenLabs voice cloning constants
+ * Voice naming prefix for Tzurot-managed clones across all TTS providers.
  *
  * Cross-service contract: both ai-worker (clone creation) and api-gateway
  * (voice management routes) must agree on the prefix used to identify
- * Tzurot-cloned voices in a user's ElevenLabs account.
+ * Tzurot-cloned voices in a user's provider account. Both providers store
+ * cloned voices as `tzurot-{personality_slug}`.
  */
-export const ELEVENLABS_VOICE_NAME_PREFIX = 'tzurot-';
+export const TTS_VOICE_NAME_PREFIX = 'tzurot-';
 
 /**
  * Smallest model in z.ai's coding-plan model catalog — used as the probe
