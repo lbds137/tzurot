@@ -12,6 +12,7 @@ type SubscribeCallback = (event: Record<string, unknown>) => void;
 const capturedCallbacks = {
   apiKey: null as SubscribeCallback | null,
   llmConfig: null as SubscribeCallback | null,
+  ttsConfig: null as SubscribeCallback | null,
   persona: null as SubscribeCallback | null,
   cascade: null as SubscribeCallback | null,
 };
@@ -21,6 +22,7 @@ const mockUnsubscribe = vi.fn().mockResolvedValue(undefined);
 // Mock resolvers with trackable methods
 const mockApiKeyResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
 const mockLlmConfigResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
+const mockTtsConfigResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
 const mockPersonaResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
 const mockCascadeResolver = {
   clearCache: vi.fn(),
@@ -58,6 +60,13 @@ vi.mock('@tzurot/common-types', async () => {
       });
       unsubscribe = mockUnsubscribe;
     },
+    TtsConfigCacheInvalidationService: class {
+      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+        capturedCallbacks.ttsConfig = cb;
+        return Promise.resolve();
+      });
+      unsubscribe = mockUnsubscribe;
+    },
     PersonaCacheInvalidationService: class {
       subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
         capturedCallbacks.persona = cb;
@@ -81,6 +90,10 @@ vi.mock('@tzurot/common-types', async () => {
     LlmConfigResolver: class {
       clearCache = mockLlmConfigResolver.clearCache;
       invalidateUserCache = mockLlmConfigResolver.invalidateUserCache;
+    },
+    TtsConfigResolver: class {
+      clearCache = mockTtsConfigResolver.clearCache;
+      invalidateUserCache = mockTtsConfigResolver.invalidateUserCache;
     },
   };
 });
@@ -111,6 +124,7 @@ describe('setupCacheInvalidation', () => {
     vi.clearAllMocks();
     capturedCallbacks.apiKey = null;
     capturedCallbacks.llmConfig = null;
+    capturedCallbacks.ttsConfig = null;
     capturedCallbacks.persona = null;
     capturedCallbacks.cascade = null;
   });
@@ -125,9 +139,10 @@ describe('setupCacheInvalidation', () => {
     expect(result.cacheInvalidationService).toBeDefined();
     expect(result.apiKeyResolver).toBeDefined();
     expect(result.llmConfigResolver).toBeDefined();
+    expect(result.ttsConfigResolver).toBeDefined();
     expect(result.personaResolver).toBeDefined();
     expect(result.cascadeResolver).toBeDefined();
-    expect(result.cleanupFns).toHaveLength(5);
+    expect(result.cleanupFns).toHaveLength(6);
   });
 
   it('should provide cleanup functions that unsubscribe', async () => {
@@ -138,7 +153,7 @@ describe('setupCacheInvalidation', () => {
 
     await Promise.all(result.cleanupFns.map(fn => fn()));
 
-    expect(mockUnsubscribe).toHaveBeenCalledTimes(5);
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(6);
   });
 
   describe('API key cache invalidation events', () => {
@@ -172,6 +187,26 @@ describe('setupCacheInvalidation', () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.llmConfig?.({ type: 'config', configId: 'cfg-1' });
       expect(mockLlmConfigResolver.clearCache).toHaveBeenCalled();
+    });
+  });
+
+  describe('TTS config cache invalidation events', () => {
+    it('should clear all TTS config cache on "all" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.ttsConfig?.({ type: 'all' });
+      expect(mockTtsConfigResolver.clearCache).toHaveBeenCalled();
+    });
+
+    it('should invalidate user TTS config cache on "user" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.ttsConfig?.({ type: 'user', discordId: 'user-123' });
+      expect(mockTtsConfigResolver.invalidateUserCache).toHaveBeenCalledWith('user-123');
+    });
+
+    it('should clear all TTS config cache on "config" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.ttsConfig?.({ type: 'config', configId: 'cfg-tts-1' });
+      expect(mockTtsConfigResolver.clearCache).toHaveBeenCalled();
     });
   });
 

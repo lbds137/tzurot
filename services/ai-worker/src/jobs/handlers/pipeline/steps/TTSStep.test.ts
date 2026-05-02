@@ -1,27 +1,34 @@
 /**
- * TTSStep Unit Tests
+ * TTSStep unit tests
  *
- * Tests the post-generation TTS synthesis step including:
- * - shouldRunTTS logic (voice mode, voice enabled, success state)
- * - Successful TTS flow (register → synthesize → store)
- * - Graceful degradation on errors and timeouts
+ * The provider-selection + fallback walk lives in `TtsDispatcher` and the
+ * concrete providers (each with its own test file). This file covers what
+ * `TTSStep` itself owns:
  *
- * WARNING: TTSStep uses a lazy singleton for VoiceRegistrationService.
- * Always call resetTTSStepState() in beforeEach/afterEach to prevent
- * stale singleton state from leaking between test files.
+ *   - `shouldRunTTS` prerequisite gating
+ *   - Resolver delegation (resolveConfig is consulted with the correct args)
+ *   - Dispatcher delegation (dispatchTts is called with the resolver's output
+ *     plus `auth.audioProviderKeys` and the module-level provider registry)
+ *   - Output normalization fast-path + failure-tolerance
+ *   - Redis storage (only when synthesis succeeded)
+ *   - Outer 240s timeout race (text-only delivery on timeout)
+ *   - Error path on dispatcher failure → text still delivered
+ *
+ * Provider-internal behavior (cloning, retries, voice-engine warmup, etc.)
+ * is covered by the dedicated dispatcher/provider test files.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Job } from 'bullmq';
 import {
-  AIProvider,
   JobType,
   type LLMGenerationJobData,
   type LoadedPersonality,
+  type ResolvedTtsConfig,
 } from '@tzurot/common-types';
 import type { GenerationContext } from '../types.js';
 
-// --- Mocks ---
+// --- Mocks -----------------------------------------------------------------
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -36,65 +43,20 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const mockEnsureVoiceRegistered = vi.fn().mockResolvedValue(undefined);
-
-const mockVoiceEngineClient = {
-  synthesize: vi.fn(),
-  getHealth: vi.fn().mockResolvedValue({ asr: true, tts: true }),
-};
-
-vi.mock('../../../../services/voice/VoiceRegistrationService.js', () => ({
-  VoiceRegistrationService: class MockVoiceRegistrationService {
-    client = mockVoiceEngineClient;
-    ensureVoiceRegistered = mockEnsureVoiceRegistered;
-  },
+const mockDispatchTts = vi.fn();
+vi.mock('../../../../services/voice/TtsDispatcher.js', () => ({
+  dispatchTts: (...args: unknown[]) => mockDispatchTts(...args),
 }));
 
-const mockGetVoiceEngineClient = vi.fn();
-// Use importOriginal to preserve real exports (isTransientVoiceEngineError, VOICE_ENGINE_RETRY,
-// VoiceEngineError) — only getVoiceEngineClient needs to be mocked for singleton control.
-vi.mock('../../../../services/voice/VoiceEngineClient.js', async importOriginal => {
-  const actual =
-    await importOriginal<typeof import('../../../../services/voice/VoiceEngineClient.js')>();
-  return {
-    ...actual,
-    getVoiceEngineClient: (...args: unknown[]) => mockGetVoiceEngineClient(...args),
-  };
-});
-
-const mockSynthesizeWithChunking = vi.fn();
-vi.mock('../../../../services/voice/ttsSynthesizer.js', () => ({
-  synthesizeWithChunking: (...args: unknown[]) => mockSynthesizeWithChunking(...args),
+vi.mock('../../../../services/voice/ttsProviderRegistry.js', () => ({
+  ttsProviderRegistry: { _id: 'mock-registry' },
+  resetTtsProviderRegistry: vi.fn(),
 }));
 
-const mockEnsureVoiceCloned = vi.fn();
-const mockInvalidateVoice = vi.fn();
-vi.mock('../../../../services/voice/ElevenLabsVoiceService.js', () => ({
-  ElevenLabsVoiceService: class MockElevenLabsVoiceService {
-    ensureVoiceCloned = mockEnsureVoiceCloned;
-    invalidateVoice = mockInvalidateVoice;
-  },
+const mockNormalizeLoudness = vi.fn();
+vi.mock('../../../../services/voice/audioNormalizer.js', () => ({
+  normalizeLoudness: (...args: unknown[]) => mockNormalizeLoudness(...args),
 }));
-
-const mockElevenLabsTTS = vi.fn();
-
-// Use importOriginal to preserve real error classes — eliminates mock drift risk
-// from duplicated getters. Only elevenLabsTTS is mocked; error classification
-// (isAuthError, isTransient, isVoiceLimitError) uses the real class logic.
-vi.mock('../../../../services/voice/ElevenLabsClient.js', async importOriginal => {
-  const actual =
-    await importOriginal<typeof import('../../../../services/voice/ElevenLabsClient.js')>();
-  return {
-    ...actual,
-    elevenLabsTTS: (...args: unknown[]) => mockElevenLabsTTS(...args),
-  };
-});
-
-const { ElevenLabsApiError, ElevenLabsTimeoutError } =
-  await import('../../../../services/voice/ElevenLabsClient.js');
-
-// NOTE: withRetry/RetryError use the real module (no mock).
-// Backoff delays are handled by vi.useFakeTimers() + vi.runAllTimersAsync().
 
 const mockStoreTTSAudio = vi.fn();
 vi.mock('../../../../redis.js', () => ({
@@ -103,17 +65,9 @@ vi.mock('../../../../redis.js', () => ({
   },
 }));
 
-// Mock audioNormalizer — pass the buffer through unchanged so tests don't
-// shell out to ffmpeg. The normalizer's actual behavior is exercised in
-// audioNormalizer.test.ts; here we just need TTSStep to not break.
-vi.mock('../../../../services/voice/audioNormalizer.js', () => ({
-  normalizeLoudness: vi.fn(async (buf: Buffer) => buf),
-}));
-
-// Import after mocks
 const { TTSStep, resetTTSStepState } = await import('./TTSStep.js');
 
-// --- Fixtures ---
+// --- Fixtures --------------------------------------------------------------
 
 const TEST_PERSONALITY: LoadedPersonality = {
   id: 'personality-123',
@@ -130,6 +84,13 @@ const TEST_PERSONALITY: LoadedPersonality = {
   characterInfo: 'A helpful test personality',
   personalityTraits: 'Helpful, friendly',
   voiceEnabled: true,
+};
+
+const RESOLVED_CONFIG: ResolvedTtsConfig = {
+  provider: 'mistral',
+  modelId: 'voxtral-mini-tts-latest',
+  advancedParameters: {},
+  source: 'user-personality',
 };
 
 function createContext(overrides?: Partial<GenerationContext>): GenerationContext {
@@ -166,25 +127,44 @@ function createContext(overrides?: Partial<GenerationContext>): GenerationContex
       showModelFooter: true,
       shareLtmAcrossPersonalities: false,
     } as GenerationContext['configOverrides'],
+    auth: {
+      apiKey: 'sk-llm',
+      provider: undefined,
+      isGuestMode: false,
+      audioProviderKeys: new Map([['mistral', 'sk-mi']]),
+    },
     ...overrides,
   };
 }
 
+function makeResolver() {
+  return {
+    resolveConfig: vi.fn(async () => ({ config: RESOLVED_CONFIG, source: 'user-personality' })),
+  };
+}
+
+// --- Tests -----------------------------------------------------------------
+
 describe('TTSStep', () => {
   let step: InstanceType<typeof TTSStep>;
+  let resolver: ReturnType<typeof makeResolver>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     resetTTSStepState();
-    step = new TTSStep();
 
-    // Default: voice engine is available
-    mockGetVoiceEngineClient.mockReturnValue({ synthesize: vi.fn() });
-    mockSynthesizeWithChunking.mockResolvedValue({
-      audioBuffer: Buffer.from('fake-audio'),
-      contentType: 'audio/wav',
+    resolver = makeResolver();
+    step = new TTSStep(resolver as unknown as ConstructorParameters<typeof TTSStep>[0]);
+
+    // Default happy path: dispatcher returns audio, normalizer passes through, redis stores
+    mockDispatchTts.mockResolvedValue({
+      audioBuffer: Buffer.from('synthesized'),
+      providerUsed: 'mistral',
+      usedFallback: false,
+      outputFormat: 'wav',
     });
+    mockNormalizeLoudness.mockImplementation(async (buf: Buffer) => buf);
     mockStoreTTSAudio.mockResolvedValue('tts:test-job');
   });
 
@@ -193,748 +173,183 @@ describe('TTSStep', () => {
     resetTTSStepState();
   });
 
-  it('should have correct name', () => {
+  it('has the expected step name', () => {
     expect(step.name).toBe('TTSStep');
   });
 
-  describe('shouldRunTTS (via process returning context unchanged)', () => {
+  // ===== shouldRunTTS prerequisites =========================================
+
+  describe('shouldRunTTS', () => {
     it('skips when result.success is false', async () => {
       const ctx = createContext({
-        result: {
-          requestId: 'req-1',
-          success: false,
-          content: 'Error occurred',
-          metadata: { processingTimeMs: 0 },
-        },
+        result: { requestId: 'req-1', success: false, content: '', metadata: {} },
       });
-
-      const result = await step.process(ctx);
-
-      expect(result).toBe(ctx);
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+      await step.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
     });
 
     it('skips when personality.voiceEnabled is false', async () => {
       const ctx = createContext();
       ctx.job.data.personality.voiceEnabled = false;
-
-      const result = await step.process(ctx);
-
-      expect(result).toBe(ctx);
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+      await step.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
     });
 
-    it('skips when personality.voiceEnabled is missing (legacy job payloads)', async () => {
+    it('skips when voiceResponseMode is "never"', async () => {
       const ctx = createContext();
-      // Cast to handle in-flight jobs from before voiceEnabled had a default
-      (ctx.job.data.personality as Record<string, unknown>).voiceEnabled = undefined;
-
-      const result = await step.process(ctx);
-
-      expect(result).toBe(ctx);
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+      (ctx.configOverrides as { voiceResponseMode: string }).voiceResponseMode = 'never';
+      await step.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
     });
 
-    it('skips when voiceResponseMode is never', async () => {
-      const ctx = createContext({
-        configOverrides: {
-          voiceResponseMode: 'never',
-          voiceTranscriptionEnabled: true,
-          showModelFooter: true,
-          shareLtmAcrossPersonalities: false,
-        } as GenerationContext['configOverrides'],
-      });
-
-      const result = await step.process(ctx);
-
-      expect(result).toBe(ctx);
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+    it('skips when configOverrides is missing (defaults to never)', async () => {
+      const ctx = createContext({ configOverrides: undefined });
+      await step.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
     });
 
-    it('skips when voiceResponseMode is voice-only and isVoiceMessage is false', async () => {
-      const ctx = createContext({
-        configOverrides: {
-          voiceResponseMode: 'voice-only',
-          voiceTranscriptionEnabled: true,
-          showModelFooter: true,
-          shareLtmAcrossPersonalities: false,
-        } as GenerationContext['configOverrides'],
-      });
+    it('skips when voiceResponseMode=voice-only and trigger is not a voice message', async () => {
+      const ctx = createContext();
+      (ctx.configOverrides as { voiceResponseMode: string }).voiceResponseMode = 'voice-only';
       ctx.job.data.context.isVoiceMessage = false;
-
-      const result = await step.process(ctx);
-
-      expect(result).toBe(ctx);
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+      await step.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
     });
 
-    it('runs when voiceResponseMode is always and voiceEnabled is true', async () => {
+    it('runs when voiceResponseMode=voice-only and trigger IS a voice message', async () => {
       const ctx = createContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      expect(result).toBe(ctx);
-      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
-    });
-
-    it('runs when voiceResponseMode is voice-only and isVoiceMessage is true', async () => {
-      const ctx = createContext({
-        configOverrides: {
-          voiceResponseMode: 'voice-only',
-          voiceTranscriptionEnabled: true,
-          showModelFooter: true,
-          shareLtmAcrossPersonalities: false,
-        } as GenerationContext['configOverrides'],
-      });
+      (ctx.configOverrides as { voiceResponseMode: string }).voiceResponseMode = 'voice-only';
       ctx.job.data.context.isVoiceMessage = true;
+      await step.process(ctx);
+      expect(mockDispatchTts).toHaveBeenCalledTimes(1);
+    });
 
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      expect(result).toBe(ctx);
-      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
+    it('skips when content is empty', async () => {
+      const ctx = createContext();
+      ctx.result!.content = '';
+      await step.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
     });
   });
 
-  describe('process (successful TTS)', () => {
-    it('sets ttsAudioKey on result.metadata', async () => {
-      mockStoreTTSAudio.mockResolvedValue('tts:test-job');
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('fake-audio-data'),
-        contentType: 'audio/wav',
-      });
+  // ===== Resolver / dispatcher delegation ===================================
 
+  describe('resolver + dispatcher delegation', () => {
+    it('skips entirely when no TtsConfigResolver is wired', async () => {
+      const stepNoResolver = new TTSStep();
       const ctx = createContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:test-job');
-      expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
-      expect(mockSynthesizeWithChunking).toHaveBeenCalledWith(
-        expect.anything(), // voice engine client
-        'Hello world',
-        'testbot'
-      );
-      expect(mockStoreTTSAudio).toHaveBeenCalledWith('test-job', Buffer.from('fake-audio-data'));
+      await stepNoResolver.process(ctx);
+      expect(mockDispatchTts).not.toHaveBeenCalled();
     });
 
-    it('retries health check during cold start and succeeds when engine wakes', async () => {
-      // Engine wakes on 3rd health check (after ~6s of retries)
-      mockVoiceEngineClient.getHealth
-        .mockResolvedValueOnce({ asr: false, tts: false })
-        .mockResolvedValueOnce({ asr: true, tts: false })
-        .mockResolvedValueOnce({ asr: true, tts: true });
-      mockStoreTTSAudio.mockResolvedValue('tts:cold-job');
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('cold-start-audio'),
-        contentType: 'audio/wav',
-      });
-
+    it('calls resolveConfig with userId, personality.id, and { id }', async () => {
       const ctx = createContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // Should have retried health check 3 times then succeeded
-      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledTimes(3);
-      expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:cold-job');
+      await step.process(ctx);
+      expect(resolver.resolveConfig).toHaveBeenCalledWith('user-1', 'personality-123', {
+        id: 'personality-123',
+      });
     });
 
-    it('proceeds with TTS after health budget exhausted', async () => {
-      // Engine never reports ready within the 75s time budget
-      mockVoiceEngineClient.getHealth.mockResolvedValue({ asr: false, tts: false });
-      mockStoreTTSAudio.mockResolvedValue('tts:retry-job');
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('late-audio'),
-        contentType: 'audio/wav',
-      });
-
+    it('passes resolved config + audioProviderKeys + ctx + registry to dispatcher', async () => {
       const ctx = createContext();
+      await step.process(ctx);
 
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // With fake timers, Date.now() only advances on setTimeout fires, so the
-      // poll count is deterministic: 120_000 / 3_000 = 40 polls (each followed by
-      // a 3s sleep; after the 40th sleep Date.now() == deadline, loop exits).
-      expect(mockVoiceEngineClient.getHealth).toHaveBeenCalledTimes(40);
-      expect(mockEnsureVoiceRegistered).toHaveBeenCalledWith('testbot');
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
+      expect(mockDispatchTts).toHaveBeenCalledTimes(1);
+      const call = mockDispatchTts.mock.calls[0][0];
+      expect(call.text).toBe('Hello world');
+      expect(call.resolvedConfig).toEqual(RESOLVED_CONFIG);
+      expect(call.ctx).toEqual({ slug: 'testbot', modelId: 'voxtral-mini-tts-latest' });
+      expect(call.audioProviderKeys.get('mistral')).toBe('sk-mi');
+      expect(call.registry).toEqual({ _id: 'mock-registry' });
     });
 
-    it('returns context unchanged when voice engine client is null', async () => {
-      mockGetVoiceEngineClient.mockReturnValue(null);
-
-      const ctx = createContext();
-
-      const result = await step.process(ctx);
-
-      expect(result).toBe(ctx);
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
+    it('passes an empty Map for audioProviderKeys when auth is missing', async () => {
+      const ctx = createContext({ auth: undefined });
+      await step.process(ctx);
+      const call = mockDispatchTts.mock.calls[0][0];
+      expect(call.audioProviderKeys.size).toBe(0);
     });
   });
 
-  describe('ElevenLabs BYOK TTS', () => {
-    it('routes to ElevenLabs when elevenlabsApiKey is present', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-123');
-      mockElevenLabsTTS.mockResolvedValue({
-        audioBuffer: Buffer.from('mp3-audio'),
-        contentType: 'audio/mpeg',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:el-job');
+  // ===== Storage path =======================================================
 
-      const ctx = createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
-        },
-      });
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      expect(mockEnsureVoiceCloned).toHaveBeenCalledWith('testbot', 'sk_el_test');
-      expect(mockElevenLabsTTS).toHaveBeenCalledWith({
-        text: 'Hello world',
-        voiceId: 'el-voice-123',
-        apiKey: 'sk_el_test',
-        modelId: undefined,
-      });
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:el-job');
-      // After PR 1 audioNormalizer integration, all outputs are normalized to
-      // canonical PCM WAV regardless of source provider (ElevenLabs MP3 → WAV).
-      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
-      // Should NOT use voice-engine path
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
-      expect(mockEnsureVoiceRegistered).not.toHaveBeenCalled();
-    });
-
-    it('skips voice-engine check when ElevenLabs key is present (no voice-engine needed)', async () => {
-      mockGetVoiceEngineClient.mockReturnValue(null);
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-456');
-      mockElevenLabsTTS.mockResolvedValue({
-        audioBuffer: Buffer.from('mp3-data'),
-        contentType: 'audio/mpeg',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:no-ve-job');
-
-      const ctx = createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
-        },
-      });
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // ElevenLabs works even without voice-engine
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:no-ve-job');
-    });
-
-    it('auto-reclones and retries when ElevenLabs returns 404 (voice deleted)', async () => {
-      // First ensureVoiceCloned returns the stale (deleted) voice ID
-      // After invalidation, second call returns a freshly cloned voice ID
-      mockEnsureVoiceCloned
-        .mockResolvedValueOnce('stale-voice-id')
-        .mockResolvedValueOnce('new-voice-id');
-
-      // First TTS call fails with 404, second succeeds with new voice
-      mockElevenLabsTTS
-        .mockRejectedValueOnce(
-          new ElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
-        )
-        .mockResolvedValueOnce({
-          audioBuffer: Buffer.from('recloned-audio'),
-          contentType: 'audio/mpeg',
-        });
-      mockStoreTTSAudio.mockResolvedValue('tts:reclone-job');
-
-      const ctx = createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
-        },
-      });
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // Should have invalidated cache and re-cloned
-      expect(mockInvalidateVoice).toHaveBeenCalledWith('testbot', 'sk_el_test');
-      expect(mockEnsureVoiceCloned).toHaveBeenCalledTimes(2);
-      // Second TTS call uses the new voice ID
-      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
-      expect(mockElevenLabsTTS).toHaveBeenLastCalledWith({
-        text: 'Hello world',
-        voiceId: 'new-voice-id',
-        apiKey: 'sk_el_test',
-        modelId: undefined,
-      });
-      // TTS succeeded after reclone
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:reclone-job');
-    });
-
-    it('propagates non-retryable ElevenLabs errors without retry (401 auth)', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-401');
-      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(401, 'Invalid API key'));
-      // No voice-engine → no fallback
-      mockGetVoiceEngineClient.mockReturnValue(null);
-
-      const ctx = createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
-        },
-      });
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // 401 is non-retryable — fast-fail, no retry, degrade to text-only
-      expect(mockInvalidateVoice).not.toHaveBeenCalled();
-      expect(mockEnsureVoiceCloned).toHaveBeenCalledTimes(1);
-      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-    });
-
-    it('falls back to voice-engine when ElevenLabs clone fails', async () => {
-      mockEnsureVoiceCloned.mockRejectedValue(new Error('Clone failed'));
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('fallback-clone-audio'),
-        contentType: 'audio/wav',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:clone-fallback');
-
-      const ctx = createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
-        },
-      });
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // ElevenLabs clone failed → voice-engine fallback succeeded
-      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:clone-fallback');
-    });
-
-    it('passes elevenlabsTtsModel from configOverrides to elevenLabsTTS', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-789');
-      mockElevenLabsTTS.mockResolvedValue({
-        audioBuffer: Buffer.from('turbo-audio'),
-        contentType: 'audio/mpeg',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:turbo-job');
-
-      const ctx = createContext({
-        auth: {
-          apiKey: 'sk-or-key',
-          provider: AIProvider.OpenRouter,
-          isGuestMode: false,
-          elevenlabsApiKey: 'sk_el_test',
-          audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
-        },
-        configOverrides: {
-          voiceResponseMode: 'always',
-          voiceTranscriptionEnabled: true,
-          showModelFooter: true,
-          shareLtmAcrossPersonalities: false,
-          elevenlabsTtsModel: 'eleven_turbo_v2_5',
-        } as GenerationContext['configOverrides'],
-      });
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      await promise;
-
-      expect(mockElevenLabsTTS).toHaveBeenCalledWith({
-        text: 'Hello world',
-        voiceId: 'el-voice-789',
-        apiKey: 'sk_el_test',
-        modelId: 'eleven_turbo_v2_5',
-      });
-    });
-
-    it('sets ttsAudioContentType for voice-engine path', async () => {
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('wav-audio'),
-        contentType: 'audio/wav',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:ve-job');
-
+  describe('storage', () => {
+    it('stores normalized audio in Redis and writes ttsAudioKey to metadata', async () => {
       const ctx = createContext();
+      await step.process(ctx);
 
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
+      expect(mockNormalizeLoudness).toHaveBeenCalledWith(Buffer.from('synthesized'));
+      expect(mockStoreTTSAudio).toHaveBeenCalledWith('test-job', Buffer.from('synthesized'));
+      expect(ctx.result?.metadata?.ttsAudioKey).toBe('tts:test-job');
+      expect(ctx.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
+    });
 
-      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
+    it('falls back to unnormalized audio when normalization throws', async () => {
+      mockNormalizeLoudness.mockRejectedValueOnce(new Error('ffmpeg missing'));
+      const ctx = createContext();
+      await step.process(ctx);
+
+      // Storage still happens — degraded but not dropped
+      expect(mockStoreTTSAudio).toHaveBeenCalledWith('test-job', Buffer.from('synthesized'));
+      expect(ctx.result?.metadata?.ttsAudioKey).toBe('tts:test-job');
+      // Content type reflects the dispatcher's outputFormat (wav) since
+      // normalization didn't run — the canonical "audio/wav" override didn't
+      // apply, but in this case wav is also the natural output content-type.
+      expect(ctx.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
+    });
+
+    it('maps non-wav outputFormat to its content type when normalization fails', async () => {
+      mockNormalizeLoudness.mockRejectedValueOnce(new Error('ffmpeg missing'));
+      mockDispatchTts.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('mp3-bytes'),
+        providerUsed: 'elevenlabs',
+        usedFallback: false,
+        outputFormat: 'mp3',
+      });
+      const ctx = createContext();
+      await step.process(ctx);
+      expect(ctx.result?.metadata?.ttsAudioContentType).toBe('audio/mpeg');
+    });
+
+    it('falls back to job.data.requestId when job.id is undefined', async () => {
+      const ctx = createContext();
+      ctx.job = { ...ctx.job, id: undefined } as Job<LLMGenerationJobData>;
+      await step.process(ctx);
+      expect(mockStoreTTSAudio).toHaveBeenCalledWith('req-1', expect.any(Buffer));
     });
   });
 
-  function createElevenLabsContext(overrides?: Partial<GenerationContext>): GenerationContext {
-    return createContext({
-      auth: {
-        apiKey: 'sk-or-key',
-        provider: AIProvider.OpenRouter,
-        isGuestMode: false,
-        elevenlabsApiKey: 'sk_el_test',
-        audioProviderKeys: new Map([['elevenlabs', 'sk_el_test']]),
-      },
-      ...overrides,
-    });
-  }
-
-  describe('ElevenLabs single-attempt contract', () => {
-    // ELEVENLABS_MAX_ATTEMPTS is 1 — see TTSStep.ts for rationale.
-    // Transient-error classification still matters for the fallback path,
-    // which is exercised by the "ElevenLabs fallback to voice-engine" block below.
-    //
-    // Exception to "exactly one ElevenLabs call": 404 (voice_id not found)
-    // is handled inline by the re-clone path, which invalidates the cache and
-    // retries with a freshly cloned voice. That is intentional state-fix
-    // recovery, not retry-on-transient — this contract covers the withRetry
-    // budget, not the total ElevenLabs invocation count. The double-404
-    // fallback case is tested separately in the fallback block below.
-
-    it.each([
-      { label: '429 rate limit', error: () => new ElevenLabsApiError(429, 'Rate limited') },
-      {
-        label: '500 server error',
-        error: () => new ElevenLabsApiError(500, 'Internal server error'),
-      },
-      // 401 is non-retryable per isTransientElevenLabsError. At maxAttempts=1
-      // the transient/non-transient distinction has no runtime effect (both
-      // produce 1 attempt), so it's grouped here alongside transient cases.
-      {
-        label: '401 auth error (non-retryable)',
-        error: () => new ElevenLabsApiError(401, 'Invalid API key'),
-      },
-      {
-        label: 'network timeout',
-        error: () =>
-          new ElevenLabsTimeoutError(60_000, '/text-to-speech/test', new Error('Aborted')),
-      },
-      { label: 'fetch connection failure (TypeError)', error: () => new TypeError('fetch failed') },
-      {
-        label: 'TypeError with ECONNREFUSED cause',
-        error: () => new TypeError('other undici error', { cause: { code: 'ECONNREFUSED' } }),
-      },
-      {
-        label: 'TypeError with ECONNRESET cause',
-        error: () => new TypeError('other undici error', { cause: { code: 'ECONNRESET' } }),
-      },
-      {
-        label: 'programming TypeError (non-network)',
-        error: () => new TypeError('Cannot read properties of null'),
-      },
-    ])('attempts ElevenLabs exactly once on $label (no retry)', async ({ error }) => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-single-attempt');
-      mockElevenLabsTTS.mockRejectedValue(error());
-      // No voice-engine — isolates the ElevenLabs attempt count
-      mockGetVoiceEngineClient.mockReturnValue(null);
-
-      const ctx = createElevenLabsContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-    });
-  });
-
-  describe('ElevenLabs fallback to voice-engine', () => {
-    it('falls back to voice-engine after retries exhaust (429)', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-fallback');
-      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(429, 'Rate limited'));
-      // Voice-engine is available for fallback
-      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('fallback-audio'),
-        contentType: 'audio/wav',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:fallback-job');
-
-      const ctx = createElevenLabsContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // ElevenLabs attempted once (no retry), then fallback
-      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
-      // Voice-engine fallback succeeded
-      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:fallback-job');
-      expect(result.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
-    });
-
-    it('falls back on auth error (401) — skips retry, goes to voice-engine', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-auth-fb');
-      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(401, 'Invalid API key'));
-      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('auth-fallback-audio'),
-        contentType: 'audio/wav',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:auth-fallback-job');
-
-      const ctx = createElevenLabsContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // 401 fast-fails (1 attempt), then voice-engine fallback
-      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
-      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:auth-fallback-job');
-    });
-
-    it('no fallback when voice-engine not configured → text-only', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-no-ve');
-      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(500, 'Server error'));
-      mockGetVoiceEngineClient.mockReturnValue(null);
-
-      const ctx = createElevenLabsContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // No voice-engine → no fallback, text-only
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      expect(result.result?.content).toBe('Hello world');
-    });
-
-    it('falls back to voice-engine when re-cloned voice also 404s', async () => {
-      // First clone returns stale voice, re-clone returns another voice that also 404s.
-      // 404 is not transient → shouldRetry returns false → propagates to WithFallback.
-      mockEnsureVoiceCloned
-        .mockResolvedValueOnce('stale-voice-id')
-        .mockResolvedValueOnce('also-stale-voice-id');
-
-      // First TTS: 404 → triggers re-clone. Second TTS (with re-cloned voice): also 404.
-      // 404 is not retryable, so withRetry does not retry — error propagates to fallback.
-      mockElevenLabsTTS
-        .mockRejectedValueOnce(
-          new ElevenLabsApiError(404, "voice_id 'stale-voice-id' was not found")
-        )
-        .mockRejectedValueOnce(
-          new ElevenLabsApiError(404, "voice_id 'also-stale-voice-id' was not found")
-        );
-
-      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
-      mockSynthesizeWithChunking.mockResolvedValue({
-        audioBuffer: Buffer.from('fallback-after-double-404'),
-        contentType: 'audio/wav',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:double-404-fallback');
-
-      const ctx = createElevenLabsContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // Both ElevenLabs TTS calls returned 404
-      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(2);
-      expect(mockInvalidateVoice).toHaveBeenCalledWith('testbot', 'sk_el_test');
-      // Voice-engine fallback succeeded
-      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:double-404-fallback');
-    });
-
-    it('voice-engine fallback also fails → text-only gracefully', async () => {
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-double-fail');
-      mockElevenLabsTTS.mockRejectedValue(new ElevenLabsApiError(429, 'Rate limited'));
-      mockGetVoiceEngineClient.mockReturnValue(mockVoiceEngineClient);
-      mockSynthesizeWithChunking.mockRejectedValue(new Error('Voice engine also unavailable'));
-
-      const ctx = createElevenLabsContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // ElevenLabs attempted once, voice-engine also failed → graceful degradation to text-only
-      expect(mockElevenLabsTTS).toHaveBeenCalledTimes(1);
-      expect(mockSynthesizeWithChunking).toHaveBeenCalled();
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      expect(result.result?.content).toBe('Hello world');
-    });
-  });
-
-  describe('voice-engine retry on transient errors', () => {
-    it('retries on ECONNREFUSED and succeeds on second attempt', async () => {
-      const econnrefusedCause = new Error('connect ECONNREFUSED') as NodeJS.ErrnoException;
-      econnrefusedCause.code = 'ECONNREFUSED';
-      const fetchError = new TypeError('fetch failed', { cause: econnrefusedCause });
-
-      mockSynthesizeWithChunking.mockRejectedValueOnce(fetchError).mockResolvedValueOnce({
-        audioBuffer: Buffer.from('retry-audio'),
-        contentType: 'audio/wav',
-      });
-      mockStoreTTSAudio.mockResolvedValue('tts:retry-job');
-
-      const ctx = createContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      expect(result.result?.metadata?.ttsAudioKey).toBe('tts:retry-job');
-      // First call fails, second succeeds
-      expect(mockSynthesizeWithChunking).toHaveBeenCalledTimes(2);
-      // Registration called twice (once per retry attempt — cache prevents duplicate work)
-      expect(mockEnsureVoiceRegistered).toHaveBeenCalledTimes(2);
-    });
-
-    it('gives up after max retry attempts and degrades gracefully', async () => {
-      const fetchError = new TypeError('fetch failed');
-
-      mockSynthesizeWithChunking.mockRejectedValue(fetchError);
-
-      const ctx = createContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // Graceful degradation — text still delivered
-      expect(result).toBe(ctx);
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      expect(result.result?.content).toBe('Hello world');
-      // 2 attempts (MAX_ATTEMPTS = 2) — both registration and synthesis retry together
-      expect(mockSynthesizeWithChunking).toHaveBeenCalledTimes(2);
-      expect(mockEnsureVoiceRegistered).toHaveBeenCalledTimes(2);
-    });
-
-    it('does not retry non-transient errors (fast-fail)', async () => {
-      // VoiceEngineError 401 is not transient — should fast-fail
-      const { VoiceEngineError } = await import('../../../../services/voice/VoiceEngineClient.js');
-      mockEnsureVoiceRegistered.mockRejectedValue(new VoiceEngineError(401, 'Unauthorized'));
-
-      const ctx = createContext();
-
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      // Graceful degradation
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      // Only 1 attempt — shouldRetry returned false
-      expect(mockEnsureVoiceRegistered).toHaveBeenCalledTimes(1);
-      expect(mockSynthesizeWithChunking).not.toHaveBeenCalled();
-    });
-  });
+  // ===== Error / timeout paths =============================================
 
   describe('error handling', () => {
-    it('returns context unchanged when TTS synthesis fails (graceful degradation)', async () => {
-      mockSynthesizeWithChunking.mockRejectedValue(new Error('Voice engine unavailable'));
-
+    it('delivers text-only when dispatcher throws (ttsAudioKey not set)', async () => {
+      mockDispatchTts.mockRejectedValueOnce(new Error('all providers down'));
       const ctx = createContext();
+      const result = await step.process(ctx);
 
-      const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
-      const result = await promise;
-
-      expect(result).toBe(ctx);
       expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      // Text content is preserved
+      // Original content preserved
       expect(result.result?.content).toBe('Hello world');
     });
 
-    it('skips audio storage when job ID is undefined', async () => {
-      const ctx = createContext({
-        job: {
-          id: undefined,
-          data: {
-            ...createContext().job.data,
-            requestId: undefined as unknown as string,
-          },
-        } as Job<LLMGenerationJobData>,
-      });
+    it('treats outer timeout as soft failure — text-only delivery', async () => {
+      // Dispatcher hangs forever
+      mockDispatchTts.mockImplementationOnce(() => new Promise(() => {}));
+      const ctx = createContext();
 
       const promise = step.process(ctx);
-      await vi.runAllTimersAsync();
+      // Advance past the 240s budget
+      await vi.advanceTimersByTimeAsync(240_001);
       const result = await promise;
 
-      // Should not store audio (no valid key)
+      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
+      expect(result.result?.content).toBe('Hello world');
+    });
+
+    it('does not store anything when dispatcher fails', async () => {
+      mockDispatchTts.mockRejectedValueOnce(new Error('all providers down'));
+      await step.process(createContext());
       expect(mockStoreTTSAudio).not.toHaveBeenCalled();
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-    });
-
-    it('returns context unchanged when TTS times out (voice-engine path, 240s)', async () => {
-      // Synthesis never resolves — will be beaten by the timeout
-      mockSynthesizeWithChunking.mockImplementation(
-        () => new Promise(() => {}) // never resolves
-      );
-
-      const ctx = createContext();
-
-      const promise = step.process(ctx);
-      // Advance past the 240s voice-engine timeout (includes cold start budget)
-      await vi.advanceTimersByTimeAsync(240_000);
-      const result = await promise;
-
-      expect(result).toBe(ctx);
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      expect(result.result?.content).toBe('Hello world');
-    });
-
-    it('returns context unchanged when TTS times out (unified 240s budget)', async () => {
-      // ElevenLabs TTS never resolves — will be beaten by the unified 240s timeout
-      mockEnsureVoiceCloned.mockResolvedValue('el-voice-timeout');
-      mockElevenLabsTTS.mockImplementation(
-        () => new Promise(() => {}) // never resolves
-      );
-
-      const ctx = createElevenLabsContext();
-
-      const promise = step.process(ctx);
-      // Advance past the 240s TTS_MAX_TOTAL_MS budget
-      await vi.advanceTimersByTimeAsync(240_000);
-      const result = await promise;
-
-      expect(result).toBe(ctx);
-      expect(result.result?.metadata?.ttsAudioKey).toBeUndefined();
-      expect(result.result?.content).toBe('Hello world');
     });
   });
 });
