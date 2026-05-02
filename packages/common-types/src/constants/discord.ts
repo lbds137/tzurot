@@ -214,6 +214,7 @@ export const DISCORD_PROVIDER_CHOICES = [
   { name: 'OpenRouter', value: 'openrouter' },
   { name: 'ElevenLabs (Voice)', value: 'elevenlabs' },
   { name: 'Z.AI Coding Plan', value: 'zai-coding' },
+  { name: 'Mistral (Voxtral TTS/STT)', value: 'mistral' },
 ] as const;
 
 /**

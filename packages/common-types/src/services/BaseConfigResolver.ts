@@ -48,7 +48,7 @@ export interface UserWithDefault<TMappedOverride> {
 export type ConfigResolutionSource = 'user-personality' | 'user-default' | 'personality';
 
 /** Result of cascade resolution, with source tracking. */
-export interface ConfigResolutionResult<TResolved> {
+export interface BaseConfigResolutionResult<TResolved> {
   /** Effective config (merged with personality defaults where applicable). */
   config: TResolved;
   /** Tier that provided the config. */
@@ -83,12 +83,12 @@ export interface BaseConfigResolverOptions {
  *   - `TResolved`: the fully-resolved config returned to callers
  */
 export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolved> {
-  protected readonly cache: TTLCache<ConfigResolutionResult<TResolved>>;
+  protected readonly cache: TTLCache<BaseConfigResolutionResult<TResolved>>;
   protected readonly logger: Logger;
 
   constructor(serviceName: string, options?: BaseConfigResolverOptions) {
     this.logger = createLogger(serviceName);
-    this.cache = new TTLCache<ConfigResolutionResult<TResolved>>({
+    this.cache = new TTLCache<BaseConfigResolutionResult<TResolved>>({
       ttl: options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL,
       now: options?.now,
     });
@@ -110,7 +110,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
     userId: string | undefined,
     personalityId: string,
     personalityConfig: TPersonality
-  ): Promise<ConfigResolutionResult<TResolved>> {
+  ): Promise<BaseConfigResolutionResult<TResolved>> {
     // No userId → personality default (anonymous / system path).
     if (userId === undefined || userId.length === 0) {
       return {
@@ -132,7 +132,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
 
       if (user === null) {
         // User doesn't exist in DB → personality default.
-        const result: ConfigResolutionResult<TResolved> = {
+        const result: BaseConfigResolutionResult<TResolved> = {
           config: this.extractFromPersonality(personalityConfig),
           source: 'personality',
         };
@@ -143,7 +143,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
       // Priority 1: user per-personality override.
       const userPersonality = await this.findPerPersonalityOverride(user.internalId, personalityId);
       if (userPersonality !== null) {
-        const result: ConfigResolutionResult<TResolved> = {
+        const result: BaseConfigResolutionResult<TResolved> = {
           config: this.mergeWithPersonality(personalityConfig, userPersonality.override),
           source: 'user-personality',
           configName: userPersonality.name,
@@ -158,7 +158,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
 
       // Priority 2: user global default (joined into findUserWithDefault to save a query).
       if (user.defaultOverride !== null) {
-        const result: ConfigResolutionResult<TResolved> = {
+        const result: BaseConfigResolutionResult<TResolved> = {
           config: this.mergeWithPersonality(personalityConfig, user.defaultOverride.override),
           source: 'user-default',
           configName: user.defaultOverride.name,
@@ -172,7 +172,7 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
       }
 
       // Fallback: personality default.
-      const result: ConfigResolutionResult<TResolved> = {
+      const result: BaseConfigResolutionResult<TResolved> = {
         config: this.extractFromPersonality(personalityConfig),
         source: 'personality',
       };

@@ -25,8 +25,8 @@ import {
 import {
   BaseConfigResolver,
   type BaseConfigResolverOptions,
+  type BaseConfigResolutionResult,
   type ConfigOverrideEntry,
-  type ConfigResolutionResult as BaseConfigResolutionResult,
   type UserWithDefault,
 } from './BaseConfigResolver.js';
 import type { PrismaClient } from './prisma.js';
