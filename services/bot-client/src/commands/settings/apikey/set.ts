@@ -86,6 +86,12 @@ function getProviderInfo(provider: AIProvider): {
         placeholder: API_KEY_FORMATS.ZAI_CODING_PLACEHOLDER,
         helpUrl: 'https://z.ai/manage-apikey/apikey-list',
       };
+    case AIProvider.Mistral:
+      return {
+        displayName: 'Mistral (Voxtral TTS/STT)',
+        placeholder: 'Your Mistral API key (console.mistral.ai)',
+        helpUrl: 'https://console.mistral.ai/api-keys',
+      };
     default: {
       // Type guard for exhaustive check - add new providers above
       const _exhaustive: never = provider;
