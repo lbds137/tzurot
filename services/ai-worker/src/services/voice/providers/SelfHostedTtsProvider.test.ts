@@ -2,16 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SelfHostedTtsProvider } from './SelfHostedTtsProvider.js';
 
 vi.mock('../ttsSynthesizer.js', () => ({
-  synthesizeWithChunking: vi
-    .fn()
-    .mockResolvedValue({
-      audioBuffer: Buffer.from([0x4f, 0x67, 0x67, 0x53]),
-      contentType: 'audio/ogg',
-    }),
+  synthesizeWithChunking: vi.fn().mockResolvedValue({
+    audioBuffer: Buffer.from([0x4f, 0x67, 0x67, 0x53]),
+    contentType: 'audio/ogg',
+  }),
 }));
 import { synthesizeWithChunking } from '../ttsSynthesizer.js';
 
+vi.mock('../voiceEngineWarmup.js', () => ({
+  waitForVoiceEngine: vi.fn().mockResolvedValue({ ready: true, elapsedMs: 0 }),
+}));
+import { waitForVoiceEngine } from '../voiceEngineWarmup.js';
+
 const mockedSynthesizeWithChunking = vi.mocked(synthesizeWithChunking);
+const mockedWaitForVoiceEngine = vi.mocked(waitForVoiceEngine);
 
 interface MockRegService {
   client: { _isMockClient: true };
@@ -90,6 +94,31 @@ describe('SelfHostedTtsProvider', () => {
         id: 'lila-zot-lilit',
         provider: 'self-hosted',
       });
+    });
+
+    it('warms voice-engine BEFORE attempting registration (cold-start absorbs)', async () => {
+      // Track call order via Date.now() ordering — warmup must complete first
+      const callOrder: string[] = [];
+      mockedWaitForVoiceEngine.mockImplementationOnce(async () => {
+        callOrder.push('warmup');
+        return { ready: true, elapsedMs: 1500 };
+      });
+      regService.ensureVoiceRegistered.mockImplementationOnce(async () => {
+        callOrder.push('register');
+      });
+
+      await provider.prepare({ slug: 'cold-start-test' });
+
+      expect(callOrder).toEqual(['warmup', 'register']);
+      expect(mockedWaitForVoiceEngine).toHaveBeenCalledWith(regService.client, 'tts');
+    });
+
+    it('propagates warmup errors without attempting registration', async () => {
+      mockedWaitForVoiceEngine.mockRejectedValueOnce(new Error('voice-engine unreachable'));
+      await expect(provider.prepare({ slug: 'broken-slug' })).rejects.toThrow(
+        'voice-engine unreachable'
+      );
+      expect(regService.ensureVoiceRegistered).not.toHaveBeenCalled();
     });
 
     it('propagates registration errors', async () => {
