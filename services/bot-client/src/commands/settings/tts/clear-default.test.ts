@@ -42,7 +42,10 @@ describe('handleClearDefault', () => {
   });
 
   it('hits DELETE /user/tts-override/default and shows success embed', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { deleted: true, newEffectiveDefault: null },
+    });
     const context = makeContext();
 
     await handleClearDefault(context as never);
@@ -56,6 +59,53 @@ describe('handleClearDefault', () => {
         embeds: [
           expect.objectContaining({
             data: expect.objectContaining({ title: expect.stringContaining('Cleared') }),
+          }),
+        ],
+      })
+    );
+  });
+
+  it('renders the new effective default name when one exists', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        deleted: true,
+        newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
+      },
+    });
+    const context = makeContext();
+
+    await handleClearDefault(context as never);
+
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: expect.stringContaining('kyutai-self-hosted'),
+            }),
+          }),
+        ],
+      })
+    );
+  });
+
+  it('renders hardcoded-fallback notice when newEffectiveDefault is null', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { deleted: true, newEffectiveDefault: null },
+    });
+    const context = makeContext();
+
+    await handleClearDefault(context as never);
+
+    expect(context.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: expect.stringContaining('built-in fallback'),
+            }),
           }),
         ],
       })
