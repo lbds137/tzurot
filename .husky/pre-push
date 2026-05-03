@@ -127,7 +127,18 @@ else
     echo "Copy-paste detection completed."
 fi
 
-# 9. Run dependency boundary checks (BLOCKING)
+# 9. Run duplicate-export name check (BLOCKING)
+# Catches export-name collisions across two packages or two files within a
+# package. CI runs this in the lint job; running it here too closes the
+# local-vs-CI gap. Fast (~300ms) — negligible cost vs a CI round-trip.
+echo "Running duplicate-export name check..."
+if ! pnpm ops guard:duplicate-exports; then
+    echo "${RED}Duplicate export name check failed!${NC}"
+    echo "Either rename the duplicates or add them to ALLOWLIST in check-duplicate-exports.ts"
+    exit 1
+fi
+
+# 10. Run dependency boundary checks (BLOCKING)
 # Clear the depcruise cache first — content-strategy caching has missed
 # circular-dependency violations across renamed/moved files at least once
 # (PR #901, 2026-04-25). The full analysis takes ~5s, so the cost of always
@@ -141,7 +152,7 @@ if ! pnpm depcruise; then
     exit 1
 fi
 
-# 10. Run Python quality checks if Python files changed
+# 11. Run Python quality checks if Python files changed
 if [ -n "$PYTHON_FILES" ]; then
     echo "Running Python quality checks (ruff + mypy + pytest)..."
     if ! (cd services/voice-engine && ruff check .); then
