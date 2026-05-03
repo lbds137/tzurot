@@ -191,6 +191,67 @@ describe('handleBrowseVoices', () => {
     });
   });
 
+  it('should render warnings field above voices when gateway surfaces provider failures', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: generateVoices(2),
+        totalVoices: 2,
+        tzurotCount: 2,
+        warnings: [{ provider: 'mistral', message: 'API key invalid or expired' }],
+      },
+    });
+
+    await handleBrowseVoices(createMockContext());
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              fields: expect.arrayContaining([
+                expect.objectContaining({
+                  name: expect.stringContaining("Some providers couldn't be loaded"),
+                  value: expect.stringContaining('Mistral'),
+                }),
+              ]),
+            }),
+          }),
+        ],
+      })
+    );
+  });
+
+  it('uses correct display name for elevenlabs warnings (regression for ternary mislabeling)', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: generateVoices(2),
+        totalVoices: 2,
+        tzurotCount: 2,
+        warnings: [{ provider: 'elevenlabs', message: 'Provider temporarily unavailable' }],
+      },
+    });
+
+    await handleBrowseVoices(createMockContext());
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              fields: expect.arrayContaining([
+                expect.objectContaining({
+                  value: expect.stringContaining('ElevenLabs'),
+                }),
+              ]),
+            }),
+          }),
+        ],
+      })
+    );
+  });
+
   it('should handle API error', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,

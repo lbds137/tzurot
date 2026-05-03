@@ -6,7 +6,7 @@
 
 import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, ActionRowBuilder, ButtonBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, type AudioProviderId } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import {
@@ -16,6 +16,17 @@ import {
   pluralize,
 } from '../../../utils/browse/index.js';
 import type { VoicesListResponse } from './types.js';
+
+/**
+ * Display names for audio providers in user-facing warning messages.
+ * Typed as `Record<AudioProviderId, …>` so adding a new provider value
+ * surfaces a TS error here — the `?? w.provider` fallback below is a
+ * cosmetic safety net; the real enforcement is the type error.
+ */
+const PROVIDER_DISPLAY_NAMES: Record<AudioProviderId, string> = {
+  elevenlabs: 'ElevenLabs',
+  mistral: 'Mistral',
+};
 
 const logger = createLogger('settings-voices-browse');
 
@@ -33,6 +44,26 @@ export function isVoiceBrowseInteraction(customId: string): boolean {
 }
 
 /**
+ * Render a per-provider warnings field. Omitted when no warnings — caller
+ * checks length before calling.
+ */
+function renderWarningsField(warnings: NonNullable<VoicesListResponse['warnings']>): {
+  name: string;
+  value: string;
+  inline: boolean;
+} {
+  const lines = warnings.map(w => {
+    const providerName = PROVIDER_DISPLAY_NAMES[w.provider] ?? w.provider;
+    return `• **${providerName}**: ${w.message}`;
+  });
+  return {
+    name: '⚠️ Some providers couldn\'t be loaded',
+    value: lines.join('\n'),
+    inline: false,
+  };
+}
+
+/**
  * Build the paginated browse response for voice listing.
  *
  * Paginates client-side since the gateway returns all voices at once
@@ -42,12 +73,25 @@ function buildVoiceBrowsePage(
   data: VoicesListResponse,
   page: number
 ): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] } {
-  const { voices, totalVoices, tzurotCount } = data;
+  const { voices, totalVoices, tzurotCount, warnings } = data;
+
+  // Color escalates to WARNING when any provider failed — visual signal
+  // beyond the inline field, in case the user only glances at the embed.
+  const hasWarnings = warnings !== undefined && warnings.length > 0;
+  const color = hasWarnings
+    ? DISCORD_COLORS.WARNING
+    : voices.length > 0
+      ? DISCORD_COLORS.SUCCESS
+      : DISCORD_COLORS.BLURPLE;
 
   const embed = new EmbedBuilder()
     .setTitle('🎤 Cloned Voices')
-    .setColor(voices.length > 0 ? DISCORD_COLORS.SUCCESS : DISCORD_COLORS.BLURPLE)
+    .setColor(color)
     .setTimestamp();
+
+  if (hasWarnings) {
+    embed.addFields(renderWarningsField(warnings));
+  }
 
   if (voices.length === 0) {
     embed.setDescription(
