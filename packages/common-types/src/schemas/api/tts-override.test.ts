@@ -122,11 +122,33 @@ describe('Response schemas', () => {
     ).toBe(true);
   });
 
-  it('ClearTtsDefaultConfigResponseSchema accepts both wasSet shapes', () => {
-    expect(ClearTtsDefaultConfigResponseSchema.safeParse({ deleted: true }).success).toBe(true);
+  it('ClearTtsDefaultConfigResponseSchema accepts both wasSet shapes with newEffectiveDefault: null', () => {
     expect(
-      ClearTtsDefaultConfigResponseSchema.safeParse({ deleted: true, wasSet: false }).success
+      ClearTtsDefaultConfigResponseSchema.safeParse({ deleted: true, newEffectiveDefault: null })
+        .success
     ).toBe(true);
+    expect(
+      ClearTtsDefaultConfigResponseSchema.safeParse({
+        deleted: true,
+        wasSet: false,
+        newEffectiveDefault: null,
+      }).success
+    ).toBe(true);
+  });
+
+  it('ClearTtsDefaultConfigResponseSchema accepts populated newEffectiveDefault', () => {
+    expect(
+      ClearTtsDefaultConfigResponseSchema.safeParse({
+        deleted: true,
+        wasSet: true,
+        newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
+      }).success
+    ).toBe(true);
+  });
+
+  it('ClearTtsDefaultConfigResponseSchema rejects missing newEffectiveDefault field', () => {
+    // Required (nullable, but not optional) — gateway always populates it
+    expect(ClearTtsDefaultConfigResponseSchema.safeParse({ deleted: true }).success).toBe(false);
   });
 
   it('DeleteTtsOverrideResponseSchema accepts both wasSet shapes', () => {
