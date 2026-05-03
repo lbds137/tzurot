@@ -264,6 +264,39 @@ describe('dispatchTts — chain construction', () => {
       })
     ).rejects.toBeInstanceOf(TtsDispatchError);
   });
+
+  it('throws TtsDispatchError with no-providers-available message when all isAvailable=false', async () => {
+    // Providers ARE registered, but all return isAvailable: false (e.g.,
+    // BYOK providers without keys + self-hosted with VOICE_ENGINE_URL unset).
+    // This exercises the empty-chain branch via the isAvailable filter
+    // rather than via an empty registry.
+    const eleven = makeProvider('elevenlabs', { isAvailable: false });
+    const mistral = makeProvider('mistral', { isAvailable: false });
+    const selfHosted = makeProvider('self-hosted', { isAvailable: false });
+
+    let caught: unknown;
+    try {
+      await dispatchTts({
+        text: 'hi',
+        resolvedConfig: mistralConfig,
+        ctx: baseCtx,
+        audioProviderKeys: audioKeysWithBoth,
+        registry: makeRegistry([eleven, mistral, selfHosted]),
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TtsDispatchError);
+    const dispatchError = caught as TtsDispatchError;
+    // attempts is empty because nothing was tried — everything was filtered.
+    expect(dispatchError.attempts).toHaveLength(0);
+    // The early-empty-chain error includes a specific cause string,
+    // distinct from the all-failed terminal throw.
+    expect(dispatchError.message).toMatch(/No TTS providers available/);
+    expect(dispatchError.message).toContain('emily'); // slug
+    expect(dispatchError.message).toContain('mistral'); // resolved provider
+  });
 });
 
 // ===== isFallbackEligible respect ===========================================
