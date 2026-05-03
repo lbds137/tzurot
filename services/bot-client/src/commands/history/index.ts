@@ -305,7 +305,10 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName(HARD_DELETE_OPERATION)
+        // Literal string (not the HARD_DELETE_OPERATION variable) so the
+        // generate:command-types parser picks it up — its static analysis
+        // only tracks `setName('literal')` calls, not variable references.
+        .setName('hard-delete')
         .setDescription('PERMANENTLY delete conversation history (cannot be undone!)')
         .addStringOption(option =>
           option

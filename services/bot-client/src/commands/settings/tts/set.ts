@@ -1,0 +1,93 @@
+/**
+ * Settings TTS Set Handler
+ * Handles /settings tts set subcommand — overrides TTS config for a personality
+ */
+
+import { EmbedBuilder } from 'discord.js';
+import { createLogger, DISCORD_COLORS, settingsTtsSetOptions } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import {
+  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
+  isAutocompleteErrorSentinel,
+} from '../../../utils/apiCheck.js';
+import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import { checkTtsByokAccess } from './guestModeValidation.js';
+
+const logger = createLogger('settings-tts-set');
+
+interface SetResponse {
+  override: {
+    personalityId: string;
+    personalityName: string;
+    configId: string | null;
+    configName: string | null;
+  };
+}
+
+/** Handle /settings tts set */
+export async function handleTtsSet(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const options = settingsTtsSetOptions(context.interaction);
+  const personalityId = options.personality();
+  const configId = options.tts();
+
+  // Guard both autocomplete-backed options. If either flowed the sentinel
+  // through, surface the friendly unavailable-message instead of letting
+  // the gateway reject with `Invalid configId format`.
+  if (isAutocompleteErrorSentinel(personalityId) || isAutocompleteErrorSentinel(configId)) {
+    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
+    return;
+  }
+
+  try {
+    const user = toGatewayUser(context.user);
+
+    const outcome = await checkTtsByokAccess(context, configId, user);
+    if (outcome.blocked) {
+      return;
+    }
+
+    const result = await callGatewayApi<SetResponse>('/user/tts-override', {
+      method: 'PUT',
+      user,
+      body: { personalityId, configId },
+    });
+
+    if (!result.ok) {
+      logger.warn(
+        { userId, status: result.status, personalityId, configId },
+        'Failed to set TTS override'
+      );
+      await context.editReply({ content: `❌ Failed to set TTS: ${result.error}` });
+      return;
+    }
+
+    const data = result.data;
+
+    const embed = new EmbedBuilder()
+      .setTitle('✅ TTS Override Set')
+      .setColor(DISCORD_COLORS.SUCCESS)
+      .setDescription(
+        `**${data.override.personalityName}** will now use the **${data.override.configName}** TTS config.`
+      )
+      .setFooter({ text: 'Use /settings tts reset to remove this override' })
+      .setTimestamp();
+
+    await context.editReply({ embeds: [embed] });
+
+    logger.info(
+      {
+        userId,
+        personalityId,
+        personalityName: data.override.personalityName,
+        configId,
+        configName: data.override.configName,
+        reason: outcome.reason,
+      },
+      'Set TTS override'
+    );
+  } catch (error) {
+    logger.error({ err: error, userId, command: 'TTS Set' }, 'Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
+  }
+}

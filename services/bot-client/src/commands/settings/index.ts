@@ -53,6 +53,13 @@ import { handleReset as handlePresetReset } from './preset/reset.js';
 import { handleDefault as handlePresetDefault } from './preset/default.js';
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
+import { handleTtsBrowseOverrides } from './tts/browse.js';
+import { handleTtsSet } from './tts/set.js';
+import { handleTtsReset } from './tts/reset.js';
+import { handleTtsDefault } from './tts/default.js';
+import { handleTtsClearDefault } from './tts/clear-default.js';
+import { handleAutocomplete as handleTtsAutocomplete } from './tts/autocomplete.js';
+import { buildTtsSubcommandGroup } from './tts/subcommandBuilder.js';
 
 // Voice management handlers
 import {
@@ -123,6 +130,20 @@ const presetRouter = createTypedSubcommandRouter(
 );
 
 /**
+ * TTS subcommand group router (all deferred) — parallel to preset
+ */
+const ttsRouter = createTypedSubcommandRouter(
+  {
+    browse: handleTtsBrowseOverrides,
+    set: handleTtsSet,
+    reset: handleTtsReset,
+    default: handleTtsDefault,
+    'clear-default': handleTtsClearDefault,
+  },
+  { logger, logPrefix: '[Settings/Tts]' }
+);
+
+/**
  * Voices subcommand group router (all deferred)
  */
 const voicesRouter = createTypedSubcommandRouter(
@@ -147,6 +168,8 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await apikeyRouter(context);
   } else if (group === 'preset') {
     await presetRouter(context as DeferredCommandContext);
+  } else if (group === 'tts') {
+    await ttsRouter(context as DeferredCommandContext);
   } else if (group === 'defaults') {
     await handleDefaultsEdit(context as DeferredCommandContext);
   } else if (group === 'voices') {
@@ -254,6 +277,9 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     // Personality and preset autocomplete for preset commands
     // The handlePresetAutocomplete handles both 'personality' and 'preset' options
     await handlePresetAutocomplete(interaction);
+  } else if (subcommandGroup === 'tts') {
+    // Personality and tts-config autocomplete for /settings tts ... commands
+    await handleTtsAutocomplete(interaction);
   } else if (subcommandGroup === 'voices' && focusedOption.name === 'voice') {
     await handleVoiceAutocomplete(interaction);
   } else if (subcommandGroup === 'voices' && focusedOption.name === 'model') {
@@ -395,6 +421,8 @@ export default defineCommand({
           subcommand.setName('clear-default').setDescription('Clear your global default preset')
         )
     )
+    // TTS subcommand group (parallel to /settings preset for LLM)
+    .addSubcommandGroup(buildTtsSubcommandGroup)
     // Defaults subcommand group (user-default config cascade settings)
     .addSubcommandGroup(group =>
       group
