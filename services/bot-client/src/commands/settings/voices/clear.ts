@@ -59,7 +59,7 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
       entityType: 'cloned voices',
       entityName: `${count} Tzurot voice${count !== 1 ? 's' : ''}`,
       additionalWarning:
-        'This will remove all auto-cloned voices from your ElevenLabs account.\n' +
+        'This will remove all auto-cloned voices from your audio provider accounts.\n' +
         'They will be re-cloned automatically when needed.',
       source: 'settings',
       operation: VOICE_CLEAR_OPERATION,
@@ -83,7 +83,7 @@ export async function handleVoiceClearConfirmButton(interaction: ButtonInteracti
   const config = createHardDeleteConfig({
     entityType: 'cloned voices',
     entityName: 'all Tzurot voices',
-    additionalWarning: 'This will remove all auto-cloned voices from your ElevenLabs account.',
+    additionalWarning: 'This will remove all auto-cloned voices from your audio provider accounts.',
     source: 'settings',
     operation: VOICE_CLEAR_OPERATION,
     entityId: 'all',

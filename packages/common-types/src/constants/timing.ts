@@ -207,13 +207,15 @@ export const SYNC_LIMITS = {
 } as const;
 
 /**
- * External API timeouts for ElevenLabs operations
+ * External API timeouts for audio-provider operations
  */
 export const VALIDATION_TIMEOUTS = {
   /** Timeout for API key validation requests (30 seconds - allows for slow networks and provider load) */
   API_KEY_VALIDATION: 30_000,
-  /** Timeout for general ElevenLabs API calls: voice list, single-voice fetch, delete (30 seconds) */
-  ELEVENLABS_API_CALL: 30_000,
+  /** Timeout for audio-provider API calls (voice list/get/delete) across both
+   *  ElevenLabs and Mistral. 30 seconds covers slow networks and burst load
+   *  on either provider's voices endpoints. */
+  EXTERNAL_AUDIO_API_CALL: 30_000,
 } as const;
 
 /**

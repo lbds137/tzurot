@@ -1,6 +1,7 @@
 /**
  * Voice Browse Handler
- * Lists ElevenLabs cloned voices (tzurot-prefixed) with paginated slot summary
+ * Lists tzurot-prefixed cloned voices across all configured audio
+ * providers (ElevenLabs, Mistral) with paginated slot summary.
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -52,7 +53,7 @@ function buildVoiceBrowsePage(
     embed.setDescription(
       'No Tzurot-cloned voices found.\n\n' +
         'Voices are auto-cloned when you talk to a character with voice enabled.\n' +
-        `Your ElevenLabs account has **${totalVoices}** voices.`
+        `Your audio provider account(s) have **${totalVoices}** voices total.`
     );
     return { embed, components: [] };
   }
@@ -62,13 +63,15 @@ function buildVoiceBrowsePage(
   const startIdx = safePage * ITEMS_PER_PAGE;
   const pageVoices = voices.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
+  // Each line shows slug, provider tag, and voice id — provider tag lets
+  // users disambiguate same-slug voices that exist in both BYOK accounts.
   const voiceLines = pageVoices.map(
-    (v, i) => `**${startIdx + i + 1}.** \`${v.slug}\` — \`${v.voiceId}\``
+    (v, i) => `**${startIdx + i + 1}.** \`${v.slug}\` *(${v.provider})* — \`${v.voiceId}\``
   );
 
   embed.setDescription(voiceLines.join('\n'));
   embed.setFooter({
-    text: `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total in ElevenLabs account`,
+    text: `${pluralize(tzurotCount, { singular: 'Tzurot voice', plural: 'Tzurot voices' })} / ${totalVoices} total across audio providers`,
   });
 
   // Show management hints only on first page to avoid clutter
