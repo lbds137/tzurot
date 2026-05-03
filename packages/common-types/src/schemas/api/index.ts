@@ -29,6 +29,9 @@ export * from './llm-config.js';
 // TTS Config endpoints
 export * from './tts-config.js';
 
+// TTS Override endpoints (per-personality + user default)
+export * from './tts-override.js';
+
 // Channel activation endpoints
 export * from './channel.js';
 
