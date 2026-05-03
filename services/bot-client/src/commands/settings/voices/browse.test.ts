@@ -39,6 +39,7 @@ vi.mock('../../../utils/userGatewayClient.js', async () => {
 /** Generate N voice entries for pagination tests */
 function generateVoices(count: number): VoiceEntry[] {
   return Array.from({ length: count }, (_, i) => ({
+    provider: i % 2 === 0 ? 'elevenlabs' : 'mistral',
     voiceId: `v${i + 1}`,
     name: `tzurot-voice-${i + 1}`,
     slug: `voice-${i + 1}`,
@@ -83,8 +84,8 @@ describe('handleBrowseVoices', () => {
       ok: true,
       data: {
         voices: [
-          { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
-          { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
+          { provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
+          { provider: 'mistral', voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
         totalVoices: 10,
         tzurotCount: 2,
@@ -147,7 +148,7 @@ describe('handleBrowseVoices', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        voices: [{ voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
+        voices: [{ provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
         totalVoices: 5,
         tzurotCount: 1,
       },

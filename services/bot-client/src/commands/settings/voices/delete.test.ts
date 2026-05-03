@@ -1,5 +1,8 @@
 /**
- * Tests for Voice Delete Handler and Autocomplete
+ * Tests for Voice Delete Handler and Autocomplete (provider-agnostic)
+ *
+ * Autocomplete value encodes `${provider}:${voiceId}`; the handler splits
+ * it on the seam to route to the right gateway URL.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -39,9 +42,9 @@ describe('handleDeleteVoice', () => {
     vi.clearAllMocks();
   });
 
-  function createMockContext(voiceId = 'voice-1'): DeferredCommandContext {
+  function createMockContext(optionValue = 'elevenlabs:voice-1'): DeferredCommandContext {
     const mockInteraction = {
-      user: { id: 'user-123' , username: 'testuser' },
+      user: { id: 'user-123', username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as ChatInputCommandInteraction;
 
@@ -59,23 +62,32 @@ describe('handleDeleteVoice', () => {
       followUp: vi.fn(),
       deleteReply: vi.fn(),
       getOption: vi.fn(),
-      getRequiredOption: vi.fn().mockReturnValue(voiceId),
+      getRequiredOption: vi.fn().mockReturnValue(optionValue),
       getSubcommand: vi.fn().mockReturnValue('delete'),
       getSubcommandGroup: vi.fn().mockReturnValue('voices'),
     } as unknown as DeferredCommandContext;
   }
 
-  it('should delete a voice successfully', async () => {
+  it('routes ElevenLabs voice deletion to the correct gateway URL', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { deleted: true, voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' },
+      data: {
+        deleted: true,
+        provider: 'elevenlabs',
+        voiceId: 'voice-1',
+        name: 'tzurot-alice',
+        slug: 'alice',
+      },
     });
 
-    await handleDeleteVoice(createMockContext());
+    await handleDeleteVoice(createMockContext('elevenlabs:voice-1'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/voices/voice-1',
-      expect.objectContaining({ method: 'DELETE', user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' } })
+      '/user/voices/elevenlabs/voice-1',
+      expect.objectContaining({
+        method: 'DELETE',
+        user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
+      })
     );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -89,24 +101,73 @@ describe('handleDeleteVoice', () => {
     });
   });
 
-  it('should handle not found error', async () => {
+  it('routes Mistral voice deletion to the Mistral-tagged URL', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        deleted: true,
+        provider: 'mistral',
+        voiceId: 'mi-voice-1',
+        name: 'tzurot-charlie',
+        slug: 'charlie',
+      },
+    });
+
+    await handleDeleteVoice(createMockContext('mistral:mi-voice-1'));
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/voices/mistral/mi-voice-1',
+      expect.objectContaining({ method: 'DELETE' })
+    );
+  });
+
+  it('encodes the voiceId portion (defense against weird ids)', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { deleted: true, provider: 'mistral', voiceId: 'a/b', name: 'x', slug: 'x' },
+    });
+    await handleDeleteVoice(createMockContext('mistral:a/b'));
+
+    const url = mockCallGatewayApi.mock.calls[0][0] as string;
+    expect(url).toBe('/user/voices/mistral/a%2Fb');
+  });
+
+  it('rejects malformed option value (not provider:id) with a friendly error', async () => {
+    await handleDeleteVoice(createMockContext('not-a-composite-id'));
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Invalid voice selection'),
+      })
+    );
+  });
+
+  it('rejects unknown provider segment in option value', async () => {
+    await handleDeleteVoice(createMockContext('openai:some-voice'));
+
+    expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Invalid voice selection') })
+    );
+  });
+
+  it('handles not-found error from gateway', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
       status: 404,
       error: 'Voice not found',
     });
 
-    await handleDeleteVoice(createMockContext('nonexistent'));
+    await handleDeleteVoice(createMockContext('elevenlabs:nonexistent'));
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Voice not found',
-    });
+    expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ Voice not found' });
   });
 
-  it('should handle exceptions', async () => {
+  it('handles unexpected exceptions gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleDeleteVoice(createMockContext());
+    await handleDeleteVoice(createMockContext('elevenlabs:voice-1'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ An unexpected error occurred. Please try again.',
@@ -124,7 +185,7 @@ describe('handleVoiceAutocomplete', () => {
 
   function createMockAutocomplete(query = ''): AutocompleteInteraction {
     return {
-      user: { id: 'user-123' , username: 'testuser' },
+      user: { id: 'user-123', username: 'testuser' },
       options: {
         getFocused: vi.fn().mockReturnValue(query),
         getSubcommandGroup: vi.fn().mockReturnValue('voices'),
@@ -134,13 +195,13 @@ describe('handleVoiceAutocomplete', () => {
     } as unknown as AutocompleteInteraction;
   }
 
-  it('should return voice choices', async () => {
+  it('emits provider-tagged choices with composite values', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
         voices: [
-          { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
-          { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
+          { provider: 'elevenlabs', voiceId: 'el1', name: 'tzurot-alice', slug: 'alice' },
+          { provider: 'mistral', voiceId: 'mi1', name: 'tzurot-bob', slug: 'bob' },
         ],
         totalVoices: 10,
         tzurotCount: 2,
@@ -150,18 +211,18 @@ describe('handleVoiceAutocomplete', () => {
     await handleVoiceAutocomplete(createMockAutocomplete());
 
     expect(mockRespond).toHaveBeenCalledWith([
-      { name: 'alice', value: 'v1' },
-      { name: 'bob', value: 'v2' },
+      { name: 'alice · elevenlabs', value: 'elevenlabs:el1' },
+      { name: 'bob · mistral', value: 'mistral:mi1' },
     ]);
   });
 
-  it('should filter by query', async () => {
+  it('filters by query against slug', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
         voices: [
-          { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
-          { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
+          { provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
+          { provider: 'mistral', voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
         ],
         totalVoices: 10,
         tzurotCount: 2,
@@ -170,34 +231,38 @@ describe('handleVoiceAutocomplete', () => {
 
     await handleVoiceAutocomplete(createMockAutocomplete('ali'));
 
-    expect(mockRespond).toHaveBeenCalledWith([{ name: 'alice', value: 'v1' }]);
+    expect(mockRespond).toHaveBeenCalledWith([
+      { name: 'alice · elevenlabs', value: 'elevenlabs:v1' },
+    ]);
   });
 
-  it('should use cached voices on subsequent calls', async () => {
+  it('uses cached voices on subsequent calls', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        voices: [{ voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
+        voices: [
+          { provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
+        ],
         totalVoices: 10,
         tzurotCount: 1,
       },
     });
 
-    // First call populates cache
     await handleVoiceAutocomplete(createMockAutocomplete());
-    // Second call should use cache (no additional API call)
     await handleVoiceAutocomplete(createMockAutocomplete('ali'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
     expect(mockRespond).toHaveBeenCalledTimes(2);
   });
 
-  it('should invalidate cache after successful delete', async () => {
+  it('invalidates cache after successful delete', async () => {
     // Pre-populate cache via autocomplete
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        voices: [{ voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' }],
+        voices: [
+          { provider: 'elevenlabs', voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' },
+        ],
         totalVoices: 10,
         tzurotCount: 1,
       },
@@ -205,15 +270,21 @@ describe('handleVoiceAutocomplete', () => {
     await handleVoiceAutocomplete(createMockAutocomplete());
     expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
 
-    // Delete the voice — should invalidate cache
+    // Delete should invalidate cache
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { deleted: true, voiceId: 'voice-1', name: 'tzurot-alice', slug: 'alice' },
+      data: {
+        deleted: true,
+        provider: 'elevenlabs',
+        voiceId: 'voice-1',
+        name: 'tzurot-alice',
+        slug: 'alice',
+      },
     });
     const mockEditReply = vi.fn();
     const mockContext = {
-      interaction: { user: { id: 'user-123' , username: 'testuser' }, editReply: mockEditReply },
-      user: { id: 'user-123' , username: 'testuser' },
+      interaction: { user: { id: 'user-123', username: 'testuser' }, editReply: mockEditReply },
+      user: { id: 'user-123', username: 'testuser' },
       guild: null,
       member: null,
       channel: null,
@@ -225,13 +296,13 @@ describe('handleVoiceAutocomplete', () => {
       followUp: vi.fn(),
       deleteReply: vi.fn(),
       getOption: vi.fn(),
-      getRequiredOption: vi.fn().mockReturnValue('voice-1'),
+      getRequiredOption: vi.fn().mockReturnValue('elevenlabs:voice-1'),
       getSubcommand: vi.fn().mockReturnValue('delete'),
       getSubcommandGroup: vi.fn().mockReturnValue('voices'),
     } as unknown as DeferredCommandContext;
     await handleDeleteVoice(mockContext);
 
-    // Autocomplete should re-fetch (cache was invalidated)
+    // Autocomplete re-fetches (cache invalidated)
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: { voices: [], totalVoices: 10, tzurotCount: 0 },
@@ -240,7 +311,7 @@ describe('handleVoiceAutocomplete', () => {
     expect(mockCallGatewayApi).toHaveBeenCalledTimes(3);
   });
 
-  it('should return empty on API error', async () => {
+  it('returns empty on API error', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404, error: 'Not found' });
 
     await handleVoiceAutocomplete(createMockAutocomplete());
@@ -248,7 +319,7 @@ describe('handleVoiceAutocomplete', () => {
     expect(mockRespond).toHaveBeenCalledWith([]);
   });
 
-  it('should return empty on exception', async () => {
+  it('returns empty on exception', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('timeout'));
 
     await handleVoiceAutocomplete(createMockAutocomplete());

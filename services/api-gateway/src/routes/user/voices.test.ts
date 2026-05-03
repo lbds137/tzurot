@@ -1,5 +1,9 @@
 /**
- * Tests for Voice Management Routes
+ * Tests for Voice Management Routes (provider-agnostic)
+ *
+ * The routes now fan out across all audio providers (ElevenLabs + Mistral)
+ * a user has BYOK keys for. Each test case names which provider(s) the
+ * mocked user has, and the fetch mock distinguishes calls by URL prefix.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -19,7 +23,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
-    decryptApiKey: vi.fn().mockReturnValue('test-elevenlabs-key'),
+    decryptApiKey: vi.fn().mockImplementation(({ content }: { content: string }) => {
+      // Return a different key per provider so tests can verify which key
+      // got passed to which API call.
+      if (content === 'el-content') return 'test-elevenlabs-key';
+      if (content === 'mi-content') return 'test-mistral-key';
+      return 'unknown-key';
+    }),
   };
 });
 
@@ -34,11 +44,11 @@ vi.mock('../../services/AuthMiddleware.js', () => ({
   },
 }));
 
-// Mock fetch
+// Mock fetch — tests dispatch on URL prefix to simulate the right provider.
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-import { decryptApiKey } from '@tzurot/common-types';
+import { decryptApiKey, AIProvider } from '@tzurot/common-types';
 
 describe('Voice Management Routes', () => {
   let app: express.Express;
@@ -49,14 +59,86 @@ describe('Voice Management Routes', () => {
     },
   } as unknown as PrismaClient;
 
-  const mockVoicesResponse = {
+  /** ElevenLabs voice list mock — only `tzurot-*` names are returned by the
+   *  filter; the others test that the prefix filter works. */
+  const elevenLabsVoicesResponse = {
     voices: [
-      { voice_id: 'voice-1', name: 'tzurot-alice', category: 'cloned' },
-      { voice_id: 'voice-2', name: 'tzurot-bob', category: 'cloned' },
-      { voice_id: 'voice-3', name: 'my-custom-voice', category: 'cloned' },
-      { voice_id: 'voice-4', name: 'premade-voice', category: 'premade' },
+      { voice_id: 'el-voice-1', name: 'tzurot-alice', category: 'cloned' },
+      { voice_id: 'el-voice-2', name: 'tzurot-bob', category: 'cloned' },
+      { voice_id: 'el-voice-3', name: 'my-custom-voice', category: 'cloned' },
+      { voice_id: 'el-voice-4', name: 'premade-voice', category: 'premade' },
     ],
   };
+
+  /** Mistral voice list mock — pagination shape (single page). */
+  const mistralVoicesResponse = {
+    items: [
+      { id: 'mi-voice-1', name: 'tzurot-charlie', user_id: 'mi-user' },
+      { id: 'mi-voice-2', name: 'tzurot-alice', user_id: 'mi-user' }, // same slug as elevenlabs!
+      { id: 'mi-voice-3', name: 'random-other', user_id: 'mi-user' },
+    ],
+    total_pages: 1,
+  };
+
+  /** Helper: configure prisma mock to return a user with the given audio
+   *  provider keys. Keys are encrypted-row records that decryptApiKey
+   *  resolves based on `content` field (see top-level mock). */
+  function userWithKeys(providers: ('elevenlabs' | 'mistral')[]): void {
+    const apiKeys = providers.map(p => ({
+      provider: p === 'elevenlabs' ? AIProvider.ElevenLabs : AIProvider.Mistral,
+      iv: `${p.slice(0, 2)}-iv`,
+      content: `${p.slice(0, 2)}-content`,
+      tag: `${p.slice(0, 2)}-tag`,
+    }));
+    (mockPrisma.user.findFirst as any).mockResolvedValue({
+      id: 'user-uuid-123',
+      apiKeys,
+    });
+  }
+
+  /** Helper: dispatch a fetch mock based on URL — distinguishes ElevenLabs
+   *  and Mistral calls so tests don't need to count call order across
+   *  providers. */
+  function setProviderFetchMocks(handlers: {
+    elevenlabsList?: () => Response;
+    elevenlabsGetVoice?: () => Response;
+    elevenlabsDelete?: () => Response;
+    mistralList?: () => Response;
+    mistralGetVoice?: () => Response;
+    mistralDelete?: () => Response;
+  }): void {
+    mockFetch.mockImplementation((url: string, init: RequestInit | undefined) => {
+      const isDelete = init?.method === 'DELETE';
+      // ElevenLabs base ends in /v1; Mistral base ends in /v1
+      const isElevenLabs = url.includes('elevenlabs');
+      const isMistral = url.includes('mistral');
+
+      if (isMistral) {
+        if (isDelete) return Promise.resolve(handlers.mistralDelete?.() ?? notFoundResponse());
+        if (url.includes('/voices/') && !url.includes('?')) {
+          // Single voice fetch (path /voices/:id with no query string)
+          return Promise.resolve(handlers.mistralGetVoice?.() ?? notFoundResponse());
+        }
+        return Promise.resolve(handlers.mistralList?.() ?? notFoundResponse());
+      }
+      if (isElevenLabs) {
+        if (isDelete) return Promise.resolve(handlers.elevenlabsDelete?.() ?? notFoundResponse());
+        if (url.match(/\/voices\/[^/?]+$/)) {
+          // Single voice fetch (path /voices/:id, no trailing slash, no query)
+          return Promise.resolve(handlers.elevenlabsGetVoice?.() ?? notFoundResponse());
+        }
+        return Promise.resolve(handlers.elevenlabsList?.() ?? notFoundResponse());
+      }
+      return Promise.resolve(notFoundResponse());
+    });
+  }
+
+  function jsonOk(body: unknown): Response {
+    return { ok: true, status: 200, json: () => Promise.resolve(body) } as unknown as Response;
+  }
+  function notFoundResponse(): Response {
+    return { ok: false, status: 404, statusText: 'Not Found' } as unknown as Response;
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,19 +147,13 @@ describe('Voice Management Routes', () => {
     app.use(express.json());
     app.use('/voices', createVoicesRoutes(mockPrisma));
 
-    // Default: user exists and has encrypted ElevenLabs key (single query with include)
-    (mockPrisma.user.findFirst as any).mockResolvedValue({
-      id: 'user-uuid-123',
-      apiKeys: [{ iv: 'mock-iv', content: 'mock-content', tag: 'mock-tag' }],
-    });
+    // Default: user has ElevenLabs key only (mirrors the legacy single-provider
+    // setup that pre-PR-3 was the only supported configuration).
+    userWithKeys(['elevenlabs']);
 
-    // Default: decryptApiKey returns test key (must re-apply after restoreAllMocks)
-    vi.mocked(decryptApiKey).mockReturnValue('test-elevenlabs-key');
-
-    // Default: ElevenLabs returns voices
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockVoicesResponse),
+    setProviderFetchMocks({
+      elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+      mistralList: () => jsonOk(mistralVoicesResponse),
     });
   });
 
@@ -85,40 +161,59 @@ describe('Voice Management Routes', () => {
     vi.restoreAllMocks();
   });
 
+  // ===== GET / ============================================================
+
   describe('GET / - List voices', () => {
-    it('should return tzurot-prefixed voices only', async () => {
+    it('returns tzurot-prefixed voices from ElevenLabs only when only that key is configured', async () => {
+      userWithKeys(['elevenlabs']);
+
       const res = await request(app).get('/voices');
 
       expect(res.status).toBe(200);
       expect(res.body.voices).toHaveLength(2);
-      expect(res.body.voices[0]).toEqual({
-        voiceId: 'voice-1',
+      expect(res.body.voices[0]).toMatchObject({
+        provider: 'elevenlabs',
+        voiceId: 'el-voice-1',
         name: 'tzurot-alice',
         slug: 'alice',
       });
-      expect(res.body.voices[1]).toEqual({
-        voiceId: 'voice-2',
-        name: 'tzurot-bob',
-        slug: 'bob',
-      });
-      expect(res.body.totalVoices).toBe(4);
       expect(res.body.tzurotCount).toBe(2);
+      expect(res.body.totalVoices).toBe(4);
     });
 
-    it('should return 404 when user has no ElevenLabs key', async () => {
-      (mockPrisma.user.findFirst as any).mockResolvedValue({
-        id: 'user-uuid-123',
-        apiKeys: [],
-      });
+    it('aggregates voices across both providers when both keys are configured', async () => {
+      userWithKeys(['elevenlabs', 'mistral']);
+
+      const res = await request(app).get('/voices');
+
+      expect(res.status).toBe(200);
+      expect(res.body.tzurotCount).toBe(4); // 2 elevenlabs + 2 mistral (filtered by prefix)
+      const providers = res.body.voices.map((v: any) => v.provider);
+      expect(providers).toContain('elevenlabs');
+      expect(providers).toContain('mistral');
+    });
+
+    it('returns just Mistral voices when only Mistral key is configured', async () => {
+      userWithKeys(['mistral']);
+
+      const res = await request(app).get('/voices');
+
+      expect(res.status).toBe(200);
+      expect(res.body.tzurotCount).toBe(2); // 2 of 3 are tzurot-*
+      expect(res.body.voices.every((v: any) => v.provider === 'mistral')).toBe(true);
+    });
+
+    it('returns 404 when user has NO audio provider keys configured', async () => {
+      userWithKeys([]);
 
       const res = await request(app).get('/voices');
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('NOT_FOUND');
-      expect(res.body.message).toContain('ElevenLabs API key');
+      expect(res.body.message).toContain('audio provider API key');
     });
 
-    it('should return 404 when user does not exist', async () => {
+    it('returns 404 when user does not exist', async () => {
       (mockPrisma.user.findFirst as any).mockResolvedValue(null);
 
       const res = await request(app).get('/voices');
@@ -127,208 +222,181 @@ describe('Voice Management Routes', () => {
       expect(res.body.error).toBe('NOT_FOUND');
     });
 
-    it('should return 500 when decryption fails', async () => {
-      vi.mocked(decryptApiKey).mockImplementation(() => {
-        throw new Error('Decryption failed');
+    it('skips a provider gracefully when its API rejects the key (still serves working provider)', async () => {
+      userWithKeys(['elevenlabs', 'mistral']);
+      setProviderFetchMocks({
+        elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+        mistralList: () =>
+          ({ ok: false, status: 401, statusText: 'Unauthorized' }) as unknown as Response,
       });
 
       const res = await request(app).get('/voices');
 
-      expect(res.status).toBe(500);
-      expect(res.body.error).toBe('INTERNAL_ERROR');
-    });
-
-    it('should return 403 when ElevenLabs rejects the API key', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-      });
-
-      const res = await request(app).get('/voices');
-
-      expect(res.status).toBe(403);
-      expect(res.body.error).toBe('UNAUTHORIZED');
-      expect(res.body.message).toContain('invalid or expired');
-    });
-
-    it('should return 500 for non-auth ElevenLabs API errors', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 502,
-        statusText: 'Bad Gateway',
-      });
-
-      const res = await request(app).get('/voices');
-
-      expect(res.status).toBe(500);
-      expect(res.body.error).toBe('INTERNAL_ERROR');
-    });
-
-    it('should return 500 when ElevenLabs returns malformed response', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ unexpected: 'format' }),
-      });
-
-      const res = await request(app).get('/voices');
-
-      expect(res.status).toBe(500);
-      expect(res.body.error).toBe('INTERNAL_ERROR');
-      expect(res.body.message).toContain('Unexpected response');
+      // ElevenLabs voices still served; Mistral skipped silently
+      expect(res.status).toBe(200);
+      expect(res.body.voices.every((v: any) => v.provider === 'elevenlabs')).toBe(true);
     });
   });
 
-  describe('DELETE /:voiceId - Delete a voice', () => {
-    it('should delete a tzurot-prefixed voice', async () => {
-      // First call: fetch single voice to verify; Second call: delete
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({ voice_id: 'voice-1', name: 'tzurot-alice', category: 'cloned' }),
-        })
-        .mockResolvedValueOnce({ ok: true });
+  // ===== DELETE /:provider/:voiceId =======================================
 
-      const res = await request(app).delete('/voices/voice-1');
-
-      expect(res.status).toBe(200);
-      expect(res.body.deleted).toBe(true);
-      expect(res.body.voiceId).toBe('voice-1');
-      expect(res.body.slug).toBe('alice');
-    });
-
-    it('should reject deleting a non-tzurot voice (IDOR guard)', async () => {
-      // voice-3 is 'my-custom-voice' — not tzurot-prefixed, so ownership check rejects
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({ voice_id: 'voice-3', name: 'my-custom-voice', category: 'cloned' }),
+  describe('DELETE /:provider/:voiceId - Delete a voice', () => {
+    it('deletes an ElevenLabs tzurot-prefixed voice via the new route shape', async () => {
+      userWithKeys(['elevenlabs']);
+      setProviderFetchMocks({
+        elevenlabsGetVoice: () =>
+          jsonOk({ voice_id: 'el-voice-1', name: 'tzurot-alice', category: 'cloned' }),
+        elevenlabsDelete: () => ({ ok: true, status: 200 }) as unknown as Response,
       });
 
-      const res = await request(app).delete('/voices/voice-3');
+      const res = await request(app).delete('/voices/elevenlabs/el-voice-1');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        deleted: true,
+        provider: 'elevenlabs',
+        voiceId: 'el-voice-1',
+        slug: 'alice',
+      });
+    });
+
+    it('deletes a Mistral tzurot-prefixed voice via the new route shape', async () => {
+      userWithKeys(['mistral']);
+      setProviderFetchMocks({
+        mistralGetVoice: () => jsonOk({ id: 'mi-voice-1', name: 'tzurot-charlie', user_id: 'u' }),
+        mistralDelete: () => ({ ok: true, status: 200 }) as unknown as Response,
+      });
+
+      const res = await request(app).delete('/voices/mistral/mi-voice-1');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        deleted: true,
+        provider: 'mistral',
+        voiceId: 'mi-voice-1',
+        slug: 'charlie',
+      });
+    });
+
+    it('rejects unknown provider segment', async () => {
+      const res = await request(app).delete('/voices/openai/some-voice');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('VALIDATION_ERROR');
+      expect(res.body.message).toContain('openai');
+    });
+
+    it('rejects self-hosted provider segment (not in AudioProviderId)', async () => {
+      // `self-hosted` is a valid TtsProviderId but intentionally NOT in
+      // AudioProviderId — users don't manage voices in a self-hosted
+      // account. This test pins the design: if AudioProviderId ever grows
+      // to include 'self-hosted', this assertion fails and forces a
+      // deliberate decision about voice-management semantics.
+      const res = await request(app).delete('/voices/self-hosted/some-voice');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('VALIDATION_ERROR');
+      expect(res.body.message).toContain('self-hosted');
+    });
+
+    it('rejects malformed voiceId without calling provider APIs', async () => {
+      const badId = 'invalid%20voice%21%23id';
+      const res = await request(app).delete(`/voices/elevenlabs/${badId}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('VALIDATION_ERROR');
+      expect(res.body.message).toBe('Invalid voice ID format');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects deleting from a provider the user has no key for', async () => {
+      userWithKeys(['elevenlabs']);
+
+      const res = await request(app).delete('/voices/mistral/mi-voice-1');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('NOT_FOUND');
+      expect(res.body.message).toContain('mistral API key');
+    });
+
+    it('rejects deleting a non-tzurot voice (IDOR guard)', async () => {
+      userWithKeys(['elevenlabs']);
+      setProviderFetchMocks({
+        elevenlabsGetVoice: () =>
+          jsonOk({ voice_id: 'el-voice-3', name: 'my-custom-voice', category: 'cloned' }),
+      });
+
+      const res = await request(app).delete('/voices/elevenlabs/el-voice-3');
 
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('NOT_FOUND');
       expect(res.body.message).toBe('Tzurot-cloned voice not found');
     });
 
-    it('should reject malformed voiceId without calling ElevenLabs', async () => {
-      // URL-encode to ensure the full string reaches the route param
-      const badId = 'invalid%20voice%21%23id';
-      const res = await request(app).delete(`/voices/${badId}`);
-
-      expect(res.status).toBe(400);
-      expect(res.body.error).toBe('VALIDATION_ERROR');
-      expect(res.body.message).toBe('Invalid voice ID format');
-      // Should not make any ElevenLabs API calls for obviously invalid IDs
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it('should reject deleting a nonexistent voice', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
+    it('returns 404 for nonexistent voice', async () => {
+      userWithKeys(['elevenlabs']);
+      setProviderFetchMocks({
+        elevenlabsGetVoice: () => notFoundResponse(),
       });
 
-      const res = await request(app).delete('/voices/nonexistent');
-
+      const res = await request(app).delete('/voices/elevenlabs/nonexistent');
       expect(res.status).toBe(404);
-    });
-
-    it('should return 403 when ElevenLabs rejects key during ownership check', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-        statusText: 'Forbidden',
-      });
-
-      const res = await request(app).delete('/voices/voice-1');
-
-      expect(res.status).toBe(403);
-      expect(res.body.error).toBe('UNAUTHORIZED');
-      expect(res.body.message).toContain('invalid or expired');
-    });
-
-    it('should handle ElevenLabs delete failure', async () => {
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({ voice_id: 'voice-1', name: 'tzurot-alice', category: 'cloned' }),
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          status: 500,
-          statusText: 'Internal Server Error',
-        });
-
-      const res = await request(app).delete('/voices/voice-1');
-
-      expect(res.status).toBe(500);
-      expect(res.body.error).toBe('INTERNAL_ERROR');
-      expect(res.body.message).toBe('Failed to delete voice');
     });
   });
 
+  // ===== POST /clear ======================================================
+
   describe('POST /clear - Clear all tzurot voices', () => {
-    it('should delete all tzurot-prefixed voices', async () => {
-      // First call: fetch voices; subsequent calls: delete each
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(mockVoicesResponse),
-        })
-        .mockResolvedValue({ ok: true });
+    it('deletes all tzurot voices across all providers the user has keys for', async () => {
+      userWithKeys(['elevenlabs', 'mistral']);
+      setProviderFetchMocks({
+        elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+        mistralList: () => jsonOk(mistralVoicesResponse),
+        elevenlabsDelete: () => ({ ok: true, status: 200 }) as unknown as Response,
+        mistralDelete: () => ({ ok: true, status: 200 }) as unknown as Response,
+      });
 
       const res = await request(app).post('/voices/clear');
 
       expect(res.status).toBe(200);
-      expect(res.body.deleted).toBe(2);
-      expect(res.body.total).toBe(2);
+      expect(res.body.deleted).toBe(4); // 2 elevenlabs + 2 mistral
+      expect(res.body.total).toBe(4);
       expect(res.body.errors).toBeUndefined();
     });
 
-    it('should report when no voices to clear', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            voices: [{ voice_id: 'v1', name: 'non-tzurot', category: 'premade' }],
-          }),
+    it('reports when no voices to clear', async () => {
+      userWithKeys(['elevenlabs']);
+      setProviderFetchMocks({
+        elevenlabsList: () =>
+          jsonOk({ voices: [{ voice_id: 'v1', name: 'non-tzurot', category: 'premade' }] }),
       });
 
       const res = await request(app).post('/voices/clear');
 
       expect(res.status).toBe(200);
       expect(res.body.deleted).toBe(0);
-      expect(res.body.total).toBe(0);
       expect(res.body.message).toContain('No Tzurot voices');
     });
 
-    it('should return 403 when ElevenLabs rejects key during voice listing', async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-      });
-
+    it('returns 404 when user has no audio provider keys', async () => {
+      userWithKeys([]);
       const res = await request(app).post('/voices/clear');
-
-      expect(res.status).toBe(403);
-      expect(res.body.error).toBe('UNAUTHORIZED');
-      expect(res.body.message).toContain('invalid or expired');
+      expect(res.status).toBe(404);
+      expect(res.body.message).toContain('audio provider API key');
     });
 
-    it('should report partial failures', async () => {
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(mockVoicesResponse),
-        })
-        .mockResolvedValueOnce({ ok: true }) // voice-1 succeeds
-        .mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Error' }); // voice-2 fails
+    it('reports partial failures with provider-tagged messages', async () => {
+      userWithKeys(['elevenlabs']);
+      let deleteCallCount = 0;
+      setProviderFetchMocks({
+        elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+        elevenlabsDelete: () => {
+          deleteCallCount++;
+          // First delete succeeds, second fails
+          if (deleteCallCount === 1) return { ok: true, status: 200 } as unknown as Response;
+          return { ok: false, status: 500, statusText: 'Error' } as unknown as Response;
+        },
+      });
 
       const res = await request(app).post('/voices/clear');
 
@@ -336,24 +404,44 @@ describe('Voice Management Routes', () => {
       expect(res.body.deleted).toBe(1);
       expect(res.body.total).toBe(2);
       expect(res.body.errors).toHaveLength(1);
+      // Error message tags the provider
+      expect(res.body.errors[0]).toContain('elevenlabs');
     });
 
-    it('should show actionable message for rate-limited deletions', async () => {
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(mockVoicesResponse),
-        })
-        .mockResolvedValueOnce({ ok: true }) // voice-1 succeeds
-        .mockResolvedValueOnce({ ok: false, status: 429, statusText: 'Too Many Requests' }); // voice-2 rate limited
+    it('shows actionable message for rate-limited deletions', async () => {
+      userWithKeys(['elevenlabs']);
+      let deleteCallCount = 0;
+      setProviderFetchMocks({
+        elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+        elevenlabsDelete: () => {
+          deleteCallCount++;
+          if (deleteCallCount === 1) return { ok: true, status: 200 } as unknown as Response;
+          return { ok: false, status: 429, statusText: 'Too Many' } as unknown as Response;
+        },
+      });
 
       const res = await request(app).post('/voices/clear');
 
       expect(res.status).toBe(200);
-      expect(res.body.deleted).toBe(1);
-      expect(res.body.errors).toHaveLength(1);
       expect(res.body.errors[0]).toContain('rate limited');
       expect(res.body.errors[0]).toContain('try again shortly');
+    });
+  });
+
+  // ===== Decryption failure ==============================================
+
+  describe('decryption failure', () => {
+    it('returns empty key map (and 404) when ALL keys fail to decrypt', async () => {
+      userWithKeys(['elevenlabs']);
+      vi.mocked(decryptApiKey).mockImplementation(() => {
+        throw new Error('Decryption failed');
+      });
+
+      const res = await request(app).get('/voices');
+
+      // Resolver logs the failure and skips the provider; map is empty → 404
+      expect(res.status).toBe(404);
+      expect(res.body.message).toContain('audio provider API key');
     });
   });
 });

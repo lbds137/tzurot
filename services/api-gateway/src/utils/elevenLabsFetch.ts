@@ -41,7 +41,7 @@ export async function fetchFromElevenLabs<T extends z.ZodType>(
   try {
     response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}${endpoint}`, {
       headers: { 'xi-api-key': apiKey },
-      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
+      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.EXTERNAL_AUDIO_API_CALL),
     });
   } catch (error) {
     logger.error({ err: error }, `${prefix} Network error calling ElevenLabs`);

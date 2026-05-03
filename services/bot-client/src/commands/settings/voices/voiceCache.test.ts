@@ -13,8 +13,8 @@ import type { VoiceEntry } from './types.js';
 
 describe('voiceCache', () => {
   const voices: VoiceEntry[] = [
-    { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
-    { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
+    { provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
+    { provider: 'mistral', voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
   ];
 
   beforeEach(() => {

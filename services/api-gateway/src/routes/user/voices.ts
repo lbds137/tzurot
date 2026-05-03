@@ -1,22 +1,22 @@
 /**
  * Voice Management Routes
  *
- * Manages ElevenLabs cloned voices (tzurot-prefixed) for BYOK users.
- * Proxies to ElevenLabs API after decrypting the user's stored key.
+ * Manages cloned voices (tzurot-prefixed) across ALL audio providers a user
+ * has BYOK keys for. Currently supports ElevenLabs and Mistral; new audio
+ * providers slot in by registering a `VoiceProviderClient` below.
  *
  * Endpoints:
- * - GET /    - List cloned voices (filtered to tzurot-* prefix)
- * - DELETE /:voiceId - Delete a single voice
- * - POST /clear     - Delete ALL tzurot-prefixed voices
+ * - GET /                    — list cloned voices (across all configured providers)
+ * - DELETE /:provider/:voiceId — delete a single voice from the named provider
+ * - POST /clear              — delete ALL tzurot-prefixed voices across all providers
  */
 
 import { Router, type Response as ExpressResponse } from 'express';
-import { z } from 'zod';
 import {
   createLogger,
-  AI_ENDPOINTS,
   TTS_VOICE_NAME_PREFIX,
-  VALIDATION_TIMEOUTS,
+  isAudioProviderId,
+  type AudioProviderId,
   type PrismaClient,
 } from '@tzurot/common-types';
 import type { ErrorResponse } from '../../utils/errorResponses.js';
@@ -24,121 +24,153 @@ import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMidd
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { resolveElevenLabsKey } from '../../utils/elevenLabsKeyResolver.js';
-import { fetchFromElevenLabs } from '../../utils/elevenLabsFetch.js';
+import { resolveAudioProviderKeys } from '../../utils/audioProviderKeyResolver.js';
+import {
+  listElevenLabsTzurotVoices,
+  getElevenLabsVoice,
+  deleteElevenLabsVoice,
+} from '../../utils/elevenLabsVoicesClient.js';
+import {
+  listMistralTzurotVoices,
+  getMistralVoice,
+  deleteMistralVoice,
+  type MistralCloned,
+} from '../../utils/mistralVoicesClient.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { handleListModels } from './voiceModels.js';
 
 const logger = createLogger('VoicesRoute');
 
-/** Validates ElevenLabs voice IDs — prevents unnecessary API round-trips for garbage input.
- * See also: voice-engine's `_VOICE_ID_RE` in server.py (authoritative pattern). */
+/** Validates voice IDs across providers — prevents unnecessary API round-trips for garbage input.
+ *  Both ElevenLabs (20-char IDs) and Mistral (UUIDs with hyphens) fit this character class. */
 const VOICE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Max concurrent ElevenLabs delete calls per batch in bulk clear */
+/** Max concurrent provider-API delete calls per batch in bulk clear */
 const DELETE_BATCH_SIZE = 5;
 
-/** Zod schemas for ElevenLabs API responses — validates at the external service boundary */
-const ElevenLabsVoiceSchema = z.object({
-  voice_id: z.string(),
-  name: z.string(),
-  category: z.string().optional(),
-});
+/**
+ * Provider-tagged voice entry returned to bot-client. The `provider` field
+ * lets the autocomplete / delete handlers know which API to talk to without
+ * a separate lookup.
+ */
+interface TaggedVoice {
+  provider: AudioProviderId;
+  voiceId: string;
+  name: string;
+  slug: string;
+}
 
-const ElevenLabsVoicesResponseSchema = z.object({
-  voices: z.array(ElevenLabsVoiceSchema),
-});
-
-type ElevenLabsVoice = z.infer<typeof ElevenLabsVoiceSchema>;
+// ===== Provider-fanout helpers =============================================
 
 /**
- * Fetch all voices from ElevenLabs, filtered to tzurot-prefixed clones.
- * Returns an ErrorResponse for auth failures (401/403) so callers can surface
- * user-actionable messages instead of a generic 500.
+ * Fetch tzurot-prefixed cloned voices from every provider the user has a
+ * BYOK key for, tagging each voice with its provider. Used by both list and
+ * clear handlers.
+ *
+ * Auth-error responses are surfaced as `errorResponse` only when ALL
+ * providers fail (otherwise success-with-fewer-results is the right shape
+ * — a working ElevenLabs key + bad Mistral key shouldn't break the listing
+ * the user's actual ElevenLabs voices).
  */
-async function fetchTzurotVoices(
-  apiKey: string
-): Promise<{ voices: ElevenLabsVoice[]; totalVoices: number } | { errorResponse: ErrorResponse }> {
-  const result = await fetchFromElevenLabs({
-    endpoint: '/voices',
-    apiKey,
-    schema: ElevenLabsVoicesResponseSchema,
-    resourceName: 'voices',
-  });
+async function fetchAllTzurotVoices(
+  keys: Map<AudioProviderId, string>
+): Promise<{ voices: TaggedVoice[]; totalVoicesByProvider: Map<AudioProviderId, number> }> {
+  const tagged: TaggedVoice[] = [];
+  const totals = new Map<AudioProviderId, number>();
 
+  const elKey = keys.get('elevenlabs');
+  if (elKey !== undefined) {
+    const result = await listElevenLabsTzurotVoices(elKey);
+    if ('errorResponse' in result) {
+      logger.warn(
+        { provider: 'elevenlabs', errorResponse: result.errorResponse },
+        'Skipping provider — fetch failed'
+      );
+    } else {
+      totals.set('elevenlabs', result.totalVoices);
+      for (const v of result.voices) {
+        tagged.push({
+          provider: 'elevenlabs',
+          voiceId: v.voice_id,
+          name: v.name,
+          slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
+        });
+      }
+    }
+  }
+
+  const miKey = keys.get('mistral');
+  if (miKey !== undefined) {
+    const result = await listMistralTzurotVoices(miKey, TTS_VOICE_NAME_PREFIX);
+    if ('errorResponse' in result) {
+      logger.warn(
+        { provider: 'mistral', errorResponse: result.errorResponse },
+        'Skipping provider — fetch failed'
+      );
+    } else {
+      totals.set('mistral', result.totalVoices);
+      for (const v of result.voices) {
+        tagged.push({
+          provider: 'mistral',
+          voiceId: v.voiceId,
+          name: v.name,
+          slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
+        });
+      }
+    }
+  }
+
+  return { voices: tagged, totalVoicesByProvider: totals };
+}
+
+/** Per-provider single-voice lookup (for IDOR-style verification before delete). */
+async function fetchVoiceFromProvider(
+  provider: AudioProviderId,
+  apiKey: string,
+  voiceId: string
+): Promise<{ name: string } | { errorResponse: ErrorResponse }> {
+  if (provider === 'elevenlabs') {
+    const result = await getElevenLabsVoice(apiKey, voiceId);
+    if ('errorResponse' in result) {
+      return result;
+    }
+    return { name: result.voice.name };
+  }
+  // mistral
+  const result: { voice: MistralCloned } | { errorResponse: ErrorResponse } = await getMistralVoice(
+    apiKey,
+    voiceId
+  );
   if ('errorResponse' in result) {
     return result;
   }
-
-  const allVoices = result.data.voices;
-  const tzurotVoices = allVoices.filter(v => v.name.startsWith(TTS_VOICE_NAME_PREFIX));
-
-  return { voices: tzurotVoices, totalVoices: allVoices.length };
+  return { name: result.voice.name };
 }
 
-/**
- * Fetch a single voice by ID from ElevenLabs.
- * Used by the delete handler for O(1) IDOR verification instead of listing all voices.
- */
-async function fetchSingleVoice(
-  apiKey: string,
-  voiceId: string
-): Promise<{ voice: ElevenLabsVoice } | { errorResponse: ErrorResponse }> {
-  const response = await fetch(
-    `${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices/${encodeURIComponent(voiceId)}`,
-    {
-      headers: { 'xi-api-key': apiKey },
-      signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
-    }
-  );
-
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      logger.warn({ status: response.status }, 'ElevenLabs rejected API key');
-      return {
-        errorResponse: ErrorResponses.unauthorized(
-          'ElevenLabs API key is invalid or expired. Update it with /settings apikey set'
-        ),
-      };
-    }
-    if (response.status === 404) {
-      return { errorResponse: ErrorResponses.notFound('Voice') };
-    }
-    logger.error(
-      { status: response.status, statusText: response.statusText, voiceId },
-      'ElevenLabs API error fetching voice'
-    );
-    return {
-      errorResponse: ErrorResponses.internalError('Failed to fetch voice from ElevenLabs'),
-    };
-  }
-
-  const parseResult = ElevenLabsVoiceSchema.safeParse(await response.json());
-  if (!parseResult.success) {
-    logger.error(
-      { errors: parseResult.error.format(), voiceId },
-      'Unexpected voice response format from ElevenLabs'
-    );
-    return {
-      errorResponse: ErrorResponses.internalError('Unexpected voice response from ElevenLabs'),
-    };
-  }
-  return { voice: parseResult.data };
-}
-
-/** Delete a single ElevenLabs voice via the API */
-async function deleteElevenLabsVoice(
+/** Per-provider single-voice delete dispatch.
+ *  Exhaustive switch with `never`-typed default so adding a new
+ *  `AudioProviderId` value surfaces a compile error here rather than
+ *  silently routing to a wrong provider's API. */
+async function deleteVoiceAtProvider(
+  provider: AudioProviderId,
   apiKey: string,
   voiceId: string
 ): Promise<globalThis.Response> {
-  return fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/voices/${encodeURIComponent(voiceId)}`, {
-    method: 'DELETE',
-    headers: { 'xi-api-key': apiKey },
-    signal: AbortSignal.timeout(VALIDATION_TIMEOUTS.ELEVENLABS_API_CALL),
-  });
+  switch (provider) {
+    case 'elevenlabs':
+      return deleteElevenLabsVoice(apiKey, voiceId);
+    case 'mistral':
+      return deleteMistralVoice(apiKey, voiceId);
+    default: {
+      const _exhaustive: never = provider;
+      throw new Error(`Unsupported audio provider: ${String(_exhaustive)}`);
+    }
+  }
 }
 
-/** GET / handler — list cloned voices with slot summary */
+// ===== Handlers ============================================================
+
+/** GET / — list tzurot-prefixed voices across all providers the user has keys for. */
 async function handleListVoices(
   prisma: PrismaClient,
   req: AuthenticatedRequest,
@@ -146,103 +178,134 @@ async function handleListVoices(
 ): Promise<void> {
   const discordUserId = req.userId;
 
-  const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
-  if ('errorResponse' in keyResult) {
-    sendError(res, keyResult.errorResponse);
+  const keysResult = await resolveAudioProviderKeys(prisma, discordUserId);
+  if ('errorResponse' in keysResult) {
+    sendError(res, keysResult.errorResponse);
     return;
   }
 
-  const voicesResult = await fetchTzurotVoices(keyResult.apiKey);
-  if ('errorResponse' in voicesResult) {
-    sendError(res, voicesResult.errorResponse);
+  if (keysResult.keys.size === 0) {
+    sendError(
+      res,
+      ErrorResponses.notFound(
+        'audio provider API key. Set one with /settings apikey set (ElevenLabs or Mistral)'
+      )
+    );
     return;
   }
 
-  const { voices, totalVoices } = voicesResult;
+  const { voices, totalVoicesByProvider } = await fetchAllTzurotVoices(keysResult.keys);
+  const totalVoices = Array.from(totalVoicesByProvider.values()).reduce((a, b) => a + b, 0);
 
-  logger.info({ discordUserId, tzurotCount: voices.length, totalVoices }, 'Listed cloned voices');
+  logger.info(
+    {
+      discordUserId,
+      tzurotCount: voices.length,
+      totalVoices,
+      providers: [...keysResult.keys.keys()],
+    },
+    'Listed cloned voices across providers'
+  );
 
   sendCustomSuccess(res, {
-    voices: voices.map(v => ({
-      voiceId: v.voice_id,
-      name: v.name,
-      slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
-    })),
+    voices,
     totalVoices,
     tzurotCount: voices.length,
   });
 }
 
-/** DELETE /:voiceId handler — delete a single tzurot-prefixed voice */
+/** DELETE /:provider/:voiceId — delete a single tzurot-prefixed voice from a specific provider. */
 async function handleDeleteVoice(
   prisma: PrismaClient,
   req: AuthenticatedRequest,
   res: ExpressResponse
 ): Promise<void> {
   const discordUserId = req.userId;
-  // @types/express-serve-static-core ParamsDictionary: [key: string]: string | string[]
-  // Named route params (`:voiceId`) are always string, but the index signature is wider
+  // ParamsDictionary widening: route params are always string at runtime
+  const provider = req.params.provider as string;
   const voiceId = req.params.voiceId as string;
 
+  // `AudioProviderId` is intentionally narrower than `TtsProviderId` — it
+  // excludes `self-hosted` because users don't manage voices in a self-hosted
+  // account (no per-user voice slate to clone/delete). Only `'elevenlabs'`
+  // and `'mistral'` pass this guard. Pairs with the exhaustive switch in
+  // `deleteVoiceAtProvider`: adding a new BYOK provider only requires
+  // updating `AudioProviderId` + its dispatch case.
+  if (!isAudioProviderId(provider)) {
+    sendError(res, ErrorResponses.validationError(`Unknown provider: ${provider}`));
+    return;
+  }
   if (!VOICE_ID_RE.test(voiceId)) {
     sendError(res, ErrorResponses.validationError('Invalid voice ID format'));
     return;
   }
 
-  const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
-  if ('errorResponse' in keyResult) {
-    sendError(res, keyResult.errorResponse);
+  const audioProvider = provider;
+
+  const keysResult = await resolveAudioProviderKeys(prisma, discordUserId);
+  if ('errorResponse' in keysResult) {
+    sendError(res, keysResult.errorResponse);
     return;
   }
 
-  // Fetch the single voice to verify it exists and is tzurot-prefixed (IDOR guard).
-  // Uses GET /v1/voices/:voiceId — O(1) instead of listing all voices.
-  const voiceResult = await fetchSingleVoice(keyResult.apiKey, voiceId);
+  const apiKey = keysResult.keys.get(audioProvider);
+  if (apiKey === undefined) {
+    sendError(
+      res,
+      ErrorResponses.notFound(`${audioProvider} API key. Set one with /settings apikey set`)
+    );
+    return;
+  }
+
+  // IDOR guard: fetch the voice and verify it has the tzurot- prefix before deleting.
+  const voiceResult = await fetchVoiceFromProvider(audioProvider, apiKey, voiceId);
   if ('errorResponse' in voiceResult) {
     sendError(res, voiceResult.errorResponse);
     return;
   }
 
-  const { voice } = voiceResult;
-
-  if (!voice.name.startsWith(TTS_VOICE_NAME_PREFIX)) {
+  if (!voiceResult.name.startsWith(TTS_VOICE_NAME_PREFIX)) {
     sendError(res, ErrorResponses.notFound('Tzurot-cloned voice'));
     return;
   }
 
-  const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voiceId);
+  const deleteResponse = await deleteVoiceAtProvider(audioProvider, apiKey, voiceId);
 
   if (!deleteResponse.ok) {
     logger.error(
       {
         discordUserId,
+        provider: audioProvider,
         voiceId,
         status: deleteResponse.status,
         statusText: deleteResponse.statusText,
       },
-      'Failed to delete voice from ElevenLabs'
+      'Failed to delete voice from provider'
     );
     sendError(res, ErrorResponses.internalError('Failed to delete voice'));
     return;
   }
 
-  logger.info({ discordUserId, voiceId, voiceName: voice.name }, 'Deleted voice');
+  logger.info(
+    { discordUserId, provider: audioProvider, voiceId, voiceName: voiceResult.name },
+    'Deleted voice'
+  );
 
   sendCustomSuccess(res, {
     deleted: true,
+    provider: audioProvider,
     voiceId,
-    name: voice.name,
-    slug: voice.name.slice(TTS_VOICE_NAME_PREFIX.length),
+    name: voiceResult.name,
+    slug: voiceResult.name.slice(TTS_VOICE_NAME_PREFIX.length),
   });
 }
 
 /**
- * POST /clear handler — delete ALL tzurot-prefixed voices.
+ * POST /clear — delete ALL tzurot-prefixed voices across all configured providers.
  *
  * Always returns 200 OK, even on partial failure. Callers must inspect the
  * response body: `{ deleted, total, errors? }`. When `errors` is present,
- * some deletions failed but others succeeded. This mirrors the bot-client's
- * expectation — it shows a warning embed for partial failures.
+ * some deletions failed but others succeeded.
  */
 async function handleClearVoices(
   prisma: PrismaClient,
@@ -251,29 +314,32 @@ async function handleClearVoices(
 ): Promise<void> {
   const discordUserId = req.userId;
 
-  const keyResult = await resolveElevenLabsKey(prisma, discordUserId);
-  if ('errorResponse' in keyResult) {
-    sendError(res, keyResult.errorResponse);
+  const keysResult = await resolveAudioProviderKeys(prisma, discordUserId);
+  if ('errorResponse' in keysResult) {
+    sendError(res, keysResult.errorResponse);
     return;
   }
 
-  const voicesResult = await fetchTzurotVoices(keyResult.apiKey);
-  if ('errorResponse' in voicesResult) {
-    sendError(res, voicesResult.errorResponse);
+  if (keysResult.keys.size === 0) {
+    sendError(
+      res,
+      ErrorResponses.notFound(
+        'audio provider API key. Set one with /settings apikey set (ElevenLabs or Mistral)'
+      )
+    );
     return;
   }
 
-  const { voices } = voicesResult;
+  const { voices } = await fetchAllTzurotVoices(keysResult.keys);
 
   if (voices.length === 0) {
     sendCustomSuccess(res, { deleted: 0, total: 0, message: 'No Tzurot voices to clear' });
     return;
   }
 
-  // Delete in small batches to balance speed vs ElevenLabs rate limits.
-  // Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s) for this call.
-  // If the gateway exceeds that, the bot-client aborts but deletions continue
-  // server-side — no data is lost, voices are eventually removed.
+  // Delete in small batches to balance speed vs provider rate limits.
+  // Bot-client uses GATEWAY_TIMEOUTS.BULK_OPERATION (30s) for this call;
+  // gateway timeout would abort but deletions continue server-side.
   let deleted = 0;
   const errors: string[] = [];
 
@@ -281,15 +347,21 @@ async function handleClearVoices(
     const batch = voices.slice(i, i + DELETE_BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map(async voice => {
-        const deleteResponse = await deleteElevenLabsVoice(keyResult.apiKey, voice.voice_id);
-        if (!deleteResponse.ok) {
+        const apiKey = keysResult.keys.get(voice.provider);
+        if (apiKey === undefined) {
+          // Defensive: voice came from fetchAllTzurotVoices, so its provider had a key.
+          // If it disappeared mid-clear, fail loudly with a meaningful message.
+          throw new Error(`${voice.name}: ${voice.provider} key disappeared mid-clear`);
+        }
+        const response = await deleteVoiceAtProvider(voice.provider, apiKey, voice.voiceId);
+        if (!response.ok) {
           // Surface actionable messages — "429" alone is meaningless to end users.
-          // voice.name is safe to embed directly in Discord: it's always tzurot-* prefixed
-          // (filtered by fetchTzurotVoices), so no user-controlled injection risk.
+          // voice.name is safe to embed: it's tzurot-prefix-filtered (no user-controlled
+          // injection risk).
           const detail =
-            deleteResponse.status === 429
-              ? `${voice.name}: rate limited — try again shortly`
-              : `${voice.name}: ${deleteResponse.status}`;
+            response.status === 429
+              ? `${voice.name} (${voice.provider}): rate limited — try again shortly`
+              : `${voice.name} (${voice.provider}): ${response.status}`;
           throw new Error(detail);
         }
       })
@@ -306,7 +378,7 @@ async function handleClearVoices(
 
   logger.info(
     { discordUserId, deleted, total: voices.length, errors: errors.length },
-    'Cleared cloned voices'
+    'Cleared cloned voices across providers'
   );
 
   sendCustomSuccess(res, {
@@ -315,6 +387,8 @@ async function handleClearVoices(
     errors: errors.length > 0 ? errors : undefined,
   });
 }
+
+// ===== Router setup ========================================================
 
 export function createVoicesRoutes(prisma: PrismaClient): Router {
   const router = Router();
@@ -328,7 +402,7 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
     })
   );
 
-  // Register /models before /:voiceId so the wildcard doesn't shadow it
+  // Register /models before /:provider/:voiceId so the wildcard doesn't shadow it
   router.get(
     '/models',
     requireUserAuth(),
@@ -338,7 +412,7 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
     })
   );
 
-  // Register /clear before /:voiceId so the wildcard doesn't shadow it
+  // Register /clear before /:provider/:voiceId so the wildcard doesn't shadow it
   router.post(
     '/clear',
     requireUserAuth(),
@@ -349,7 +423,7 @@ export function createVoicesRoutes(prisma: PrismaClient): Router {
   );
 
   router.delete(
-    '/:voiceId',
+    '/:provider/:voiceId',
     requireUserAuth(),
     requireProvisionedUser(prisma),
     asyncHandler(async (req: AuthenticatedRequest, res: ExpressResponse) => {
