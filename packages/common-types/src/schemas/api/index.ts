@@ -26,6 +26,9 @@ export * from './timezone.js';
 // LLM Config endpoints
 export * from './llm-config.js';
 
+// TTS Config endpoints
+export * from './tts-config.js';
+
 // Channel activation endpoints
 export * from './channel.js';
 

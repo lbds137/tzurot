@@ -9,6 +9,8 @@ import {
   generatePersonaUuid,
   generateSystemPromptUuid,
   generateLlmConfigUuid,
+  newLlmConfigId,
+  newTtsConfigId,
   generateUserPersonalityConfigUuid,
   generateConversationHistoryUuid,
   generateChannelSettingsUuid,
@@ -326,6 +328,44 @@ describe('Deterministic UUID Generation', () => {
     it('should correctly identify generated UUIDs', () => {
       const uuid = generateUserUuid('test-user');
       expect(isUuidFormat(uuid)).toBe(true);
+    });
+  });
+
+  describe('newLlmConfigId / newTtsConfigId (UUIDv7 generators)', () => {
+    it('produces valid RFC 4122 UUID strings', () => {
+      expect(isUuidFormat(newLlmConfigId())).toBe(true);
+      expect(isUuidFormat(newTtsConfigId())).toBe(true);
+    });
+
+    it('returns a different UUID on each call (random tail)', () => {
+      const a = newLlmConfigId();
+      const b = newLlmConfigId();
+      expect(a).not.toBe(b);
+
+      const c = newTtsConfigId();
+      const d = newTtsConfigId();
+      expect(c).not.toBe(d);
+    });
+
+    it('encodes version 7 in the version nibble', () => {
+      // UUIDv7 puts `7` in the version slot (13th hex char, after the 3rd dash):
+      // xxxxxxxx-xxxx-7xxx-xxxx-xxxxxxxxxxxx
+      const id = newTtsConfigId();
+      expect(id[14]).toBe('7');
+      const id2 = newLlmConfigId();
+      expect(id2[14]).toBe('7');
+    });
+
+    it('newTtsConfigId and newLlmConfigId produce non-overlapping ids', () => {
+      // Same v7 spec, but they should never collide because they're random
+      // — sanity check that they're distinct generator instances rather
+      // than aliases to the same memoized value.
+      const ttsIds = new Set(Array.from({ length: 100 }, () => newTtsConfigId()));
+      const llmIds = new Set(Array.from({ length: 100 }, () => newLlmConfigId()));
+      const intersection = [...ttsIds].filter(id => llmIds.has(id));
+      expect(intersection).toHaveLength(0);
+      expect(ttsIds.size).toBe(100); // all unique
+      expect(llmIds.size).toBe(100);
     });
   });
 });
