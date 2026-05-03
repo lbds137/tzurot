@@ -630,6 +630,7 @@ describe('/user/model-override routes', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: null,
       });
+      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce(null);
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/default');
@@ -642,6 +643,7 @@ describe('/user/model-override routes', () => {
         expect.objectContaining({
           deleted: true,
           wasSet: false,
+          newEffectiveDefault: null,
         })
       );
     });
@@ -650,6 +652,7 @@ describe('/user/model-override routes', () => {
       mockPrisma.user.findUnique.mockResolvedValueOnce({
         defaultLlmConfigId: 'config-123',
       });
+      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce(null);
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/default');
@@ -665,6 +668,63 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           deleted: true,
+          wasSet: true,
+          newEffectiveDefault: null,
+        })
+      );
+    });
+
+    it('should include newEffectiveDefault on the no-op path when free default exists', async () => {
+      // Coverage: the 4th cell in the (wasSet × freeDefault) matrix.
+      // Confirms findFirst still runs even when the early-return wasSet:false
+      // branch is taken.
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        defaultLlmConfigId: null,
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce({
+        id: 'free-id',
+        name: 'gpt-4-free',
+      });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deleted: true,
+          wasSet: false,
+          newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+        })
+      );
+    });
+
+    it('should include the system free default in newEffectiveDefault when one is configured', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        defaultLlmConfigId: 'config-123',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValueOnce({
+        id: 'free-id',
+        name: 'gpt-4-free',
+      });
+
+      const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/default');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(mockPrisma.llmConfig.findFirst).toHaveBeenCalledWith({
+        where: { isFreeDefault: true },
+        select: { id: true, name: true },
+      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deleted: true,
+          newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
         })
       );
     });

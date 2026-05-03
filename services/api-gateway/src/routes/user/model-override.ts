@@ -298,13 +298,27 @@ export function createModelOverrideRoutes(
         return sendError(res, ErrorResponses.notFound('User'));
       }
 
+      // Look up the system free default that the user will fall back to.
+      // Per-personality overrides (UserPersonalityConfig.llmConfigId) and
+      // personality-level defaults (PersonalityDefaultLlmConfig) are
+      // unaffected by this action — the free default is just the user-global
+      // fallback for personalities without their own override or default.
+      const newEffectiveDefault = await prisma.llmConfig.findFirst({
+        where: { isFreeDefault: true },
+        select: { id: true, name: true },
+      });
+
       // Idempotent: if no default config is set, return success with wasSet: false
       if (user.defaultLlmConfigId === null) {
         logger.info(
           { discordUserId, hadDefault: false },
           'Clear called but no default was set (idempotent success)'
         );
-        return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
+        return sendCustomSuccess(
+          res,
+          { deleted: true, wasSet: false, newEffectiveDefault },
+          StatusCodes.OK
+        );
       }
 
       await prisma.user.update({
@@ -323,7 +337,10 @@ export function createModelOverrideRoutes(
         { discordUserId }
       );
 
-      sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
+      // Symmetric with the no-op `wasSet: false` branch above and with TTS's
+      // DELETE /default — explicit `wasSet: true` lets a caller distinguish
+      // "actually cleared" from "already empty" via a single field check.
+      sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefault }, StatusCodes.OK);
     })
   );
 

@@ -316,16 +316,22 @@ describe('user/tts-override routes', () => {
   describe('DELETE /default', () => {
     it('returns idempotent success with wasSet:false when no default exists', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: null });
+      vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
       const handler = extractHandler(buildRouter(), 'DELETE', '/default');
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
-      expect(json).toHaveBeenCalledWith({ deleted: true, wasSet: false });
+      expect(json).toHaveBeenCalledWith({
+        deleted: true,
+        wasSet: false,
+        newEffectiveDefault: null,
+      });
     });
 
     it('clears defaultTtsConfigId when one is set, returning wasSet: true', async () => {
       vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: 'c1' });
+      vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue(null);
       const handler = extractHandler(buildRouter(), 'DELETE', '/default');
       const { res, json } = makeMockRes();
 
@@ -336,7 +342,53 @@ describe('user/tts-override routes', () => {
       });
       // Symmetric with the no-op `wasSet: false` branch — clients can branch
       // on `wasSet` alone to tell "actually cleared" from "already empty".
-      expect(json).toHaveBeenCalledWith({ deleted: true, wasSet: true });
+      expect(json).toHaveBeenCalledWith({
+        deleted: true,
+        wasSet: true,
+        newEffectiveDefault: null,
+      });
+    });
+
+    it('includes newEffectiveDefault on the no-op path when free default exists', async () => {
+      // Coverage: the 4th cell in the (wasSet × freeDefault) matrix.
+      // Confirms findFirst still runs even when the early-return wasSet:false
+      // branch is taken.
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: null });
+      vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue({
+        id: 'free-id',
+        name: 'kyutai-self-hosted',
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq(), res);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(json).toHaveBeenCalledWith({
+        deleted: true,
+        wasSet: false,
+        newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
+      });
+    });
+
+    it('includes the system free default in newEffectiveDefault when one is configured', async () => {
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ defaultTtsConfigId: 'c1' });
+      vi.mocked(mockPrisma.ttsConfig.findFirst).mockResolvedValue({
+        id: 'free-id',
+        name: 'kyutai-self-hosted',
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq(), res);
+      expect(mockPrisma.ttsConfig.findFirst).toHaveBeenCalledWith({
+        where: { isFreeDefault: true },
+        select: { id: true, name: true },
+      });
+      expect(json).toHaveBeenCalledWith({
+        deleted: true,
+        wasSet: true,
+        newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
+      });
     });
   });
 
