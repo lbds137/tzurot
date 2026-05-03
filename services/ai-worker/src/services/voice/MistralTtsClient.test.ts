@@ -7,6 +7,7 @@ import {
   mistralListVoices,
   mistralDeleteVoice,
   MistralApiError,
+  MistralResponseShapeError,
   MistralTimeoutError,
 } from './MistralTtsClient.js';
 
@@ -161,11 +162,11 @@ describe('mistralTTS', () => {
     );
   });
 
-  it('throws MistralApiError when audio_data is missing', async () => {
+  it('throws MistralResponseShapeError when audio_data is missing (NOT MistralApiError(200))', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(200, {}));
-    await expect(mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' })).rejects.toThrow(
-      /missing audio_data/
-    );
+    const promise = mistralTTS({ text: 'x', voiceId: 'v', apiKey: 'k' });
+    await expect(promise).rejects.toBeInstanceOf(MistralResponseShapeError);
+    await expect(promise).rejects.toThrow(/missing audio_data/);
   });
 
   it('throws MistralTimeoutError when fetch aborts', async () => {
@@ -220,16 +221,16 @@ describe('mistralCloneVoice', () => {
     expect(result.userId).toBeNull();
   });
 
-  it('throws when response missing id', async () => {
+  it('throws MistralResponseShapeError when response missing id', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(200, { name: 'x' }));
-    await expect(
-      mistralCloneVoice({
-        name: 'x',
-        audioBuffer: Buffer.from([0]),
-        contentType: 'audio/wav',
-        apiKey: 'k',
-      })
-    ).rejects.toThrow(/missing id/);
+    const promise = mistralCloneVoice({
+      name: 'x',
+      audioBuffer: Buffer.from([0]),
+      contentType: 'audio/wav',
+      apiKey: 'k',
+    });
+    await expect(promise).rejects.toBeInstanceOf(MistralResponseShapeError);
+    await expect(promise).rejects.toThrow(/missing id/);
   });
 
   it('throws MistralApiError on non-200', async () => {
@@ -277,9 +278,11 @@ describe('mistralListVoices', () => {
     expect(url).toContain('page_size=50');
   });
 
-  it('throws when items is missing', async () => {
+  it('throws MistralResponseShapeError when items is missing', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(200, { total: 0 }));
-    await expect(mistralListVoices('k')).rejects.toThrow(/missing items/);
+    const promise = mistralListVoices('k');
+    await expect(promise).rejects.toBeInstanceOf(MistralResponseShapeError);
+    await expect(promise).rejects.toThrow(/missing items/);
   });
 
   it('does not throw when total_pages > 1 (logs warning)', async () => {
@@ -337,5 +340,27 @@ describe('MistralApiError', () => {
   it('flags 4xx (non-429) as non-transient', () => {
     expect(new MistralApiError(400, '').isTransient).toBe(false);
     expect(new MistralApiError(404, '').isTransient).toBe(false);
+  });
+});
+
+// ===== MistralResponseShapeError ============================================
+
+describe('MistralResponseShapeError', () => {
+  it('carries endpoint and missingField on the error instance', () => {
+    const err = new MistralResponseShapeError('/v1/audio/speech', 'audio_data');
+    expect(err.endpoint).toBe('/v1/audio/speech');
+    expect(err.missingField).toBe('audio_data');
+    expect(err.message).toMatch(/\/v1\/audio\/speech/);
+    expect(err.message).toMatch(/missing audio_data/);
+  });
+
+  it('flags as transient (response shape may stabilize on retry)', () => {
+    expect(new MistralResponseShapeError('/v1/audio/voices', 'items').isTransient).toBe(true);
+  });
+
+  it('is a separate class from MistralApiError (instanceof discrimination)', () => {
+    const shape = new MistralResponseShapeError('/v1/audio/speech', 'audio_data');
+    expect(shape).toBeInstanceOf(MistralResponseShapeError);
+    expect(shape).not.toBeInstanceOf(MistralApiError);
   });
 });

@@ -101,6 +101,7 @@ export class MistralApiError extends Error {
     this.name = 'MistralApiError';
     this.status = status;
     this.detail = detail;
+    Object.setPrototypeOf(this, MistralApiError.prototype);
   }
 
   get isAuthError(): boolean {
@@ -115,6 +116,33 @@ export class MistralApiError extends Error {
   get isTransient(): boolean {
     return this.isRateLimited || this.status >= 500;
   }
+}
+
+/**
+ * Mistral returned a 2xx HTTP response with a body that doesn't match the
+ * expected shape (missing `audio_data`, missing `id`, missing `items`, etc.).
+ *
+ * Distinct from `MistralApiError` (which carries an HTTP error status) so
+ * log analysis doesn't see "MistralApiError(200, ...)" and read it as
+ * success. Treated as transient by the dispatcher (the response shape may
+ * stabilize on retry — Mistral's API is in active evolution).
+ */
+export class MistralResponseShapeError extends Error {
+  readonly endpoint: string;
+  readonly missingField: string;
+
+  constructor(endpoint: string, missingField: string, detail?: string) {
+    super(
+      `Mistral ${endpoint} returned malformed response body: missing ${missingField}${detail !== undefined ? ` — ${detail}` : ''}`
+    );
+    this.name = 'MistralResponseShapeError';
+    this.endpoint = endpoint;
+    this.missingField = missingField;
+    Object.setPrototypeOf(this, MistralResponseShapeError.prototype);
+  }
+
+  /** Transient: response-shape failures may stabilize on retry. */
+  readonly isTransient = true;
 }
 
 // ============================================================================
@@ -251,10 +279,7 @@ export async function mistralTTS(opts: MistralTTSOptions): Promise<MistralTTSRes
 
   const json = (await response.json()) as { audio_data?: string };
   if (typeof json.audio_data !== 'string' || json.audio_data.length === 0) {
-    throw new MistralApiError(
-      response.status,
-      'Mistral /v1/audio/speech response missing audio_data field'
-    );
+    throw new MistralResponseShapeError('/v1/audio/speech', 'audio_data');
   }
 
   const audioBuffer = Buffer.from(json.audio_data, 'base64');
@@ -292,10 +317,7 @@ export async function mistralCloneVoice(opts: MistralCloneOptions): Promise<Mist
 
   const json = (await response.json()) as { id?: string; name?: string; user_id?: string | null };
   if (typeof json.id !== 'string' || json.id.length === 0) {
-    throw new MistralApiError(
-      response.status,
-      'Mistral /v1/audio/voices response missing id field'
-    );
+    throw new MistralResponseShapeError('/v1/audio/voices', 'id');
   }
 
   logger.info({ voiceId: json.id, name: opts.name }, 'Mistral voice cloned');
@@ -331,10 +353,7 @@ export async function mistralListVoices(apiKey: string): Promise<MistralVoiceInf
     total_pages?: number;
   };
   if (!Array.isArray(json.items)) {
-    throw new MistralApiError(
-      response.status,
-      'Mistral /v1/audio/voices response missing items array'
-    );
+    throw new MistralResponseShapeError('/v1/audio/voices', 'items');
   }
 
   // Warn if we hit the pagination boundary — the find-by-name path may miss
