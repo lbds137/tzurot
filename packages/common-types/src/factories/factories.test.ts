@@ -20,6 +20,7 @@ import {
   mockCreateLlmConfigResponse,
   mockDeleteLlmConfigResponse,
 } from './llm-config.js';
+import { mockClearDefaultConfigResponse } from './model-override.js';
 
 describe('personality factories', () => {
   describe('mockListPersonalitiesResponse', () => {
@@ -307,6 +308,31 @@ describe('llm-config factories', () => {
 
       expect(response).toEqual({ deleted: true });
     });
+  });
+});
+
+describe('mockClearDefaultConfigResponse', () => {
+  it('produces a valid default-shape response with newEffectiveDefault: null', () => {
+    const response = mockClearDefaultConfigResponse();
+    expect(response).toEqual({ deleted: true, newEffectiveDefault: null });
+  });
+
+  it('accepts a populated newEffectiveDefault override', () => {
+    const response = mockClearDefaultConfigResponse({
+      newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+      wasSet: true,
+    });
+    expect(response.newEffectiveDefault).toEqual({ id: 'free-id', name: 'gpt-4-free' });
+    expect(response.wasSet).toBe(true);
+  });
+
+  it('throws ZodError on invalid override shape', () => {
+    expect(() =>
+      // newEffectiveDefault must have both id and name; missing name → invalid
+      mockClearDefaultConfigResponse({
+        newEffectiveDefault: { id: 'free-id' } as never,
+      })
+    ).toThrow();
   });
 });
 

@@ -78,6 +78,15 @@ export const ClearTtsDefaultConfigResponseSchema = z.object({
   deleted: z.literal(true),
   /** True if a default was actually cleared; false on idempotent no-op. */
   wasSet: z.boolean().optional(),
+  /** System free default the user falls back to. `null` only if no admin
+   *  has configured a free default (rare in practice — bot-client renders
+   *  a hardcoded-fallback notice when null). */
+  newEffectiveDefault: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
 });
 export type ClearTtsDefaultConfigResponse = z.infer<typeof ClearTtsDefaultConfigResponseSchema>;
 
