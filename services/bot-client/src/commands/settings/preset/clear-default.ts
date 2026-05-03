@@ -5,7 +5,11 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  type ClearDefaultConfigResponse,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
@@ -18,10 +22,13 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<{ deleted: boolean }>('/user/model-override/default', {
-      method: 'DELETE',
-      user: toGatewayUser(context.user),
-    });
+    const result = await callGatewayApi<ClearDefaultConfigResponse>(
+      '/user/model-override/default',
+      {
+        method: 'DELETE',
+        user: toGatewayUser(context.user),
+      }
+    );
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, 'Failed to clear default');
@@ -29,18 +36,29 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
       return;
     }
 
+    // Tell the user explicitly what they'll get next, instead of generic
+    // "use their own defaults" guidance. Per-personality overrides are
+    // unaffected and surface in the second sentence.
+    const fallbackLine =
+      result.data.newEffectiveDefault !== null
+        ? `Falling back to system default: \`${result.data.newEffectiveDefault.name}\`.`
+        : 'No system default is configured; the bot will use its built-in fallback.';
+
     const embed = new EmbedBuilder()
       .setTitle('✅ Default Preset Cleared')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        'Your default preset has been removed.\n\n' +
-          'Personalities will now use their own defaults unless you have a specific override.'
+        `Your default preset has been removed.\n\n${fallbackLine}\n\n` +
+          'Personalities with their own per-personality overrides will continue to use those.'
       )
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId }, 'Cleared default config');
+    logger.info(
+      { userId, newDefault: result.data.newEffectiveDefault?.name ?? null },
+      'Cleared default config'
+    );
   } catch (error) {
     logger.error({ err: error, userId, command: 'Preset Clear-Default' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
