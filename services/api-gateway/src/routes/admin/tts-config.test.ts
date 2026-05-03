@@ -1,0 +1,487 @@
+/**
+ * Tests for /admin/tts-config routes.
+ *
+ * Same vi.mock-based handler-extraction strategy as the user route tests.
+ * Covers admin-only paths (set-default, set-free-default) and the
+ * provider-based free-default constraint that's specific to TTS.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Request, Response, Router } from 'express';
+import { StatusCodes } from 'http-status-codes';
+
+const sampleRawConfig = {
+  id: 'cfg-uuid-1',
+  name: 'My Voice',
+  description: null,
+  provider: 'elevenlabs' as const,
+  modelId: 'eleven_multilingual_v2',
+  isGlobal: true,
+  isDefault: false,
+  isFreeDefault: false,
+  ownerId: 'admin-uuid-1',
+  advancedParameters: null,
+};
+
+const { mockService, MockTtsConfigService } = vi.hoisted(() => {
+  const mockService = {
+    list: vi.fn().mockResolvedValue([]),
+    getById: vi.fn().mockResolvedValue(null),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    setAsDefault: vi.fn().mockResolvedValue(undefined),
+    setAsFreeDefault: vi.fn().mockResolvedValue(undefined),
+    checkNameExists: vi.fn().mockResolvedValue({ exists: false }),
+    checkDeleteConstraints: vi.fn().mockResolvedValue(null),
+    formatConfigDetail: vi.fn(),
+  };
+  function MockTtsConfigService() {
+    return mockService;
+  }
+  return { mockService, MockTtsConfigService };
+});
+
+vi.mock('../../services/TtsConfigService.js', async () => {
+  const errors = await vi.importActual<typeof import('../../services/TtsConfigErrors.js')>(
+    '../../services/TtsConfigErrors.js'
+  );
+  return {
+    TtsConfigService: MockTtsConfigService,
+    TtsAutoSuffixCollisionError: errors.TtsAutoSuffixCollisionError,
+    TtsCloneNameExhaustedError: errors.TtsCloneNameExhaustedError,
+    TtsInvalidProviderError: errors.TtsInvalidProviderError,
+  };
+});
+
+vi.mock('../../utils/asyncHandler.js', () => ({
+  asyncHandler: <T extends (...args: unknown[]) => unknown>(fn: T) => fn,
+}));
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+const { createAdminTtsConfigRoutes } = await import('./tts-config.js');
+const { TtsInvalidProviderError } = await import('../../services/TtsConfigService.js');
+
+function makeMockRes() {
+  const json = vi.fn();
+  const status = vi.fn().mockReturnThis();
+  return {
+    res: { status, json } as unknown as Response,
+    json,
+    status,
+  };
+}
+
+function makeMockReq(overrides: Record<string, unknown> = {}): Request {
+  return {
+    userId: 'admin-discord-id',
+    params: {},
+    body: {},
+    ...overrides,
+  } as unknown as Request;
+}
+
+interface RouterLayer {
+  route?: {
+    path: string;
+    methods: Record<string, boolean>;
+    stack: Array<{ handle: (req: Request, res: Response) => Promise<void> }>;
+  };
+}
+
+function extractHandler(router: Router, method: string, path: string) {
+  const stack = (router as unknown as { stack: RouterLayer[] }).stack;
+  const layer = stack.find(
+    l => l.route?.path === path && l.route?.methods[method.toLowerCase()] === true
+  );
+  if (!layer?.route) {
+    throw new Error(`Handler for ${method} ${path} not found`);
+  }
+  return layer.route.stack[layer.route.stack.length - 1].handle;
+}
+
+const mockPrisma = {
+  ttsConfig: {
+    findUnique: vi.fn(),
+  },
+  user: {
+    findUnique: vi.fn(),
+  },
+};
+
+function buildRouter() {
+  return createAdminTtsConfigRoutes(mockPrisma as never);
+}
+
+describe('admin/tts-config routes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(mockService.formatConfigDetail).mockImplementation((c: typeof sampleRawConfig) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      provider: c.provider,
+      modelId: c.modelId,
+      isGlobal: c.isGlobal,
+      isDefault: c.isDefault,
+      isFreeDefault: c.isFreeDefault,
+      params: {},
+    }));
+    vi.mocked(mockService.checkNameExists).mockResolvedValue({ exists: false });
+    vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue(null);
+  });
+
+  describe('GET / (list)', () => {
+    it('returns all GLOBAL configs in the formatted shape', async () => {
+      vi.mocked(mockService.list).mockResolvedValue([sampleRawConfig]);
+      const handler = extractHandler(buildRouter(), 'GET', '/');
+      const { res, json, status } = makeMockRes();
+
+      await handler(makeMockReq(), res);
+      expect(mockService.list).toHaveBeenCalledWith({ type: 'GLOBAL' });
+      expect(status).toHaveBeenCalledWith(StatusCodes.OK);
+      // List rows now go through formatConfigDetail (with synthesized
+      // advancedParameters: null) so the response shape matches GET /:id.
+      // The mocked formatConfigDetail returns the formatted shape with
+      // `params: {}` for null advancedParameters.
+      expect(mockService.formatConfigDetail).toHaveBeenCalledWith(
+        expect.objectContaining({ id: sampleRawConfig.id, advancedParameters: null })
+      );
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configs: expect.arrayContaining([
+            expect.objectContaining({ id: sampleRawConfig.id, params: {} }),
+          ]),
+        })
+      );
+    });
+  });
+
+  describe('GET /:id (get)', () => {
+    it('returns 404 when config not found', async () => {
+      vi.mocked(mockService.getById).mockResolvedValue(null);
+      const handler = extractHandler(buildRouter(), 'GET', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'missing' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'NOT_FOUND' }));
+    });
+
+    it('returns formatted config when found', async () => {
+      vi.mocked(mockService.getById).mockResolvedValue(sampleRawConfig);
+      const handler = extractHandler(buildRouter(), 'GET', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ id: 'cfg-uuid-1' }),
+        })
+      );
+    });
+  });
+
+  describe('POST / (create)', () => {
+    it('returns 401 when admin user is not in DB', async () => {
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue(null);
+      const handler = extractHandler(buildRouter(), 'POST', '/');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ body: { name: 'Sys', provider: 'self-hosted' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'UNAUTHORIZED' }));
+    });
+
+    it('returns 400 NAME_COLLISION on duplicate global name', async () => {
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ id: 'admin-uuid-1' });
+      vi.mocked(mockService.checkNameExists).mockResolvedValue({
+        exists: true,
+        conflictId: 'cfg-existing',
+      });
+      const handler = extractHandler(buildRouter(), 'POST', '/');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ body: { name: 'Existing', provider: 'self-hosted' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ code: 'NAME_COLLISION' }));
+      expect(mockService.create).not.toHaveBeenCalled();
+    });
+
+    it('returns 201 on happy path', async () => {
+      vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({ id: 'admin-uuid-1' });
+      vi.mocked(mockService.create).mockResolvedValue(sampleRawConfig);
+      const handler = extractHandler(buildRouter(), 'POST', '/');
+      const { res, status } = makeMockRes();
+
+      await handler(makeMockReq({ body: { name: 'New Global', provider: 'mistral' } }), res);
+      expect(mockService.create).toHaveBeenCalledWith(
+        { type: 'GLOBAL' },
+        expect.any(Object),
+        'admin-uuid-1'
+      );
+      expect(status).toHaveBeenCalledWith(StatusCodes.CREATED);
+    });
+  });
+
+  describe('PUT /:id (edit)', () => {
+    it('returns 404 when config not found', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'missing' }, body: { description: 'new' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'NOT_FOUND' }));
+    });
+
+    it('returns 400 when target is not global', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        isGlobal: false,
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(
+        makeMockReq({ params: { id: 'cfg-uuid-1' }, body: { description: 'new' } }),
+        res
+      );
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('global'),
+        })
+      );
+    });
+
+    it('translates TtsInvalidProviderError to 400 VALIDATION_ERROR', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockService.update).mockRejectedValue(new TtsInvalidProviderError('mistal'));
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(
+        makeMockReq({ params: { id: 'cfg-uuid-1' }, body: { provider: 'mistal' } }),
+        res
+      );
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('mistal'),
+        })
+      );
+    });
+
+    it('returns 200 on happy path', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockService.update).mockResolvedValue({
+        ...sampleRawConfig,
+        modelId: 'voxtral-mini-tts-2603',
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const { res, status } = makeMockRes();
+
+      await handler(
+        makeMockReq({
+          params: { id: 'cfg-uuid-1' },
+          body: { modelId: 'voxtral-mini-tts-2603' },
+        }),
+        res
+      );
+      expect(status).toHaveBeenCalledWith(StatusCodes.OK);
+    });
+  });
+
+  describe('PUT /:id/set-default', () => {
+    it('returns 404 when config not found', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'missing' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'NOT_FOUND' }));
+    });
+
+    it('returns 400 when target is not global', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        isGlobal: false,
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+      expect(mockService.setAsDefault).not.toHaveBeenCalled();
+    });
+
+    it('calls service.setAsDefault on happy path', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(mockService.setAsDefault).toHaveBeenCalledWith('cfg-uuid-1');
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+  });
+
+  describe('PUT /:id/set-free-default', () => {
+    it('returns 400 when target is not self-hosted', async () => {
+      // ElevenLabs config (BYOK provider) — should be rejected
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        provider: 'elevenlabs',
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('self-hosted'),
+        })
+      );
+      expect(mockService.setAsFreeDefault).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when target is not global', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        provider: 'self-hosted',
+        isGlobal: false,
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+      expect(mockService.setAsFreeDefault).not.toHaveBeenCalled();
+    });
+
+    it('calls service.setAsFreeDefault on self-hosted happy path', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        provider: 'self-hosted',
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(mockService.setAsFreeDefault).toHaveBeenCalledWith('cfg-uuid-1');
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('rejects mistral as free-default (BYOK provider)', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        provider: 'mistral',
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id/set-free-default');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('self-hosted'),
+        })
+      );
+    });
+  });
+
+  describe('DELETE /:id', () => {
+    it('returns 404 when config not found', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(null);
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'missing' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'NOT_FOUND' }));
+    });
+
+    it('returns 400 when target is not global', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        isGlobal: false,
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+      expect(mockService.delete).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when target is the system default', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        isDefault: true,
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('default'),
+        })
+      );
+      expect(mockService.delete).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when target is the free-tier default', async () => {
+      // Same hard-block shape as isDefault — guest users would otherwise
+      // lose TTS until an admin manually sets a new free-tier default.
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue({
+        ...sampleRawConfig,
+        isFreeDefault: true,
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('free tier default'),
+        })
+      );
+      expect(mockService.delete).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when delete constraints block', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue(
+        'Cannot delete: TTS config is used as default by 2 personality(ies)'
+      );
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+      expect(mockService.delete).not.toHaveBeenCalled();
+    });
+
+    it('returns 200 with deleted: true on happy path', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(mockService.delete).toHaveBeenCalledWith('cfg-uuid-1');
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ deleted: true }));
+    });
+  });
+});

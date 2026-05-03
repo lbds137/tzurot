@@ -170,10 +170,18 @@ describe('TtsConfigService Integration', () => {
         'kyutai-self-hosted',
         'mistral-voxtral-mini',
       ]);
-      // kyutai-self-hosted is the free-tier default
+      // kyutai-self-hosted is BOTH the free-tier default AND the system
+      // default — fresh-DB UX works out of the box without manual admin step.
       const kyutai = result.find(c => c.name === 'kyutai-self-hosted');
       expect(kyutai?.isFreeDefault).toBe(true);
+      expect(kyutai?.isDefault).toBe(true);
       expect(kyutai?.provider).toBe('self-hosted');
+
+      // The other two globals are not defaults
+      const elevenlabs = result.find(c => c.name === 'elevenlabs-multilingual-v2');
+      const mistral = result.find(c => c.name === 'mistral-voxtral-mini');
+      expect(elevenlabs?.isDefault).toBe(false);
+      expect(mistral?.isDefault).toBe(false);
     });
 
     it('skips bootstrap when no superuser exists', async () => {
@@ -311,6 +319,17 @@ describe('TtsConfigService Integration', () => {
 
       const row = await prisma.ttsConfig.findUnique({ where: { id: configId } });
       expect(row?.provider).toBe('self-hosted');
+      expect(row?.modelId).toBe('eleven_multilingual_v2');
+    });
+
+    it('treats empty-string name as "preserve existing"', async () => {
+      // Same dashboard convention as the provider field: empty string means
+      // "field unchanged." Without this guard, an empty `name` could reach
+      // the DB and break `(ownerId, name)` uniqueness invariants.
+      await service.update(configId, { name: '', modelId: 'eleven_multilingual_v2' });
+
+      const row = await prisma.ttsConfig.findUnique({ where: { id: configId } });
+      expect(row?.name).toBe('Updatable');
       expect(row?.modelId).toBe('eleven_multilingual_v2');
     });
 

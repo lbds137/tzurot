@@ -202,13 +202,28 @@ describe('TtsConfigService', () => {
         expect.objectContaining({ skipDuplicates: true })
       );
       // Verify 3 seed entries with the expected names
-      const createCall = vi.mocked(prisma.ttsConfig.createMany).mock.calls[0][0];
-      const seedNames = (createCall.data as Array<{ name: string }>).map(d => d.name);
-      expect(seedNames).toEqual([
+      const createCall = vi.mocked(prisma.ttsConfig.createMany).mock.calls[0]?.[0];
+      expect(createCall).toBeDefined();
+      const seedRows = (
+        createCall as {
+          data: Array<{ name: string; isDefault: boolean; isFreeDefault: boolean }>;
+        }
+      ).data;
+      expect(seedRows.map(d => d.name)).toEqual([
         'kyutai-self-hosted',
         'elevenlabs-multilingual-v2',
         'mistral-voxtral-mini',
       ]);
+      // kyutai-self-hosted seeds with BOTH isDefault: true (system default)
+      // and isFreeDefault: true so a fresh dev DB has working TTS without
+      // a manual admin step.
+      const kyutaiSeed = seedRows.find(d => d.name === 'kyutai-self-hosted');
+      expect(kyutaiSeed?.isDefault).toBe(true);
+      expect(kyutaiSeed?.isFreeDefault).toBe(true);
+      // The other two are not defaults
+      expect(seedRows.find(d => d.name === 'elevenlabs-multilingual-v2')?.isDefault).toBe(false);
+      expect(seedRows.find(d => d.name === 'mistral-voxtral-mini')?.isDefault).toBe(false);
+
       expect(result).toEqual(seeded);
     });
 
@@ -381,6 +396,17 @@ describe('TtsConfigService', () => {
       const call = vi.mocked(prisma.ttsConfig.update).mock.calls[0][0];
       expect(call.data).toEqual({ modelId: 'eleven_multilingual_v2' });
       expect((call.data as Record<string, unknown>).provider).toBeUndefined();
+    });
+
+    it('treats empty-string name as "preserve existing" — symmetric with provider guard', async () => {
+      vi.mocked(prisma.ttsConfig.update).mockResolvedValue(sampleConfig);
+      // Same dashboard convention as provider; without this guard the empty
+      // string would reach the DB and break (ownerId, name) uniqueness.
+      await service.update('cfg-uuid-1', { name: '', modelId: 'eleven_multilingual_v2' });
+
+      const call = vi.mocked(prisma.ttsConfig.update).mock.calls[0][0];
+      expect(call.data).toEqual({ modelId: 'eleven_multilingual_v2' });
+      expect((call.data as Record<string, unknown>).name).toBeUndefined();
     });
 
     it('accepts a valid TtsProviderId on update', async () => {
