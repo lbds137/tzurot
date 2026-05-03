@@ -164,33 +164,143 @@ function extractSubcommand(chain: string): ExtractedSubcommand | null {
 }
 
 /**
- * Extract subcommand group name and its subcommands
+ * Maximum depth for the function-reference resolution chain. Bounds the
+ * recursive `extractSubcommandGroup → resolveAndParseBuilderFunction` walk
+ * so a future delegation chain (builder A delegating to builder B
+ * delegating to builder C, etc.) can't accidentally hang the generator.
+ * Five levels is generous — current builders are flat, and any real-world
+ * chain that exceeds this is suspect.
+ */
+const MAX_BUILDER_DEPTH = 5;
+
+/**
+ * Extract subcommand group name and its subcommands.
+ *
+ * Two shapes are supported:
+ *   1. Inline arrow:  `addSubcommandGroup(group => group.setName(...).addSubcommand(...))`
+ *   2. Function ref:  `addSubcommandGroup(buildTtsSubcommandGroup)` — resolves
+ *      the import to find the builder function's source file and parses it.
+ *
+ * The function-ref path requires `parentFilePath` so we can resolve relative
+ * imports. Without it, function refs are silently skipped.
+ *
+ * `depth` bounds the function-ref resolution chain (see MAX_BUILDER_DEPTH).
  */
 function extractSubcommandGroup(
-  block: string
+  block: string,
+  parentFilePath?: string,
+  depth = 0
 ): { name: string; subcommands: ExtractedSubcommand[] } | null {
-  // Extract group name
+  // Inline path: block contains a setName + addSubcommand chain
   const nameMatch = /\.setName\(['"]([^'"]+)['"]\)/.exec(block);
-  if (!nameMatch) return null;
+  if (nameMatch) {
+    const groupName = nameMatch[1];
+    const subcommands: ExtractedSubcommand[] = [];
 
-  const groupName = nameMatch[1];
-  const subcommands: ExtractedSubcommand[] = [];
-
-  // Find subcommands within this group
-  const subcommandRegex = /\.addSubcommand\s*\(/g;
-  let match;
-  while ((match = subcommandRegex.exec(block)) !== null) {
-    const subcommandBlock = findBalancedBlock(block, match.index + match[0].length - 1);
-    if (subcommandBlock) {
-      const subcommand = extractSubcommand(subcommandBlock);
-      if (subcommand) {
-        subcommand.group = groupName;
-        subcommands.push(subcommand);
+    // Find subcommands within this group
+    const subcommandRegex = /\.addSubcommand\s*\(/g;
+    let match;
+    while ((match = subcommandRegex.exec(block)) !== null) {
+      const subcommandBlock = findBalancedBlock(block, match.index + match[0].length - 1);
+      if (subcommandBlock) {
+        const subcommand = extractSubcommand(subcommandBlock);
+        if (subcommand) {
+          subcommand.group = groupName;
+          subcommands.push(subcommand);
+        }
       }
     }
+
+    return { name: groupName, subcommands };
   }
 
-  return { name: groupName, subcommands };
+  // Function-reference path: block is just an identifier like
+  // `buildTtsSubcommandGroup`. Resolve via the parent file's imports.
+  const funcRefMatch = /^\s*(\w+)\s*$/.exec(block);
+  if (funcRefMatch && parentFilePath) {
+    if (depth >= MAX_BUILDER_DEPTH) {
+      console.warn(
+        `[generate-command-types] Builder-resolution depth exceeded ` +
+          `(${MAX_BUILDER_DEPTH}) for ${funcRefMatch[1]} in ${parentFilePath} — ` +
+          `dropping group. Suspect a delegation chain.`
+      );
+      return null;
+    }
+    return resolveAndParseBuilderFunction(funcRefMatch[1], parentFilePath, depth + 1);
+  }
+
+  return null;
+}
+
+/**
+ * Resolve a subcommand-group builder function reference (e.g.
+ * `buildTtsSubcommandGroup`) to its source file via the parent file's
+ * import statements, then parse the function body for the
+ * setName + addSubcommand chain.
+ *
+ * `depth` is threaded through to the recursive `extractSubcommandGroup`
+ * call to bound delegation chains (see MAX_BUILDER_DEPTH).
+ */
+function resolveAndParseBuilderFunction(
+  funcName: string,
+  parentFilePath: string,
+  depth = 0
+): { name: string; subcommands: ExtractedSubcommand[] } | null {
+  const parentContent = fs.readFileSync(parentFilePath, 'utf-8');
+
+  // Find the import for funcName. Handles both:
+  //   import { funcName } from './foo.js';
+  //   import { originalName as funcName } from './foo.js';   ← aliased
+  // For aliased imports we need to resolve to the *original* name in the
+  // builder file, since `funcDefRegex` below searches for `export ... <name>`.
+  const importRegex = new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*['"]([^'"]+)['"]`, 'mg');
+  let originalName = funcName;
+  let importPath: string | null = null;
+  let importMatch;
+  while ((importMatch = importRegex.exec(parentContent)) !== null) {
+    const specs = importMatch[1].split(',').map(s => s.trim());
+    for (const spec of specs) {
+      // `original as alias` → split on " as ", trim each
+      const [orig, alias] = spec.split(/\s+as\s+/).map(s => s.trim());
+      const localName = alias ?? orig;
+      if (localName === funcName) {
+        originalName = orig;
+        importPath = importMatch[2];
+        break;
+      }
+    }
+    if (importPath !== null) break;
+  }
+  if (importPath === null) return null;
+
+  // Resolve relative path; strip the .js suffix and read the .ts source.
+  const resolvedPath = path.resolve(
+    path.dirname(parentFilePath),
+    importPath.replace(/\.js$/, '.ts')
+  );
+  if (!fs.existsSync(resolvedPath)) return null;
+
+  const builderContent = fs.readFileSync(resolvedPath, 'utf-8');
+
+  // Find the function definition. Two shapes:
+  //   export function originalName(...) { ... }
+  //   export const originalName = (...) => ...
+  const funcDefRegex = new RegExp(`export\\s+(?:function\\s+|const\\s+)${originalName}\\b`);
+  const funcDefMatch = funcDefRegex.exec(builderContent);
+  if (!funcDefMatch) {
+    console.warn(
+      `[generate-command-types] Resolved import for "${funcName}" → ` +
+        `"${originalName}" in ${resolvedPath} but found no matching ` +
+        `\`export function ${originalName}\` or \`export const ${originalName}\`. ` +
+        `The subcommand group will be silently dropped from generated output.`
+    );
+    return null;
+  }
+
+  // Pass the rest of the file as the "block" — extractSubcommandGroup's
+  // setName + addSubcommand regex will find the right matches inside.
+  const tail = builderContent.slice(funcDefMatch.index);
+  return extractSubcommandGroup(tail, resolvedPath, depth);
 }
 
 /**
@@ -222,7 +332,7 @@ function parseCommandFile(filePath: string): ExtractedCommand | null {
         start: groupMatch.index,
         end: groupMatch.index + groupMatch[0].length + groupBlock.length + 1,
       });
-      const group = extractSubcommandGroup(groupBlock);
+      const group = extractSubcommandGroup(groupBlock, filePath);
       if (group) {
         subcommands.push(...group.subcommands);
       }
