@@ -54,10 +54,17 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
       return;
     }
 
+    // Don't show a count in the warning. The warning fires on a snapshot
+    // from this GET; the actual delete happens server-side on a re-fetched
+    // snapshot in POST /user/voices/clear, which can drift if the user's
+    // voice slate changes between the two calls (concurrent clone from a
+    // parallel session). The result message reports the gateway's actual
+    // "deleted N/M" count from the same snapshot it deleted from, so the
+    // user gets accurate post-delete numbers without a misleading pre-count.
     const count = result.data.voices.length;
     const config = createHardDeleteConfig({
       entityType: 'cloned voices',
-      entityName: `${count} Tzurot voice${count !== 1 ? 's' : ''}`,
+      entityName: 'all your Tzurot voices',
       additionalWarning:
         'This will remove all auto-cloned voices from your audio provider accounts.\n' +
         'They will be re-cloned automatically when needed.',

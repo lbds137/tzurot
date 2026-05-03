@@ -125,6 +125,29 @@ describe('handleClearVoices', () => {
     expect(mockEditReply).toHaveBeenCalled();
   });
 
+  it('warning entityName does not include a numeric count (avoids snapshot drift)', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        voices: [
+          { voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
+          { voiceId: 'v2', name: 'tzurot-bob', slug: 'bob' },
+        ],
+        totalVoices: 10,
+        tzurotCount: 2,
+      },
+    });
+
+    await handleClearVoices(createMockContext());
+
+    const callArg = mockBuildDestructiveWarning.mock.calls[0]?.[0] as
+      | { entityName?: string }
+      | undefined;
+    expect(callArg?.entityName).toBe('all your Tzurot voices');
+    // Specifically, no digits — defends against regression where the count returns
+    expect(callArg?.entityName).not.toMatch(/\d/);
+  });
+
   it('should show message when no voices to clear', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
