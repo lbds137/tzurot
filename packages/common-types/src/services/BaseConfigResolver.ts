@@ -288,6 +288,13 @@ export abstract class BaseConfigResolver<TPersonality, TMappedOverride, TResolve
    * inner `source` field (TtsConfigResolver's pattern) without the base
    * needing to know about those subclass-specific shapes.
    */
+  // `_extracted` is intentionally prefixed: the base default returns a
+  // constant and doesn't read it, but the parameter is part of the abstract-
+  // hook contract so subclass overrides (TtsConfigResolver) can inspect the
+  // resolved config to derive the tier. Removing the parameter would break
+  // the override contract, so the `_` prefix is the standards-compliant
+  // escape hatch (per `02-code-standards.md` "cases where you don't control
+  // the signature").
   protected getExtractSource(_extracted: TResolved): ConfigResolutionSource {
     return 'personality';
   }

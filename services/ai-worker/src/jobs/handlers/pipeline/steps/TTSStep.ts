@@ -151,6 +151,12 @@ export class TTSStep implements IPipelineStep {
     let timeoutId: NodeJS.Timeout | undefined;
 
     const work = (async () => {
+      // BYOK key threading: the base ctx intentionally has no `byokKey` field —
+      // the dispatcher's `buildCtxForProvider` hydrates the per-provider key
+      // from `audioProviderKeys` before each `prepare()`/`synthesize()` call.
+      // Provider-side `byokKey === undefined` guards (e.g.,
+      // MistralTtsProvider.prepare) only fire on direct calls in tests; in
+      // production, the dispatcher path always supplies the key from the map.
       const dispatchResult = await dispatchTts({
         text,
         resolvedConfig,
