@@ -323,9 +323,17 @@ export async function dispatchTts(options: DispatchOptions): Promise<DispatchRes
 
   const attempts: { provider: TtsProviderId; error: unknown }[] = [];
   const primaryProviderId = resolvedConfig.provider;
+  // Explicit flag so the "is this the primary attempt?" invariant doesn't
+  // depend on `attempts.length === 0` (which silently breaks if a future
+  // change records skips in `attempts` or if the chain is rebuilt to allow
+  // a duplicate primary id).
+  let primaryAttempted = false;
 
   for (const candidateId of chain) {
-    const isPrimaryAttempt = candidateId === primaryProviderId && attempts.length === 0;
+    const isPrimaryAttempt = !primaryAttempted && candidateId === primaryProviderId;
+    if (candidateId === primaryProviderId) {
+      primaryAttempted = true;
+    }
     const outcome = await attemptCandidate({ candidateId, isPrimaryAttempt, options });
 
     if (outcome.kind === 'success') {
