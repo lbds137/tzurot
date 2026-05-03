@@ -63,6 +63,56 @@ interface TaggedVoice {
 // ===== Provider-fanout helpers =============================================
 
 /**
+ * Per-provider list dispatch. Exhaustive switch with `never`-typed default
+ * so adding a new `AudioProviderId` value surfaces a compile error here
+ * rather than silently being skipped on list/clear. Mirrors
+ * `deleteVoiceAtProvider`'s exhaustiveness pattern. Normalizes the per-API
+ * shape (ElevenLabs `voice_id`, Mistral `voiceId`) to the unified
+ * `TaggedVoice` shape at the source.
+ */
+async function listVoicesForProvider(
+  provider: AudioProviderId,
+  apiKey: string
+): Promise<{ voices: TaggedVoice[]; totalVoices: number } | { errorResponse: ErrorResponse }> {
+  switch (provider) {
+    case 'elevenlabs': {
+      const result = await listElevenLabsTzurotVoices(apiKey);
+      if ('errorResponse' in result) {
+        return result;
+      }
+      return {
+        voices: result.voices.map(v => ({
+          provider: 'elevenlabs',
+          voiceId: v.voice_id,
+          name: v.name,
+          slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
+        })),
+        totalVoices: result.totalVoices,
+      };
+    }
+    case 'mistral': {
+      const result = await listMistralTzurotVoices(apiKey, TTS_VOICE_NAME_PREFIX);
+      if ('errorResponse' in result) {
+        return result;
+      }
+      return {
+        voices: result.voices.map(v => ({
+          provider: 'mistral',
+          voiceId: v.voiceId,
+          name: v.name,
+          slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
+        })),
+        totalVoices: result.totalVoices,
+      };
+    }
+    default: {
+      const _exhaustive: never = provider;
+      throw new Error(`Unsupported audio provider: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+/**
  * Fetch tzurot-prefixed cloned voices from every provider the user has a
  * BYOK key for, tagging each voice with its provider. Used by both list and
  * clear handlers.
@@ -78,46 +128,17 @@ async function fetchAllTzurotVoices(
   const tagged: TaggedVoice[] = [];
   const totals = new Map<AudioProviderId, number>();
 
-  const elKey = keys.get('elevenlabs');
-  if (elKey !== undefined) {
-    const result = await listElevenLabsTzurotVoices(elKey);
+  for (const [provider, apiKey] of keys) {
+    const result = await listVoicesForProvider(provider, apiKey);
     if ('errorResponse' in result) {
       logger.warn(
-        { provider: 'elevenlabs', errorResponse: result.errorResponse },
+        { provider, errorResponse: result.errorResponse },
         'Skipping provider — fetch failed'
       );
-    } else {
-      totals.set('elevenlabs', result.totalVoices);
-      for (const v of result.voices) {
-        tagged.push({
-          provider: 'elevenlabs',
-          voiceId: v.voice_id,
-          name: v.name,
-          slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
-        });
-      }
+      continue;
     }
-  }
-
-  const miKey = keys.get('mistral');
-  if (miKey !== undefined) {
-    const result = await listMistralTzurotVoices(miKey, TTS_VOICE_NAME_PREFIX);
-    if ('errorResponse' in result) {
-      logger.warn(
-        { provider: 'mistral', errorResponse: result.errorResponse },
-        'Skipping provider — fetch failed'
-      );
-    } else {
-      totals.set('mistral', result.totalVoices);
-      for (const v of result.voices) {
-        tagged.push({
-          provider: 'mistral',
-          voiceId: v.voiceId,
-          name: v.name,
-          slug: v.name.slice(TTS_VOICE_NAME_PREFIX.length),
-        });
-      }
-    }
+    totals.set(provider, result.totalVoices);
+    tagged.push(...result.voices);
   }
 
   return { voices: tagged, totalVoicesByProvider: totals };
