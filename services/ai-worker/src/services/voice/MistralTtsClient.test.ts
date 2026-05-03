@@ -86,13 +86,16 @@ describe('buildVoxtralVoiceCreateBody', () => {
 
   it('maps content types to representative filenames', () => {
     const buf = Buffer.from([0]);
-    const cases: Array<[string, string]> = [
+    const cases: [string, string][] = [
       ['audio/mpeg', 'reference.mp3'],
       ['audio/ogg', 'reference.ogg'],
       ['audio/flac', 'reference.flac'],
       ['audio/mp4', 'reference.m4a'],
       ['audio/x-m4a', 'reference.m4a'],
       ['audio/wav', 'reference.wav'],
+      // Raw PCM gets its own extension so we don't silently corrupt format
+      // detection by labeling unstructured PCM data as WAV.
+      ['audio/pcm', 'reference.pcm'],
       ['unknown/type', 'reference.wav'],
     ];
     for (const [contentType, expectedFilename] of cases) {

@@ -183,7 +183,13 @@ export function buildVoxtralVoiceCreateBody(opts: MistralCloneOptions): Record<s
 }
 
 /** Map common audio MIME types to a representative filename for Mistral's
- *  format-detection logic. Falls back to .wav for unknown types. */
+ *  format-detection logic. Explicit cases for the formats current frontends
+ *  produce (wav/mpeg/ogg/m4a/flac); raw PCM gets a `.pcm` extension so a
+ *  PCM upload doesn't silently masquerade as WAV (PCM data lacks the
+ *  44-byte RIFF header WAV expects, so a `.wav` extension would corrupt
+ *  Mistral's format detection and probably error out at clone time). The
+ *  fallback for genuinely unknown types stays at `.wav` since that's the
+ *  most likely format-detection success for a generic audio payload. */
 function filenameFromContentType(contentType: string): string {
   if (contentType.includes('mpeg')) {
     return 'reference.mp3';
@@ -196,6 +202,9 @@ function filenameFromContentType(contentType: string): string {
   }
   if (contentType.includes('mp4') || contentType.includes('m4a')) {
     return 'reference.m4a';
+  }
+  if (contentType.includes('pcm')) {
+    return 'reference.pcm';
   }
   return 'reference.wav';
 }
