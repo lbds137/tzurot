@@ -21,6 +21,8 @@ const sampleRawConfig = {
   isFreeDefault: false,
   ownerId: 'admin-uuid-1',
   advancedParameters: null,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
 };
 
 const { mockService, MockTtsConfigService } = vi.hoisted(() => {

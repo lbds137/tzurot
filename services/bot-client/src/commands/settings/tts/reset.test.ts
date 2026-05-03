@@ -42,7 +42,7 @@ function makeContext() {
     user: { id: 'discord-user-1' },
     interaction: {} as never,
     editReply: vi.fn(),
-  } as never;
+  };
 }
 
 describe('handleReset', () => {
@@ -54,7 +54,7 @@ describe('handleReset', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
     const context = makeContext();
 
-    await handleReset(context);
+    await handleReset(context as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       expect.stringContaining('/user/tts-override/'),
@@ -78,7 +78,7 @@ describe('handleReset', () => {
     });
     const context = makeContext();
 
-    await handleReset(context);
+    await handleReset(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -95,7 +95,7 @@ describe('handleReset', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    await handleReset(context);
+    await handleReset(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('❌') })

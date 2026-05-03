@@ -34,7 +34,7 @@ function makeContext() {
   return {
     user: { id: 'discord-user-1' },
     editReply: vi.fn(),
-  } as never;
+  };
 }
 
 describe('handleBrowseOverrides', () => {
@@ -46,7 +46,7 @@ describe('handleBrowseOverrides', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { overrides: [] } });
     const context = makeContext();
 
-    await handleBrowseOverrides(context);
+    await handleBrowseOverrides(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -77,7 +77,7 @@ describe('handleBrowseOverrides', () => {
     });
     const context = makeContext();
 
-    await handleBrowseOverrides(context);
+    await handleBrowseOverrides(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -96,7 +96,7 @@ describe('handleBrowseOverrides', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    await handleBrowseOverrides(context);
+    await handleBrowseOverrides(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Failed') })
