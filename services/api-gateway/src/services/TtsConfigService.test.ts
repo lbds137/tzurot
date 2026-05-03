@@ -95,6 +95,8 @@ const sampleConfig = {
   isFreeDefault: false,
   ownerId: 'user-uuid-1',
   advancedParameters: null,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
 };
 
 describe('TtsConfigService', () => {
@@ -190,7 +192,7 @@ describe('TtsConfigService', () => {
       vi.mocked(prisma.ttsConfig.findMany)
         .mockResolvedValueOnce([]) // first global query — empty
         .mockResolvedValueOnce(seeded); // re-query after bootstrap
-      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' });
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' } as never);
       vi.mocked(prisma.ttsConfig.createMany).mockResolvedValue({ count: 3 });
 
       const result = await service.list(globalScope);
@@ -245,7 +247,7 @@ describe('TtsConfigService', () => {
       // simulate the race here, but we can assert the skipDuplicates flag
       // is set so Postgres handles ON CONFLICT DO NOTHING.
       vi.mocked(prisma.ttsConfig.findMany).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' });
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' } as never);
       vi.mocked(prisma.ttsConfig.createMany).mockResolvedValue({ count: 0 }); // races: another caller already inserted
 
       await service.list(globalScope);
@@ -262,7 +264,7 @@ describe('TtsConfigService', () => {
         .mockResolvedValueOnce([]) // global query — empty
         .mockResolvedValueOnce([]) // user query — empty
         .mockResolvedValueOnce([{ ...sampleConfig, isGlobal: true }]); // re-query globals after bootstrap
-      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' });
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' } as never);
       vi.mocked(prisma.ttsConfig.createMany).mockResolvedValue({ count: 3 });
 
       await service.list(userScope);
@@ -343,7 +345,9 @@ describe('TtsConfigService', () => {
         'Voice (Copy)',
         ...Array.from({ length: 20 }, (_, i) => `Voice (Copy ${i + 2})`),
       ];
-      vi.mocked(prisma.ttsConfig.findMany).mockResolvedValue(taken.map(name => ({ name })));
+      vi.mocked(prisma.ttsConfig.findMany).mockResolvedValue(
+        taken.map(name => ({ name })) as never
+      );
 
       await expect(
         service.create(
@@ -484,7 +488,7 @@ describe('TtsConfigService', () => {
 
   describe('checkNameExists', () => {
     it('returns exists: true with conflictId on collision', async () => {
-      vi.mocked(prisma.ttsConfig.findFirst).mockResolvedValue({ id: 'cfg-existing' });
+      vi.mocked(prisma.ttsConfig.findFirst).mockResolvedValue({ id: 'cfg-existing' } as never);
       const result = await service.checkNameExists('My Voice', userScope);
       expect(result).toEqual({ exists: true, conflictId: 'cfg-existing' });
     });

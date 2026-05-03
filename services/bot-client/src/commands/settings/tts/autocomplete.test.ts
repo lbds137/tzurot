@@ -44,7 +44,7 @@ function makeInteraction(focusedName: string, focusedValue: string) {
       getSubcommand: () => 'set',
     },
     respond: vi.fn(),
-  } as never;
+  };
 }
 
 describe('handleAutocomplete', () => {
@@ -55,7 +55,7 @@ describe('handleAutocomplete', () => {
   it('routes personality option to handlePersonalityAutocomplete', async () => {
     const interaction = makeInteraction('personality', 'Al');
 
-    await handleAutocomplete(interaction);
+    await handleAutocomplete(interaction as never);
 
     expect(mockHandlePersonalityAutocomplete).toHaveBeenCalledWith(
       interaction,
@@ -84,7 +84,7 @@ describe('handleAutocomplete', () => {
     });
     const interaction = makeInteraction('tts', 'kyutai');
 
-    await handleAutocomplete(interaction);
+    await handleAutocomplete(interaction as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/tts-config', expect.any(Object));
     expect(interaction.respond).toHaveBeenCalledWith(
@@ -96,7 +96,7 @@ describe('handleAutocomplete', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'INTERNAL_ERROR' });
     const interaction = makeInteraction('tts', '');
 
-    await handleAutocomplete(interaction);
+    await handleAutocomplete(interaction as never);
 
     expect(interaction.respond).toHaveBeenCalledWith([]);
   });
@@ -104,7 +104,7 @@ describe('handleAutocomplete', () => {
   it('responds empty list for unknown option name', async () => {
     const interaction = makeInteraction('unknown', '');
 
-    await handleAutocomplete(interaction);
+    await handleAutocomplete(interaction as never);
 
     expect(interaction.respond).toHaveBeenCalledWith([]);
   });
@@ -141,7 +141,7 @@ describe('handleAutocomplete', () => {
     });
     const interaction = makeInteraction('tts', 'mistral');
 
-    await handleAutocomplete(interaction);
+    await handleAutocomplete(interaction as never);
 
     const responded = vi.mocked(interaction.respond).mock.calls[0][0] as Array<{ value: string }>;
     expect(responded.find(c => c.value === 'c2')).toBeDefined();

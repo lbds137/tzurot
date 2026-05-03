@@ -37,7 +37,7 @@ function makeContext() {
   return {
     user: { id: 'discord-user-1' },
     editReply: vi.fn(),
-  } as never;
+  };
 }
 
 const baseConfig = {
@@ -64,7 +64,9 @@ describe('checkTtsByokAccess', () => {
     });
     const context = makeContext();
 
-    const result = await checkTtsByokAccess(context, 'c1', { id: 'discord-user-1' } as never);
+    const result = await checkTtsByokAccess(context as never, 'c1', {
+      id: 'discord-user-1',
+    } as never);
 
     expect(result).toEqual({ blocked: false, reason: 'self-hosted' });
     // Should NOT have called /user/voices since self-hosted bypasses
@@ -84,7 +86,9 @@ describe('checkTtsByokAccess', () => {
     });
     const context = makeContext();
 
-    const result = await checkTtsByokAccess(context, 'c1', { id: 'discord-user-1' } as never);
+    const result = await checkTtsByokAccess(context as never, 'c1', {
+      id: 'discord-user-1',
+    } as never);
 
     // 'check-skipped' (not 'has-key') is the correct audit-trail signal:
     // no verification ran, the decision was deferred to ai-worker's
@@ -107,7 +111,9 @@ describe('checkTtsByokAccess', () => {
       .mockResolvedValueOnce({ ok: false, status: 404, error: 'NOT_FOUND' });
     const context = makeContext();
 
-    const result = await checkTtsByokAccess(context, 'c1', { id: 'discord-user-1' } as never);
+    const result = await checkTtsByokAccess(context as never, 'c1', {
+      id: 'discord-user-1',
+    } as never);
 
     expect(result.blocked).toBe(true);
     expect(result.reason).toBe('blocked-byok');
@@ -132,7 +138,9 @@ describe('checkTtsByokAccess', () => {
     });
     const context = makeContext();
 
-    const result = await checkTtsByokAccess(context, 'c1', { id: 'discord-user-1' } as never);
+    const result = await checkTtsByokAccess(context as never, 'c1', {
+      id: 'discord-user-1',
+    } as never);
 
     expect(result).toEqual({ blocked: false, reason: 'check-failed' });
   });
@@ -148,7 +156,9 @@ describe('checkTtsByokAccess', () => {
       .mockResolvedValueOnce({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    const result = await checkTtsByokAccess(context, 'c1', { id: 'discord-user-1' } as never);
+    const result = await checkTtsByokAccess(context as never, 'c1', {
+      id: 'discord-user-1',
+    } as never);
 
     expect(result.blocked).toBe(false);
     expect(result.reason).toBe('check-failed');
@@ -161,7 +171,7 @@ describe('checkTtsByokAccess', () => {
     });
     const context = makeContext();
 
-    const result = await checkTtsByokAccess(context, 'c-missing', {
+    const result = await checkTtsByokAccess(context as never, 'c-missing', {
       id: 'discord-user-1',
     } as never);
 
@@ -179,7 +189,9 @@ describe('checkTtsByokAccess', () => {
       .mockResolvedValueOnce({ ok: true, data: { totalVoices: 5 } });
     const context = makeContext();
 
-    const result = await checkTtsByokAccess(context, 'c1', { id: 'discord-user-1' } as never);
+    const result = await checkTtsByokAccess(context as never, 'c1', {
+      id: 'discord-user-1',
+    } as never);
     expect(result).toEqual({ blocked: false, reason: 'has-key' });
   });
 });

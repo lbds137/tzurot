@@ -203,7 +203,9 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('edit');
     });
 
-    it('should have voices subcommand group with browse, delete, clear, model', () => {
+    it('should have voices subcommand group with browse, delete, clear', () => {
+      // Note: 'model' was removed in PR 3b — replaced by /settings tts set
+      // which supports per-personality config overrides across all providers.
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -218,7 +220,26 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('browse');
       expect(subcommands).toContain('delete');
       expect(subcommands).toContain('clear');
-      expect(subcommands).toContain('model');
+      expect(subcommands).not.toContain('model');
+    });
+
+    it('should have tts subcommand group with browse, set, reset, default, clear-default', () => {
+      const json = data.toJSON();
+      const options = json.options ?? [];
+
+      const groups = options.filter((opt: { type: number }) => opt.type === 2);
+      const ttsGroup = groups.find((g: { name: string }) => g.name === 'tts');
+
+      expect(ttsGroup).toBeDefined();
+
+      const subcommands = ((ttsGroup as { options?: Array<{ name: string }> })?.options ?? []).map(
+        s => s.name
+      );
+      expect(subcommands).toContain('browse');
+      expect(subcommands).toContain('set');
+      expect(subcommands).toContain('reset');
+      expect(subcommands).toContain('default');
+      expect(subcommands).toContain('clear-default');
     });
 
     it('should have componentPrefixes for user-defaults and voice browse', () => {
