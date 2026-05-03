@@ -19,6 +19,7 @@ import {
   type AudioProviderId,
   type PrismaClient,
 } from '@tzurot/common-types';
+import { ErrorCode } from '../../types.js';
 import type { ErrorResponse } from '../../utils/errorResponses.js';
 import { requireUserAuth, requireProvisionedUser } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -58,6 +59,38 @@ interface TaggedVoice {
   voiceId: string;
   name: string;
   slug: string;
+}
+
+/**
+ * Per-provider warning surfaced to bot-client when one provider's fetch
+ * failed but the request as a whole succeeded (e.g., working ElevenLabs key
+ * + bad Mistral key returns ElevenLabs voices with a "Mistral unavailable"
+ * warning). Without this, a user with an expired key sees fewer voices and
+ * has no signal that something's wrong.
+ */
+interface ProviderWarning {
+  provider: AudioProviderId;
+  message: string;
+}
+
+/**
+ * Map a provider's error response to a clean user-facing warning message.
+ * The provider name is added by the consumer (`Mistral: ...`), so messages
+ * here describe only the failure shape, not which provider failed.
+ *
+ * Exported for direct unit-test coverage: the fallback ("Couldn't load
+ * voices") branch isn't reachable through the route tests because both
+ * voice clients only emit UNAUTHORIZED and INTERNAL_ERROR, but the branch
+ * remains as defensive code for future error codes.
+ */
+export function describeProviderError(errorResponse: ErrorResponse): string {
+  if (errorResponse.error === ErrorCode.UNAUTHORIZED) {
+    return 'API key invalid or expired';
+  }
+  if (errorResponse.error === ErrorCode.INTERNAL_ERROR) {
+    return 'Provider temporarily unavailable';
+  }
+  return "Couldn't load voices";
 }
 
 // ===== Provider-fanout helpers =============================================
@@ -122,11 +155,14 @@ async function listVoicesForProvider(
  * — a working ElevenLabs key + bad Mistral key shouldn't break the listing
  * the user's actual ElevenLabs voices).
  */
-async function fetchAllTzurotVoices(
-  keys: Map<AudioProviderId, string>
-): Promise<{ voices: TaggedVoice[]; totalVoicesByProvider: Map<AudioProviderId, number> }> {
+async function fetchAllTzurotVoices(keys: Map<AudioProviderId, string>): Promise<{
+  voices: TaggedVoice[];
+  totalVoicesByProvider: Map<AudioProviderId, number>;
+  warnings: ProviderWarning[];
+}> {
   const tagged: TaggedVoice[] = [];
   const totals = new Map<AudioProviderId, number>();
+  const warnings: ProviderWarning[] = [];
 
   for (const [provider, apiKey] of keys) {
     const result = await listVoicesForProvider(provider, apiKey);
@@ -135,13 +171,14 @@ async function fetchAllTzurotVoices(
         { provider, errorResponse: result.errorResponse },
         'Skipping provider — fetch failed'
       );
+      warnings.push({ provider, message: describeProviderError(result.errorResponse) });
       continue;
     }
     totals.set(provider, result.totalVoices);
     tagged.push(...result.voices);
   }
 
-  return { voices: tagged, totalVoicesByProvider: totals };
+  return { voices: tagged, totalVoicesByProvider: totals, warnings };
 }
 
 /** Per-provider single-voice lookup (for IDOR-style verification before delete). */
@@ -215,7 +252,7 @@ async function handleListVoices(
     return;
   }
 
-  const { voices, totalVoicesByProvider } = await fetchAllTzurotVoices(keysResult.keys);
+  const { voices, totalVoicesByProvider, warnings } = await fetchAllTzurotVoices(keysResult.keys);
   const totalVoices = Array.from(totalVoicesByProvider.values()).reduce((a, b) => a + b, 0);
 
   logger.info(
@@ -224,14 +261,19 @@ async function handleListVoices(
       tzurotCount: voices.length,
       totalVoices,
       providers: [...keysResult.keys.keys()],
+      warningCount: warnings.length,
     },
     'Listed cloned voices across providers'
   );
 
+  // Omit `warnings` field entirely when empty — keeps the success response
+  // shape clean and lets bot-client treat its presence as the signal to
+  // render. Mirror the contract on the bot-client side: optional field.
   sendCustomSuccess(res, {
     voices,
     totalVoices,
     tzurotCount: voices.length,
+    ...(warnings.length > 0 ? { warnings } : {}),
   });
 }
 

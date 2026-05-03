@@ -9,7 +9,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { createVoicesRoutes } from './voices.js';
+import { createVoicesRoutes, describeProviderError } from './voices.js';
+import { ErrorCode } from '../../types.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock common-types
@@ -222,7 +223,7 @@ describe('Voice Management Routes', () => {
       expect(res.body.error).toBe('NOT_FOUND');
     });
 
-    it('skips a provider gracefully when its API rejects the key (still serves working provider)', async () => {
+    it('skips a provider gracefully when its API rejects the key, surfacing a warning', async () => {
       userWithKeys(['elevenlabs', 'mistral']);
       setProviderFetchMocks({
         elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
@@ -232,10 +233,39 @@ describe('Voice Management Routes', () => {
 
       const res = await request(app).get('/voices');
 
-      // ElevenLabs voices still served; Mistral skipped silently
+      // ElevenLabs voices still served; Mistral surfaced as a warning
       expect(res.status).toBe(200);
       expect(res.body.voices.every((v: any) => v.provider === 'elevenlabs')).toBe(true);
+      expect(res.body.warnings).toEqual([
+        { provider: 'mistral', message: 'API key invalid or expired' },
+      ]);
     });
+
+    it('omits warnings field entirely when all providers loaded cleanly', async () => {
+      userWithKeys(['elevenlabs']);
+
+      const res = await request(app).get('/voices');
+
+      expect(res.status).toBe(200);
+      expect(res.body.warnings).toBeUndefined();
+    });
+
+    it('classifies INTERNAL_ERROR as "Provider temporarily unavailable"', async () => {
+      userWithKeys(['elevenlabs', 'mistral']);
+      setProviderFetchMocks({
+        elevenlabsList: () => jsonOk(elevenLabsVoicesResponse),
+        mistralList: () =>
+          ({ ok: false, status: 503, statusText: 'Service Unavailable' }) as unknown as Response,
+      });
+
+      const res = await request(app).get('/voices');
+
+      expect(res.status).toBe(200);
+      expect(res.body.warnings).toEqual([
+        { provider: 'mistral', message: 'Provider temporarily unavailable' },
+      ]);
+    });
+
   });
 
   // ===== DELETE /:provider/:voiceId =======================================
@@ -443,5 +473,41 @@ describe('Voice Management Routes', () => {
       expect(res.status).toBe(404);
       expect(res.body.message).toContain('audio provider API key');
     });
+  });
+});
+
+describe('describeProviderError', () => {
+  const baseStamp = '2026-05-03T17:00:00.000Z';
+
+  it('classifies UNAUTHORIZED as "API key invalid or expired"', () => {
+    expect(
+      describeProviderError({
+        error: ErrorCode.UNAUTHORIZED,
+        message: 'whatever',
+        timestamp: baseStamp,
+      })
+    ).toBe('API key invalid or expired');
+  });
+
+  it('classifies INTERNAL_ERROR as "Provider temporarily unavailable"', () => {
+    expect(
+      describeProviderError({
+        error: ErrorCode.INTERNAL_ERROR,
+        message: 'whatever',
+        timestamp: baseStamp,
+      })
+    ).toBe('Provider temporarily unavailable');
+  });
+
+  it('falls back to "Couldn\'t load voices" for unrecognized error codes', () => {
+    // NOT_FOUND isn't reachable through the current voice clients, but the
+    // fallback exists as defense-in-depth — exercises the branch directly.
+    expect(
+      describeProviderError({
+        error: ErrorCode.NOT_FOUND,
+        message: 'whatever',
+        timestamp: baseStamp,
+      })
+    ).toBe("Couldn't load voices");
   });
 });
