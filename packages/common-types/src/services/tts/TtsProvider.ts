@@ -50,6 +50,19 @@ export function isTtsProviderId(value: string): value is TtsProviderId {
 }
 
 /**
+ * True when the provider runs self-hosted (no per-user API key needed).
+ *
+ * Accepts arbitrary `string` so call sites can use it directly on DB-sourced
+ * values without a prior `isTtsProviderId` narrowing step. Use this at call
+ * sites instead of comparing to the literal `'self-hosted'` — semantic intent
+ * ("is this self-hosted?") survives if a second self-hosted variant is ever
+ * added; literal comparisons would silently fail on the new variant.
+ */
+export function isSelfHostedTtsProvider(value: string): boolean {
+  return value === 'self-hosted';
+}
+
+/**
  * Static introspection of what a provider supports.
  *
  * The dispatcher uses these to make routing decisions WITHOUT inspecting

@@ -18,6 +18,7 @@ import { EmbedBuilder } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
+  isSelfHostedTtsProvider,
   type TtsConfigSummary,
   type ListTtsConfigsResponse,
 } from '@tzurot/common-types';
@@ -94,7 +95,7 @@ export async function checkTtsByokAccess(
   }
 
   // Self-hosted: no key required, always allowed
-  if (config.provider === 'self-hosted') {
+  if (isSelfHostedTtsProvider(config.provider)) {
     return { blocked: false, reason: 'self-hosted' };
   }
 
