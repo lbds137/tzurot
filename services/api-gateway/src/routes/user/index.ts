@@ -68,6 +68,7 @@ import { createUsageRoutes } from './usage.js';
 import { createPersonalityRoutes } from './personality/index.js';
 import { createLlmConfigRoutes } from './llm-config.js';
 import { createTtsConfigRoutes } from './tts-config.js';
+import { createTtsOverrideRoutes } from './tts-override.js';
 import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
 import { createHistoryRoutes } from './history.js';
@@ -127,6 +128,9 @@ export function createUserRouter(opts: UserRouterOptions): Router {
 
   // TTS config routes (with cache invalidation for user TTS config changes)
   router.use('/tts-config', createTtsConfigRoutes(prisma, ttsConfigCacheInvalidation));
+
+  // TTS override routes (per-personality TTS overrides + user global default)
+  router.use('/tts-override', createTtsOverrideRoutes(prisma, ttsConfigCacheInvalidation));
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));
