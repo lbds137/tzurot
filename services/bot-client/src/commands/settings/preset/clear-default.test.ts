@@ -88,6 +88,46 @@ describe('handleClearDefault', () => {
     });
   });
 
+  it('should render the new effective default name when one exists', async () => {
+    vi.mocked(callGatewayApi).mockResolvedValue({
+      ok: true,
+      data: mockClearDefaultConfigResponse({
+        newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+      }),
+    });
+
+    await handleClearDefault(createMockContext());
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            description: expect.stringContaining('gpt-4-free'),
+          }),
+        }),
+      ],
+    });
+  });
+
+  it('should render hardcoded-fallback notice when no system default is configured', async () => {
+    vi.mocked(callGatewayApi).mockResolvedValue({
+      ok: true,
+      data: mockClearDefaultConfigResponse({ newEffectiveDefault: null }),
+    });
+
+    await handleClearDefault(createMockContext());
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            description: expect.stringContaining('built-in fallback'),
+          }),
+        }),
+      ],
+    });
+  });
+
   it('should show error when API fails', async () => {
     vi.mocked(callGatewayApi).mockResolvedValue({
       ok: false,
