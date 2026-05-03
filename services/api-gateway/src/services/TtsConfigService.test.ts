@@ -1,0 +1,555 @@
+/**
+ * TtsConfigService Tests
+ *
+ * Unit tests for the TTS config service layer. Mirrors LlmConfigService.test.ts
+ * shape with TTS-specific additions:
+ *   - System-globals bootstrap on empty list result (with + without superuser)
+ *   - Service-layer isTtsProviderId enforcement on update path
+ *
+ * Mocks Prisma client and TtsConfigCacheInvalidationService — no DB required.
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  TtsConfigService,
+  TtsAutoSuffixCollisionError,
+  TtsCloneNameExhaustedError,
+  TtsInvalidProviderError,
+  type TtsConfigScope,
+} from './TtsConfigService.js';
+import type { PrismaClient, TtsConfigCacheInvalidationService } from '@tzurot/common-types';
+
+// Mock logger to keep test output clean
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    createLogger: () => ({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }),
+  };
+});
+
+function createMockPrisma() {
+  const ttsConfig = {
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    createMany: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+    delete: vi.fn(),
+  };
+
+  const personalityDefaultTtsConfig = {
+    count: vi.fn(),
+  };
+
+  const userPersonalityConfig = {
+    count: vi.fn(),
+  };
+
+  const user = {
+    findFirst: vi.fn(),
+  };
+
+  return {
+    ttsConfig,
+    personalityDefaultTtsConfig,
+    userPersonalityConfig,
+    user,
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
+      return callback({ ttsConfig });
+    }),
+  } as unknown as PrismaClient;
+}
+
+function createMockCacheInvalidation(): TtsConfigCacheInvalidationService {
+  return {
+    invalidateAll: vi.fn().mockResolvedValue(undefined),
+    invalidateUserTtsConfig: vi.fn().mockResolvedValue(undefined),
+    invalidateConfigUsers: vi.fn().mockResolvedValue(undefined),
+  } as unknown as TtsConfigCacheInvalidationService;
+}
+
+const userScope: TtsConfigScope = {
+  type: 'USER',
+  userId: 'user-uuid-1',
+  discordId: '111111111111111111',
+};
+const globalScope: TtsConfigScope = { type: 'GLOBAL' };
+
+const sampleConfig = {
+  id: 'cfg-uuid-1',
+  name: 'My Voice',
+  description: null,
+  provider: 'elevenlabs',
+  modelId: 'eleven_multilingual_v2',
+  isGlobal: false,
+  isDefault: false,
+  isFreeDefault: false,
+  ownerId: 'user-uuid-1',
+  advancedParameters: null,
+};
+
+describe('TtsConfigService', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let cache: TtsConfigCacheInvalidationService;
+  let service: TtsConfigService;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    cache = createMockCacheInvalidation();
+    service = new TtsConfigService(prisma, cache);
+  });
+
+  // ==========================================================================
+  // Read operations
+  // ==========================================================================
+
+  describe('getById', () => {
+    it('returns the config when found', async () => {
+      vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(sampleConfig);
+      const result = await service.getById('cfg-uuid-1');
+      expect(result).toEqual(sampleConfig);
+      expect(prisma.ttsConfig.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'cfg-uuid-1' } })
+      );
+    });
+
+    it('returns null when not found', async () => {
+      vi.mocked(prisma.ttsConfig.findUnique).mockResolvedValue(null);
+      const result = await service.getById('missing');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('list (GLOBAL scope)', () => {
+    it('returns globally-visible configs sorted', async () => {
+      const configs = [{ ...sampleConfig, isGlobal: true }];
+      vi.mocked(prisma.ttsConfig.findMany).mockResolvedValueOnce(configs);
+      const result = await service.list(globalScope);
+      expect(result).toEqual(configs);
+    });
+
+    it('does NOT bootstrap when results are non-empty', async () => {
+      const configs = [{ ...sampleConfig, isGlobal: true }];
+      vi.mocked(prisma.ttsConfig.findMany).mockResolvedValueOnce(configs);
+      await service.list(globalScope);
+      expect(prisma.ttsConfig.createMany).not.toHaveBeenCalled();
+      expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('list (USER scope)', () => {
+    it('returns globals + user-owned configs', async () => {
+      const globals = [{ ...sampleConfig, id: 'g1', isGlobal: true }];
+      const userConfigs = [{ ...sampleConfig, id: 'u1' }];
+      vi.mocked(prisma.ttsConfig.findMany)
+        .mockResolvedValueOnce(globals)
+        .mockResolvedValueOnce(userConfigs);
+
+      const result = await service.list(userScope);
+      expect(result).toEqual([...globals, ...userConfigs]);
+    });
+  });
+
+  // ==========================================================================
+  // Bootstrap (NEW vs LLM)
+  // ==========================================================================
+
+  describe('list — system-globals bootstrap', () => {
+    it('seeds 3 globals when GLOBAL list is empty AND a superuser exists', async () => {
+      // First findMany: empty (triggers bootstrap)
+      // Second findMany: 3 seeded configs
+      const seeded = [
+        {
+          ...sampleConfig,
+          id: 's1',
+          name: 'kyutai-self-hosted',
+          isGlobal: true,
+          isFreeDefault: true,
+          provider: 'self-hosted',
+          modelId: null,
+        },
+        { ...sampleConfig, id: 's2', name: 'elevenlabs-multilingual-v2', isGlobal: true },
+        {
+          ...sampleConfig,
+          id: 's3',
+          name: 'mistral-voxtral-mini',
+          isGlobal: true,
+          provider: 'mistral',
+          modelId: 'voxtral-mini-tts-2603',
+        },
+      ];
+      vi.mocked(prisma.ttsConfig.findMany)
+        .mockResolvedValueOnce([]) // first global query — empty
+        .mockResolvedValueOnce(seeded); // re-query after bootstrap
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' });
+      vi.mocked(prisma.ttsConfig.createMany).mockResolvedValue({ count: 3 });
+
+      const result = await service.list(globalScope);
+
+      expect(prisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isSuperuser: true } })
+      );
+      expect(prisma.ttsConfig.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skipDuplicates: true })
+      );
+      // Verify 3 seed entries with the expected names
+      const createCall = vi.mocked(prisma.ttsConfig.createMany).mock.calls[0][0];
+      const seedNames = (createCall.data as Array<{ name: string }>).map(d => d.name);
+      expect(seedNames).toEqual([
+        'kyutai-self-hosted',
+        'elevenlabs-multilingual-v2',
+        'mistral-voxtral-mini',
+      ]);
+      expect(result).toEqual(seeded);
+    });
+
+    it('skips bootstrap and returns empty when no superuser exists', async () => {
+      vi.mocked(prisma.ttsConfig.findMany)
+        .mockResolvedValueOnce([]) // first query — empty
+        .mockResolvedValueOnce([]); // re-query after no-op bootstrap
+      vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+
+      const result = await service.list(globalScope);
+
+      expect(prisma.user.findFirst).toHaveBeenCalled();
+      expect(prisma.ttsConfig.createMany).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+
+    it('bootstrap is race-safe via skipDuplicates: true', async () => {
+      // Concurrent first-callers should converge cleanly. We can't easily
+      // simulate the race here, but we can assert the skipDuplicates flag
+      // is set so Postgres handles ON CONFLICT DO NOTHING.
+      vi.mocked(prisma.ttsConfig.findMany).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' });
+      vi.mocked(prisma.ttsConfig.createMany).mockResolvedValue({ count: 0 }); // races: another caller already inserted
+
+      await service.list(globalScope);
+
+      expect(prisma.ttsConfig.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skipDuplicates: true })
+      );
+    });
+
+    it('also bootstraps from USER scope first-call', async () => {
+      // User scope hits the same gap — bootstrap should fire here too so a
+      // brand-new dev DB sees system globals immediately.
+      vi.mocked(prisma.ttsConfig.findMany)
+        .mockResolvedValueOnce([]) // global query — empty
+        .mockResolvedValueOnce([]) // user query — empty
+        .mockResolvedValueOnce([{ ...sampleConfig, isGlobal: true }]); // re-query globals after bootstrap
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'super-uuid-1' });
+      vi.mocked(prisma.ttsConfig.createMany).mockResolvedValue({ count: 3 });
+
+      await service.list(userScope);
+
+      expect(prisma.ttsConfig.createMany).toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
+  // Create
+  // ==========================================================================
+
+  describe('create', () => {
+    it('creates a USER-scoped config with defaults applied', async () => {
+      vi.mocked(prisma.ttsConfig.create).mockResolvedValue(sampleConfig);
+
+      const result = await service.create(
+        userScope,
+        { name: 'My Voice', provider: 'elevenlabs', modelId: 'eleven_multilingual_v2' },
+        'user-uuid-1'
+      );
+
+      expect(prisma.ttsConfig.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'My Voice',
+            provider: 'elevenlabs',
+            modelId: 'eleven_multilingual_v2',
+            ownerId: 'user-uuid-1',
+            isGlobal: false,
+            isDefault: false,
+          }),
+        })
+      );
+      expect(result).toEqual(sampleConfig);
+      expect(cache.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('creates a GLOBAL-scoped config with isGlobal: true', async () => {
+      vi.mocked(prisma.ttsConfig.create).mockResolvedValue({ ...sampleConfig, isGlobal: true });
+
+      await service.create(
+        globalScope,
+        { name: 'System Default', provider: 'self-hosted' },
+        'admin-uuid-1'
+      );
+
+      expect(prisma.ttsConfig.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ isGlobal: true }),
+        })
+      );
+    });
+
+    it('throws TtsAutoSuffixCollisionError when concurrent insert races past the SELECT', async () => {
+      vi.mocked(prisma.ttsConfig.findMany).mockResolvedValue([]);
+      const prismaError = Object.assign(new Error('Unique constraint failed'), {
+        code: 'P2002',
+        meta: { target: ['owner_id', 'name'] },
+      });
+      vi.mocked(prisma.ttsConfig.create).mockRejectedValue(prismaError);
+
+      await expect(
+        service.create(
+          userScope,
+          { name: 'Voice', provider: 'elevenlabs', autoSuffixOnCollision: true },
+          'user-uuid-1'
+        )
+      ).rejects.toBeInstanceOf(TtsAutoSuffixCollisionError);
+    });
+
+    it('throws TtsCloneNameExhaustedError when 20+ name variants are taken', async () => {
+      // generateClonedName walks: 'Voice' → 'Voice (Copy)' → 'Voice (Copy 2)'
+      // → ... → 'Voice (Copy N)'. Need exactly the names the walker would
+      // try to generate, so the loop hits MAX_CLONE_NAME_ATTEMPTS and throws.
+      const taken = [
+        'Voice',
+        'Voice (Copy)',
+        ...Array.from({ length: 20 }, (_, i) => `Voice (Copy ${i + 2})`),
+      ];
+      vi.mocked(prisma.ttsConfig.findMany).mockResolvedValue(taken.map(name => ({ name })));
+
+      await expect(
+        service.create(
+          userScope,
+          { name: 'Voice', provider: 'elevenlabs', autoSuffixOnCollision: true },
+          'user-uuid-1'
+        )
+      ).rejects.toBeInstanceOf(TtsCloneNameExhaustedError);
+    });
+  });
+
+  // ==========================================================================
+  // Update — including the NEW isTtsProviderId enforcement
+  // ==========================================================================
+
+  describe('update', () => {
+    it('updates only provided fields', async () => {
+      vi.mocked(prisma.ttsConfig.update).mockResolvedValue({
+        ...sampleConfig,
+        modelId: 'voxtral-mini-tts-2603',
+        provider: 'mistral',
+      });
+
+      await service.update('cfg-uuid-1', {
+        modelId: 'voxtral-mini-tts-2603',
+        provider: 'mistral',
+      });
+
+      expect(prisma.ttsConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { modelId: 'voxtral-mini-tts-2603', provider: 'mistral' },
+        })
+      );
+    });
+
+    it('rejects an invalid provider value (typo) before the Prisma write', async () => {
+      // Schema accepts any string up to 40 chars; the service rejects.
+      await expect(service.update('cfg-uuid-1', { provider: 'mistal' })).rejects.toBeInstanceOf(
+        TtsInvalidProviderError
+      );
+      expect(prisma.ttsConfig.update).not.toHaveBeenCalled();
+    });
+
+    it('treats empty-string provider as "preserve existing" — not an invalid-provider error', async () => {
+      vi.mocked(prisma.ttsConfig.update).mockResolvedValue(sampleConfig);
+      // Empty string is the dashboard's "I didn't change this field" signal.
+      await service.update('cfg-uuid-1', { provider: '', modelId: 'eleven_multilingual_v2' });
+
+      // Prisma.update is called WITHOUT provider in updateData
+      const call = vi.mocked(prisma.ttsConfig.update).mock.calls[0][0];
+      expect(call.data).toEqual({ modelId: 'eleven_multilingual_v2' });
+      expect((call.data as Record<string, unknown>).provider).toBeUndefined();
+    });
+
+    it('accepts a valid TtsProviderId on update', async () => {
+      vi.mocked(prisma.ttsConfig.update).mockResolvedValue(sampleConfig);
+      await service.update('cfg-uuid-1', { provider: 'self-hosted' });
+      expect(prisma.ttsConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ provider: 'self-hosted' }),
+        })
+      );
+    });
+
+    it('handles isGlobal toggle', async () => {
+      vi.mocked(prisma.ttsConfig.update).mockResolvedValue({ ...sampleConfig, isGlobal: true });
+      await service.update('cfg-uuid-1', { isGlobal: true });
+      expect(prisma.ttsConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { isGlobal: true },
+        })
+      );
+    });
+  });
+
+  // ==========================================================================
+  // Delete
+  // ==========================================================================
+
+  describe('delete', () => {
+    it('deletes the config and invalidates cache', async () => {
+      vi.mocked(prisma.ttsConfig.delete).mockResolvedValue(sampleConfig);
+      await service.delete('cfg-uuid-1');
+      expect(prisma.ttsConfig.delete).toHaveBeenCalledWith({ where: { id: 'cfg-uuid-1' } });
+      expect(cache.invalidateAll).toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
+  // Admin-only
+  // ==========================================================================
+
+  describe('setAsDefault', () => {
+    it('clears existing default in a transaction and sets the new one', async () => {
+      await service.setAsDefault('cfg-uuid-1');
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+      // Inside the transaction, two operations should fire
+      expect(prisma.ttsConfig.updateMany).toHaveBeenCalledWith({
+        where: { isDefault: true },
+        data: { isDefault: false },
+      });
+      expect(prisma.ttsConfig.update).toHaveBeenCalledWith({
+        where: { id: 'cfg-uuid-1' },
+        data: { isDefault: true },
+      });
+    });
+  });
+
+  describe('setAsFreeDefault', () => {
+    it('clears existing free-default and sets the new one', async () => {
+      await service.setAsFreeDefault('cfg-uuid-1');
+      expect(prisma.ttsConfig.updateMany).toHaveBeenCalledWith({
+        where: { isFreeDefault: true },
+        data: { isFreeDefault: false },
+      });
+      expect(prisma.ttsConfig.update).toHaveBeenCalledWith({
+        where: { id: 'cfg-uuid-1' },
+        data: { isFreeDefault: true },
+      });
+    });
+  });
+
+  // ==========================================================================
+  // Validation helpers
+  // ==========================================================================
+
+  describe('checkNameExists', () => {
+    it('returns exists: true with conflictId on collision', async () => {
+      vi.mocked(prisma.ttsConfig.findFirst).mockResolvedValue({ id: 'cfg-existing' });
+      const result = await service.checkNameExists('My Voice', userScope);
+      expect(result).toEqual({ exists: true, conflictId: 'cfg-existing' });
+    });
+
+    it('returns exists: false when no collision', async () => {
+      vi.mocked(prisma.ttsConfig.findFirst).mockResolvedValue(null);
+      const result = await service.checkNameExists('Unique Name', userScope);
+      expect(result.exists).toBe(false);
+    });
+
+    it('respects excludeId for update operations', async () => {
+      vi.mocked(prisma.ttsConfig.findFirst).mockResolvedValue(null);
+      await service.checkNameExists('My Voice', userScope, 'cfg-self');
+      expect(prisma.ttsConfig.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { not: 'cfg-self' } }),
+        })
+      );
+    });
+  });
+
+  describe('checkDeleteConstraints', () => {
+    it('returns null when config has no references', async () => {
+      vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(0);
+      vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(0);
+
+      const result = await service.checkDeleteConstraints('cfg-uuid-1');
+      expect(result).toBeNull();
+    });
+
+    it('returns error message when used by personalities', async () => {
+      vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(2);
+      vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(0);
+
+      const result = await service.checkDeleteConstraints('cfg-uuid-1');
+      expect(result).toContain('2 personality');
+    });
+
+    it('returns error message when used by user overrides', async () => {
+      vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(0);
+      vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(5);
+
+      const result = await service.checkDeleteConstraints('cfg-uuid-1');
+      expect(result).toContain('5 user override');
+    });
+  });
+
+  // ==========================================================================
+  // Response formatting
+  // ==========================================================================
+
+  describe('formatConfigDetail', () => {
+    it('formats a config with empty params when advancedParameters is null', () => {
+      const formatted = service.formatConfigDetail({ ...sampleConfig, advancedParameters: null });
+      expect(formatted.params).toEqual({});
+    });
+
+    it('passes advancedParameters through as a record', () => {
+      const formatted = service.formatConfigDetail({
+        ...sampleConfig,
+        advancedParameters: { stability: 0.5, similarity: 0.7 },
+      });
+      expect(formatted.params).toEqual({ stability: 0.5, similarity: 0.7 });
+    });
+
+    it('coerces non-object values to {} (defensive)', () => {
+      const formatted = service.formatConfigDetail({
+        ...sampleConfig,
+        advancedParameters: 'invalid string' as unknown,
+      });
+      expect(formatted.params).toEqual({});
+    });
+  });
+
+  // ==========================================================================
+  // Cache invalidation safety
+  // ==========================================================================
+
+  describe('cache invalidation', () => {
+    it('does not throw when invalidation fails', async () => {
+      vi.mocked(cache.invalidateAll).mockRejectedValueOnce(new Error('Redis down'));
+      vi.mocked(prisma.ttsConfig.delete).mockResolvedValue(sampleConfig);
+
+      // Delete should still succeed even if cache invalidation fails
+      await expect(service.delete('cfg-uuid-1')).resolves.toBeUndefined();
+    });
+
+    it('is a no-op when no cache invalidation service is wired', async () => {
+      const serviceWithoutCache = new TtsConfigService(prisma);
+      vi.mocked(prisma.ttsConfig.delete).mockResolvedValue(sampleConfig);
+      await expect(serviceWithoutCache.delete('cfg-uuid-1')).resolves.toBeUndefined();
+    });
+  });
+});
