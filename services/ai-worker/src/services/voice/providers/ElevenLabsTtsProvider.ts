@@ -30,7 +30,7 @@ import {
   type TtsProvider,
 } from '@tzurot/common-types';
 import { ElevenLabsVoiceService } from '../ElevenLabsVoiceService.js';
-import { elevenLabsTTS } from '../ElevenLabsClient.js';
+import { elevenLabsTTS, ElevenLabsApiError } from '../ElevenLabsClient.js';
 
 const logger = createLogger('ElevenLabsTtsProvider');
 
@@ -123,12 +123,32 @@ export class ElevenLabsTtsProvider implements TtsProvider {
       throw new Error('ElevenLabsTtsProvider.synthesize requires ctx.byokKey to be set');
     }
     const start = Date.now();
-    const result = await elevenLabsTTS({
-      text,
-      voiceId: handle.id,
-      apiKey: ctx.byokKey,
-      modelId: ctx.modelId,
-    });
+    let result: Awaited<ReturnType<typeof elevenLabsTTS>>;
+    try {
+      result = await elevenLabsTTS({
+        text,
+        voiceId: handle.id,
+        apiKey: ctx.byokKey,
+        modelId: ctx.modelId,
+      });
+    } catch (error) {
+      // 404 = voice deleted server-side (ElevenLabs dashboard, /voices DELETE,
+      // slot eviction by another client, etc.). The cached voiceId is dead —
+      // evict the underlying ElevenLabsVoiceService positive cache entry so
+      // the next prepare() call re-clones rather than feeding the same dead
+      // id back through synthesize(). Note: ElevenLabsVoiceService also has
+      // an internal 404-retry-clone path inside ensureVoiceCloned, but that
+      // only catches the failure if it surfaces during prepare() — synthesize()
+      // 404s otherwise leak past it.
+      if (error instanceof ElevenLabsApiError && error.status === 404) {
+        this.voiceService.invalidateVoice(ctx.slug, ctx.byokKey);
+        logger.info(
+          { slug: ctx.slug, voiceId: handle.id },
+          'ElevenLabs voice 404 — invalidated cache for re-clone on next prepare'
+        );
+      }
+      throw error;
+    }
     logger.info(
       {
         event: 'tts.synthesize',

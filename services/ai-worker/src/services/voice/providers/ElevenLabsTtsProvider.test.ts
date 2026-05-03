@@ -1,25 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ElevenLabsTtsProvider } from './ElevenLabsTtsProvider.js';
 
-vi.mock('../ElevenLabsClient.js', () => ({
-  elevenLabsTTS: vi
-    .fn()
-    .mockResolvedValue({
+// importOriginal preserves the real `ElevenLabsApiError` class so the
+// provider's `instanceof ElevenLabsApiError` check works at runtime; only
+// `elevenLabsTTS` (the network call) is replaced.
+vi.mock('../ElevenLabsClient.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../ElevenLabsClient.js')>();
+  return {
+    ...actual,
+    elevenLabsTTS: vi.fn().mockResolvedValue({
       audioBuffer: Buffer.from([0xff, 0xfb, 0x90, 0x00]),
       contentType: 'audio/mpeg',
     }),
-}));
-import { elevenLabsTTS } from '../ElevenLabsClient.js';
+  };
+});
+import { elevenLabsTTS, ElevenLabsApiError } from '../ElevenLabsClient.js';
 
 const mockedElevenLabsTTS = vi.mocked(elevenLabsTTS);
 
 interface MockVoiceService {
   ensureVoiceCloned: ReturnType<typeof vi.fn>;
+  invalidateVoice: ReturnType<typeof vi.fn>;
 }
 
 function makeService(): MockVoiceService {
   return {
     ensureVoiceCloned: vi.fn().mockResolvedValue('voice-uuid-abc'),
+    invalidateVoice: vi.fn(),
   };
 }
 
@@ -192,6 +199,30 @@ describe('ElevenLabsTtsProvider', () => {
       await expect(
         provider.synthesize('x', stateless, { slug: 's', byokKey: 'k' })
       ).rejects.toThrow(/inlineAudio/);
+    });
+
+    it('invalidates voice cache when synthesize throws 404', async () => {
+      const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk-real' });
+
+      mockedElevenLabsTTS.mockRejectedValueOnce(new ElevenLabsApiError(404, 'voice not found'));
+
+      await expect(
+        provider.synthesize('x', handle, { slug: 'emily', byokKey: 'sk-real' })
+      ).rejects.toBeInstanceOf(ElevenLabsApiError);
+
+      expect(voiceService.invalidateVoice).toHaveBeenCalledWith('emily', 'sk-real');
+    });
+
+    it('does NOT invalidate voice cache on non-404 errors', async () => {
+      const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk-real' });
+
+      mockedElevenLabsTTS.mockRejectedValueOnce(new ElevenLabsApiError(429, 'rate limit'));
+
+      await expect(
+        provider.synthesize('x', handle, { slug: 'emily', byokKey: 'sk-real' })
+      ).rejects.toBeInstanceOf(ElevenLabsApiError);
+
+      expect(voiceService.invalidateVoice).not.toHaveBeenCalled();
     });
   });
 });
