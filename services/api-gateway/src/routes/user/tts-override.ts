@@ -277,13 +277,26 @@ export function createTtsOverrideRoutes(
         return sendError(res, ErrorResponses.notFound('User'));
       }
 
+      // Look up the system free default the user will fall back to. Per-
+      // personality overrides (UserPersonalityConfig.ttsConfigId) and
+      // personality-level defaults (PersonalityDefaultTtsConfig) are
+      // unaffected; the free default is just the user-global fallback.
+      const newEffectiveDefault = await prisma.ttsConfig.findFirst({
+        where: { isFreeDefault: true },
+        select: { id: true, name: true },
+      });
+
       // Idempotent: no default set → success with wasSet: false
       if (user.defaultTtsConfigId === null) {
         logger.info(
           { discordUserId, hadDefault: false },
           'Clear called but no default TTS was set (idempotent success)'
         );
-        return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
+        return sendCustomSuccess(
+          res,
+          { deleted: true, wasSet: false, newEffectiveDefault },
+          StatusCodes.OK
+        );
       }
 
       await prisma.user.update({
@@ -305,7 +318,7 @@ export function createTtsOverrideRoutes(
       // and with DELETE /:personalityId — explicit `wasSet: true` lets a
       // future caller distinguish "actually cleared" from "already empty"
       // via a single field check.
-      sendCustomSuccess(res, { deleted: true, wasSet: true }, StatusCodes.OK);
+      sendCustomSuccess(res, { deleted: true, wasSet: true, newEffectiveDefault }, StatusCodes.OK);
     })
   );
 
