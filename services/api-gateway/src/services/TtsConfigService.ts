@@ -128,15 +128,20 @@ interface SystemGlobalSeed {
   provider: 'self-hosted' | 'elevenlabs' | 'mistral';
   modelId: string | null;
   isFreeDefault: boolean;
+  /** When true, this seed is also marked as the system-wide default
+   *  (`isDefault: true`). Set on `kyutai-self-hosted` so a fresh dev DB
+   *  has a working TTS default out of the box without a manual admin step. */
+  isDefault: boolean;
 }
 
 const SYSTEM_GLOBALS: readonly SystemGlobalSeed[] = [
   {
     name: 'kyutai-self-hosted',
-    description: 'Self-hosted Kyutai/Pocket TTS — free tier default',
+    description: 'Self-hosted Kyutai/Pocket TTS — free tier + system default',
     provider: 'self-hosted',
     modelId: null,
     isFreeDefault: true,
+    isDefault: true,
   },
   {
     name: 'elevenlabs-multilingual-v2',
@@ -144,6 +149,7 @@ const SYSTEM_GLOBALS: readonly SystemGlobalSeed[] = [
     provider: 'elevenlabs',
     modelId: 'eleven_multilingual_v2',
     isFreeDefault: false,
+    isDefault: false,
   },
   {
     name: 'mistral-voxtral-mini',
@@ -151,6 +157,7 @@ const SYSTEM_GLOBALS: readonly SystemGlobalSeed[] = [
     provider: 'mistral',
     modelId: 'voxtral-mini-tts-2603',
     isFreeDefault: false,
+    isDefault: false,
   },
 ];
 
@@ -263,7 +270,7 @@ export class TtsConfigService {
         description: seed.description,
         ownerId: superuser.id,
         isGlobal: true,
-        isDefault: false,
+        isDefault: seed.isDefault,
         isFreeDefault: seed.isFreeDefault,
         provider: seed.provider,
         modelId: seed.modelId,
@@ -407,7 +414,10 @@ export class TtsConfigService {
   async update(configId: string, data: Partial<TtsConfigUpdateInput>): Promise<RawTtsConfigDetail> {
     const updateData: Record<string, unknown> = {};
 
-    if (data.name !== undefined) {
+    if (data.name !== undefined && data.name.length > 0) {
+      // Schema's `optionalString(40)` accepts empty strings (the dashboard
+      // form's "I didn't change this field" signal). Treat empty-string as
+      // preserve-existing — same shape as the provider guard below.
       updateData.name = data.name.trim();
     }
     if (data.description !== undefined) {
