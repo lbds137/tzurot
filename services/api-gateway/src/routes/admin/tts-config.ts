@@ -25,6 +25,7 @@ import { Router, type Response, type Request } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  isSelfHostedTtsProvider,
   type PrismaClient,
   type TtsConfigCacheInvalidationService,
   TtsConfigCreateSchema,
@@ -219,10 +220,10 @@ function createSetFreeDefaultHandler(service: TtsConfigService, prisma: PrismaCl
         ErrorResponses.validationError('Only global TTS configs can be set as free tier default')
       );
     }
-    // TTS-shaped invariant: only `self-hosted` is free at the per-user level —
+    // TTS-shaped invariant: only self-hosted is free at the per-user level —
     // BYOK providers (elevenlabs, mistral) require user-supplied API keys,
     // so they can't serve guests as a fallback.
-    if (config.provider !== 'self-hosted') {
+    if (!isSelfHostedTtsProvider(config.provider)) {
       return sendError(
         res,
         ErrorResponses.validationError(

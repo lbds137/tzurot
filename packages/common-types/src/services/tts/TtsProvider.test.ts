@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildPreparedInlineAudio,
   buildPreparedVoiceId,
+  isSelfHostedTtsProvider,
   isTtsProviderId,
   type PreparedTts,
 } from './TtsProvider.js';
@@ -17,6 +18,23 @@ describe('isTtsProviderId', () => {
     expect(isTtsProviderId('openrouter')).toBe(false);
     expect(isTtsProviderId('')).toBe(false);
     expect(isTtsProviderId('Mistral')).toBe(false); // case-sensitive
+  });
+});
+
+describe('isSelfHostedTtsProvider', () => {
+  it('is true for self-hosted', () => {
+    expect(isSelfHostedTtsProvider('self-hosted')).toBe(true);
+  });
+
+  it('is false for BYOK providers', () => {
+    expect(isSelfHostedTtsProvider('elevenlabs')).toBe(false);
+    expect(isSelfHostedTtsProvider('mistral')).toBe(false);
+  });
+
+  it('is false for unknown strings (no narrowing prerequisite)', () => {
+    expect(isSelfHostedTtsProvider('openrouter')).toBe(false);
+    expect(isSelfHostedTtsProvider('')).toBe(false);
+    expect(isSelfHostedTtsProvider('Self-Hosted')).toBe(false); // case-sensitive
   });
 });
 
