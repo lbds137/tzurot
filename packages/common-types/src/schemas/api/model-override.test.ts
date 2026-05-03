@@ -155,20 +155,37 @@ describe('Model Override API Contract Tests', () => {
   });
 
   describe('ClearDefaultConfigResponseSchema', () => {
-    it('should accept valid clear response', () => {
-      const data = { deleted: true as const };
+    it('should accept valid clear response with null newEffectiveDefault', () => {
+      const data = { deleted: true as const, newEffectiveDefault: null };
+      const result = ClearDefaultConfigResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept valid clear response with populated newEffectiveDefault', () => {
+      const data = {
+        deleted: true as const,
+        wasSet: true,
+        newEffectiveDefault: { id: 'free-id', name: 'gpt-4-free' },
+      };
       const result = ClearDefaultConfigResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject deleted=false', () => {
-      const data = { deleted: false };
+      const data = { deleted: false, newEffectiveDefault: null };
       const result = ClearDefaultConfigResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject missing deleted field', () => {
       const result = ClearDefaultConfigResponseSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing newEffectiveDefault field', () => {
+      // newEffectiveDefault is required (nullable, but not optional) — gateway
+      // always populates it, even if null when no admin free default exists
+      const result = ClearDefaultConfigResponseSchema.safeParse({ deleted: true });
       expect(result.success).toBe(false);
     });
   });

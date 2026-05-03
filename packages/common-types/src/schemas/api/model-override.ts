@@ -70,6 +70,17 @@ export type SetDefaultConfigResponse = z.infer<typeof SetDefaultConfigResponseSc
 
 export const ClearDefaultConfigResponseSchema = z.object({
   deleted: z.literal(true),
+  /** Whether a default was actually set before this call (idempotent vs. real clear). */
+  wasSet: z.boolean().optional(),
+  /** System free default the user falls back to. `null` only if no admin
+   *  has configured a free default (rare in practice — bot-client renders
+   *  a hardcoded-fallback notice when null). */
+  newEffectiveDefault: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
 });
 export type ClearDefaultConfigResponse = z.infer<typeof ClearDefaultConfigResponseSchema>;
 
