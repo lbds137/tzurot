@@ -23,6 +23,7 @@ import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  TtsConfigCacheInvalidationService,
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   ConfigCascadeResolver,
@@ -96,6 +97,7 @@ interface ServicesContext {
   cacheInvalidationService: CacheInvalidationService;
   apiKeyCacheInvalidation: ApiKeyCacheInvalidationService;
   llmConfigCacheInvalidation: LlmConfigCacheInvalidationService;
+  ttsConfigCacheInvalidation: TtsConfigCacheInvalidationService;
   denylistInvalidation: DenylistCacheInvalidationService;
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
   cascadeResolver: ConfigCascadeResolver;
@@ -136,6 +138,9 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
 
   const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
   logger.info('LLM config cache invalidation service initialized');
+
+  const ttsConfigCacheInvalidation = new TtsConfigCacheInvalidationService(cacheRedis);
+  logger.info('TTS config cache invalidation service initialized');
 
   const denylistInvalidation = new DenylistCacheInvalidationService(cacheRedis);
   logger.info('Denylist cache invalidation service initialized');
@@ -188,6 +193,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     cacheInvalidationService,
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
+    ttsConfigCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
@@ -206,6 +212,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     cacheInvalidationService,
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
+    ttsConfigCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
@@ -235,6 +242,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     createUserRouter({
       prisma,
       llmConfigCacheInvalidation,
+      ttsConfigCacheInvalidation,
       cacheInvalidationService,
       redis: cacheRedis,
       modelCache,
@@ -257,6 +265,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
       prisma,
       cacheInvalidationService,
       llmConfigCacheInvalidation,
+      ttsConfigCacheInvalidation,
       retentionService,
       modelCache,
       denylistInvalidation,

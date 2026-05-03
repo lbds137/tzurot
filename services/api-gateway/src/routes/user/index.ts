@@ -57,6 +57,7 @@ import type { Redis } from 'ioredis';
 import type {
   PrismaClient,
   LlmConfigCacheInvalidationService,
+  TtsConfigCacheInvalidationService,
   CacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   ConfigCascadeResolver,
@@ -66,6 +67,7 @@ import { createTimezoneRoutes } from './timezone.js';
 import { createUsageRoutes } from './usage.js';
 import { createPersonalityRoutes } from './personality/index.js';
 import { createLlmConfigRoutes } from './llm-config.js';
+import { createTtsConfigRoutes } from './tts-config.js';
 import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
 import { createHistoryRoutes } from './history.js';
@@ -82,6 +84,7 @@ import { createVoicesRoutes } from './voices.js';
 interface UserRouterOptions {
   prisma: PrismaClient;
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService;
+  ttsConfigCacheInvalidation?: TtsConfigCacheInvalidationService;
   cacheInvalidationService?: CacheInvalidationService;
   redis?: Redis;
   modelCache?: OpenRouterModelCache;
@@ -97,6 +100,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   const {
     prisma,
     llmConfigCacheInvalidation,
+    ttsConfigCacheInvalidation,
     cacheInvalidationService,
     redis,
     modelCache,
@@ -120,6 +124,9 @@ export function createUserRouter(opts: UserRouterOptions): Router {
     '/llm-config',
     createLlmConfigRoutes(prisma, llmConfigCacheInvalidation, modelCache, cascadeResolver)
   );
+
+  // TTS config routes (with cache invalidation for user TTS config changes)
+  router.use('/tts-config', createTtsConfigRoutes(prisma, ttsConfigCacheInvalidation));
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));
