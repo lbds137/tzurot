@@ -338,19 +338,28 @@ export async function mistralCloneVoice(opts: MistralCloneOptions): Promise<Mist
   };
 }
 
-/**
- * List voices in the account. Single-page (page_size=50) by default; users
- * with >50 cloned voices would need a pagination loop (tracked as a backlog
- * follow-up).
- */
-export async function mistralListVoices(apiKey: string): Promise<MistralVoiceInfo[]> {
-  const response = await mistralFetch(`/audio/voices?page=1&page_size=${VOICE_LIST_PAGE_SIZE}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    timeoutMs: MISTRAL_FAST_TIMEOUT_MS,
-  });
+/** Safety cap on pagination — at page_size=50, this is 1000 voices.
+ *  Beyond this, something pathological is going on (compromised account
+ *  or runaway clone-bug), so the cap prevents an infinite loop on a bad
+ *  Mistral response while still covering any realistic legitimate scale. */
+const VOICE_LIST_MAX_PAGES = 20;
+
+interface VoicesPage {
+  items: MistralVoiceInfo[];
+  totalPages: number;
+}
+
+/** Fetch a single page of the voices listing. Internal helper for the
+ *  pagination walker. */
+async function fetchVoicesPage(apiKey: string, page: number): Promise<VoicesPage> {
+  const response = await mistralFetch(
+    `/audio/voices?page=${page}&page_size=${VOICE_LIST_PAGE_SIZE}`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      timeoutMs: MISTRAL_FAST_TIMEOUT_MS,
+    }
+  );
 
   if (!response.ok) {
     throw new MistralApiError(response.status, await readResponseError(response));
@@ -365,22 +374,46 @@ export async function mistralListVoices(apiKey: string): Promise<MistralVoiceInf
     throw new MistralResponseShapeError('/v1/audio/voices', 'items');
   }
 
-  // Warn if we hit the pagination boundary — the find-by-name path may miss
-  // a target voice that lives on page 2+. Backlog item PR2#-mistral-pagination
-  // captures the proper loop fallback.
-  const totalPages = typeof json.total_pages === 'number' ? json.total_pages : 1;
-  if (totalPages > 1) {
-    logger.warn(
-      { totalPages, returnedCount: json.items.length, total: json.total },
-      'Mistral voice list has multiple pages — single-page list may miss voices on later pages. Tracked in backlog/inbox.md.'
-    );
+  return {
+    items: json.items.map(item => ({
+      id: item.id,
+      name: item.name,
+      userId: item.user_id,
+    })),
+    totalPages: typeof json.total_pages === 'number' ? json.total_pages : 1,
+  };
+}
+
+/**
+ * List all voices in the account, walking the pagination if necessary.
+ *
+ * At one-voice-per-personality scale the listing usually fits in a single
+ * page (page_size=50), but this walker covers accounts that grow past
+ * the boundary so the find-by-name lookup in `MistralTtsProvider` doesn't
+ * silently miss voices on page 2+ and trigger a duplicate clone.
+ *
+ * Capped at `VOICE_LIST_MAX_PAGES` pages (1000 voices) — a soft safety
+ * net against a runaway pagination loop on pathological responses.
+ */
+export async function mistralListVoices(apiKey: string): Promise<MistralVoiceInfo[]> {
+  const all: MistralVoiceInfo[] = [];
+  let page = 1;
+
+  while (page <= VOICE_LIST_MAX_PAGES) {
+    const { items, totalPages } = await fetchVoicesPage(apiKey, page);
+    all.push(...items);
+
+    if (page >= totalPages) {
+      return all;
+    }
+    page++;
   }
 
-  return json.items.map(item => ({
-    id: item.id,
-    name: item.name,
-    userId: item.user_id,
-  }));
+  logger.warn(
+    { maxPages: VOICE_LIST_MAX_PAGES, returnedCount: all.length },
+    'Mistral voice list pagination cap reached — possibly missing voices on later pages'
+  );
+  return all;
 }
 
 /**

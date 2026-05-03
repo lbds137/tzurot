@@ -288,10 +288,51 @@ describe('mistralListVoices', () => {
     await expect(promise).rejects.toThrow(/missing items/);
   });
 
-  it('does not throw when total_pages > 1 (logs warning)', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { items: [], total: 100, total_pages: 2 }));
-    // Should NOT throw — the warning is a log, not an exception
-    await expect(mistralListVoices('k')).resolves.toEqual([]);
+  it('walks pagination when total_pages > 1 and aggregates results', async () => {
+    // Two pages, 2 items each = 4 total
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          items: [
+            { id: 'p1-v1', name: 'a', user_id: null },
+            { id: 'p1-v2', name: 'b', user_id: null },
+          ],
+          total: 4,
+          total_pages: 2,
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          items: [
+            { id: 'p2-v1', name: 'c', user_id: null },
+            { id: 'p2-v2', name: 'd', user_id: null },
+          ],
+          total: 4,
+          total_pages: 2,
+        })
+      );
+
+    const result = await mistralListVoices('k');
+
+    expect(result.map(v => v.id)).toEqual(['p1-v1', 'p1-v2', 'p2-v1', 'p2-v2']);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // First call requests page 1, second requests page 2
+    expect(mockFetch.mock.calls[0][0]).toContain('page=1');
+    expect(mockFetch.mock.calls[1][0]).toContain('page=2');
+  });
+
+  it('stops fetching when total_pages indicates we have all items', async () => {
+    // Single page response: total_pages=1, fetch should not loop
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        items: [{ id: 'v1', name: 'only', user_id: null }],
+        total: 1,
+        total_pages: 1,
+      })
+    );
+
+    await mistralListVoices('k');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });
 
