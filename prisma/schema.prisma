@@ -343,9 +343,9 @@ model UserPersonalityConfig {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  llmConfig   LlmConfig?  @relation(fields: [llmConfigId], references: [id])
-  ttsConfig   TtsConfig?  @relation("UserPersonalityTtsConfig", fields: [ttsConfigId], references: [id])
-  persona     Persona?    @relation(fields: [personaId], references: [id])
+  llmConfig   LlmConfig?  @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
+  ttsConfig   TtsConfig?  @relation("UserPersonalityTtsConfig", fields: [ttsConfigId], references: [id], onDelete: SetNull)
+  persona     Persona?    @relation(fields: [personaId], references: [id], onDelete: SetNull)
   personality Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
