@@ -1,11 +1,21 @@
 /**
  * Voice Delete Handler
- * Deletes a single ElevenLabs cloned voice with autocomplete
+ * Deletes a single cloned voice (ElevenLabs or Mistral) with autocomplete.
+ *
+ * Autocomplete encodes `${provider}:${voiceId}` as the option value so
+ * the delete handler knows which provider's API to talk to without an
+ * extra round-trip. Gateway accepts `DELETE /user/voices/:provider/:voiceId`.
  */
 
 import { EmbedBuilder } from 'discord.js';
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  DISCORD_LIMITS,
+  isAudioProviderId,
+  type AudioProviderId,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import type { VoicesListResponse } from './types.js';
@@ -15,22 +25,49 @@ const logger = createLogger('settings-voices-delete');
 
 interface VoiceDeleteResponse {
   deleted: boolean;
+  provider: AudioProviderId;
   voiceId: string;
   name: string;
   slug: string;
 }
 
+/** Parse the autocomplete value (`${provider}:${voiceId}`) into its parts.
+ *  Returns null if the format is unexpected — caller surfaces an error.
+ *  Uses `isAudioProviderId` from common-types so the runtime check stays
+ *  synchronized with the type definition. */
+function parseVoiceOption(value: string): { provider: AudioProviderId; voiceId: string } | null {
+  const colonIdx = value.indexOf(':');
+  if (colonIdx <= 0) {
+    return null;
+  }
+  const provider = value.slice(0, colonIdx);
+  const voiceId = value.slice(colonIdx + 1);
+  if (!isAudioProviderId(provider) || voiceId.length === 0) {
+    return null;
+  }
+  return { provider, voiceId };
+}
+
 /**
  * Handle /settings voices delete <voice>
- * Deletes a single tzurot-prefixed voice from ElevenLabs
+ * Deletes a single tzurot-prefixed voice from whichever provider it lives in.
  */
 export async function handleDeleteVoice(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const voiceId = context.getRequiredOption<string>('voice');
+  const optionValue = context.getRequiredOption<string>('voice');
+
+  const parsed = parseVoiceOption(optionValue);
+  if (parsed === null) {
+    await context.editReply({
+      content:
+        '❌ Invalid voice selection. Please re-run the command and pick a voice from the autocomplete list.',
+    });
+    return;
+  }
 
   try {
     const result = await callGatewayApi<VoiceDeleteResponse>(
-      `/user/voices/${encodeURIComponent(voiceId)}`,
+      `/user/voices/${parsed.provider}/${encodeURIComponent(parsed.voiceId)}`,
       {
         method: 'DELETE',
         user: toGatewayUser(context.user),
@@ -54,7 +91,10 @@ export async function handleDeleteVoice(context: DeferredCommandContext): Promis
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, voiceId, slug: result.data.slug }, 'Deleted voice');
+    logger.info(
+      { userId, provider: parsed.provider, voiceId: parsed.voiceId, slug: result.data.slug },
+      'Deleted voice'
+    );
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
@@ -93,8 +133,12 @@ export async function handleVoiceAutocomplete(interaction: AutocompleteInteracti
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
     const choices = filtered.map(v => ({
-      name: v.slug,
-      value: v.voiceId,
+      // Display: `slug · provider` so the user can disambiguate same-slug
+      // voices across providers (e.g., a personality cloned to both).
+      name: `${v.slug} · ${v.provider}`,
+      // Value: composite `${provider}:${voiceId}` — the delete handler
+      // splits on `:` to route to the right provider's API.
+      value: `${v.provider}:${v.voiceId}`,
     }));
 
     await interaction.respond(choices);
