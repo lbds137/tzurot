@@ -74,7 +74,6 @@ import {
   handleVoiceClearModal,
   VOICE_CLEAR_OPERATION,
 } from './voices/clear.js';
-import { handleModelSet, handleModelAutocomplete } from './voices/model.js';
 
 // Defaults handlers (user-default config cascade settings)
 import {
@@ -151,7 +150,6 @@ const voicesRouter = createTypedSubcommandRouter(
     browse: handleBrowseVoices,
     delete: handleDeleteVoice,
     clear: handleClearVoices,
-    model: handleModelSet,
   },
   { logger, logPrefix: '[Settings/Voices]' }
 );
@@ -282,8 +280,6 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     await handleTtsAutocomplete(interaction);
   } else if (subcommandGroup === 'voices' && focusedOption.name === 'voice') {
     await handleVoiceAutocomplete(interaction);
-  } else if (subcommandGroup === 'voices' && focusedOption.name === 'model') {
-    await handleModelAutocomplete(interaction);
   } else {
     await interaction.respond([]);
   }
@@ -454,18 +450,6 @@ export default defineCommand({
         )
         .addSubcommand(subcommand =>
           subcommand.setName('clear').setDescription('Delete all Tzurot cloned voices')
-        )
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('model')
-            .setDescription('Set your preferred ElevenLabs TTS model')
-            .addStringOption(option =>
-              option
-                .setName('model')
-                .setDescription('The TTS model to use')
-                .setRequired(true)
-                .setAutocomplete(true)
-            )
         )
     ),
   execute,
