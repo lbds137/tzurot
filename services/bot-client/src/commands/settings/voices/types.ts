@@ -22,8 +22,19 @@ export interface VoiceEntry {
   slug: string;
 }
 
+/**
+ * Per-provider warning surfaced when one provider's fetch failed but the
+ * request as a whole succeeded. Absent (`undefined`) when all providers
+ * loaded cleanly. Bot-client renders these inline above the voice list.
+ */
+export interface VoiceWarning {
+  provider: AudioProviderId;
+  message: string;
+}
+
 export interface VoicesListResponse {
   voices: VoiceEntry[];
   totalVoices: number;
   tzurotCount: number;
+  warnings?: VoiceWarning[];
 }
