@@ -24,6 +24,7 @@ import {
 } from '@tzurot/common-types';
 import { VoiceRegistrationService } from '../VoiceRegistrationService.js';
 import { synthesizeWithChunking } from '../ttsSynthesizer.js';
+import { waitForVoiceEngine } from '../voiceEngineWarmup.js';
 
 const logger = createLogger('SelfHostedTtsProvider');
 
@@ -69,8 +70,20 @@ export class SelfHostedTtsProvider implements TtsProvider {
    * Lazy-register the voice with voice-engine. Returns a handle whose `id`
    * is the personality slug (voice-engine identifies voices by the slug
    * sent during registration).
+   *
+   * Calls `waitForVoiceEngine` before registration to absorb Railway
+   * Serverless cold-start (~56s observed). Without this, `ensureVoiceRegistered`
+   * runs into the cold-start delay during a much shorter HTTP timeout
+   * and fails. Pre-PR-2 this happened in `TTSStep.performVoiceEngineTTS`;
+   * the dispatcher refactor moved the responsibility into the provider
+   * since only this provider talks to voice-engine.
    */
   async prepare(ctx: TtsContext): Promise<PreparedTts> {
+    const warmup = await waitForVoiceEngine(this.registrationService.client, 'tts');
+    logger.info(
+      { slug: ctx.slug, warmupElapsedMs: warmup.elapsedMs, ready: warmup.ready },
+      'Voice engine warmup complete for TTS'
+    );
     await this.registrationService.ensureVoiceRegistered(ctx.slug);
     return buildPreparedVoiceId(PROVIDER_ID, ctx.slug);
   }
