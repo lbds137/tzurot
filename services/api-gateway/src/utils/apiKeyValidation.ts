@@ -1,317 +1,48 @@
 /**
- * API Key Validation Utilities
+ * API Key Validation Dispatcher
  *
- * Shared validation logic for API key storage and testing.
- * Used by wallet/setKey.ts and wallet/testKey.ts routes.
+ * Per-provider validators live in `./apiKeyValidation/{provider}.ts`. This
+ * file is the public entry point: it dispatches `validateApiKey(key, provider)`
+ * to the right provider-specific validator and re-exports the public result
+ * types so callers don't need to know the directory layout.
  *
  * Security:
- * - Keys are validated with provider before storage
+ * - Keys are validated with the provider before storage
  * - Never logs or returns the actual API key
- * - Timeout protection against slow responses
+ * - Each per-provider validator handles its own timeout
+ *
+ * Adding a new provider:
+ * 1. Add a `apiKeyValidation/<provider>.ts` file with a `validate<Provider>Key`
+ *    function that returns `ApiKeyValidationResult`.
+ * 2. Add a case to the switch below.
+ * 3. Add a `<provider>.test.ts` file colocated with the validator.
  */
 
-import {
-  createLogger,
-  AIProvider,
-  AI_ENDPOINTS,
-  VALIDATION_TIMEOUTS,
-  ZAI_VALIDATION_MODEL,
-} from '@tzurot/common-types';
+import { createLogger, AIProvider } from '@tzurot/common-types';
+import { validateOpenRouterKey } from './apiKeyValidation/openrouter.js';
+import { validateElevenLabsKey } from './apiKeyValidation/elevenlabs.js';
+import { validateMistralKey } from './apiKeyValidation/mistral.js';
+import { validateZaiCodingKey } from './apiKeyValidation/zaiCoding.js';
+import type { ApiKeyValidationResult } from './apiKeyValidation/types.js';
 
 const logger = createLogger('api-key-validation');
 
-/** Shared error messages used by every provider validator below. */
-const VALIDATION_MESSAGES = {
-  INVALID_KEY: 'Invalid API key',
-  TIMEOUT: 'Validation request timed out',
-  FALLBACK: 'Validation failed',
-  QUOTA_EXCEEDED_ZAI: 'z.ai coding-plan quota exhausted for the current period',
-} as const;
+// Re-export public types so callers (wallet routes, tests) don't need to
+// reach into the per-provider directory. Per-provider functions stay
+// internal — only the dispatcher is part of this module's surface.
+export type { ApiKeyValidationResult, ValidationErrorCode } from './apiKeyValidation/types.js';
+// Per-provider validators are also exported for tests that exercise a single
+// provider in isolation. Application code should use `validateApiKey` instead.
+export { validateOpenRouterKey } from './apiKeyValidation/openrouter.js';
+export { validateElevenLabsKey } from './apiKeyValidation/elevenlabs.js';
+export { validateMistralKey } from './apiKeyValidation/mistral.js';
+export { validateZaiCodingKey } from './apiKeyValidation/zaiCoding.js';
 
 /**
- * Error codes returned from validation
- */
-export type ValidationErrorCode =
-  | 'INVALID_KEY'
-  | 'MISSING_PERMISSIONS'
-  | 'QUOTA_EXCEEDED'
-  | 'TIMEOUT'
-  | 'UNKNOWN';
-
-/**
- * Result of API key validation
- */
-export interface ApiKeyValidationResult {
-  /** Whether the key is valid */
-  valid: boolean;
-  /** Credit balance (if available from provider) */
-  credits?: number;
-  /** Error message if validation failed */
-  error?: string;
-  /** Error classification code */
-  errorCode?: ValidationErrorCode;
-}
-
-/**
- * Validate an OpenRouter API key
- *
- * Uses the /auth/key endpoint to check:
- * - Key validity (401/403 = invalid)
- * - Credit balance (402 = no credits)
- */
-export async function validateOpenRouterKey(apiKey: string): Promise<ApiKeyValidationResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUTS.API_KEY_VALIDATION);
-
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      signal: controller.signal,
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      return { valid: false, errorCode: 'INVALID_KEY', error: VALIDATION_MESSAGES.INVALID_KEY };
-    }
-
-    if (!response.ok) {
-      return { valid: false, errorCode: 'UNKNOWN', error: `HTTP ${response.status}` };
-    }
-
-    const data = (await response.json()) as { data?: { limit_remaining?: number | null } };
-    const credits = data.data?.limit_remaining;
-
-    // Check if quota is available
-    // Note: null means unlimited (no limit set), only reject if explicitly 0 or negative
-    // Using typeof check because null <= 0 is true in JavaScript (coercion quirk)
-    if (typeof credits === 'number' && credits <= 0) {
-      return {
-        valid: false,
-        errorCode: 'QUOTA_EXCEEDED',
-        error: 'API key has no remaining credits',
-        credits,
-      };
-    }
-
-    // Only include credits if it's a number (null means unlimited)
-    return { valid: true, credits: typeof credits === 'number' ? credits : undefined };
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { valid: false, errorCode: 'TIMEOUT', error: VALIDATION_MESSAGES.TIMEOUT };
-    }
-
-    return {
-      valid: false,
-      errorCode: 'UNKNOWN',
-      error: error instanceof Error ? error.message : VALIDATION_MESSAGES.FALLBACK,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/**
- * Validate an ElevenLabs API key
- *
- * Uses the /v1/user endpoint to check:
- * - Key validity (401 = invalid)
- * - Subscription info (character_count, character_limit)
- *
- * Note: Intentionally duplicates validation logic from
- * ai-worker's KeyValidationService.validateElevenLabsKey().
- * Gateway validates on key submission (user-facing flow);
- * worker validates on job execution (runtime health check).
- * Different service boundaries, different error handling.
- */
-export async function validateElevenLabsKey(apiKey: string): Promise<ApiKeyValidationResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUTS.API_KEY_VALIDATION);
-
-  try {
-    const response = await fetch(`${AI_ENDPOINTS.ELEVENLABS_BASE_URL}/user`, {
-      method: 'GET',
-      headers: {
-        'xi-api-key': apiKey,
-      },
-      signal: controller.signal,
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      // Check if this is a scoped key with missing permissions (vs truly invalid key)
-      const permError = await parseElevenLabsPermissionError(response);
-      if (permError !== null) {
-        return { valid: false, errorCode: 'MISSING_PERMISSIONS', error: permError };
-      }
-      return { valid: false, errorCode: 'INVALID_KEY', error: VALIDATION_MESSAGES.INVALID_KEY };
-    }
-
-    if (!response.ok) {
-      return { valid: false, errorCode: 'UNKNOWN', error: `HTTP ${response.status}` };
-    }
-
-    const data = (await response.json()) as {
-      subscription?: {
-        character_count?: number;
-        character_limit?: number;
-      };
-    };
-
-    const used = data.subscription?.character_count;
-    const limit = data.subscription?.character_limit;
-
-    // Check remaining character quota
-    if (typeof used === 'number' && typeof limit === 'number' && used >= limit) {
-      return {
-        valid: false,
-        errorCode: 'QUOTA_EXCEEDED',
-        error: 'ElevenLabs character quota exhausted',
-        credits: limit - used,
-      };
-    }
-
-    const remaining =
-      typeof used === 'number' && typeof limit === 'number' ? limit - used : undefined;
-
-    return { valid: true, credits: remaining };
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { valid: false, errorCode: 'TIMEOUT', error: VALIDATION_MESSAGES.TIMEOUT };
-    }
-
-    return {
-      valid: false,
-      errorCode: 'UNKNOWN',
-      error: error instanceof Error ? error.message : VALIDATION_MESSAGES.FALLBACK,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/**
- * Validate a Mistral API key.
- *
- * Uses `GET /v1/models` to probe — auth-only, no body, no cost. The same
- * key authorizes the entire `/v1/*` namespace (chat, audio, embeddings),
- * so a successful `models` lookup means the key works for the audio
- * endpoints we actually use. Mistral doesn't expose a quota field on the
- * models endpoint; surfaced quota errors will arrive at first synthesis
- * call (auth shape is the only thing we validate up-front here).
- *
- * Mirrors `validateElevenLabsKey` in shape, with the audio quota check
- * dropped (no analog).
- */
-export async function validateMistralKey(apiKey: string): Promise<ApiKeyValidationResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUTS.API_KEY_VALIDATION);
-
-  try {
-    const response = await fetch(`${AI_ENDPOINTS.MISTRAL_BASE_URL}/models`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      signal: controller.signal,
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      return { valid: false, errorCode: 'INVALID_KEY', error: VALIDATION_MESSAGES.INVALID_KEY };
-    }
-
-    if (!response.ok) {
-      return { valid: false, errorCode: 'UNKNOWN', error: `HTTP ${response.status}` };
-    }
-
-    return { valid: true };
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { valid: false, errorCode: 'TIMEOUT', error: VALIDATION_MESSAGES.TIMEOUT };
-    }
-
-    return {
-      valid: false,
-      errorCode: 'UNKNOWN',
-      error: error instanceof Error ? error.message : VALIDATION_MESSAGES.FALLBACK,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/**
- * Validate a z.ai Coding Plan API key
- *
- * z.ai does not expose an `/auth/key`-style introspection endpoint, so we
- * validate by issuing a minimal `chat/completions` request (max_tokens=1)
- * against the coding-plan endpoint and observing the HTTP status.
- *
- * - 200 → key valid
- * - 401/403 → invalid key
- * - 429 → quota exceeded for the coding plan period
- * - any other non-2xx → UNKNOWN (with HTTP status surfaced to caller)
- *
- * Cost: ~1 token from the user's coding-plan quota per validation. Validation
- * runs only on key intake (not on every chat request), so the quota impact
- * is negligible.
- */
-export async function validateZaiCodingKey(apiKey: string): Promise<ApiKeyValidationResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VALIDATION_TIMEOUTS.API_KEY_VALIDATION);
-
-  try {
-    const response = await fetch(`${AI_ENDPOINTS.ZAI_CODING_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: ZAI_VALIDATION_MODEL,
-        messages: [{ role: 'user', content: 'hi' }],
-        max_tokens: 1,
-      }),
-      signal: controller.signal,
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      return { valid: false, errorCode: 'INVALID_KEY', error: VALIDATION_MESSAGES.INVALID_KEY };
-    }
-
-    if (response.status === 429) {
-      return {
-        valid: false,
-        errorCode: 'QUOTA_EXCEEDED',
-        error: VALIDATION_MESSAGES.QUOTA_EXCEEDED_ZAI,
-      };
-    }
-
-    if (!response.ok) {
-      return { valid: false, errorCode: 'UNKNOWN', error: `HTTP ${response.status}` };
-    }
-
-    return { valid: true };
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { valid: false, errorCode: 'TIMEOUT', error: VALIDATION_MESSAGES.TIMEOUT };
-    }
-
-    return {
-      valid: false,
-      errorCode: 'UNKNOWN',
-      error: error instanceof Error ? error.message : VALIDATION_MESSAGES.FALLBACK,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/**
- * Validate an API key for any supported provider
+ * Validate an API key for any supported provider.
  *
  * @param apiKey - The API key to validate
- * @param provider - The AI provider (openrouter, etc.)
+ * @param provider - The AI provider (openrouter, elevenlabs, mistral, zai)
  * @returns Validation result with status and optional error details
  */
 export async function validateApiKey(
@@ -325,10 +56,10 @@ export async function validateApiKey(
       return validateOpenRouterKey(apiKey);
     case AIProvider.ElevenLabs:
       return validateElevenLabsKey(apiKey);
-    case AIProvider.ZaiCoding:
-      return validateZaiCodingKey(apiKey);
     case AIProvider.Mistral:
       return validateMistralKey(apiKey);
+    case AIProvider.ZaiCoding:
+      return validateZaiCodingKey(apiKey);
     default: {
       const _exhaustive: never = provider;
       return {
@@ -338,46 +69,4 @@ export async function validateApiKey(
       };
     }
   }
-}
-
-/**
- * Required ElevenLabs permissions for Tzurot features.
- * Listed in the error message to help users configure scoped keys.
- */
-const ELEVENLABS_REQUIRED_PERMISSIONS = [
-  'Text to Speech (Access)',
-  'Speech to Text (Access)',
-  'Voices (Write)',
-  'Models (Access)',
-  'User (Read)',
-];
-
-/**
- * Parse ElevenLabs 401 response to detect scoped-key permission errors.
- *
- * ElevenLabs returns `{ detail: { status: "missing_permissions", message: "..." } }`
- * for valid scoped keys that lack a specific endpoint permission.
- * This is distinct from a truly invalid/revoked key.
- *
- * @returns User-friendly error message if permissions error, null otherwise
- */
-async function parseElevenLabsPermissionError(response: Response): Promise<string | null> {
-  try {
-    const body = (await response.json()) as {
-      detail?: { status?: string; message?: string };
-    };
-
-    if (body.detail?.status === 'missing_permissions') {
-      const required = ELEVENLABS_REQUIRED_PERMISSIONS.map(p => `• ${p}`).join('\n');
-      return (
-        'Your ElevenLabs API key is valid but missing required permissions. ' +
-        'If using a restricted key, enable these permissions in your ElevenLabs dashboard:\n' +
-        required
-      );
-    }
-  } catch {
-    // Response body not JSON or malformed — fall through to INVALID_KEY
-  }
-
-  return null;
 }
