@@ -11,6 +11,7 @@ import {
   type PrismaClient,
   type CacheInvalidationService,
   type LlmConfigCacheInvalidationService,
+  type TtsConfigCacheInvalidationService,
   type ConversationRetentionService,
   type DenylistCacheInvalidationService,
   type ConfigCascadeCacheInvalidationService,
@@ -22,6 +23,7 @@ import { createCreatePersonalityRoute } from './createPersonality.js';
 import { createUpdatePersonalityRoute } from './updatePersonality.js';
 import { createInvalidateCacheRoute } from './invalidateCache.js';
 import { createAdminLlmConfigRoutes } from './llm-config.js';
+import { createAdminTtsConfigRoutes } from './tts-config.js';
 import { createAdminUsageRoutes } from './usage.js';
 import { createCleanupRoute } from './cleanup.js';
 import { createAdminSettingsRoutes } from './settings.js';
@@ -33,6 +35,7 @@ interface AdminRouterOptions {
   prisma: PrismaClient;
   cacheInvalidationService: CacheInvalidationService;
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService;
+  ttsConfigCacheInvalidation?: TtsConfigCacheInvalidationService;
   retentionService?: ConversationRetentionService;
   modelCache?: OpenRouterModelCache;
   denylistInvalidation?: DenylistCacheInvalidationService;
@@ -48,6 +51,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
     prisma,
     cacheInvalidationService,
     llmConfigCacheInvalidation,
+    ttsConfigCacheInvalidation,
     retentionService,
     modelCache,
     denylistInvalidation,
@@ -70,6 +74,9 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
     '/llm-config',
     createAdminLlmConfigRoutes(prisma, llmConfigCacheInvalidation, modelCache)
   );
+
+  // TTS config management endpoints
+  router.use('/tts-config', createAdminTtsConfigRoutes(prisma, ttsConfigCacheInvalidation));
 
   // Cache invalidation endpoint
   router.use('/invalidate-cache', createInvalidateCacheRoute(cacheInvalidationService));
