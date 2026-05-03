@@ -50,6 +50,10 @@ import {
 
 const logger = createLogger('TtsDispatcher');
 
+/** Self-hosted is the always-last safety-net provider — referenced enough
+ *  in this module that a constant beats the string-literal repetition. */
+const SELF_HOSTED: TtsProviderId = 'self-hosted';
+
 /** A provider id that requires a BYOK key — the dispatcher consults
  *  `audioProviderKeys` for these to gate availability. */
 const BYOK_PROVIDERS: ReadonlySet<TtsProviderId> = new Set(['elevenlabs', 'mistral']);
@@ -170,11 +174,11 @@ function buildFallbackChain(
 
   add(resolvedConfig.provider);
   for (const id of registry.listProviderIds()) {
-    if (id !== 'self-hosted') {
+    if (id !== SELF_HOSTED) {
       add(id);
     }
   }
-  add('self-hosted');
+  add(SELF_HOSTED);
 
   return chain;
 }
@@ -299,6 +303,34 @@ async function attemptCandidate(input: AttemptInput): Promise<AttemptOutcome> {
 }
 
 /**
+ * Build the human-readable cause string for the empty-fallback-chain branch.
+ *
+ * Three failure modes are enumerated explicitly so production triage doesn't
+ * have to guess from a bare "no providers" message:
+ *   1. Self-hosted not registered (VOICE_ENGINE_URL unset)
+ *   2. No BYOK audio-provider keys configured
+ *   3. Both of the above are configured, but every provider's `isAvailable(ctx)`
+ *      returned false for this specific slug (e.g., voice-engine probe failed)
+ */
+function describeEmptyChainCauses(
+  ctx: TtsContext,
+  audioProviderKeys: ReadonlyMap<AudioProviderId, string>,
+  registry: TtsProviderRegistry
+): string {
+  const causes: string[] = [];
+  if (registry.getProvider(SELF_HOSTED) === undefined) {
+    causes.push('VOICE_ENGINE_URL not configured (self-hosted unavailable)');
+  }
+  if (audioProviderKeys.size === 0) {
+    causes.push('no BYOK audio provider keys configured');
+  }
+  if (causes.length === 0) {
+    causes.push(`all registered providers rejected slug '${ctx.slug}' via isAvailable`);
+  }
+  return ` — ${causes.join('; ')}`;
+}
+
+/**
  * Walk the fallback chain and return the first successful synthesis result.
  *
  * Errors during one provider's attempt are caught and logged; the walk
@@ -310,9 +342,10 @@ export async function dispatchTts(options: DispatchOptions): Promise<DispatchRes
 
   const chain = buildFallbackChain(resolvedConfig, ctx, audioProviderKeys, registry);
   if (chain.length === 0) {
+    const causeDetail = describeEmptyChainCauses(ctx, audioProviderKeys, registry);
     throw new TtsDispatchError(
       [],
-      `No TTS providers available for slug=${ctx.slug} (resolved=${resolvedConfig.provider})`
+      `No TTS providers available for slug=${ctx.slug} (resolved=${resolvedConfig.provider})${causeDetail}`
     );
   }
 

@@ -296,6 +296,62 @@ describe('dispatchTts — chain construction', () => {
     expect(dispatchError.message).toMatch(/No TTS providers available/);
     expect(dispatchError.message).toContain('emily'); // slug
     expect(dispatchError.message).toContain('mistral'); // resolved provider
+    // Third-path cause string fires when registry + keys are both populated
+    // but every isAvailable returns false — names the branch explicitly so
+    // operators don't see a bare "no providers" message.
+    expect(dispatchError.message).toMatch(
+      /all registered providers rejected slug 'emily' via isAvailable/
+    );
+  });
+
+  it('decorates empty-chain message with VOICE_ENGINE_URL hint when self-hosted absent from registry', async () => {
+    // Registry has only BYOK providers, no self-hosted (simulates VOICE_ENGINE_URL unset).
+    // No BYOK keys either → both providers filtered → empty chain.
+    const eleven = makeProvider('elevenlabs');
+    const mistral = makeProvider('mistral');
+
+    let caught: unknown;
+    try {
+      await dispatchTts({
+        text: 'hi',
+        resolvedConfig: mistralConfig,
+        ctx: baseCtx,
+        audioProviderKeys: audioKeysEmpty,
+        registry: makeRegistry([eleven, mistral]),
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TtsDispatchError);
+    const err = caught as TtsDispatchError;
+    expect(err.message).toMatch(/VOICE_ENGINE_URL not configured/);
+    expect(err.message).toMatch(/no BYOK audio provider keys configured/);
+  });
+
+  it('decorates empty-chain message with only the BYOK hint when self-hosted IS registered', async () => {
+    // Self-hosted IS in the registry (VOICE_ENGINE_URL set), but isAvailable
+    // returns false (e.g., voice-engine probe failed). With no BYOK keys,
+    // chain is empty — but the cause is BYOK-only, not voice-engine.
+    const selfHosted = makeProvider('self-hosted', { isAvailable: false });
+
+    let caught: unknown;
+    try {
+      await dispatchTts({
+        text: 'hi',
+        resolvedConfig: selfHostedConfig,
+        ctx: baseCtx,
+        audioProviderKeys: audioKeysEmpty,
+        registry: makeRegistry([selfHosted]),
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    const err = caught as TtsDispatchError;
+    expect(err.message).toMatch(/no BYOK audio provider keys configured/);
+    // self-hosted IS registered, so don't claim VOICE_ENGINE_URL is missing
+    expect(err.message).not.toMatch(/VOICE_ENGINE_URL not configured/);
   });
 });
 
