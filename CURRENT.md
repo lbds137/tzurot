@@ -1,14 +1,32 @@
 # Current
 
-> **Session**: 2026-05-01 (single day, ~5 hours of focused work) → 2026-05-02 (continuation: TTS smoke-test + Phase 1 plan finalization)
-> **Version**: v3.0.0-beta.113 (released 2026-04-30 — develop accumulating PRs #954 + #955 + 2026-05-02 plan-finalization commits, all unreleased)
+> **Session**: 2026-05-03 — TTS Engine Upgrade Phase 1 PR 3a merged + PR 3b started
+> **Version**: v3.0.0-beta.113 (release-frozen until TTS epic completes; develop accumulating PRs #954, #955, #957, #958, #959, #960, plus PR 3b feature branch)
 > **🚧 Release freeze**: NO new beta releases until the TTS Engine Upgrade epic completes (Phases 1+2+3 — TTS BYOK + NeuTTS Air + STT cutover). Develop is the staging area until full ElevenLabs cutover ships. Rationale lives in `backlog/active-epic.md` header.
 
 ---
 
 ## Next Session Goal
 
-**Kick off the TTS Engine Upgrade Epic Phase 1: plan-mode + council review on the architecture, then implement.** All decisions are locked; full research + rationale captured in [`docs/research/voice-cloning-2026.md`](docs/research/voice-cloning-2026.md) and the phased plan is in [`backlog/active-epic.md`](backlog/active-epic.md). Tomorrow's clean pickup point:
+**Continue PR 3b implementation from Phase A3 (admin route).** Plan approved + council-reviewed; gateway service and user route already shipped on the feature branch. Next concrete step: mirror `routes/admin/llm-config.ts` for TTS, then wire `TtsConfigService` into `api-gateway/src/index.ts`, then build the bot-client `/settings tts ...` commands.
+
+**Branch state**: `feat/tts-engine-upgrade-phase-1-pr-3b` — 2 commits ahead of develop. Phase A1 (`TtsConfigService` + errors + 38 tests) and A2 (`/user/tts-config` route + 19 tests) shipped. Remaining sub-phases: A3 (admin route), A4 (gateway wiring), B1 (bot-client commands ~1500 LOC), B2/B3 (small), C (validation), D (PR).
+
+**Plan file**: `~/.claude/plans/radiant-coalescing-avalanche.md` — full sub-phase breakdown, design decisions, reuse inventory, verification steps.
+
+**Backlog filed during this session**: 4 new cross-cutting items in `backlog/inbox.md` — clear-default UX (preset+tts), smart per-user cache invalidation (LLM+TTS), service file split (LLM+TTS), and the round-5 `fetchAllTzurotVoices` exhaustiveness asymmetry for PR 3c.
+
+---
+
+## Previous Goal (TTS Phase 1 PR 3a — DONE 2026-05-03)
+
+**PR 3a merged** (commit `e56e3e225` and surrounding rebase chain) after 5 review rounds + autosquash. Absorbed 10 PR-#957/958/959 review items + scaffolding (`TtsConfigCreateSchema`, `newTtsConfigId`, etc.). Notable round-3 finding: `voices.ts` exhaustive switch for `deleteVoiceAtProvider`, paired with `elevenLabsVoicesClient.ts` extraction to keep file under 400 lines. Round-5 (post-autosquash) flagged a half-handler asymmetry between exhaustive `delete` and sequential `if-checks` in `fetchAllTzurotVoices` — filed as PR 3c absorption.
+
+---
+
+## Stale: TTS Engine Upgrade Phase 1 kickoff (now superseded by PR 3a/3b status above)
+
+(Original 2026-05-02 plan kickoff content below — kept for reference; PR 1 + PR 2 + PR 3a have all merged since.)
 
 1. **Plan-mode pass** on the `TtsProvider` interface design and `tts_configs` schema (read `services/ai-worker/src/services/voice/` end-to-end first; the abstraction is mostly there in shape — `VoiceRegistrationService` + `ElevenLabsVoiceService` are parallel implementations of the same lifecycle pattern).
 2. **Council review** of the proposed design (abstraction shape is the canonical "multiple viable approaches" case the project memory says to consult on).
