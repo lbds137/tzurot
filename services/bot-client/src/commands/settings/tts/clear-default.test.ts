@@ -30,11 +30,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const { handleTtsClearDefault: handleClearDefault } = await import('./clear-default.js');
 
 function makeContext() {
-  const editReply = vi.fn();
   return {
     user: { id: 'discord-user-1' },
-    editReply,
-  } as never;
+    editReply: vi.fn(),
+  };
 }
 
 describe('handleClearDefault', () => {
@@ -46,7 +45,7 @@ describe('handleClearDefault', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
     const context = makeContext();
 
-    await handleClearDefault(context);
+    await handleClearDefault(context as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/tts-override/default',
@@ -67,7 +66,7 @@ describe('handleClearDefault', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    await handleClearDefault(context);
+    await handleClearDefault(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('❌') })
@@ -78,7 +77,7 @@ describe('handleClearDefault', () => {
     mockCallGatewayApi.mockRejectedValue(new Error('network down'));
     const context = makeContext();
 
-    await handleClearDefault(context);
+    await handleClearDefault(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('error occurred') })

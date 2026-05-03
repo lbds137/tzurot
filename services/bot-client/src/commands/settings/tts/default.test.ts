@@ -42,7 +42,7 @@ function makeContext() {
     user: { id: 'discord-user-1' },
     interaction: {} as never,
     editReply: vi.fn(),
-  } as never;
+  };
 }
 
 describe('handleDefault', () => {
@@ -54,7 +54,7 @@ describe('handleDefault', () => {
     mockCheckTtsByokAccess.mockResolvedValue({ blocked: true, reason: 'blocked-byok' });
     const context = makeContext();
 
-    await handleDefault(context);
+    await handleDefault(context as never);
 
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
@@ -67,7 +67,7 @@ describe('handleDefault', () => {
     });
     const context = makeContext();
 
-    await handleDefault(context);
+    await handleDefault(context as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/tts-override/default',
@@ -92,7 +92,7 @@ describe('handleDefault', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    await handleDefault(context);
+    await handleDefault(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('❌') })
