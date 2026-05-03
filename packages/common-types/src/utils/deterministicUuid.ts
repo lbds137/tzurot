@@ -94,6 +94,18 @@ export function newLlmConfigId(): string {
 }
 
 /**
+ * Generate a time-ordered random UUID (UUIDv7) for a new TtsConfig row.
+ *
+ * Mirrors {@link newLlmConfigId} — both config types use UUIDv7 for the same
+ * reasons: chronological sort by id, no dependency on user-editable fields
+ * for the PK. DB-level `@@unique([ownerId, name])` enforces the ergonomic
+ * "user can't have two configs with the same name" constraint independently.
+ */
+export function newTtsConfigId(): string {
+  return uuidv7();
+}
+
+/**
  * Generate deterministic UUID for UserPersonalityConfig
  * Seed: user_personality_settings:{userId}:{personalityId}
  * Note: Seed pattern kept as 'user_personality_settings' for UUID consistency (renamed from UserPersonalitySettings)
