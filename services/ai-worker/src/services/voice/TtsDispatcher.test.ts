@@ -12,6 +12,7 @@ import {
   type TtsProviderId,
 } from '@tzurot/common-types';
 import { dispatchTts, TtsDispatchError, type TtsProviderRegistry } from './TtsDispatcher.js';
+import { MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
 
 // ===== Test fixtures ========================================================
 
@@ -225,15 +226,98 @@ describe('dispatchTts — chain construction', () => {
     expect(failingSelfHosted.synthesize).toHaveBeenCalledTimes(1);
   });
 
-  it('tries all available BYOK providers before self-hosted', async () => {
+  it('self-hosted primary with paid keys present does NOT fall back to paid (no implicit BYOK billing)', async () => {
+    // Symmetric to the paid-primary tests: a user whose primary is self-hosted
+    // does not implicitly opt into ANY paid provider's billing, even if their
+    // BYOK keys for Mistral/ElevenLabs are configured. With audioKeysEmpty the
+    // BYOK key check would filter paid providers anyway — this test uses
+    // audioKeysWithBoth so the gate is the chain-shape rule itself, not the
+    // key-availability filter.
+    const failingSelfHosted = makeProvider('self-hosted', {
+      synthesize: vi.fn(async () => {
+        throw new TtsProviderError(ApiErrorCategory.SERVER_ERROR, 'self-hosted', true, '503');
+      }),
+    });
+    const mistral = makeProvider('mistral');
+    const elevenLabs = makeProvider('elevenlabs');
+
+    await expect(
+      dispatchTts({
+        text: 'hi',
+        resolvedConfig: selfHostedConfig,
+        ctx: baseCtx,
+        audioProviderKeys: audioKeysWithBoth,
+        registry: makeRegistry([failingSelfHosted, mistral, elevenLabs]),
+      })
+    ).rejects.toBeInstanceOf(TtsDispatchError);
+
+    expect(failingSelfHosted.synthesize).toHaveBeenCalledTimes(1);
+    expect(mistral.synthesize).not.toHaveBeenCalled();
+    expect(elevenLabs.synthesize).not.toHaveBeenCalled();
+  });
+
+  it('paid primary failure falls through to self-hosted only (skips other paid)', async () => {
+    // Paid → free only: Mistral fails, ElevenLabs MUST NOT be tried even if
+    // available, self-hosted picks up. Cross-paid fallback would produce
+    // unexpected billing for users who configured only Mistral.
     const mistralFails = makeProvider('mistral', {
       synthesize: vi.fn(async () => {
         throw new TtsProviderError(ApiErrorCategory.RATE_LIMIT, 'mistral', true, '429');
       }),
     });
+    const elevenLabs = makeProvider('elevenlabs');
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hi',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistralFails, elevenLabs, selfHosted]),
+    });
+
+    expect(mistralFails.synthesize).toHaveBeenCalledTimes(1);
+    expect(elevenLabs.synthesize).not.toHaveBeenCalled();
+    expect(selfHosted.synthesize).toHaveBeenCalledTimes(1);
+    expect(result.providerUsed).toBe('self-hosted');
+    expect(result.usedFallback).toBe(true);
+  });
+
+  it('paid primary failure (ElevenLabs side) also skips other paid (symmetry check)', async () => {
+    // Documents the symmetric "paid → free only" rule: ElevenLabs primary
+    // failure must NOT cascade through Mistral. Locks in the "vice versa"
+    // claim in buildFallbackChain's docstring.
     const elevenFails = makeProvider('elevenlabs', {
       synthesize: vi.fn(async () => {
         throw new TtsProviderError(ApiErrorCategory.RATE_LIMIT, 'elevenlabs', true, '429');
+      }),
+    });
+    const mistral = makeProvider('mistral');
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hi',
+      resolvedConfig: elevenlabsConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([elevenFails, mistral, selfHosted]),
+    });
+
+    expect(elevenFails.synthesize).toHaveBeenCalledTimes(1);
+    expect(mistral.synthesize).not.toHaveBeenCalled();
+    expect(selfHosted.synthesize).toHaveBeenCalledTimes(1);
+    expect(result.providerUsed).toBe('self-hosted');
+    expect(result.usedFallback).toBe(true);
+  });
+
+  it('non-TtsProviderError from prepare() (e.g. MistralReferenceAudioTooLongError) falls through to self-hosted', async () => {
+    // Documents the dispatcher's catch-block contract: anything that is not
+    // a `TtsProviderError + !isFallbackEligible` returns `{ kind: 'failed' }`
+    // and the chain continues. MistralReferenceAudioTooLongError is the
+    // motivating case (deterministic input-shape rejection from pre-flight).
+    const mistralRejects = makeProvider('mistral', {
+      prepare: vi.fn(async () => {
+        throw new MistralReferenceAudioTooLongError(31.78);
       }),
     });
     const selfHosted = makeProvider('self-hosted');
@@ -243,13 +327,50 @@ describe('dispatchTts — chain construction', () => {
       resolvedConfig: mistralConfig,
       ctx: baseCtx,
       audioProviderKeys: audioKeysWithBoth,
-      registry: makeRegistry([mistralFails, elevenFails, selfHosted]),
+      registry: makeRegistry([mistralRejects, selfHosted]),
     });
 
-    // Walk: mistral (primary, fails) → elevenlabs (fails) → self-hosted (success)
-    expect(mistralFails.synthesize).toHaveBeenCalledTimes(1);
-    expect(elevenFails.synthesize).toHaveBeenCalledTimes(1);
+    expect(mistralRejects.prepare).toHaveBeenCalledTimes(1);
+    expect(selfHosted.synthesize).toHaveBeenCalledTimes(1);
     expect(result.providerUsed).toBe('self-hosted');
+    expect(result.usedFallback).toBe(true);
+  });
+
+  it('fallback ctx drops the primary provider modelId (regression: cross-provider leak)', async () => {
+    // The primary's modelId is provider-specific and meaningless to fallbacks
+    // (handing Mistral's "voxtral-mini-tts-2603" to ElevenLabs causes a 400).
+    // The synthetic config on `attemptCandidate` already drops modelId from
+    // the resolved-config side; this test locks the parallel ctx-path fix.
+    const mistralFails = makeProvider('mistral', {
+      synthesize: vi.fn(async () => {
+        throw new TtsProviderError(ApiErrorCategory.RATE_LIMIT, 'mistral', true, '429');
+      }),
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    const ctxWithModelId: TtsContext = {
+      slug: 'emily',
+      modelId: 'voxtral-mini-tts-latest', // Mistral-specific
+    };
+
+    await dispatchTts({
+      text: 'hi',
+      resolvedConfig: mistralConfig,
+      ctx: ctxWithModelId,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistralFails, selfHosted]),
+    });
+
+    // Mistral primary attempt SHOULD see the original modelId
+    const mistralPrepareCall = (mistralFails.prepare as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(mistralPrepareCall.modelId).toBe('voxtral-mini-tts-latest');
+
+    // Self-hosted fallback attempt MUST NOT see the Mistral modelId
+    const selfHostedPrepareCall = (selfHosted.prepare as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(selfHostedPrepareCall.modelId).toBeUndefined();
+    const selfHostedSynthesizeCtx = (selfHosted.synthesize as ReturnType<typeof vi.fn>).mock
+      .calls[0][2];
+    expect(selfHostedSynthesizeCtx.modelId).toBeUndefined();
   });
 
   it('throws TtsDispatchError when no providers available', async () => {
