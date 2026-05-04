@@ -73,6 +73,25 @@ interface CachedVoice {
   voiceId: string;
 }
 
+/**
+ * Returns true if the error explicitly self-classifies as deterministic-from-input
+ * (`isTransient === false`). Used to gate the 5-min negative cache: deterministic
+ * failures don't benefit from caching because re-running with the same input
+ * produces the same failure — the cache just adds 5-min delay before the same
+ * error recurs.
+ *
+ * Errors without an `isTransient` field fall through to the "cache" default
+ * (preserves old behavior for network blips, generic Error subclasses, etc.).
+ */
+function isDeterministicFailure(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'isTransient' in error &&
+    error.isTransient === false
+  );
+}
+
 export class MistralTtsProvider implements TtsProvider {
   readonly id = PROVIDER_ID;
   readonly displayName = 'Mistral Voxtral (BYOK)';
@@ -230,13 +249,17 @@ export class MistralTtsProvider implements TtsProvider {
     const promise = this.doEnsureCloned(slug, apiKey, cacheKey)
       .catch(error => {
         const reason = error instanceof Error ? error.message : String(error);
-        // Rate limit (429) is transient — don't poison the negative cache
-        if (error instanceof MistralApiError && error.isRateLimited) {
-          logger.warn({ slug, reason }, 'Mistral voice clone rate limited (not cached)');
-        } else if (error instanceof MistralReferenceAudioTooLongError) {
-          // Deterministic from input — the audio length isn't going to shrink
-          // on retry. Skip the negative cache (it would add nothing), and emit
-          // a structured WARN so log consumers can route this distinct case.
+
+        // Branch ordering matters: MistralReferenceAudioTooLongError has
+        // `isTransient = false`, so `isDeterministicFailure` would match it
+        // too. Keep this explicit instanceof check first so the structured
+        // `mistral.referenceAudioTooLong` event fires for log consumers — a
+        // future refactor that moves or collapses this branch would silently
+        // lose the event without breaking tests.
+        if (error instanceof MistralReferenceAudioTooLongError) {
+          // Deterministic from input. Skip the negative cache (it would add
+          // nothing — same input will fail the same way), emit a structured
+          // WARN so log consumers can route this distinct case.
           logger.warn(
             {
               event: 'mistral.referenceAudioTooLong',
@@ -246,7 +269,20 @@ export class MistralTtsProvider implements TtsProvider {
             },
             'Mistral reference audio exceeds 30s limit — skipping clone; dispatcher will attempt fallback if available'
           );
+        } else if (error instanceof MistralApiError && error.isRateLimited) {
+          // Rate-limited (429) is transient but too granular for a 5-min
+          // blanket cache — Mistral's retry-after header is more precise.
+          logger.warn({ slug, reason }, 'Mistral voice clone rate limited (not cached)');
+        } else if (isDeterministicFailure(error)) {
+          // Other deterministic failures (e.g., 4xx auth, malformed audio) —
+          // caching adds nothing because the same input will keep failing.
+          // The absence of `negativeCache.set` is intentional: the `throw error`
+          // below still rejects the caller's promise, so the failure surfaces;
+          // we just don't poison the cache for the next attempt.
+          logger.warn({ slug, reason }, 'Mistral voice clone failed (deterministic — not cached)');
         } else {
+          // Transient (5xx, response-shape, network blips) or unknown.
+          // Cache for 5 min to prevent retry storms.
           this.negativeCache.set(cacheKey, reason);
           logger.warn({ slug, reason }, 'Mistral voice clone failed — cached for 5 min');
         }
@@ -261,9 +297,11 @@ export class MistralTtsProvider implements TtsProvider {
   private async doEnsureCloned(slug: string, apiKey: string, cacheKey: string): Promise<string> {
     const voiceName = `${TTS_VOICE_NAME_PREFIX}${slug}`;
 
-    // Step 1: list voices, find by name. Single-page assumption per the
-    // backlog item — total_pages > 1 logs a warning inside mistralListVoices
-    // but still returns just page 1's items.
+    // Step 1: list voices, find by name. `mistralListVoices` walks pages up
+    // to VOICE_LIST_MAX_PAGES (20 / 1000 voices) and emits a WARN if it hits
+    // the cap. A truncated list is benign for find-by-name: missing-voice
+    // falls through to clone (worst case: a duplicate clone, tracked in the
+    // separate inbox item on cap-exceeded duplicate-clone risk).
     try {
       const voices = await mistralListVoices(apiKey);
       const existing = voices.find(v => v.name === voiceName);
@@ -313,12 +351,17 @@ export class MistralTtsProvider implements TtsProvider {
   /**
    * First 4 + last 8 chars of the API key — short, unique, not the full key.
    * For keys shorter than 12 chars (test fixtures only — production Mistral
-   * keys are ~32+ chars), use the full key as the suffix to avoid the two
-   * slices overlapping and double-counting middle characters.
+   * keys are ~32+ chars), return a sentinel rather than the full key. This
+   * prevents the cache key (and any debug logs that include it) from leaking
+   * a full short key if a test fixture is ever accidentally used in a
+   * deployed environment. The sentinel collapses all short keys into the
+   * same cache bucket — acceptable because (a) production never produces
+   * sub-12-char keys, and (b) cache collisions across test-fixture-keyed
+   * entries would only manifest in a misconfigured deployment.
    */
   private getKeySuffix(apiKey: string): string {
     if (apiKey.length < 12) {
-      return apiKey;
+      return '[short-key]';
     }
     return `${apiKey.slice(0, 4)}${apiKey.slice(-8)}`;
   }

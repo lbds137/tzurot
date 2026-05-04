@@ -6,6 +6,30 @@ import {
   MISTRAL_MAX_REFERENCE_AUDIO_SEC,
 } from '../MistralTtsClient.js';
 
+// Logger stub captured at module level so tests can assert what the provider
+// emits — specifically that `mistral.referenceAudioTooLong` events fire when
+// the pre-flight rejects oversized reference audio. `vi.hoisted` is required
+// because vi.mock factories are hoisted above ordinary const declarations.
+const { mockLoggerWarn, mockLoggerInfo } = vi.hoisted(() => ({
+  mockLoggerWarn: vi.fn(),
+  mockLoggerInfo: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: mockLoggerInfo,
+      warn: mockLoggerWarn,
+      error: vi.fn(),
+      debug: vi.fn(),
+      trace: vi.fn(),
+      fatal: vi.fn(),
+    }),
+  };
+});
+
 vi.mock('../MistralTtsClient.js', async importOriginal => {
   const actual = await importOriginal<typeof import('../MistralTtsClient.js')>();
   return {
@@ -35,7 +59,11 @@ describe('MistralTtsProvider', () => {
   let provider: MistralTtsProvider;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // resetAllMocks (not just clearAllMocks) so leftover `mockResolvedValueOnce`
+    // queues from a prior test don't leak into the next. clearAllMocks resets
+    // call history but preserves queued return values, which produces hard-to-
+    // diagnose cross-test contamination when Once-mocks aren't fully consumed.
+    vi.resetAllMocks();
     provider = new MistralTtsProvider();
     mockedFetchVoiceReference.mockResolvedValue({
       audioBuffer: Buffer.from('reference-audio-bytes'),
@@ -182,6 +210,38 @@ describe('MistralTtsProvider', () => {
       expect(mockedCloneVoice).not.toHaveBeenCalled();
     });
 
+    it('emits structured `mistral.referenceAudioTooLong` event when pre-flight rejects', async () => {
+      // Pins the event field that log consumers route on. Without this, a
+      // future refactor that collapses the catch chain's first branch
+      // (instanceof MistralReferenceAudioTooLongError) into the generic
+      // `isDeterministicFailure` path would silently lose the structured
+      // event field — the provider's prose comment guards against this in
+      // narrative form, but this test makes it test-gated.
+      mockedListVoices.mockResolvedValueOnce([]);
+      mockedFetchVoiceReference.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('reference-audio-bytes'),
+        contentType: 'audio/wav',
+        durationSec: 31.78,
+      });
+
+      await provider
+        .prepare({ slug: 'ha-shem-keev-ima', byokKey: 'sk-test' })
+        .catch((): void => undefined);
+
+      // Find the WARN call carrying the structured event field. Use
+      // `toContain`/`mock.calls` rather than `toHaveBeenCalledWith` so a
+      // future addition of incidental fields doesn't break this assertion —
+      // the event name + key fields are what matter.
+      const warnCall = mockLoggerWarn.mock.calls.find(
+        call => (call[0] as Record<string, unknown>)?.event === 'mistral.referenceAudioTooLong'
+      );
+      expect(warnCall).toBeDefined();
+      const meta = warnCall![0] as Record<string, unknown>;
+      expect(meta.slug).toBe('ha-shem-keev-ima');
+      expect(meta.durationSec).toBeCloseTo(31.78, 5);
+      expect(meta.limitSec).toBe(MISTRAL_MAX_REFERENCE_AUDIO_SEC);
+    });
+
     it('proceeds to clone when reference is under the 30s limit', async () => {
       mockedListVoices.mockResolvedValueOnce([]);
       mockedFetchVoiceReference.mockResolvedValueOnce({
@@ -257,12 +317,17 @@ describe('MistralTtsProvider', () => {
     });
 
     it('different api keys → different cache entries', async () => {
+      // Use 12+ char keys — sub-12-char keys all collapse to the '[short-key]'
+      // sentinel by design (test fixtures shouldn't leak full keys into cache
+      // keys / debug logs in deployed environments).
       mockedListVoices
         .mockResolvedValueOnce([{ id: 'v-1', name: 'tzurot-emily', userId: 'u-a' }])
         .mockResolvedValueOnce([{ id: 'v-2', name: 'tzurot-emily', userId: 'u-b' }]);
 
-      const a = await provider.prepare({ slug: 'emily', byokKey: 'sk-A' });
-      const b = await provider.prepare({ slug: 'emily', byokKey: 'sk-B' });
+      // Suffix uses first-4 + last-8 chars, so keys must differ in either of
+      // those windows (not just the middle).
+      const a = await provider.prepare({ slug: 'emily', byokKey: 'sk-A1234567890ABC' });
+      const b = await provider.prepare({ slug: 'emily', byokKey: 'sk-B1234567890ABC' });
 
       expect(a).toMatchObject({ id: 'v-1' });
       expect(b).toMatchObject({ id: 'v-2' });
@@ -271,9 +336,11 @@ describe('MistralTtsProvider', () => {
   });
 
   describe('prepare — failure handling', () => {
-    it('caches non-rate-limit failures in negative cache (5min)', async () => {
+    it('caches transient (5xx) failures in negative cache (5min)', async () => {
+      // 5xx server errors are transient (could clear on retry), so the cache
+      // suppresses retry storms while preserving the option to retry after TTL.
       mockedListVoices.mockResolvedValueOnce([]);
-      mockedCloneVoice.mockRejectedValueOnce(new MistralApiError(400, 'malformed audio'));
+      mockedCloneVoice.mockRejectedValueOnce(new MistralApiError(503, 'service unavailable'));
 
       await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toThrow();
 
@@ -285,7 +352,51 @@ describe('MistralTtsProvider', () => {
       expect(mockedListVoices).toHaveBeenCalledTimes(1);
     });
 
-    it('does NOT negatively cache 429 rate limits (transient)', async () => {
+    it('does NOT negative-cache deterministic 4xx failures (e.g. 400, 401)', async () => {
+      // 400/401 are deterministic from input — caching adds nothing because
+      // the same input will keep failing. Re-running goes through the full
+      // list+clone path again rather than hitting the cache.
+      mockedListVoices.mockResolvedValue([]);
+      mockedCloneVoice.mockRejectedValueOnce(new MistralApiError(400, 'malformed audio'));
+
+      await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toBeInstanceOf(
+        MistralApiError
+      );
+
+      // Second attempt: cache is NOT populated, so it tries again. We mock
+      // a success here to verify the cache didn't suppress the retry.
+      mockedCloneVoice.mockResolvedValueOnce({
+        id: 'v-recovered',
+        name: 'tzurot-emily',
+        userId: 'u',
+      });
+      const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
+      expect(handle).toMatchObject({ id: 'v-recovered' });
+      // listVoices ran twice (no negative-cache short-circuit on second prepare)
+      expect(mockedListVoices).toHaveBeenCalledTimes(2);
+    });
+
+    it('caches generic Error (no isTransient field) — preserves prior default-cache behavior', async () => {
+      // Errors without an `isTransient` field (e.g., network blips, Node
+      // ENOENT, generic Error) are treated as transient and cached. Documents
+      // the "default to cache when unsure" semantic of isDeterministicFailure.
+      mockedListVoices.mockResolvedValueOnce([]);
+      mockedCloneVoice.mockRejectedValueOnce(new Error('ECONNRESET'));
+
+      await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toThrow();
+
+      // Second attempt should hit negative cache (no list call)
+      await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toThrow(
+        /recently failed/
+      );
+
+      expect(mockedListVoices).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT negative-cache 429 rate limits (transient but too granular for blanket cache)', async () => {
+      // Rate limits are technically transient, but Mistral's retry-after
+      // header is more precise than a 5-min blanket cache. Skip caching here
+      // to allow the caller's retry-after handling to govern.
       mockedListVoices.mockResolvedValue([]);
       mockedCloneVoice.mockRejectedValueOnce(new MistralApiError(429, 'rate limit'));
 
