@@ -1,18 +1,31 @@
 # Current
 
-> **Session**: 2026-05-04 — TTS Phase 1 final cleanup PR #966 merged
-> **Version**: v3.0.0-beta.114 (release-frozen until TTS epic completes; develop now closes Phase 1 carry-over)
-> **🚧 Release freeze**: NO new beta releases until the TTS Engine Upgrade epic completes (Phases 1+3+2 — TTS BYOK + STT cutover + NeuTTS Air). Phase 3 reordered ahead of Phase 2 per BYOK-pairing intent. Develop is the staging area until full ElevenLabs cutover ships.
+> **Session**: 2026-05-04 — v3.0.0-beta.115 SHIPPED (TTS Engine Upgrade Phase 1)
+> **Version**: v3.0.0-beta.115 (release freeze LIFTED — Phase 1 dev-validated and shipped; Phase 3 next)
+> **🚧 Release freeze status**: LIFTED for beta.115. Phase 1 (Mistral Voxtral BYOK + TTS provider abstraction + audio unification + db-sync wiring) shipped and prod-migrated 2026-05-04. Phase 3 (STT cutover) and Phase 2 (NeuTTS Air) remain — develop will accumulate those before any subsequent release.
 
 ---
 
 ## Next Session Goal
 
-**Phase 3 (STT cutover) plan-mode pass.** With Phase 1 backlog cleared (PR #966 merged 2026-05-04), the remaining design work is the STT layered-resolution chain that pairs with the TTS BYOK provider. Council surfaced 3 issues with deriving STT from TTS-default during planning (NeuTTS Air is TTS-only, discoverability cost, bot-owner cost decoupling) — reconcile with a 4-layer fallback chain: user explicit override → derive from TTS provider → admin-configured system STT default → voice-engine fallback.
+**Phase 3 (STT cutover) plan-mode pass.** With Phase 1 shipped, the remaining design work is the STT layered-resolution chain that pairs with the TTS BYOK provider. Council surfaced 3 issues with deriving STT from TTS-default during planning (NeuTTS Air is TTS-only, discoverability cost, bot-owner cost decoupling) — reconcile with a 4-layer fallback chain: user explicit override → derive from TTS provider → admin-configured system STT default → voice-engine fallback.
 
-**Pending dev validation before any release-freeze lift decision**: `/settings tts default mistral-voxtral-mini` end-to-end smoke test in dev — confirm Discord delivers Opus/Ogg attachments, file size ~10-15% of pre-fix WAV (item 1 of PR #966).
+**Optional warm-up before Phase 3 plan-mode**: tackle some of the 14 inbox items filed during Phase 1 closeout — many are small Quick Wins shaped for opportunistic cleanup (factory JSDoc tightening, voip flag stale comment, MistralTtsProvider perf, dispose() interface contract, etc.). Useful to clear before opening a new plan window.
 
-**Backlog filed during this session**: 1 new item in `backlog/inbox.md` — JSDoc-tightening pass on `model-override.ts` + `tts-override.ts` factories (paired fix to avoid asymmetry). 4 items closed: P2002 cross-user collision, mockClearTtsDefaultConfigResponse factory, parallelize fetchAllTzurotVoices, husky pglite drift — all shipped via PR #966.
+**Beta.115 shipped**:
+
+- Mistral Voxtral BYOK provider with cost-telemetry-driven fallback chain
+- TTS config CRUD (cascade pattern parallel to LLM configs) — `/settings tts ...` subcommand group
+- Audio post-processing unified to single ffmpeg pass (Opus/Ogg, ~10× smaller Discord uploads)
+- P2002 cross-user collision fix + cross-admin global-name race protection (partial unique index)
+- db-sync wiring for tts_configs (parallel to LLM singleton conflict resolution)
+- 2 new DEFERRABLE migrations + 1 partial unique migration (all applied to dev + prod)
+
+---
+
+## Unreleased on Develop
+
+_(empty — develop is currently SHA-aligned with main at v3.0.0-beta.115)_
 
 ---
 
