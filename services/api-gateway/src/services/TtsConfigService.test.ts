@@ -208,7 +208,7 @@ describe('TtsConfigService', () => {
       expect(createCall).toBeDefined();
       const seedRows = (
         createCall as {
-          data: Array<{ name: string; isDefault: boolean; isFreeDefault: boolean }>;
+          data: Array<{ id: string; name: string; isDefault: boolean; isFreeDefault: boolean }>;
         }
       ).data;
       expect(seedRows.map(d => d.name)).toEqual([
@@ -225,6 +225,17 @@ describe('TtsConfigService', () => {
       // The other two are not defaults
       expect(seedRows.find(d => d.name === 'elevenlabs-multilingual-v2')?.isDefault).toBe(false);
       expect(seedRows.find(d => d.name === 'mistral-voxtral-mini')?.isDefault).toBe(false);
+
+      // Bootstrap rows use deterministic UUIDs (uuidv5 from name) so dev and
+      // prod always assign the same id for the same logical row. Pinned to
+      // the documented stable values from deterministicUuid.test.ts.
+      expect(kyutaiSeed?.id).toBe('50411d3c-cc98-5f39-839e-abd4fb84b0c8');
+      expect(seedRows.find(d => d.name === 'elevenlabs-multilingual-v2')?.id).toBe(
+        '845d224f-ad28-5ce1-8b27-f5588d3ae2d1'
+      );
+      expect(seedRows.find(d => d.name === 'mistral-voxtral-mini')?.id).toBe(
+        '8aa02cad-2c39-5b5b-9d37-482aacb7788d'
+      );
 
       expect(result).toEqual(seeded);
     });
