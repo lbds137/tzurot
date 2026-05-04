@@ -327,6 +327,57 @@ describe('user/tts-config routes', () => {
       expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'UNAUTHORIZED' }));
     });
 
+    // Bot-owner short-circuit is exercised at the helper level in
+    // `normalizeConfigNameOnPromote.test.ts`. Mocking `isBotOwner` at the
+    // route level doesn't work because `slugUtils.ts` calls a relative-path
+    // `isBotOwner`, not the public package export — so the route test
+    // focuses on the non-owner path and trusts the helper unit tests for
+    // the bot-owner path.
+    it('suffixes the name with username when non-owner promotes to global', async () => {
+      vi.mocked(mockService.getById).mockResolvedValue({
+        ...sampleRawConfig,
+        name: 'AdminVoice',
+        isGlobal: false,
+      });
+      vi.mocked(mockService.checkNameExists).mockResolvedValue({ exists: false });
+      vi.mocked(mockService.update).mockResolvedValue({
+        ...sampleRawConfig,
+        name: 'AdminVoice-bob',
+        isGlobal: true,
+      });
+      vi.mocked(mockService.formatConfigDetail).mockReturnValue({
+        id: 'cfg-uuid-1',
+        name: 'AdminVoice-bob',
+        description: null,
+        provider: 'elevenlabs',
+        modelId: null,
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-1',
+        advancedParameters: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      });
+      const handler = extractHandler(buildRouter(), 'PUT', '/:id');
+      const { res } = makeMockRes();
+
+      await handler(
+        makeMockReq({
+          params: { id: 'cfg-uuid-1' },
+          body: { isGlobal: true },
+          headers: { 'x-user-username': 'bob' },
+        }),
+        res
+      );
+
+      // The update call should have name: 'AdminVoice-bob' even though body had no name
+      expect(mockService.update).toHaveBeenCalledWith(
+        'cfg-uuid-1',
+        expect.objectContaining({ name: 'AdminVoice-bob', isGlobal: true })
+      );
+    });
+
     it('returns 400 VALIDATION_ERROR when service rejects invalid provider', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(sampleRawConfig);
       vi.mocked(mockService.update).mockRejectedValue(new TtsInvalidProviderError('mistal'));

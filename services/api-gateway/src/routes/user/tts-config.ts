@@ -42,6 +42,10 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
+import {
+  computeNameForPromotion,
+  getDiscordUsernameFromRequest,
+} from '../../utils/normalizeConfigNameOnPromote.js';
 import type { ProvisionedRequest } from '../../types.js';
 import {
   TtsConfigService,
@@ -216,27 +220,53 @@ function createUpdateHandler(service: TtsConfigService) {
       return sendError(res, ErrorResponses.unauthorized('You can only edit your own TTS configs'));
     }
 
-    if (body.name !== undefined && body.name.length > 0) {
-      const nameCheck = await service.checkNameExists(
-        body.name,
-        { type: 'USER', userId, discordId: discordUserId },
-        configId
-      );
-      if (nameCheck.exists) {
-        return sendError(
-          res,
-          ErrorResponses.nameCollision(`You already have a TTS config named "${body.name}"`)
-        );
-      }
-    }
-
+    // Empty-body guard runs BEFORE the promotion helper so that a PUT with
+    // `{}` returns 400 (preserves the original API contract) rather than
+    // silently triggering a retroactive rename on already-global configs
+    // whose name predates this PR.
     if (Object.keys(body).length === 0) {
       return sendError(res, ErrorResponses.validationError('No fields to update'));
     }
 
+    // If the user is promoting their own config to global (or already had it
+    // global and is renaming), suffix the name with their username so other
+    // users can identify provenance — prevents non-bot-owners from creating
+    // names that look admin-curated. Bot owner gets unsuffixed names per
+    // `normalizeSlugForUser`'s built-in semantic. Mirrors the LLM route.
+    const effectiveName = computeNameForPromotion({
+      currentName: config.name,
+      currentIsGlobal: config.isGlobal,
+      requestedName: body.name,
+      requestedIsGlobal: body.isGlobal,
+      discordId: discordUserId,
+      discordUsername: getDiscordUsernameFromRequest(req),
+    });
+    const patch = { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
+
+    if (patch.name !== undefined && patch.name.length > 0) {
+      const nameCheck = await service.checkNameExists(
+        patch.name,
+        { type: 'USER', userId, discordId: discordUserId },
+        configId
+      );
+      if (nameCheck.exists) {
+        // When the post-normalization name differs from what the user
+        // actually typed (either the user sent only `{ isGlobal: true }`
+        // and the suffix was synthesized, OR they typed a base name that
+        // got suffixed), the message should explain the auto-rename rather
+        // than imply they chose the exact colliding name.
+        const wasNormalized = patch.name !== body.name;
+        const msg = wasNormalized
+          ? `Promotion would rename your TTS config to "${patch.name}", but that name is already taken`
+          : `You already have a TTS config named "${patch.name}"`;
+        return sendError(res, ErrorResponses.nameCollision(msg));
+      }
+    }
+
+    // Empty-body guard ran earlier; patch is guaranteed non-empty here.
     let updated;
     try {
-      updated = await service.update(configId, body);
+      updated = await service.update(configId, patch);
     } catch (err) {
       if (err instanceof TtsInvalidProviderError) {
         return sendError(
