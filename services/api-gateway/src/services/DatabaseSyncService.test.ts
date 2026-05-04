@@ -28,6 +28,11 @@ const createMockPrismaClient = () => {
       findUnique: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
+    ttsConfig: {
+      findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
   } = {
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
@@ -43,6 +48,11 @@ const createMockPrismaClient = () => {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     llmConfig: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    ttsConfig: {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn().mockResolvedValue({}),

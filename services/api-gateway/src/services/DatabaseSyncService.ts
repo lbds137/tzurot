@@ -13,13 +13,16 @@
  *
  * The solution (validated via council + PGLite probe + int test):
  *
- *   1. Migration 20260418010642 made the four circular FKs DEFERRABLE
- *      INITIALLY IMMEDIATE so runtime enforcement is unchanged but sync
- *      can defer checks to COMMIT time.
+ *   1. Migration 20260418010642 made the original four circular FKs
+ *      (users↔personas, users↔llm_configs) DEFERRABLE INITIALLY IMMEDIATE.
+ *      Migration 20260504065151 added users.default_tts_config_id_fkey to
+ *      that set when the TTS feature shipped. Runtime enforcement is
+ *      unchanged for all five — sync can defer checks to COMMIT time only
+ *      inside the explicit SET CONSTRAINTS block below.
  *   2. This service collects all pending writes per direction (dev-bound,
  *      prod-bound) without executing them during the table scan loop.
  *   3. Writes are flushed inside per-direction transactions that start
- *      by naming the four circular FKs in a `SET CONSTRAINTS ... DEFERRED`
+ *      by naming the deferred FKs in a `SET CONSTRAINTS ... DEFERRED`
  *      statement (explicit names rather than `ALL DEFERRED` so future
  *      migrations adding unrelated deferrable constraints don't get
  *      silently softened inside the sync). Real FK values go in from the
@@ -49,6 +52,10 @@ import {
   prepareLlmConfigSingletonFlags,
   finalizeLlmConfigSingletonFlags,
 } from './sync/utils/llmConfigSingletons.js';
+import {
+  prepareTtsConfigSingletonFlags,
+  finalizeTtsConfigSingletonFlags,
+} from './sync/utils/ttsConfigSingletons.js';
 import {
   fetchAllRows,
   buildRowMap,
@@ -106,7 +113,7 @@ export class DatabaseSyncService {
    * No writes occur in this phase.
    *
    * Phase 2 (flush): per target direction, open a transaction, issue
-   * `SET CONSTRAINTS <four-named-circular-FKs> DEFERRED`, apply all
+   * `SET CONSTRAINTS <named-circular-FKs> DEFERRED`, apply all
    * pending writes, COMMIT. Postgres validates the named deferred FKs
    * at COMMIT; either every write commits or none do (per transaction).
    * Named constraints rather than `ALL DEFERRED` so future migrations
@@ -160,6 +167,10 @@ export class DatabaseSyncService {
           await prepareLlmConfigSingletonFlags(this.devClient, this.prodClient);
         }
 
+        if (tableName === 'tts_configs' && !options.dryRun) {
+          await prepareTtsConfigSingletonFlags(this.devClient, this.prodClient);
+        }
+
         if (tableName === 'conversation_history') {
           const { devDeleted, prodDeleted } = await deleteMessagesWithTombstones(
             this.devClient,
@@ -199,9 +210,11 @@ export class DatabaseSyncService {
         await this.flushWrites(this.prodClient, prodBoundWrites, 'prod');
 
         // Singleton-flag finalization runs OUTSIDE the sync transactions —
-        // it needs to see the post-commit state of llm_configs to decide
-        // which row wins the is_default / is_free_default flag in each env.
+        // it needs to see the post-commit state of llm_configs / tts_configs
+        // to decide which row wins the is_default / is_free_default flag
+        // in each env.
         await finalizeLlmConfigSingletonFlags(this.devClient, this.prodClient);
+        await finalizeTtsConfigSingletonFlags(this.devClient, this.prodClient);
       }
 
       logger.info({ stats }, 'Sync complete');
@@ -230,15 +243,18 @@ export class DatabaseSyncService {
     logger.info({ label, count: writes.length }, 'Phase 2: Flushing writes');
     await client.$transaction(
       async tx => {
-        // Defer exactly the four circular FKs, not ALL deferrable constraints
-        // in the transaction — future migrations might add unrelated
-        // deferrable constraints (e.g., deferred uniqueness) and we don't
-        // want to silently soften those inside the sync. The four names
-        // here must stay in sync with migration 20260418010642.
+        // Defer exactly the named circular FKs, not ALL deferrable
+        // constraints in the transaction — future migrations might add
+        // unrelated deferrable constraints (e.g., deferred uniqueness) and
+        // we don't want to silently soften those inside the sync. The names
+        // here must stay in sync with the DEFERRABLE-marking migrations
+        // (20260418010642 for the original 4, 20260504065151 for
+        // users_default_tts_config_id_fkey).
         await tx.$executeRawUnsafe(
           `SET CONSTRAINTS
             "users_default_persona_id_fkey",
             "users_default_llm_config_id_fkey",
+            "users_default_tts_config_id_fkey",
             "personas_owner_id_fkey",
             "llm_configs_owner_id_fkey"
           DEFERRED`

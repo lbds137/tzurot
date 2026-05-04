@@ -22,6 +22,8 @@ export const EXCLUDED_TABLES: Record<string, string> = {
   // Settings tables - user preferences that may differ between dev/prod
   personality_default_configs:
     'Character-level LLM preset defaults - dev/prod may use different models for testing',
+  personality_default_tts_configs:
+    'Character-level TTS preset defaults - dev/prod may use different voices for testing (mirrors personality_default_configs)',
 
   // Transient/ephemeral data
   pending_memories: 'Transient queue data for memory processing',
@@ -64,8 +66,10 @@ export type SyncTableName =
   | 'personas'
   | 'system_prompts'
   | 'llm_configs'
+  | 'tts_configs'
   | 'personalities'
   // NOTE: personality_default_configs moved to EXCLUDED_TABLES - settings, not raw data
+  // NOTE: personality_default_tts_configs same — environment-specific TTS preset defaults
   | 'personality_owners'
   | 'personality_aliases'
   | 'user_personality_configs'
@@ -85,14 +89,22 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
+    uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id', 'default_tts_config_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // Circular NOT NULL FKs (default_persona_id → personas.id, and
-    // default_llm_config_id → llm_configs.id) are handled via DEFERRABLE
-    // constraints + SET CONSTRAINTS ALL DEFERRED at the sync transaction
-    // boundary. See migration 20260418010642 and DatabaseSyncService.
-    // Both columns sync with real values from the source environment;
-    // last-write-wins on users.updated_at resolves cross-env conflicts.
+    // Three FK columns on users reference rows in tables that come AFTER
+    // users in SYNC_TABLE_ORDER (personas, llm_configs, tts_configs are
+    // all synced after users so their owner_id NOT-NULL FKs back to users
+    // can be satisfied). All three FKs are made DEFERRABLE so the sync
+    // transaction can issue SET CONSTRAINTS … DEFERRED and let Postgres
+    // validate the references at COMMIT time, when every cross-table
+    // referenced row exists:
+    //   - default_persona_id, default_llm_config_id: DEFERRABLE since
+    //     migration 20260418010642 (the original circular-FK fix).
+    //   - default_tts_config_id: DEFERRABLE since migration 20260504065151
+    //     (added when the TTS feature shipped — the column is NULLABLE
+    //     but that only relaxes the NOT NULL constraint, not the FK
+    //     reference check, so it still needed DEFERRABLE for sync).
+    // Last-write-wins on users.updated_at resolves cross-env conflicts.
   },
   personas: {
     pk: 'id',
@@ -115,6 +127,19 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     uuidColumns: ['id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
     // Exclude singleton flags from sync - dev and prod should have independent defaults
+    excludeColumns: ['is_default', 'is_free_default'],
+  },
+  tts_configs: {
+    pk: 'id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'owner_id'],
+    timestampColumns: ['created_at', 'updated_at'],
+    // Mirror llm_configs: singleton flags are environment-specific. The
+    // partial unique indexes (tts_configs_free_default_unique,
+    // tts_configs_global_name_unique) require pre-sync conflict
+    // resolution; see ttsConfigSingletons.ts for the parallel of the
+    // llmConfigSingletons handler.
     excludeColumns: ['is_default', 'is_free_default'],
   },
   personalities: {
@@ -146,11 +171,19 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     pk: ['user_id', 'personality_id'],
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
+    uuidColumns: [
+      'id',
+      'user_id',
+      'personality_id',
+      'persona_id',
+      'llm_config_id',
+      'tts_config_id',
+    ],
     timestampColumns: ['created_at', 'updated_at'],
-    // persona_id and llm_config_id are synced directly (not deferred) — personas and
-    // llm_configs come before user_personality_configs in SYNC_TABLE_ORDER, so their
-    // rows exist by the time this table is synced; no circular-FK deferral needed.
+    // persona_id, llm_config_id, and tts_config_id are synced directly (not
+    // deferred) — personas, llm_configs, and tts_configs all come before
+    // user_personality_configs in SYNC_TABLE_ORDER, so their rows exist by the
+    // time this table is synced; no circular-FK deferral needed.
     // Previously excluded as "user preferences" but that orphaned per-character
     // persona/llm overrides for mirrored users on dev. Same trade-off as on users:
     // the dev user's own overrides will bleed across envs via last-write-wins.
@@ -209,6 +242,13 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  *   constraints + SET CONSTRAINTS ALL DEFERRED (see migration 20260418010642)
  *   so users inserts can carry real FK values; Postgres validates at COMMIT.
  * - llm_configs: owner_id → users (NOT NULL, also circular; same deferred handling)
+ * - tts_configs: owner_id → users (NOT NULL); users.default_tts_config_id is
+ *   NULLABLE (unlike default_llm_config_id which is NOT NULL), but the FK
+ *   users_default_tts_config_id_fkey is still DEFERRABLE (migration
+ *   20260504065151) — NULLABLE only relaxes the NOT NULL check, not the FK
+ *   reference check, so a user with a non-NULL default_tts_config_id would
+ *   fail an immediate FK validation during users-sync without DEFERRABLE.
+ *   Same deferred handling as the original four FKs.
  * - personas: owner_id → users (NOT NULL, also circular; same deferred handling)
  * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)
  * - personality_owners: personality_id → personalities, user_id → users
@@ -233,11 +273,13 @@ export const SYNC_TABLE_ORDER: SyncTableName[] = [
   'system_prompts',
   'users',
   'llm_configs', // Requires users.id via owner_id (NOT NULL)
+  'tts_configs', // Requires users.id via owner_id (NOT NULL); parallel to llm_configs
   'personas', // Can now reference users via owner_id
   // Personalities depends on system_prompts and users (owner_id NOT NULL)
   'personalities',
   // Junction/config tables that depend on the above
   // NOTE: personality_default_configs excluded - settings table, not raw data
+  // NOTE: personality_default_tts_configs excluded for the same reason
   'personality_owners',
   'personality_aliases',
   'user_personality_configs',

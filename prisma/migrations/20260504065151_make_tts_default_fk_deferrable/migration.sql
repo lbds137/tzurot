@@ -1,0 +1,26 @@
+-- Make users.default_tts_config_id_fkey DEFERRABLE so db-sync can copy
+-- a user row with a non-NULL default_tts_config_id before the matching
+-- tts_configs row arrives in the target DB.
+--
+-- Mirrors migration 20260418010642 which made the analogous LLM /
+-- persona FKs DEFERRABLE for the same reason.
+--
+-- The Ouroboros-Insert pattern relies on `SET CONSTRAINTS … DEFERRED`
+-- inside the sync transaction so that all cross-table writes can land
+-- in any order — Postgres validates the named FKs at COMMIT once every
+-- referenced row exists. A NOT DEFERRABLE FK ignores that defer
+-- request and fires immediately on the INSERT/UPDATE, breaking sync as
+-- soon as the first user has a non-NULL default_tts_config_id.
+--
+-- INITIALLY IMMEDIATE preserves runtime behavior (FK still fires
+-- immediately for normal inserts/updates outside the sync transaction)
+-- so application code is unaffected. Only inside a transaction that
+-- explicitly issues `SET CONSTRAINTS users_default_tts_config_id_fkey
+-- DEFERRED` does the FK move to commit-time validation.
+--
+-- Prisma cannot express DEFERRABLE in schema.prisma, so this migration
+-- is hand-written and the constraint is protected in
+-- prisma/drift-ignore.json against future Prisma diffs that would try
+-- to strip the DEFERRABLE clause.
+ALTER TABLE "users"
+  ALTER CONSTRAINT "users_default_tts_config_id_fkey" DEFERRABLE INITIALLY IMMEDIATE;
