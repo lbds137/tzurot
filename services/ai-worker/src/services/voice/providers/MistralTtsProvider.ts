@@ -40,9 +40,11 @@ import {
   mistralTTS,
   MistralApiError,
   MistralReferenceAudioTooLongError,
+  MistralVoiceListUnavailableError,
   MISTRAL_MAX_REFERENCE_AUDIO_SEC,
 } from '../MistralTtsClient.js';
 import { fetchVoiceReference } from '../voiceReferenceHelper.js';
+import { withRetry, RetryError } from '../../../utils/retry.js';
 
 const logger = createLogger('MistralTtsProvider');
 
@@ -72,6 +74,13 @@ const MISTRAL_CAPABILITIES: TtsCapabilities = {
 interface CachedVoice {
   voiceId: string;
 }
+
+/**
+ * The discriminated return shape of `mistralListVoices` — `{ voices, truncated }`.
+ * Aliased so call-site code reads cleanly without repeating the inline
+ * `Awaited<ReturnType<...>>` ceremony.
+ */
+type ListResult = Awaited<ReturnType<typeof mistralListVoices>>;
 
 /**
  * Returns true if the error explicitly self-classifies as deterministic-from-input
@@ -269,6 +278,17 @@ export class MistralTtsProvider implements TtsProvider {
             },
             'Mistral reference audio exceeds 30s limit — skipping clone; dispatcher will attempt fallback if available'
           );
+        } else if (error instanceof MistralVoiceListUnavailableError) {
+          // The clone path never ran — the list endpoint failed (truncation
+          // or fetch retry-exhaustion). Log message reflects the actual
+          // failure mode, distinct from "voice clone failed" which would
+          // misattribute. Still cache (isTransient=true) so the next 5 min
+          // of prepares short-circuit instead of repeating retry storms.
+          this.negativeCache.set(cacheKey, reason);
+          logger.warn(
+            { event: 'mistral.voiceListUnavailable', slug, listReason: error.reason, reason },
+            'Mistral voice list unavailable — cached for 5 min, no clone attempted'
+          );
         } else if (error instanceof MistralApiError && error.isRateLimited) {
           // Rate-limited (429) is transient but too granular for a 5-min
           // blanket cache — Mistral's retry-after header is more precise.
@@ -298,22 +318,88 @@ export class MistralTtsProvider implements TtsProvider {
     const voiceName = `${TTS_VOICE_NAME_PREFIX}${slug}`;
 
     // Step 1: list voices, find by name. `mistralListVoices` walks pages up
-    // to VOICE_LIST_MAX_PAGES (20 / 1000 voices) and emits a WARN if it hits
-    // the cap. A truncated list is benign for find-by-name: missing-voice
-    // falls through to clone (worst case: a duplicate clone, tracked in the
-    // separate inbox item on cap-exceeded duplicate-clone risk).
+    // to VOICE_LIST_MAX_PAGES (20 / 1000 voices) and returns a discriminated
+    // result so we can tell whether the list is exhaustive or truncated.
+    //
+    // Two robustness layers vs. the duplicate-clone risk:
+    //
+    // 1. Retry transient list failures with exponential backoff. Without the
+    //    retry, a single network blip → catch-and-clone → silent duplicate
+    //    accumulation, every prepare call adds another `tzurot-${slug}` in
+    //    the user's Mistral account.
+    //
+    // 2. After all retries exhaust OR the list returns truncated AND no match
+    //    was found, throw `MistralVoiceListUnavailableError` rather than
+    //    falling through to clone. The user sees an explicit error (cached
+    //    by the negative cache for 5 min via the transient classifier) rather
+    //    than a silent duplicate clone.
+    let listResult: ListResult | undefined;
+    let listError: unknown;
     try {
-      const voices = await mistralListVoices(apiKey);
-      const existing = voices.find(v => v.name === voiceName);
+      const result = await withRetry(() => mistralListVoices(apiKey), {
+        maxAttempts: 3,
+        initialDelayMs: 500,
+        maxDelayMs: 4000,
+        operationName: `Mistral voice list (${slug})`,
+        logger,
+        // Don't retry deterministic failures (auth, malformed) — they won't
+        // recover on retry. Reuses the same predicate the cache logic uses
+        // so the two policies stay in sync.
+        shouldRetry: error => !isDeterministicFailure(error),
+      });
+      listResult = result.value;
+    } catch (error) {
+      listError = error instanceof RetryError ? error.lastError : error;
+      // `withRetry` wraps both retry-exhaustion AND fast-fail (errors that
+      // failed `shouldRetry`) in `RetryError` — so a misleading log would
+      // claim "retried" for a deterministic 401 that fast-failed at attempt 1.
+      // The `attempts` count is the honest signal.
+      //
+      // The `: 1` fallback is defensive — `withRetry`'s current implementation
+      // always throws `RetryError`, but typing the catch as `unknown` and
+      // tolerating a future implementation change is cheaper than relying on
+      // an invariant that lives in another module.
+      const attempts = error instanceof RetryError ? error.attempts : 1;
+      logger.warn(
+        { err: listError, slug, attempts },
+        'Mistral voice list fetch failed — refusing to clone (would risk silent duplicate)'
+      );
+    }
+
+    if (listResult !== undefined) {
+      const existing = listResult.voices.find(v => v.name === voiceName);
       if (existing !== undefined) {
         this.cloneCache.set(cacheKey, { voiceId: existing.id });
         logger.info({ slug, voiceId: existing.id }, 'Found existing Mistral voice');
         return existing.id;
       }
-    } catch (error) {
-      // List failures don't block the clone path — we'll just produce a new
-      // voice. Eventually-consistent dedup if the listing was stale.
-      logger.warn({ err: error, slug }, 'Failed to list Mistral voices, attempting clone');
+      if (listResult.truncated) {
+        // Voice not found in the first VOICE_LIST_MAX_PAGES * page_size voices,
+        // but there could be more on later pages. Cloning would risk a
+        // duplicate. Surface a typed error rather than silently adding to
+        // the duplicate count.
+        throw new MistralVoiceListUnavailableError(
+          'truncated',
+          `${listResult.voices.length} voices listed`
+        );
+      }
+      // Exhaustive list confirmed no match → safe to clone fresh.
+    } else {
+      // List failed all retries (or fast-failed on a deterministic error like
+      // 401 auth). Refuse to clone — repeated list failures would otherwise
+      // produce one duplicate voice per prepare call.
+      //
+      // Note: this reclassifies deterministic underlying errors (e.g., 401)
+      // as transient via MistralVoiceListUnavailableError(isTransient=true),
+      // so the negative cache will suppress them for 5 min. Trade-off
+      // accepted: a debugging session for a misconfigured key sees one
+      // 401-wrapped error followed by 5 min of cache hits, rather than
+      // repeated 401s. Preventing duplicate-clone accumulation outweighs
+      // the debug-time noise.
+      throw new MistralVoiceListUnavailableError(
+        'fetch-failed',
+        listError instanceof Error ? listError.message : String(listError)
+      );
     }
 
     // Step 2: fetch reference audio from api-gateway

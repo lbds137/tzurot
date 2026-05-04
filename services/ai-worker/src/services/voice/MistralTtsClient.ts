@@ -161,6 +161,41 @@ export class MistralResponseShapeError extends Error {
 }
 
 /**
+ * The voice-list endpoint is unusable enough that a find-by-name lookup
+ * can't trust its output. Two reasons are surfaced via `reason`:
+ *
+ * - `truncated`: pagination hit `VOICE_LIST_MAX_PAGES`, so the list returned
+ *   only the first 1000 voices. If find-by-name didn't match in that prefix,
+ *   the voice could legitimately be on page 21+. Cloning would produce a
+ *   duplicate. The caller surfaces this as an error rather than silently
+ *   adding to the duplicate count.
+ * - `fetch-failed`: every retry attempt of the list endpoint failed (network
+ *   blip, persistent rate-limit, Mistral-side outage). Same story: cloning
+ *   without a successful list would produce duplicates on every subsequent
+ *   call until the list endpoint recovers.
+ *
+ * `isTransient = true`: both cases can clear naturally — truncation if the
+ * user prunes old voices, fetch-failed if the network recovers. The negative
+ * cache catches the error for 5 min to suppress retry storms.
+ */
+export class MistralVoiceListUnavailableError extends Error {
+  readonly reason: 'truncated' | 'fetch-failed';
+
+  constructor(reason: 'truncated' | 'fetch-failed', detail?: string) {
+    super(
+      reason === 'truncated'
+        ? `Mistral voice list truncated at ${detail ?? 'pagination cap'} — find-by-name is unreliable; refusing to clone (would risk duplicate)`
+        : `Mistral voice list fetch failed after retries${detail !== undefined ? ` — ${detail}` : ''}; refusing to clone (would risk duplicate on persistent list failure)`
+    );
+    this.name = 'MistralVoiceListUnavailableError';
+    this.reason = reason;
+    Object.setPrototypeOf(this, MistralVoiceListUnavailableError.prototype);
+  }
+
+  readonly isTransient = true;
+}
+
+/**
  * Pre-flight rejection: the supplied reference audio exceeds Mistral's
  * documented 30s limit, so calling the clone endpoint would deterministically
  * return HTTP 400. Caller should skip Mistral and fall through to self-hosted
@@ -434,15 +469,19 @@ async function fetchVoicesPage(apiKey: string, page: number): Promise<VoicesPage
 /**
  * List all voices in the account, walking the pagination if necessary.
  *
- * At one-voice-per-personality scale the listing usually fits in a single
- * page (page_size=50), but this walker covers accounts that grow past
- * the boundary so the find-by-name lookup in `MistralTtsProvider` doesn't
- * silently miss voices on page 2+ and trigger a duplicate clone.
+ * Returns a discriminated record so callers can tell whether the result
+ * is exhaustive (`truncated: false`) or capped at `VOICE_LIST_MAX_PAGES`
+ * (`truncated: true`). The find-by-name lookup in `MistralTtsProvider`
+ * uses the `truncated` flag to refuse cloning when no match is found in
+ * a truncated list (the unmatched voice could be on page 21+, and cloning
+ * without certainty would silently produce duplicates).
  *
- * Capped at `VOICE_LIST_MAX_PAGES` pages (1000 voices) — a soft safety
- * net against a runaway pagination loop on pathological responses.
+ * The `VOICE_LIST_MAX_PAGES` cap (1000 voices) is a soft safety net against
+ * a runaway pagination loop on pathological responses.
  */
-export async function mistralListVoices(apiKey: string): Promise<MistralVoiceInfo[]> {
+export async function mistralListVoices(
+  apiKey: string
+): Promise<{ voices: MistralVoiceInfo[]; truncated: boolean }> {
   const all: MistralVoiceInfo[] = [];
   let page = 1;
 
@@ -451,16 +490,20 @@ export async function mistralListVoices(apiKey: string): Promise<MistralVoiceInf
     all.push(...items);
 
     if (page >= totalPages) {
-      return all;
+      return { voices: all, truncated: false };
     }
     page++;
   }
 
   logger.warn(
-    { maxPages: VOICE_LIST_MAX_PAGES, returnedCount: all.length },
-    'Mistral voice list pagination cap reached — possibly missing voices on later pages'
+    {
+      event: 'mistral.voiceListTruncated',
+      maxPages: VOICE_LIST_MAX_PAGES,
+      returnedCount: all.length,
+    },
+    'Mistral voice list pagination cap reached — find-by-name will refuse to clone if voice not found in truncated prefix'
   );
-  return all;
+  return { voices: all, truncated: true };
 }
 
 /**
