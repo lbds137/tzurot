@@ -78,6 +78,22 @@ function loadDeferrableFkMigration(): string {
 }
 
 /**
+ * Load the migration that made users.default_tts_config_id_fkey DEFERRABLE.
+ * Same rationale as loadDeferrableFkMigration: PGLite schema generator can't
+ * express DEFERRABLE, so this migration is applied manually in `beforeAll`.
+ * Was added in a follow-up PR after the TTS feature shipped (the original
+ * DEFERRABLE migration predates tts_configs).
+ */
+function loadTtsDefaultFkDeferrableMigration(): string {
+  const migrationPath = join(
+    migrationsDir(),
+    '20260504065151_make_tts_default_fk_deferrable',
+    'migration.sql'
+  );
+  return readFileSync(migrationPath, 'utf-8');
+}
+
+/**
  * Return the lexicographically-latest migration directory name (which is
  * also chronologically latest because migrations are prefixed with
  * `YYYYMMDDhhmmss`). Used to seed `_prisma_migrations` so
@@ -154,16 +170,23 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
   beforeAll(async () => {
     const schema = loadPGliteSchema();
     const deferrableFkMigration = loadDeferrableFkMigration();
+    const ttsDefaultFkDeferrableMigration = loadTtsDefaultFkDeferrableMigration();
 
     devPglite = createTestPGlite();
     prodPglite = createTestPGlite();
     await devPglite.exec(schema);
     await prodPglite.exec(schema);
-    // Apply the DEFERRABLE migration manually since the PGLite schema
-    // generator can't express it. Matches what production's migrated
-    // schema actually has in place post-20260418010642.
+    // Apply the DEFERRABLE migrations manually since the PGLite schema
+    // generator can't express DEFERRABLE. Matches what production's
+    // migrated schema actually has in place post-20260418010642 and
+    // post-20260504065151 (added when the TTS feature shipped — the
+    // users_default_tts_config_id_fkey FK has the same DEFERRABLE
+    // requirement as the original four for the same Ouroboros sync
+    // reason).
     await devPglite.exec(deferrableFkMigration);
     await prodPglite.exec(deferrableFkMigration);
+    await devPglite.exec(ttsDefaultFkDeferrableMigration);
+    await prodPglite.exec(ttsDefaultFkDeferrableMigration);
     // Create _prisma_migrations so checkSchemaVersions has a row to find.
     await devPglite.exec(SETUP_PRISMA_MIGRATIONS_TABLE);
     await prodPglite.exec(SETUP_PRISMA_MIGRATIONS_TABLE);

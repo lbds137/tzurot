@@ -113,6 +113,11 @@ describe('syncTables Configuration', () => {
       assertParentBeforeChild('users', 'llm_configs', 'owner_id');
     });
 
+    // tts_configs.owner_id -> users.id (NOT NULL); mirrors llm_configs FK ordering
+    it('should sync users before tts_configs (tts_configs.owner_id FK)', () => {
+      assertParentBeforeChild('users', 'tts_configs', 'owner_id');
+    });
+
     // NOTE: personality_default_configs moved to EXCLUDED_TABLES (settings, not raw data)
 
     // personality_owners.personality_id -> personalities.id
@@ -145,6 +150,10 @@ describe('syncTables Configuration', () => {
 
     it('should sync llm_configs before user_personality_configs', () => {
       assertParentBeforeChild('llm_configs', 'user_personality_configs', 'llm_config_id');
+    });
+
+    it('should sync tts_configs before user_personality_configs', () => {
+      assertParentBeforeChild('tts_configs', 'user_personality_configs', 'tts_config_id');
     });
 
     // conversation_history.persona_id -> personas.id
@@ -278,6 +287,14 @@ describe('syncTables Configuration', () => {
       expect(llmConfigsConfig.excludeColumns).toBeDefined();
       expect(llmConfigsConfig.excludeColumns).toContain('is_default');
       expect(llmConfigsConfig.excludeColumns).toContain('is_free_default');
+    });
+
+    it('should exclude is_default and is_free_default from tts_configs sync', () => {
+      // Mirrors llm_configs — singleton flags are environment-specific
+      const ttsConfigsConfig = SYNC_CONFIG.tts_configs;
+      expect(ttsConfigsConfig.excludeColumns).toBeDefined();
+      expect(ttsConfigsConfig.excludeColumns).toContain('is_default');
+      expect(ttsConfigsConfig.excludeColumns).toContain('is_free_default');
     });
 
     it('should have excludeColumns as array or undefined for all tables', () => {

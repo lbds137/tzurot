@@ -53,6 +53,11 @@
       "action": "remove"
     },
     {
+      "pattern": "DROP INDEX.*tts_configs_global_name_unique",
+      "reason": "Partial unique index with WHERE clause cannot be represented in Prisma schema (mirrors llm_configs_global_name_unique)",
+      "action": "remove"
+    },
+    {
       "pattern": "DROP INDEX.*idx_memories_is_locked",
       "reason": "Partial index with WHERE clause cannot be represented in Prisma schema",
       "action": "remove"
@@ -85,6 +90,11 @@
     {
       "pattern": "ALTER TABLE.*llm_configs.*ALTER CONSTRAINT.*llm_configs_owner_id_fkey.*NOT DEFERRABLE",
       "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260418010642 for the users↔llm_configs circular pair. Prisma schema can't express DEFERRABLE.",
+      "action": "remove"
+    },
+    {
+      "pattern": "ALTER TABLE.*users.*ALTER CONSTRAINT.*users_default_tts_config_id_fkey.*NOT DEFERRABLE",
+      "reason": "FK made DEFERRABLE INITIALLY IMMEDIATE in migration 20260504065151 so db-sync can copy a user row with non-NULL default_tts_config_id before the matching tts_configs row arrives in the target DB (mirrors the LLM/persona pattern from migration 20260418010642). Prisma schema can't express DEFERRABLE.",
       "action": "remove"
     }
   ],
