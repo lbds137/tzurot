@@ -1,13 +1,14 @@
 /**
- * LLM Config Singleton Flag Utilities for Database Sync
+ * TTS Config Singleton Flag Utilities for Database Sync
  *
- * Handles resolution of singleton boolean flags (is_default, is_free_default)
- * between dev and prod databases to avoid unique constraint violations during sync.
+ * Mirrors llmConfigSingletons.ts. Handles resolution of singleton boolean
+ * flags (is_default, is_free_default) between dev and prod databases to
+ * avoid unique constraint violations during sync.
  */
 
 import { type PrismaClient, createLogger } from '@tzurot/common-types';
 
-const logger = createLogger('db-sync-llm-config');
+const logger = createLogger('db-sync-tts-config');
 
 interface SingletonResolution {
   flagName: 'isDefault' | 'isFreeDefault';
@@ -15,10 +16,9 @@ interface SingletonResolution {
   winnerEnv: 'dev' | 'prod';
 }
 
-// Track resolutions for finalization after sync
 let pendingResolutions: SingletonResolution[] = [];
 
-interface LlmConfigWithFlags {
+interface TtsConfigWithFlags {
   id: string;
   isDefault: boolean;
   isFreeDefault: boolean;
@@ -26,63 +26,55 @@ interface LlmConfigWithFlags {
 }
 
 /**
- * Prepare llm_configs singleton flags before syncing
+ * Prepare tts_configs singleton flags before syncing.
  *
- * The llm_configs table has partial unique indexes that only allow one row
+ * The tts_configs table has partial unique indexes that only allow one row
  * with is_default=true and one row with is_free_default=true. Before syncing,
- * we need to resolve conflicts by using the most recently updated value.
+ * we resolve conflicts by using the most recently updated value.
  */
-export async function prepareLlmConfigSingletonFlags(
+export async function prepareTtsConfigSingletonFlags(
   devClient: PrismaClient,
   prodClient: PrismaClient
 ): Promise<void> {
-  // Clear any pending resolutions from previous runs
   pendingResolutions = [];
 
-  // Fetch llm_configs with singleton flags from both databases using typed Prisma methods
   const [devConfigs, prodConfigs] = await Promise.all([
-    devClient.llmConfig.findMany({
+    devClient.ttsConfig.findMany({
       where: { OR: [{ isDefault: true }, { isFreeDefault: true }] },
       select: { id: true, isDefault: true, isFreeDefault: true, updatedAt: true },
     }),
-    prodClient.llmConfig.findMany({
+    prodClient.ttsConfig.findMany({
       where: { OR: [{ isDefault: true }, { isFreeDefault: true }] },
       select: { id: true, isDefault: true, isFreeDefault: true, updatedAt: true },
     }),
   ]);
 
-  // Handle is_default singleton
   await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'isDefault');
-
-  // Handle is_free_default singleton
   await resolveSingletonFlag(devClient, prodClient, devConfigs, prodConfigs, 'isFreeDefault');
 }
 
 /**
- * Resolve a singleton boolean flag between dev and prod
- * Clears the flag on the "losing" config (older updated_at)
+ * Resolve a singleton boolean flag between dev and prod.
+ * Clears the flag on the "losing" config (older updated_at).
  */
 async function resolveSingletonFlag(
   devClient: PrismaClient,
   prodClient: PrismaClient,
-  devConfigs: LlmConfigWithFlags[],
-  prodConfigs: LlmConfigWithFlags[],
+  devConfigs: TtsConfigWithFlags[],
+  prodConfigs: TtsConfigWithFlags[],
   flagName: 'isDefault' | 'isFreeDefault'
 ): Promise<void> {
   const devWithFlag = devConfigs.find(c => c[flagName]);
   const prodWithFlag = prodConfigs.find(c => c[flagName]);
 
-  // No conflict if only one database has the flag set
   if (!devWithFlag || !prodWithFlag) {
     return;
   }
 
-  // Same config has the flag in both - no conflict
   if (devWithFlag.id === prodWithFlag.id) {
     return;
   }
 
-  // Different configs have the flag - resolve using updated_at
   const devTime = new Date(devWithFlag.updatedAt).getTime();
   const prodTime = new Date(prodWithFlag.updatedAt).getTime();
 
@@ -95,65 +87,56 @@ async function resolveSingletonFlag(
       prodUpdatedAt: prodWithFlag.updatedAt,
       winner: devTime >= prodTime ? 'dev' : 'prod',
     },
-    '[Sync] Resolving llm_configs singleton flag conflict'
+    '[Sync] Resolving tts_configs singleton flag conflict'
   );
 
-  // Use typed Prisma update instead of raw SQL to avoid injection risk
-  // We need to both clear the loser's flag AND set the winner's flag in both environments
-  // Since sync excludes these columns, we must explicitly propagate the winner
   const updateData = flagName === 'isDefault' ? { isDefault: true } : { isFreeDefault: true };
   const clearData = flagName === 'isDefault' ? { isDefault: false } : { isFreeDefault: false };
 
   if (devTime >= prodTime) {
-    // Dev wins - clear prod's flag and ensure dev's config has the flag in prod
-    await prodClient.llmConfig.update({
+    await prodClient.ttsConfig.update({
       where: { id: prodWithFlag.id },
       data: { ...clearData, updatedAt: new Date() },
     });
 
-    // Set the flag on dev's winning config in prod (if it exists)
-    const devConfigInProd = await prodClient.llmConfig.findUnique({
+    const devConfigInProd = await prodClient.ttsConfig.findUnique({
       where: { id: devWithFlag.id },
     });
     if (devConfigInProd) {
-      await prodClient.llmConfig.update({
+      await prodClient.ttsConfig.update({
         where: { id: devWithFlag.id },
         data: { ...updateData, updatedAt: new Date() },
       });
     } else {
-      // Track for finalization - sync will copy the config, then we set the flag
       pendingResolutions.push({ flagName, winnerId: devWithFlag.id, winnerEnv: 'dev' });
     }
   } else {
-    // Prod wins - clear dev's flag and ensure prod's config has the flag in dev
-    await devClient.llmConfig.update({
+    await devClient.ttsConfig.update({
       where: { id: devWithFlag.id },
       data: { ...clearData, updatedAt: new Date() },
     });
 
-    // Set the flag on prod's winning config in dev (if it exists)
-    const prodConfigInDev = await devClient.llmConfig.findUnique({
+    const prodConfigInDev = await devClient.ttsConfig.findUnique({
       where: { id: prodWithFlag.id },
     });
     if (prodConfigInDev) {
-      await devClient.llmConfig.update({
+      await devClient.ttsConfig.update({
         where: { id: prodWithFlag.id },
         data: { ...updateData, updatedAt: new Date() },
       });
     } else {
-      // Track for finalization - sync will copy the config, then we set the flag
       pendingResolutions.push({ flagName, winnerId: prodWithFlag.id, winnerEnv: 'prod' });
     }
   }
 }
 
 /**
- * Finalize singleton flags after sync completes
+ * Finalize singleton flags after sync completes.
  *
- * Handles the case where the winning config didn't exist in the other environment
- * before sync. After sync copies it, we set the flag.
+ * Handles the case where the winning config didn't exist in the other
+ * environment before sync. After sync copies it, we set the flag.
  */
-export async function finalizeLlmConfigSingletonFlags(
+export async function finalizeTtsConfigSingletonFlags(
   devClient: PrismaClient,
   prodClient: PrismaClient
 ): Promise<void> {
@@ -161,30 +144,28 @@ export async function finalizeLlmConfigSingletonFlags(
     const { flagName, winnerId, winnerEnv } = resolution;
     const updateData = flagName === 'isDefault' ? { isDefault: true } : { isFreeDefault: true };
 
-    // Set the flag in the OTHER environment (the one that didn't have the config before)
     const targetClient = winnerEnv === 'dev' ? prodClient : devClient;
 
-    const configExists = await targetClient.llmConfig.findUnique({
+    const configExists = await targetClient.ttsConfig.findUnique({
       where: { id: winnerId },
     });
 
     if (configExists) {
       logger.info(
         { flagName, winnerId, targetEnv: winnerEnv === 'dev' ? 'prod' : 'dev' },
-        '[Sync] Setting singleton flag on newly synced config'
+        '[Sync] Setting singleton flag on newly synced tts_config'
       );
-      await targetClient.llmConfig.update({
+      await targetClient.ttsConfig.update({
         where: { id: winnerId },
         data: { ...updateData, updatedAt: new Date() },
       });
     } else {
       logger.warn(
         { flagName, winnerId, targetEnv: winnerEnv === 'dev' ? 'prod' : 'dev' },
-        '[Sync] Warning: winning config still not found after sync'
+        '[Sync] Warning: winning tts_config still not found after sync'
       );
     }
   }
 
-  // Clear pending resolutions
   pendingResolutions = [];
 }
