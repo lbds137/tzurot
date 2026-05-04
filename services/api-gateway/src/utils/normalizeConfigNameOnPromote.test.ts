@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Request } from 'express';
 import {
+  buildCollisionMessage,
   computeNameForPromotion,
   getDiscordUsernameFromRequest,
 } from './normalizeConfigNameOnPromote.js';
@@ -209,5 +210,46 @@ describe('getDiscordUsernameFromRequest', () => {
     // Express can deliver array values for repeated headers
     const req = { headers: { 'x-user-username': ['a', 'b'] } } as unknown as Request;
     expect(getDiscordUsernameFromRequest(req)).toBe('');
+  });
+});
+
+describe('buildCollisionMessage', () => {
+  it('returns promotion-rename message when effectiveName differs from requestedName', () => {
+    // Non-owner promoting "MyVoice" to global → normalized to "MyVoice-bob",
+    // and that suffixed name happens to collide with a pre-existing global.
+    expect(
+      buildCollisionMessage({
+        effectiveName: 'MyVoice-bob',
+        requestedName: 'MyVoice',
+        configKind: 'config',
+      })
+    ).toBe('Promotion would rename your config to "MyVoice-bob", but that name is already taken');
+  });
+
+  it('returns promotion-rename message when requestedName is undefined', () => {
+    // User sends only `{ isGlobal: true }` (no rename) — requestedName is
+    // undefined, so `effectiveName !== requestedName` is `true` for any
+    // string. This routes through the promotion branch, which is the
+    // correct UX (user is promoting, not picking a self-collision).
+    expect(
+      buildCollisionMessage({
+        effectiveName: 'MyVoice-bob',
+        requestedName: undefined,
+        configKind: 'config',
+      })
+    ).toBe('Promotion would rename your config to "MyVoice-bob", but that name is already taken');
+  });
+
+  it('returns self-collision message when effectiveName matches requestedName', () => {
+    // Bot owner (no suffix) or non-owner picking a name that doesn't need
+    // normalization → effective and requested match → user-already-has-it
+    // wording.
+    expect(
+      buildCollisionMessage({
+        effectiveName: 'MyVoice',
+        requestedName: 'MyVoice',
+        configKind: 'TTS config',
+      })
+    ).toBe('You already have a TTS config named "MyVoice"');
   });
 });

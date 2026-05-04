@@ -502,28 +502,55 @@ export class TtsConfigService {
   // Validation Helpers
   // --------------------------------------------------------------------------
 
-  /** Check if a name is already in use within the given scope. */
+  /**
+   * Check if a name is already in use within the given scope.
+   *
+   * For USER scope, checks the caller's own configs by default. When the
+   * post-update state will be `isGlobal: true`, ALSO checks the global
+   * namespace — catches the cross-user collision case where a non-bot-owner
+   * promotes their config and the suffixed name collides with another user's
+   * existing global. Without this second check, the partial-unique constraint
+   * `tts_configs_global_name_unique` would fire inside `update()` as a Prisma
+   * P2002, surfacing to Express's default 500 handler.
+   *
+   * @param postIsGlobal - Whether the post-update state will be global. Only
+   *   meaningful for USER scope; defaults false (admin/normal updates skip the
+   *   global-namespace check).
+   */
   async checkNameExists(
     name: string,
     scope: TtsConfigScope,
-    excludeId?: string
+    excludeId?: string,
+    postIsGlobal = false
   ): Promise<NameCheckResult> {
     const trimmedName = name.trim();
-    const whereClause: Record<string, unknown> = { name: trimmedName };
+    const excludeClause = excludeId !== undefined ? { id: { not: excludeId } } : {};
 
     if (scope.type === 'GLOBAL') {
-      whereClause.isGlobal = true;
-    } else {
-      whereClause.ownerId = scope.userId;
-    }
-    if (excludeId !== undefined) {
-      whereClause.id = { not: excludeId };
+      const existing = await this.prisma.ttsConfig.findFirst({
+        where: { name: trimmedName, isGlobal: true, ...excludeClause },
+        select: { id: true },
+      });
+      return existing === null ? { exists: false } : { exists: true, conflictId: existing.id };
     }
 
-    const existing = await this.prisma.ttsConfig.findFirst({
-      where: whereClause,
+    // USER scope: own-namespace always; global-namespace conditional.
+    const ownPromise = this.prisma.ttsConfig.findFirst({
+      where: { name: trimmedName, ownerId: scope.userId, ...excludeClause },
       select: { id: true },
     });
+
+    if (!postIsGlobal) {
+      const existing = await ownPromise;
+      return existing === null ? { exists: false } : { exists: true, conflictId: existing.id };
+    }
+
+    const globalPromise = this.prisma.ttsConfig.findFirst({
+      where: { name: trimmedName, isGlobal: true, ...excludeClause },
+      select: { id: true },
+    });
+    const [own, global] = await Promise.all([ownPromise, globalPromise]);
+    const existing = own ?? global;
     return { exists: existing !== null, conflictId: existing?.id };
   }
 
