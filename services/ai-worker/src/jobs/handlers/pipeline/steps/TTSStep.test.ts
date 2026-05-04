@@ -281,7 +281,8 @@ describe('TTSStep', () => {
       expect(mockNormalizeLoudness).toHaveBeenCalledWith(Buffer.from('synthesized'));
       expect(mockStoreTTSAudio).toHaveBeenCalledWith('test-job', Buffer.from('synthesized'));
       expect(ctx.result?.metadata?.ttsAudioKey).toBe('tts:test-job');
-      expect(ctx.result?.metadata?.ttsAudioContentType).toBe('audio/wav');
+      // normalizeLoudness emits Opus-in-Ogg (single ffmpeg pass: loudnorm + libopus)
+      expect(ctx.result?.metadata?.ttsAudioContentType).toBe('audio/ogg');
     });
 
     it('falls back to unnormalized audio when normalization throws', async () => {

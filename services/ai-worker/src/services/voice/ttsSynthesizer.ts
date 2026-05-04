@@ -298,16 +298,16 @@ export async function synthesizeWithChunking(
     'Multi-chunk TTS synthesis'
   );
 
-  // Synthesize chunks sequentially to avoid overwhelming the single-process voice-engine.
-  // Request WAV for each chunk: extractPcmData/buildWavHeader below operate on raw PCM,
-  // and Opus-in-Ogg can't be losslessly concatenated at the byte level.
+  // Synthesize chunks sequentially to avoid overwhelming the single-process
+  // voice-engine. Voice-engine always returns WAV; the Opus encoding is
+  // applied by audioNormalizer downstream, after multi-chunk concatenation.
   const results: SynthesisResult[] = [];
   for (let index = 0; index < chunks.length; index++) {
     logger.debug(
       { voiceId, chunkIndex: index, chunkLength: chunks[index].length },
       'Synthesizing chunk'
     );
-    results.push(await client.synthesize(chunks[index], voiceId, { format: 'wav' }));
+    results.push(await client.synthesize(chunks[index], voiceId));
   }
 
   // Extract PCM data from each WAV result and concatenate
@@ -329,34 +329,21 @@ export async function synthesizeWithChunking(
   const pcmBuffers = results.map(r => extractPcmData(r.audioBuffer));
   const totalPcmLength = pcmBuffers.reduce((sum, buf) => sum + buf.length, 0);
 
-  // Build combined WAV
+  // Build combined WAV. Downstream `TTSStep.storeTTSResult` runs the
+  // unified loudnorm + Opus pipeline on this buffer, so we don't need a
+  // separate Opus encode here. Returning WAV keeps the multi-chunk path
+  // symmetric with the single-chunk and BYOK paths — every path produces
+  // some audio buffer, and the audioNormalizer transcodes them all.
   const header = buildWavHeader(totalPcmLength, sampleRate);
   const combined = Buffer.concat([header, ...pcmBuffers]);
 
-  // Re-encode combined WAV to Opus-in-Ogg so multi-chunk output matches the
-  // single-chunk path's ~10x size reduction. Without this, ~2 min of speech
-  // lands around 11-13 MB WAV and trips Discord's 8 MiB attachment limit.
-  // On transcode failure, fall back to WAV — better to deliver too-large
-  // audio that Discord's sender will replace with a fallback notice than to
-  // fail the whole synthesis.
-  try {
-    const transcoded = await client.transcode(combined);
-    logger.info(
-      {
-        voiceId,
-        wavSize: combined.length,
-        encodedSize: transcoded.audioBuffer.length,
-        contentType: transcoded.contentType,
-        chunkCount: chunks.length,
-      },
-      'Multi-chunk TTS synthesis complete'
-    );
-    return transcoded;
-  } catch (error) {
-    logger.warn(
-      { err: error, voiceId, wavSize: combined.length, chunkCount: chunks.length },
-      'Multi-chunk Opus transcode failed — falling back to combined WAV'
-    );
-    return { audioBuffer: combined, contentType: 'audio/wav' };
-  }
+  logger.info(
+    {
+      voiceId,
+      wavSize: combined.length,
+      chunkCount: chunks.length,
+    },
+    'Multi-chunk TTS synthesis complete'
+  );
+  return { audioBuffer: combined, contentType: 'audio/wav' };
 }

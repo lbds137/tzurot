@@ -68,22 +68,31 @@ describe('normalizeLoudness', () => {
     mockSpawn.mockReset();
   });
 
-  it('invokes ffmpeg with loudnorm filter at -14 LUFS by default', async () => {
+  it('invokes ffmpeg with loudnorm filter at -14 LUFS by default + libopus output', async () => {
     const { emitter } = makeFakeChild({
-      stdoutChunks: [Buffer.from('normalized-wav-bytes')],
+      stdoutChunks: [Buffer.from('OggSnormalized-opus-bytes')],
     });
     mockSpawn.mockReturnValue(emitter);
 
     const result = await normalizeLoudness(Buffer.from('input-bytes'));
 
     expect(result).toBeInstanceOf(Buffer);
-    expect(result.toString('utf8')).toBe('normalized-wav-bytes');
+    expect(result.toString('utf8')).toBe('OggSnormalized-opus-bytes');
 
     const calledArgs = mockSpawn.mock.calls[0][1] as string[];
     expect(mockSpawn.mock.calls[0][0]).toBe('ffmpeg');
     expect(calledArgs).toContain('loudnorm=I=-14:LRA=11:TP=-1.5');
     expect(calledArgs).toContain('24000'); // sample rate
-    expect(calledArgs).toContain('s16'); // sample format
+    // Single-pass loudnorm + libopus encode + ogg muxer — replaces the
+    // two-pass design where voice-engine had its own /v1/audio/transcode
+    expect(calledArgs).toContain('libopus');
+    expect(calledArgs).toContain('ogg');
+    expect(calledArgs).toContain('32k'); // OPUS_BITRATE
+    // -application voip selects libopus's speech-tuned psychoacoustic model
+    // (lower algorithmic delay, better quality/size for voiced speech vs.
+    // the music-tuned `audio` default).
+    expect(calledArgs).toContain('-application');
+    expect(calledArgs).toContain('voip');
   });
 
   it('honors custom targetLufs / lra / truePeak', async () => {

@@ -1,26 +1,26 @@
 /**
- * Audio Normalizer — output-side EBU R128 loudness normalization
+ * Audio Normalizer — output-side EBU R128 loudness normalization + Opus encode
  *
- * Mistral Voxtral's smoke test (2026-05-02, see TTS Engine Upgrade Phase 1
- * plan section 6) revealed a 13.8 LU spread in synthesis loudness across
- * personas at default. Reference-side normalization FAILED — only narrowed
- * to 10.3 LU AND distorted vocal character via dynamic range compression
- * (`loudnorm`'s LRA target crushes the expressive peaks the model conditions
- * on for voice character).
+ * Mistral Voxtral's smoke test (2026-05-02) revealed a 13.8 LU spread in
+ * synthesis loudness across personas at default. Reference-side normalization
+ * FAILED — only narrowed to 10.3 LU AND distorted vocal character via dynamic
+ * range compression. Output-side works decisively: 13.8 LU → 1.7 LU spread,
+ * no character distortion.
  *
- * Output-side normalization works decisively: 13.8 LU → 1.7 LU spread on
- * the same four personas, no character distortion (output is post-synthesis
- * flat-ish speech with no expressive dynamics to crush).
+ * Target: **-14 LUFS** (Spotify standard). Discord has no native loudness
+ * normalization; users on phones in noisy environments need the AI voice to
+ * compete with human-microphone audio.
  *
- * Target: **-14 LUFS** (Spotify standard, supplementary-council verdict
- * over -16 LUFS podcast standard). Discord has no native loudness
- * normalization; users on phones in noisy environments need the AI voice
- * to compete with human-microphone audio.
+ * **Single ffmpeg pass** — loudnorm filter + libopus encode + ogg muxer in
+ * one process spawn. Provider-agnostic: applied at the TTSStep boundary
+ * regardless of which provider produced the audio. Output format is always
+ * Opus-in-Ogg at 32kbps mono 24kHz (Discord-friendly voice-message format,
+ * ~10x smaller than uncompressed WAV).
  *
- * Provider-agnostic: applied at the TTSStep boundary regardless of which
- * provider produced the audio. ElevenLabs already does internal
- * normalization so this is a near-noop for that path; Mistral genuinely
- * needs it; future providers (NeuTTS Air in Phase 2) inherit it for free.
+ * Pre-consolidation, multiple paths handled this differently:
+ * - Mistral / ElevenLabs: posted loudnormed-WAV directly (Discord size issue)
+ * - Voice-engine multi-chunk: round-tripped via voice-engine /v1/audio/transcode
+ * Now unified: every path → single ffmpeg pass → Opus output.
  */
 
 import { spawn } from 'node:child_process';
@@ -55,25 +55,32 @@ export interface NormalizeOptions {
 }
 
 /**
- * Normalize audio to the target loudness using ffmpeg's `loudnorm` filter.
+ * Opus bitrate for output. 32kbps is industry-standard for mono speech voice
+ * messages (Discord's own voice messages use 32-48k). Lower than music codecs
+ * but adequate for speech intelligibility. Tunable later if quality concerns
+ * surface.
+ */
+const OPUS_BITRATE = '32k';
+
+/**
+ * Normalize audio loudness AND encode to Opus-in-Ogg in a single ffmpeg pass.
  *
- * Single-pass mode: loudnorm runs once with target params, no analysis pass.
- * Less precise than two-pass but fast and consistent enough for spoken
- * audio in the -14 LUFS / 11 LU LRA range. The smoke test showed
- * single-pass collapses a 13.8 LU spread to 1.7 LU — well within the
- * "perceptually identical" threshold of ~3 LU.
+ * Single-pass loudnorm + libopus encode — one process spawn, two operations.
+ * Less precise than two-pass loudnorm but fast and consistent enough for
+ * spoken audio in the -14 LUFS / 11 LU LRA range (smoke test: 13.8 LU → 1.7
+ * LU spread, well within the "perceptually identical" ~3 LU threshold).
  *
- * Output format invariant: PCM WAV 16-bit / 24kHz / mono (already what
- * Mistral returns; the explicit `-ar 24000 -ac 1 -sample_fmt s16` flags
- * survive provider changes that might emit different formats).
+ * Output format invariant: Opus codec / Ogg container / 32kbps / mono / 24kHz.
+ * The explicit `-ar 24000 -ac 1` flags survive provider changes that might
+ * emit different formats (Mistral WAV, ElevenLabs MP3, voice-engine WAV).
  *
- * Shell-injection safe: uses `execFile` with array args (per
+ * Shell-injection safe: uses `spawn` with array args (per
  * `.claude/rules/00-critical.md`); no shell interpolation. Audio is piped
  * via stdin/stdout — no temp files.
  *
  * @param audioBuffer - Source audio (any ffmpeg-supported format).
  * @param options - LUFS target overrides. Defaults to -14 / 11 / -1.5.
- * @returns Normalized PCM WAV 16-bit / 24kHz / mono buffer.
+ * @returns Normalized Opus-in-Ogg buffer (content-type: audio/ogg).
  * @throws if ffmpeg is missing from PATH or fails to process the input.
  */
 export async function normalizeLoudness(
@@ -84,7 +91,8 @@ export async function normalizeLoudness(
   const filter = `loudnorm=I=${targetLufs}:LRA=${lra}:TP=${truePeak}`;
 
   // Array args, no shell interpretation. Piped I/O via stdin (`pipe:0`) and
-  // stdout (`pipe:1`) keeps temp files off disk.
+  // stdout (`pipe:1`) keeps temp files off disk. Single pipeline:
+  //   input → loudnorm filter → libopus encoder → ogg muxer → output
   const args = [
     '-hide_banner',
     '-nostats',
@@ -96,10 +104,17 @@ export async function normalizeLoudness(
     '24000',
     '-ac',
     '1',
-    '-sample_fmt',
-    's16',
+    '-c:a',
+    'libopus',
+    // Speech psychoacoustic model — lower algorithmic delay and better
+    // perceptual quality at low bitrates for voiced speech vs. libopus's
+    // default `audio` mode (which is tuned for music).
+    '-application',
+    'voip',
+    '-b:a',
+    OPUS_BITRATE,
     '-f',
-    'wav',
+    'ogg',
     'pipe:1',
   ];
 
@@ -114,13 +129,13 @@ export async function normalizeLoudness(
         outputBytes: stdout.length,
         elapsedMs,
       },
-      'Audio normalized'
+      'Audio normalized + encoded to Opus'
     );
     return stdout;
   } catch (error) {
     logger.error(
       { err: error, targetLufs, inputBytes: audioBuffer.length },
-      'ffmpeg loudnorm invocation failed'
+      'ffmpeg loudnorm + opus invocation failed'
     );
     throw error;
   }
