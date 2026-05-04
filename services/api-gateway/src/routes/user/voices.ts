@@ -164,8 +164,25 @@ async function fetchAllTzurotVoices(keys: Map<AudioProviderId, string>): Promise
   const totals = new Map<AudioProviderId, number>();
   const warnings: ProviderWarning[] = [];
 
-  for (const [provider, apiKey] of keys) {
-    const result = await listVoicesForProvider(provider, apiKey);
+  // Fan out per-provider fetches in parallel. Sequential `for...of` made a
+  // user with both ElevenLabs + Mistral keys wait ~500-1000ms per provider
+  // serially; parallelizing halves the wall-clock latency.
+  const settled = await Promise.allSettled(
+    [...keys].map(async ([provider, apiKey]) => {
+      const result = await listVoicesForProvider(provider, apiKey);
+      return { provider, result };
+    })
+  );
+
+  for (const outcome of settled) {
+    if (outcome.status === 'rejected') {
+      // Defensive: listVoicesForProvider catches everything internally and
+      // returns `{ errorResponse }`, so this branch shouldn't fire. Log and
+      // skip rather than failing the whole list.
+      logger.warn({ err: outcome.reason }, 'listVoicesForProvider rejected unexpectedly');
+      continue;
+    }
+    const { provider, result } = outcome.value;
     if ('errorResponse' in result) {
       logger.warn(
         { provider, errorResponse: result.errorResponse },
