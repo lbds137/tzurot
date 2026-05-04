@@ -3,7 +3,7 @@
  *
  * List all `tts_configs` rows for a given environment. Useful for:
  * - Debugging cross-env ID drift (system-globals + BYOK rows)
- * - Verifying recovery scripts (`align-byok-tts-configs`, etc.) ran correctly
+ * - Verifying post-migration data alignment (e.g. BYOK TTS config UUID normalization)
  * - Auditing the bot owner's configs against expected state
  */
 

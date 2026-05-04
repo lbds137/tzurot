@@ -155,12 +155,12 @@ export function generateSystemGlobalLlmConfigUuid(name: string): string {
 /**
  * Deterministic UUID for a per-user BYOK-style TtsConfig row.
  *
- * Used by `scripts/src/align-byok-tts-configs.ts` to align existing
- * `tts-byok-*` rows (created by migration 20260502185237's one-shot data
- * seed for users with legacy `elevenlabsTtsModel` JSONB) to deterministic
- * UUIDs. Without this, dev and prod each generated their own random UUIDs
- * for the same logical row → /admin db-sync collision on the
- * `tts_configs_owner_id_name_key` composite-unique constraint.
+ * Aligns `tts-byok-*` rows (created by migration 20260502185237's
+ * one-shot data seed for users with legacy `elevenlabsTtsModel` JSONB)
+ * to deterministic UUIDs. Without this helper, dev and prod each generate
+ * their own random UUIDs for the same logical row → /admin db-sync
+ * collision on the `tts_configs_owner_id_name_key` composite-unique
+ * constraint.
  *
  * Scoped to migration-seeded BYOK rows. Do NOT use for user-created configs
  * via `/settings tts create` — those have user-editable names and should
