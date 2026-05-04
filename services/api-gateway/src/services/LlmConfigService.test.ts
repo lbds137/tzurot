@@ -620,6 +620,53 @@ describe('LlmConfigService', () => {
         select: { id: true },
       });
     });
+
+    it('USER scope with postIsGlobal=true also checks the global namespace', async () => {
+      // Cross-user collision case: user Bob promotes their config; the
+      // suffixed name (e.g. "MyVoice-bob") happens to match an existing
+      // global config (e.g., bot-owner's). Without this branch, the second
+      // findFirst would fire as a Prisma P2002 inside update().
+      prisma.llmConfig.findFirst.mockResolvedValueOnce(null); // own-namespace miss
+      prisma.llmConfig.findFirst.mockResolvedValueOnce({ id: 'someone-elses-global' });
+
+      const scope: LlmConfigScope = { type: 'USER', userId: 'user-123', discordId: 'd-123' };
+      const result = await service.checkNameExists('MyVoice-bob', scope, undefined, true);
+
+      expect(result).toEqual({ exists: true, conflictId: 'someone-elses-global' });
+      expect(prisma.llmConfig.findFirst).toHaveBeenCalledTimes(2);
+      // Second call queries the global namespace
+      expect(prisma.llmConfig.findFirst).toHaveBeenNthCalledWith(2, {
+        where: { name: 'MyVoice-bob', isGlobal: true },
+        select: { id: true },
+      });
+    });
+
+    it('USER scope with postIsGlobal=true returns own conflict when both fire', async () => {
+      // If the user's own config AND a global both match, the own-namespace
+      // result wins (more specific to the caller). Both queries fire in
+      // parallel; the result merges with `own ?? global`.
+      prisma.llmConfig.findFirst.mockResolvedValueOnce({ id: 'own-config' });
+      prisma.llmConfig.findFirst.mockResolvedValueOnce({ id: 'someone-elses-global' });
+
+      const scope: LlmConfigScope = { type: 'USER', userId: 'user-123', discordId: 'd-123' };
+      const result = await service.checkNameExists('Conflict', scope, undefined, true);
+
+      expect(result).toEqual({ exists: true, conflictId: 'own-config' });
+    });
+
+    it('USER scope with postIsGlobal=false skips the global namespace check', async () => {
+      // Default behavior — back-compat for non-promoting updates.
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const scope: LlmConfigScope = { type: 'USER', userId: 'user-123', discordId: 'd-123' };
+      await service.checkNameExists('Test Name', scope);
+
+      expect(prisma.llmConfig.findFirst).toHaveBeenCalledTimes(1);
+      expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
+        where: { name: 'Test Name', ownerId: 'user-123' },
+        select: { id: true },
+      });
+    });
   });
 
   describe('checkDeleteConstraints', () => {

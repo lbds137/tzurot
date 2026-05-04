@@ -85,6 +85,28 @@ export function computeNameForPromotion(opts: PromotionContext): string | undefi
 }
 
 /**
+ * Build the user-facing collision message for a config update where the
+ * post-update state may be auto-renamed by the promotion helper.
+ *
+ * Two messages: when the name was system-computed (user sent only
+ * `{ isGlobal: true }`, no explicit rename), explain the promotion auto-
+ * rename. Otherwise, the user typed the colliding name themselves.
+ *
+ * `configKind` is the user-facing entity word (e.g. "config" for LLM,
+ * "TTS config" for TTS) so error strings read naturally.
+ */
+export function buildCollisionMessage(opts: {
+  effectiveName: string;
+  requestedName: string | undefined;
+  configKind: string;
+}): string {
+  const wasNormalized = opts.effectiveName !== opts.requestedName;
+  return wasNormalized
+    ? `Promotion would rename your ${opts.configKind} to "${opts.effectiveName}", but that name is already taken`
+    : `You already have a ${opts.configKind} named "${opts.effectiveName}"`;
+}
+
+/**
  * Read the URI-encoded `x-user-username` header that bot-client sends and
  * `requireProvisionedUser` already validates. Headers are lowercased by
  * Express; the encoding round-trip preserves Discord's allowed username
