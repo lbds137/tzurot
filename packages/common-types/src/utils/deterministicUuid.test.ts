@@ -11,6 +11,8 @@ import {
   generateLlmConfigUuid,
   newLlmConfigId,
   newTtsConfigId,
+  generateSystemGlobalTtsConfigUuid,
+  generateSystemGlobalLlmConfigUuid,
   generateUserPersonalityConfigUuid,
   generateConversationHistoryUuid,
   generateChannelSettingsUuid,
@@ -366,6 +368,63 @@ describe('Deterministic UUID Generation', () => {
       expect(intersection).toHaveLength(0);
       expect(ttsIds.size).toBe(100); // all unique
       expect(llmIds.size).toBe(100);
+    });
+  });
+
+  describe('generateSystemGlobalTtsConfigUuid', () => {
+    it('returns the same UUID for the same name (deterministic)', () => {
+      const id1 = generateSystemGlobalTtsConfigUuid('kyutai-self-hosted');
+      const id2 = generateSystemGlobalTtsConfigUuid('kyutai-self-hosted');
+      expect(id1).toBe(id2);
+    });
+
+    it('returns different UUIDs for different names', () => {
+      const id1 = generateSystemGlobalTtsConfigUuid('kyutai-self-hosted');
+      const id2 = generateSystemGlobalTtsConfigUuid('elevenlabs-multilingual-v2');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('returns a valid v5 UUID format', () => {
+      const id = generateSystemGlobalTtsConfigUuid('kyutai-self-hosted');
+      // v5 UUIDs have version=5 in the 13th character (0-indexed position 14)
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    });
+
+    it('returns the documented stable UUIDs for the 3 well-known names', () => {
+      // These literals are pasted into the recovery migration SQL — assert
+      // they don't drift. If this test fails, either the namespace or the
+      // seed format changed; investigate before regenerating the migration.
+      expect(generateSystemGlobalTtsConfigUuid('kyutai-self-hosted')).toBe(
+        '50411d3c-cc98-5f39-839e-abd4fb84b0c8'
+      );
+      expect(generateSystemGlobalTtsConfigUuid('elevenlabs-multilingual-v2')).toBe(
+        '845d224f-ad28-5ce1-8b27-f5588d3ae2d1'
+      );
+      expect(generateSystemGlobalTtsConfigUuid('mistral-voxtral-mini')).toBe(
+        '8aa02cad-2c39-5b5b-9d37-482aacb7788d'
+      );
+    });
+  });
+
+  describe('generateSystemGlobalLlmConfigUuid', () => {
+    it('returns the same UUID for the same name (deterministic)', () => {
+      const id1 = generateSystemGlobalLlmConfigUuid('claude-sonnet-default');
+      const id2 = generateSystemGlobalLlmConfigUuid('claude-sonnet-default');
+      expect(id1).toBe(id2);
+    });
+
+    it('returns a valid v5 UUID format', () => {
+      const id = generateSystemGlobalLlmConfigUuid('claude-sonnet-default');
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    });
+
+    it('uses a different name-seed prefix than TTS — same name produces a different UUID', () => {
+      // Both helpers use TZUROT_NAMESPACE (shared); separation comes from
+      // the name-seed prefix (`tts_config_global:` vs `llm_config_global:`)
+      // passed to uuidv5 alongside the shared namespace.
+      const ttsId = generateSystemGlobalTtsConfigUuid('shared-name');
+      const llmId = generateSystemGlobalLlmConfigUuid('shared-name');
+      expect(ttsId).not.toBe(llmId);
     });
   });
 });
