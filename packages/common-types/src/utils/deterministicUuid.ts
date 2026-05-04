@@ -153,6 +153,41 @@ export function generateSystemGlobalLlmConfigUuid(name: string): string {
 }
 
 /**
+ * Deterministic UUID for a per-user BYOK-style TtsConfig row.
+ *
+ * Used by `scripts/src/align-byok-tts-configs.ts` to align existing
+ * `tts-byok-*` rows (created by migration 20260502185237's one-shot data
+ * seed for users with legacy `elevenlabsTtsModel` JSONB) to deterministic
+ * UUIDs. Without this, dev and prod each generated their own random UUIDs
+ * for the same logical row → /admin db-sync collision on the
+ * `tts_configs_owner_id_name_key` composite-unique constraint.
+ *
+ * Scoped to migration-seeded BYOK rows. Do NOT use for user-created configs
+ * via `/settings tts create` — those have user-editable names and should
+ * keep UUIDv7 to avoid the rename-collision bug documented on
+ * {@link generateLlmConfigUuid}'s `@deprecated` notice.
+ *
+ * Why `(ownerId, provider)` not `(ownerId, name)`: name is mutable (the
+ * UPDATE route at `services/api-gateway/src/routes/user/tts-config.ts` has
+ * no guard preventing rename of `tts-byok-*` rows). Provider is fixed for
+ * the row's lifetime.
+ */
+export function generateByokTtsConfigUuid(ownerId: string, provider: string): string {
+  return uuidv5(`tts_config_byok:${ownerId}:${provider}`, TZUROT_NAMESPACE);
+}
+
+/**
+ * Deterministic UUID for a per-user BYOK-style LlmConfig row.
+ *
+ * Mirrors {@link generateByokTtsConfigUuid}. Currently unused — LLM has no
+ * equivalent BYOK auto-migration today. Exported for symmetry and to
+ * reserve the namespace for future use.
+ */
+export function generateByokLlmConfigUuid(ownerId: string, provider: string): string {
+  return uuidv5(`llm_config_byok:${ownerId}:${provider}`, TZUROT_NAMESPACE);
+}
+
+/**
  * Generate deterministic UUID for UserPersonalityConfig
  * Seed: user_personality_settings:{userId}:{personalityId}
  * Note: Seed pattern kept as 'user_personality_settings' for UUID consistency (renamed from UserPersonalitySettings)

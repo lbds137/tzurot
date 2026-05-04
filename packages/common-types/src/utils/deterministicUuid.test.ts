@@ -13,6 +13,8 @@ import {
   newTtsConfigId,
   generateSystemGlobalTtsConfigUuid,
   generateSystemGlobalLlmConfigUuid,
+  generateByokTtsConfigUuid,
+  generateByokLlmConfigUuid,
   generateUserPersonalityConfigUuid,
   generateConversationHistoryUuid,
   generateChannelSettingsUuid,
@@ -425,6 +427,87 @@ describe('Deterministic UUID Generation', () => {
       const ttsId = generateSystemGlobalTtsConfigUuid('shared-name');
       const llmId = generateSystemGlobalLlmConfigUuid('shared-name');
       expect(ttsId).not.toBe(llmId);
+    });
+  });
+
+  describe('generateByokTtsConfigUuid', () => {
+    const TEST_OWNER = '00000000-0000-0000-0000-000000000001';
+
+    it('returns the same UUID for the same (ownerId, provider) tuple (deterministic)', () => {
+      const id1 = generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs');
+      const id2 = generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs');
+      expect(id1).toBe(id2);
+    });
+
+    it('different ownerId produces different UUID', () => {
+      const id1 = generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs');
+      const id2 = generateByokTtsConfigUuid('00000000-0000-0000-0000-000000000002', 'elevenlabs');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('different provider produces different UUID', () => {
+      const id1 = generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs');
+      const id2 = generateByokTtsConfigUuid(TEST_OWNER, 'mistral');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('returns a valid v5 UUID format', () => {
+      const id = generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs');
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    });
+
+    it('returns the documented stable UUID for a known (ownerId, provider) pair', () => {
+      // Pinned values for the test owner. If this test fails, either the
+      // namespace or seed-prefix format changed; investigate before the
+      // recovery script runs against any data. Same cross-pinning pattern
+      // as PR #969's system-global UUIDs.
+      expect(generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs')).toBe(
+        '888c58ff-d8f4-5f82-9c75-33aa39b7b905'
+      );
+      expect(generateByokTtsConfigUuid(TEST_OWNER, 'mistral')).toBe(
+        '65fa408e-bd23-5f2e-baa0-8e2b0ca7a944'
+      );
+    });
+  });
+
+  describe('generateByokLlmConfigUuid', () => {
+    const TEST_OWNER = '00000000-0000-0000-0000-000000000001';
+
+    it('returns the same UUID for the same (ownerId, provider) tuple (deterministic)', () => {
+      const id1 = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
+      const id2 = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
+      expect(id1).toBe(id2);
+    });
+
+    it('different ownerId produces different UUID', () => {
+      const id1 = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
+      const id2 = generateByokLlmConfigUuid('00000000-0000-0000-0000-000000000002', 'openrouter');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('different provider produces different UUID', () => {
+      const id1 = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
+      const id2 = generateByokLlmConfigUuid(TEST_OWNER, 'anthropic');
+      expect(id1).not.toBe(id2);
+    });
+
+    it('returns a valid v5 UUID format', () => {
+      const id = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    });
+
+    it('uses a different name-seed prefix than TTS — same (ownerId, provider) produces a different UUID', () => {
+      // `tts_config_byok:` vs `llm_config_byok:` — separation by name-seed
+      // prefix (TZUROT_NAMESPACE is shared across all helpers).
+      const ttsId = generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs');
+      const llmId = generateByokLlmConfigUuid(TEST_OWNER, 'elevenlabs');
+      expect(ttsId).not.toBe(llmId);
+    });
+
+    it('returns the documented stable UUID for a known (ownerId, provider) pair', () => {
+      expect(generateByokLlmConfigUuid(TEST_OWNER, 'elevenlabs')).toBe(
+        '7f8a3518-336b-5dc8-973e-cc302405d333'
+      );
     });
   });
 });
