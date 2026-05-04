@@ -7,10 +7,14 @@
 import type { CAC } from 'cac';
 import type { Environment } from '../utils/env-runner.js';
 
+const ENV_OPTION = '--env <env>';
+const ENV_OPTION_DESC = 'Environment: local, dev, or prod';
+const ENV_OPTION_DEFAULT = { default: 'dev' };
+
 export function registerInspectCommands(cli: CAC): void {
   cli
     .command('inspect:queue', 'Inspect BullMQ queue state')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'dev' })
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .option('--queue <name>', 'Queue name', { default: 'ai-requests' })
     .option('--failed-limit <n>', 'Number of failed jobs to show', { default: 5 })
     .option('--verbose', 'Show detailed job data')
@@ -35,8 +39,18 @@ export function registerInspectCommands(cli: CAC): void {
     );
 
   cli
+    .command('inspect:tts-configs', 'List all tts_configs rows for the current env')
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
+    .example('pnpm ops inspect:tts-configs')
+    .example('pnpm ops inspect:tts-configs --env prod')
+    .action(async (options: { env?: Environment }) => {
+      const { inspectTtsConfigs } = await import('../inspect/tts-configs.js');
+      await inspectTtsConfigs({ env: options.env ?? 'dev' });
+    });
+
+  cli
     .command('inspect:dlq', 'View failed jobs in BullMQ dead letter queue')
-    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'dev' })
+    .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .option('--queue <name>', 'Queue name', { default: 'ai-requests' })
     .option('--limit <n>', 'Number of failed jobs to show', { default: 10 })
     .option('--json', 'Output as JSON for scripting')
