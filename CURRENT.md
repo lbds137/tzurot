@@ -1,20 +1,18 @@
 # Current
 
-> **Session**: 2026-05-03 — TTS Engine Upgrade Phase 1 PR 3a merged + PR 3b started
-> **Version**: v3.0.0-beta.113 (release-frozen until TTS epic completes; develop accumulating PRs #954, #955, #957, #958, #959, #960, plus PR 3b feature branch)
-> **🚧 Release freeze**: NO new beta releases until the TTS Engine Upgrade epic completes (Phases 1+2+3 — TTS BYOK + NeuTTS Air + STT cutover). Develop is the staging area until full ElevenLabs cutover ships. Rationale lives in `backlog/active-epic.md` header.
+> **Session**: 2026-05-04 — TTS Phase 1 final cleanup PR #966 merged
+> **Version**: v3.0.0-beta.114 (release-frozen until TTS epic completes; develop now closes Phase 1 carry-over)
+> **🚧 Release freeze**: NO new beta releases until the TTS Engine Upgrade epic completes (Phases 1+3+2 — TTS BYOK + STT cutover + NeuTTS Air). Phase 3 reordered ahead of Phase 2 per BYOK-pairing intent. Develop is the staging area until full ElevenLabs cutover ships.
 
 ---
 
 ## Next Session Goal
 
-**Continue PR 3b implementation from Phase A3 (admin route).** Plan approved + council-reviewed; gateway service and user route already shipped on the feature branch. Next concrete step: mirror `routes/admin/llm-config.ts` for TTS, then wire `TtsConfigService` into `api-gateway/src/index.ts`, then build the bot-client `/settings tts ...` commands.
+**Phase 3 (STT cutover) plan-mode pass.** With Phase 1 backlog cleared (PR #966 merged 2026-05-04), the remaining design work is the STT layered-resolution chain that pairs with the TTS BYOK provider. Council surfaced 3 issues with deriving STT from TTS-default during planning (NeuTTS Air is TTS-only, discoverability cost, bot-owner cost decoupling) — reconcile with a 4-layer fallback chain: user explicit override → derive from TTS provider → admin-configured system STT default → voice-engine fallback.
 
-**Branch state**: `feat/tts-engine-upgrade-phase-1-pr-3b` — 2 commits ahead of develop. Phase A1 (`TtsConfigService` + errors + 38 tests) and A2 (`/user/tts-config` route + 19 tests) shipped. Remaining sub-phases: A3 (admin route), A4 (gateway wiring), B1 (bot-client commands ~1500 LOC), B2/B3 (small), C (validation), D (PR).
+**Pending dev validation before any release-freeze lift decision**: `/settings tts default mistral-voxtral-mini` end-to-end smoke test in dev — confirm Discord delivers Opus/Ogg attachments, file size ~10-15% of pre-fix WAV (item 1 of PR #966).
 
-**Plan file**: `~/.claude/plans/radiant-coalescing-avalanche.md` — full sub-phase breakdown, design decisions, reuse inventory, verification steps.
-
-**Backlog filed during this session**: 4 new cross-cutting items in `backlog/inbox.md` — clear-default UX (preset+tts), smart per-user cache invalidation (LLM+TTS), service file split (LLM+TTS), and the round-5 `fetchAllTzurotVoices` exhaustiveness asymmetry for PR 3c.
+**Backlog filed during this session**: 1 new item in `backlog/inbox.md` — JSDoc-tightening pass on `model-override.ts` + `tts-override.ts` factories (paired fix to avoid asymmetry). 4 items closed: P2002 cross-user collision, mockClearTtsDefaultConfigResponse factory, parallelize fetchAllTzurotVoices, husky pglite drift — all shipped via PR #966.
 
 ---
 
