@@ -43,6 +43,7 @@ import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.j
 import { enrichWithModelContext } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 import {
+  buildCollisionMessage,
   computeNameForPromotion,
   getDiscordUsernameFromRequest,
 } from '../../utils/normalizeConfigNameOnPromote.js';
@@ -275,6 +276,11 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
     });
     const patch = { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
 
+    // Compute post-update isGlobal so the collision check covers the cross-
+    // user global-namespace case when the user is promoting (or already
+    // promoted) their config.
+    const postIsGlobal = body.isGlobal ?? config.isGlobal;
+
     // Check for duplicate name if a name is being applied (either user-supplied
     // or normalized by the promotion helper). Use the post-normalization value
     // so collision checks reflect what will actually land in the DB.
@@ -282,25 +288,42 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       const nameCheck = await service.checkNameExists(
         patch.name,
         { type: 'USER', userId, discordId: discordUserId },
-        configId
+        configId,
+        postIsGlobal
       );
       if (nameCheck.exists) {
-        // When the post-normalization name differs from what the user
-        // actually typed (either the user sent only `{ isGlobal: true }`
-        // and the suffix was synthesized, OR they typed a base name that
-        // got suffixed), the message should explain the auto-rename rather
-        // than imply they chose the exact colliding name.
-        const wasNormalized = patch.name !== body.name;
-        const msg = wasNormalized
-          ? `Promotion would rename your config to "${patch.name}", but that name is already taken`
-          : `You already have a config named "${patch.name}"`;
-        return sendError(res, ErrorResponses.nameCollision(msg));
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(
+            buildCollisionMessage({
+              effectiveName: patch.name,
+              requestedName: body.name,
+              configKind: 'config',
+            })
+          )
+        );
       }
     }
 
     // Update using service (handles cache invalidation). Empty-body guard
-    // ran earlier; patch is guaranteed non-empty here.
-    const updated = await service.update(configId, patch);
+    // ran earlier; patch is guaranteed non-empty here. Wrap in try/catch:
+    // a parallel mutation could slip a colliding name in between checkNameExists
+    // and update, surfacing as Prisma P2002. Translate to a friendly
+    // nameCollision rather than letting Express return a 500.
+    let updated;
+    try {
+      updated = await service.update(configId, patch);
+    } catch (err) {
+      if (isPrismaUniqueConstraintError(err) && patch.name !== undefined) {
+        return sendError(
+          res,
+          ErrorResponses.nameCollision(
+            `The name "${patch.name}" was just taken by another user — try again`
+          )
+        );
+      }
+      throw err;
+    }
 
     // User always owns their own updated config (we already checked ownership above)
     const permissions = computeLlmConfigPermissions(

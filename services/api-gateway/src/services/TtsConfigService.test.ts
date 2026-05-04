@@ -508,6 +508,40 @@ describe('TtsConfigService', () => {
         })
       );
     });
+
+    it('USER scope with postIsGlobal=true also checks the global namespace', async () => {
+      // Cross-user collision case: user Bob promotes their config; the suffixed
+      // name (e.g. "MyVoice-bob") matches an existing global. Without this
+      // branch, P2002 would surface inside update() as a 500.
+      vi.mocked(prisma.ttsConfig.findFirst)
+        .mockResolvedValueOnce(null) // own-namespace miss
+        .mockResolvedValueOnce({ id: 'someone-elses-global' } as never);
+
+      const result = await service.checkNameExists('MyVoice-bob', userScope, undefined, true);
+
+      expect(result).toEqual({ exists: true, conflictId: 'someone-elses-global' });
+      expect(prisma.ttsConfig.findFirst).toHaveBeenCalledTimes(2);
+      expect(prisma.ttsConfig.findFirst).toHaveBeenNthCalledWith(2, {
+        where: { name: 'MyVoice-bob', isGlobal: true },
+        select: { id: true },
+      });
+    });
+
+    it('USER scope with postIsGlobal=true returns own conflict when both fire', async () => {
+      vi.mocked(prisma.ttsConfig.findFirst)
+        .mockResolvedValueOnce({ id: 'own-config' } as never)
+        .mockResolvedValueOnce({ id: 'someone-elses-global' } as never);
+
+      const result = await service.checkNameExists('Conflict', userScope, undefined, true);
+      expect(result).toEqual({ exists: true, conflictId: 'own-config' });
+    });
+
+    it('USER scope with postIsGlobal=false skips the global namespace check', async () => {
+      vi.mocked(prisma.ttsConfig.findFirst).mockResolvedValue(null);
+      await service.checkNameExists('My Voice', userScope);
+
+      expect(prisma.ttsConfig.findFirst).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('checkDeleteConstraints', () => {

@@ -529,36 +529,64 @@ export class LlmConfigService {
   /**
    * Check if a name is already in use.
    *
+   * For USER scope, checks the caller's own configs by default. When the
+   * post-update state will be `isGlobal: true`, ALSO checks the global
+   * namespace — catches the cross-user collision case where a non-bot-owner
+   * promotes their config and the suffixed name collides with another user's
+   * existing global. Without this second check, the partial-unique constraint
+   * `*_configs_global_name_unique` would fire inside `update()` as a
+   * Prisma P2002, surfacing to Express's default 500 handler.
+   *
    * @param name - Name to check
    * @param scope - Scope to check within (GLOBAL or USER)
    * @param excludeId - Optional ID to exclude (for update operations)
+   * @param postIsGlobal - Whether the post-update state will be global. Only
+   *   meaningful for USER scope; defaults false (admin/normal updates skip
+   *   the global-namespace check). Pass `true` from the user route's PUT
+   *   handler when the patch results in `isGlobal: true`.
    * @returns Whether name exists and the conflicting ID if any
    */
   async checkNameExists(
     name: string,
     scope: LlmConfigScope,
-    excludeId?: string
+    excludeId?: string,
+    postIsGlobal = false
   ): Promise<NameCheckResult> {
     const trimmedName = name.trim();
-
-    const whereClause: Record<string, unknown> = { name: trimmedName };
+    const excludeClause = excludeId !== undefined ? { id: { not: excludeId } } : {};
 
     if (scope.type === 'GLOBAL') {
       // Admin: Check among global configs only
-      whereClause.isGlobal = true;
-    } else {
-      // User: Check among user's own configs
-      whereClause.ownerId = scope.userId;
+      const existing = await this.prisma.llmConfig.findFirst({
+        where: { name: trimmedName, isGlobal: true, ...excludeClause },
+        select: { id: true },
+      });
+      return existing === null ? { exists: false } : { exists: true, conflictId: existing.id };
     }
 
-    if (excludeId !== undefined) {
-      whereClause.id = { not: excludeId };
-    }
-
-    const existing = await this.prisma.llmConfig.findFirst({
-      where: whereClause,
+    // USER scope: own-namespace check is always required. Global-namespace check
+    // additionally fires when the post-update state will be global.
+    const ownClause: Record<string, unknown> = {
+      name: trimmedName,
+      ownerId: scope.userId,
+      ...excludeClause,
+    };
+    const ownPromise = this.prisma.llmConfig.findFirst({
+      where: ownClause,
       select: { id: true },
     });
+
+    if (!postIsGlobal) {
+      const existing = await ownPromise;
+      return existing === null ? { exists: false } : { exists: true, conflictId: existing.id };
+    }
+
+    const globalPromise = this.prisma.llmConfig.findFirst({
+      where: { name: trimmedName, isGlobal: true, ...excludeClause },
+      select: { id: true },
+    });
+    const [own, global] = await Promise.all([ownPromise, globalPromise]);
+    const existing = own ?? global;
 
     return {
       exists: existing !== null,
