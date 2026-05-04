@@ -11,9 +11,10 @@
  * - `POST /v1/audio/voices` — clone a voice from base64 reference audio.
  *   Mistral SILENTLY DROPS slug/languages/gender/age/tags on creation;
  *   only `name` survives. Cache strategy uses `name` as the find-or-create key.
- * - `GET  /v1/audio/voices?page=1&page_size=50` — paginated list. Single-page
- *   assumption (>50 cloned voices unrealistic at one-voice-per-personality
- *   scale; backlog item tracks the pagination loop fallback).
+ * - `GET  /v1/audio/voices?page=N&page_size=50` — paginated list. Walks
+ *   pagination up to `VOICE_LIST_MAX_PAGES` (20 pages = 1000 voices) before
+ *   returning a partial result with a WARN log. The find-by-name path is
+ *   resilient to the cap because a missing voice falls through to clone.
  * - `DELETE /v1/audio/voices/{id}` — remove voice (eviction).
  * - `POST /v1/audio/speech` — synthesize. Returns `application/json` with
  *   base64 `audio_data` field — NEVER raw binary, even with
@@ -151,7 +152,11 @@ export class MistralResponseShapeError extends Error {
     Object.setPrototypeOf(this, MistralResponseShapeError.prototype);
   }
 
-  /** Transient: response-shape failures may stabilize on retry. */
+  /** Transient: response-shape failures may stabilize on retry. Field rather
+   *  than a getter because the value is a literal constant — `MistralApiError`
+   *  uses a getter only because it computes from `status`. Asymmetry is by
+   *  design (computed vs. constant), and ESLint's
+   *  `class-literal-property-style` enforces field-for-literals. */
   readonly isTransient = true;
 }
 
@@ -180,6 +185,10 @@ export class MistralReferenceAudioTooLongError extends Error {
     Object.setPrototypeOf(this, MistralReferenceAudioTooLongError.prototype);
   }
 
+  /** Deterministic from input — same audio length will always exceed the
+   *  same limit. Field rather than a getter for consistency with
+   *  `MistralResponseShapeError` (constant value) and per ESLint's
+   *  `class-literal-property-style`. */
   readonly isTransient = false;
 }
 
