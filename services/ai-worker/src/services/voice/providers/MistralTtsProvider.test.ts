@@ -55,6 +55,12 @@ const mockedCloneVoice = vi.mocked(mistralCloneVoice);
 const mockedTTS = vi.mocked(mistralTTS);
 const mockedFetchVoiceReference = vi.mocked(fetchVoiceReference);
 
+/** Wrap a voice array in the new discriminated `{ voices, truncated }` shape
+ *  so existing tests don't need to repeat the `truncated: false` boilerplate. */
+type Voice = Awaited<ReturnType<typeof mistralListVoices>>['voices'][number];
+const okList = (voices: Voice[]) => ({ voices, truncated: false });
+const truncatedList = (voices: Voice[]) => ({ voices, truncated: true });
+
 describe('MistralTtsProvider', () => {
   let provider: MistralTtsProvider;
 
@@ -139,9 +145,9 @@ describe('MistralTtsProvider', () => {
 
   describe('prepare — list-and-find', () => {
     it('returns existing voice id when name matches in voice list', async () => {
-      mockedListVoices.mockResolvedValueOnce([
-        { id: 'voice-existing', name: 'tzurot-emily', userId: 'user-1' },
-      ]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'voice-existing', name: 'tzurot-emily', userId: 'user-1' }])
+      );
 
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
 
@@ -155,9 +161,9 @@ describe('MistralTtsProvider', () => {
     });
 
     it('clones when no matching name in list', async () => {
-      mockedListVoices.mockResolvedValueOnce([
-        { id: 'voice-other', name: 'tzurot-different', userId: 'user-1' },
-      ]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'voice-other', name: 'tzurot-different', userId: 'user-1' }])
+      );
       mockedCloneVoice.mockResolvedValueOnce({
         id: 'voice-new',
         name: 'tzurot-emily',
@@ -176,23 +182,144 @@ describe('MistralTtsProvider', () => {
       expect(handle).toMatchObject({ kind: 'voiceId', id: 'voice-new' });
     });
 
-    it('proceeds to clone when listVoices throws (eventual-consistency tolerance)', async () => {
-      mockedListVoices.mockRejectedValueOnce(new Error('list failed'));
-      mockedCloneVoice.mockResolvedValueOnce({
-        id: 'voice-new',
-        name: 'tzurot-emily',
-        userId: null,
+    it('throws MistralVoiceListUnavailableError when listVoices fails all retries (no silent duplicate)', async () => {
+      // Sticky rejection so all 3 retry attempts fail. Without the retry +
+      // refuse-to-clone logic, this scenario produced one duplicate
+      // `tzurot-${slug}` per prepare call until the list endpoint recovered.
+      // Fake timers required (`02-code-standards.md`): retry backoffs are
+      // 500ms-4s wall-clock; vi.runAllTimersAsync exhausts them instantly.
+      vi.useFakeTimers();
+      try {
+        mockedListVoices.mockRejectedValue(new Error('list failed'));
+
+        // Attach the rejection handler before advancing timers — fake timers
+        // resolve scheduled callbacks synchronously, and the assertion's
+        // `.rejects` chain needs to be subscribed first.
+        const promise = provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
+        const assertion = expect(promise).rejects.toMatchObject({
+          name: 'MistralVoiceListUnavailableError',
+          reason: 'fetch-failed',
+        });
+
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(mockedCloneVoice).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('fast-fails (no retries) on deterministic list errors like 401 auth', async () => {
+      // `shouldRetry` should reject errors with `isTransient === false` so
+      // a misconfigured key surfaces in 1 attempt rather than burning 3.
+      // Without this, debugging an auth issue takes ~1.5s wall clock per
+      // prepare call instead of ~30ms.
+      vi.useFakeTimers();
+      try {
+        mockedListVoices.mockRejectedValue(new MistralApiError(401, 'unauthorized'));
+
+        const promise = provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
+        const assertion = expect(promise).rejects.toMatchObject({
+          name: 'MistralVoiceListUnavailableError',
+          reason: 'fetch-failed',
+        });
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        // Fast-fail: only 1 attempt, not 3
+        expect(mockedListVoices).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('caches MistralVoiceListUnavailableError in negative cache (5min suppression)', async () => {
+      // Verifies the second half of PR #976's design: the typed error must
+      // hit the negative cache (because `isTransient = true`), so a second
+      // call within 5 min short-circuits without re-running the retry loop.
+      // Without this, a persistent list outage produces 3 retry attempts
+      // PER prepare call rather than 3 attempts followed by 5 min of cache
+      // hits.
+      vi.useFakeTimers();
+      try {
+        mockedListVoices.mockRejectedValue(new Error('list failed'));
+
+        // First call: 3 retry attempts → MistralVoiceListUnavailableError
+        const firstPromise = provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
+        const firstAssertion = expect(firstPromise).rejects.toMatchObject({
+          name: 'MistralVoiceListUnavailableError',
+        });
+        await vi.runAllTimersAsync();
+        await firstAssertion;
+        expect(mockedListVoices).toHaveBeenCalledTimes(3); // 3 retry attempts
+
+        // Second call: should hit negative cache, NOT retry list again
+        await expect(provider.prepare({ slug: 'emily', byokKey: 'sk-test' })).rejects.toThrow(
+          /recently failed/
+        );
+        expect(mockedListVoices).toHaveBeenCalledTimes(3); // unchanged: cache hit
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('throws MistralVoiceListUnavailableError when list is truncated and voice not in prefix', async () => {
+      // Cap-hit list with no match → cloning would risk a duplicate (the
+      // voice could be on page 21+). Refuse and surface a typed error.
+      mockedListVoices.mockResolvedValueOnce(
+        truncatedList([{ id: 'voice-other', name: 'tzurot-different', userId: 'u' }])
+      );
+
+      await expect(provider.prepare({ slug: 'emily', byokKey: 'sk-test' })).rejects.toMatchObject({
+        name: 'MistralVoiceListUnavailableError',
+        reason: 'truncated',
       });
+      expect(mockedCloneVoice).not.toHaveBeenCalled();
+    });
+
+    it('recovers from transient list failure on retry → proceeds to find-by-name', async () => {
+      // Documents the retry-success seam: first attempt rejects transiently,
+      // second succeeds, find-by-name returns the matched voice. `withRetry`
+      // is tested in isolation, but this seam-level test pins the contract
+      // at the provider's call site.
+      vi.useFakeTimers();
+      try {
+        mockedListVoices
+          .mockRejectedValueOnce(new Error('transient blip'))
+          .mockResolvedValueOnce(
+            okList([{ id: 'voice-existing', name: 'tzurot-emily', userId: 'u' }])
+          );
+
+        const promise = provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
+        await vi.runAllTimersAsync();
+        const handle = await promise;
+
+        expect(handle).toMatchObject({ id: 'voice-existing' });
+        expect(mockedListVoices).toHaveBeenCalledTimes(2);
+        expect(mockedCloneVoice).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('returns existing voice from truncated prefix without cloning', async () => {
+      // Even with truncated=true, finding the voice in the returned prefix
+      // means we don't need pages 21+. No duplicate risk → use the match.
+      mockedListVoices.mockResolvedValueOnce(
+        truncatedList([{ id: 'voice-existing', name: 'tzurot-emily', userId: 'u' }])
+      );
 
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
 
-      expect(handle).toMatchObject({ kind: 'voiceId', id: 'voice-new' });
+      expect(handle).toMatchObject({ id: 'voice-existing' });
+      expect(mockedCloneVoice).not.toHaveBeenCalled();
     });
   });
 
   describe('prepare — reference-audio pre-flight (30s limit)', () => {
     it('throws MistralReferenceAudioTooLongError when reference exceeds 30s, without calling clone', async () => {
-      mockedListVoices.mockResolvedValueOnce([]); // no existing voice → would clone
+      mockedListVoices.mockResolvedValueOnce(okList([])); // no existing voice → would clone
       mockedFetchVoiceReference.mockResolvedValueOnce({
         audioBuffer: Buffer.from('reference-audio-bytes'),
         contentType: 'audio/wav',
@@ -217,7 +344,7 @@ describe('MistralTtsProvider', () => {
       // `isDeterministicFailure` path would silently lose the structured
       // event field — the provider's prose comment guards against this in
       // narrative form, but this test makes it test-gated.
-      mockedListVoices.mockResolvedValueOnce([]);
+      mockedListVoices.mockResolvedValueOnce(okList([]));
       mockedFetchVoiceReference.mockResolvedValueOnce({
         audioBuffer: Buffer.from('reference-audio-bytes'),
         contentType: 'audio/wav',
@@ -243,7 +370,7 @@ describe('MistralTtsProvider', () => {
     });
 
     it('proceeds to clone when reference is under the 30s limit', async () => {
-      mockedListVoices.mockResolvedValueOnce([]);
+      mockedListVoices.mockResolvedValueOnce(okList([]));
       mockedFetchVoiceReference.mockResolvedValueOnce({
         audioBuffer: Buffer.from('reference-audio-bytes'),
         contentType: 'audio/wav',
@@ -264,7 +391,7 @@ describe('MistralTtsProvider', () => {
     it('falls through to reactive path when durationSec is undefined (unrecognized format)', async () => {
       // mp3/ogg/m4a aren't parsed locally — fall through to whatever Mistral
       // returns. This locks in the "advisory, not authoritative" semantics.
-      mockedListVoices.mockResolvedValueOnce([]);
+      mockedListVoices.mockResolvedValueOnce(okList([]));
       mockedFetchVoiceReference.mockResolvedValueOnce({
         audioBuffer: Buffer.from('reference-audio-bytes'),
         contentType: 'audio/mpeg',
@@ -282,7 +409,7 @@ describe('MistralTtsProvider', () => {
     });
 
     it('does not negative-cache the deterministic too-long failure (re-prepare hits pre-flight again, not cache)', async () => {
-      mockedListVoices.mockResolvedValue([]);
+      mockedListVoices.mockResolvedValue(okList([]));
       mockedFetchVoiceReference.mockResolvedValue({
         audioBuffer: Buffer.from('reference-audio-bytes'),
         contentType: 'audio/wav',
@@ -308,7 +435,9 @@ describe('MistralTtsProvider', () => {
 
   describe('prepare — caching', () => {
     it('caches successful clone result (subsequent prepare uses cache)', async () => {
-      mockedListVoices.mockResolvedValueOnce([{ id: 'v-1', name: 'tzurot-emily', userId: 'u' }]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'v-1', name: 'tzurot-emily', userId: 'u' }])
+      );
 
       await provider.prepare({ slug: 'emily', byokKey: 'sk' });
       await provider.prepare({ slug: 'emily', byokKey: 'sk' });
@@ -321,8 +450,8 @@ describe('MistralTtsProvider', () => {
       // sentinel by design (test fixtures shouldn't leak full keys into cache
       // keys / debug logs in deployed environments).
       mockedListVoices
-        .mockResolvedValueOnce([{ id: 'v-1', name: 'tzurot-emily', userId: 'u-a' }])
-        .mockResolvedValueOnce([{ id: 'v-2', name: 'tzurot-emily', userId: 'u-b' }]);
+        .mockResolvedValueOnce(okList([{ id: 'v-1', name: 'tzurot-emily', userId: 'u-a' }]))
+        .mockResolvedValueOnce(okList([{ id: 'v-2', name: 'tzurot-emily', userId: 'u-b' }]));
 
       // Suffix uses first-4 + last-8 chars, so keys must differ in either of
       // those windows (not just the middle).
@@ -339,7 +468,7 @@ describe('MistralTtsProvider', () => {
     it('caches transient (5xx) failures in negative cache (5min)', async () => {
       // 5xx server errors are transient (could clear on retry), so the cache
       // suppresses retry storms while preserving the option to retry after TTL.
-      mockedListVoices.mockResolvedValueOnce([]);
+      mockedListVoices.mockResolvedValueOnce(okList([]));
       mockedCloneVoice.mockRejectedValueOnce(new MistralApiError(503, 'service unavailable'));
 
       await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toThrow();
@@ -356,7 +485,7 @@ describe('MistralTtsProvider', () => {
       // 400/401 are deterministic from input — caching adds nothing because
       // the same input will keep failing. Re-running goes through the full
       // list+clone path again rather than hitting the cache.
-      mockedListVoices.mockResolvedValue([]);
+      mockedListVoices.mockResolvedValue(okList([]));
       mockedCloneVoice.mockRejectedValueOnce(new MistralApiError(400, 'malformed audio'));
 
       await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toBeInstanceOf(
@@ -380,7 +509,7 @@ describe('MistralTtsProvider', () => {
       // Errors without an `isTransient` field (e.g., network blips, Node
       // ENOENT, generic Error) are treated as transient and cached. Documents
       // the "default to cache when unsure" semantic of isDeterministicFailure.
-      mockedListVoices.mockResolvedValueOnce([]);
+      mockedListVoices.mockResolvedValueOnce(okList([]));
       mockedCloneVoice.mockRejectedValueOnce(new Error('ECONNRESET'));
 
       await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toThrow();
@@ -397,7 +526,7 @@ describe('MistralTtsProvider', () => {
       // Rate limits are technically transient, but Mistral's retry-after
       // header is more precise than a 5-min blanket cache. Skip caching here
       // to allow the caller's retry-after handling to govern.
-      mockedListVoices.mockResolvedValue([]);
+      mockedListVoices.mockResolvedValue(okList([]));
       mockedCloneVoice.mockRejectedValueOnce(new MistralApiError(429, 'rate limit'));
 
       await expect(provider.prepare({ slug: 'emily', byokKey: 'sk' })).rejects.toBeInstanceOf(
@@ -428,7 +557,7 @@ describe('MistralTtsProvider', () => {
         | ((v: { id: string; name: string; userId: string | null }) => void)
         | undefined;
 
-      mockedListVoices.mockResolvedValue([]);
+      mockedListVoices.mockResolvedValue(okList([]));
       mockedCloneVoice
         .mockImplementationOnce(
           () =>
@@ -446,20 +575,16 @@ describe('MistralTtsProvider', () => {
       const p1 = provider.prepare({ slug: 'a', byokKey: 'sk' });
       const p2 = provider.prepare({ slug: 'b', byokKey: 'sk' });
 
-      // Yield once so the first .then() in the mutex chain fires
-      await Promise.resolve();
-      // Plus another for the listVoices promise to settle and dispatch clone
-      await Promise.resolve();
-      await Promise.resolve();
-      expect(mockedCloneVoice).toHaveBeenCalledTimes(1);
+      // Wait for the first mutex chain step + listVoices + retry pipeline
+      // to settle and dispatch clone. `vi.waitFor` polls until the condition
+      // holds, which is more robust than counting yields (the retry layer
+      // added microtasks that the previous fixed-yield count didn't account
+      // for).
+      await vi.waitFor(() => expect(mockedCloneVoice).toHaveBeenCalledTimes(1));
 
       resolveFirst?.({ id: 'voice-a', name: 'tzurot-a', userId: 'u' });
       await p1;
-      // Yield for the second mutex .then() + its listVoices
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-      expect(mockedCloneVoice).toHaveBeenCalledTimes(2);
+      await vi.waitFor(() => expect(mockedCloneVoice).toHaveBeenCalledTimes(2));
 
       resolveSecond?.({ id: 'voice-b', name: 'tzurot-b', userId: 'u' });
       const h2 = await p2;
@@ -473,9 +598,9 @@ describe('MistralTtsProvider', () => {
         audioBuffer: Buffer.from('synthesized-bytes'),
         contentType: 'audio/wav',
       });
-      mockedListVoices.mockResolvedValueOnce([
-        { id: 'voice-uuid', name: 'tzurot-emily', userId: 'u' },
-      ]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'voice-uuid', name: 'tzurot-emily', userId: 'u' }])
+      );
 
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
       const buf = await provider.synthesize('hello', handle, {
@@ -494,7 +619,9 @@ describe('MistralTtsProvider', () => {
     });
 
     it('throws when ctx.byokKey is missing', async () => {
-      mockedListVoices.mockResolvedValueOnce([{ id: 'v', name: 'tzurot-emily', userId: 'u' }]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'v', name: 'tzurot-emily', userId: 'u' }])
+      );
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
       await expect(provider.synthesize('hello', handle, { slug: 'emily' })).rejects.toThrow(
         /byokKey/
@@ -503,9 +630,9 @@ describe('MistralTtsProvider', () => {
 
     it('invalidates positive cache when synthesize throws 404', async () => {
       // First: prepare populates the cache
-      mockedListVoices.mockResolvedValueOnce([
-        { id: 'voice-stale', name: 'tzurot-emily', userId: 'u' },
-      ]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'voice-stale', name: 'tzurot-emily', userId: 'u' }])
+      );
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
 
       // synthesize 404s with a MistralApiError
@@ -515,18 +642,18 @@ describe('MistralTtsProvider', () => {
       ).rejects.toBeInstanceOf(MistralApiError);
 
       // Next prepare must hit listVoices again (cache evicted)
-      mockedListVoices.mockResolvedValueOnce([
-        { id: 'voice-fresh', name: 'tzurot-emily', userId: 'u' },
-      ]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'voice-fresh', name: 'tzurot-emily', userId: 'u' }])
+      );
       const handle2 = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
       expect(handle2).toMatchObject({ id: 'voice-fresh' });
       expect(mockedListVoices).toHaveBeenCalledTimes(2);
     });
 
     it('does NOT invalidate cache on non-404 errors', async () => {
-      mockedListVoices.mockResolvedValueOnce([
-        { id: 'voice-uuid', name: 'tzurot-emily', userId: 'u' },
-      ]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'voice-uuid', name: 'tzurot-emily', userId: 'u' }])
+      );
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
 
       // synthesize 429s (rate limited)
@@ -558,16 +685,18 @@ describe('MistralTtsProvider', () => {
 
   describe('invalidateVoice', () => {
     it('removes positive + negative cache entries for a slug+key', async () => {
-      mockedListVoices.mockResolvedValueOnce([{ id: 'v', name: 'tzurot-emily', userId: 'u' }]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'v', name: 'tzurot-emily', userId: 'u' }])
+      );
       await provider.prepare({ slug: 'emily', byokKey: 'sk' });
       // Cached now
 
       provider.invalidateVoice('emily', 'sk');
 
       // Next prepare should hit listVoices again
-      mockedListVoices.mockResolvedValueOnce([
-        { id: 'v-fresh', name: 'tzurot-emily', userId: 'u' },
-      ]);
+      mockedListVoices.mockResolvedValueOnce(
+        okList([{ id: 'v-fresh', name: 'tzurot-emily', userId: 'u' }])
+      );
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk' });
       expect(handle).toMatchObject({ id: 'v-fresh' });
       expect(mockedListVoices).toHaveBeenCalledTimes(2);

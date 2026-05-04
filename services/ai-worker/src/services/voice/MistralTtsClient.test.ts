@@ -270,10 +270,11 @@ describe('mistralListVoices', () => {
 
     const result = await mistralListVoices('k');
 
-    expect(result).toEqual([
+    expect(result.voices).toEqual([
       { id: 'v1', name: 'preset', userId: null },
       { id: 'v2', name: 'tzurot-emily', userId: 'user-1' },
     ]);
+    expect(result.truncated).toBe(false);
   });
 
   it('uses page_size=50 in the query string', async () => {
@@ -316,7 +317,8 @@ describe('mistralListVoices', () => {
 
     const result = await mistralListVoices('k');
 
-    expect(result.map(v => v.id)).toEqual(['p1-v1', 'p1-v2', 'p2-v1', 'p2-v2']);
+    expect(result.voices.map(v => v.id)).toEqual(['p1-v1', 'p1-v2', 'p2-v1', 'p2-v2']);
+    expect(result.truncated).toBe(false);
     expect(mockFetch).toHaveBeenCalledTimes(2);
     // First call requests page 1, second requests page 2
     expect(mockFetch.mock.calls[0][0]).toContain('page=1');
@@ -335,6 +337,29 @@ describe('mistralListVoices', () => {
 
     await mistralListVoices('k');
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns truncated: true when pagination cap (VOICE_LIST_MAX_PAGES = 20) is reached', async () => {
+    // Each of 20 pages returns one item with `total_pages = 99` so the walker
+    // never satisfies its early-exit condition (`page >= totalPages`) and runs
+    // out the cap. The provider's find-by-name path uses `truncated: true` to
+    // refuse cloning when no match is found in the prefix — this test pins
+    // the producer side of that contract.
+    for (let i = 0; i < 20; i++) {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(200, {
+          items: [{ id: `v-page-${i + 1}`, name: `voice-${i + 1}`, user_id: null }],
+          total: 99 * 50,
+          total_pages: 99,
+        })
+      );
+    }
+
+    const result = await mistralListVoices('k');
+
+    expect(result.voices).toHaveLength(20);
+    expect(result.truncated).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(20);
   });
 });
 
