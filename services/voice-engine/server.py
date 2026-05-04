@@ -15,7 +15,6 @@ import logging
 import os
 import re
 import secrets
-import subprocess
 import tempfile
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
@@ -417,86 +416,11 @@ async def transcribe_openai_compat(
 # ---------------------------------------------------------------------------
 
 
-# ffmpeg command for WAV → Opus-in-Ogg transcode at 64 kbps VBR.
-# Exposed as a module-level constant so tests can reference it and so the args
-# are explicit at read time rather than buried inside the subprocess call.
-#   -application voip: tunes the encoder psychoacoustic model for speech (not music)
-#   -vbr on: variable bitrate — average ~64 kbps, smaller for silence
-#   -f ogg pipe:1: write Opus packets into an Ogg container on stdout
-_OPUS_ENCODE_ARGS: tuple[str, ...] = (
-    "ffmpeg",
-    "-hide_banner",
-    "-loglevel",
-    "error",
-    "-i",
-    "pipe:0",
-    "-c:a",
-    "libopus",
-    "-b:a",
-    "64k",
-    "-vbr",
-    "on",
-    "-application",
-    "voip",
-    "-f",
-    "ogg",
-    "pipe:1",
-)
-
-
-async def _encode_opus(wav_bytes: bytes, loop: asyncio.AbstractEventLoop) -> tuple[bytes, str]:
-    """Transcode WAV bytes to Opus-in-Ogg via ffmpeg.
-
-    Opus at 64 kbps is roughly 1/10th the size of raw WAV at typical TTS sample
-    rates, keeping voice-engine output well under Discord's 8 MiB attachment
-    limit for anything up to ~17 minutes of speech.
-
-    On any subprocess failure — missing ffmpeg binary, encode error, empty
-    output — returns the original WAV bytes + "audio/wav" so the caller still
-    gets playable audio.
-
-    Takes ``loop`` as an explicit parameter rather than calling
-    ``asyncio.get_running_loop()`` internally. This matches the ``_load_voice``
-    helper pattern in this module — callers already have the loop in scope and
-    thread it through for consistency.
-    """
-
-    def _run() -> bytes:
-        result = subprocess.run(
-            _OPUS_ENCODE_ARGS,
-            input=wav_bytes,
-            capture_output=True,
-            check=True,
-        )
-        return result.stdout
-
-    try:
-        opus_bytes = await loop.run_in_executor(None, _run)
-    except (subprocess.CalledProcessError, OSError) as exc:
-        # OSError catches missing-binary (FileNotFoundError), permission-denied
-        # (PermissionError), and other low-level process failures. CalledProcessError
-        # is a distinct hierarchy (not an OSError subclass) so it's listed explicitly.
-        # All three branches share the same fallback; no differentiation needed here.
-        stderr = getattr(exc, "stderr", b"") or b""
-        logger.error(
-            "ffmpeg Opus transcode failed — falling back to WAV",
-            extra={"err": str(exc), "stderr": stderr.decode("utf-8", errors="replace")[:500]},
-        )
-        return wav_bytes, "audio/wav"
-
-    if len(opus_bytes) == 0:
-        logger.error("ffmpeg returned empty Opus output — falling back to WAV")
-        return wav_bytes, "audio/wav"
-
-    return opus_bytes, "audio/ogg"
-
-
 @app.post("/v1/tts")
 async def text_to_speech(
     text: str = Form(...),
     voice_id: str = Form("alba"),
     reference_audio: UploadFile | None = File(None),
-    audio_format: str = Form("opus", alias="format"),
 ) -> Response:
     """
     Generate speech from text using Pocket TTS.
@@ -505,18 +429,12 @@ async def text_to_speech(
         text: The text to synthesize
         voice_id: Preset voice name or custom voice identifier
         reference_audio: Optional WAV file for zero-shot voice cloning
-        audio_format: Output container — "opus" (default, audio/ogg) or "wav" (audio/wav).
-            Callers that need to extract raw PCM (e.g., for multi-chunk concatenation)
-            should request "wav"; general-purpose callers should use the Opus default
-            since it's ~10x smaller and keeps output under Discord's 8 MiB attachment limit.
 
-    Returns: audio/ogg (Opus) by default, or audio/wav if format="wav"
+    Returns: audio/wav (raw PCM in WAV container, sample rate matches the TTS
+        model's native rate). The Opus encoding is performed downstream in
+        ai-worker's audioNormalizer (single ffmpeg pass: loudnorm + libopus +
+        ogg muxer). Voice-engine is purely a synthesis service.
     """
-    if audio_format not in ("opus", "wav"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported format: {audio_format}. Allowed: 'opus' (default), 'wav'.",
-        )
     if not _is_valid_voice_id(voice_id):
         raise HTTPException(
             status_code=400,
@@ -626,27 +544,15 @@ async def text_to_speech(
         del audio_tensor, audio_np
         gc.collect()
 
-        # Transcode to Opus-in-Ogg by default — ~10x smaller than raw WAV, keeps output
-        # under Discord's 8 MiB attachment limit for anything under ~17 min of speech.
-        # Callers that need raw PCM (e.g., multi-chunk concatenation in ttsSynthesizer.ts)
-        # pass format="wav" to skip the transcode. On ffmpeg failure we defensively fall
-        # back to WAV so the caller still gets usable audio.
-        if audio_format == "wav":
-            audio_bytes, media_type = wav_bytes, "audio/wav"
-        else:
-            audio_bytes, media_type = await _encode_opus(wav_bytes, loop)
-
         logger.info(
             "Generated TTS audio",
             extra={
                 "voice_id": voice_id,
                 "chars": len(clean_text),
                 "wav_bytes": len(wav_bytes),
-                "out_bytes": len(audio_bytes),
-                "media_type": media_type,
             },
         )
-        return Response(content=audio_bytes, media_type=media_type)
+        return Response(content=wav_bytes, media_type="audio/wav")
 
     except HTTPException:
         raise
@@ -670,61 +576,7 @@ async def tts_openai_compat(
     but currently ignored; all requests use Pocket TTS.
     """
     _ = model  # accepted for API compat; can't rename to _model (FastAPI derives form field name)
-    # Pass audio_format explicitly — when text_to_speech is invoked as a Python function
-    # (not via FastAPI routing), Form() defaults aren't resolved and the Form object
-    # would fail the format validation below.
-    return await text_to_speech(text=input, voice_id=voice, reference_audio=None, audio_format="opus")
-
-
-# ---------------------------------------------------------------------------
-# Audio Transcode
-# ---------------------------------------------------------------------------
-@app.post("/v1/audio/transcode")
-async def transcode_wav_to_opus(file: UploadFile = File(...)) -> Response:
-    """Transcode WAV audio to Opus-in-Ogg (64 kbps VBR, speech-tuned).
-
-    Intended for the multi-chunk TTS path in ai-worker: chunks are synthesized
-    as WAV (so raw PCM can be concatenated), then the combined WAV is posted
-    here for a single Opus encode. Keeps encoding config (bitrate, VBR, voip
-    profile) centralized with _encode_opus so single-chunk and multi-chunk
-    produce byte-identical Opus output.
-
-    Accepts: audio/wav bodies up to MAX_AUDIO_UPLOAD_BYTES (50 MB — well above
-    the ~15 MB that ~5 min of 22.05 kHz 16-bit mono PCM produces).
-
-    Returns: audio/ogg (Opus) on success; falls back to audio/wav (the original
-    input) if ffmpeg is unavailable or fails — matches the /v1/tts fallback so
-    callers see one consistent contract.
-    """
-    audio_bytes = await file.read()
-    if len(audio_bytes) > MAX_AUDIO_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Audio file too large")
-    if len(audio_bytes) == 0:
-        raise HTTPException(status_code=400, detail="Empty audio body")
-
-    try:
-        loop = asyncio.get_running_loop()
-        opus_bytes, media_type = await _encode_opus(audio_bytes, loop)
-        # _encode_opus already logs logger.error on ffmpeg failure before returning
-        # (wav_bytes, "audio/wav") as a graceful fallback. Logging at info here in
-        # that case would paper over the earlier error; use warning so log triage
-        # sees both signals consistently.
-        log_fn = logger.info if media_type != "audio/wav" else logger.warning
-        log_fn(
-            "Transcoded audio",
-            extra={
-                "in_bytes": len(audio_bytes),
-                "out_bytes": len(opus_bytes),
-                "media_type": media_type,
-                "ffmpeg_fallback": media_type == "audio/wav",
-            },
-        )
-        return Response(content=opus_bytes, media_type=media_type)
-    except HTTPException:
-        raise
-    except Exception:
-        logger.error("Transcode failed", exc_info=True)
-        raise HTTPException(status_code=500, detail="Transcode failed") from None
+    return await text_to_speech(text=input, voice_id=voice, reference_audio=None)
 
 
 # ---------------------------------------------------------------------------
