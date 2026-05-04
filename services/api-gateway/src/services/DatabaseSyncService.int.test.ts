@@ -94,6 +94,23 @@ function loadTtsDefaultFkDeferrableMigration(): string {
 }
 
 /**
+ * Load the recovery migration that aligns TTS system-global rows to
+ * deterministic UUIDs. Same rationale as the DEFERRABLE migrations: applied
+ * manually in `beforeAll` to keep the pglite environment matching production
+ * post-20260504140720. Idempotent (WHERE-clauses skip rows already at the
+ * target id), so safe to run on a freshly-seeded pglite even though no
+ * pre-migration TTS rows exist there.
+ */
+function loadAlignTtsGlobalsMigration(): string {
+  const migrationPath = join(
+    migrationsDir(),
+    '20260504140720_align_tts_globals_to_deterministic_ids',
+    'migration.sql'
+  );
+  return readFileSync(migrationPath, 'utf-8');
+}
+
+/**
  * Return the lexicographically-latest migration directory name (which is
  * also chronologically latest because migrations are prefixed with
  * `YYYYMMDDhhmmss`). Used to seed `_prisma_migrations` so
@@ -171,6 +188,7 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     const schema = loadPGliteSchema();
     const deferrableFkMigration = loadDeferrableFkMigration();
     const ttsDefaultFkDeferrableMigration = loadTtsDefaultFkDeferrableMigration();
+    const alignTtsGlobalsMigration = loadAlignTtsGlobalsMigration();
 
     devPglite = createTestPGlite();
     prodPglite = createTestPGlite();
@@ -187,6 +205,13 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     await prodPglite.exec(deferrableFkMigration);
     await devPglite.exec(ttsDefaultFkDeferrableMigration);
     await prodPglite.exec(ttsDefaultFkDeferrableMigration);
+    // Recovery migration aligning TTS system-global rows to deterministic
+    // UUIDs. Idempotent — these pglite instances have no TTS rows yet, so
+    // the WHERE clauses match nothing on the first run. Loaded here for
+    // parity with production's migration history (and so the
+    // _prisma_migrations seed below picks up its name as the latest).
+    await devPglite.exec(alignTtsGlobalsMigration);
+    await prodPglite.exec(alignTtsGlobalsMigration);
     // Create _prisma_migrations so checkSchemaVersions has a row to find.
     await devPglite.exec(SETUP_PRISMA_MIGRATIONS_TABLE);
     await prodPglite.exec(SETUP_PRISMA_MIGRATIONS_TABLE);
