@@ -115,60 +115,16 @@ export class VoiceEngineClient {
    *  No explicit timeout — inherits `this.timeoutMs` (3 min) to accommodate
    *  Railway Serverless cold starts. See constructor comment for rationale.
    *
-   *  Format: defaults to 'opus' (audio/ogg, ~10x smaller than WAV). Pass 'wav'
-   *  only when the caller needs to extract raw PCM (e.g., multi-chunk
-   *  concatenation in ttsSynthesizer.ts) — Opus-in-Ogg cannot be losslessly
-   *  concatenated at the byte level.
-   *
-   *  The default is asserted client-side (`?? 'opus'`) rather than relying on
-   *  the voice-engine `Form("opus", ...)` default, so the client-side
-   *  contract matches what the wire carries regardless of server-side changes. */
-  async synthesize(
-    text: string,
-    voiceId: string,
-    options?: { format?: 'opus' | 'wav' }
-  ): Promise<SynthesisResult> {
+   *  Voice-engine always returns audio/wav (raw PCM in WAV container). Opus
+   *  encoding happens downstream in ai-worker's audioNormalizer (single
+   *  ffmpeg pass: loudnorm + libopus + ogg muxer). Voice-engine is purely
+   *  a synthesis service. */
+  async synthesize(text: string, voiceId: string): Promise<SynthesisResult> {
     const formData = new FormData();
     formData.append('text', text);
     formData.append('voice_id', voiceId);
-    formData.append('format', options?.format ?? 'opus');
 
     const response = await this.fetchWithTimeout('/v1/tts', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const detail = await this.extractErrorDetail(response);
-      throw new VoiceEngineError(response.status, detail);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    return {
-      audioBuffer: Buffer.from(arrayBuffer),
-      contentType: response.headers.get('content-type') ?? 'audio/wav',
-    };
-  }
-
-  /**
-   * Transcode a WAV buffer to Opus-in-Ogg via POST /v1/audio/transcode.
-   *
-   * Used by the multi-chunk TTS path: chunks are synthesized as WAV (so raw
-   * PCM can be concatenated), then the combined WAV is posted through here
-   * for a single Opus encode — matching single-chunk behavior so Discord
-   * never receives raw WAV that trips its 8 MiB attachment limit.
-   *
-   * On voice-engine-side ffmpeg failure, the server returns the original WAV
-   * with content-type audio/wav (defensive fallback — see /v1/audio/transcode
-   * docstring). Callers should treat contentType as authoritative rather than
-   * assuming audio/ogg.
-   */
-  async transcode(wavBuffer: Buffer): Promise<SynthesisResult> {
-    const formData = new FormData();
-    const blob = new Blob([new Uint8Array(wavBuffer)], { type: 'audio/wav' });
-    formData.append('file', blob, 'combined.wav');
-
-    const response = await this.fetchWithTimeout('/v1/audio/transcode', {
       method: 'POST',
       body: formData,
     });
