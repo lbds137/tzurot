@@ -21,19 +21,19 @@
     "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.41",
-    "@langchain/openai": "^1.4.4",
+    "@langchain/core": "^1.1.44",
+    "@langchain/openai": "^1.4.5",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.76.2",
+    "bullmq": "^5.76.5",
     "fast-xml-parser": "^5.7.2",
     "ioredis": "^5.10.0",
-    "langchain": "^1.3.4",
-    "onnxruntime-node": "^1.24.3",
+    "langchain": "^1.3.5",
+    "onnxruntime-node": "^1.25.1",
     "pino": "^10.3.1",
     "redis": "^5.12.1",
     "sharp": "^0.34.5",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
