@@ -39,6 +39,8 @@ import {
   mistralListVoices,
   mistralTTS,
   MistralApiError,
+  MistralReferenceAudioTooLongError,
+  MISTRAL_MAX_REFERENCE_AUDIO_SEC,
 } from '../MistralTtsClient.js';
 import { fetchVoiceReference } from '../voiceReferenceHelper.js';
 
@@ -231,6 +233,19 @@ export class MistralTtsProvider implements TtsProvider {
         // Rate limit (429) is transient — don't poison the negative cache
         if (error instanceof MistralApiError && error.isRateLimited) {
           logger.warn({ slug, reason }, 'Mistral voice clone rate limited (not cached)');
+        } else if (error instanceof MistralReferenceAudioTooLongError) {
+          // Deterministic from input — the audio length isn't going to shrink
+          // on retry. Skip the negative cache (it would add nothing), and emit
+          // a structured WARN so log consumers can route this distinct case.
+          logger.warn(
+            {
+              event: 'mistral.referenceAudioTooLong',
+              slug,
+              durationSec: error.durationSec,
+              limitSec: error.limitSec,
+            },
+            'Mistral reference audio exceeds 30s limit — skipping clone; dispatcher will attempt fallback if available'
+          );
         } else {
           this.negativeCache.set(cacheKey, reason);
           logger.warn({ slug, reason }, 'Mistral voice clone failed — cached for 5 min');
@@ -264,7 +279,17 @@ export class MistralTtsProvider implements TtsProvider {
     }
 
     // Step 2: fetch reference audio from api-gateway
-    const { audioBuffer, contentType } = await fetchVoiceReference(slug);
+    const { audioBuffer, contentType, durationSec } = await fetchVoiceReference(slug);
+
+    // Step 2.5: pre-flight Mistral's 30s reference-audio limit. Cheaper to
+    // reject here than to round-trip the full base64 payload to Mistral and
+    // get a 400 back — and `MistralReferenceAudioTooLongError` carries
+    // structured fields for diagnostic logging at the catch site. Only
+    // applies when we could parse the duration; unrecognized formats fall
+    // through to the reactive path (Mistral returns 400 if too long).
+    if (durationSec !== undefined && durationSec > MISTRAL_MAX_REFERENCE_AUDIO_SEC) {
+      throw new MistralReferenceAudioTooLongError(durationSec);
+    }
 
     // Step 3: clone
     logger.info({ slug, audioSize: audioBuffer.length }, 'Cloning voice via Mistral');
