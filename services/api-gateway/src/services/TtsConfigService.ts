@@ -35,6 +35,7 @@ import {
   TTS_CONFIG_DETAIL_SELECT,
   TTS_CONFIG_DEFAULTS,
   newTtsConfigId,
+  generateSystemGlobalTtsConfigUuid,
   generateClonedName,
   stripCopySuffix,
   isTtsProviderId,
@@ -263,9 +264,14 @@ export class TtsConfigService {
       return;
     }
 
+    // System-globals use deterministic UUIDs (uuidv5 from name) so dev and
+    // prod always produce the same ID for the same logical row. Without
+    // this, /admin db-sync collides on the (owner_id, name) composite-unique
+    // constraint when each env independently bootstrapped with random UUIDs.
+    // User-created configs continue to use newTtsConfigId() (UUIDv7).
     const result = await this.prisma.ttsConfig.createMany({
       data: SYSTEM_GLOBALS.map(seed => ({
-        id: newTtsConfigId(),
+        id: generateSystemGlobalTtsConfigUuid(seed.name),
         name: seed.name,
         description: seed.description,
         ownerId: superuser.id,
