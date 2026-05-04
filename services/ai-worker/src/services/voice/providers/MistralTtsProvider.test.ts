@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MistralTtsProvider } from './MistralTtsProvider.js';
-import { MistralApiError } from '../MistralTtsClient.js';
+import {
+  MistralApiError,
+  MistralReferenceAudioTooLongError,
+  MISTRAL_MAX_REFERENCE_AUDIO_SEC,
+} from '../MistralTtsClient.js';
 
 vi.mock('../MistralTtsClient.js', async importOriginal => {
   const actual = await importOriginal<typeof import('../MistralTtsClient.js')>();
@@ -155,6 +159,90 @@ describe('MistralTtsProvider', () => {
       const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
 
       expect(handle).toMatchObject({ kind: 'voiceId', id: 'voice-new' });
+    });
+  });
+
+  describe('prepare — reference-audio pre-flight (30s limit)', () => {
+    it('throws MistralReferenceAudioTooLongError when reference exceeds 30s, without calling clone', async () => {
+      mockedListVoices.mockResolvedValueOnce([]); // no existing voice → would clone
+      mockedFetchVoiceReference.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('reference-audio-bytes'),
+        contentType: 'audio/wav',
+        durationSec: 31.78, // recreating the prod incident shape
+      });
+
+      const promise = provider.prepare({ slug: 'ha-shem-keev-ima', byokKey: 'sk-test' });
+
+      const error = await promise.catch(e => e);
+      expect(error).toBeInstanceOf(MistralReferenceAudioTooLongError);
+      expect((error as MistralReferenceAudioTooLongError).durationSec).toBeCloseTo(31.78, 5);
+      expect((error as MistralReferenceAudioTooLongError).limitSec).toBe(
+        MISTRAL_MAX_REFERENCE_AUDIO_SEC
+      );
+      expect(mockedCloneVoice).not.toHaveBeenCalled();
+    });
+
+    it('proceeds to clone when reference is under the 30s limit', async () => {
+      mockedListVoices.mockResolvedValueOnce([]);
+      mockedFetchVoiceReference.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('reference-audio-bytes'),
+        contentType: 'audio/wav',
+        durationSec: 12.3,
+      });
+      mockedCloneVoice.mockResolvedValueOnce({
+        id: 'voice-new',
+        name: 'tzurot-emily',
+        userId: null,
+      });
+
+      const handle = await provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
+
+      expect(handle).toMatchObject({ kind: 'voiceId', id: 'voice-new' });
+      expect(mockedCloneVoice).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls through to reactive path when durationSec is undefined (unrecognized format)', async () => {
+      // mp3/ogg/m4a aren't parsed locally — fall through to whatever Mistral
+      // returns. This locks in the "advisory, not authoritative" semantics.
+      mockedListVoices.mockResolvedValueOnce([]);
+      mockedFetchVoiceReference.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('reference-audio-bytes'),
+        contentType: 'audio/mpeg',
+        durationSec: undefined,
+      });
+      mockedCloneVoice.mockResolvedValueOnce({
+        id: 'voice-new',
+        name: 'tzurot-emily',
+        userId: null,
+      });
+
+      await provider.prepare({ slug: 'emily', byokKey: 'sk-test' });
+
+      expect(mockedCloneVoice).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not negative-cache the deterministic too-long failure (re-prepare hits pre-flight again, not cache)', async () => {
+      mockedListVoices.mockResolvedValue([]);
+      mockedFetchVoiceReference.mockResolvedValue({
+        audioBuffer: Buffer.from('reference-audio-bytes'),
+        contentType: 'audio/wav',
+        durationSec: 35,
+      });
+
+      // First call fails pre-flight
+      await provider
+        .prepare({ slug: 'too-long-slug', byokKey: 'sk-test' })
+        .catch((): void => undefined);
+
+      // Second call also fails pre-flight (not the negative-cache message)
+      const error = await provider
+        .prepare({ slug: 'too-long-slug', byokKey: 'sk-test' })
+        .catch(e => e);
+
+      expect(error).toBeInstanceOf(MistralReferenceAudioTooLongError);
+      // If the negative cache had captured the first failure, the second call
+      // would throw a generic Error wrapping the cached `reason` string. The
+      // typed error confirms pre-flight ran cleanly both times.
     });
   });
 

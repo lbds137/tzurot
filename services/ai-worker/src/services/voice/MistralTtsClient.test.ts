@@ -7,8 +7,10 @@ import {
   mistralListVoices,
   mistralDeleteVoice,
   MistralApiError,
+  MistralReferenceAudioTooLongError,
   MistralResponseShapeError,
   MistralTimeoutError,
+  MISTRAL_MAX_REFERENCE_AUDIO_SEC,
 } from './MistralTtsClient.js';
 
 // We mock global fetch directly — MistralTtsClient uses it without an HTTP
@@ -406,5 +408,28 @@ describe('MistralResponseShapeError', () => {
     const shape = new MistralResponseShapeError('/v1/audio/speech', 'audio_data');
     expect(shape).toBeInstanceOf(MistralResponseShapeError);
     expect(shape).not.toBeInstanceOf(MistralApiError);
+  });
+});
+
+// ===== MistralReferenceAudioTooLongError ====================================
+
+describe('MistralReferenceAudioTooLongError', () => {
+  it('carries durationSec and limitSec on the error instance', () => {
+    const err = new MistralReferenceAudioTooLongError(31.78);
+    expect(err.durationSec).toBeCloseTo(31.78, 5);
+    expect(err.limitSec).toBe(MISTRAL_MAX_REFERENCE_AUDIO_SEC);
+    expect(err.message).toMatch(/31\.78s/);
+    expect(err.message).toMatch(/30\.0s/);
+  });
+
+  it('flags as non-transient (deterministic from input — retry would fail again)', () => {
+    expect(new MistralReferenceAudioTooLongError(35).isTransient).toBe(false);
+  });
+
+  it('is a separate class from MistralApiError (instanceof discrimination)', () => {
+    const tooLong = new MistralReferenceAudioTooLongError(40);
+    expect(tooLong).toBeInstanceOf(MistralReferenceAudioTooLongError);
+    expect(tooLong).not.toBeInstanceOf(MistralApiError);
+    expect(tooLong).not.toBeInstanceOf(MistralResponseShapeError);
   });
 });

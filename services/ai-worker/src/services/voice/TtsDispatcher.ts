@@ -11,15 +11,20 @@
  *
  * Walk semantics:
  *
- *   1. Build the chain: `[primary, ...remaining-available, self-hosted]`,
- *      deduped and filtered by `isAvailable(ctx)`. Self-hosted is always
- *      appended last as the safety net (assuming VOICE_ENGINE_URL is set —
- *      registry omits it otherwise).
+ *   1. Build the chain: `[primary, self-hosted]`, deduped and filtered by
+ *      `isAvailable(ctx)`. Self-hosted is the only safety-net fallback —
+ *      cross-paid fallbacks (Mistral → ElevenLabs and vice versa) are
+ *      deliberately excluded so a user who configured one paid provider
+ *      doesn't get billed by the other. If primary IS self-hosted, the
+ *      chain is just `[self-hosted]` (no fallback). If `VOICE_ENGINE_URL`
+ *      is unset, the registry omits self-hosted and the chain may be just
+ *      `[primary]` or empty.
  *
  *   2. For each candidate, call `prepare()` then `synthesize()`. The primary
- *      candidate sees the real `ResolvedTtsConfig`; fallback candidates see a
- *      synthetic "self-named" config (the resolved config's `modelId` and
- *      `advancedParameters` only apply to its own provider).
+ *      candidate sees the real `ResolvedTtsConfig` and the original
+ *      `ctx.modelId`; fallback candidates see a synthetic "self-named" config
+ *      AND a sanitized ctx (no modelId) — provider-specific model identifiers
+ *      and advanced params don't cross provider boundaries.
  *
  *   3. On any error:
  *      - If the error is a `TtsProviderError` with `isFallbackEligible: false`
@@ -126,21 +131,20 @@ function describeError(error: unknown): string {
 /**
  * Build the ordered list of provider ids the dispatcher will attempt.
  *
- * Order:
- *   1. Primary (from resolved config) if available
- *   2. Other registered providers in registration order, available, not equal to primary
- *   3. `self-hosted` always last (deduped — if it's already in the list it stays at its earlier position)
+ * Rule: paid → free only. The chain is at most `[primary, self-hosted]`,
+ * deduped — if primary IS self-hosted, the chain is `[self-hosted]` with
+ * no fallback. Cross-paid fallbacks (Mistral → ElevenLabs or vice versa)
+ * are deliberately excluded: a user who configured Mistral did not opt
+ * into ElevenLabs billing, and vice versa.
  *
- * `isAvailable` and BYOK key presence are checked here so the walk loop is
- * a clean iteration.
+ * Symmetrically, a user whose primary is self-hosted does not implicitly
+ * opt into ANY paid provider — self-hosted-primary configurations have no
+ * fallback (the chain is just `[self-hosted]`).
  *
- * Note: if the primary provider is unavailable, the walk continues to BYOK
- * providers the user has configured, then self-hosted. A user whose primary
- * is self-hosted and whose `VOICE_ENGINE_URL` is unset will fall back to
- * BYOK providers (Mistral / ElevenLabs) if they have keys configured —
- * intentional graceful degradation, but callers should be aware that a
- * self-hosted-primary configuration can produce BYOK synthesis when the
- * voice-engine is misconfigured.
+ * If the primary is BYOK and unavailable (no key, isAvailable returns false),
+ * the chain falls through to `[self-hosted]` only. If self-hosted is also
+ * unavailable (VOICE_ENGINE_URL unset), the chain is empty and dispatchTts
+ * raises a structured error explaining why.
  */
 function buildFallbackChain(
   resolvedConfig: ResolvedTtsConfig,
@@ -159,7 +163,8 @@ function buildFallbackChain(
         return false;
       }
     }
-    return provider.isAvailable(buildCtxForProvider(ctx, id, audioProviderKeys));
+    const isPrimaryAttempt = id === resolvedConfig.provider;
+    return provider.isAvailable(buildCtxForProvider(ctx, id, audioProviderKeys, isPrimaryAttempt));
   };
 
   const chain: TtsProviderId[] = [];
@@ -173,11 +178,6 @@ function buildFallbackChain(
   };
 
   add(resolvedConfig.provider);
-  for (const id of registry.listProviderIds()) {
-    if (id !== SELF_HOSTED) {
-      add(id);
-    }
-  }
   add(SELF_HOSTED);
 
   return chain;
@@ -188,18 +188,28 @@ function buildFallbackChain(
  * provider-specific BYOK key if applicable. The caller-supplied ctx may carry
  * a `byokKey` set for the primary provider; for fallback providers we look up
  * their own key from the audioProviderKeys map (or leave it undefined).
+ *
+ * `modelId` is only forwarded on the primary attempt. Provider-specific model
+ * identifiers don't cross provider boundaries — handing Mistral's
+ * `voxtral-mini-tts-2603` to ElevenLabs causes a 400. `buildSyntheticConfigFor`
+ * already drops modelId from the fallback's `ResolvedTtsConfig`; this closes
+ * the parallel ctx-path leak (provider implementations read `ctx.modelId`,
+ * not `config.modelId`, so both paths must be sanitized).
  */
 function buildCtxForProvider(
   baseCtx: TtsContext,
   providerId: TtsProviderId,
-  audioProviderKeys: ReadonlyMap<AudioProviderId, string>
+  audioProviderKeys: ReadonlyMap<AudioProviderId, string>,
+  isPrimaryAttempt: boolean
 ): TtsContext {
+  const modelId = isPrimaryAttempt ? baseCtx.modelId : undefined;
+
   if (!BYOK_PROVIDERS.has(providerId)) {
-    return { slug: baseCtx.slug, modelId: baseCtx.modelId };
+    return { slug: baseCtx.slug, modelId };
   }
   const audioId = TTS_TO_AUDIO_PROVIDER.get(providerId);
   const byokKey = audioId !== undefined ? audioProviderKeys.get(audioId) : undefined;
-  return { slug: baseCtx.slug, modelId: baseCtx.modelId, byokKey };
+  return { slug: baseCtx.slug, modelId, byokKey };
 }
 
 /**
@@ -248,7 +258,7 @@ async function attemptCandidate(input: AttemptInput): Promise<AttemptOutcome> {
   }
 
   const candidateConfig = isPrimaryAttempt ? resolvedConfig : buildSyntheticConfigFor(candidateId);
-  const candidateCtx = buildCtxForProvider(ctx, candidateId, audioProviderKeys);
+  const candidateCtx = buildCtxForProvider(ctx, candidateId, audioProviderKeys, isPrimaryAttempt);
 
   // Defensive backstop — `buildFallbackChain` already filters by `isAvailable`
   // and fallback synthetic configs name the candidate provider, so `canHandle`

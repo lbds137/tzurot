@@ -42,6 +42,16 @@ const MISTRAL_FAST_TIMEOUT_MS = 15_000;
 /** Default page size for list voices. Smoke test confirmed 50 works. */
 const VOICE_LIST_PAGE_SIZE = 50;
 
+/**
+ * Mistral's `/v1/audio/voices` (clone) endpoint rejects reference audio with
+ * duration > 30s using HTTP 400 ("Reference audio duration {N}s exceeds the
+ * maximum allowed duration of 30.0s"). The provider pre-flight-checks this
+ * locally to avoid the wasted round-trip + negative-cache poisoning that the
+ * reactive path produces. Empirically observed in prod 2026-05-04 via the
+ * `ha-shem-keev-ima` slug (31.78s reference).
+ */
+export const MISTRAL_MAX_REFERENCE_AUDIO_SEC = 30;
+
 // ============================================================================
 // Public types
 // ============================================================================
@@ -143,6 +153,34 @@ export class MistralResponseShapeError extends Error {
 
   /** Transient: response-shape failures may stabilize on retry. */
   readonly isTransient = true;
+}
+
+/**
+ * Pre-flight rejection: the supplied reference audio exceeds Mistral's
+ * documented 30s limit, so calling the clone endpoint would deterministically
+ * return HTTP 400. Caller should skip Mistral and fall through to self-hosted
+ * without the wasted round-trip. Carries `durationSec` for structured logging.
+ *
+ * `isTransient = false`: the failure is deterministic from input, so the
+ * negative-cache (which exists to suppress retry storms on transient failures)
+ * adds nothing — re-running with the same reference will hit this same
+ * pre-flight check.
+ */
+export class MistralReferenceAudioTooLongError extends Error {
+  readonly durationSec: number;
+  readonly limitSec: number;
+
+  constructor(durationSec: number, limitSec: number = MISTRAL_MAX_REFERENCE_AUDIO_SEC) {
+    super(
+      `Mistral reference audio duration ${durationSec.toFixed(2)}s exceeds the maximum allowed duration of ${limitSec.toFixed(1)}s`
+    );
+    this.name = 'MistralReferenceAudioTooLongError';
+    this.durationSec = durationSec;
+    this.limitSec = limitSec;
+    Object.setPrototypeOf(this, MistralReferenceAudioTooLongError.prototype);
+  }
+
+  readonly isTransient = false;
 }
 
 // ============================================================================
