@@ -21,6 +21,7 @@ import {
   mockDeleteLlmConfigResponse,
 } from './llm-config.js';
 import { mockClearDefaultConfigResponse } from './model-override.js';
+import { mockClearTtsDefaultConfigResponse } from './tts-override.js';
 
 describe('personality factories', () => {
   describe('mockListPersonalitiesResponse', () => {
@@ -330,6 +331,31 @@ describe('mockClearDefaultConfigResponse', () => {
     expect(() =>
       // newEffectiveDefault must have both id and name; missing name → invalid
       mockClearDefaultConfigResponse({
+        newEffectiveDefault: { id: 'free-id' } as never,
+      })
+    ).toThrow();
+  });
+});
+
+describe('mockClearTtsDefaultConfigResponse', () => {
+  it('produces a valid default-shape response with newEffectiveDefault: null', () => {
+    const response = mockClearTtsDefaultConfigResponse();
+    expect(response).toEqual({ deleted: true, newEffectiveDefault: null });
+  });
+
+  it('accepts a populated newEffectiveDefault override', () => {
+    const response = mockClearTtsDefaultConfigResponse({
+      newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
+      wasSet: true,
+    });
+    expect(response.newEffectiveDefault).toEqual({ id: 'free-id', name: 'kyutai-self-hosted' });
+    expect(response.wasSet).toBe(true);
+  });
+
+  it('throws ZodError on invalid override shape', () => {
+    expect(() =>
+      // newEffectiveDefault must have both id and name; missing name → invalid
+      mockClearTtsDefaultConfigResponse({
         newEffectiveDefault: { id: 'free-id' } as never,
       })
     ).toThrow();
