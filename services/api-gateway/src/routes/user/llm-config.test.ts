@@ -589,6 +589,63 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
+    // Bot-owner short-circuit is exercised at the helper level in
+    // `normalizeConfigNameOnPromote.test.ts` (which mocks isBotOwner directly).
+    // Mocking `isBotOwner` at the route level would require deep internals
+    // (the package's `slugUtils.ts` calls a relative-path `isBotOwner`, not
+    // the public export), so the route test focuses on the non-owner path
+    // and trusts the helper unit tests for the bot-owner path.
+    it('suffixes the name with username when non-owner promotes to global', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'AdminVoice',
+      });
+      // Existing-name check: the post-normalization name doesn't collide
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'AdminVoice-bob',
+        description: null,
+        model: 'test-model',
+        provider: 'openrouter',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: false,
+        ownerId: 'user-uuid-123',
+        advancedParameters: {},
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const req = {
+        body: { isGlobal: true },
+        params: { id: 'config-123' },
+        userId: 'discord-user-123',
+        provisionedUserId: 'user-uuid-123',
+        provisionedDefaultPersonaId: 'persona-uuid-default',
+        headers: { 'x-user-username': 'bob' },
+      } as unknown as Request & { userId: string };
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis(),
+      } as unknown as Response;
+
+      await handler(req, res);
+
+      // The update call should have name: 'AdminVoice-bob' even though body had no name
+      expect(mockPrisma.llmConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'config-123' },
+          data: expect.objectContaining({ name: 'AdminVoice-bob', isGlobal: true }),
+        })
+      );
+    });
+
     it('should allow owner to edit own global config', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',

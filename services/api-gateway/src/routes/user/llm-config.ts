@@ -42,6 +42,10 @@ import {
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { enrichWithModelContext } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
+import {
+  computeNameForPromotion,
+  getDiscordUsernameFromRequest,
+} from '../../utils/normalizeConfigNameOnPromote.js';
 import { createResolveHandler } from './llmConfigResolve.js';
 
 const logger = createLogger('user-llm-config');
@@ -248,27 +252,55 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       return sendError(res, ErrorResponses.unauthorized('You can only edit your own configs'));
     }
 
-    // Check for duplicate name if name is being changed
-    if (body.name !== undefined) {
-      const nameCheck = await service.checkNameExists(
-        body.name,
-        { type: 'USER', userId, discordId: discordUserId },
-        configId
-      );
-      if (nameCheck.exists) {
-        return sendError(
-          res,
-          ErrorResponses.nameCollision(`You already have a config named "${body.name}"`)
-        );
-      }
-    }
-
+    // Empty-body guard runs BEFORE the promotion helper so that a PUT with
+    // `{}` returns 400 (preserves the original API contract) rather than
+    // silently triggering a retroactive rename on already-global configs
+    // whose name predates this PR.
     if (Object.keys(body).length === 0) {
       return sendError(res, ErrorResponses.validationError('No fields to update'));
     }
 
-    // Update using service (handles cache invalidation)
-    const updated = await service.update(configId, body);
+    // If the user is promoting their own config to global (or already had it
+    // global and is renaming), suffix the name with their username so other
+    // users can identify provenance — prevents non-bot-owners from creating
+    // names that look admin-curated. Bot owner gets unsuffixed names per
+    // `normalizeSlugForUser`'s built-in semantic.
+    const effectiveName = computeNameForPromotion({
+      currentName: config.name,
+      currentIsGlobal: config.isGlobal,
+      requestedName: body.name,
+      requestedIsGlobal: body.isGlobal,
+      discordId: discordUserId,
+      discordUsername: getDiscordUsernameFromRequest(req),
+    });
+    const patch = { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
+
+    // Check for duplicate name if a name is being applied (either user-supplied
+    // or normalized by the promotion helper). Use the post-normalization value
+    // so collision checks reflect what will actually land in the DB.
+    if (patch.name !== undefined && patch.name.length > 0) {
+      const nameCheck = await service.checkNameExists(
+        patch.name,
+        { type: 'USER', userId, discordId: discordUserId },
+        configId
+      );
+      if (nameCheck.exists) {
+        // When the post-normalization name differs from what the user
+        // actually typed (either the user sent only `{ isGlobal: true }`
+        // and the suffix was synthesized, OR they typed a base name that
+        // got suffixed), the message should explain the auto-rename rather
+        // than imply they chose the exact colliding name.
+        const wasNormalized = patch.name !== body.name;
+        const msg = wasNormalized
+          ? `Promotion would rename your config to "${patch.name}", but that name is already taken`
+          : `You already have a config named "${patch.name}"`;
+        return sendError(res, ErrorResponses.nameCollision(msg));
+      }
+    }
+
+    // Update using service (handles cache invalidation). Empty-body guard
+    // ran earlier; patch is guaranteed non-empty here.
+    const updated = await service.update(configId, patch);
 
     // User always owns their own updated config (we already checked ownership above)
     const permissions = computeLlmConfigPermissions(
