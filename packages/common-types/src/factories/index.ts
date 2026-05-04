@@ -31,3 +31,6 @@ export * from './timezone.js';
 
 // LLM Config endpoint mocks
 export * from './llm-config.js';
+
+// TTS Override endpoint mocks
+export * from './tts-override.js';
