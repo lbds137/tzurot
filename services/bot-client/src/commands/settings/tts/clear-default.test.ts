@@ -27,6 +27,8 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+import { mockClearTtsDefaultConfigResponse } from '@tzurot/common-types';
+
 const { handleTtsClearDefault: handleClearDefault } = await import('./clear-default.js');
 
 function makeContext() {
@@ -44,7 +46,7 @@ describe('handleClearDefault', () => {
   it('hits DELETE /user/tts-override/default and shows success embed', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { deleted: true, newEffectiveDefault: null },
+      data: mockClearTtsDefaultConfigResponse(),
     });
     const context = makeContext();
 
@@ -68,10 +70,9 @@ describe('handleClearDefault', () => {
   it('renders the new effective default name when one exists', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        deleted: true,
+      data: mockClearTtsDefaultConfigResponse({
         newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
-      },
+      }),
     });
     const context = makeContext();
 
@@ -93,7 +94,7 @@ describe('handleClearDefault', () => {
   it('renders hardcoded-fallback notice when newEffectiveDefault is null', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { deleted: true, newEffectiveDefault: null },
+      data: mockClearTtsDefaultConfigResponse({ newEffectiveDefault: null }),
     });
     const context = makeContext();
 
