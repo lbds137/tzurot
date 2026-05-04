@@ -73,6 +73,26 @@ describe('normalizeSlugForUser', () => {
     });
   });
 
+  describe('idempotency', () => {
+    it('does not double-suffix an already-normalized slug for the same user', () => {
+      // Without idempotency: 'lilith-bob' → 'lilith-bob-bob'. With it: stays 'lilith-bob'.
+      const result = normalizeSlugForUser('lilith-bob', 'user-456', 'bob');
+      expect(result).toBe('lilith-bob');
+    });
+
+    it('still appends suffix when slug ends in a different username', () => {
+      // 'lilith-alice' from user 'bob' should become 'lilith-alice-bob' — alice's suffix
+      // is part of the base slug from bob's perspective, not bob's own suffix.
+      const result = normalizeSlugForUser('lilith-alice', 'user-456', 'bob');
+      expect(result).toBe('lilith-alice-bob');
+    });
+
+    it('idempotent on the user-id fallback suffix when username sanitizes empty', () => {
+      const result = normalizeSlugForUser('char-user-456', 'user-456', '!!!');
+      expect(result).toBe('char-user-456');
+    });
+  });
+
   describe('edge cases', () => {
     it('should fall back to user ID if username sanitizes to empty', () => {
       const result = normalizeSlugForUser('char', 'user-456', '!!!');

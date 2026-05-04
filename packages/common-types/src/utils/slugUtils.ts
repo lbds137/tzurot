@@ -56,10 +56,15 @@ export function normalizeSlugForUser(
 
   // Regular users get username appended
   const sanitizedUsername = sanitizeUsernameForSlug(discordUsername);
-  if (sanitizedUsername.length === 0) {
-    // Fallback to user ID if username sanitizes to empty string
-    return `${slug}-${discordUserId}`;
+  const suffix = sanitizedUsername.length === 0 ? `-${discordUserId}` : `-${sanitizedUsername}`;
+
+  // Idempotent: if the slug is already suffixed for this user, leave it alone.
+  // Without this, calling normalizeSlugForUser on a previously-normalized slug
+  // would double-suffix (`lilith-bob` → `lilith-bob-bob`). Matters in update
+  // paths where the input may already carry the suffix from a prior call.
+  if (slug.endsWith(suffix)) {
+    return slug;
   }
 
-  return `${slug}-${sanitizedUsername}`;
+  return `${slug}${suffix}`;
 }
