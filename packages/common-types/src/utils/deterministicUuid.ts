@@ -182,6 +182,13 @@ export function generateByokTtsConfigUuid(ownerId: string, provider: string): st
  * Mirrors {@link generateByokTtsConfigUuid}. Currently unused — LLM has no
  * equivalent BYOK auto-migration today. Exported for symmetry and to
  * reserve the namespace for future use.
+ *
+ * **Knip note**: same as {@link generateSystemGlobalLlmConfigUuid} — no
+ * production callers by design. The pinned-value test in
+ * `deterministicUuid.test.ts` plus the barrel `export *` from common-types
+ * keep this reachable. If a future knip configuration starts flagging
+ * future-reserved exports, suppress with a `knip-ignore` directive
+ * pointing at this JSDoc rather than removing the helper.
  */
 export function generateByokLlmConfigUuid(ownerId: string, provider: string): string {
   return uuidv5(`llm_config_byok:${ownerId}:${provider}`, TZUROT_NAMESPACE);

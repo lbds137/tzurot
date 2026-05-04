@@ -508,6 +508,9 @@ describe('Deterministic UUID Generation', () => {
       expect(generateByokLlmConfigUuid(TEST_OWNER, 'elevenlabs')).toBe(
         '7f8a3518-336b-5dc8-973e-cc302405d333'
       );
+      expect(generateByokLlmConfigUuid(TEST_OWNER, 'openrouter')).toBe(
+        '287bae65-55ef-591a-9cd1-c567b5d3e2e1'
+      );
     });
   });
 });
