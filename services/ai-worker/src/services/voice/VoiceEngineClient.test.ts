@@ -334,110 +334,21 @@ describe('VoiceEngineClient', () => {
       expect(result.contentType).toBe('audio/wav');
     });
 
-    it('should default format to opus in FormData when caller omits it', async () => {
+    it('does not pass a format field — voice-engine always returns WAV', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
-        headers: { get: vi.fn().mockReturnValue('audio/ogg') },
+        headers: { get: vi.fn().mockReturnValue('audio/wav') },
       });
 
       await client.synthesize('Hello', 'voice-1');
 
       const [, init] = mockFetch.mock.calls[0];
       const body = init.body as FormData;
-      expect(body.get('format')).toBe('opus');
-    });
-
-    it('should pass format=wav in FormData when requested by caller (multi-chunk path)', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
-        headers: { get: vi.fn().mockReturnValue('audio/wav') },
-      });
-
-      await client.synthesize('Hello', 'voice-1', { format: 'wav' });
-
-      const [, init] = mockFetch.mock.calls[0];
-      const body = init.body as FormData;
-      expect(body.get('format')).toBe('wav');
-    });
-  });
-
-  describe('transcode', () => {
-    it('should POST to /v1/audio/transcode and return audio buffer + content type', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([0x4f, 0x67, 0x67, 0x53]).buffer),
-        headers: { get: vi.fn().mockReturnValue('audio/ogg') },
-      });
-
-      const result = await client.transcode(Buffer.from('RIFFfakewav'));
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://voice-engine:8000/v1/audio/transcode',
-        expect.objectContaining({ method: 'POST' })
-      );
-      expect(result.audioBuffer).toBeInstanceOf(Buffer);
-      expect(result.contentType).toBe('audio/ogg');
-    });
-
-    it('should surface audio/wav content type when voice-engine fell back', async () => {
-      // voice-engine returns the original WAV if ffmpeg fails — caller must
-      // treat contentType as authoritative, not assume audio/ogg.
-      mockFetch.mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(100)),
-        headers: { get: vi.fn().mockReturnValue('audio/wav') },
-      });
-
-      const result = await client.transcode(Buffer.from('RIFFfakewav'));
-
-      expect(result.contentType).toBe('audio/wav');
-    });
-
-    it('should throw VoiceEngineError on non-OK response', async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 413,
-        statusText: 'Payload Too Large',
-        json: vi.fn().mockResolvedValue({ detail: 'Audio file too large' }),
-      });
-
-      await expect(client.transcode(Buffer.from('huge-wav'))).rejects.toMatchObject({
-        name: 'VoiceEngineError',
-        status: 413,
-        message: expect.stringContaining('Audio file too large'),
-      });
-    });
-
-    it('should send WAV buffer as multipart file field', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
-        headers: { get: vi.fn().mockReturnValue('audio/ogg') },
-      });
-
-      await client.transcode(Buffer.from('RIFF-wav-data'));
-
-      const [, init] = mockFetch.mock.calls[0];
-      const body = init.body as FormData;
-      // FormData blob size should match input buffer length — structural proof
-      // the buffer was attached under the 'file' field the server expects.
-      const fileField = body.get('file');
-      expect(fileField).toBeInstanceOf(Blob);
-      expect((fileField as Blob).size).toBe(13);
-    });
-
-    it('should fall back to audio/wav when content-type header is missing', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(50)),
-        headers: { get: vi.fn().mockReturnValue(null) },
-      });
-
-      const result = await client.transcode(Buffer.from('RIFFfake'));
-
-      expect(result.contentType).toBe('audio/wav');
+      // Pre-cleanup the client sent format=opus by default and format=wav for
+      // multi-chunk. After consolidating Opus encoding into ai-worker's
+      // audioNormalizer, voice-engine always returns WAV; no format field needed.
+      expect(body.get('format')).toBeNull();
     });
   });
 

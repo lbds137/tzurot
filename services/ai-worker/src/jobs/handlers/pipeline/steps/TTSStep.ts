@@ -256,9 +256,17 @@ export class TTSStep implements IPipelineStep {
     try {
       const normalized = await normalizeLoudness(audioBuffer);
       storedBuffer = normalized;
-      // normalizeLoudness always emits canonical PCM WAV 16-bit 24kHz mono.
-      storedContentType = 'audio/wav';
+      // normalizeLoudness emits Opus-in-Ogg (single ffmpeg pass: loudnorm +
+      // libopus). Discord-friendly compressed output, ~10x smaller than the
+      // uncompressed WAV path that preceded this consolidation.
+      storedContentType = 'audio/ogg';
     } catch (error) {
+      // On normalize failure (ffmpeg missing, pipe error), fall back to the
+      // raw audioBuffer. For multi-chunk synthesis this is the concatenated
+      // WAV — potentially several MiB on long output. DiscordResponseSender
+      // bounds the upload via DISCORD_LIMITS.FILE_UPLOAD_MAX_BYTES (8 MiB)
+      // and substitutes a small notice attachment when exceeded, so the
+      // pathological-size case fails loud rather than silently truncating.
       logger.warn(
         { err: error, slug, originalBytes: audioBuffer.length },
         'Audio loudness normalization failed — storing unnormalized output'
