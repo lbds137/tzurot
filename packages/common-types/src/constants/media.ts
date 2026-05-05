@@ -8,10 +8,25 @@
  * Media processing limits and quality settings
  */
 export const MEDIA_LIMITS = {
-  /** Maximum image size before resizing (10 MiB) */
-  MAX_IMAGE_SIZE: 10 * 1024 * 1024,
-  /** Target size for resized images (8 MiB) */
-  IMAGE_TARGET_SIZE: 8 * 1024 * 1024,
+  /**
+   * Maximum image size before resizing (5 MiB). Images at or below this size
+   * pass through unchanged; anything larger is resized down toward
+   * IMAGE_TARGET_SIZE. Sized so up to 20 attachments per message (Discord
+   * trigger + extended context, ~5 MiB each) fit under
+   * MAX_AGGREGATE_PAYLOAD_BYTES (100 MiB).
+   */
+  MAX_IMAGE_SIZE: 5 * 1024 * 1024,
+  /**
+   * Target size for resized images (4 MiB). Deliberately set BELOW
+   * MAX_IMAGE_SIZE to leave a 20% safety margin for JPEG re-encoding
+   * variability — `resizeImageIfNeeded` uses sqrt(target/original) for the
+   * scale factor, but the actual byte size of the output JPEG depends on
+   * content entropy and quality settings, not just dimensions. Without
+   * this margin, an image just barely over MAX_IMAGE_SIZE could resize
+   * to something STILL over MAX_IMAGE_SIZE (output would pass the
+   * aggregate cap but technically violate the per-image invariant).
+   */
+  IMAGE_TARGET_SIZE: 4 * 1024 * 1024,
   /** JPEG quality for resized images (0-100) */
   IMAGE_QUALITY: 85,
 } as const;
