@@ -1,31 +1,29 @@
 # Current
 
-> **Session**: 2026-05-04 — v3.0.0-beta.115 SHIPPED (TTS Engine Upgrade Phase 1)
-> **Version**: v3.0.0-beta.115 (release freeze LIFTED — Phase 1 dev-validated and shipped; Phase 3 next)
-> **🚧 Release freeze status**: LIFTED for beta.115. Phase 1 (Mistral Voxtral BYOK + TTS provider abstraction + audio unification + db-sync wiring) shipped and prod-migrated 2026-05-04. Phase 3 (STT cutover) and Phase 2 (NeuTTS Air) remain — develop will accumulate those before any subsequent release.
+> **Session**: 2026-05-05 — v3.0.0-beta.116 SHIPPED (TTS post-deploy hardening + attachment-cap fix + read-before-merge hook)
+> **Version**: v3.0.0-beta.116
+> **🚧 Release freeze status**: LIFTED. Phase 3 (STT cutover) and Phase 2 (NeuTTS Air) remain on the TTS Engine Upgrade epic — develop will accumulate those before any subsequent release.
 
 ---
 
 ## Next Session Goal
 
-**Phase 3 (STT cutover) plan-mode pass.** With Phase 1 shipped, the remaining design work is the STT layered-resolution chain that pairs with the TTS BYOK provider. Council surfaced 3 issues with deriving STT from TTS-default during planning (NeuTTS Air is TTS-only, discoverability cost, bot-owner cost decoupling) — reconcile with a 4-layer fallback chain: user explicit override → derive from TTS provider → admin-configured system STT default → voice-engine fallback.
+**Phase 3 (STT cutover) plan-mode pass** OR **`/settings tts` UX phase** — pivoting from TTS-mechanics work (which closed cleanly across beta.115 + beta.116) into either the STT layered-resolution chain or the user-facing TTS UX surface. Phase 3 is the larger architectural piece (4-layer fallback chain: user explicit override → derive from TTS provider → admin-configured system STT default → voice-engine fallback); the `/settings tts` UX is the smaller user-visible polish on what's already shipped.
 
-**Optional warm-up before Phase 3 plan-mode**: tackle some of the 14 inbox items filed during Phase 1 closeout — many are small Quick Wins shaped for opportunistic cleanup (factory JSDoc tightening, voip flag stale comment, MistralTtsProvider perf, dispose() interface contract, etc.). Useful to clear before opening a new plan window.
+**Beta.116 shipped** (post-Phase-1 hardening + tooling):
 
-**Beta.115 shipped**:
-
-- Mistral Voxtral BYOK provider with cost-telemetry-driven fallback chain
-- TTS config CRUD (cascade pattern parallel to LLM configs) — `/settings tts ...` subcommand group
-- Audio post-processing unified to single ffmpeg pass (Opus/Ogg, ~10× smaller Discord uploads)
-- P2002 cross-user collision fix + cross-admin global-name race protection (partial unique index)
-- db-sync wiring for tts_configs (parallel to LLM singleton conflict resolution)
-- 2 new DEFERRABLE migrations + 1 partial unique migration (all applied to dev + prod)
+- TTS dispatch-layer cleanup, Mistral hygiene, Mistral list-failure handling, TTS fallback semantics + 30s pre-flight (PRs #974–#977)
+- Config-service `checkDeleteConstraints` returns `{ blocker, warning }` (LLM + TTS pair fix, #978)
+- TTS default-config Ouroboros sync int test (#980)
+- Attachment aggregate cap raised to 100 MiB, per-image lowered to 5 MiB (#981 — real user fix)
+- `pr-merge-review-check` hook structurally enforces "read claude-review before `gh pr merge`" (#979)
+- Recovery migration `20260504140720_align_tts_globals_to_deterministic_ids` (already prod-applied prior to release)
 
 ---
 
 ## Unreleased on Develop
 
-_(empty — develop is currently SHA-aligned with main at v3.0.0-beta.115)_
+_(empty — develop is currently SHA-aligned with main at v3.0.0-beta.116)_
 
 ---
 
