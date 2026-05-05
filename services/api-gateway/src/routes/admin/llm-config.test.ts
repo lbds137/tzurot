@@ -53,6 +53,7 @@ const createMockPrismaClient = () => {
 
   const mockUser = {
     findUnique: vi.fn(),
+    count: vi.fn().mockResolvedValue(0),
   };
 
   return {
@@ -697,6 +698,8 @@ describe('Admin LLM Config Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.deleted).toBe(true);
+      // Clean delete (no users adopting): warning field absent from response.
+      expect(response.body.warning).toBeUndefined();
     });
 
     it('should return 404 when config not found', async () => {
@@ -760,6 +763,46 @@ describe('Admin LLM Config Routes', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toMatch(/5 user override/i);
+    });
+
+    it('should propagate non-null warning to response body when users adopt config as personal default', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Adopted Config',
+        isGlobal: true,
+        isDefault: false,
+      });
+      prisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      prisma.userPersonalityConfig.count.mockResolvedValue(0);
+      prisma.user.count.mockResolvedValue(7);
+      prisma.llmConfig.delete.mockResolvedValue({});
+
+      const response = await request(app).delete('/admin/llm-config/config-id');
+
+      expect(response.status).toBe(200);
+      expect(response.body.deleted).toBe(true);
+      expect(response.body.warning).toMatch(/7 user/i);
+    });
+
+    it('should drop warning when blocker also fires (blocker wins)', async () => {
+      // Deliberate behavior: when a delete is blocked, the admin can't proceed
+      // until they reassign — so showing both blocker + warning at once is
+      // informational not actionable. The 400 response carries blocker only;
+      // the warning surfaces on the retry after the blocker is cleared.
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        isGlobal: true,
+        isDefault: false,
+      });
+      prisma.personalityDefaultConfig.count.mockResolvedValue(2);
+      prisma.userPersonalityConfig.count.mockResolvedValue(0);
+      prisma.user.count.mockResolvedValue(7);
+
+      const response = await request(app).delete('/admin/llm-config/config-id');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/2 personality/i);
+      expect(response.body.warning).toBeUndefined();
     });
   });
 

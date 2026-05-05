@@ -35,7 +35,7 @@ const { mockService, MockTtsConfigService } = vi.hoisted(() => {
     setAsDefault: vi.fn().mockResolvedValue(undefined),
     setAsFreeDefault: vi.fn().mockResolvedValue(undefined),
     checkNameExists: vi.fn().mockResolvedValue({ exists: false }),
-    checkDeleteConstraints: vi.fn().mockResolvedValue(null),
+    checkDeleteConstraints: vi.fn().mockResolvedValue({ blocker: null, warning: null }),
     formatConfigDetail: vi.fn(),
   };
   function MockTtsConfigService() {
@@ -120,6 +120,7 @@ const mockPrisma = {
   },
   user: {
     findUnique: vi.fn(),
+    count: vi.fn().mockResolvedValue(0),
   },
 };
 
@@ -142,7 +143,10 @@ describe('admin/tts-config routes', () => {
       params: {},
     }));
     vi.mocked(mockService.checkNameExists).mockResolvedValue({ exists: false });
-    vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue(null);
+    vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue({
+      blocker: null,
+      warning: null,
+    });
   });
 
   describe('GET / (list)', () => {
@@ -465,9 +469,10 @@ describe('admin/tts-config routes', () => {
 
     it('returns 400 when delete constraints block', async () => {
       vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
-      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue(
-        'Cannot delete: TTS config is used as default by 2 personality(ies)'
-      );
+      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue({
+        blocker: 'Cannot delete: TTS config is used as default by 2 personality(ies)',
+        warning: null,
+      });
       const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
       const { res, json } = makeMockRes();
 
@@ -484,6 +489,49 @@ describe('admin/tts-config routes', () => {
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
       expect(mockService.delete).toHaveBeenCalledWith('cfg-uuid-1');
       expect(json).toHaveBeenCalledWith(expect.objectContaining({ deleted: true }));
+      // Clean delete (no users adopting): warning field absent from response.
+      const callArgs = vi.mocked(json).mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+      expect(callArgs?.warning).toBeUndefined();
+    });
+
+    it('propagates non-null warning into the success response body', async () => {
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue({
+        blocker: null,
+        warning: "Deleting this TTS config will reset 3 user(s)' personal default to NULL",
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(mockService.delete).toHaveBeenCalledWith('cfg-uuid-1');
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deleted: true,
+          warning: expect.stringContaining('3 user'),
+        })
+      );
+    });
+
+    it('drops warning when blocker also fires (blocker wins)', async () => {
+      // Deliberate behavior: when a delete is blocked, the admin can't proceed
+      // until they reassign — so showing both blocker + warning at once is
+      // informational not actionable. The 400 response carries blocker only;
+      // the warning surfaces on the retry after the blocker is cleared.
+      vi.mocked(mockPrisma.ttsConfig.findUnique).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue({
+        blocker: 'Cannot delete: TTS config is used as default by 2 personality(ies)',
+        warning: "Deleting this TTS config will reset 3 user(s)' personal default to NULL",
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
+      expect(mockService.delete).not.toHaveBeenCalled();
+      // warning should NOT appear in the error response body
+      const callArgs = vi.mocked(json).mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+      expect(callArgs?.warning).toBeUndefined();
     });
   });
 });

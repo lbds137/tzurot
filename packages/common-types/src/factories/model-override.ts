@@ -1,16 +1,7 @@
 /**
- * Validated Mock Factories for Model Override API Responses
- *
- * These factories create mock data that is VALIDATED against the Zod schemas.
- * If a test tries to mock an invalid shape, it will CRASH immediately.
- *
- * Usage in tests:
- *   import { mockListModelOverridesResponse } from '@tzurot/common-types/factories';
- *
- *   mockCallGatewayApi.mockResolvedValue({
- *     ok: true,
- *     data: mockListModelOverridesResponse([{ personalityName: 'Custom' }]),
- *   });
+ * Validated mock factories for model-override API responses. Each factory
+ * runs the produced mock through its Zod schema, so a stale-shape mock
+ * fails at test time instead of silently passing.
  */
 
 import {

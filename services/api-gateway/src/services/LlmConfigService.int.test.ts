@@ -431,7 +431,7 @@ describe('LlmConfigService Integration', () => {
 
       const constraint = await service.checkDeleteConstraints(configId);
 
-      expect(constraint).toBeNull();
+      expect(constraint).toEqual({ blocker: null, warning: null });
     });
 
     it('should block deletion when config is used by personality default', async () => {
@@ -474,7 +474,8 @@ describe('LlmConfigService Integration', () => {
 
       const constraint = await service.checkDeleteConstraints(configId);
 
-      expect(constraint).toMatch(/personality/i);
+      expect(constraint.blocker).toMatch(/personality/i);
+      expect(constraint.warning).toBeNull();
     });
 
     it('should block deletion when config is used by user override', async () => {
@@ -519,7 +520,41 @@ describe('LlmConfigService Integration', () => {
 
       const constraint = await service.checkDeleteConstraints(configId);
 
-      expect(constraint).toMatch(/user override/i);
+      expect(constraint.blocker).toMatch(/user override/i);
+      expect(constraint.warning).toBeNull();
+    });
+
+    it('reports a warning when users have this config as their personal default', async () => {
+      const configId = generateLlmConfigUuid('used-as-personal-default');
+      await prisma.llmConfig.create({
+        data: {
+          id: configId,
+          name: 'Used As Default',
+          model: 'model',
+          provider: 'openrouter',
+          isGlobal: true,
+          ownerId: adminUserId,
+          contextWindowTokens: 100000,
+          maxMessages: 25,
+          maxImages: 5,
+        },
+      });
+
+      // Wire two existing test users to point at this config as their personal default.
+      await prisma.user.update({
+        where: { id: testUserId },
+        data: { defaultLlmConfigId: configId },
+      });
+      await prisma.user.update({
+        where: { id: adminUserId },
+        data: { defaultLlmConfigId: configId },
+      });
+
+      const constraint = await service.checkDeleteConstraints(configId);
+
+      // No blocker (no personality defaults / user overrides), but warning fires.
+      expect(constraint.blocker).toBeNull();
+      expect(constraint.warning).toMatch(/2 user/i);
     });
   });
 
