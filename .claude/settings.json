@@ -10,6 +10,17 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pr-merge-review-check.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit:*.ts|Edit:*.tsx|Write:*.ts|Write:*.tsx",
