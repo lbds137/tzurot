@@ -2,7 +2,7 @@
 
 _Focus: Reduce code clones to <100. Demoted from Next Epic 2026-04-21 when TTS promoted; resume after TTS Epic completes._
 
-**Progress**: 175 → 127 (PRs #599, #665–#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137; PR #776 (browse footer helpers) → 126; Session 1 (PRs #778, #779) → 118; PR #785 (ElevenLabs `readBody` extraction) → 119; 2026-04-13 quick wins session (PRs #794-798, thinking tags data-driven, BrowseActionRow extraction, routeHelpers split) → 119. **Current (`develop`): 119.** BrowseActionRow and thinking tag dedup were type/regex clones not counted by CPD; runtime code clone count unchanged.
+**Progress**: 175 → 127 (PRs #599, #665–#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137; PR #776 (browse footer helpers) → 126; Session 1 (PRs #778, #779) → 118; PR #785 (ElevenLabs `readBody` extraction) → 119; 2026-04-13 quick wins session (PRs #794-798, thinking tags data-driven, BrowseActionRow extraction, routeHelpers split) → 119. **Current (`develop`): 169** (re-measured 2026-05-05). Net +50 since 2026-04-13 driven by the TTS Engine Upgrade Phase 1 + supporting infrastructure (LLM/TTS config-service mirror, MistralTtsClient/MistralTtsProvider parallels to ElevenLabs, dispatcher fallback chain). Most of the new clones are intentional symmetry between LLM and TTS code paths; they should largely fold back when the cross-cutting "split LlmConfigService + TtsConfigService into Query/Mutation/Cache services" inbox item promotes.
 
 ### Completed (Phases 1-4)
 
