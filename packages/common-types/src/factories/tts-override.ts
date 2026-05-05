@@ -1,19 +1,7 @@
 /**
- * Validated Mock Factories for TTS Override API Responses
- *
- * Mirrors `model-override.ts` for the TTS-side endpoints. These factories
- * produce data that's parsed through the Zod schemas, so a test-time mock
- * with a stale shape fails immediately rather than silently passing.
- *
- * Usage in bot-client tests:
- *   import { mockClearTtsDefaultConfigResponse } from '@tzurot/common-types/factories';
- *
- *   mockCallGatewayApi.mockResolvedValue({
- *     ok: true,
- *     data: mockClearTtsDefaultConfigResponse({
- *       newEffectiveDefault: { id: 'free-id', name: 'kyutai-self-hosted' },
- *     }),
- *   });
+ * Validated mock factories for TTS-override API responses. Mirrors
+ * `model-override.ts`; produced mocks are parsed through their Zod schemas
+ * so stale-shape mocks fail at test time instead of silently passing.
  */
 
 import {

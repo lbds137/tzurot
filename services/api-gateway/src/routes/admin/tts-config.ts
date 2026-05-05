@@ -270,15 +270,28 @@ function createDeleteHandler(service: TtsConfigService, prisma: PrismaClient) {
       );
     }
 
-    const constraintError = await service.checkDeleteConstraints(configId);
-    if (constraintError !== null) {
-      return sendError(res, ErrorResponses.validationError(constraintError));
+    // Check delete constraints. Blocker stops the delete; warning informs
+    // the admin (e.g., "N users will have their personal default reset").
+    // When BOTH are non-null, blocker wins and warning is dropped: the admin
+    // can't proceed until they reassign anyway, so showing both at once is
+    // informational not actionable — warning surfaces on the retry after
+    // the blocker is cleared.
+    const { blocker, warning } = await service.checkDeleteConstraints(configId);
+    if (blocker !== null) {
+      return sendError(res, ErrorResponses.validationError(blocker));
     }
 
     await service.delete(configId);
 
-    logger.info({ configId, name: config.name }, 'Deleted global TTS config');
-    sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
+    // Omit `warning` from response body and log fields when null — keeps clean
+    // deletes producing `{ deleted: true }` instead of `{ deleted: true, warning: null }`,
+    // and avoids `warning: null` log noise on every routine delete.
+    const responseBody = warning !== null ? { deleted: true, warning } : { deleted: true };
+    const logFields =
+      warning !== null ? { configId, name: config.name, warning } : { configId, name: config.name };
+
+    logger.info(logFields, 'Deleted global TTS config');
+    sendCustomSuccess(res, responseBody, StatusCodes.OK);
   };
 }
 

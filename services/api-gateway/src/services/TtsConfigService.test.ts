@@ -55,6 +55,7 @@ function createMockPrisma() {
 
   const user = {
     findFirst: vi.fn(),
+    count: vi.fn().mockResolvedValue(0),
   };
 
   return {
@@ -556,28 +557,59 @@ describe('TtsConfigService', () => {
   });
 
   describe('checkDeleteConstraints', () => {
-    it('returns null when config has no references', async () => {
+    it('returns { blocker: null, warning: null } when deletable with no users adopting it', async () => {
       vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(0);
       vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(0);
+      vi.mocked(prisma.user.count).mockResolvedValue(0);
 
       const result = await service.checkDeleteConstraints('cfg-uuid-1');
-      expect(result).toBeNull();
+      expect(result).toEqual({ blocker: null, warning: null });
     });
 
-    it('returns error message when used by personalities', async () => {
+    it('returns blocker when used by personalities', async () => {
       vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(2);
       vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(0);
+      vi.mocked(prisma.user.count).mockResolvedValue(0);
 
       const result = await service.checkDeleteConstraints('cfg-uuid-1');
-      expect(result).toContain('2 personality');
+      expect(result.blocker).toContain('2 personality');
+      expect(result.warning).toBeNull();
     });
 
-    it('returns error message when used by user overrides', async () => {
+    it('returns blocker when used by user overrides', async () => {
       vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(0);
       vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(5);
+      vi.mocked(prisma.user.count).mockResolvedValue(0);
 
       const result = await service.checkDeleteConstraints('cfg-uuid-1');
-      expect(result).toContain('5 user override');
+      expect(result.blocker).toContain('5 user override');
+      expect(result.warning).toBeNull();
+    });
+
+    it('returns non-blocking warning when N users have it as their personal default', async () => {
+      // No personality/override blockers, but 4 users adopted this config
+      // as their personal default (`users.default_tts_config_id`). Schema's
+      // ON DELETE SET NULL handles deletion gracefully — warning lets the
+      // admin confirm before silently nulling those preferences.
+      vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(0);
+      vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(0);
+      vi.mocked(prisma.user.count).mockResolvedValue(4);
+
+      const result = await service.checkDeleteConstraints('cfg-uuid-1');
+      expect(result.blocker).toBeNull();
+      expect(result.warning).toContain('4 user');
+    });
+
+    it('returns both blocker and warning when both conditions exist', async () => {
+      // Service returns full information when both apply; the route handler
+      // is what enforces precedence (drops warning on the 400 error path).
+      vi.mocked(prisma.personalityDefaultTtsConfig.count).mockResolvedValue(1);
+      vi.mocked(prisma.userPersonalityConfig.count).mockResolvedValue(0);
+      vi.mocked(prisma.user.count).mockResolvedValue(4);
+
+      const result = await service.checkDeleteConstraints('cfg-uuid-1');
+      expect(result.blocker).toContain('1 personality');
+      expect(result.warning).toContain('4 user');
     });
   });
 

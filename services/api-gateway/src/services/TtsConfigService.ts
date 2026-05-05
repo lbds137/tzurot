@@ -35,7 +35,6 @@ import {
   TTS_CONFIG_DETAIL_SELECT,
   TTS_CONFIG_DEFAULTS,
   newTtsConfigId,
-  generateSystemGlobalTtsConfigUuid,
   generateClonedName,
   stripCopySuffix,
   isTtsProviderId,
@@ -43,6 +42,7 @@ import {
 } from '@tzurot/common-types';
 
 import { isPrismaUniqueConstraintErrorOn } from '../utils/prismaErrors.js';
+import { bootstrapTtsSystemGlobalsIfNeeded } from './TtsConfigBootstrap.js';
 import {
   TtsCloneNameExhaustedError,
   TtsAutoSuffixCollisionError,
@@ -114,53 +114,7 @@ interface FormattedTtsConfigDetail {
 // don't need to know about the split.
 export { TtsCloneNameExhaustedError, TtsAutoSuffixCollisionError, TtsInvalidProviderError };
 
-// ============================================================================
-// System globals seed shape (bootstrap path)
-// ----------------------------------------------------------------------------
-// Mirrors the seed in `prisma/migrations/20260502185237_add_tts_configs_cascade/
-// migration.sql` lines 88-128. Bootstrap fires when `list(GLOBAL)` returns
-// empty, fixing the fresh-DB-without-superuser-at-migration-time gap (filed
-// in inbox.md from PR #958).
-// ============================================================================
-
-interface SystemGlobalSeed {
-  name: string;
-  description: string;
-  provider: 'self-hosted' | 'elevenlabs' | 'mistral';
-  modelId: string | null;
-  isFreeDefault: boolean;
-  /** When true, this seed is also marked as the system-wide default
-   *  (`isDefault: true`). Set on `kyutai-self-hosted` so a fresh dev DB
-   *  has a working TTS default out of the box without a manual admin step. */
-  isDefault: boolean;
-}
-
-const SYSTEM_GLOBALS: readonly SystemGlobalSeed[] = [
-  {
-    name: 'kyutai-self-hosted',
-    description: 'Self-hosted Kyutai/Pocket TTS — free tier + system default',
-    provider: 'self-hosted',
-    modelId: null,
-    isFreeDefault: true,
-    isDefault: true,
-  },
-  {
-    name: 'elevenlabs-multilingual-v2',
-    description: 'ElevenLabs Multilingual v2 — historic default for BYOK users',
-    provider: 'elevenlabs',
-    modelId: 'eleven_multilingual_v2',
-    isFreeDefault: false,
-    isDefault: false,
-  },
-  {
-    name: 'mistral-voxtral-mini',
-    description: 'Mistral Voxtral Mini TTS — Phase 1 BYOK (~85% cost reduction vs ElevenLabs)',
-    provider: 'mistral',
-    modelId: 'voxtral-mini-tts-2603',
-    isFreeDefault: false,
-    isDefault: false,
-  },
-];
+// System-globals seed shape and bootstrap logic live in `./TtsConfigBootstrap.ts`.
 
 // ============================================================================
 // Service Class
@@ -202,7 +156,7 @@ export class TtsConfigService {
         return configs;
       }
       // Empty result → attempt bootstrap, then re-query
-      await this.bootstrapSystemGlobalsIfNeeded();
+      await bootstrapTtsSystemGlobalsIfNeeded(this.prisma);
       return this.queryGlobalConfigs();
     }
 
@@ -218,7 +172,7 @@ export class TtsConfigService {
     ]);
 
     if (globalConfigs.length === 0) {
-      await this.bootstrapSystemGlobalsIfNeeded();
+      await bootstrapTtsSystemGlobalsIfNeeded(this.prisma);
       const seeded = await this.queryGlobalConfigs();
       return [...seeded, ...userConfigs];
     }
@@ -238,58 +192,6 @@ export class TtsConfigService {
       ],
       take: 100,
     });
-  }
-
-  /**
-   * Seed the 3 system globals if no global TtsConfigs exist yet AND a
-   * superuser is available to own them. No-op if either precondition fails
-   * (caller still gets `[]` from the subsequent re-query — which is the
-   * correct state for a DB without a superuser).
-   *
-   * Race safety: `createMany({ skipDuplicates: true })` compiles to
-   * `INSERT ... ON CONFLICT DO NOTHING` on Postgres, so two concurrent
-   * first-callers converge cleanly without either failing.
-   */
-  private async bootstrapSystemGlobalsIfNeeded(): Promise<void> {
-    const superuser = await this.prisma.user.findFirst({
-      where: { isSuperuser: true },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    });
-    if (superuser === null) {
-      logger.warn(
-        {},
-        'TtsConfig bootstrap skipped: no superuser exists yet — create one before invoking /settings tts'
-      );
-      return;
-    }
-
-    // System-globals use deterministic UUIDs (uuidv5 from name) so dev and
-    // prod always produce the same ID for the same logical row. Without
-    // this, /admin db-sync collides on the (owner_id, name) composite-unique
-    // constraint when each env independently bootstrapped with random UUIDs.
-    // User-created configs continue to use newTtsConfigId() (UUIDv7).
-    const result = await this.prisma.ttsConfig.createMany({
-      data: SYSTEM_GLOBALS.map(seed => ({
-        id: generateSystemGlobalTtsConfigUuid(seed.name),
-        name: seed.name,
-        description: seed.description,
-        ownerId: superuser.id,
-        isGlobal: true,
-        isDefault: seed.isDefault,
-        isFreeDefault: seed.isFreeDefault,
-        provider: seed.provider,
-        modelId: seed.modelId,
-      })),
-      skipDuplicates: true,
-    });
-
-    if (result.count > 0) {
-      logger.info(
-        { seeded: result.count, ownerId: superuser.id },
-        'Bootstrapped TtsConfig system globals on first list() call'
-      );
-    }
   }
 
   // --------------------------------------------------------------------------
@@ -560,27 +462,37 @@ export class TtsConfigService {
     return { exists: existing !== null, conflictId: existing?.id };
   }
 
-  /**
-   * Check if a config can be deleted. Returns null if deletable, or an error
-   * message if it's still referenced by personalities or user overrides.
-   */
-  async checkDeleteConstraints(configId: string): Promise<string | null> {
-    const [personalityCount, userOverrideCount] = await Promise.all([
+  /** Returns { blocker, warning }: blocker stops deletion; warning advises N users will have personal default SET NULL. Both fields can populate; route enforces precedence. */
+  async checkDeleteConstraints(
+    configId: string
+  ): Promise<{ blocker: string | null; warning: string | null }> {
+    // users.default_tts_config_id is ON DELETE SET NULL — delete works regardless,
+    // but surfacing the count lets the admin confirm before silent-nulling N users.
+    const [personalityCount, userOverrideCount, usersWithAsPersonalDefault] = await Promise.all([
       this.prisma.personalityDefaultTtsConfig.count({
         where: { ttsConfigId: configId },
       }),
       this.prisma.userPersonalityConfig.count({
         where: { ttsConfigId: configId },
       }),
+      this.prisma.user.count({
+        where: { defaultTtsConfigId: configId },
+      }),
     ]);
 
+    let blocker: string | null = null;
     if (personalityCount > 0) {
-      return `Cannot delete: TTS config is used as default by ${personalityCount} personality(ies)`;
+      blocker = `Cannot delete: TTS config is used as default by ${personalityCount} personality(ies)`;
+    } else if (userOverrideCount > 0) {
+      blocker = `Cannot delete: TTS config is used by ${userOverrideCount} user override(s)`;
     }
-    if (userOverrideCount > 0) {
-      return `Cannot delete: TTS config is used by ${userOverrideCount} user override(s)`;
-    }
-    return null;
+
+    const warning =
+      usersWithAsPersonalDefault > 0
+        ? `Deleting this TTS config will reset ${usersWithAsPersonalDefault} user(s)' personal default to NULL`
+        : null;
+
+    return { blocker, warning };
   }
 
   // --------------------------------------------------------------------------

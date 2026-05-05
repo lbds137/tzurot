@@ -385,8 +385,9 @@ describe('TtsConfigService Integration', () => {
         },
       });
 
-      const constraintError = await service.checkDeleteConstraints(config.id);
-      expect(constraintError).toMatch(/user override/i);
+      const constraint = await service.checkDeleteConstraints(config.id);
+      expect(constraint.blocker).toMatch(/user override/i);
+      expect(constraint.warning).toBeNull();
     });
 
     it('checkDeleteConstraints reports personality default references', async () => {
@@ -411,19 +412,43 @@ describe('TtsConfigService Integration', () => {
         data: { personalityId, ttsConfigId: config.id },
       });
 
-      const constraintError = await service.checkDeleteConstraints(config.id);
-      expect(constraintError).toMatch(/personality/i);
+      const constraint = await service.checkDeleteConstraints(config.id);
+      expect(constraint.blocker).toMatch(/personality/i);
+      expect(constraint.warning).toBeNull();
     });
 
-    it('returns null when config is deletable', async () => {
+    it('reports no blocker and no warning when config is deletable', async () => {
       const config = await service.create(
         { type: 'USER', userId: testUserId, discordId: TEST_DISCORD_ID },
         { name: 'Free-to-Delete', provider: 'self-hosted' },
         testUserId
       );
 
-      const constraintError = await service.checkDeleteConstraints(config.id);
-      expect(constraintError).toBeNull();
+      const constraint = await service.checkDeleteConstraints(config.id);
+      expect(constraint).toEqual({ blocker: null, warning: null });
+    });
+
+    it('reports a warning when users have this config as their personal default', async () => {
+      const config = await service.create(
+        { type: 'GLOBAL' },
+        { name: 'PersonalDefaultTarget', provider: 'self-hosted' },
+        adminUserId
+      );
+
+      // Wire two existing test users to point at this config as their personal default.
+      await prisma.user.update({
+        where: { id: testUserId },
+        data: { defaultTtsConfigId: config.id },
+      });
+      await prisma.user.update({
+        where: { id: adminUserId },
+        data: { defaultTtsConfigId: config.id },
+      });
+
+      const constraint = await service.checkDeleteConstraints(config.id);
+
+      expect(constraint.blocker).toBeNull();
+      expect(constraint.warning).toMatch(/2 user/i);
     });
   });
 

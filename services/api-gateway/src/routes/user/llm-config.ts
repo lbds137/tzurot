@@ -372,10 +372,13 @@ function createDeleteHandler(service: LlmConfigService) {
       return sendError(res, ErrorResponses.unauthorized('You can only delete your own configs'));
     }
 
-    // Check delete constraints using service
-    const constraintError = await service.checkDeleteConstraints(configId);
-    if (constraintError !== null) {
-      return sendError(res, ErrorResponses.validationError(constraintError));
+    // Check delete constraints using service. User-route deletes own configs
+    // only — `warning` is unlikely (would mean OTHER users adopted it as
+    // their default, possible only for shared/global configs the user owns).
+    // Surfaced for consistency with admin route.
+    const { blocker } = await service.checkDeleteConstraints(configId);
+    if (blocker !== null) {
+      return sendError(res, ErrorResponses.validationError(blocker));
     }
 
     // Delete using service (handles cache invalidation)

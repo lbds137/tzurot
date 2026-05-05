@@ -41,7 +41,7 @@ const { mockService, MockTtsConfigService } = vi.hoisted(() => {
     setAsDefault: vi.fn(),
     setAsFreeDefault: vi.fn(),
     checkNameExists: vi.fn().mockResolvedValue({ exists: false }),
-    checkDeleteConstraints: vi.fn().mockResolvedValue(null),
+    checkDeleteConstraints: vi.fn().mockResolvedValue({ blocker: null, warning: null }),
     formatConfigDetail: vi.fn(),
   };
 
@@ -160,7 +160,10 @@ describe('user/tts-config routes', () => {
       params: {},
     }));
     vi.mocked(mockService.checkNameExists).mockResolvedValue({ exists: false });
-    vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue(null);
+    vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue({
+      blocker: null,
+      warning: null,
+    });
   });
 
   describe('GET / (list)', () => {
@@ -456,9 +459,10 @@ describe('user/tts-config routes', () => {
 
     it('returns 400 when delete constraints block', async () => {
       vi.mocked(mockService.getById).mockResolvedValue(sampleRawConfig);
-      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue(
-        'Cannot delete: TTS config is used as default by 2 personality(ies)'
-      );
+      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue({
+        blocker: 'Cannot delete: TTS config is used as default by 2 personality(ies)',
+        warning: null,
+      });
       const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
       const { res, json } = makeMockRes();
 
@@ -474,6 +478,25 @@ describe('user/tts-config routes', () => {
 
       await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
       expect(json).toHaveBeenCalledWith(expect.objectContaining({ deleted: true }));
+    });
+
+    it('drops warning from response even when service returns one', async () => {
+      // User route deliberately ignores `warning` because it would leak how
+      // many OTHER users have this config as their default — info only the
+      // owner-admin should see. Pin this with a test so the decision is
+      // machine-checkable rather than comment-only.
+      vi.mocked(mockService.getById).mockResolvedValue(sampleRawConfig);
+      vi.mocked(mockService.checkDeleteConstraints).mockResolvedValue({
+        blocker: null,
+        warning: "Deleting this TTS config will reset 5 user(s)' personal default to NULL",
+      });
+      const handler = extractHandler(buildRouter(), 'DELETE', '/:id');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq({ params: { id: 'cfg-uuid-1' } }), res);
+      expect(mockService.delete).toHaveBeenCalledWith('cfg-uuid-1');
+      const callArgs = vi.mocked(json).mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+      expect(callArgs?.warning).toBeUndefined();
     });
   });
 });

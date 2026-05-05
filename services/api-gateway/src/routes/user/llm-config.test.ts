@@ -90,6 +90,7 @@ const mockPrisma = {
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    count: vi.fn().mockResolvedValue(0),
   },
   persona: {
     create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
@@ -970,6 +971,36 @@ describe('/user/llm-config routes', () => {
           deleted: true,
         })
       );
+    });
+
+    it('drops warning from response even when service returns one', async () => {
+      // User route deliberately ignores `warning` because it would leak how
+      // many OTHER users have this config as their default — info only the
+      // owner-admin should see. Pin this with a test so the decision is
+      // machine-checkable rather than comment-only.
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+      });
+      mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
+      // Force the service to return a non-null warning via the underlying user.count.
+      mockPrisma.user.count.mockResolvedValueOnce(5);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const callArgs = vi.mocked(res.json).mock.calls[0]?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(callArgs?.deleted).toBe(true);
+      expect(callArgs?.warning).toBeUndefined();
     });
   });
 
