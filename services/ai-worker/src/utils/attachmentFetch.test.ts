@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import sharp from 'sharp';
+import { MEDIA_LIMITS } from '@tzurot/common-types';
 import {
   validateAttachmentUrl,
   isDataUrl,
@@ -128,12 +129,12 @@ describe('HttpError', () => {
 
 describe('JobPayloadTooLargeError', () => {
   it('exposes totalBytes and limit, names itself, and exists in MiB form in the message', () => {
-    const err = new JobPayloadTooLargeError(60 * 1024 * 1024, MAX_AGGREGATE_PAYLOAD_BYTES);
-    expect(err.totalBytes).toBe(60 * 1024 * 1024);
+    const err = new JobPayloadTooLargeError(120 * 1024 * 1024, MAX_AGGREGATE_PAYLOAD_BYTES);
+    expect(err.totalBytes).toBe(120 * 1024 * 1024);
     expect(err.limit).toBe(MAX_AGGREGATE_PAYLOAD_BYTES);
     expect(err.name).toBe('JobPayloadTooLargeError');
-    expect(err.message).toMatch(/60\.0 MiB/);
-    expect(err.message).toMatch(/50 MiB/);
+    expect(err.message).toMatch(/120\.0 MiB/);
+    expect(err.message).toMatch(/100 MiB/);
   });
 
   it('is an Error subclass so `instanceof Error` still works for general handlers', () => {
@@ -318,8 +319,8 @@ describe('fetchAttachmentBytes', () => {
 
 describe('resizeImageIfNeeded', () => {
   // Use module-level mocks for MEDIA_LIMITS so we can trigger the resize path
-  // with a tiny image instead of generating a 10+ MiB fixture every test run.
-  // The real prod thresholds (10 MiB cap, 8 MiB target) are tested indirectly
+  // with a tiny image instead of generating a 5+ MiB fixture every test run.
+  // The real prod thresholds (5 MiB cap, 4 MiB target) are tested indirectly
   // via the threshold-comparison logic that these small values exercise.
 
   it('passes non-image content types through unchanged, preserving contentType', async () => {
@@ -330,7 +331,7 @@ describe('resizeImageIfNeeded', () => {
   });
 
   it('passes small images under the size threshold through unchanged, preserving contentType', async () => {
-    // A 2x2 solid-color PNG is a handful of bytes — well under 10 MiB.
+    // A 2x2 solid-color PNG is a handful of bytes — well under 5 MiB.
     const smallPng = await sharp({
       create: { width: 2, height: 2, channels: 3, background: { r: 128, g: 128, b: 128 } },
     })
@@ -343,11 +344,11 @@ describe('resizeImageIfNeeded', () => {
   });
 
   it('resizes images over the threshold and switches contentType to image/jpeg', async () => {
-    // Generate a high-entropy (incompressible) PNG that exceeds MAX_IMAGE_SIZE.
-    // 2400x1800 RGB with pseudorandom bytes and compressionLevel 0 yields
-    // ~13 MiB, reliably above the 10 MiB threshold.
-    const width = 2400;
-    const height = 1800;
+    // Generate a high-entropy (incompressible) PNG that exceeds MAX_IMAGE_SIZE
+    // (5 MiB). 1800x1200 RGB with pseudorandom bytes and compressionLevel 0
+    // yields ~6.5 MiB, reliably above the 5 MiB threshold.
+    const width = 1800;
+    const height = 1200;
     const rawPixels = Buffer.alloc(width * height * 3);
     // Deterministic pseudo-noise (not Math.random) so the test is stable.
     for (let i = 0; i < rawPixels.length; i++) {
@@ -357,7 +358,7 @@ describe('resizeImageIfNeeded', () => {
       .png({ compressionLevel: 0 })
       .toBuffer();
 
-    expect(largePng.byteLength).toBeGreaterThan(10 * 1024 * 1024); // sanity check
+    expect(largePng.byteLength).toBeGreaterThan(MEDIA_LIMITS.MAX_IMAGE_SIZE); // sanity check
 
     const result = await resizeImageIfNeeded(largePng, 'image/png');
     expect(result.buffer.byteLength).toBeLessThan(largePng.byteLength); // actually shrunk
@@ -365,5 +366,11 @@ describe('resizeImageIfNeeded', () => {
     // Resize always emits JPEG; the data URL built from the result must use
     // 'image/jpeg' so LLM providers don't see a MIME/bytes mismatch.
     expect(result.contentType).toBe('image/jpeg');
+    // Edge-case lock: the safety margin between IMAGE_TARGET_SIZE and
+    // MAX_IMAGE_SIZE exists precisely so resize output reliably lands ≤
+    // MAX_IMAGE_SIZE despite JPEG re-encoding variability. Pin this
+    // invariant — without the margin, an input just over the trigger could
+    // produce output still over it.
+    expect(result.buffer.byteLength).toBeLessThanOrEqual(MEDIA_LIMITS.MAX_IMAGE_SIZE);
   }, 15_000); // sharp work on constrained runners needs more headroom than vitest's 5s default
 });
