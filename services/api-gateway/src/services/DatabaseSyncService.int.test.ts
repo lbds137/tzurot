@@ -38,7 +38,12 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { PrismaClient, generateUserUuid, generatePersonaUuid } from '@tzurot/common-types';
+import {
+  PrismaClient,
+  generateUserUuid,
+  generatePersonaUuid,
+  newTtsConfigId,
+} from '@tzurot/common-types';
 import * as syncUpsertBuilder from './sync/SyncUpsertBuilder.js';
 import type { PGlite } from '@electric-sql/pglite';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
@@ -344,6 +349,12 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     // premise is broken. Don't test the Ouroboros behavior against a DB
     // where the FKs aren't deferrable.
     for (const prisma of [devPrisma, prodPrisma]) {
+      // Note the asymmetry: the original (persona, llm_config) Ouroboros
+      // migration deferred BOTH directions of each circular pair. The TTS
+      // follow-up migration (20260504065151) only deferred the user→ttsConfig
+      // direction, NOT tts_configs_owner_id_fkey. That works for sync's
+      // current insert order (users before tts_configs) but is a latent
+      // gap if the order ever flips. Filed as a follow-up in inbox.md.
       const rows = await prisma.$queryRawUnsafe<
         { constraint_name: string; is_deferrable: string }[]
       >(`
@@ -352,11 +363,12 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
         WHERE constraint_name IN (
           'users_default_persona_id_fkey',
           'users_default_llm_config_id_fkey',
+          'users_default_tts_config_id_fkey',
           'personas_owner_id_fkey',
           'llm_configs_owner_id_fkey'
         )
       `);
-      expect(rows.length).toBe(4);
+      expect(rows.length).toBe(5);
       for (const r of rows) {
         expect(r.is_deferrable, `${r.constraint_name} should be DEFERRABLE`).toBe('YES');
       }
@@ -415,5 +427,67 @@ describe('DatabaseSyncService Integration (Ouroboros pattern)', () => {
     expect(devUser).toBeNull();
     const devPersona = await devPrisma.persona.findUnique({ where: { id: personaId } });
     expect(devPersona).toBeNull();
+  }, 30000);
+
+  /**
+   * Parallel to the persona Ouroboros test above, but for the TTS circular
+   * FK pair. Validates that the DEFERRABLE migration on
+   * users_default_tts_config_id_fkey lets sync land a user with a non-NULL
+   * default_tts_config_id alongside the matching tts_configs row in a
+   * single transaction. Pre-migration this would fail with FK violation
+   * because the user row references a tts_config that hasn't been inserted
+   * yet (or vice versa).
+   */
+  it('syncs a user with default_tts_config_id pointing at a TTS config from prod to empty dev', async () => {
+    const discordId = '55555555555555555555';
+    const userId = generateUserUuid(discordId);
+    const personaId = generatePersonaUuid('tts-default-user', userId);
+    const ttsConfigId = newTtsConfigId();
+
+    // Seed user+persona on prod, then attach a tts_config and wire the
+    // user's default_tts_config_id at it. The tts_config insert can happen
+    // after the user exists (no circular FK needed for THIS write order),
+    // but the subsequent UPDATE creates the circular reference that sync
+    // must reproduce atomically on dev.
+    await seedUserWithPersona(prodPrisma, {
+      userId,
+      personaId,
+      discordId,
+      username: 'tts-default-user',
+      personaName: 'tts-default-user',
+    });
+    await prodPrisma.$executeRawUnsafe(
+      `
+        INSERT INTO tts_configs (id, name, owner_id, provider, updated_at)
+        VALUES ($1::uuid, $2, $3::uuid, 'self-hosted', NOW())
+      `,
+      ttsConfigId,
+      'tts-default-config',
+      userId
+    );
+    await prodPrisma.$executeRawUnsafe(
+      `UPDATE users SET default_tts_config_id = $1::uuid WHERE id = $2::uuid`,
+      ttsConfigId,
+      userId
+    );
+
+    // Sanity: dev is empty before sync
+    const devUsersBefore = await devPrisma.$queryRawUnsafe<{ count: bigint }[]>(
+      `SELECT COUNT(*)::bigint as count FROM "users"`
+    );
+    expect(Number(devUsersBefore[0].count)).toBe(0);
+
+    await service.sync({ dryRun: false });
+
+    // Dev now has the user, persona, and tts_config rows, with the user's
+    // default_tts_config_id correctly pointing at the synced config.
+    const devUser = await devPrisma.user.findUnique({ where: { id: userId } });
+    expect(devUser).not.toBeNull();
+    expect(devUser?.defaultTtsConfigId).toBe(ttsConfigId);
+
+    const devTtsConfig = await devPrisma.ttsConfig.findUnique({ where: { id: ttsConfigId } });
+    expect(devTtsConfig).not.toBeNull();
+    expect(devTtsConfig?.ownerId).toBe(userId);
+    expect(devTtsConfig?.provider).toBe('self-hosted');
   }, 30000);
 });
