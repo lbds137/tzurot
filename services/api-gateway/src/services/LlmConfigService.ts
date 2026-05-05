@@ -594,32 +594,37 @@ export class LlmConfigService {
     };
   }
 
-  /**
-   * Check if a config can be deleted.
-   * Returns null if deletable, or an error message if not.
-   *
-   * @param configId - ID of config to check
-   * @returns Error message or null if deletable
-   */
-  async checkDeleteConstraints(configId: string): Promise<string | null> {
-    const [personalityCount, userOverrideCount] = await Promise.all([
+  /** Returns { blocker, warning }: blocker stops deletion; warning advises N users will have personal default SET NULL. Mirror of TtsConfigService.checkDeleteConstraints. */
+  async checkDeleteConstraints(
+    configId: string
+  ): Promise<{ blocker: string | null; warning: string | null }> {
+    // users.default_llm_config_id is ON DELETE SET NULL — delete works regardless,
+    // but surfacing the count lets the admin confirm before silent-nulling N users.
+    const [personalityCount, userOverrideCount, usersWithAsPersonalDefault] = await Promise.all([
       this.prisma.personalityDefaultConfig.count({
         where: { llmConfigId: configId },
       }),
       this.prisma.userPersonalityConfig.count({
         where: { llmConfigId: configId },
       }),
+      this.prisma.user.count({
+        where: { defaultLlmConfigId: configId },
+      }),
     ]);
 
+    let blocker: string | null = null;
     if (personalityCount > 0) {
-      return `Cannot delete: config is used as default by ${personalityCount} personality(ies)`;
+      blocker = `Cannot delete: config is used as default by ${personalityCount} personality(ies)`;
+    } else if (userOverrideCount > 0) {
+      blocker = `Cannot delete: config is used by ${userOverrideCount} user override(s)`;
     }
 
-    if (userOverrideCount > 0) {
-      return `Cannot delete: config is used by ${userOverrideCount} user override(s)`;
-    }
+    const warning =
+      usersWithAsPersonalDefault > 0
+        ? `Deleting this LLM config will reset ${usersWithAsPersonalDefault} user(s)' personal default to NULL`
+        : null;
 
-    return null;
+    return { blocker, warning };
   }
 
   // --------------------------------------------------------------------------

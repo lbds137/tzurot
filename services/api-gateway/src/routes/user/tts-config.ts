@@ -340,9 +340,13 @@ function createDeleteHandler(service: TtsConfigService) {
       );
     }
 
-    const constraintError = await service.checkDeleteConstraints(configId);
-    if (constraintError !== null) {
-      return sendError(res, ErrorResponses.validationError(constraintError));
+    // User-route deletes own configs only — warning unlikely in practice
+    // (would mean OTHER users adopted it as their default, possible only for
+    // shared/global configs the user owns). Surfaced for symmetry with the
+    // admin route's contract.
+    const { blocker } = await service.checkDeleteConstraints(configId);
+    if (blocker !== null) {
+      return sendError(res, ErrorResponses.validationError(blocker));
     }
 
     await service.delete(configId);

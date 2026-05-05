@@ -47,10 +47,15 @@ function createMockPrisma() {
     count: vi.fn(),
   };
 
+  const mockUser = {
+    count: vi.fn().mockResolvedValue(0),
+  };
+
   return {
     llmConfig: mockLlmConfig,
     personalityDefaultConfig: mockPersonalityDefaultConfig,
     userPersonalityConfig: mockUserPersonalityConfig,
+    user: mockUser,
     $executeRaw: vi.fn().mockResolvedValue(1),
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
       const txMock = {
@@ -670,31 +675,64 @@ describe('LlmConfigService', () => {
   });
 
   describe('checkDeleteConstraints', () => {
-    it('should return null when deletable', async () => {
+    it('returns { blocker: null, warning: null } when deletable with no users adopting it', async () => {
       prisma.personalityDefaultConfig.count.mockResolvedValue(0);
       prisma.userPersonalityConfig.count.mockResolvedValue(0);
+      prisma.user.count.mockResolvedValue(0);
 
       const result = await service.checkDeleteConstraints('config-123');
 
-      expect(result).toBeNull();
+      expect(result).toEqual({ blocker: null, warning: null });
     });
 
-    it('should return error when used by personalities', async () => {
+    it('returns blocker when used by personalities', async () => {
       prisma.personalityDefaultConfig.count.mockResolvedValue(3);
       prisma.userPersonalityConfig.count.mockResolvedValue(0);
+      prisma.user.count.mockResolvedValue(0);
 
       const result = await service.checkDeleteConstraints('config-123');
 
-      expect(result).toContain('3 personality');
+      expect(result.blocker).toContain('3 personality');
+      expect(result.warning).toBeNull();
     });
 
-    it('should return error when used by user overrides', async () => {
+    it('returns blocker when used by user overrides', async () => {
       prisma.personalityDefaultConfig.count.mockResolvedValue(0);
       prisma.userPersonalityConfig.count.mockResolvedValue(5);
+      prisma.user.count.mockResolvedValue(0);
 
       const result = await service.checkDeleteConstraints('config-123');
 
-      expect(result).toContain('5 user override');
+      expect(result.blocker).toContain('5 user override');
+      expect(result.warning).toBeNull();
+    });
+
+    it('returns non-blocking warning when N users have it as their personal default', async () => {
+      // No personality/override blockers, but 7 users adopted this config
+      // as their personal default (`users.default_llm_config_id`). Schema's
+      // ON DELETE SET NULL handles deletion gracefully — warning lets the
+      // admin confirm before silently nulling those preferences.
+      prisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      prisma.userPersonalityConfig.count.mockResolvedValue(0);
+      prisma.user.count.mockResolvedValue(7);
+
+      const result = await service.checkDeleteConstraints('config-123');
+
+      expect(result.blocker).toBeNull();
+      expect(result.warning).toContain('7 user');
+    });
+
+    it('returns both blocker and warning when both conditions exist', async () => {
+      // Service returns full information when both apply; the route handler
+      // is what enforces precedence (drops warning on the 400 error path).
+      prisma.personalityDefaultConfig.count.mockResolvedValue(2);
+      prisma.userPersonalityConfig.count.mockResolvedValue(0);
+      prisma.user.count.mockResolvedValue(7);
+
+      const result = await service.checkDeleteConstraints('config-123');
+
+      expect(result.blocker).toContain('2 personality');
+      expect(result.warning).toContain('7 user');
     });
   });
 
