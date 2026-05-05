@@ -11,6 +11,29 @@ import {
   type TtsProvider,
   type TtsProviderId,
 } from '@tzurot/common-types';
+
+// Hoisted logger spy so tests can pin the dispose-error logging contract.
+// `vi.hoisted` is required because vi.mock factories run before plain const
+// declarations.
+const { mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerWarn: vi.fn(),
+}));
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    createLogger: () => ({
+      info: vi.fn(),
+      warn: mockLoggerWarn,
+      error: vi.fn(),
+      debug: vi.fn(),
+      trace: vi.fn(),
+      fatal: vi.fn(),
+    }),
+  };
+});
+
 import { dispatchTts, TtsDispatchError, type TtsProviderRegistry } from './TtsDispatcher.js';
 import { MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
 
@@ -23,6 +46,7 @@ function makeProvider(
     canHandle: boolean;
     prepare: () => Promise<PreparedTts>;
     synthesize: () => Promise<Buffer>;
+    dispose: (handle: PreparedTts) => Promise<void>;
     capabilities: Partial<TtsCapabilities>;
   }> = {}
 ): TtsProvider {
@@ -33,7 +57,7 @@ function makeProvider(
     outputFormat: 'wav',
     ...overrides.capabilities,
   };
-  return {
+  const provider: TtsProvider = {
     id,
     displayName: id,
     capabilities,
@@ -42,6 +66,10 @@ function makeProvider(
     prepare: overrides.prepare ?? vi.fn(async () => buildPreparedVoiceId(id, `${id}-handle`)),
     synthesize: overrides.synthesize ?? vi.fn(async () => Buffer.from(`${id}-audio`)),
   };
+  if (overrides.dispose !== undefined) {
+    provider.dispose = vi.fn(overrides.dispose);
+  }
+  return provider;
 }
 
 function makeRegistry(providers: TtsProvider[]): TtsProviderRegistry {
@@ -604,5 +632,153 @@ describe('TtsDispatchError', () => {
     expect(dispatchError.attempts[1].provider).toBe('self-hosted');
     expect(dispatchError.message).toContain('mistral');
     expect(dispatchError.message).toContain('self-hosted');
+  });
+});
+
+// ===== dispose() lifecycle ==================================================
+
+describe('dispatchTts — provider.dispose() lifecycle', () => {
+  it('calls dispose() with the prepared handle after successful synthesize', async () => {
+    const dispose = vi.fn<(handle: PreparedTts) => Promise<void>>(async () => undefined);
+    const mistral = makeProvider('mistral', { dispose });
+    const selfHosted = makeProvider('self-hosted');
+
+    await dispatchTts({
+      text: 'hi',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistral, selfHosted]),
+    });
+
+    expect(dispose).toHaveBeenCalledTimes(1);
+    // First arg is the handle returned by prepare()
+    const disposedHandle = dispose.mock.calls[0][0];
+    expect(disposedHandle).toMatchObject({ provider: 'mistral' });
+  });
+
+  it('calls dispose() even when synthesize fails (handle still cleaned up)', async () => {
+    const dispose = vi.fn(async () => undefined);
+    const mistralFails = makeProvider('mistral', {
+      synthesize: vi.fn(async () => {
+        throw new TtsProviderError(ApiErrorCategory.SERVER_ERROR, 'mistral', true, '500');
+      }),
+      dispose,
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    await dispatchTts({
+      text: 'hi',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistralFails, selfHosted]),
+    });
+
+    // Mistral's dispose runs even though its synthesize threw
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT call dispose() if prepare() itself threw (no handle to dispose)', async () => {
+    const dispose = vi.fn(async () => undefined);
+    const mistralPrepareFails = makeProvider('mistral', {
+      prepare: vi.fn(async () => {
+        throw new Error('prepare exploded');
+      }),
+      dispose,
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    await dispatchTts({
+      text: 'hi',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistralPrepareFails, selfHosted]),
+    });
+
+    expect(dispose).not.toHaveBeenCalled();
+  });
+
+  it('dispose() errors are logged but do not mask the synthesize result', async () => {
+    const dispose = vi.fn(async () => {
+      throw new Error('dispose failed');
+    });
+    const mistral = makeProvider('mistral', { dispose });
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hi',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistral, selfHosted]),
+    });
+
+    expect(result.providerUsed).toBe('mistral');
+    expect(result.audioBuffer.toString()).toBe('mistral-audio');
+    // dispose was attempted even though it failed
+    expect(dispose).toHaveBeenCalledTimes(1);
+    // The dispose failure must hit the logger (not silently dropped) so
+    // operators can debug a buggy dispose implementation. Pinning the
+    // logging contract — a future refactor that drops the warn would
+    // produce silent leak telemetry.
+    const disposeWarnCall = mockLoggerWarn.mock.calls.find(call =>
+      String(call[1]).includes('TtsProvider.dispose failed')
+    );
+    expect(disposeWarnCall).toBeDefined();
+  });
+
+  it('calls dispose() before rethrowing non-fallback-eligible TtsProviderError (rethrow path)', async () => {
+    // The catch block rethrows when `isFallbackEligible: false`. JS/TS finally
+    // semantics guarantee dispose() runs before the rethrow propagates, but a
+    // test pins the contract — a future refactor that moves the cleanup out
+    // of `finally` would silently break this guarantee.
+    const dispose = vi.fn(async () => undefined);
+    const mistralFatal = makeProvider('mistral', {
+      synthesize: vi.fn(async () => {
+        throw new TtsProviderError(
+          ApiErrorCategory.BAD_REQUEST,
+          'mistral',
+          false, // NOT fallback-eligible — dispatcher rethrows
+          'text too long'
+        );
+      }),
+      dispose,
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    await expect(
+      dispatchTts({
+        text: 'hi',
+        resolvedConfig: mistralConfig,
+        ctx: baseCtx,
+        audioProviderKeys: audioKeysWithBoth,
+        registry: makeRegistry([mistralFatal, selfHosted]),
+      })
+    ).rejects.toBeInstanceOf(TtsProviderError);
+
+    // dispose ran despite the rethrow propagating
+    expect(dispose).toHaveBeenCalledTimes(1);
+    // self-hosted was NOT tried (non-fallback-eligible aborts the chain)
+    expect(selfHosted.synthesize).not.toHaveBeenCalled();
+  });
+
+  it('handles providers without dispose() (the optional method) gracefully', async () => {
+    // Sanity check: providers that don't implement dispose still work — the
+    // optional method must remain optional, not become a hard requirement.
+    const mistral = makeProvider('mistral'); // no dispose
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hi',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistral, selfHosted]),
+    });
+
+    expect(result.providerUsed).toBe('mistral');
+    expect(mistral.dispose).toBeUndefined();
   });
 });

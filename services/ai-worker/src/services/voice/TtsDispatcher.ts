@@ -273,8 +273,11 @@ async function attemptCandidate(input: AttemptInput): Promise<AttemptOutcome> {
     return { kind: 'skip' };
   }
 
+  // Handle declared outside the try so the finally block can dispose it
+  // regardless of whether synthesize succeeded, failed, or was rethrown.
+  let handle: PreparedTts | undefined;
   try {
-    const handle: PreparedTts = await provider.prepare(candidateCtx);
+    handle = await provider.prepare(candidateCtx);
     const audioBuffer = await provider.synthesize(options.text, handle, candidateCtx);
     const usedFallback = !isPrimaryAttempt;
     logger.info(
@@ -309,6 +312,23 @@ async function attemptCandidate(input: AttemptInput): Promise<AttemptOutcome> {
       'TTS provider failed; attempting next in chain'
     );
     return { kind: 'failed', error };
+  } finally {
+    // Optional handle cleanup. The interface declared `dispose?()` for
+    // future providers with WebSocket / temp-file lifecycles, but no caller
+    // was wired up — any provider implementing it would silently leak.
+    // `handle === undefined` when `prepare()` itself threw — nothing to
+    // dispose. Dispose errors are logged but never propagated, so a buggy
+    // dispose can't mask the original synthesize result/error.
+    if (handle !== undefined && provider.dispose !== undefined) {
+      try {
+        await provider.dispose(handle);
+      } catch (disposeError) {
+        logger.warn(
+          { slug: ctx.slug, provider: candidateId, err: disposeError },
+          'TtsProvider.dispose failed — handle may have leaked'
+        );
+      }
+    }
   }
 }
 
