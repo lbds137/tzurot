@@ -2,12 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TtsConfigResolver } from './TtsConfigResolver.js';
 import type { PrismaClient } from './prisma.js';
 
+// Hoisted logger spies so tests can assert severity (the WARN→ERROR upgrade
+// for personality-default lookup failures is a behavioral contract worth pinning).
+const { mockLoggerError, mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+}));
+
 vi.mock('../utils/logger.js', () => ({
   createLogger: () => ({
     debug: vi.fn(),
     info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
+    warn: mockLoggerWarn,
+    error: mockLoggerError,
   }),
 }));
 
@@ -190,6 +197,49 @@ describe('TtsConfigResolver', () => {
       expect(result.config.source).toBe('personality');
       expect(result.config.provider).toBe('mistral');
       expect(result.config.modelId).toBe('voxtral-mini-tts-2603');
+    });
+
+    it('logs at ERROR severity when PersonalityDefaultTtsConfig lookup throws (not WARN)', async () => {
+      // The user (bot owner) configured a personality TTS default and we
+      // can't load it — this is a misconfiguration, not graceful
+      // degradation. ERROR severity ensures it surfaces in dashboards
+      // rather than getting filtered with routine WARNs. The resolver
+      // still falls through to free-default for correct runtime behavior.
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-x',
+        defaultTtsConfigId: null,
+        defaultTtsConfig: null,
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+      mockPrisma.personalityDefaultTtsConfig.findUnique.mockRejectedValue(
+        new Error('connection refused')
+      );
+      mockPrisma.ttsConfig.findFirst.mockResolvedValue({
+        name: 'kyutai-self-hosted',
+        provider: 'self-hosted',
+        modelId: null,
+        advancedParameters: null,
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: true,
+      });
+
+      const result = await resolver.resolveConfig('user-x', 'p-uuid-123', FAKE_PERSONALITY);
+
+      // Still falls through to free-default — no behavior regression
+      expect(result.source).toBe('free-default');
+
+      // ERROR was called with structured fields (not WARN)
+      const errorCall = mockLoggerError.mock.calls.find(call =>
+        String(call[1]).includes('Failed to load PersonalityDefaultTtsConfig')
+      );
+      expect(errorCall).toBeDefined();
+      expect((errorCall![0] as Record<string, unknown>).personalityId).toBe('p-uuid-123');
+      // No WARN call for this specific failure shape
+      const warnCall = mockLoggerWarn.mock.calls.find(call =>
+        String(call[1]).includes('Failed to load PersonalityDefaultTtsConfig')
+      );
+      expect(warnCall).toBeUndefined();
     });
 
     it('falls through to system free default (tier 4) when no PersonalityDefaultTtsConfig', async () => {
