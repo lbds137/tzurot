@@ -15,9 +15,19 @@ import {
 describe('Media Constants', () => {
   describe('MEDIA_LIMITS', () => {
     it('should have correct image size limits', () => {
-      expect(MEDIA_LIMITS.MAX_IMAGE_SIZE).toBe(10 * 1024 * 1024);
-      expect(MEDIA_LIMITS.IMAGE_TARGET_SIZE).toBe(8 * 1024 * 1024);
+      expect(MEDIA_LIMITS.MAX_IMAGE_SIZE).toBe(5 * 1024 * 1024);
+      expect(MEDIA_LIMITS.IMAGE_TARGET_SIZE).toBe(4 * 1024 * 1024);
       expect(MEDIA_LIMITS.IMAGE_QUALITY).toBe(85);
+    });
+
+    it('IMAGE_TARGET_SIZE leaves a safety margin under MAX_IMAGE_SIZE', () => {
+      // The margin exists to absorb JPEG re-encoding variability — sharp's
+      // sqrt(target/original) scale factor aims for `IMAGE_TARGET_SIZE` but
+      // actual output bytes depend on content entropy. Without margin, an
+      // image just barely over MAX_IMAGE_SIZE could resize to something
+      // STILL over MAX_IMAGE_SIZE. Pin the inequality so a future change
+      // that flips them equal triggers this test.
+      expect(MEDIA_LIMITS.IMAGE_TARGET_SIZE).toBeLessThan(MEDIA_LIMITS.MAX_IMAGE_SIZE);
     });
   });
 

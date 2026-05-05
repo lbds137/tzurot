@@ -10,6 +10,7 @@ import {
   AttachmentTooLargeError,
   HttpError,
   JobPayloadTooLargeError,
+  MAX_AGGREGATE_PAYLOAD_BYTES,
 } from '../../../../utils/attachmentFetch.js';
 import { ExpiredJobError, MAX_QUEUE_AGE_MS } from '../../../../utils/jobAgeGate.js';
 import type { GenerationContext } from '../types.js';
@@ -422,19 +423,20 @@ describe('DownloadAttachmentsStep', () => {
 
   it('throws JobPayloadTooLargeError when post-resize aggregate exceeds the cap', async () => {
     // Pins the aggregate-size guard: each attachment passes per-attachment
-    // cap (under MAX_ATTACHMENT_BYTES), but together they exceed the
-    // aggregate cap (50 MiB) and would otherwise blow Redis's per-key limit
-    // at the BullMQ JSON.stringify boundary. Use small synthetic buffers
-    // and override the resize mock to return realistic post-resize sizes
-    // so the test doesn't allocate hundreds of MiB.
+    // cap (under MAX_ATTACHMENT_BYTES = 25 MiB), but together they exceed
+    // the aggregate cap (100 MiB) and would otherwise blow Redis's per-key
+    // limit at the BullMQ JSON.stringify boundary. Use small synthetic
+    // buffers and override the resize mock to return realistic post-resize
+    // sizes so the test doesn't allocate hundreds of MiB.
     const smallBuf = Buffer.from('placeholder');
     fetchAttachmentBytesMock.mockResolvedValue(smallBuf);
-    // Simulate two non-image attachments that bypass resize at ~30 MiB each
-    // (combined: 60 MiB > 50 MiB cap). The fake { byteLength } object never
-    // reaches a real Buffer method — bufferToDataUrlMock at module scope
-    // accepts any input and returns a placeholder data URL, and the size
-    // sum is computed directly from the byteLength field.
-    const fakeOversized = { byteLength: 30 * 1024 * 1024 } as Buffer;
+    // Simulate six non-image attachments that bypass resize at ~21 MiB each
+    // (combined: 126 MiB > 100 MiB cap). Each is just under the 25 MiB
+    // per-attachment cap. The fake { byteLength } object never reaches a
+    // real Buffer method — bufferToDataUrlMock at module scope accepts any
+    // input and returns a placeholder data URL, and the size sum is
+    // computed directly from the byteLength field.
+    const fakeOversized = { byteLength: 21 * 1024 * 1024 } as Buffer;
     resizeImageIfNeededMock.mockResolvedValue({
       buffer: fakeOversized,
       contentType: 'video/mp4',
@@ -443,6 +445,10 @@ describe('DownloadAttachmentsStep', () => {
     const job = createJob([
       { url: 'https://cdn.discordapp.com/a.mp4', contentType: 'video/mp4', name: 'a.mp4' },
       { url: 'https://cdn.discordapp.com/b.mp4', contentType: 'video/mp4', name: 'b.mp4' },
+      { url: 'https://cdn.discordapp.com/c.mp4', contentType: 'video/mp4', name: 'c.mp4' },
+      { url: 'https://cdn.discordapp.com/d.mp4', contentType: 'video/mp4', name: 'd.mp4' },
+      { url: 'https://cdn.discordapp.com/e.mp4', contentType: 'video/mp4', name: 'e.mp4' },
+      { url: 'https://cdn.discordapp.com/f.mp4', contentType: 'video/mp4', name: 'f.mp4' },
     ]);
 
     await expect(step.process(createContext(job))).rejects.toBeInstanceOf(JobPayloadTooLargeError);
@@ -451,12 +457,38 @@ describe('DownloadAttachmentsStep', () => {
     expect(loggerMock.warn).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: 'job-123',
-        totalBytes: 60 * 1024 * 1024,
-        limit: 50 * 1024 * 1024,
-        attachmentCount: 2,
+        totalBytes: 126 * 1024 * 1024,
+        limit: MAX_AGGREGATE_PAYLOAD_BYTES,
+        attachmentCount: 6,
       }),
       expect.stringMatching(/aggregate attachment payload exceeds limit/)
     );
+  });
+
+  it('passes when aggregate is exactly at the cap (boundary edge)', async () => {
+    // Edge-case lock: the aggregate guard uses `> MAX_AGGREGATE_PAYLOAD_BYTES`,
+    // not `>=`. An aggregate landing exactly at 100 MiB (e.g., 5 attachments
+    // × 20 MiB) must be accepted. This pins the inclusive boundary so a
+    // future refactor that flips `>` to `>=` would fail the test rather
+    // than silently regressing user behavior at the precise cap boundary.
+    const smallBuf = Buffer.from('placeholder');
+    fetchAttachmentBytesMock.mockResolvedValue(smallBuf);
+    const fakeAtBoundary = { byteLength: 20 * 1024 * 1024 } as Buffer;
+    resizeImageIfNeededMock.mockResolvedValue({
+      buffer: fakeAtBoundary,
+      contentType: 'video/mp4',
+    });
+
+    const job = createJob([
+      { url: 'https://cdn.discordapp.com/a.mp4', contentType: 'video/mp4', name: 'a.mp4' },
+      { url: 'https://cdn.discordapp.com/b.mp4', contentType: 'video/mp4', name: 'b.mp4' },
+      { url: 'https://cdn.discordapp.com/c.mp4', contentType: 'video/mp4', name: 'c.mp4' },
+      { url: 'https://cdn.discordapp.com/d.mp4', contentType: 'video/mp4', name: 'd.mp4' },
+      { url: 'https://cdn.discordapp.com/e.mp4', contentType: 'video/mp4', name: 'e.mp4' },
+    ]);
+
+    // Exactly 5 × 20 MiB = 100 MiB = MAX_AGGREGATE_PAYLOAD_BYTES. Not over.
+    await expect(step.process(createContext(job))).resolves.toBeDefined();
   });
 
   it('retries once on transient network error before counting as a per-attachment failure', async () => {

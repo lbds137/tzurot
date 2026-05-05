@@ -63,17 +63,30 @@ export class AttachmentTooLargeError extends Error {
 /**
  * Maximum aggregate size of all attachments (post-resize) carried inside a
  * single BullMQ job's data. Stays well under Redis's 512 MiB per-key limit
- * with headroom for non-attachment payload fields. Image attachments are
- * resized down well below this; the cap really only fires for non-image
- * attachments (audio/video) that bypass resize.
+ * with comfortable headroom for non-attachment payload fields. Image
+ * attachments are resized down well below this; the cap really only fires
+ * for many small/medium images stacked together — Discord allows up to 10
+ * attachments per message (API limit), but a single job carries the
+ * trigger message's attachments PLUS the extended-context window's
+ * attachments, so 20 total is the realistic app-level upper bound. The
+ * cap also fires for non-image attachments (audio/video) that bypass
+ * resize entirely.
  *
  * Note: this cap is in **binary bytes** (pre-base64). Data URLs in `job.data`
- * are base64-encoded, inflating each attachment by ~33% — so a 50 MiB binary
- * payload produces ~67 MiB of base64 in the serialized job. Still well under
- * Redis's 512 MiB per-key limit; the conservative cap exists so the
- * BullMQ JSON.stringify boundary never runs close to the limit.
+ * are base64-encoded, inflating each attachment by ~33% — so a 100 MiB binary
+ * payload produces ~133 MiB of base64 in the serialized job. Still well under
+ * Redis's 512 MiB per-key limit (~26% of capacity), leaving plenty of room
+ * for non-attachment fields and Redis's own metadata overhead.
+ *
+ * Sizing math: 100 MiB / 20 max attachments = 5 MiB/attachment, matching
+ * the 5 MiB MAX_IMAGE_SIZE — so a worst-case 20-attachment message where
+ * every image is just at the resize threshold (≤ 5 MiB, passing through
+ * unchanged) lands right at the cap. Images that DO get resized target
+ * IMAGE_TARGET_SIZE (4 MiB), leaving even more headroom. Real messages
+ * carry far fewer attachments, leaving plenty of headroom for individual
+ * non-image attachments to be larger.
  */
-export const MAX_AGGREGATE_PAYLOAD_BYTES = 50 * 1024 * 1024;
+export const MAX_AGGREGATE_PAYLOAD_BYTES = 100 * 1024 * 1024;
 
 /**
  * Error thrown when the aggregate size of all downloaded attachments in a
