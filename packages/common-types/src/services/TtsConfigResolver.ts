@@ -162,9 +162,16 @@ export class TtsConfigResolver extends BaseConfigResolver<
         };
       }
     } catch (error) {
-      this.logger.warn(
+      // ERROR severity: anything that throws from findUnique here (Prisma
+      // connection issue, schema mismatch, transient network blip) means a
+      // user-configured personality TTS default couldn't be loaded. Falling
+      // through to free-default produces correct runtime behavior but masks
+      // the underlying issue; ERROR makes it visible in dashboards rather
+      // than getting filtered with routine WARNs. The cause (transient vs.
+      // structural) is captured in the err field for triage.
+      this.logger.error(
         { err: error, personalityId: personality.id },
-        'Failed to load PersonalityDefaultTtsConfig — falling through to free default'
+        'Failed to load PersonalityDefaultTtsConfig — falling through to free default (user-configured personality TTS default is unavailable)'
       );
     }
 
