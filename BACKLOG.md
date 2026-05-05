@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-04-26
-> **Version**: v3.0.0-beta.106 (released — next unreleased bundle starts fresh on develop)
+> **Last Updated**: 2026-05-05
+> **Version**: v3.0.0-beta.116 (released — develop is currently SHA-aligned with main; next bundle starts fresh)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
