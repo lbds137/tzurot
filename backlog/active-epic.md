@@ -37,30 +37,50 @@ Settled-decisions snapshot from the original Phase 1 plan is captured in `docs/p
 
 ---
 
-### Phase 3: Mistral STT cutover
+### Phase 3: `/voice` consolidation + Mistral STT cutover
 
-**Status**: Plan-mode pending. **Likely the next-session candidate** — closes the cost loop on the second ElevenLabs line item.
+**Status**: Plan-mode pending. **Architectural decisions locked 2026-05-05** via two council passes (Gemini 3.1 Pro Preview). Cleared for PR 1 plan-mode tomorrow.
 
-**Scope**: Flip `AudioProcessor.transcribeAudio` from ElevenLabs Scribe to Mistral Voxtral Transcribe. Auth plumbing already exists post-Phase-1 via the `audioProviderKeys` map, so this is a one-line consumer swap **once the benchmark gate clears**.
+**Scope expansion**: Phase 3 grew during 2026-05-05 design discussion. Original framing was "flip STT consumer + add `/settings stt` parallel command surface." Council pass 1 validated parallel surface with Option B shape (minimal `view/set/clear`); user pushed back during follow-up that consolidating to a top-level `/voice` namespace is cleaner — citing existing `/preset` precedent for top-level domain commands. Grepping `services/bot-client/src/commands/settings/` surfaced that **`/settings` has TWO voice-related subgroups today** (`tts` for provider config + `voices` for cloned-voice management), making the consolidation opportunity bigger than initial framing.
 
-**Benchmark gate** (required pre-cutover):
+Council pass 2 validated the consolidation shape, **reversed** the slicing recommendation to "refactor first, feature second" for blast-radius isolation, and **corrected the bundled-default semantic** to single-field-write rather than dual-field-write (preserves 4-layer chain integrity).
 
-- Capture ~20 representative real voice messages spanning the bot's language mix (English + occasional Hebrew/multilingual)
-- Transcribe each via both providers
-- Score WER + qualitative accuracy on multilingual edge cases
-- Pass criterion: Mistral matches OR exceeds ElevenLabs Scribe on the sample
-- Fail criterion: Mistral underperforms on multilingual → escalate (alternatives: keep ElevenLabs STT but downgrade plan; investigate Mistral STT model variants like `voxtral-mini-realtime` for live transcription)
+**Two-PR shape**:
 
-**4-layer fallback chain (planned for the consumer-side implementation)**:
+- **PR 1 — Pure refactor**: migrate `/settings tts/*` and `/settings voices/*` handlers into a new top-level `/voice` namespace. Add `/voice view` dashboard. Replace old commands with ephemeral deprecation stubs. **Zero new behavior** — STT still ElevenLabs, no Layer 1 override exists yet.
+- **PR 2 — Phase 3 cutover + provider-set**: add `/voice provider set/clear` (writes single `default_provider` field, Layer 3), `/voice stt set/clear` (Layer 1 escape valve), wire the 4-layer resolver into `AudioProcessor.transcribeAudio`, flip STT path to Mistral Voxtral Transcribe.
 
-1. User explicit override (`/settings stt provider <id>`)
-2. Derive from TTS provider (if user has Mistral TTS configured, use Mistral STT too — minimizes setup friction)
-3. Admin-configured system STT default
+**Final command shape** (after both PRs):
+
+```
+/voice view                  — dashboard: resolved TTS + STT + cloned voices
+/voice browse                — paginated cloned-voice list
+/voice clear <slug>          — clear reference audio
+/voice delete <slug>         — delete cloned voice slot
+/voice provider set <id>     — bundled default (Layer 3)
+/voice provider clear
+/voice tts set <id>          — TTS-specific override
+/voice tts clear
+/voice stt set <id>          — STT-specific override (Layer 1 escape valve)
+/voice stt clear
+```
+
+**4-layer STT resolution chain** (locked):
+
+1. User explicit STT override (`/voice stt set <id>`)
+2. Derive from TTS provider (if user has Mistral TTS, use Mistral STT)
+3. Admin/system `default_provider` (from `/voice provider set`)
 4. voice-engine fallback (free tier)
 
-Council surfaced 3 design issues with deriving STT from TTS-default during planning (NeuTTS Air is TTS-only so can't derive, discoverability cost, bot-owner cost decoupling) — the 4-layer chain reconciles those.
+**Benchmark gate dropped**: original plan called for a multilingual WER benchmark (~20 real voice messages) before Phase 3 cutover. User decided against benchmark-as-gate during 2026-05-05 discussion — bundling TTS+STT by provider is the user-preferred UX regardless of marginal STT-quality differences, and the Layer 1 escape valve preserves the option to opt out per-user if quality matters more than cost for a specific case.
 
-**What ships in Phase 3**: AudioProcessor consumer flip + benchmark documentation + telemetry log line for STT calls (parallel to TTS cost telemetry from Phase 1) + ElevenLabs subscription cancellation note.
+**Discord-specific deploy gotchas** (handled in PR 1):
+
+- Client-side command cache: post-deploy, users may need Ctrl/Cmd+R to refresh — single-line announcement message planned.
+- Global vs guild command propagation: confirm registration mode during plan-mode (guild = instant, global = up to 1hr).
+- Deprecation stubs not deletion: old `/settings tts` and `/settings voices` reply ephemerally pointing at `/voice` for ~1 month before removal (backlog item filed).
+
+**Full plan**: [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](../docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md). Read this before starting plan-mode tomorrow.
 
 ---
 

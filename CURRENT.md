@@ -1,14 +1,32 @@
 # Current
 
-> **Session**: 2026-05-05 — v3.0.0-beta.116 SHIPPED (TTS post-deploy hardening + attachment-cap fix + read-before-merge hook)
+> **Session**: 2026-05-05 (evening) — TTS Phase 3 reshaped via two council passes. **Plan-mode pickup tomorrow on PR 1 of the new `/voice` consolidation shape.**
 > **Version**: v3.0.0-beta.116
-> **🚧 Release freeze status**: LIFTED. Phase 3 (STT cutover) and Phase 2 (NeuTTS Air) remain on the TTS Engine Upgrade epic — develop will accumulate those before any subsequent release.
+> **🚧 Release freeze status**: LIFTED. Phase 3 (now reshaped to two-PR `/voice` consolidation + STT cutover) and Phase 2 (NeuTTS Air) remain on the TTS Engine Upgrade epic.
 
 ---
 
 ## Next Session Goal
 
-**Phase 3 (STT cutover) plan-mode pass** OR **`/settings tts` UX phase** — pivoting from TTS-mechanics work (which closed cleanly across beta.115 + beta.116) into either the STT layered-resolution chain or the user-facing TTS UX surface. Phase 3 is the larger architectural piece (4-layer fallback chain: user explicit override → derive from TTS provider → admin-configured system STT default → voice-engine fallback); the `/settings tts` UX is the smaller user-visible polish on what's already shipped.
+**Phase 3 PR 1 plan-mode pass** — pure refactor consolidating `/settings tts/*` and `/settings voices/*` handlers into a new top-level `/voice` namespace, with deprecation stubs left on the old paths. **Zero new behavior** in this PR — that's the design choice for blast-radius isolation. Phase 3 PR 2 (the actual STT cutover + `/voice provider set` + `/voice stt set` + 4-layer resolver wiring) lands on top of the clean namespace afterwards.
+
+**Read first tomorrow**: [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md) — captures the locked decisions from today's two council passes (architectural shape, slicing rationale, bundled-default single-field-write semantic, Discord client-cache gotchas, plan-mode verification checklist).
+
+**Plan-mode entry points** (verify before code):
+
+- Current `/settings` registration mode (global vs guild) — affects deploy strategy.
+- Whether `default_provider` field exists today on user/persona records, or PR 2 needs a Prisma migration to add it.
+- File-move count under `services/bot-client/src/commands/settings/{tts,voices}/` — sets PR 1 review surface size.
+- `CommandHandler.int.test.ts` snapshot update mechanics for the namespace change.
+- `/voice view` dashboard fetch shape (inline cloned-voice summary vs handoff to `/voice browse`).
+
+**This session (2026-05-05 evening)**:
+
+- TTS Phase 3 reshaped during user-driven design discussion. Original framing was "flip STT consumer + add `/settings stt` parallel surface." User pushed back on parallel-namespace approach citing project precedent (`/preset` is top-level alongside `/settings preset` alias). Grepping `services/bot-client/src/commands/settings/` surfaced two voice-related subgroups (`tts` for provider config + `voices` for cloned-voice management) — wider consolidation opportunity than initial framing.
+- Two council passes (Gemini 3.1 Pro Preview, sequential) on the design. **Pass 1**: validated minimal `/settings stt view/set/clear` parallel shape with JIT teaching in `view` embed and `tts set` success message; rejected `--stt-override` flags-on-TTS approach. **Pass 2 (after scope expansion)**: validated unified `/voice` consolidation absorbing both subgroups; **reversed** slicing recommendation to "refactor first, feature second" for blast-radius isolation; **corrected** bundled-default semantic from dual-field-write to single-field-write (preserves 4-layer chain integrity); confirmed unified dashboard `/voice view` over separate per-domain views.
+- Locked Phase 3 as two-PR plan: PR 1 pure refactor (`/voice` namespace, deprecation stubs on old paths), PR 2 STT cutover + provider-set + 4-layer resolver wiring.
+- Documented in [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md), [`backlog/active-epic.md`](backlog/active-epic.md) Phase 3 section, this CURRENT.md, and inbox item filed for stub-removal scheduling ~1 month after PR 1.
+- **No code written this session.** Documentation-only; plan-mode pickup tomorrow.
 
 **Beta.116 shipped** (post-Phase-1 hardening + tooling):
 
