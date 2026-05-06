@@ -157,14 +157,14 @@ export interface PersonalityCharacterFields {
  * Shared between PersonalityCreateSchema and PersonalityUpdateSchema.
  */
 export const PersonalityCharacterFieldsSchema = z.object({
-  personalityTone: nullableString(1000),
+  personalityTone: nullableString(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH),
   personalityAge: nullableString(100),
   personalityAppearance: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
   personalityLikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
   personalityDislikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
   conversationalGoals: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
   conversationalExamples: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  errorMessage: nullableString(1000),
+  errorMessage: nullableString(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH),
 });
 
 // ============================================================================
@@ -198,7 +198,10 @@ export const PersonalityCreateSchema = z.object({
     .string()
     .min(1, 'characterInfo is required')
     .max(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  personalityTraits: z.string().min(1, 'personalityTraits is required').max(1000),
+  personalityTraits: z
+    .string()
+    .min(1, 'personalityTraits is required')
+    .max(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH),
 
   // Optional display name (defaults to name if not provided)
   displayName: nullableString(255),
@@ -235,7 +238,7 @@ export const PersonalityUpdateSchema = z.object({
   slug: slugSchema.optional(),
   displayName: nullableString(255),
   characterInfo: z.string().min(1).max(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH).optional(),
-  personalityTraits: z.string().min(1).max(1000).optional(),
+  personalityTraits: z.string().min(1).max(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH).optional(),
 
   // Character definition — limits match Discord dashboard modal config
   ...PersonalityCharacterFieldsSchema.shape,

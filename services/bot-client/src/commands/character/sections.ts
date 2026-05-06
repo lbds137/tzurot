@@ -63,7 +63,7 @@ export const identitySection: SectionDefinition<CharacterData> = {
       placeholder: 'Key traits and behaviors...',
       required: true,
       style: 'paragraph',
-      maxLength: 1000,
+      maxLength: DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH,
     },
     {
       id: 'personalityTone',
@@ -214,7 +214,6 @@ export const preferencesSection: SectionDefinition<CharacterData> = {
 /**
  * Conversation Section
  * Fields: conversationalGoals, conversationalExamples, errorMessage
- * Goals and examples are long fields (4000 chars), errorMessage is shorter (1000 chars)
  */
 export const conversationSection: SectionDefinition<CharacterData> = {
   id: 'conversation',
@@ -244,7 +243,7 @@ export const conversationSection: SectionDefinition<CharacterData> = {
       placeholder: "What should the character say when there's an error?",
       required: false,
       style: 'paragraph',
-      maxLength: 1000,
+      maxLength: DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH,
     },
   ],
   getStatus: (data: CharacterData) => {
