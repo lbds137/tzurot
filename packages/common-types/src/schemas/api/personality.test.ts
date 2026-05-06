@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { DISCORD_LIMITS } from '../../constants/discord.js';
 import { EntityPermissionsSchema } from './shared.js';
 import {
   PersonalitySummarySchema,
@@ -270,6 +271,34 @@ describe('Personality API Contract Tests', () => {
       expect(keys).toContain('personalityTone');
       expect(keys).toContain('errorMessage');
     });
+
+    it('should reject personalityTone exceeding SHORT_PARAGRAPH_MAX_LENGTH', () => {
+      const result = PersonalityCharacterFieldsSchema.safeParse({
+        personalityTone: 'x'.repeat(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH + 1),
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject errorMessage exceeding SHORT_PARAGRAPH_MAX_LENGTH', () => {
+      const result = PersonalityCharacterFieldsSchema.safeParse({
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: 'x'.repeat(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH + 1),
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('PersonalityCreateSchema', () => {
@@ -283,6 +312,15 @@ describe('Personality API Contract Tests', () => {
     it('should validate complete create input with required fields only', () => {
       const result = PersonalityCreateSchema.safeParse(validCreateInput);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject personalityTraits exceeding SHORT_PARAGRAPH_MAX_LENGTH', () => {
+      const input = {
+        ...validCreateInput,
+        personalityTraits: 'x'.repeat(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH + 1),
+      };
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
     });
 
     it('should validate create input with all optional fields', () => {

@@ -92,6 +92,11 @@ describe('Character Dashboard Configuration', () => {
       expect(identitySection.fields).toHaveLength(5);
     });
 
+    it('should enforce SHORT_PARAGRAPH_MAX_LENGTH for personalityTraits', () => {
+      const traits = identitySection.fields.find(f => f.id === 'personalityTraits')!;
+      expect(traits.maxLength).toBe(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH);
+    });
+
     it('should return COMPLETE when name and traits are set', () => {
       const character = createTestCharacter({
         name: 'Test',
@@ -143,7 +148,7 @@ describe('Character Dashboard Configuration', () => {
       }
     });
 
-    it('should allow 4000 characters for both fields', () => {
+    it('should allow MODAL_INPUT_MAX_LENGTH characters for both fields', () => {
       for (const field of biographySection.fields) {
         expect(field.maxLength).toBe(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
       }
@@ -188,7 +193,7 @@ describe('Character Dashboard Configuration', () => {
       }
     });
 
-    it('should allow 4000 characters for both fields', () => {
+    it('should allow MODAL_INPUT_MAX_LENGTH characters for both fields', () => {
       for (const field of preferencesSection.fields) {
         expect(field.maxLength).toBe(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
       }
@@ -234,7 +239,7 @@ describe('Character Dashboard Configuration', () => {
       expect(conversationSection.fields).toHaveLength(3);
     });
 
-    it('should allow 4000 characters for goals and examples', () => {
+    it('should allow MODAL_INPUT_MAX_LENGTH characters for goals and examples', () => {
       const goalsField = conversationSection.fields.find(f => f.id === 'conversationalGoals')!;
       const examplesField = conversationSection.fields.find(
         f => f.id === 'conversationalExamples'
@@ -244,9 +249,9 @@ describe('Character Dashboard Configuration', () => {
       expect(examplesField.maxLength).toBe(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
     });
 
-    it('should allow 1000 characters for errorMessage', () => {
+    it('should allow SHORT_PARAGRAPH_MAX_LENGTH characters for errorMessage', () => {
       const errorField = conversationSection.fields.find(f => f.id === 'errorMessage')!;
-      expect(errorField.maxLength).toBe(1000);
+      expect(errorField.maxLength).toBe(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH);
     });
 
     it('should return COMPLETE when goals and examples are set', () => {
@@ -302,6 +307,13 @@ describe('Character Dashboard Configuration', () => {
 
     it('should not exceed Discord modal field limit', () => {
       expect(characterSeedFields.length).toBeLessThanOrEqual(5);
+    });
+
+    it('should enforce correct maxLength for characterInfo and personalityTraits', () => {
+      const charInfo = characterSeedFields.find(f => f.id === 'characterInfo')!;
+      const traits = characterSeedFields.find(f => f.id === 'personalityTraits')!;
+      expect(charInfo.maxLength).toBe(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
+      expect(traits.maxLength).toBe(DISCORD_LIMITS.SHORT_PARAGRAPH_MAX_LENGTH);
     });
   });
 
