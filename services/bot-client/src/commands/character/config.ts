@@ -179,6 +179,6 @@ export const characterSeedFields: FieldDefinition[] = [
     placeholder: 'Key traits and behaviors...',
     required: true,
     style: 'paragraph' as const,
-    maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
+    maxLength: 1000,
   },
 ];
