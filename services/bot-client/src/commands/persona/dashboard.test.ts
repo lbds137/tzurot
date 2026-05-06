@@ -278,19 +278,28 @@ vi.mock('../../utils/dashboard/refreshHandler.js', () => ({
   refreshDashboardUI: (...args: unknown[]) => mockRefreshDashboardUI(...args),
 }));
 
+// Shared mock logger reference so tests can assert against `mockLogger.warn`
+// (the dispatch helper logs unknown-action violations there). vi.hoisted
+// is required because vi.mock factories are hoisted above const declarations.
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
+    createLogger: () => mockLogger,
     DISCORD_COLORS: {
       BLURPLE: 0x5865f2,
       WARNING: 0xfee75c,
+      // Truncation gate's "Ready to edit" embed uses SUCCESS — required
+      // by buildReadyToEditEmbed (utils/dashboard/truncationGate/embeds.ts).
+      SUCCESS: 0x00ff00,
     },
   };
 });
@@ -444,6 +453,27 @@ describe('handleSelectMenu', () => {
     });
   });
 
+  it('should not open modal or warning when section is unknown', async () => {
+    // Pins the early-return contract on `if (ctx === null) { return; }`
+    // — when resolvePersonaSectionContext returns null, no downstream
+    // side effects should fire (no modal, no warning embed). The
+    // sectionContext error reply is the only side effect; the rest of
+    // the function must short-circuit cleanly.
+    await handleSelectMenu(
+      createMockSelectInteraction(
+        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        'edit-nonexistent'
+      )
+    );
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    // mockReply is the sectionContext error path; verify it received
+    // ONLY the unknown-section content (not the warning embed shape).
+    const replyCall = mockReply.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+    expect(replyCall?.embeds).toBeUndefined();
+    expect(replyCall?.components).toBeUndefined();
+  });
+
   it('should ignore non-persona interactions', async () => {
     await handleSelectMenu(
       createMockSelectInteraction(
@@ -453,6 +483,48 @@ describe('handleSelectMenu', () => {
     );
 
     expect(mockShowModal).not.toHaveBeenCalled();
+  });
+
+  it('should show truncation warning when content exceeds maxLength', async () => {
+    // Populate session data with `content` past the 4000-char modal cap.
+    // The new flow detects over-length fields and replies with the
+    // ephemeral warning embed instead of opening the modal directly.
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', content: 'x'.repeat(4500) },
+    });
+
+    await handleSelectMenu(
+      createMockSelectInteraction(
+        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        'edit-identity'
+      )
+    );
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    expect(mockReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flags: MessageFlags.Ephemeral,
+        embeds: expect.any(Array),
+        components: expect.any(Array),
+      })
+    );
+  });
+
+  it('should open modal directly when no fields over limit', async () => {
+    // Re-establishes the common path after the truncation-warning addition:
+    // when content fits, the gate is transparent and the modal opens.
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', content: 'fits within cap' },
+    });
+
+    await handleSelectMenu(
+      createMockSelectInteraction(
+        'persona::menu::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        'edit-identity'
+      )
+    );
+
+    expect(mockShowModal).toHaveBeenCalled();
   });
 });
 
@@ -690,6 +762,126 @@ describe('handleButton', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(mockDeferUpdate).not.toHaveBeenCalled();
   });
+
+  it('should log + drop unknown truncation-gate actions without acking', async () => {
+    // Pins the `default:` contract on the dispatch helper. An unknown
+    // persona action with the dashboard-prefix shape is parsed through
+    // PersonaCustomIds.parse → falls through the main switch into
+    // dispatchTruncationGateAction → no case matches → `default` logs
+    // the violation so a future drift between DASHBOARD_ACTIONS and the
+    // switch cases is diagnosable. The interaction is left unacked
+    // (Discord surfaces "Interaction Failed"); the handler doesn't
+    // throw, double-reply, or otherwise propagate.
+    mockLogger.warn.mockClear();
+    await handleButton(
+      createMockButtonInteraction(`persona::fake_action::${TEST_PERSONA_ID}::identity`)
+    );
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockReply).not.toHaveBeenCalled();
+    // The log assertion is the contract — without it, "logged" in the
+    // test name would be a lie (and was, until this assertion existed).
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'fake_action' }),
+      expect.stringContaining('Unknown truncation-gate action')
+    );
+  });
+
+  it('should silently drop sectionId-requiring actions when sectionId is absent', async () => {
+    // Mid-customId truncation: e.g. `persona::edit_truncated::personaId`
+    // (no fourth segment). The dispatch helper logs + returns; the
+    // handleEditTruncatedButton handler is never called.
+    await handleButton(createMockButtonInteraction(`persona::edit_truncated::${TEST_PERSONA_ID}`));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('should route cancel_edit button to update with cancellation notice', async () => {
+    // The cancel_edit handler is dashboard-state-light: just an update()
+    // that clears the warning embed. No session lookup, no API call.
+    await handleButton(
+      createMockButtonInteraction(`persona::cancel_edit::${TEST_PERSONA_ID}::identity`)
+    );
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('cancelled'),
+        embeds: [],
+        components: [],
+      })
+    );
+  });
+
+  it('should route edit_truncated button to two-click flow update', async () => {
+    // Step 1 of the two-click flow: update to "Ready to edit" embed +
+    // single Open Editor button. No showModal at this stage.
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', content: 'x'.repeat(4500) },
+    });
+
+    const interaction = createMockButtonInteraction(
+      `persona::edit_truncated::${TEST_PERSONA_ID}::identity`
+    ) as unknown as Record<string, unknown>;
+    interaction.followUp = vi.fn();
+
+    await handleButton(interaction as unknown as Parameters<typeof handleButton>[0]);
+
+    expect(mockUpdate).toHaveBeenCalled();
+    const updateArgs = mockUpdate.mock.calls[0][0];
+    expect(updateArgs.embeds).toHaveLength(1);
+    expect(updateArgs.components).toHaveLength(1);
+  });
+
+  it('should route open_editor button to showModal', async () => {
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', content: 'fits' },
+    });
+
+    const showModalSpy = vi.fn().mockResolvedValue(undefined);
+    const interaction = createMockButtonInteraction(
+      `persona::open_editor::${TEST_PERSONA_ID}::identity`
+    ) as unknown as Record<string, unknown>;
+    interaction.showModal = showModalSpy;
+
+    await handleButton(interaction as unknown as Parameters<typeof handleButton>[0]);
+
+    expect(showModalSpy).toHaveBeenCalled();
+  });
+
+  it('should route view_full button to deferReply + editReply with attachment', async () => {
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', content: 'x'.repeat(4500) },
+    });
+
+    // view_full follows the deferReply → resolveContext → editReply path.
+    // The deferReply must transition the interaction's `deferred` getter
+    // to true so sectionContext's replyError predicate would route via
+    // followUp on error (we don't exercise the error path here, but the
+    // state transition matters for the success path's editReply).
+    const state = { deferred: false, replied: false };
+    const deferReplySpy = vi.fn().mockImplementation(async () => {
+      state.deferred = true;
+    });
+    const editReplySpy = vi.fn().mockResolvedValue(undefined);
+    const baseInteraction = createMockButtonInteraction(
+      `persona::view_full::${TEST_PERSONA_ID}::identity`
+    ) as unknown as Record<string, unknown>;
+    Object.defineProperty(baseInteraction, 'deferred', {
+      get: () => state.deferred,
+    });
+    Object.defineProperty(baseInteraction, 'replied', {
+      get: () => state.replied,
+    });
+    baseInteraction.deferReply = deferReplySpy;
+    baseInteraction.editReply = editReplySpy;
+
+    await handleButton(baseInteraction as unknown as Parameters<typeof handleButton>[0]);
+
+    expect(deferReplySpy).toHaveBeenCalled();
+    expect(editReplySpy).toHaveBeenCalled();
+    const editArgs = editReplySpy.mock.calls[0][0];
+    expect(editArgs.files).toHaveLength(1);
+  });
 });
 
 describe('isPersonaDashboardInteraction', () => {
@@ -717,6 +909,27 @@ describe('isPersonaDashboardInteraction', () => {
     ).toBe(true);
     expect(
       isPersonaDashboardInteraction('persona::back::b2c3d4e5-f6a7-8901-bcde-f12345678901')
+    ).toBe(true);
+    // Truncation gate actions.
+    expect(
+      isPersonaDashboardInteraction(
+        'persona::edit_truncated::b2c3d4e5-f6a7-8901-bcde-f12345678901::identity'
+      )
+    ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction(
+        'persona::open_editor::b2c3d4e5-f6a7-8901-bcde-f12345678901::identity'
+      )
+    ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction(
+        'persona::view_full::b2c3d4e5-f6a7-8901-bcde-f12345678901::identity'
+      )
+    ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction(
+        'persona::cancel_edit::b2c3d4e5-f6a7-8901-bcde-f12345678901::identity'
+      )
     ).toBe(true);
   });
 
