@@ -11,6 +11,7 @@ import {
   personaSeedFields,
 } from './config.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
+import { DISCORD_LIMITS } from '@tzurot/common-types';
 import type { PersonaDetails, FlattenedPersonaData } from './types.js';
 
 // Helper to create test persona data with defaults
@@ -227,6 +228,13 @@ describe('PERSONA_DASHBOARD_CONFIG', () => {
       it('should return COMPLETE with extras', () => {
         const data = createTestPersonaData({ name: 'Test', preferredName: 'Tester' });
         expect(section.getStatus(data)).toBe(SectionStatus.COMPLETE);
+      });
+    });
+
+    describe('field maxLengths', () => {
+      it('should enforce MODAL_INPUT_MAX_LENGTH for content field', () => {
+        const contentField = section.fields.find(f => f.id === 'content')!;
+        expect(contentField.maxLength).toBe(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH);
       });
     });
 

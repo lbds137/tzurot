@@ -8,7 +8,7 @@
  * (no componentPrefixes hack needed)
  */
 
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 import {
   SectionStatus,
   type SectionDefinition,
@@ -113,7 +113,7 @@ const identitySection: SectionDefinition<FlattenedPersonaData> = {
       placeholder: 'Tell the AI about yourself, your interests, preferences...',
       required: false,
       style: 'paragraph',
-      maxLength: 2000,
+      maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
     },
   ],
   getStatus: data => {

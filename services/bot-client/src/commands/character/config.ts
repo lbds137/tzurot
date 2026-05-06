@@ -5,7 +5,7 @@
  * Organizes fields into logical sections that fit Discord's 5-field modal limit.
  */
 
-import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
+import { DISCORD_COLORS, DISCORD_LIMITS, formatDateShort } from '@tzurot/common-types';
 import {
   type DashboardConfig,
   type ActionButtonOptions,
@@ -171,7 +171,7 @@ export const characterSeedFields: FieldDefinition[] = [
     placeholder: 'Brief background and description...',
     required: true,
     style: 'paragraph' as const,
-    maxLength: 2000,
+    maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
   },
   {
     id: 'personalityTraits',
@@ -179,6 +179,6 @@ export const characterSeedFields: FieldDefinition[] = [
     placeholder: 'Key traits and behaviors...',
     required: true,
     style: 'paragraph' as const,
-    maxLength: 2000,
+    maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
   },
 ];
