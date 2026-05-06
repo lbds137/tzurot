@@ -28,7 +28,6 @@ import {
   renderPostActionScreen,
   handleSharedBackButton,
 } from '../../utils/dashboard/index.js';
-import { handleDashboardSectionSelect } from '../../utils/dashboard/genericSelectMenuHandler.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
@@ -37,9 +36,18 @@ import {
   unflattenPersonaData,
   buildPersonaDashboardOptions,
 } from './config.js';
-import type { PersonaDetails } from './types.js';
 import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './api.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
+import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
+import { detectOverLengthFields } from '../../utils/dashboard/truncationGate/index.js';
+import { resolvePersonaSectionContext } from './sectionContext.js';
+import {
+  showTruncationWarning,
+  handleEditTruncatedButton,
+  handleOpenEditorButton,
+  handleViewFullButton,
+  handleCancelEditButton,
+} from './truncationWarning.js';
 // Registers the persona browse rebuilder for renderPostActionScreen +
 // handleSharedBackButton. Importing the module is enough — the
 // registerBrowseRebuilder call at the bottom of browse.ts runs on load.
@@ -164,16 +172,49 @@ async function handleSectionModalSubmit(
 }
 
 /**
- * Handle select menu interactions for dashboard
+ * Handle select menu interactions for dashboard.
+ *
+ * The select-menu customId follows `persona::menu::{personaId}` and the
+ * selected value is `edit-{sectionId}`. We resolve the section context,
+ * detect any over-length fields, and gate the modal behind a truncation
+ * warning when present. Otherwise the modal opens directly. Mirrors the
+ * character dashboard's pattern — see
+ * `commands/character/dashboard.ts` `handleSelectMenu`.
  */
 export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  await handleDashboardSectionSelect<FlattenedPersonaData, PersonaDetails>(interaction, {
-    entityType: 'persona',
-    dashboardConfig: PERSONA_DASHBOARD_CONFIG,
-    fetchFn: (entityId, user) => fetchPersona(entityId, user),
-    transformFn: flattenPersonaData,
-    entityName: 'Persona',
-  });
+  // Parse the persona-typed customId to extract personaId.
+  const parsed = PersonaCustomIds.parse(interaction.customId);
+  if (parsed?.personaId === undefined) {
+    logger.warn({ customId: interaction.customId }, 'Unrecognized persona select menu customId');
+    return;
+  }
+  const entityId = parsed.personaId;
+
+  // The select value is `edit-{sectionId}`. Anything else is a no-op.
+  const value = interaction.values[0];
+  if (!value?.startsWith('edit-')) {
+    return;
+  }
+  const sectionId = value.slice('edit-'.length);
+
+  const ctx = await resolvePersonaSectionContext(interaction, entityId, sectionId);
+  if (ctx === null) {
+    return;
+  }
+
+  // Truncation gate: if any field's stored content exceeds its modal cap,
+  // show the warning instead of opening the modal directly. The user opts
+  // in via the Edit-with-Truncation button (two-click flow) before any
+  // destructive truncation happens.
+  const overLength = detectOverLengthFields(ctx.section, ctx.data);
+  if (overLength.length > 0) {
+    await showTruncationWarning(interaction, ctx.section, entityId, overLength);
+    return;
+  }
+
+  // Common path: no over-length fields → open the modal directly.
+  const modal = buildSectionModal(ctx.dashboardConfig, ctx.section, entityId, ctx.data);
+  await interaction.showModal(modal);
 }
 
 /**
@@ -359,6 +400,58 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     case 'cancel-delete':
       await handleCancelDeleteButton(interaction, entityId);
       break;
+    default:
+      await dispatchTruncationGateAction(interaction, parsed.action, entityId, parsed.sectionId);
+  }
+}
+
+/**
+ * Dispatch truncation-gate button actions (`edit_truncated`, `open_editor`,
+ * `view_full`, `cancel_edit`). Extracted from `handleButton` to keep its
+ * cyclomatic complexity under the project's max-20 ceiling.
+ *
+ * `cancel_edit` is the only branch that doesn't need `sectionId`; the
+ * other three log + drop if a malformed customId arrives without it,
+ * so the silent-no-op case is observable in logs.
+ */
+async function dispatchTruncationGateAction(
+  interaction: ButtonInteraction,
+  action: string,
+  entityId: string,
+  sectionId: string | undefined
+): Promise<void> {
+  if (action === 'cancel_edit') {
+    await handleCancelEditButton(interaction);
+    return;
+  }
+  if (sectionId === undefined) {
+    logger.warn(
+      { customId: interaction.customId, action },
+      'Truncation-gate action received without sectionId; dropping'
+    );
+    return;
+  }
+  switch (action) {
+    case 'edit_truncated':
+      await handleEditTruncatedButton(interaction, entityId, sectionId);
+      break;
+    case 'open_editor':
+      await handleOpenEditorButton(interaction, entityId, sectionId);
+      break;
+    case 'view_full':
+      await handleViewFullButton(interaction, entityId, sectionId);
+      break;
+    default:
+      // Unknown action with a valid customId shape — should not happen
+      // in practice (the DASHBOARD_ACTIONS Set gates the routing). Logs
+      // the violation so a future drift between the Set and this switch
+      // is diagnosable. Discord still shows "Interaction Failed" to the
+      // user, since acking unknown actions safely needs more context
+      // than this layer has.
+      logger.warn(
+        { customId: interaction.customId, action, entityId, sectionId },
+        'Unknown truncation-gate action; dropping'
+      );
   }
 }
 
@@ -372,6 +465,11 @@ const DASHBOARD_ACTIONS = new Set([
   'confirm-delete',
   'cancel-delete',
   'back',
+  // Truncation gate (mirrors character dashboard).
+  'edit_truncated',
+  'open_editor',
+  'view_full',
+  'cancel_edit',
 ]);
 
 /**

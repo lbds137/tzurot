@@ -1,16 +1,17 @@
 /**
  * Generic Dashboard Select Menu Handler
  *
- * Handles the "edit section" select menu flow shared by persona and preset
- * dashboards. Both flows follow the same pattern:
+ * Handles the "edit section" select menu flow used by the preset dashboard.
+ * The flow:
  * 1. Parse the custom ID and guard on entity type
  * 2. Look up the section config
  * 3. Fetch or create the session
  * 4. Optionally verify edit permission
  * 5. Build and show the section modal
  *
- * Extracted from persona/dashboard.ts and preset/dashboard.ts which had
- * nearly-identical 47-line handleSelectMenu functions.
+ * Originally extracted to share this pattern between persona and preset.
+ * Persona migrated off this handler to inline a truncation-warning gate
+ * before the modal opens; only preset still uses it.
  */
 
 import type { StringSelectMenuInteraction } from 'discord.js';
