@@ -102,13 +102,17 @@ const ALLOWLIST: Record<string, Set<string>> = {
     'handlePersonalityAutocomplete',
     'handlePersonaAutocomplete',
     // Same-name button handlers across distinct domains — character section
-    // editing (truncationWarning.ts) and memory editing (memory/detailModals.ts,
-    // memory/detail.ts). Different state machines, different custom-id
-    // namespaces, different tests. Renaming to disambiguate would touch the
-    // custom-id wiring in 6+ places — out of scope for this gate.
+    // editing (truncationWarning.ts), persona section editing
+    // (persona/truncationWarning.ts), and memory editing
+    // (memory/detailModals.ts, memory/detail.ts). Different state machines,
+    // different custom-id namespaces, different tests. Renaming to
+    // disambiguate would touch the custom-id wiring in 6+ places — out of
+    // scope for this gate.
     'handleEditTruncatedButton',
+    'handleOpenEditorButton',
     'handleViewFullButton',
     'handleCancelEditButton',
+    'showTruncationWarning',
   ]),
 };
 
