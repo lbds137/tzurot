@@ -8,6 +8,17 @@
 import { z } from 'zod';
 
 /**
+ * Entity types that participate in the dashboard truncationGate flow.
+ *
+ * Narrower than `parseDashboardCustomId`'s broader `string` shape (which
+ * also covers preset/profile/etc. entityTypes that don't use the gate
+ * yet). Used to type-check the per-dashboard custom-id namespace passed
+ * into `buildTruncationButtons` / `buildOpenEditorButtonRow`. Add to the
+ * union when a third dashboard adopts the gate.
+ */
+export type TruncationGateEntityType = 'character' | 'persona';
+
+/**
  * Context passed to dashboard rendering functions
  * Used for dynamic field visibility and validation
  */

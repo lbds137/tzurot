@@ -14,19 +14,21 @@
  * committing.
  */
 
-import {
-  EmbedBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ActionRowBuilder,
-  AttachmentBuilder,
-  DiscordAPIError,
-  MessageFlags,
-} from 'discord.js';
+import { AttachmentBuilder, DiscordAPIError, MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS, getConfig, type EnvConfig } from '@tzurot/common-types';
-import { buildDashboardCustomId, type SectionDefinition } from '../../utils/dashboard/types.js';
+import { createLogger, getConfig, type EnvConfig } from '@tzurot/common-types';
+import { type SectionDefinition } from '../../utils/dashboard/types.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
+import {
+  detectOverLengthFields,
+  buildTruncationWarningEmbed,
+  buildTruncationButtons,
+  buildOpenEditorButtonRow,
+  buildReadyToEditEmbed,
+  stripLeadingEmoji,
+  toSafeFilename,
+  type OverLengthField,
+} from '../../utils/dashboard/truncationGate/index.js';
 import type { CharacterData } from './characterTypes.js';
 import {
   findCharacterSection,
@@ -35,147 +37,7 @@ import {
 } from './sectionContext.js';
 
 const logger = createLogger('character-truncation-warning');
-
-/**
- * Strip a leading emoji + whitespace from a section label so modal titles
- * / embed titles / attachment copy read cleanly. Mirrors the inline regex
- * in `ModalFactory.ts:51` (modal title derivation) — kept in sync by
- * convention until a section-label shortener becomes a third consumer
- * that warrants a shared helper.
- */
-function stripLeadingEmoji(label: string): string {
-  return label.replace(/^[^\w\s]+\s*/, '');
-}
-
-/**
- * Convert a user-facing field label into a safe filename slug. Lowercased,
- * whitespace collapsed to underscores, non-alphanumeric chars removed so
- * the resulting name works across OSes. Used for View Full attachments so
- * the user sees `age.txt` instead of the internal `personalityAge.txt`.
- */
-function toSafeFilename(label: string): string {
-  return label
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
-}
-
-/**
- * A field whose current value exceeds its modal maxLength.
- */
-export interface OverLengthField {
-  /** The field id (matches CharacterData key) */
-  fieldId: string;
-  /** The user-facing label */
-  label: string;
-  /** Current character count */
-  current: number;
-  /** Configured maxLength — what the edit modal will truncate down to */
-  max: number;
-}
-
-/**
- * Scan a section's fields and report any whose current value exceeds
- * the modal's maxLength constraint.
- *
- * `maxLength` is a required field on `FieldDefinition` (see
- * `utils/dashboard/types.ts`), so every field always has an explicit
- * cap to check against.
- */
-export function detectOverLengthFields(
-  section: SectionDefinition<CharacterData>,
-  data: CharacterData
-): OverLengthField[] {
-  const over: OverLengthField[] = [];
-  for (const field of section.fields) {
-    const raw = (data as Record<string, unknown>)[field.id];
-    if (typeof raw !== 'string') {
-      continue;
-    }
-    if (raw.length > field.maxLength) {
-      over.push({
-        fieldId: field.id,
-        label: field.label,
-        current: raw.length,
-        max: field.maxLength,
-      });
-    }
-  }
-  return over;
-}
-
-/**
- * Build the destructive-action warning embed listing the over-length
- * fields, their current lengths, and the per-field truncation amount.
- */
-export function buildTruncationWarningEmbed(
-  overLength: OverLengthField[],
-  sectionLabel: string
-): EmbedBuilder {
-  const plainLabel = stripLeadingEmoji(sectionLabel);
-
-  const fieldLines = overLength
-    .map(f => {
-      const loss = f.current - f.max;
-      return (
-        `• **${f.label}** — ${f.current.toLocaleString()} / ${f.max.toLocaleString()} chars ` +
-        `(${loss.toLocaleString()} will be truncated)`
-      );
-    })
-    .join('\n');
-
-  const totalLoss = overLength.reduce((sum, f) => sum + (f.current - f.max), 0);
-
-  return new EmbedBuilder()
-    .setTitle(`⚠️ "${plainLabel}" contains content longer than Discord modals allow`)
-    .setColor(DISCORD_COLORS.WARNING)
-    .setDescription(
-      `One or more fields in this section hold values that exceed the edit modal's limit:\n\n` +
-        `${fieldLines}\n\n` +
-        `⚠️ **Opening the edit modal will pre-fill the fields with truncated values.** ` +
-        `If you save the modal, the trailing content will be lost permanently.\n\n` +
-        `Choose **View Full** to inspect the current full content before deciding. ` +
-        `Choose **Edit with Truncation** only if you're OK losing the trailing text.`
-    )
-    .setFooter({
-      text: `${totalLoss.toLocaleString()} total characters would be truncated across ${overLength.length} field${overLength.length === 1 ? '' : 's'}`,
-    });
-}
-
-/**
- * Build the three-button row for the warning, ordered per `04-discord.md`
- * Standard Button Order (Primary first, Destructive last):
- * - View Full (primary, safe read-only inspection)
- * - Cancel (secondary, dismiss)
- * - Edit with Truncation (danger, opt-in to destructive edit)
- *
- * The destructive-last convention matches the memory detail flow and the
- * delete-confirmation dialogs across the codebase; consistency outranks
- * the "lead with the warning" instinct for this UX.
- */
-export function buildTruncationButtons(
-  entityId: string,
-  sectionId: string
-): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'view_full', entityId, sectionId))
-      .setLabel('View Full')
-      .setEmoji('📖')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'cancel_edit', entityId, sectionId))
-      .setLabel('Cancel')
-      .setEmoji('✖️')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'edit_truncated', entityId, sectionId))
-      .setLabel('Edit with Truncation')
-      .setEmoji('✂️')
-      .setStyle(ButtonStyle.Danger)
-  );
-}
+const ENTITY_TYPE = 'character';
 
 /**
  * Show the truncation warning as an ephemeral reply to the select-menu
@@ -189,45 +51,9 @@ export async function showTruncationWarning(
 ): Promise<void> {
   await interaction.reply({
     embeds: [buildTruncationWarningEmbed(overLength, section.label)],
-    components: [buildTruncationButtons(entityId, section.id)],
+    components: [buildTruncationButtons(ENTITY_TYPE, entityId, section.id)],
     flags: MessageFlags.Ephemeral,
   });
-}
-
-/**
- * Build the "Open Editor" button shown after the user opts into the
- * truncating edit. Splitting the opt-in confirmation from the modal-open
- * click lets us satisfy Discord's "showModal must be the first response"
- * constraint without doing any async work before the showModal call.
- */
-export function buildOpenEditorButtonRow(
-  entityId: string,
-  sectionId: string
-): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildDashboardCustomId('character', 'open_editor', entityId, sectionId))
-      .setLabel('Open Editor')
-      .setEmoji('✏️')
-      .setStyle(ButtonStyle.Primary)
-  );
-}
-
-/**
- * Build the embed shown between the Edit-with-Truncation opt-in and the
- * actual modal. It reassures the user that their consent was recorded
- * and directs them to the single click that opens the modal.
- */
-export function buildReadyToEditEmbed(sectionLabel: string): EmbedBuilder {
-  const plainLabel = stripLeadingEmoji(sectionLabel);
-  return new EmbedBuilder()
-    .setTitle(`✅ Ready to edit "${plainLabel}"`)
-    .setColor(DISCORD_COLORS.SUCCESS)
-    .setDescription(
-      `Your opt-in to truncate over-length fields has been recorded. ` +
-        `Click **Open Editor** below to open the edit modal. ` +
-        `The modal will open with the current values truncated to the edit limit.`
-    );
 }
 
 /**
@@ -267,7 +93,7 @@ export async function handleEditTruncatedButton(
   // Step 1 — ack within the 3-sec budget via `update`. No async before this.
   await interaction.update({
     embeds: [buildReadyToEditEmbed(sectionLabel)],
-    components: [buildOpenEditorButtonRow(entityId, sectionId)],
+    components: [buildOpenEditorButtonRow(ENTITY_TYPE, entityId, sectionId)],
   });
 
   // Step 2 — warm the session so the Open Editor click gets a hot cache

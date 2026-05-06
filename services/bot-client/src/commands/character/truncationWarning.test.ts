@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ButtonStyle, MessageFlags } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
 // Mock common-types — logger, DISCORD_COLORS, isBotOwner, getConfig.
@@ -60,11 +60,6 @@ vi.mock('../../utils/dashboard/ModalFactory.js', async importOriginal => {
 
 // Import after mocks so the factory resolves before module load.
 const {
-  detectOverLengthFields,
-  buildTruncationWarningEmbed,
-  buildTruncationButtons,
-  buildOpenEditorButtonRow,
-  buildReadyToEditEmbed,
   showTruncationWarning,
   handleEditTruncatedButton,
   handleOpenEditorButton,
@@ -93,138 +88,6 @@ const identitySectionStub = {
   getPreview: () => '',
 };
 
-describe('detectOverLengthFields', () => {
-  it('returns empty when no field exceeds its maxLength', () => {
-    const data = {
-      personalityAge: 'a short age',
-      personalityTraits: 'short traits',
-    } as unknown as Parameters<typeof detectOverLengthFields>[1];
-
-    const result = detectOverLengthFields(identitySectionStub, data);
-    expect(result).toEqual([]);
-  });
-
-  it('flags a field whose value exceeds the cap', () => {
-    const data = {
-      personalityAge: 'x'.repeat(150), // over the 100 cap
-      personalityTraits: 'ok',
-    } as unknown as Parameters<typeof detectOverLengthFields>[1];
-
-    const result = detectOverLengthFields(identitySectionStub, data);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      fieldId: 'personalityAge',
-      label: 'Age',
-      current: 150,
-      max: 100,
-    });
-  });
-
-  it('flags multiple over-cap fields independently', () => {
-    const data = {
-      personalityAge: 'x'.repeat(150),
-      personalityTraits: 'y'.repeat(1500),
-    } as unknown as Parameters<typeof detectOverLengthFields>[1];
-
-    const result = detectOverLengthFields(identitySectionStub, data);
-    expect(result).toHaveLength(2);
-    expect(result.map(r => r.fieldId).sort()).toEqual(['personalityAge', 'personalityTraits']);
-  });
-
-  it('ignores non-string values and missing fields', () => {
-    const data = {
-      personalityAge: null,
-      personalityTraits: undefined,
-      unrelated: 'x'.repeat(5000),
-    } as unknown as Parameters<typeof detectOverLengthFields>[1];
-
-    const result = detectOverLengthFields(identitySectionStub, data);
-    expect(result).toEqual([]);
-  });
-});
-
-describe('buildTruncationWarningEmbed', () => {
-  it('includes per-field char counts and the total truncation amount', () => {
-    const embed = buildTruncationWarningEmbed(
-      [
-        { fieldId: 'personalityAge', label: 'Age', current: 150, max: 100 },
-        {
-          fieldId: 'personalityTraits',
-          label: 'Traits',
-          current: 1500,
-          max: 1000,
-        },
-      ],
-      '🏷️ Identity & Basics'
-    );
-
-    const json = embed.toJSON();
-    expect(json.title).toContain('"Identity & Basics"');
-    expect(json.description).toContain('Age');
-    expect(json.description).toContain('150');
-    expect(json.description).toContain('100');
-    expect(json.description).toContain('Traits');
-    expect(json.description).toContain('1,500');
-    // Footer lists total truncation across all fields: (150-100)+(1500-1000)=550
-    expect(json.footer?.text).toContain('550');
-    // Plural form — two fields should read "2 fields", never "2 field(s)"
-    expect(json.footer?.text).toContain('2 fields');
-    expect(json.footer?.text).not.toContain('field(s)');
-  });
-
-  it('uses singular "field" in the footer when only one field is over-length', () => {
-    // Guards against the "1 field(s)" pluralization regression flagged in PR
-    // review. The single-field path is the common case for short legacy
-    // fields (e.g. a stray overgrown "Age" value) and needs to read cleanly.
-    const embed = buildTruncationWarningEmbed(
-      [{ fieldId: 'personalityAge', label: 'Age', current: 150, max: 100 }],
-      '🏷️ Identity & Basics'
-    );
-    const json = embed.toJSON();
-    expect(json.footer?.text).toContain('1 field');
-    expect(json.footer?.text).not.toContain('1 fields');
-    expect(json.footer?.text).not.toContain('field(s)');
-  });
-});
-
-describe('buildTruncationButtons', () => {
-  it('emits three buttons with character dashboard customId shape', () => {
-    const row = buildTruncationButtons('char-1', 'identity');
-    const json = row.toJSON();
-    expect(json.components).toHaveLength(3);
-    const customIds = json.components.map(c => (c as { custom_id: string }).custom_id);
-    // Ordered per `04-discord.md` Standard Button Order: Primary (View Full)
-    // first, Secondary (Cancel) middle, Destructive (Edit with Truncation)
-    // last. A regression that reverts to destructive-first would break
-    // consistency with delete-confirmation dialogs across the codebase.
-    expect(customIds).toEqual([
-      'character::view_full::char-1::identity',
-      'character::cancel_edit::char-1::identity',
-      'character::edit_truncated::char-1::identity',
-    ]);
-  });
-
-  it('places the Danger-styled button last per destructive-last rule', () => {
-    const row = buildTruncationButtons('char-1', 'identity');
-    const json = row.toJSON();
-    const styles = json.components.map(c => (c as { style: number }).style);
-    // ButtonStyle.Danger = 4; verify it's the last button's style.
-    expect(styles[styles.length - 1]).toBe(ButtonStyle.Danger);
-  });
-
-  it('sets an emoji on every button per 04-discord.md consistency rule', () => {
-    // The rule (`.claude/rules/04-discord.md`) requires `.setEmoji()` on
-    // every button for visual sizing consistency. All three warning
-    // buttons must have an emoji set.
-    const row = buildTruncationButtons('char-1', 'identity');
-    const json = row.toJSON();
-    for (const component of json.components) {
-      const button = component as { emoji?: { name: string } };
-      expect(button.emoji?.name, `button ${JSON.stringify(component)} missing emoji`).toBeDefined();
-    }
-  });
-});
-
 describe('showTruncationWarning', () => {
   it('replies ephemerally with the warning embed and button row', async () => {
     const mockReply = vi.fn().mockResolvedValue(undefined);
@@ -241,26 +104,6 @@ describe('showTruncationWarning', () => {
         components: expect.arrayContaining([expect.any(Object)]),
       })
     );
-  });
-});
-
-describe('buildReadyToEditEmbed', () => {
-  it('strips the leading emoji and names the section in the title', () => {
-    const embed = buildReadyToEditEmbed('🏷️ Identity & Basics');
-    const json = embed.toJSON();
-    expect(json.title).toContain('Identity & Basics');
-    expect(json.title).not.toContain('🏷️');
-  });
-});
-
-describe('buildOpenEditorButtonRow', () => {
-  it('emits a single Open Editor button with the expected customId shape', () => {
-    const row = buildOpenEditorButtonRow('char-1', 'identity');
-    const json = row.toJSON();
-    expect(json.components).toHaveLength(1);
-    const button = json.components[0] as { custom_id: string; label?: string };
-    expect(button.custom_id).toBe('character::open_editor::char-1::identity');
-    expect(button.label).toBe('Open Editor');
   });
 });
 

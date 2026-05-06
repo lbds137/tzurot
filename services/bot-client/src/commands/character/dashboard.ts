@@ -43,13 +43,13 @@ import { handleSharedBackButton } from '../../utils/dashboard/index.js';
 // renderPostActionScreen + handleSharedBackButton.
 import './browse.js';
 import {
-  detectOverLengthFields,
   handleCancelEditButton,
   handleEditTruncatedButton,
   handleOpenEditorButton,
   handleViewFullButton,
   showTruncationWarning,
 } from './truncationWarning.js';
+import { detectOverLengthFields } from '../../utils/dashboard/truncationGate/index.js';
 import { resolveCharacterSectionContext } from './sectionContext.js';
 
 const logger = createLogger('character-dashboard');
