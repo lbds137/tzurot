@@ -2,6 +2,14 @@
 
 _Ideas for later. Resist the shiny object._
 
+### Triaged from Inbox 2026-05-06
+
+- ✨ `[FEAT]` **Include reasoning trace in conversation history (open question)** — User note 2026-04-28. Currently reasoning traces from models that emit them are not persisted in conversation history. Question: would storing reasoning output (possibly in a separate column alongside the main message content) add value for debugging / user transparency / context quality, or would it just pollute context and increase storage cost? No concrete proposal yet — needs investigation into: (a) how much storage reasoning traces consume relative to content, (b) whether any AI use-case benefits from reasoning replay, (c) whether users would ever see it (Discord display vs. internal-only). **Why iceboxed**: open question with no concrete proposal or use-case validation. Promote if a specific debugging or user-transparency need emerges. Surfaced 2026-04-28.
+
+- ✨ `[FEAT]` **Include user ID on memories / historical notes** — User note 2026-04-28. Conversation history already includes user IDs; memories and historical notes (persona context blocks?) may not. Consistency question: should all user-authored context carry a user ID for attribution and potential per-user filtering? Depends on the memory architecture. **Why iceboxed**: research needed, unclear if it enables anything concrete beyond consistency. Promote if per-user memory filtering becomes a feature request. Surfaced 2026-04-28.
+
+- ✨ `[FEAT]` **Segment usage and allocate a chunk to free users (shared API key pool)** — User note 2026-04-29. The bot owner has a z.ai lite coding plan subscription and wants to explore giving free-tier bot users some guaranteed model usage from that plan. Constraints: rate limits, shared pool with owner priority, need to prevent free-tier crowding. **Why iceboxed**: research/exploration phase, complex fair-queue design, depends on z.ai rate-limit specifics. Promote when free-tier strategy becomes a priority. Surfaced 2026-04-29.
+
 ### Triaged from Inbox 2026-04-26
 
 - 🛡️ `[LIFT]` **`DISCORD_CDN_HOSTS` missing `attachments.discord-activities.com`** — `services/bot-client/src/utils/discordCdnGuard.ts` allowlists only `cdn.discordapp.com` and `media.discordapp.net`. Discord also serves `attachments.discord-activities.com` for embedded-activity attachments. Not in current call paths (slash command attachments only ever come from `cdn.discordapp.com`), but if the guard is later applied to webhook or activity attachment paths it will false-positive. **Fix shape**: add the host once a real call path needs it; until then a comment in the file warning about this gap is enough. **Why iceboxed**: reviewer's own suggestion was "comment until a call path needs it"; no active consumer makes adding the host now YAGNI. Surfaced 2026-04-26 by reviewer flag from PR #905 round 6. Triaged 2026-04-26.

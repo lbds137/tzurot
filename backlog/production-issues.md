@@ -2,7 +2,7 @@
 
 _Active bugs observed in production. Fix before new features._
 
-_None._ 🎉
+- 🐛 `[FIX]` **Persona "About You" modal silently truncates content to 2000 chars, causing data loss on edit** — Reported 2026-05-06 by a Discord user. When editing an existing persona via the dashboard, the "About You" (`content`) field pre-fills with the existing value truncated to 2000 characters (`ModalFactory.ts:98`), then auto-saves the truncated version on modal submit, permanently overwriting the original. The API schema accepts up to 4000 (`DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH`), but the modal's `maxLength` is set to 2000 in `persona/config.ts:116`. **Not a recent regression** — the 2000 limit has been there since the persona command was created in `ada15342d` (2026-01-26). The user's descriptions grew past 2000 for the first time. The character dashboard (`sections.ts`) correctly uses `DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH` (4000); the persona dashboard should match. **Fix shape**: (1) change `persona/config.ts:116` from `maxLength: 2000` to `maxLength: DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH`; (2) also fix `character/config.ts` seed fields (`characterSeedFields`) which had the same 2000 limit for `characterInfo` and `personalityTraits`; (3) verify whether the persona dashboard uses the truncation warning system (`truncationWarning.ts`) — if not, add it as a safety net so users with >4000-char content get a warning before truncation occurs. **Severity: data loss** — user content is permanently destroyed on edit with no undo path. **Status**: maxLength fix applied, tests passing. Truncation warning audit is a follow-up.
 
 _Cleared 2026-04-29:_
 
