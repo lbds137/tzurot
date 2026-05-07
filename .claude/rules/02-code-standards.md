@@ -39,6 +39,23 @@ Rules:
 3. **"pre-existing" is not a justification** — it just means nobody bothered to explain
 4. Run `pnpm ops xray --suppressions` to audit; target 0 unjustified items
 
+## Temporal Markers in Code Comments
+
+**Don't reference dates, PR numbers, or review-archaeology in code comments.** They rot meaninglessly the moment the surrounding context shifts — a `// Caught in PR #847 round 3` marker tells a future reader nothing useful once #847 is squashed into the history. Keep the _invariant explanation_ (why this constraint exists, what it protects against) and drop the _archaeology_ (when, who, which review).
+
+| ❌ Don't write                                 | ✅ Instead                                                                                |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `// Added 2026-05-06 to fix data loss`         | `// Required for parity with API schema cap; UI silently truncated otherwise`             |
+| `// Caught in PR #985 final round review`      | `// Async work before showModal blows the 3-second budget; must wrap in timeout helper`   |
+| `// Surfaced 2026-04-25 by claude-bot`         | `// guards against the empty-default leaking into ON CONFLICT path`                       |
+| `* Background: PR #983 raised the cap to 4000` | `* Cap mirrors API schema's SHORT_PARAGRAPH_MAX_LENGTH; do not raise without bumping API` |
+
+This applies to all comment shapes: full-line `//`, JSDoc `*` body, block `/* */`. Backlog markdown (`backlog/*.md`) is exempt — it intentionally tracks surfacing dates and PR origins.
+
+**Where archaeology _does_ belong**: commit messages (preserved by git), PR descriptions, post-mortems (`docs/incidents/`), and backlog entries with explicit "Surfaced 20YY-MM-DD" prefixes. Code comments document the _invariant_, not the _journey_.
+
+**Enforcement**: `.husky/pre-commit` scans newly-added comment lines in `*.ts`/`*.tsx`/`*.js`/`*.jsx` for date stamps, PR refs, and round/review markers. Override with `TZUROT_SKIP_TEMPORAL_CHECK=1` for the rare intentional case (post-mortem references where the date is the point).
+
 ## TypeScript Strict Rules
 
 - TypeScript `strict: true`, no `any` types
