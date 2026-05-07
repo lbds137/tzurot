@@ -20,6 +20,7 @@ import { toGatewayUser, type GatewayUser } from '../userGatewayClient.js';
 import { parseDashboardCustomId, type DashboardConfig } from './types.js';
 import { fetchOrCreateSession } from './sessionHelpers.js';
 import { buildSectionModal } from './ModalFactory.js';
+import { showModalWithTimeoutCatch } from './showModalWithTimeoutCatch.js';
 import { DASHBOARD_MESSAGES } from './messages.js';
 
 /** Configuration for a generic dashboard select menu handler */
@@ -101,7 +102,21 @@ export async function handleDashboardSectionSelect<TFlat extends Record<string, 
     return;
   }
 
-  // Build and show the section modal
+  // Build and show the section modal. Wrapped via showModalWithTimeoutCatch
+  // so that Redis/gateway latency before showModal can't blow the 3-second
+  // budget silently — a 10062 produces a logged warn + ephemeral retry
+  // followUp instead of a Discord "Interaction Failed" with no signal.
   const modal = buildSectionModal<TFlat>(config.dashboardConfig, section, entityId, result.data);
-  await interaction.showModal(modal);
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    {
+      source: 'handleDashboardSectionSelect',
+      userId: interaction.user.id,
+      entityId,
+      sectionId: section.id,
+    },
+    '⏰ Took too long to open the editor. Please re-select the section from the dashboard, ' +
+      'or click Refresh if the menu is no longer responsive.'
+  );
 }

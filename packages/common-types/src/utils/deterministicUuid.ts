@@ -185,6 +185,15 @@ export function generateByokTtsConfigUuid(ownerId: string, provider: ByokTtsProv
 }
 
 /**
+ * Set of LLM providers eligible for migration-seeded BYOK rows. Mirrors
+ * {@link ByokTtsProvider} for the LLM side. The union has only one
+ * member today because OpenRouter is the sole BYOK LLM provider; adding
+ * z.ai or anthropic-direct as future BYOK providers means widening this
+ * union and updating the helper's deterministic-UUID coverage tests.
+ */
+export type ByokLlmProvider = 'openrouter';
+
+/**
  * Deterministic UUID for a per-user BYOK-style LlmConfig row.
  *
  * Mirrors {@link generateByokTtsConfigUuid}. Currently unused — LLM has no
@@ -198,7 +207,7 @@ export function generateByokTtsConfigUuid(ownerId: string, provider: ByokTtsProv
  * future-reserved exports, suppress with a `knip-ignore` directive
  * pointing at this JSDoc rather than removing the helper.
  */
-export function generateByokLlmConfigUuid(ownerId: string, provider: string): string {
+export function generateByokLlmConfigUuid(ownerId: string, provider: ByokLlmProvider): string {
   return uuidv5(`llm_config_byok:${ownerId}:${provider}`, TZUROT_NAMESPACE);
 }
 
