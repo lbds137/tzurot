@@ -18,6 +18,7 @@ import {
   MessageFlags,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import { showModalWithTimeoutCatch } from '../showModalWithTimeoutCatch.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -364,15 +365,26 @@ async function handleEditButton(
   // Get current value for the modal
   const currentValue = session.data[settingId as keyof SettingsData] as SettingValue<unknown>;
 
-  // Build and show modal
+  // Build and show modal. Wrap showModal so the 3-second budget can't
+  // blow silently after the preceding getSession await — see
+  // showModalWithTimeoutCatch JSDoc.
   const modal = buildSettingEditModal(
     config.entityType,
     session.entityId,
     setting,
     currentValue.effectiveValue
   );
-
-  await interaction.showModal(modal);
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    {
+      source: 'handleSettingsButton/edit',
+      userId: interaction.user.id,
+      entityId: session.entityId,
+      sectionId: settingId,
+    },
+    '⏰ Took too long to open the editor. Please click the setting button again.'
+  );
 }
 
 /**
