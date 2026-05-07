@@ -510,6 +510,47 @@ describe('handleSelectMenu', () => {
     );
   });
 
+  it('should catch 10062 on showModal and surface a retry followUp', async () => {
+    // Mirrors handleOpenEditorButton's 10062 catch — same residual risk
+    // (Redis/gateway slow, can't deferReply before showModal). Without
+    // this catch, the user sees a silent "Interaction Failed" with no
+    // diagnostic signal in logs.
+    const { DiscordAPIError } = await import('discord.js');
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', content: 'fits' },
+    });
+    const timeoutError = new DiscordAPIError(
+      { code: 10062, message: 'Unknown interaction' },
+      10062,
+      404,
+      'POST',
+      '/interactions/x/y/callback',
+      {}
+    );
+    const failingShowModal = vi.fn().mockRejectedValue(timeoutError);
+    const followUpSpy = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      customId: `persona::menu::${TEST_PERSONA_ID}`,
+      values: ['edit-identity'],
+      user: { id: '123456789', username: 'testuser' },
+      message: { id: 'message-123' },
+      channelId: 'channel-123',
+      showModal: failingShowModal,
+      followUp: followUpSpy,
+      reply: vi.fn(),
+    } as unknown as Parameters<typeof handleSelectMenu>[0];
+
+    await handleSelectMenu(interaction);
+
+    expect(failingShowModal).toHaveBeenCalled();
+    expect(followUpSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Took too long'),
+        flags: MessageFlags.Ephemeral,
+      })
+    );
+  });
+
   it('should open modal directly when no fields over limit', async () => {
     // Re-establishes the common path after the truncation-warning addition:
     // when content fits, the gate is transparent and the modal opens.

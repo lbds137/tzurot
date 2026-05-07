@@ -68,10 +68,13 @@ vi.mock('./truncationWarning.js', () => ({
 // renderTerminalScreen imports getSessionManager directly from the source
 // module, so mocking the barrel below isn't enough — add a source-level stub
 // so handleRefreshButton's NOT_FOUND path doesn't blow up on an uninitialized
-// session manager.
+// session manager. `get` returns `null` (not undefined) to match the real
+// contract: `fetchOrCreateSession` checks `session !== null` to decide
+// cache hit vs miss; vi.fn()'s default undefined would cause a runtime
+// crash on the cache-miss path.
 vi.mock('../../utils/dashboard/SessionManager.js', () => ({
   getSessionManager: vi.fn().mockReturnValue({
-    get: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),
     set: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -305,6 +308,73 @@ describe('Character Dashboard', () => {
 
       expect(mockInteraction.showModal).not.toHaveBeenCalled();
       expect(mockInteraction.reply).not.toHaveBeenCalled();
+    });
+
+    it('catches 10062 on showModal and surfaces a retry followUp', async () => {
+      // Mirrors handleOpenEditorButton's 10062 catch — same residual risk
+      // (Redis/gateway slow + can't deferReply before showModal). Without
+      // this catch, the user sees a silent "Interaction Failed" with no
+      // diagnostic signal in logs.
+      const { DiscordAPIError } = await import('discord.js');
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'menu',
+        entityId: 'test-char',
+      });
+      vi.mocked(api.fetchCharacter).mockResolvedValue({
+        id: 'uuid',
+        name: 'Test',
+        slug: 'test-char',
+        displayName: null,
+        characterInfo: '',
+        personalityTraits: '',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+        birthMonth: null,
+        birthDay: null,
+        birthYear: null,
+        ownerId: 'owner-1',
+        isPublic: false,
+        voiceEnabled: false,
+        hasVoiceReference: false,
+        imageEnabled: false,
+        avatarData: null,
+        canEdit: true,
+        createdAt: '',
+        updatedAt: '',
+      });
+      const timeoutError = new DiscordAPIError(
+        { code: 10062, message: 'Unknown interaction' },
+        10062,
+        404,
+        'POST',
+        '/interactions/x/y/callback',
+        {}
+      );
+      const failingShowModal = vi.fn().mockRejectedValue(timeoutError);
+      const followUpSpy = vi.fn().mockResolvedValue(undefined);
+      const mockInteraction = createMockSelectInteraction(
+        'character::menu::test-char',
+        'edit-identity'
+      );
+      mockInteraction.showModal = failingShowModal;
+      mockInteraction.followUp = followUpSpy;
+
+      await handleSelectMenu(mockInteraction);
+
+      expect(failingShowModal).toHaveBeenCalled();
+      expect(followUpSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Took too long'),
+          flags: MessageFlags.Ephemeral,
+        })
+      );
     });
 
     it('should handle action-visibility selection', async () => {

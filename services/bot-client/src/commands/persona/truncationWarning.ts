@@ -14,11 +14,12 @@
  * gate necessary on the persona side.
  */
 
-import { AttachmentBuilder, DiscordAPIError, MessageFlags } from 'discord.js';
+import { AttachmentBuilder, MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { type SectionDefinition } from '../../utils/dashboard/types.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
+import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import {
   detectOverLengthFields,
   buildTruncationWarningEmbed,
@@ -123,28 +124,13 @@ export async function handleOpenEditorButton(
   }
 
   const modal = buildSectionModal(ctx.dashboardConfig, ctx.section, entityId, ctx.data);
-  try {
-    await interaction.showModal(modal);
-  } catch (error) {
-    if (error instanceof DiscordAPIError && error.code === 10062) {
-      logger.warn(
-        { userId: interaction.user.id, entityId, sectionId },
-        'Open Editor showModal exceeded 3-second window (10062)'
-      );
-      try {
-        await interaction.followUp({
-          content:
-            '⏰ Took too long to open the editor. Please click **Open Editor** again, ' +
-            'or re-open the dashboard if the button is gone.',
-          flags: MessageFlags.Ephemeral,
-        });
-      } catch {
-        // Expected on a fully-dead interaction token. Nothing else to do.
-      }
-      return;
-    }
-    throw error;
-  }
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    { source: 'handleOpenEditorButton', userId: interaction.user.id, entityId, sectionId },
+    '⏰ Took too long to open the editor. Please click **Open Editor** again, ' +
+      'or re-open the dashboard if the button is gone.'
+  );
 }
 
 /**
