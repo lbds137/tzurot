@@ -39,6 +39,7 @@ import {
 import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './api.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
+import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { detectOverLengthFields } from '../../utils/dashboard/truncationGate/index.js';
 import { resolvePersonaSectionContext } from './sectionContext.js';
 import {
@@ -212,9 +213,18 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     return;
   }
 
-  // Common path: no over-length fields → open the modal directly.
+  // Common path: no over-length fields → open the modal directly. The
+  // showModal call is wrapped via showModalWithTimeoutCatch to handle
+  // the 10062 case where Redis/gateway latency + the (forbidden-by-Discord)
+  // inability to deferReply before showModal blew the 3-second budget.
   const modal = buildSectionModal(ctx.dashboardConfig, ctx.section, entityId, ctx.data);
-  await interaction.showModal(modal);
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    { source: 'handleSelectMenu', userId: interaction.user.id, entityId, sectionId },
+    '⏰ Took too long to open the editor. Please re-select the section from the dashboard, ' +
+      'or click Refresh if the menu is no longer responsive.'
+  );
 }
 
 /**

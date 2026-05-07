@@ -14,11 +14,12 @@
  * committing.
  */
 
-import { AttachmentBuilder, DiscordAPIError, MessageFlags } from 'discord.js';
+import { AttachmentBuilder, MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, getConfig, type EnvConfig } from '@tzurot/common-types';
 import { type SectionDefinition } from '../../utils/dashboard/types.js';
 import { buildSectionModal } from '../../utils/dashboard/ModalFactory.js';
+import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import {
   detectOverLengthFields,
   buildTruncationWarningEmbed,
@@ -170,33 +171,13 @@ export async function handleOpenEditorButton(
     ctx.data,
     ctx.context
   );
-  try {
-    await interaction.showModal(modal);
-  } catch (error) {
-    if (error instanceof DiscordAPIError && error.code === 10062) {
-      // 3-sec window blew despite the session warm (e.g., Redis latency
-      // spike). Log with enough context to track frequency. The interaction
-      // token is dead so followUp also fails — we try once anyway for the
-      // rare race where Discord still accepts it, and swallow the inner
-      // failure so the outer CommandHandler catch doesn't log twice.
-      logger.warn(
-        { userId: interaction.user.id, entityId, sectionId },
-        'Open Editor showModal exceeded 3-second window (10062)'
-      );
-      try {
-        await interaction.followUp({
-          content:
-            '⏰ Took too long to open the editor. Please click **Open Editor** again, ' +
-            'or re-open the dashboard if the button is gone.',
-          flags: MessageFlags.Ephemeral,
-        });
-      } catch {
-        // Expected on a fully-dead interaction token. Nothing else to do.
-      }
-      return;
-    }
-    throw error;
-  }
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    { source: 'handleOpenEditorButton', userId: interaction.user.id, entityId, sectionId },
+    '⏰ Took too long to open the editor. Please click **Open Editor** again, ' +
+      'or re-open the dashboard if the button is gone.'
+  );
 }
 
 /**
