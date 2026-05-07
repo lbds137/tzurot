@@ -93,13 +93,18 @@ describe('loadPersonaSectionData', () => {
     );
   });
 
-  it('uses followUp instead of reply when interaction is already deferred', async () => {
+  it('uses editReply when interaction is deferred-but-not-replied', async () => {
+    // After deferReply but before any actual response, the deferred slot
+    // is "Thinking…" and editReply fills it. Using followUp here would
+    // leave the loading indicator dangling and spawn a separate message.
     mockFetchOrCreateSession.mockResolvedValue({ success: false });
     const mockReply = vi.fn();
-    const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+    const mockFollowUp = vi.fn();
     const interaction = {
       user: { id: 'user-1' },
       reply: mockReply,
+      editReply: mockEditReply,
       followUp: mockFollowUp,
       get deferred() {
         return true;
@@ -112,6 +117,37 @@ describe('loadPersonaSectionData', () => {
 
     await loadPersonaSectionData(interaction, 'persona-1', sync);
     expect(mockReply).not.toHaveBeenCalled();
+    expect(mockFollowUp).not.toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Persona') })
+    );
+  });
+
+  it('uses followUp when interaction has already been replied to', async () => {
+    // After interaction.update() (which sets `replied=true`), an additional
+    // ephemeral error message should use followUp, not editReply (which
+    // would replace the original visible response).
+    mockFetchOrCreateSession.mockResolvedValue({ success: false });
+    const mockReply = vi.fn();
+    const mockEditReply = vi.fn();
+    const mockFollowUp = vi.fn().mockResolvedValue(undefined);
+    const interaction = {
+      user: { id: 'user-1' },
+      reply: mockReply,
+      editReply: mockEditReply,
+      followUp: mockFollowUp,
+      get deferred() {
+        return false;
+      },
+      get replied() {
+        return true;
+      },
+    } as unknown as ButtonInteraction;
+    const sync = findPersonaSection('identity')!;
+
+    await loadPersonaSectionData(interaction, 'persona-1', sync);
+    expect(mockReply).not.toHaveBeenCalled();
+    expect(mockEditReply).not.toHaveBeenCalled();
     expect(mockFollowUp).toHaveBeenCalled();
   });
 });
