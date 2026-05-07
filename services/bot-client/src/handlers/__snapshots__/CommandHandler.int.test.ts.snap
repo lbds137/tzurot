@@ -476,13 +476,13 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Character to chat with",
+        "description": "Character to chat with (omit for a random pick)",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
         "name": "character",
         "name_localizations": undefined,
-        "required": true,
+        "required": false,
         "type": 3,
       },
       {
