@@ -476,54 +476,6 @@ client.on(Events.Error, error => {
   logger.error({ err: error }, 'Discord client error');
 });
 
-// Optional raw-gateway diagnostic — gated by env var so it can be enabled per
-// deploy without code changes. Set DM_RAW_GATEWAY_DIAGNOSTIC=true to log every
-// DM-shaped MESSAGE_CREATE packet received from the gateway. Used to confirm
-// whether post-deploy DM silence is "Discord didn't deliver the packet" (no log
-// line for the test DM) vs "Discord.js dropped it after delivery" (log line
-// present but no MessageCreate handler invocation).
-if (process.env.DM_RAW_GATEWAY_DIAGNOSTIC === 'true') {
-  logger.warn(
-    'DM_RAW_GATEWAY_DIAGNOSTIC enabled — raw gateway packets and filtered ' +
-      'Discord.js debug events will be logged. Disable for production once ' +
-      'diagnosis is complete.'
-  );
-  client.on(
-    'raw',
-    (packet: { t?: string; d?: { id?: string; channel_id?: string; guild_id?: string } }) => {
-      if (packet.t === 'MESSAGE_CREATE' && packet.d !== undefined) {
-        const isDm = packet.d.channel_id !== undefined && packet.d.guild_id === undefined;
-        if (isDm) {
-          logger.info(
-            { messageId: packet.d.id, channelId: packet.d.channel_id },
-            '[RAW GATEWAY] DM MESSAGE_CREATE packet received'
-          );
-        }
-      }
-    }
-  );
-
-  // Internal Discord.js debug stream — reveals which step in the dispatch
-  // pipeline is dropping events when the raw packet arrives but MessageCreate
-  // doesn't fire. Filter is narrowed to *failure* signals only (drop/fail/
-  // reject/skip/uncached/cache miss): the noisy 'dispatch' and 'partial'
-  // keywords match a high fraction of normal djs debug output and would
-  // bury the actual silent-drop signal we're looking for.
-  client.on('debug', (info: string) => {
-    const lower = info.toLowerCase();
-    const interesting =
-      lower.includes('drop') ||
-      lower.includes('fail') ||
-      lower.includes('reject') ||
-      lower.includes('skip') ||
-      lower.includes('uncached') ||
-      lower.includes('cache miss');
-    if (interesting) {
-      logger.info({ djsDebug: info }, '[DJS DEBUG]');
-    }
-  });
-}
-
 process.on('unhandledRejection', error => {
   logger.error({ err: error }, 'Unhandled rejection');
 });
