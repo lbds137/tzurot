@@ -16,6 +16,7 @@ import {
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { getSessionManager } from '../../utils/dashboard/SessionManager.js';
+import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { adminPostJson, adminFetch } from '../../utils/adminApiClient.js';
 import type { DenylistEntryResponse } from './browseTypes.js';
@@ -76,7 +77,19 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
     )
   );
 
-  await interaction.showModal(modal);
+  // Wrap showModal so the 3-second budget can't blow silently after the
+  // preceding sessionManager.get() Redis lookup — see showModalWithTimeoutCatch JSDoc.
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    {
+      source: 'handleEdit',
+      userId: interaction.user.id,
+      entityId: entryId,
+      sectionId: 'edit',
+    },
+    '⏰ Took too long to open the editor. Please click the Edit button again.'
+  );
 }
 
 const MAX_REASON_LENGTH = 500;

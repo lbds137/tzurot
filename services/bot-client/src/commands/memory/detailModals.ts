@@ -17,6 +17,7 @@ import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { buildMemoryActionId, buildDetailEmbed, buildDetailButtons } from './detail.js';
 import { toGatewayUser } from '../../utils/userGatewayClient.js';
+import { showModalWithTimeoutCatch } from '../../utils/dashboard/showModalWithTimeoutCatch.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
 import type { MemoryItem } from './detailApi.js';
 
@@ -123,8 +124,20 @@ export async function handleEditButton(
     return;
   }
 
+  // Wrap showModal so the 3-second budget can't blow silently after
+  // fetchMemory's gateway call — see showModalWithTimeoutCatch JSDoc.
   const modal = buildEditModal(memory);
-  await interaction.showModal(modal);
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    {
+      source: 'handleEditButton',
+      userId: interaction.user.id,
+      entityId: memoryId,
+      sectionId: 'edit',
+    },
+    '⏰ Took too long to open the editor. Please click the Edit button again.'
+  );
 }
 
 /**
@@ -148,7 +161,17 @@ export async function handleEditTruncatedButton(
   const truncatedContent = memory.content.substring(0, MAX_MODAL_CONTENT_LENGTH);
 
   const modal = buildEditModal(memory, truncatedContent);
-  await interaction.showModal(modal);
+  await showModalWithTimeoutCatch(
+    interaction,
+    modal,
+    {
+      source: 'handleEditTruncatedButton',
+      userId: interaction.user.id,
+      entityId: memoryId,
+      sectionId: 'edit-truncated',
+    },
+    '⏰ Took too long to open the editor. Please click **Edit with Truncation** again.'
+  );
 }
 
 /**
