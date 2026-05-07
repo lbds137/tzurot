@@ -4,7 +4,7 @@ _This week's active work. Max 3 items._
 
 ### Active
 
-- ✨ `[FEAT]` **`/character chat` random-bot mode** — Allow omitting the `character` argument so the bot picks a random personality. Pulled from quick-wins 2026-05-07. Design alignment pending before code (option A optional-arg vs option B new subcommand; random scope).
+_None — `/character chat` random-bot mode shipped via PR #991 (merged 2026-05-07)._
 
 ### Most likely next-session pickups
 
