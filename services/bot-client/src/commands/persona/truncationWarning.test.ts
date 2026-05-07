@@ -401,15 +401,21 @@ describe('handleViewFullButton', () => {
     expect(editArgs.files).toBeUndefined();
   });
 
-  it('returns silently when context resolution fails (sectionContext sent followUp)', async () => {
+  it('surfaces fetch-failure via editReply (sectionContext fills the deferred slot)', async () => {
     mockFetchOrCreateSession.mockResolvedValue({ success: false });
     const { interaction, editReply, followUp } = makeDeferrableInteraction();
 
     await handleViewFullButton(interaction, 'persona-1', 'identity');
 
-    expect(editReply).not.toHaveBeenCalled();
-    // sectionContext's replyError sent the followUp.
-    expect(followUp).toHaveBeenCalled();
+    // sectionContext.replyError uses editReply on a deferred-but-not-replied
+    // interaction to fill the loading slot, not followUp (which would leave
+    // the "Thinking…" indicator dangling).
+    expect(followUp).not.toHaveBeenCalled();
+    expect(editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Persona'),
+      })
+    );
   });
 });
 

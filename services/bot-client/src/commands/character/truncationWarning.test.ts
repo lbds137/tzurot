@@ -456,18 +456,20 @@ describe('handleViewFullButton', () => {
     expect(editReply.mock.calls[0][0].files).toBeUndefined();
   });
 
-  it('surfaces fetch-failure via followUp (sectionContext detects defer)', async () => {
+  it('surfaces fetch-failure via editReply (sectionContext fills the deferred slot)', async () => {
     mockFetchOrCreateSession.mockResolvedValue({ success: false });
-    const { interaction, followUp, reply } = makeDeferrableInteraction();
+    const { interaction, editReply, followUp, reply } = makeDeferrableInteraction();
 
     await handleViewFullButton(interaction, 'char-1', 'identity');
 
-    // After deferReply, sectionContext must use followUp, not reply
+    // After deferReply, sectionContext uses editReply to fill the deferred
+    // slot (replaces the loading indicator with the error message) rather
+    // than spawning a separate followUp that leaves the indicator dangling.
     expect(reply).not.toHaveBeenCalled();
-    expect(followUp).toHaveBeenCalledWith(
+    expect(followUp).not.toHaveBeenCalled();
+    expect(editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.stringContaining('not found'),
-        flags: MessageFlags.Ephemeral,
       })
     );
   });
