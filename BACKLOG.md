@@ -13,18 +13,18 @@ This file is the index. Each section below is its own file under [`backlog/`](ba
 
 ## Sections
 
-| Section              | File                                                           | Purpose                                                       |
-| -------------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
-| 🚨 Production Issues | [`backlog/production-issues.md`](backlog/production-issues.md) | Active bugs observed in production. Fix before new features.  |
-| 📥 Inbox             | [`backlog/inbox.md`](backlog/inbox.md)                         | New items. Triage to appropriate section weekly.              |
-| 🎯 Current Focus     | [`backlog/current-focus.md`](backlog/current-focus.md)         | This week's active work. Max 3 items.                         |
-| ⚡️ Quick Wins        | [`backlog/quick-wins.md`](backlog/quick-wins.md)               | Small tasks for momentum between major features.              |
-| 🏗 Active Epic       | [`backlog/active-epic.md`](backlog/active-epic.md)             | Current major initiative with phases.                         |
-| 📅 Next Theme        | [`backlog/next-theme.md`](backlog/next-theme.md)               | Queued-after-active-epic theme. Currently: drive CPD to zero. |
-| 📦 Future Themes     | [`backlog/future-themes.md`](backlog/future-themes.md)         | Themes ordered by dependency. The big queue.                  |
-| 🧊 Icebox            | [`backlog/icebox.md`](backlog/icebox.md)                       | Ideas for later. Resist the shiny object.                     |
-| ⏸️ Deferred          | [`backlog/deferred.md`](backlog/deferred.md)                   | Decided not to do yet, with reasoning.                        |
-| 📚 References        | [`backlog/references.md`](backlog/references.md)               | Cross-links to research docs and post-mortems.                |
+| Section              | File                                                           | Purpose                                                                    |
+| -------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 🚨 Production Issues | [`backlog/production-issues.md`](backlog/production-issues.md) | Active bugs observed in production. Fix before new features.               |
+| 📥 Inbox             | [`backlog/inbox.md`](backlog/inbox.md)                         | New items. Triage to appropriate section weekly.                           |
+| 🎯 Current Focus     | [`backlog/current-focus.md`](backlog/current-focus.md)         | This week's active work. Max 3 items.                                      |
+| ⚡️ Quick Wins        | [`backlog/quick-wins.md`](backlog/quick-wins.md)               | Small tasks for momentum between major features.                           |
+| 🏗 Active Epic       | [`backlog/active-epic.md`](backlog/active-epic.md)             | Current major initiative with phases.                                      |
+| 📅 Next Theme        | [`backlog/next-theme.md`](backlog/next-theme.md)               | Queued-after-active-epic theme. Currently: drive CPD to zero.              |
+| 📦 Future Themes     | [`backlog/future-themes.md`](backlog/future-themes.md)         | Themes ordered by dependency. The big queue.                               |
+| 🧊 Icebox            | [`backlog/icebox.md`](backlog/icebox.md)                       | Ideas for later. Resist the shiny object.                                  |
+| ⏸️ Deferred          | [`backlog/deferred.md`](backlog/deferred.md)                   | Decided not to do yet — either declined, or parked behind a named trigger. |
+| 📚 References        | [`backlog/references.md`](backlog/references.md)               | Cross-links to research docs and post-mortems.                             |
 
 ---
 
