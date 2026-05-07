@@ -115,14 +115,27 @@ export async function resolvePersonaSectionContext(
 }
 
 /**
- * Reply with an ephemeral error, adapting to whether the caller has
- * already acked the interaction.
+ * Reply with an ephemeral error, adapting to the interaction's ack state.
+ *
+ * - `deferred && !replied` → `editReply` fills the deferred slot (replaces
+ *   the loading indicator instead of leaving it dangling + spawning a
+ *   separate followUp).
+ * - `replied` → `followUp` for an additional ephemeral message.
+ * - fresh → `reply`.
+ *
+ * **PRECONDITION (deferred path)**: Callers must have called
+ * `deferReply({ flags: MessageFlags.Ephemeral })`. `editReply` inherits
+ * the deferred slot's flags; a non-ephemeral defer would expose the
+ * error publicly. See `commands/character/sectionContext.ts` for the
+ * canonical longer rationale.
  */
 async function replyError(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
   content: string
 ): Promise<void> {
-  if (interaction.deferred || interaction.replied) {
+  if (interaction.deferred && !interaction.replied) {
+    await interaction.editReply({ content });
+  } else if (interaction.replied) {
     await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
   } else {
     await interaction.reply({ content, flags: MessageFlags.Ephemeral });
