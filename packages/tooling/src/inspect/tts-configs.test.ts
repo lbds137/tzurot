@@ -72,6 +72,8 @@ describe('buildInspectorScript', () => {
 
 describe('inspectTtsConfigs', () => {
   beforeEach(() => {
+    // Guard: afterEach alone leaks DATABASE_URL if a test fails early.
+    delete process.env.DATABASE_URL;
     mockExecFileSync.mockReset();
     mockGetRailwayDatabaseUrl.mockReset();
     mockGetRailwayEnvName.mockReset();
