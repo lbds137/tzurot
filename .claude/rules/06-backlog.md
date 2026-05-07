@@ -4,18 +4,18 @@
 
 The backlog follows a "Now, Next, Later" topology with clear focus. Each section lives in its own file under `backlog/`; `BACKLOG.md` at root is the index pointing to them.
 
-| Section              | File                           | Purpose                                                             | Max Items |
-| -------------------- | ------------------------------ | ------------------------------------------------------------------- | --------- |
-| 🚨 Production Issues | `backlog/production-issues.md` | Active bugs in production. Fix first.                               | No limit  |
-| 📥 Inbox             | `backlog/inbox.md`             | New items. Triage weekly.                                           | No limit  |
-| 🎯 Current Focus     | `backlog/current-focus.md`     | This week's active work.                                            | 3         |
-| ⚡️ Quick Wins        | `backlog/quick-wins.md`        | Small tasks for momentum between features.                          | ~5        |
-| 🏗 Active Epic       | `backlog/active-epic.md`       | Current major initiative with phases.                               | 1         |
-| 📅 Next Theme        | `backlog/next-theme.md`        | Ready to start when current epic ends.                              | 1         |
-| 📦 Future Themes     | `backlog/future-themes.md`     | Epics ordered by dependency.                                        | Unlimited |
-| 🧊 Icebox            | `backlog/icebox.md`            | Ideas for later. Resist the shiny object.                           | Unlimited |
-| ⏸️ Deferred          | `backlog/deferred.md`          | Decided not to do yet, with reasoning.                              | Unlimited |
-| 📚 References        | `backlog/references.md`        | Cross-links to research docs and post-mortems. Not a triage target. | —         |
+| Section              | File                           | Purpose                                                                    | Max Items |
+| -------------------- | ------------------------------ | -------------------------------------------------------------------------- | --------- |
+| 🚨 Production Issues | `backlog/production-issues.md` | Active bugs in production. Fix first.                                      | No limit  |
+| 📥 Inbox             | `backlog/inbox.md`             | New items. Triage weekly.                                                  | No limit  |
+| 🎯 Current Focus     | `backlog/current-focus.md`     | This week's active work.                                                   | 3         |
+| ⚡️ Quick Wins        | `backlog/quick-wins.md`        | Small tasks for momentum between features.                                 | ~5        |
+| 🏗 Active Epic       | `backlog/active-epic.md`       | Current major initiative with phases.                                      | 1         |
+| 📅 Next Theme        | `backlog/next-theme.md`        | Ready to start when current epic ends.                                     | 1         |
+| 📦 Future Themes     | `backlog/future-themes.md`     | Epics ordered by dependency.                                               | Unlimited |
+| 🧊 Icebox            | `backlog/icebox.md`            | Ideas for later. Resist the shiny object.                                  | Unlimited |
+| ⏸️ Deferred          | `backlog/deferred.md`          | Decided not to do yet — either declined, or parked behind a named trigger. | Unlimited |
+| 📚 References        | `backlog/references.md`        | Cross-links to research docs and post-mortems. Not a triage target.        | —         |
 
 ## Session Workflow
 
@@ -90,6 +90,7 @@ Both gates pair with the session-end workflow in the `/tzurot-docs` skill. Addit
 | Part of a future theme        | 📦 Future Themes     |
 | Nice-to-have, no urgency      | 🧊 Icebox            |
 | Decided against (with reason) | ⏸️ Deferred          |
+| Parked behind a named trigger | ⏸️ Deferred          |
 
 ### Promoting Themes
 
