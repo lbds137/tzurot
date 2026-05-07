@@ -348,8 +348,8 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('character')
-            .setDescription('Character to chat with')
-            .setRequired(true)
+            .setDescription('Character to chat with (omit for a random pick)')
+            .setRequired(false)
             .setAutocomplete(true)
         )
         .addStringOption(option =>
