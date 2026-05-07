@@ -2,6 +2,10 @@
 
 _Ideas for later. Resist the shiny object._
 
+### Triaged from Inbox 2026-05-07
+
+- 🏗️ `[LIFT]` **Voice fingerprint / speaker embedding alongside reference audio** — Surfaced 2026-05-01 in Kimi K2.6 council review. Future-facing design: `fetchVoiceReference(slug)` could eventually return `{ buffer, embedding: Float32Array }` instead of just `buffer`. The embedding field is unused today, but unlocks next-generation providers that accept speaker embeddings rather than raw reference audio (e.g., Zonos's speaker embedding pathway, future Voxtral variants). **Why iceboxed**: no current provider needs the embedding; pure speculation about future provider shapes. Promote if a provider lands that natively accepts embeddings, OR if reference-audio uploads become a bandwidth bottleneck.
+
 ### Triaged from Inbox 2026-05-06
 
 - ✨ `[FEAT]` **Include reasoning trace in conversation history (open question)** — User note 2026-04-28. Currently reasoning traces from models that emit them are not persisted in conversation history. Question: would storing reasoning output (possibly in a separate column alongside the main message content) add value for debugging / user transparency / context quality, or would it just pollute context and increase storage cost? No concrete proposal yet — needs investigation into: (a) how much storage reasoning traces consume relative to content, (b) whether any AI use-case benefits from reasoning replay, (c) whether users would ever see it (Discord display vs. internal-only). **Why iceboxed**: open question with no concrete proposal or use-case validation. Promote if a specific debugging or user-transparency need emerges. Surfaced 2026-04-28.
