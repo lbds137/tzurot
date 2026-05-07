@@ -2,7 +2,9 @@
 
 _This week's active work. Max 3 items._
 
-_None active. **v3.0.0-beta.116 just shipped** (TTS post-deploy hardening + attachment-cap fix + read-before-merge hook). See [`CURRENT.md`](../CURRENT.md) for next-session pointers._
+### Active
+
+- ✨ `[FEAT]` **`/character chat` random-bot mode** — Allow omitting the `character` argument so the bot picks a random personality. Pulled from quick-wins 2026-05-07. Design alignment pending before code (option A optional-arg vs option B new subcommand; random scope).
 
 ### Most likely next-session pickups
 
