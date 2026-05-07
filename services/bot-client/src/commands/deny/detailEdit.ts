@@ -35,7 +35,10 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
   );
 
   if (session === null) {
-    await interaction.followUp({
+    // First response to an unacknowledged button click must be reply/deferUpdate.
+    // followUp here would land via the webhook endpoint after Discord shows
+    // "Application did not respond" — a confusing double-message UX.
+    await interaction.reply({
       content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
       flags: MessageFlags.Ephemeral,
     });

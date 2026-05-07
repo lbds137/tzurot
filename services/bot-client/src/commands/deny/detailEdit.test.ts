@@ -89,6 +89,7 @@ function createMockButtonInteraction(customId: string): ButtonInteraction {
     message: { id: 'msg-1' },
     deferUpdate: vi.fn(),
     editReply: vi.fn(),
+    reply: vi.fn(),
     followUp: vi.fn(),
     showModal: vi.fn(),
   } as unknown as ButtonInteraction;
@@ -128,15 +129,18 @@ describe('handleEdit', () => {
     expect(interaction.deferUpdate).not.toHaveBeenCalled();
   });
 
-  it('should handle session expiry', async () => {
+  it('should handle session expiry via reply (unacknowledged button needs initial response)', async () => {
     mockSessionManager.get.mockResolvedValue(null);
     const interaction = createMockButtonInteraction('deny::edit::entry-uuid-1234');
 
     await handleEdit(interaction, 'entry-uuid-1234');
 
-    expect(interaction.followUp).toHaveBeenCalledWith(
+    // Must use reply (not followUp) — followUp without prior ack lands via the
+    // webhook endpoint after Discord's "Application did not respond" banner fires.
+    expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Session expired') })
     );
+    expect(interaction.followUp).not.toHaveBeenCalled();
   });
 });
 
