@@ -153,6 +153,14 @@ export function generateSystemGlobalLlmConfigUuid(name: string): string {
 }
 
 /**
+ * Set of TTS providers eligible for migration-seeded BYOK rows. Narrowed
+ * from `string` to catch typos like `'eleven_labs'` at the call site
+ * instead of producing an unrecoverable UUID for a never-existed config.
+ * Add to the union when a new BYOK provider lands.
+ */
+export type ByokTtsProvider = 'elevenlabs' | 'mistral';
+
+/**
  * Deterministic UUID for a per-user BYOK-style TtsConfig row.
  *
  * Aligns `tts-byok-*` rows (created by migration 20260502185237's
@@ -172,7 +180,7 @@ export function generateSystemGlobalLlmConfigUuid(name: string): string {
  * no guard preventing rename of `tts-byok-*` rows). Provider is fixed for
  * the row's lifetime.
  */
-export function generateByokTtsConfigUuid(ownerId: string, provider: string): string {
+export function generateByokTtsConfigUuid(ownerId: string, provider: ByokTtsProvider): string {
   return uuidv5(`tts_config_byok:${ownerId}:${provider}`, TZUROT_NAMESPACE);
 }
 
