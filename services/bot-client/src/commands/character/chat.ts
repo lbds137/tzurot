@@ -36,6 +36,7 @@ import {
 } from '../../services/serviceRegistry.js';
 import type { MessageContext } from '../../types.js';
 import { sendCharacterResponse } from './chatResponseSender.js';
+import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
 
 const logger = createLogger('character-chat');
 
@@ -320,6 +321,32 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
   }
 }
 
+/**
+ * Build extended-context settings from a personality.
+ * Pulls the `?? default` coalescing out of the main handler so complexity stays bounded.
+ */
+function buildExtendedContextSettings(personality: LoadedPersonality): {
+  maxMessages: number;
+  maxAge: number | null;
+  maxImages: number;
+  sources: {
+    maxMessages: 'personality';
+    maxAge: 'personality';
+    maxImages: 'personality';
+  };
+} {
+  return {
+    maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
+    maxAge: personality.maxAge ?? null,
+    maxImages: personality.maxImages ?? 10,
+    sources: {
+      maxMessages: 'personality',
+      maxAge: 'personality',
+      maxImages: 'personality',
+    },
+  };
+}
+
 /** Parameters for building chat context */
 interface BuildChatContextParams {
   anchorMessage: Message;
@@ -389,6 +416,10 @@ async function buildChatContext(
  * - Chat mode (message provided): User sends message, character responds
  * - Weigh-in mode (no message): Character contributes to ongoing conversation
  *
+ * The character argument is optional. When omitted, a random accessible
+ * personality is picked and an explanatory notice replaces the deferred
+ * "thinking..." message so the channel sees who got chosen.
+ *
  * Uses MessageContextBuilder for feature parity with @mentions:
  * - Context epoch support (/history clear honored)
  * - Guild member info (roles, color, join date)
@@ -400,14 +431,22 @@ export async function handleChat(
   _config: EnvConfig
 ): Promise<void> {
   const options = characterChatOptions(context.interaction);
-  const characterSlug = options.character();
   const message = options.message();
   const userId = context.user.id;
   const isWeighInMode = message === null || message.trim().length === 0;
   const discordDisplayName = context.member?.displayName ?? context.user.displayName;
 
+  // Resolve the character slug (either user-provided or random pick).
+  const resolved = await resolveCharacterSlug(options.character(), context);
+  if (resolved.kind === 'error') {
+    await context.editReply({ content: resolved.message });
+    return;
+  }
+  const characterSlug = resolved.slug;
+  const isRandomPick = resolved.randomPick;
+
   logger.info(
-    { characterSlug, userId, messageLength: message?.length ?? 0, isWeighInMode },
+    { characterSlug, userId, messageLength: message?.length ?? 0, isWeighInMode, isRandomPick },
     'Processing chat request'
   );
 
@@ -433,23 +472,10 @@ export async function handleChat(
     const displayName = personaResult.config.preferredName ?? discordDisplayName;
 
     // 4. Build extended context settings from personality
-    const extendedContextSettings = {
-      maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-      maxAge: personality.maxAge ?? null,
-      maxImages: personality.maxImages ?? 10,
-      sources: {
-        maxMessages: 'personality' as const,
-        maxAge: 'personality' as const,
-        maxImages: 'personality' as const,
-      },
-    };
+    const extendedContextSettings = buildExtendedContextSettings(personality);
 
-    // 5. Delete deferred reply before sending messages
-    // Why delete first? The deferred reply shows "[bot] is thinking..." which would be
-    // confusing if it remained visible after we send the user's message. The brief moment
-    // where nothing is visible is preferable to showing a stale "thinking..." indicator
-    // alongside the user's message. The user message follows almost immediately.
-    await context.deleteReply();
+    // 5. Replace the deferred "thinking..." indicator before sending messages.
+    await finalizeDeferredReply(context, personality, isRandomPick);
 
     // Capture timestamp for conversation ordering (user message < assistant message)
     const userMessageTime = new Date();

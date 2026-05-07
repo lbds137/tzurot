@@ -58,6 +58,24 @@ vi.mock('../../services/serviceRegistry.js', () => ({
   getPersonaResolver: () => mockPersonaResolver,
 }));
 
+// Mock autocomplete cache for random-pick code path
+const mockGetCachedPersonalities = vi.fn();
+vi.mock('../../utils/autocomplete/autocompleteCache.js', () => ({
+  getCachedPersonalities: (...args: unknown[]) => mockGetCachedPersonalities(...args),
+}));
+
+vi.mock('../../utils/userGatewayClient.js', async importOriginal => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    toGatewayUser: vi.fn((user: { id: string; displayName: string }) => ({
+      discordId: user.id,
+      username: user.displayName,
+      displayName: user.displayName,
+    })),
+  };
+});
+
 // Mock redis service
 vi.mock('../../redis.js', () => ({
   redisService: {
@@ -127,13 +145,13 @@ describe('Character Chat Handler', () => {
   /**
    * Create a mock DeferredCommandContext for testing
    *
-   * @param characterSlug - The character slug option
+   * @param characterSlug - The character slug option (null for random-pick mode)
    * @param message - The message option (null for weigh-in mode)
    * @param channel - Mock channel
    * @param guild - Mock guild
    */
   const createMockContext = (
-    characterSlug: string,
+    characterSlug: string | null,
     message: string | null,
     channel = createMockChannel(),
     guild = createMockGuild()
@@ -938,6 +956,144 @@ describe('Character Chat Handler', () => {
           botUserId: 'bot-user-123',
         })
       );
+    });
+  });
+
+  describe('handleChat - random-pick mode', () => {
+    /**
+     * Builds a minimal accessible-personalities response shape matching
+     * what getCachedPersonalities returns. Only the fields the random-pick
+     * code path reads (slug, name, displayName) need to be realistic.
+     */
+    const makePersonalitySummary = (
+      slug: string,
+      displayName: string | null = null,
+      name: string = slug
+    ) => ({
+      id: `id-${slug}`,
+      slug,
+      name,
+      displayName,
+      isOwned: true,
+      isPublic: false,
+      ownerId: 'user-123',
+      ownerDiscordId: 'user-123',
+      permissions: { canEdit: true, canDelete: true, canView: true },
+    });
+
+    it('shows a graceful error when the user has no accessible characters', async () => {
+      const mockContext = createMockContext(null, 'Hello!');
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: [] });
+
+      await handleChat(mockContext, mockConfig);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('No characters available'),
+      });
+      // Personality service should NOT be reached when the pool is empty
+      expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
+    });
+
+    it('shows a graceful error when the personalities lookup itself fails', async () => {
+      const mockContext = createMockContext(null, 'Hello!');
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'error', error: new Error('boom') });
+
+      await handleChat(mockContext, mockConfig);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Unable to load characters'),
+      });
+      expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
+    });
+
+    it('picks the only personality deterministically when the pool has one entry', async () => {
+      const mockContext = createMockContext(null, 'Hello!');
+      const personality = createMockPersonality({ name: 'solo', displayName: 'Solo Pick' });
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makePersonalitySummary('solo', 'Solo Pick')],
+      });
+      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+        success: true,
+        content: 'Response',
+      });
+
+      await handleChat(mockContext, mockConfig);
+
+      // The picked slug is what gets loaded
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('solo', 'user-123');
+      // Random-pick path edits the deferred reply with the notice instead of deleting it.
+      // Single assertion pins both the dice emoji + the picked name in one call (separating
+      // them would pass even if editReply were called twice with one token each).
+      expect(mockContext.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('🎲 Picked **Solo Pick**'),
+      });
+      expect(mockContext.deleteReply).not.toHaveBeenCalled();
+    });
+
+    it('routes Math.random output to the corresponding pool entry', async () => {
+      const mockContext = createMockContext(null, 'Hello!');
+      // 4 personalities; mock Math.random → 0.75 should index Math.floor(0.75 * 4) === 3
+      const pool = [
+        makePersonalitySummary('alpha', 'Alpha'),
+        makePersonalitySummary('beta', 'Beta'),
+        makePersonalitySummary('gamma', 'Gamma'),
+        makePersonalitySummary('delta', 'Delta'),
+      ];
+      mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: pool });
+      vi.spyOn(Math, 'random').mockReturnValue(0.75);
+
+      const personality = createMockPersonality({ name: 'delta', displayName: 'Delta' });
+      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+        success: true,
+        content: 'Response',
+      });
+
+      await handleChat(mockContext, mockConfig);
+
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('delta', 'user-123');
+    });
+
+    it('falls back to name when displayName is null in the picked summary', async () => {
+      const mockContext = createMockContext(null, 'Hello!');
+      mockGetCachedPersonalities.mockResolvedValue({
+        kind: 'ok',
+        value: [makePersonalitySummary('only', null, 'OnlyName')],
+      });
+      const personality = createMockPersonality({ name: 'OnlyName', displayName: null });
+      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+        success: true,
+        content: 'Response',
+      });
+
+      await handleChat(mockContext, mockConfig);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('OnlyName'),
+      });
+    });
+
+    it('does not invoke the random pool when an explicit character is provided', async () => {
+      const mockContext = createMockContext('test-char', 'Hello!');
+      const personality = createMockPersonality();
+      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-1', requestId: 'req-1' });
+      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+        success: true,
+        content: 'Response',
+      });
+
+      await handleChat(mockContext, mockConfig);
+
+      expect(mockGetCachedPersonalities).not.toHaveBeenCalled();
+      // Explicit-pick path deletes the deferred reply (existing behavior)
+      expect(mockContext.deleteReply).toHaveBeenCalled();
     });
   });
 });
