@@ -485,29 +485,26 @@ describe('Deterministic UUID Generation', () => {
       expect(id1).not.toBe(id2);
     });
 
-    it('different provider produces different UUID', () => {
-      const id1 = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
-      const id2 = generateByokLlmConfigUuid(TEST_OWNER, 'anthropic');
-      expect(id1).not.toBe(id2);
-    });
+    // No "different provider produces different UUID" test for LLM today —
+    // `ByokLlmProvider` has only one member ('openrouter') currently. Add
+    // back when the union widens (e.g., when a 2nd BYOK LLM provider lands).
 
     it('returns a valid v5 UUID format', () => {
       const id = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
       expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     });
 
-    it('uses a different name-seed prefix than TTS — same (ownerId, provider) produces a different UUID', () => {
+    it('uses a different name-seed prefix than TTS — produces different UUIDs even with overlapping inputs', () => {
       // `tts_config_byok:` vs `llm_config_byok:` — separation by name-seed
-      // prefix (TZUROT_NAMESPACE is shared across all helpers).
+      // prefix (TZUROT_NAMESPACE is shared across all helpers). Each side
+      // uses its respective union's first member; the namespace prefix is
+      // what makes the UUIDs differ regardless of the literal input.
       const ttsId = generateByokTtsConfigUuid(TEST_OWNER, 'elevenlabs');
-      const llmId = generateByokLlmConfigUuid(TEST_OWNER, 'elevenlabs');
+      const llmId = generateByokLlmConfigUuid(TEST_OWNER, 'openrouter');
       expect(ttsId).not.toBe(llmId);
     });
 
     it('returns the documented stable UUID for a known (ownerId, provider) pair', () => {
-      expect(generateByokLlmConfigUuid(TEST_OWNER, 'elevenlabs')).toBe(
-        '7f8a3518-336b-5dc8-973e-cc302405d333'
-      );
       expect(generateByokLlmConfigUuid(TEST_OWNER, 'openrouter')).toBe(
         '287bae65-55ef-591a-9cd1-c567b5d3e2e1'
       );

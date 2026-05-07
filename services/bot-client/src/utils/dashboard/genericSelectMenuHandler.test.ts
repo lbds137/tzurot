@@ -64,6 +64,7 @@ interface MockInteraction {
   user: { id: string };
   reply: ReturnType<typeof vi.fn>;
   showModal: ReturnType<typeof vi.fn>;
+  followUp: ReturnType<typeof vi.fn>;
 }
 
 function createInteraction(customId: string, value: string): MockInteraction {
@@ -73,6 +74,7 @@ function createInteraction(customId: string, value: string): MockInteraction {
     user: { id: 'user-123' },
     reply: vi.fn().mockResolvedValue(undefined),
     showModal: vi.fn().mockResolvedValue(undefined),
+    followUp: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -200,6 +202,44 @@ describe('handleDashboardSectionSelect', () => {
 
     expect(mockBuildSectionModal).toHaveBeenCalled();
     expect(interaction.showModal).toHaveBeenCalledWith({ customId: 'modal-1' });
+  });
+
+  it('catches 10062 on showModal and surfaces a retry followUp', async () => {
+    // fetchOrCreateSession on cold cache hits the gateway (multi-second
+    // worst case under load); the subsequent showModal can throw 10062
+    // because Discord forbids deferReply before showModal. Without the
+    // showModalWithTimeoutCatch wrap, the user sees "Interaction Failed"
+    // with no diagnostic signal in logs.
+    const { DiscordAPIError } = await import('discord.js');
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'test',
+      entityId: 'e1',
+    });
+    mockFetchOrCreateSession.mockResolvedValue({
+      success: true,
+      data: { name: 'Test', canEdit: true },
+      fromCache: false,
+    });
+    mockBuildSectionModal.mockReturnValue({ customId: 'modal-1' });
+    const timeoutError = new DiscordAPIError(
+      { code: 10062, message: 'Unknown interaction' },
+      10062,
+      404,
+      'POST',
+      '/interactions/x/y/callback',
+      {}
+    );
+    const interaction = createInteraction('test::select::e1', 'edit-section-a');
+    interaction.showModal = vi.fn().mockRejectedValue(timeoutError);
+
+    await handleDashboardSectionSelect(interaction as never, createConfig());
+
+    expect(interaction.showModal).toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Took too long'),
+      })
+    );
   });
 
   it('skips canEdit check when not provided', async () => {
