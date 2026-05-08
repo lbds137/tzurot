@@ -5,8 +5,8 @@
  * Manages message chunking, model indicators, and webhook storage.
  */
 
-import type { Message, DMChannel } from 'discord.js';
-import { TextChannel, ThreadChannel } from 'discord.js';
+import type { DMChannel } from 'discord.js';
+import { NewsChannel, TextChannel, ThreadChannel } from 'discord.js';
 import {
   splitMessage,
   createLogger,
@@ -15,6 +15,7 @@ import {
   BOT_FOOTER_TEXT,
   buildModelFooterText,
   buildModelInfoUrl,
+  type TypingChannel,
 } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
@@ -41,8 +42,21 @@ interface SendResponseOptions {
   content: string;
   /** The personality to send as */
   personality: LoadedPersonality;
-  /** The original user message (for context and replies) */
-  message: Message;
+  /**
+   * Channel to deliver the response to. Webhook delivery is used for
+   * TextChannel/ThreadChannel when guildId is set; DM delivery is used
+   * for DMChannel (guildId === null).
+   */
+  channel: TypingChannel;
+  /** Guild ID, or null for DM channels — picks webhook vs DM routing. */
+  guildId: string | null;
+  /**
+   * Bot's Discord application ID. Used to build TTS audio filenames
+   * the receive-side classifier can recognize on forward. Optional
+   * because discord.js types `client.user` as nullable; falls back to
+   * a legacy filename shape when absent.
+   */
+  clientId: string | undefined;
   /** Model name used for generation (optional, adds indicator) */
   modelUsed?: string;
   /**
@@ -122,7 +136,7 @@ export class DiscordResponseSender {
    * - Redis webhook storage
    */
   async sendResponse(options: SendResponseOptions): Promise<DiscordSendResult> {
-    const { content, personality, message } = options;
+    const { content, personality, channel, guildId, clientId } = options;
 
     // Send thinking content as a separate message before the main response
     if (
@@ -130,21 +144,25 @@ export class DiscordResponseSender {
       options.thinkingContent !== undefined &&
       options.thinkingContent.length > 0
     ) {
-      await this.sendThinkingBlock(message, personality, options.thinkingContent);
+      await this.sendThinkingBlock(channel, guildId, personality, options.thinkingContent);
     }
 
     const footer = this.buildFooter(options);
     const ttsFiles = await this.fetchTTSFiles(
       options.ttsAudioKey,
       options.ttsAudioContentType,
-      options.personality.slug,
-      options.message.client.user?.id
+      personality.slug,
+      clientId
     );
 
-    // Determine routing and build chunks
+    // Webhook delivery in guild text/announcement/thread channels;
+    // DM channel.send otherwise. NewsChannel (announcement channels)
+    // supports webhooks the same way TextChannel does.
     const isWebhookChannel =
-      message.guild !== null &&
-      (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
+      guildId !== null &&
+      (channel instanceof TextChannel ||
+        channel instanceof NewsChannel ||
+        channel instanceof ThreadChannel);
 
     const rawContent = isWebhookChannel ? content : `**${personality.displayName}:** ${content}`;
     const chunks = splitMessage(rawContent);
@@ -154,9 +172,14 @@ export class DiscordResponseSender {
     const sendOpts: ChunkedSendOptions = { chunks, personality, chunkMessageIds, ttsFiles };
 
     if (isWebhookChannel) {
-      await this.sendViaWebhook(message.channel, sendOpts);
+      await this.sendViaWebhook(channel, sendOpts);
     } else {
-      await this.sendViaDM(message.channel as DMChannel, sendOpts);
+      // Cast invariant: within TypingChannel (TextChannel | DMChannel |
+      // NewsChannel | PublicThread | PrivateThread), reaching this branch
+      // requires guildId === null AND not-instanceof-Text/News/Thread —
+      // which leaves only DMChannel. If TypingChannel ever expands,
+      // re-derive the membership rather than trusting this cast.
+      await this.sendViaDM(channel as DMChannel, sendOpts);
     }
 
     logger.debug(
@@ -176,7 +199,7 @@ export class DiscordResponseSender {
 
   /** Send via webhook (guild channels) */
   private async sendViaWebhook(
-    channel: TextChannel | ThreadChannel,
+    channel: TextChannel | NewsChannel | ThreadChannel,
     opts: ChunkedSendOptions
   ): Promise<void> {
     const { chunks, personality, chunkMessageIds, ttsFiles } = opts;
@@ -332,7 +355,8 @@ export class DiscordResponseSender {
    * For very long thinking content, splits into multiple messages.
    */
   private async sendThinkingBlock(
-    message: Message,
+    channel: TypingChannel,
+    guildId: string | null,
     personality: LoadedPersonality,
     thinkingContent: string
   ): Promise<void> {
@@ -358,10 +382,11 @@ export class DiscordResponseSender {
     // Use existing splitMessage utility for natural boundary splitting
     const chunks = splitMessage(escapedContent, MAX_CONTENT_PER_MESSAGE);
 
-    // Determine channel type
     const isWebhookChannel =
-      message.guild !== null &&
-      (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
+      guildId !== null &&
+      (channel instanceof TextChannel ||
+        channel instanceof NewsChannel ||
+        channel instanceof ThreadChannel);
 
     // Send each chunk as a spoiler message
     for (let i = 0; i < chunks.length; i++) {
@@ -371,12 +396,10 @@ export class DiscordResponseSender {
       try {
         if (isWebhookChannel) {
           // Send via webhook (matches personality appearance)
-          await this.webhookManager.sendAsPersonality(message.channel, personality, chunkContent);
+          await this.webhookManager.sendAsPersonality(channel, personality, chunkContent);
         } else {
           // Send via DM (with personality prefix, no reply indicator)
-          await (message.channel as DMChannel).send(
-            `**${personality.displayName}:** ${chunkContent}`
-          );
+          await (channel as DMChannel).send(`**${personality.displayName}:** ${chunkContent}`);
         }
       } catch (error) {
         logger.warn(

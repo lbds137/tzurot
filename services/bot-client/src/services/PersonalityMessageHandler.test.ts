@@ -1,904 +1,133 @@
 /**
  * PersonalityMessageHandler Unit Tests
+ *
+ * Adapter-level tests only — domain pipeline behavior is covered by
+ * PersonalityChatManager.test.ts. These verify the handler correctly
+ * routes the manager's result into JobTracker (or skips, on denial)
+ * and replies on exception.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityMessageHandler } from './PersonalityMessageHandler.js';
 import type { Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import {
-  MessageRole,
-  type LoadedPersonality,
-  type ConversationMessage,
-  type ReferencedMessage,
-} from '@tzurot/common-types';
-
-// Mock NSFW verification to not block normal test flow
-vi.mock('../utils/nsfwVerification.js', () => ({
-  handleNsfwVerification: vi.fn().mockResolvedValue({ allowed: true, wasNewVerification: false }),
-  sendVerificationConfirmation: vi.fn().mockResolvedValue(undefined),
-  // Keep these for backward-compatible tests
-  isNsfwChannel: vi.fn().mockReturnValue(false),
-  isDMChannel: vi.fn().mockReturnValue(false),
-  checkNsfwVerification: vi
-    .fn()
-    .mockResolvedValue({ kind: 'ok', value: { nsfwVerified: true, nsfwVerifiedAt: null } }),
-  verifyNsfwUser: vi.fn().mockResolvedValue(null),
-  trackPendingVerificationMessage: vi.fn().mockResolvedValue(undefined),
-  sendNsfwVerificationMessage: vi.fn().mockResolvedValue(undefined),
-  NSFW_VERIFICATION_MESSAGE: 'Please verify your age by interacting in an NSFW channel first.',
-}));
-
-// Mock gateway client for config resolution
-// Default returns LlmConfig defaults (no personality overrides)
-vi.mock('../utils/userGatewayClient.js', async () => {
-  const actual = await vi.importActual<typeof import('../utils/userGatewayClient.js')>(
-    '../utils/userGatewayClient.js'
-  );
-  return {
-    ...actual,
-    callGatewayApi: vi.fn().mockResolvedValue({
-      ok: true,
-      data: {
-        config: {
-          model: 'test-model',
-          provider: 'openrouter',
-          maxMessages: 50,
-          maxAge: null,
-          maxImages: 10,
-        },
-        source: 'personality',
-      },
-    }),
-  };
-});
-
-// Import for per-test mock manipulation
-import { callGatewayApi } from '../utils/userGatewayClient.js';
-
-// Import mocked functions for per-test manipulation
-import * as nsfwVerification from '../utils/nsfwVerification.js';
+import type { LoadedPersonality } from '@tzurot/common-types';
 
 describe('PersonalityMessageHandler', () => {
   let handler: PersonalityMessageHandler;
-  let mockGatewayClient: {
-    generate: ReturnType<typeof vi.fn>;
-  };
-  let mockJobTracker: {
-    trackJob: ReturnType<typeof vi.fn>;
-  };
-  let mockContextBuilder: {
-    buildContext: ReturnType<typeof vi.fn>;
-  };
-  let mockPersistence: {
-    saveUserMessage: ReturnType<typeof vi.fn>;
-  };
-  let mockReferenceEnricher: {
-    enrichWithPersonaNames: ReturnType<typeof vi.fn>;
+  let mockManager: { submitChatJob: ReturnType<typeof vi.fn> };
+  let mockJobTracker: { trackJob: ReturnType<typeof vi.fn> };
+
+  const mockChannel = { id: 'channel-123', type: ChannelType.GuildText } as any;
+  const baseTrackingContext = {
+    kind: 'message' as const,
+    channel: mockChannel,
+    guildId: 'guild-123',
+    clientId: 'bot-123',
+    userMessageTime: new Date(),
+    personality: { id: 'pers-1' } as LoadedPersonality,
+    personaId: 'persona-1',
+    userMessageContent: 'Hi',
+    message: { id: 'msg-1' } as Message,
+    isAutoResponse: undefined,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockGatewayClient = {
-      generate: vi.fn(),
-    };
-
-    mockJobTracker = {
-      trackJob: vi.fn(),
-    };
-
-    mockContextBuilder = {
-      buildContext: vi.fn(),
-    };
-
-    mockPersistence = {
-      saveUserMessage: vi.fn().mockResolvedValue(undefined),
-    };
-
-    mockReferenceEnricher = {
-      enrichWithPersonaNames: vi.fn().mockResolvedValue(undefined),
-    };
+    mockManager = { submitChatJob: vi.fn() };
+    mockJobTracker = { trackJob: vi.fn() };
 
     handler = new PersonalityMessageHandler({
-      gatewayClient: mockGatewayClient as any,
+      manager: mockManager as any,
       jobTracker: mockJobTracker as any,
-      contextBuilder: mockContextBuilder as any,
-      persistence: mockPersistence as any,
-      referenceEnricher: mockReferenceEnricher as any,
     });
   });
 
   describe('handleMessage', () => {
-    it('should handle personality message with full workflow', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const mockContext = {
-        userMessage: 'Hello AI',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {
-          channelName: 'test-channel',
-          guildName: 'Test Server',
-        },
-      };
-
-      const mockBuildResult = {
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Hello AI',
-        referencedMessages: [],
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Hello AI');
-
-      // Should build context with extended context options (from resolved config)
-      // When personality doesn't have context settings, resolver returns LlmConfig defaults
-      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
-        mockMessage,
-        mockPersonality,
-        'Hello AI',
-        {
-          extendedContext: {
-            maxMessages: 50, // from resolved config (LlmConfig default)
-            maxAge: null,
-            maxImages: 10,
-            sources: {
-              maxMessages: 'personality',
-              maxAge: 'personality',
-              maxImages: 'personality',
-            },
-          },
-          botUserId: 'bot-123',
-          crossChannelHistoryEnabled: false,
-        }
-      );
-
-      // Should save user message
-      expect(mockPersistence.saveUserMessage).toHaveBeenCalledWith({
-        message: mockMessage,
-        personality: mockPersonality,
-        personaId: 'persona-123',
-        messageContent: 'Hello AI',
-        attachments: [],
-        referencedMessages: [],
+    it('routes a submitted job to JobTracker', async () => {
+      mockManager.submitChatJob.mockResolvedValueOnce({
+        kind: 'submitted',
+        jobId: 'job-1',
+        trackingContext: baseTrackingContext,
       });
 
-      // Should submit job to gateway (with triggerMessageId added)
-      expect(mockGatewayClient.generate).toHaveBeenCalledWith(mockPersonality, {
-        ...mockContext,
-        triggerMessageId: mockMessage.id,
+      await handler.handleMessage(createMockMessage(), createMockPersonality(), 'Hi');
+
+      expect(mockManager.submitChatJob).toHaveBeenCalledWith(
+        expect.objectContaining({ content: 'Hi', isAutoResponse: undefined })
+      );
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
+        'job-1',
+        baseTrackingContext.channel,
+        baseTrackingContext
+      );
+    });
+
+    it('passes isAutoResponse through to the manager', async () => {
+      mockManager.submitChatJob.mockResolvedValueOnce({
+        kind: 'submitted',
+        jobId: 'job-2',
+        trackingContext: { ...baseTrackingContext, isAutoResponse: true },
       });
 
-      // Should track job
-      expect(mockJobTracker.trackJob).toHaveBeenCalledWith('job-123', mockMessage.channel, {
-        message: mockMessage,
-        personality: mockPersonality,
-        personaId: 'persona-123',
-        userMessageContent: 'Hello AI',
-        userMessageTime: expect.any(Date),
-      });
-    });
-
-    it('should enrich referenced messages when present', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const mockReferences: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-1',
-          discordUserId: 'user-1',
-          authorUsername: 'alice',
-          authorDisplayName: 'Alice',
-          content: 'Previous message',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Server / #general',
-        },
-      ];
-
-      const mockConversationHistory: ConversationMessage[] = [
-        {
-          id: 'conv-1',
-          role: MessageRole.User,
-          content: 'History',
-          personaId: 'persona-1',
-          personaName: 'Alicia',
-          createdAt: new Date(),
-          discordMessageId: [],
-          channelId: 'test-channel',
-          guildId: 'test-guild',
-        },
-      ];
-
-      const mockContext = {
-        userMessage: 'Reply to Alice',
-        conversationHistory: mockConversationHistory,
-        attachments: [],
-        referencedMessages: mockReferences,
-        environment: {},
-      };
-
-      const mockBuildResult = {
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Reply to Alice',
-        referencedMessages: mockReferences,
-        conversationHistory: mockConversationHistory,
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Reply to Alice');
-
-      // Should enrich references
-      expect(mockReferenceEnricher.enrichWithPersonaNames).toHaveBeenCalledWith(
-        mockReferences,
-        mockConversationHistory,
-        mockPersonality.id
-      );
-    });
-
-    it('should skip enrichment when no referenced messages', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const mockContext = {
-        userMessage: 'Simple message',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [], // Empty
-        environment: {},
-      };
-
-      const mockBuildResult = {
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Simple message',
-        referencedMessages: [],
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Simple message');
-
-      // Should not call enrich
-      expect(mockReferenceEnricher.enrichWithPersonaNames).not.toHaveBeenCalled();
-    });
-
-    it('should pass extended context settings from personality to buildContext', async () => {
-      const mockMessage = createMockMessage();
-      // Create personality with explicit context settings
-      const mockPersonality = {
-        ...createMockPersonality(),
-        maxMessages: 15,
-        maxAge: 3600,
-        maxImages: 5,
-      } as LoadedPersonality;
-
-      // Mock gateway to return personality's values (simulates resolver using personality config)
-      vi.mocked(callGatewayApi).mockResolvedValueOnce({
-        ok: true,
-        data: {
-          config: {
-            model: mockPersonality.model || 'test-model',
-            maxMessages: 15,
-            maxAge: 3600,
-            maxImages: 5,
-          },
-          source: 'personality',
-        },
+      await handler.handleMessage(createMockMessage(), createMockPersonality(), 'Hi', {
+        isAutoResponse: true,
       });
 
-      const mockContext = {
-        userMessage: 'Hello with extended context',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {},
-      };
-
-      const mockBuildResult = {
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Hello with extended context',
-        referencedMessages: [],
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Hello with extended context');
-
-      // Should build context with personality's extended context settings
-      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
-        mockMessage,
-        mockPersonality,
-        'Hello with extended context',
-        {
-          extendedContext: {
-            maxMessages: 15,
-            maxAge: 3600,
-            maxImages: 5,
-            sources: {
-              maxMessages: 'personality',
-              maxAge: 'personality',
-              maxImages: 'personality',
-            },
-          },
-          botUserId: 'bot-123',
-          crossChannelHistoryEnabled: false,
-        }
+      expect(mockManager.submitChatJob).toHaveBeenCalledWith(
+        expect.objectContaining({ isAutoResponse: true })
       );
     });
 
-    it('should prefer cascade overrides over LlmConfig values for context settings', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      // Mock gateway to return both LlmConfig result and cascade overrides
-      vi.mocked(callGatewayApi).mockResolvedValueOnce({
-        ok: true,
-        data: {
-          config: {
-            model: 'test-model',
-            provider: 'openrouter',
-            maxMessages: 50, // LlmConfig says 50
-            maxAge: null,
-            maxImages: 10,
-          },
-          source: 'personality',
-          overrides: {
-            maxMessages: 30, // Cascade says 30
-            maxAge: 7200, // Cascade says 2 hours
-            maxImages: 5, // Cascade says 5
-            memoryScoreThreshold: 0.8,
-            memoryLimit: 15,
-            focusModeEnabled: false,
-            crossChannelHistoryEnabled: false,
-            shareLtmAcrossPersonalities: false,
-            showModelFooter: true,
-            sources: {
-              maxMessages: 'user-personality',
-              maxAge: 'admin',
-              maxImages: 'personality',
-              memoryScoreThreshold: 'hardcoded',
-              memoryLimit: 'user-default',
-              focusModeEnabled: 'hardcoded',
-              crossChannelHistoryEnabled: 'hardcoded',
-              shareLtmAcrossPersonalities: 'hardcoded',
-              showModelFooter: 'hardcoded',
-            },
-          },
-        },
+    it('does not track a job when the manager denies the request', async () => {
+      mockManager.submitChatJob.mockResolvedValueOnce({
+        kind: 'denied',
+        reason: 'denylisted',
       });
 
-      const mockContext = {
-        userMessage: 'Test cascade',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {},
-      };
+      await handler.handleMessage(createMockMessage(), createMockPersonality(), 'Hi');
 
-      mockContextBuilder.buildContext.mockResolvedValue({
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Test cascade',
-        referencedMessages: [],
-        conversationHistory: [],
-      });
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Test cascade');
-
-      // Should use cascade override values, not LlmConfig values
-      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
-        mockMessage,
-        mockPersonality,
-        'Test cascade',
-        {
-          extendedContext: {
-            maxMessages: 30, // From cascade, not LlmConfig's 50
-            maxAge: 7200, // From cascade, not LlmConfig's null
-            maxImages: 5, // From cascade, not LlmConfig's 10
-            sources: {
-              maxMessages: 'user-personality', // Per-field source tracking
-              maxAge: 'admin',
-              maxImages: 'personality',
-            },
-          },
-          botUserId: 'bot-123',
-          crossChannelHistoryEnabled: false,
-        }
-      );
-    });
-
-    it('should pass crossChannelHistoryEnabled: true when cascade override is true', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      vi.mocked(callGatewayApi).mockResolvedValueOnce({
-        ok: true,
-        data: {
-          config: { model: 'test-model', maxMessages: 50, maxAge: null, maxImages: 10 },
-          source: 'personality',
-          overrides: {
-            maxMessages: 50,
-            maxAge: null,
-            maxImages: 10,
-            memoryScoreThreshold: 0.7,
-            memoryLimit: 10,
-            focusModeEnabled: false,
-            crossChannelHistoryEnabled: true,
-            shareLtmAcrossPersonalities: false,
-            showModelFooter: true,
-            sources: {
-              maxMessages: 'hardcoded',
-              maxAge: 'hardcoded',
-              maxImages: 'hardcoded',
-              memoryScoreThreshold: 'hardcoded',
-              memoryLimit: 'hardcoded',
-              focusModeEnabled: 'hardcoded',
-              crossChannelHistoryEnabled: 'admin',
-              shareLtmAcrossPersonalities: 'hardcoded',
-              showModelFooter: 'hardcoded',
-            },
-          },
-        },
-      });
-
-      const mockContext = {
-        userMessage: 'Test cross-channel',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {},
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue({
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Test cross-channel',
-        referencedMessages: [],
-        conversationHistory: [],
-      });
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Test cross-channel');
-
-      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
-        mockMessage,
-        mockPersonality,
-        'Test cross-channel',
-        expect.objectContaining({
-          crossChannelHistoryEnabled: true,
-        })
-      );
-    });
-
-    it('should pass channelId to resolve config call', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const mockBuildResult = {
-        context: {
-          userMessage: 'Test channelId',
-          conversationHistory: [],
-          attachments: [],
-          referencedMessages: [],
-          environment: {},
-        },
-        personaId: 'persona-123',
-        messageContent: 'Test channelId',
-        referencedMessages: [],
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Test channelId');
-
-      // Verify callGatewayApi was called with channelId in the body
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config/resolve',
-        expect.objectContaining({
-          body: expect.objectContaining({
-            channelId: 'channel-123', // from createMockMessage().channel.id
-          }),
-        })
-      );
-    });
-
-    it('should pass full Discord user context (discordId + username + displayName) on the message-event path', async () => {
-      // Guards the message-event provisioning path (PR A of Phase 5c). A
-      // regression in toGatewayUser(message.author) — e.g. dropping
-      // displayName, swapping message.author for interaction.user, or losing
-      // the globalName fallback — would pass typecheck but break real users
-      // whose prompts depend on their Discord username in <participants>.
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const mockBuildResult = {
-        context: {
-          userMessage: 'hi',
-          conversationHistory: [],
-          attachments: [],
-          referencedMessages: [],
-          environment: {},
-        },
-        personaId: 'persona-123',
-        messageContent: 'hi',
-        referencedMessages: [],
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'hi');
-
-      expect(callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config/resolve',
-        expect.objectContaining({
-          user: {
-            discordId: 'user-123',
-            username: 'testuser',
-            displayName: 'Test User',
-          },
-        })
-      );
-    });
-
-    it('should handle voice transcript content', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const voiceTranscript = 'This is a voice message transcript';
-
-      const mockContext = {
-        userMessage: voiceTranscript,
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {},
-      };
-
-      const mockBuildResult = {
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: voiceTranscript,
-        referencedMessages: [],
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, voiceTranscript);
-
-      // Should build context with voice transcript
-      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
-        mockMessage,
-        mockPersonality,
-        voiceTranscript,
-        expect.objectContaining({
-          extendedContext: expect.objectContaining({ maxMessages: 50 }),
-          botUserId: 'bot-123',
-        })
-      );
-
-      // Should save with voice transcript content
-      expect(mockPersistence.saveUserMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messageContent: voiceTranscript,
-        })
-      );
-    });
-
-    it('should handle errors gracefully and reply to user', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      mockContextBuilder.buildContext.mockRejectedValue(new Error('Context build failed'));
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Test message');
-
-      // Should reply with error
-      expect(mockMessage.reply).toHaveBeenCalledWith('Error: Context build failed');
-
-      // Should not submit job
-      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
       expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
 
-    it('should handle non-Error thrown values', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
+    it('replies with the error and does not track when the manager throws', async () => {
+      const message = createMockMessage();
+      mockManager.submitChatJob.mockRejectedValueOnce(new Error('boom'));
 
-      mockContextBuilder.buildContext.mockRejectedValue('String error');
+      await handler.handleMessage(message, createMockPersonality(), 'Hi');
 
-      await handler.handleMessage(mockMessage, mockPersonality, 'Test message');
-
-      // Should reply with stringified error
-      expect(mockMessage.reply).toHaveBeenCalledWith('Error: String error');
+      expect(message.reply).toHaveBeenCalledWith('Error: boom');
+      expect(mockJobTracker.trackJob).not.toHaveBeenCalled();
     });
 
-    it('should not throw if error reply fails', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
+    it('stringifies non-Error throws when replying', async () => {
+      const message = createMockMessage();
+      mockManager.submitChatJob.mockRejectedValueOnce('string-failure');
 
-      mockContextBuilder.buildContext.mockRejectedValue(new Error('Build failed'));
-      (mockMessage.reply as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('Channel deleted')
-      );
+      await handler.handleMessage(message, createMockPersonality(), 'Hi');
 
-      // Should not throw
+      expect(message.reply).toHaveBeenCalledWith('Error: string-failure');
+    });
+
+    it('does not throw if the error reply itself fails', async () => {
+      const message = createMockMessage();
+      mockManager.submitChatJob.mockRejectedValueOnce(new Error('boom'));
+      (message.reply as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('channel gone'));
+
       await expect(
-        handler.handleMessage(mockMessage, mockPersonality, 'Test message')
+        handler.handleMessage(message, createMockPersonality(), 'Hi')
       ).resolves.toBeUndefined();
-    });
-
-    it('should pass enriched references to persistence', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const mockReferences: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
-          discordMessageId: 'msg-1',
-          discordUserId: 'user-1',
-          authorUsername: 'alice',
-          authorDisplayName: 'Alice', // Will be enriched
-          content: 'Previous',
-          embeds: '',
-          timestamp: new Date().toISOString(),
-          locationContext: 'Test Server / #general',
-        },
-      ];
-
-      const mockContext = {
-        userMessage: 'Reply',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: mockReferences,
-        environment: {},
-      };
-
-      const mockBuildResult = {
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Reply',
-        referencedMessages: mockReferences,
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      // Mock enrichment to modify the reference
-      mockReferenceEnricher.enrichWithPersonaNames.mockImplementation(async refs => {
-        refs[0].authorDisplayName = 'Alicia'; // Enriched name
-      });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Reply');
-
-      // Should save with enriched reference
-      expect(mockPersistence.saveUserMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          referencedMessages: [
-            expect.objectContaining({
-              authorDisplayName: 'Alicia', // Enriched
-            }),
-          ],
-        })
-      );
-    });
-
-    it('should include attachments in persistence', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      const mockAttachments = [
-        {
-          url: 'https://example.com/image.png',
-          contentType: 'image/png',
-          name: 'image.png',
-          size: 50000,
-        },
-      ];
-
-      const mockContext = {
-        userMessage: 'Message with image',
-        conversationHistory: [],
-        attachments: mockAttachments,
-        referencedMessages: [],
-        environment: {},
-      };
-
-      const mockBuildResult = {
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Message with image',
-        referencedMessages: [],
-        conversationHistory: [],
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Message with image');
-
-      // Should save with attachments
-      expect(mockPersistence.saveUserMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          attachments: mockAttachments,
-        })
-      );
-    });
-  });
-
-  describe('NSFW verification', () => {
-    it('should auto-verify user when in NSFW channel and continue processing', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      // Setup: handleNsfwVerification returns allowed + wasNewVerification
-      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
-        allowed: true,
-        wasNewVerification: true,
-      });
-
-      const mockContext = {
-        userMessage: 'Hello from NSFW channel',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {},
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue({
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Hello from NSFW channel',
-        referencedMessages: [],
-        conversationHistory: [],
-      });
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Hello from NSFW channel');
-
-      // Should call handleNsfwVerification
-      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalledWith(mockMessage);
-
-      // Should send confirmation for new verification
-      expect(nsfwVerification.sendVerificationConfirmation).toHaveBeenCalled();
-
-      // Should continue processing (generate called)
-      expect(mockGatewayClient.generate).toHaveBeenCalled();
-    });
-
-    it('should block unverified user and not process message', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      // Setup: handleNsfwVerification blocks the message
-      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
-        allowed: false,
-        wasNewVerification: false,
-      });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
-
-      // Should call handleNsfwVerification
-      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalled();
-
-      // Should NOT process message (generate not called)
-      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
-    });
-
-    it('should not send confirmation when already verified', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      // Setup: handleNsfwVerification allows but not new verification
-      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
-        allowed: true,
-        wasNewVerification: false,
-      });
-
-      const mockContext = {
-        userMessage: 'Hello',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {},
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue({
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Hello',
-        referencedMessages: [],
-        conversationHistory: [],
-      });
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Hello');
-
-      // Should NOT send confirmation (not new verification)
-      expect(nsfwVerification.sendVerificationConfirmation).not.toHaveBeenCalled();
-
-      // Should continue processing
-      expect(mockGatewayClient.generate).toHaveBeenCalled();
-    });
-
-    it('should allow verified user to proceed', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      // Setup: handleNsfwVerification allows
-      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
-        allowed: true,
-        wasNewVerification: false,
-      });
-
-      const mockContext = {
-        userMessage: 'Hello via DM',
-        conversationHistory: [],
-        attachments: [],
-        referencedMessages: [],
-        environment: {},
-      };
-
-      mockContextBuilder.buildContext.mockResolvedValue({
-        context: mockContext,
-        personaId: 'persona-123',
-        messageContent: 'Hello via DM',
-        referencedMessages: [],
-        conversationHistory: [],
-      });
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
-
-      await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
-
-      // Should continue processing (generate called)
-      expect(mockGatewayClient.generate).toHaveBeenCalled();
     });
   });
 });
 
-// Helper functions
 function createMockMessage(): Message {
   return {
     id: 'message-123',
-    author: {
-      id: 'user-123',
-      username: 'testuser',
-      globalName: 'Test User',
-      bot: false,
-    },
-    channel: {
-      id: 'channel-123',
-      type: ChannelType.GuildText,
-    },
-    client: {
-      user: {
-        id: 'bot-123',
-      },
-    },
+    guildId: 'test-guild',
+    author: { id: 'user-123', username: 'testuser', bot: false },
+    channel: { id: 'channel-123', type: ChannelType.GuildText },
+    client: { user: { id: 'bot-123' } },
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;
 }
@@ -908,13 +137,6 @@ function createMockPersonality(): LoadedPersonality {
     id: 'personality-123',
     name: 'test-bot',
     displayName: 'Test Bot',
-    systemPrompt: 'You are a test bot',
-    voiceEnabled: false,
-    llmConfig: {
-      model: 'test-model',
-      provider: 'openrouter',
-      temperature: 0.7,
-      maxTokens: 1000,
-    },
+    slug: 'test-bot',
   } as unknown as LoadedPersonality;
 }

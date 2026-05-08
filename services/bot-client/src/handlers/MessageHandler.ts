@@ -13,7 +13,11 @@ import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
-import { JobTracker, type PendingJobContext } from '../services/JobTracker.js';
+import {
+  JobTracker,
+  type MessageJobContext,
+  type SlashJobContext,
+} from '../services/JobTracker.js';
 import { getGatewayClient } from '../services/serviceRegistry.js';
 
 const logger = createLogger('MessageHandler');
@@ -99,8 +103,36 @@ export class MessageHandler {
     // Complete the job (clears typing indicator and removes from tracker)
     this.jobTracker.completeJob(jobId);
 
-    const { message, personality, personaId, userMessageContent, userMessageTime, isAutoResponse } =
-      jobContext;
+    if (jobContext.kind === 'slash') {
+      await this.handleSlashJobResult(jobId, result, jobContext);
+      return;
+    }
+
+    await this.handleMessageJobResult(jobId, result, jobContext);
+  }
+
+  /**
+   * Result delivery for the @mention/reply/auto-response path. Anchors on
+   * the original Discord Message: upgrades attachment placeholders, sends
+   * via the message-shaped responseSender path, persists with Message
+   * context.
+   */
+  private async handleMessageJobResult(
+    jobId: string,
+    result: LLMGenerationResult,
+    jobContext: MessageJobContext
+  ): Promise<void> {
+    const {
+      message,
+      personality,
+      personaId,
+      userMessageContent,
+      userMessageTime,
+      isAutoResponse,
+      channel,
+      guildId,
+      clientId,
+    } = jobContext;
 
     // Handle explicit failure from ai-worker (success: false)
     if (result.success === false) {
@@ -145,7 +177,9 @@ export class MessageHandler {
       const { chunkMessageIds } = await this.responseSender.sendResponse({
         content: result.content,
         personality,
-        message,
+        channel,
+        guildId,
+        clientId,
         modelUsed: result.metadata?.modelUsed,
         providerUsed: result.metadata?.providerUsed,
         isGuestMode: result.metadata?.isGuestMode,
@@ -198,15 +232,26 @@ export class MessageHandler {
     jobId: string,
     errorContent: string,
     result: LLMGenerationResult,
-    jobContext: PendingJobContext
+    jobContext: MessageJobContext
   ): Promise<void> {
-    const { message, personality, personaId, userMessageTime, isAutoResponse } = jobContext;
+    const {
+      message,
+      personality,
+      personaId,
+      userMessageTime,
+      isAutoResponse,
+      channel,
+      guildId,
+      clientId,
+    } = jobContext;
 
     try {
       const { chunkMessageIds } = await this.responseSender.sendResponse({
         content: errorContent,
         personality,
-        message,
+        channel,
+        guildId,
+        clientId,
         modelUsed: result.metadata?.modelUsed,
         providerUsed: result.metadata?.providerUsed,
         isGuestMode: result.metadata?.isGuestMode,
@@ -243,6 +288,167 @@ export class MessageHandler {
       // Fallback to direct reply if webhook fails
       await message.reply(errorContent).catch(() => {
         // Intentionally ignore reply failures - we've already logged the webhook error
+      });
+    }
+  }
+
+  /**
+   * Slash-command result delivery.
+   *
+   * Mirrors the @mention path but with two differences:
+   *  - No Message to upgrade (slash commands don't accept attachments, so
+   *    there are no placeholder descriptions to swap for rich text).
+   *  - Persistence uses saveAssistantMessageFromFields (no Message anchor).
+   *
+   * Slash chat now ALSO surfaces TTS audio, thinking blocks, and focus/
+   * incognito footers — feature parity with the @mention path that the
+   * old polling sender silently dropped.
+   */
+  private async handleSlashJobResult(
+    jobId: string,
+    result: LLMGenerationResult,
+    jobContext: SlashJobContext
+  ): Promise<void> {
+    if (result.success === false) {
+      logger.error(
+        { jobId, error: result.error, errorInfo: result.errorInfo },
+        'Slash job failed; surfacing error to channel'
+      );
+      await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
+      return;
+    }
+
+    // Narrow content via real if-check rather than assertion — both
+    // `!` and `as` are forbidden by lint rules in this codebase.
+    const content = result.content;
+    if (typeof content !== 'string' || content.length === 0) {
+      logger.error(
+        { jobId, contentType: typeof content },
+        'Slash job result missing or invalid content field'
+      );
+      await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
+      return;
+    }
+
+    const { channel, guildId, clientId, personality, personaId, userMessageTime, isWeighInMode } =
+      jobContext;
+
+    try {
+      const { chunkMessageIds } = await this.responseSender.sendResponse({
+        content,
+        personality,
+        channel,
+        guildId,
+        clientId,
+        modelUsed: result.metadata?.modelUsed,
+        providerUsed: result.metadata?.providerUsed,
+        isGuestMode: result.metadata?.isGuestMode,
+        focusModeEnabled: result.metadata?.focusModeEnabled,
+        incognitoModeActive: result.metadata?.incognitoModeActive,
+        thinkingContent: result.metadata?.thinkingContent,
+        showThinking: result.metadata?.showThinking,
+        showModelFooter: result.metadata?.showModelFooter,
+        ttsAudioKey: result.metadata?.ttsAudioKey,
+        ttsAudioContentType: result.metadata?.ttsAudioContentType,
+      });
+
+      // Persist assistant message; skip in weigh-in mode (ai-worker also skips
+      // LTM storage, and the response wasn't anchored to a user prompt the
+      // history would meaningfully reference).
+      if (!isWeighInMode) {
+        await this.persistence.saveAssistantMessageFromFields({
+          channelId: channel.id,
+          guildId,
+          personality,
+          personaId,
+          content,
+          chunkMessageIds,
+          userMessageTime,
+        });
+      }
+
+      if (chunkMessageIds.length > 0) {
+        void getGatewayClient()
+          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
+          .catch(err => {
+            logger.warn({ err }, 'Failed to update diagnostic response IDs (slash)');
+          });
+      }
+
+      logger.info(
+        { jobId, chunks: chunkMessageIds.length, isWeighInMode },
+        'Slash job result delivered successfully'
+      );
+    } catch (error) {
+      logger.error({ err: error, jobId }, 'Error handling slash job result');
+      await this.sendSlashErrorResponse(jobId, buildErrorContent(result), result, jobContext);
+    }
+  }
+
+  /**
+   * Slash-error response. No Message to reply to — the deferred interaction
+   * reply was already finalized when the job was submitted, so the only
+   * delivery surface is `channel.send` (or the response sender for
+   * webhook/DM-aware delivery with the error embed shape).
+   */
+  private async sendSlashErrorResponse(
+    jobId: string,
+    errorContent: string,
+    result: LLMGenerationResult,
+    jobContext: SlashJobContext
+  ): Promise<void> {
+    const { channel, guildId, clientId, personality, personaId, userMessageTime, isWeighInMode } =
+      jobContext;
+
+    try {
+      const { chunkMessageIds } = await this.responseSender.sendResponse({
+        content: errorContent,
+        personality,
+        channel,
+        guildId,
+        clientId,
+        modelUsed: result.metadata?.modelUsed,
+        providerUsed: result.metadata?.providerUsed,
+        isGuestMode: result.metadata?.isGuestMode,
+        focusModeEnabled: result.metadata?.focusModeEnabled,
+        incognitoModeActive: result.metadata?.incognitoModeActive,
+        showModelFooter: result.metadata?.showModelFooter,
+      });
+
+      // Persist the (spoiler-stripped) error to conversation history so the
+      // slash-error path matches the @mention error path's behavior — see
+      // sendErrorResponse above, which has always done this. The trade-off:
+      // the error becomes visible to the next turn's LLM context. Acceptable
+      // because (a) it mirrors what users see on screen, and (b) divergence
+      // between the two paths would be more surprising than the parity cost.
+      if (!isWeighInMode) {
+        await this.persistence.saveAssistantMessageFromFields({
+          channelId: channel.id,
+          guildId,
+          personality,
+          personaId,
+          content: stripErrorSpoiler(errorContent),
+          chunkMessageIds,
+          userMessageTime,
+        });
+      }
+
+      if (chunkMessageIds.length > 0) {
+        void getGatewayClient()
+          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
+          .catch(err => {
+            logger.warn({ err }, 'Failed to update diagnostic response IDs for slash error');
+          });
+      }
+    } catch (sendError) {
+      logger.error(
+        { err: sendError, jobId },
+        'Failed to send slash error via responseSender, falling back to channel.send'
+      );
+      // No Message anchor; channel.send is the only fallback path.
+      // TypingChannel guarantees `.send` exists, so no duck-type guard needed.
+      await channel.send(errorContent).catch(() => {
+        // Last-resort: silently drop. We've already logged the primary failure.
       });
     }
   }

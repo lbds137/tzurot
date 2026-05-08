@@ -12,6 +12,52 @@ import type { Message } from 'discord.js';
 import { handleTypingError } from '../utils/typingErrorClassifier.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 
+/**
+ * Context fields shared by every PendingJobContext variant.
+ * Hoisted so consumers (ordering routing in index.ts, ResponseOrderingService,
+ * the result-delivery sender) can read them without narrowing on `kind`.
+ */
+interface BaseJobContext {
+  channel: TypingChannel;
+  /**
+   * GuildId, null for DM channels. Used by the sender to pick webhook vs
+   * DM delivery without re-deriving from channel type.
+   */
+  guildId: string | null;
+  /** Bot's Discord application ID; used by the sender for TTS filenames. */
+  clientId: string | undefined;
+  userMessageTime: Date;
+  personality: LoadedPersonality;
+  personaId: string;
+}
+
+/**
+ * Context for a job submitted via @mention / reply / auto-response —
+ * any path that originates from a Discord Message.
+ */
+export interface MessageJobContext extends BaseJobContext {
+  kind: 'message';
+  message: Message;
+  userMessageContent: string;
+  /** True for channel-activation auto-responses (changes footer text). */
+  isAutoResponse?: boolean;
+}
+
+/**
+ * Context for a job submitted via /character chat slash command.
+ * No anchor Message — the interaction is the entry point and delivery
+ * goes to `channel` directly (webhook in guilds, channel.send in DMs).
+ *
+ * `requestId` is intentionally NOT stored here: it's available on the
+ * incoming `LLMGenerationResult.requestId` at delivery time, which is
+ * the canonical source for the diagnostic-id update.
+ */
+export interface SlashJobContext extends BaseJobContext {
+  kind: 'slash';
+  characterSlug: string;
+  isWeighInMode: boolean;
+}
+
 const logger = createLogger('JobTracker');
 
 // How long to keep sending the typing indicator before giving up. Typing
@@ -38,18 +84,11 @@ const TYPING_INDICATOR_INTERVAL_MS = 8000;
 const ORPHAN_SWEEP_GRACE_MS = 30 * 60 * 1000;
 
 /**
- * Context needed to handle async job results
- * Stored here instead of in MessageHandler for statelessness
+ * Context needed to handle async job results.
+ * Discriminated on `kind` so the result-delivery path knows which
+ * protocol surface (Message-shaped vs slash-shaped) the job came from.
  */
-export interface PendingJobContext {
-  message: Message;
-  personality: LoadedPersonality;
-  personaId: string;
-  userMessageContent: string;
-  userMessageTime: Date;
-  /** If true, this is an auto-response from channel activation (not @mention) */
-  isAutoResponse?: boolean;
-}
+export type PendingJobContext = MessageJobContext | SlashJobContext;
 
 interface TrackedJob {
   jobId: string;
