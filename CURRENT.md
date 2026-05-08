@@ -1,8 +1,8 @@
 # Current
 
-> **Session**: 2026-05-08 (evening) — Doc-only intake. Confirmed `/character chat` orphan-job production bug (free-model users only); merged structural fix into the existing PersonalityChatManager extract theme as a two-phase epic. Sequenced before TTS Phase 3 PR 1 plan-mode pass. Also intook a provider prompt caching cost-reduction epic.
-> **Version**: v3.0.0-beta.117 (released 2026-05-08; develop is currently SHA-aligned with main)
-> **🚧 Release freeze status**: LIFTED. `/character chat` epic inserted before TTS Phase 3 work resumes.
+> **Session**: 2026-05-08 (late) — Shipped v3.0.0-beta.118: `/character chat` push delivery + DM support + PersonalityChatManager extract (#994), fast-follow tests (#995), Dependabot security patches (#996). Three PRs landed clean; backlog stayed neutral.
+> **Version**: v3.0.0-beta.118 (released 2026-05-08; develop is currently SHA-aligned with main)
+> **🚧 Release freeze status**: LIFTED. TTS Phase 3 PR 1 plan-mode pass is the next pickup.
 
 ---
 
@@ -41,7 +41,7 @@
 
 ## Unreleased on Develop
 
-_(empty — develop is currently SHA-aligned with main at v3.0.0-beta.116)_
+_(empty — develop is currently SHA-aligned with main at v3.0.0-beta.118)_
 
 ---
 
