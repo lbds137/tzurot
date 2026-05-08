@@ -2,7 +2,7 @@
 
 _Active bugs observed in production. Fix before new features._
 
-_(none active — see Cleared sections below for recent resolutions)_
+- **`/character chat` orphans long-running jobs on free models** — bot-client polls with a 2-min cap (`TIMEOUTS.JOB_BASE` in `packages/common-types/src/constants/timing.ts:20`); free-model users see "something went wrong" while ai-worker successfully completes the job 4+ min later (compute wasted, response discarded). Paid-model users unaffected because they finish under the cap. Confirmed 2026-05-07: `Job llm-c5f21e08-6d91-443b-992e-544814562873` finished at processingTime=363266ms (6m3s) on ai-worker; bot-client gave up at 2m, surfaced "Error processing chat" from `chat.ts:53`. Surfaced via `/character chat random` with `baxter-madan-metoraf`. **Fix queued**: structural push-based result delivery — see `backlog/future-themes.md` § "Theme: `/character chat` — push-based result delivery + DM support". Scheduled before TTS-epic PR 3 continuation.
 
 _Cleared 2026-05-06:_
 
