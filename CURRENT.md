@@ -1,8 +1,8 @@
 # Current
 
-> **Session**: 2026-05-05 (evening) — TTS Phase 3 reshaped via two council passes. **Plan-mode pickup tomorrow on PR 1 of the new `/voice` consolidation shape.**
-> **Version**: v3.0.0-beta.116
-> **🚧 Release freeze status**: LIFTED. Phase 3 (now reshaped to two-PR `/voice` consolidation + STT cutover) and Phase 2 (NeuTTS Air) remain on the TTS Engine Upgrade epic.
+> **Session**: 2026-05-08 — v3.0.0-beta.117 shipped. Six PRs merged this cycle (#988–#992 today + #983–#987 earlier in the week). Heavy Discord-interaction-correctness theme + `/character chat` random mode + temporal-marker hook.
+> **Version**: v3.0.0-beta.117 (released 2026-05-08; develop is currently SHA-aligned with main)
+> **🚧 Release freeze status**: LIFTED. Phase 3 (`/voice` consolidation + STT cutover) and Phase 2 (NeuTTS Air) remain on the TTS Engine Upgrade epic.
 
 ---
 
@@ -141,6 +141,7 @@ _(none — release-frozen until TTS Engine Upgrade Epic completes)_
 
 ## Recent Releases
 
+- **v3.0.0-beta.117** (2026-05-08) — Ten PRs in the bundle. Theme: Discord-interaction-correctness hardening + new `/character chat` random-bot mode + structural pre-commit hook for temporal markers. Headline UX wins: persona modal silent-truncation data-loss fix (#983, modal-limit alignment 2000→4000) and broad showModal 10062 wrapping across the dashboard surface (#985, #987, #988). New feature: `/character chat` with no character argument picks randomly from the user's accessible pool (#991). Tooling: pre-commit hook scans for temporal markers in code comments (PR refs, dates, "caught in round N") with companion `02-code-standards.md` rule section (#989). Rule clarification: `Deferred` backlog section now explicitly covers both declined items and trigger-gated work (#990). Cycle of 4 review rounds on #991, 4 on #988 — both LGTM-converged with progressively smaller findings.
 - **v3.0.0-beta.113** (2026-05-01) — Six PRs in the bundle: #947 (cache infrastructure: CACHE_KEY_PREFIXES, cacheKeyId invariant, opt-out logging), #948 (storage-rename `MemoryDocument` → `PgvectorMemoryDocument` + queryMemories test coverage), #949 (createdAt mapping test), #950 (release-finalize hook), #951 (429 category preservation in cache + GLM-4.7 `<from_id>` leak strip), #952 (TTS chunker CRLF fix — RFC 7578 `\n` → `\r\n` wire expansion). Council-validated TTS chunker root cause (Gemini 3.1 Pro Preview) traced ~2000+N character expansion to multipart/form-data spec compliance.
 - **v3.0.0-beta.112** (2026-04-30) — Six PRs: vision pipeline cleanup, knip/guard:duplicate-exports blocking, rule update on Dismissed-vs-Backlog distinction, Redis-backed rate-limit cache (16 review rounds with architectural pivot), credit-exhaustion cache, post-#943 misc cleanup bundle.
 - **v3.0.0-beta.111** (2026-04-29) — Cross-provider vision auth fix (#938).
