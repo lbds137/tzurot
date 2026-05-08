@@ -7,3 +7,7 @@ coverage/
 
 # Dependencies
 node_modules/
+
+# Lockfile (machine-generated; prettier reformats integrity blocks across
+# thousands of lines, drowning real version changes in noise).
+pnpm-lock.yaml
