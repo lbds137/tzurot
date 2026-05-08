@@ -10,8 +10,9 @@ overrides:
   ioredis: ^5.10.0
   minimatch@<3.1.4: '>=3.1.4'
   minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
-  hono@<4.12.14: '>=4.12.14'
+  hono@<4.12.16: '>=4.12.16'
   '@hono/node-server@<1.19.13': '>=1.19.13'
+  fast-xml-builder@<1.1.7: '>=1.1.7'
   lodash@>=4.0.0 <=4.17.22: '>=4.17.23'
   ajv@>=6.0.0 <6.14.0: '>=6.14.0 <7.0.0'
   tar@<=7.5.10: '>=7.5.11'
@@ -312,8 +313,8 @@ importers:
         specifier: ^5.76.5
         version: 5.76.5
       fast-xml-parser:
-        specifier: ^5.7.2
-        version: 5.7.2
+        specifier: ^5.7.3
+        version: 5.7.3
       ioredis:
         specifier: ^5.10.0
         version: 5.10.1
@@ -936,7 +937,7 @@ packages:
     resolution: {integrity: sha512-n3GfHwwCvHCkGmOwKfxUPOlbfzuO64Sbc5XC4NGPIXxkuOnJrdgExdRKmHfF924r914WRJPT397GdqLvdYTeyQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: '>=4.12.14'
+      hono: '>=4.12.16'
 
   '@huggingface/jinja@0.5.8':
     resolution: {integrity: sha512-ZdElB7DPS7QQS8ZnFc5RPPtkg+eN11z8AmIZWAyes6pSbwXqiFB/POVevvm01begdSX1ho9Gxln/F6qlQMsuaA==}
@@ -2933,11 +2934,11 @@ packages:
   fast-uri@3.1.1:
     resolution: {integrity: sha512-h2r7rcm6Ee/J8o0LD5djLuFVcfbZxhvho4vvsbeV0aMvXjUgqv4YpxpkEx0d68l6+IleVfLAdVEfhR7QNMkGHQ==}
 
-  fast-xml-builder@1.1.5:
-    resolution: {integrity: sha512-4TJn/8FKLeslLAH3dnohXqE3QSoxkhvaMzepOIZytwJXZO69Bfz0HBdDHzOTOon6G59Zrk6VQ2bEiv1t61rfkA==}
+  fast-xml-builder@1.2.0:
+    resolution: {integrity: sha512-00aAWieqff+ZJhsXA4g1g7M8k+7AYoMUUHF+/zFb5U6Uv/P0Vl4QZo84/IcufzYalLuEj9928bXN9PbbFzMF0Q==}
 
-  fast-xml-parser@5.7.2:
-    resolution: {integrity: sha512-P7oW7tLbYnhOLQk/Gv7cZgzgMPP/XN03K02/Jy6Y/NHzyIAIpxuZIM/YqAkfiXFPxA2CTm7NtCijK9EDu09u2w==}
+  fast-xml-parser@5.7.3:
+    resolution: {integrity: sha512-C0AaNuC+mscy6vrAQKAc/rMq+zAPHodfHGZu4sGVehvAQt/JLG1O5zEcYcXSY5zSqr4YVgxsB+pHXTq0i7eDlg==}
     hasBin: true
 
   fastq@1.20.1:
@@ -3162,8 +3163,8 @@ packages:
   help-me@5.0.0:
     resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==}
 
-  hono@4.12.15:
-    resolution: {integrity: sha512-qM0jDhFEaCBb4TxoW7f53Qrpv9RBiayUHo0S52JudprkhvpjIrGoU1mnnr29Fvd1U335ZFPZQY1wlkqgfGXyLg==}
+  hono@4.12.18:
+    resolution: {integrity: sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@9.0.3:
@@ -4907,6 +4908,10 @@ packages:
       utf-8-validate:
         optional: true
 
+  xml-naming@0.1.0:
+    resolution: {integrity: sha512-k8KO9hrMyNk6tUWqUfkTEZbezRRpONVOzUTnc97VnCvyj6Tf9lyUR9EDAIeiVLv56jsMcoXEwjW8Kv5yPY52lw==}
+    engines: {node: '>=16.0.0'}
+
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
@@ -5492,9 +5497,9 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@hono/node-server@2.0.0(hono@4.12.15)':
+  '@hono/node-server@2.0.0(hono@4.12.18)':
     dependencies:
-      hono: 4.12.15
+      hono: 4.12.18
 
   '@huggingface/jinja@0.5.8': {}
 
@@ -6097,13 +6102,13 @@ snapshots:
       '@electric-sql/pglite': 0.4.1
       '@electric-sql/pglite-socket': 0.1.1(@electric-sql/pglite@0.4.1)
       '@electric-sql/pglite-tools': 0.3.1(@electric-sql/pglite@0.4.1)
-      '@hono/node-server': 2.0.0(hono@4.12.15)
+      '@hono/node-server': 2.0.0(hono@4.12.18)
       '@prisma/get-platform': 7.2.0
       '@prisma/query-plan-executor': 7.2.0
       '@prisma/streams-local': 0.1.2
       foreground-child: 3.3.1
       get-port-please: 3.2.0
-      hono: 4.12.15
+      hono: 4.12.18
       http-status-codes: 2.3.0
       pathe: 2.0.3
       proper-lockfile: 4.1.2
@@ -7486,14 +7491,15 @@ snapshots:
 
   fast-uri@3.1.1: {}
 
-  fast-xml-builder@1.1.5:
+  fast-xml-builder@1.2.0:
     dependencies:
       path-expression-matcher: 1.5.0
+      xml-naming: 0.1.0
 
-  fast-xml-parser@5.7.2:
+  fast-xml-parser@5.7.3:
     dependencies:
       '@nodable/entities': 2.1.0
-      fast-xml-builder: 1.1.5
+      fast-xml-builder: 1.2.0
       path-expression-matcher: 1.5.0
       strnum: 2.2.3
 
@@ -7733,7 +7739,7 @@ snapshots:
 
   help-me@5.0.0: {}
 
-  hono@4.12.15: {}
+  hono@4.12.18: {}
 
   hosted-git-info@9.0.3:
     dependencies:
@@ -9488,6 +9494,8 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.20.0: {}
+
+  xml-naming@0.1.0: {}
 
   xtend@4.0.2: {}
 
