@@ -28,6 +28,7 @@ const mockResponseSender = {
 const mockPersistence = {
   updateUserMessage: vi.fn(),
   saveAssistantMessage: vi.fn(),
+  saveAssistantMessageFromFields: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockJobTracker = {
@@ -256,6 +257,10 @@ describe('MessageHandler', () => {
       } as Message;
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: { id: 'personality-123', name: 'TestBot' },
         personaId: 'persona-456',
@@ -286,12 +291,16 @@ describe('MessageHandler', () => {
       });
 
       // Should send response to Discord
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith({
-        content: 'AI response text',
-        personality: mockContext.personality,
-        message: mockMessage,
-        modelUsed: 'anthropic/claude-sonnet-4.5',
-      });
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'AI response text',
+          personality: mockContext.personality,
+          channel: mockContext.channel,
+          guildId: mockContext.guildId,
+          clientId: mockContext.clientId,
+          modelUsed: 'anthropic/claude-sonnet-4.5',
+        })
+      );
 
       // Should save assistant message to conversation history
       expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith({
@@ -332,6 +341,10 @@ describe('MessageHandler', () => {
       };
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: {} as Message,
         personality: { id: 'p-1', name: 'Bot' },
         personaId: 'persona-1',
@@ -368,6 +381,10 @@ describe('MessageHandler', () => {
       const mockPersonality = { id: 'p-1', name: 'Bot' };
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: mockPersonality,
         personaId: 'persona-1',
@@ -385,11 +402,15 @@ describe('MessageHandler', () => {
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
 
       // Should notify user of error via webhook (not direct reply)
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith({
-        content: 'Sorry, I encountered an error generating a response. Please try again later.',
-        personality: mockPersonality,
-        message: mockMessage,
-      });
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Sorry, I encountered an error generating a response. Please try again later.',
+          personality: mockPersonality,
+          channel: mockContext.channel,
+          guildId: mockContext.guildId,
+          clientId: mockContext.clientId,
+        })
+      );
     });
 
     it('should handle chunked messages correctly', async () => {
@@ -401,6 +422,10 @@ describe('MessageHandler', () => {
       };
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: {} as Message,
         personality: { id: 'p-1', name: 'Bot' },
         personaId: 'persona-1',
@@ -444,6 +469,10 @@ describe('MessageHandler', () => {
       } as unknown as Message;
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: { id: 'p-1', name: 'ErrorBot' },
         personaId: 'persona-err',
@@ -496,6 +525,10 @@ describe('MessageHandler', () => {
       } as unknown as Message;
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: { id: 'p-1', name: 'MetaBot' },
         personaId: 'persona-meta',
@@ -542,6 +575,10 @@ describe('MessageHandler', () => {
       } as unknown as Message;
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: { id: 'p-1', name: 'NoMetaBot' },
         personaId: 'persona-nometa',
@@ -586,6 +623,10 @@ describe('MessageHandler', () => {
       } as unknown as Message;
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: { id: 'p-1', name: 'InvalidMetaBot' },
         personaId: 'persona-invmeta',
@@ -629,6 +670,10 @@ describe('MessageHandler', () => {
       } as unknown as Message;
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: { id: 'p-1', name: 'NoRefBot' },
         personaId: 'persona-noref',
@@ -672,6 +717,10 @@ describe('MessageHandler', () => {
       } as unknown as Message;
 
       const mockContext = {
+        kind: 'message' as const,
+        channel: { id: 'channel-test' } as any,
+        guildId: 'guild-test',
+        clientId: 'bot-test',
         message: mockMessage,
         personality: { id: 'p-1', name: 'InvalidBot' },
         personaId: 'persona-inv',
@@ -693,6 +742,198 @@ describe('MessageHandler', () => {
           content: expect.not.stringContaining('||*('),
         })
       );
+    });
+  });
+
+  describe('handleJobResult - Slash dispatch', () => {
+    function createSlashContext(overrides: Record<string, unknown> = {}) {
+      return {
+        kind: 'slash' as const,
+        channel: { id: 'channel-slash', send: vi.fn().mockResolvedValue({ id: 'fb-1' }) } as any,
+        guildId: 'guild-slash',
+        clientId: 'bot-slash',
+        userMessageTime: new Date('2026-05-08T10:00:00Z'),
+        personality: { id: 'pers-slash', name: 'SlashBot' } as any,
+        personaId: 'persona-slash',
+        characterSlug: 'slash-char',
+        isWeighInMode: false,
+        ...overrides,
+      };
+    }
+
+    it('routes successful slash result to DiscordResponseSender with full metadata', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1', 'm-2'] });
+
+      const result = {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Slash response',
+        metadata: {
+          modelUsed: 'anthropic/claude',
+          providerUsed: 'openrouter',
+          isGuestMode: false,
+          ttsAudioKey: 'tts-key-1',
+          ttsAudioContentType: 'audio/ogg',
+          thinkingContent: 'reasoning...',
+          showThinking: true,
+        },
+      } as unknown as LLMGenerationResult;
+
+      await messageHandler.handleJobResult('job-slash-1', result);
+
+      // Slash branch dispatches with channel/guildId/clientId from context
+      // (no `message` field — that's the parity-gain compared to the old polling sender).
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Slash response',
+          channel: ctx.channel,
+          guildId: 'guild-slash',
+          clientId: 'bot-slash',
+          modelUsed: 'anthropic/claude',
+          ttsAudioKey: 'tts-key-1',
+          thinkingContent: 'reasoning...',
+          showThinking: true,
+        })
+      );
+    });
+
+    it('persists assistant message via saveAssistantMessageFromFields (no Message anchor)', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
+
+      await messageHandler.handleJobResult('job-slash-2', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+      } as unknown as LLMGenerationResult);
+
+      expect(mockPersistence.saveAssistantMessageFromFields).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'channel-slash',
+          guildId: 'guild-slash',
+          personaId: 'persona-slash',
+          chunkMessageIds: ['m-1'],
+          content: 'Hi',
+          userMessageTime: ctx.userMessageTime,
+        })
+      );
+      // Message-flavored persistence stays untouched on slash path.
+      expect(mockPersistence.saveAssistantMessage).not.toHaveBeenCalled();
+    });
+
+    it('skips assistant persistence in weigh-in mode', async () => {
+      const ctx = createSlashContext({ isWeighInMode: true });
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
+
+      await messageHandler.handleJobResult('job-weighin', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Weighing in',
+      } as unknown as LLMGenerationResult);
+
+      expect(mockPersistence.saveAssistantMessageFromFields).not.toHaveBeenCalled();
+    });
+
+    it('updates diagnostic response IDs with the slash requestId', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1', 'm-2'] });
+
+      await messageHandler.handleJobResult('job-diag', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+      } as unknown as LLMGenerationResult);
+
+      // Wait a tick for the fire-and-forget update
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockGatewayClient.updateDiagnosticResponseIds).toHaveBeenCalledWith('req-slash', [
+        'm-1',
+        'm-2',
+      ]);
+    });
+
+    it('routes explicit failure (success: false) through error path', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-1'] });
+
+      await messageHandler.handleJobResult('job-fail', {
+        requestId: 'req-slash',
+        success: false,
+        error: 'rate limited',
+        errorInfo: { category: 'rate_limit_error', referenceId: 'ref-1' },
+      } as unknown as LLMGenerationResult);
+
+      // sendResponse called with error content (not 'Hi')
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: ctx.channel,
+          guildId: 'guild-slash',
+        })
+      );
+      const sentContent = mockResponseSender.sendResponse.mock.calls[0][0].content;
+      expect(typeof sentContent).toBe('string');
+      expect(sentContent.length).toBeGreaterThan(0);
+    });
+
+    it('falls back to channel.send when responseSender throws on the error path', async () => {
+      const channelSend = vi.fn().mockResolvedValue({ id: 'fb-1' });
+      const ctx = createSlashContext({
+        channel: { id: 'channel-slash', send: channelSend } as any,
+      });
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockRejectedValueOnce(new Error('webhook down'));
+
+      await messageHandler.handleJobResult('job-fb', {
+        requestId: 'req-slash',
+        success: false,
+        error: 'something',
+        errorInfo: { category: 'unknown_error' },
+      } as unknown as LLMGenerationResult);
+
+      expect(channelSend).toHaveBeenCalled();
+    });
+
+    it('completes the JobTracker entry on slash result delivery', async () => {
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
+
+      await messageHandler.handleJobResult('job-complete', {
+        requestId: 'req-slash',
+        success: true,
+        content: 'Hi',
+      } as unknown as LLMGenerationResult);
+
+      expect(mockJobTracker.completeJob).toHaveBeenCalledWith('job-complete');
+    });
+
+    it('routes truthy-but-empty content (success=true, content="") through the error path', async () => {
+      // Distinct from `success: false` — an ai-worker can mark the job
+      // successful while returning empty content (model produced nothing
+      // visible). The slash branch must still send an error to the user
+      // rather than silently dispatching an empty webhook message.
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-empty-1'] });
+
+      await messageHandler.handleJobResult('job-empty', {
+        requestId: 'req-slash',
+        success: true,
+        content: '',
+      } as unknown as LLMGenerationResult);
+
+      // sendResponse called with a non-empty error message (not the empty content).
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
+      const sentContent = mockResponseSender.sendResponse.mock.calls[0][0].content;
+      expect(typeof sentContent).toBe('string');
+      expect(sentContent.length).toBeGreaterThan(0);
     });
   });
 });

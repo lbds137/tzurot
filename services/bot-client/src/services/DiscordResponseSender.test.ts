@@ -73,7 +73,9 @@ describe('DiscordResponseSender', () => {
       const result = await sender.sendResponse({
         content: 'Hello from bot!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
       });
 
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledWith(
@@ -93,7 +95,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'anthropic/claude-sonnet-4.5',
       });
 
@@ -113,7 +117,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'glm-4.7',
         providerUsed: 'zai-coding',
       });
@@ -133,7 +139,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'z-ai/glm-4.7',
         providerUsed: 'openrouter',
       });
@@ -150,7 +158,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         isGuestMode: true,
       });
 
@@ -166,7 +176,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'x-ai/grok-4.1-fast:free',
         isGuestMode: true,
       });
@@ -184,7 +196,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         isGuestMode: false,
       });
 
@@ -200,7 +214,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'anthropic/claude-sonnet-4.5',
         isAutoResponse: true,
       });
@@ -219,7 +235,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         isAutoResponse: true,
       });
 
@@ -235,7 +253,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'x-ai/grok-4.1-fast:free',
         isGuestMode: true,
         isAutoResponse: true,
@@ -257,7 +277,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
         focusModeEnabled: true,
       });
@@ -274,7 +296,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
         focusModeEnabled: false,
       });
@@ -292,7 +316,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'x-ai/grok-4.1-fast:free',
         isGuestMode: true,
         isAutoResponse: true,
@@ -317,7 +343,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
         incognitoModeActive: true,
       });
@@ -334,7 +362,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
         incognitoModeActive: false,
       });
@@ -352,7 +382,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'x-ai/grok-4.1-fast:free',
         isGuestMode: true,
         isAutoResponse: true,
@@ -380,7 +412,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'anthropic/claude-sonnet-4.5',
         showModelFooter: false,
       });
@@ -397,7 +431,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'anthropic/claude-sonnet-4.5',
         isAutoResponse: true,
         showModelFooter: false,
@@ -416,7 +452,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
         isGuestMode: true,
         focusModeEnabled: true,
@@ -438,7 +476,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response content',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
         isAutoResponse: false,
       });
@@ -463,7 +503,9 @@ describe('DiscordResponseSender', () => {
       const result = await sender.sendResponse({
         content: longContent,
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
       });
 
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(2);
@@ -485,7 +527,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: longContent,
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
       });
 
@@ -508,7 +552,9 @@ describe('DiscordResponseSender', () => {
       const result = await sender.sendResponse({
         content: 'Hello in DM!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
       });
 
       expect(mockChannel.send).toHaveBeenCalledWith(
@@ -537,7 +583,9 @@ describe('DiscordResponseSender', () => {
       const result = await sender.sendResponse({
         content: longContent,
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
       });
 
       // Should have added prefix before chunking
@@ -557,7 +605,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Thread message',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
       });
 
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledWith(
@@ -758,7 +808,9 @@ describe('DiscordResponseSender', () => {
         await sender.sendResponse({
           content: 'Test response',
           personality: mockPersonality,
-          message: mockMessage,
+          channel: mockMessage.channel as never,
+          guildId: mockMessage.guild?.id ?? null,
+          clientId: mockMessage.client.user?.id,
           modelUsed: 'test-model',
           ...flags,
         });
@@ -810,7 +862,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Test',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'test-model',
         isAutoResponse: true,
         isGuestMode: true,
@@ -841,7 +895,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Response',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         modelUsed: 'anthropic/claude-sonnet-4.5',
         isAutoResponse: true,
         isGuestMode: true,
@@ -885,7 +941,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response content',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: 'This is my reasoning process...',
         showThinking: true,
       });
@@ -906,7 +964,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response content',
         personality: personalityWithoutThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: 'This reasoning should NOT be shown',
         showThinking: false,
       });
@@ -930,7 +990,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response content',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         showThinking: true,
         // thinkingContent not provided
       });
@@ -952,7 +1014,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response content',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: '',
         showThinking: true,
       });
@@ -974,7 +1038,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: 'My reasoning here',
         showThinking: true,
       });
@@ -1004,7 +1070,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: 'Content with ||existing spoilers|| inside',
         showThinking: true,
       });
@@ -1031,7 +1099,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: 'DM thinking content',
         showThinking: true,
       });
@@ -1063,7 +1133,9 @@ describe('DiscordResponseSender', () => {
       const result = await sender.sendResponse({
         content: 'Main response',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: 'This thinking will fail',
         showThinking: true,
       });
@@ -1088,7 +1160,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: veryLongThinking,
         showThinking: true,
       });
@@ -1121,7 +1195,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Main response',
         personality: personalityWithThinking,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         thinkingContent: longThinking,
         showThinking: true,
       });
@@ -1151,7 +1227,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello from bot!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:job-123',
       });
 
@@ -1176,7 +1254,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
       });
 
       // 4th argument should be undefined (no files)
@@ -1194,7 +1274,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:expired',
       });
 
@@ -1214,7 +1296,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:oversized',
       });
 
@@ -1242,7 +1326,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:opus',
         ttsAudioContentType: 'audio/ogg',
       });
@@ -1269,7 +1355,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'x'.repeat(3000),
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:job-123',
       });
 
@@ -1298,7 +1386,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello from ElevenLabs!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:job-el',
         ttsAudioContentType: 'audio/mpeg',
       });
@@ -1331,7 +1421,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:job-no-client',
       });
 
@@ -1351,7 +1443,9 @@ describe('DiscordResponseSender', () => {
       await sender.sendResponse({
         content: 'Hello in DM!',
         personality: mockPersonality,
-        message: mockMessage,
+        channel: mockMessage.channel as never,
+        guildId: mockMessage.guild?.id ?? null,
+        clientId: mockMessage.client.user?.id,
         ttsAudioKey: 'tts-audio:job-123',
       });
 

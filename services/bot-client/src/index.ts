@@ -42,6 +42,7 @@ import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.
 import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentService.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
+import { PersonalityChatManager } from './services/character/PersonalityChatManager.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
@@ -202,14 +203,20 @@ function createServices(): Services {
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
   const replyResolver = new ReplyResolutionService(personalityIdCache, gatewayClient);
 
-  // Personality message handler (used by multiple processors)
-  const personalityHandler = new PersonalityMessageHandler({
+  // Domain pipeline for @mention/reply/auto-response chats: gates,
+  // config resolution, context build, persistence, job submission.
+  const personalityChatManager = new PersonalityChatManager({
     gatewayClient,
-    jobTracker,
     contextBuilder,
     persistence,
     referenceEnricher,
     denylistCache,
+  });
+
+  // Discord-shape adapter; routes Messages through the manager + tracks the job.
+  const personalityHandler = new PersonalityMessageHandler({
+    manager: personalityChatManager,
+    jobTracker,
   });
 
   // Create processor chain (order matters!)
@@ -591,7 +598,7 @@ async function startResultsListener(): Promise<void> {
 
       // Route through ordering service to maintain message order per channel
       await services.responseOrderingService.handleResult(
-        context.message.channel.id,
+        context.channel.id,
         jobId,
         result,
         context.userMessageTime,
