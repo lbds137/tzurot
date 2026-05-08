@@ -935,5 +935,24 @@ describe('MessageHandler', () => {
       expect(typeof sentContent).toBe('string');
       expect(sentContent.length).toBeGreaterThan(0);
     });
+
+    it('routes null content (success=true, content=null) through the error path', async () => {
+      // sendSlashErrorResponse still persists even on the error path, so we can't use
+      // saveAssistantMessageFromFields as a proxy for "took the error path" here.
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['err-null-1'] });
+
+      await messageHandler.handleJobResult('job-null', {
+        requestId: 'req-slash',
+        success: true,
+        content: null,
+      } as unknown as LLMGenerationResult);
+
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledTimes(1);
+      const sentContent = mockResponseSender.sendResponse.mock.calls[0][0].content;
+      expect(typeof sentContent).toBe('string');
+      expect(sentContent.length).toBeGreaterThan(0);
+    });
   });
 });
