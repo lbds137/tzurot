@@ -2,7 +2,11 @@
  * Character Chat Command Handler
  *
  * Allows users to chat with a character using a slash command.
- * This provides an alternative to the @mention pattern.
+ * Push-based delivery: submits the job, registers a slash-context with
+ * JobTracker, and returns. MessageHandler.handleSlashJobResult delivers
+ * the response when the ResultsListener stream emits the result. This
+ * matches the @mention path's delivery model and removes the 2-min
+ * polling cap that was orphaning long-running free-model jobs.
  *
  * Supports two modes:
  * 1. **Chat mode** (message provided):
@@ -13,19 +17,20 @@
  *    - No user message is sent to the channel
  *    - Character is "summoned" to contribute to the ongoing conversation
  *    - Uses conversation history to generate a contextual response
+ *
+ * DMs are supported: a `/character chat` invocation in a DM is delivered
+ * via DMChannel.send (the same surface @mention chat in DMs uses).
  */
 
-import type { TextChannel, ThreadChannel, Message } from 'discord.js';
-import { ChannelType } from 'discord.js';
+import type { Message } from 'discord.js';
 import {
   createLogger,
-  INTERVALS,
-  TIMEOUTS,
+  isTypingChannel,
   MESSAGE_LIMITS,
   characterChatOptions,
+  type TypingChannel,
 } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
-import { buildErrorContent } from '../../utils/buildErrorContent.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   getGatewayClient,
@@ -33,108 +38,24 @@ import {
   getMessageContextBuilder,
   getConversationPersistence,
   getPersonaResolver,
+  getJobTracker,
 } from '../../services/serviceRegistry.js';
 import type { MessageContext } from '../../types.js';
-import { sendCharacterResponse } from './chatResponseSender.js';
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
 
 const logger = createLogger('character-chat');
 
 /**
- * Channel types that support webhook responses
+ * Validate that the channel supports the push-delivery surface
+ * (TypingChannel covers GuildText, DM, NewsChannel, PublicThread,
+ * PrivateThread). Returns the narrowed channel or null.
  */
-type WebhookChannel = TextChannel | ThreadChannel;
-
-/**
- * Validate that the channel supports webhook responses.
- * Returns the channel cast to WebhookChannel if valid, null otherwise.
- */
-function validateWebhookChannel(context: DeferredCommandContext): WebhookChannel | null {
+function validateChannel(context: DeferredCommandContext): TypingChannel | null {
   const channel = context.channel;
-  if (
-    !channel ||
-    (channel.type !== ChannelType.GuildText &&
-      channel.type !== ChannelType.PublicThread &&
-      channel.type !== ChannelType.PrivateThread)
-  ) {
+  if (!channel || !isTypingChannel(channel)) {
     return null;
   }
   return channel;
-}
-
-/**
- * Result of polling and sending the response
- */
-interface PollAndSendResult {
-  success: boolean;
-  /** Message IDs of the response chunks sent via webhook */
-  responseMessageIds: string[];
-  /** The response content (for conversation persistence) */
-  content?: string;
-}
-
-/**
- * Poll for job completion and send the character response.
- * Returns success status and the message IDs of sent responses.
- */
-async function pollAndSendResponse(
-  jobId: string,
-  channel: WebhookChannel,
-  personality: LoadedPersonality,
-  characterSlug: string,
-  isWeighInMode: boolean
-): Promise<PollAndSendResult> {
-  const gatewayClient = getGatewayClient();
-
-  // Show typing indicator while waiting
-  await channel.sendTyping();
-
-  // Poll with typing indicator refresh (safe short-lived timer, see CLAUDE.md)
-  const typingInterval = setInterval(() => {
-    channel.sendTyping().catch(() => {
-      // Ignore typing errors - channel may be unavailable
-    });
-  }, INTERVALS.TYPING_INDICATOR_REFRESH);
-
-  try {
-    const result = await gatewayClient.pollJobUntilComplete(jobId, {
-      maxWaitMs: TIMEOUTS.JOB_BASE,
-      pollIntervalMs: INTERVALS.JOB_POLL_INTERVAL,
-    });
-
-    // Check for explicit failure (success: false) or empty/missing content
-    if (
-      result === null ||
-      result === undefined ||
-      result.success === false ||
-      result.content === undefined ||
-      result.content === null ||
-      result.content === ''
-    ) {
-      // Use buildErrorContent for personality-specific error messages when available
-      const errorContent =
-        result !== null && result !== undefined
-          ? buildErrorContent(result)
-          : `*${personality.displayName} is having trouble responding right now.*`;
-      await channel.send(errorContent);
-      return { success: false, responseMessageIds: [] };
-    }
-
-    const responseMessageIds = await sendCharacterResponse(channel, personality, result.content, {
-      modelUsed: result.metadata?.modelUsed,
-      providerUsed: result.metadata?.providerUsed,
-      isGuestMode: result.metadata?.isGuestMode,
-      showModelFooter: result.metadata?.showModelFooter,
-    });
-
-    logger.info(
-      { jobId, characterSlug, isWeighInMode, responseCount: responseMessageIds.length },
-      'Response sent successfully'
-    );
-    return { success: true, responseMessageIds, content: result.content };
-  } finally {
-    clearInterval(typingInterval);
-  }
 }
 
 /**
@@ -165,7 +86,7 @@ type GetAnchorMessageResult = AnchorMessageResult | AnchorMessageError;
  * Weigh-in mode: fetch the latest message in channel.
  */
 async function getAnchorMessage(
-  channel: WebhookChannel,
+  channel: TypingChannel,
   isWeighInMode: boolean,
   sendUserMessageParams: SendUserMessageParams | null
 ): Promise<GetAnchorMessageResult> {
@@ -211,7 +132,7 @@ function adjustContextForWeighInMode(
  * Parameters for sending user message to Discord
  */
 interface SendUserMessageParams {
-  channel: WebhookChannel;
+  channel: TypingChannel;
   displayName: string;
   message: string;
   personality: LoadedPersonality;
@@ -249,76 +170,6 @@ async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise
     });
 
   return userMsg;
-}
-
-/**
- * Parameters for submitting job and tracking diagnostics/persistence
- */
-interface SubmitJobParams {
-  channel: WebhookChannel;
-  personality: LoadedPersonality;
-  context: MessageContext;
-  characterSlug: string;
-  isWeighInMode: boolean;
-  /** For conversation persistence */
-  personaId: string;
-  guildId: string | null;
-  userMessageTime: Date;
-}
-
-/**
- * Submit job, poll for response, and handle diagnostic tracking + persistence.
- * Extracted to reduce complexity of main handler.
- */
-async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
-  const {
-    channel,
-    personality,
-    context,
-    characterSlug,
-    isWeighInMode,
-    personaId,
-    guildId,
-    userMessageTime,
-  } = params;
-
-  const { jobId, requestId } = await getGatewayClient().generate(personality, context);
-  logger.info({ jobId, requestId, characterSlug, isWeighInMode }, 'Job submitted');
-
-  const pollResult = await pollAndSendResponse(
-    jobId,
-    channel,
-    personality,
-    characterSlug,
-    isWeighInMode
-  );
-
-  // Store response message IDs for diagnostic lookup (fire-and-forget)
-  // May fail if diagnostic log expired (24h TTL) - acceptable for debug data
-  if (pollResult.responseMessageIds.length > 0) {
-    void getGatewayClient()
-      .updateDiagnosticResponseIds(requestId, pollResult.responseMessageIds)
-      .catch(err => {
-        logger.warn({ err, requestId }, 'Failed to update diagnostic response IDs');
-      });
-  }
-
-  // Fire-and-forget persistence (see sendAndPersistUserMessage for trade-off rationale)
-  if (pollResult.success && pollResult.content !== undefined) {
-    void getConversationPersistence()
-      .saveAssistantMessageFromFields({
-        channelId: channel.id,
-        guildId,
-        personality,
-        personaId,
-        content: pollResult.content,
-        chunkMessageIds: pollResult.responseMessageIds,
-        userMessageTime,
-      })
-      .catch(err => {
-        logger.warn({ err, jobId }, 'Failed to save assistant message');
-      });
-  }
 }
 
 /**
@@ -410,6 +261,57 @@ async function buildChatContext(
 }
 
 /**
+ * Submit the job and register a slash-context with JobTracker. The result
+ * arrives asynchronously via `MessageHandler.handleSlashJobResult` —
+ * this function returns as soon as the job is in flight.
+ */
+interface SubmitJobParams {
+  channel: TypingChannel;
+  personality: LoadedPersonality;
+  context: MessageContext;
+  characterSlug: string;
+  isWeighInMode: boolean;
+  personaId: string;
+  guildId: string | null;
+  clientId: string | undefined;
+  userMessageTime: Date;
+}
+
+async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
+  const {
+    channel,
+    personality,
+    context,
+    characterSlug,
+    isWeighInMode,
+    personaId,
+    guildId,
+    clientId,
+    userMessageTime,
+  } = params;
+
+  const { jobId, requestId } = await getGatewayClient().generate(personality, context);
+  logger.info({ jobId, requestId, characterSlug, isWeighInMode }, 'Slash job submitted');
+
+  // Channel appears twice on purpose: the second arg drives JobTracker's
+  // typing-indicator loop, and the BaseJobContext.channel field is read at
+  // delivery time by handleSlashJobResult. They reference the same object
+  // but live at different layers — collapse only if trackJob's signature
+  // ever stops needing the channel separately.
+  getJobTracker().trackJob(jobId, channel, {
+    kind: 'slash',
+    channel,
+    guildId,
+    clientId,
+    userMessageTime,
+    personality,
+    personaId,
+    characterSlug,
+    isWeighInMode,
+  });
+}
+
+/**
  * Handle /character chat subcommand
  *
  * Supports two modes:
@@ -458,11 +360,12 @@ export async function handleChat(
       return;
     }
 
-    // 2. Validate channel supports webhooks
-    const channel = validateWebhookChannel(context);
+    // 2. Validate channel supports push delivery (covers Guild text/threads + DMs)
+    const channel = validateChannel(context);
     if (!channel) {
       await context.editReply({
-        content: 'This command can only be used in text channels or threads.',
+        content:
+          'This channel type is not supported. Try a text channel, thread, DM, or announcement channel.',
       });
       return;
     }
@@ -523,7 +426,7 @@ export async function handleChat(
       return;
     }
 
-    // 8. Submit job, poll for response, and track diagnostics + persistence
+    // 8. Submit job + register slash context. Result arrives via handleSlashJobResult.
     await submitAndTrackJob({
       channel,
       personality,
@@ -532,6 +435,7 @@ export async function handleChat(
       isWeighInMode,
       personaId: buildResult.personaId,
       guildId: context.guildId,
+      clientId: context.interaction.client.user?.id,
       userMessageTime,
     });
   } catch (error) {

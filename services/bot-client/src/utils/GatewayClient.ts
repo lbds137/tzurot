@@ -9,7 +9,6 @@ import {
   getConfig,
   CONTENT_TYPES,
   JobStatus,
-  INTERVALS,
   TIMEOUTS,
   TTLCache,
   type GetChannelSettingsResponse,
@@ -234,73 +233,6 @@ export class GatewayClient {
       // Don't throw - delivery confirmation is best-effort
       // The cleanup job will eventually remove unconfirmed results
     }
-  }
-
-  /**
-   * Poll job status until completed or failed
-   *
-   * For use by /character chat command which needs synchronous-like behavior.
-   * Polls the job status endpoint until the job completes.
-   *
-   * @param jobId - Job ID to poll
-   * @param options - Polling options
-   * @returns Job result when complete
-   * @throws Error if job fails or times out
-   */
-  async pollJobUntilComplete(
-    jobId: string,
-    options: { maxWaitMs?: number; pollIntervalMs?: number } = {}
-  ): Promise<GenerateResponse['result']> {
-    const maxWaitMs = options.maxWaitMs ?? TIMEOUTS.JOB_BASE;
-    const pollIntervalMs = options.pollIntervalMs ?? INTERVALS.JOB_POLL_INTERVAL;
-    const startTime = Date.now();
-
-    logger.info({ jobId, maxWaitMs, pollIntervalMs }, 'Starting job poll');
-
-    while (Date.now() - startTime < maxWaitMs) {
-      try {
-        const response = await fetch(`${this.baseUrl}/ai/job/${jobId}`, {
-          headers: {
-            'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-          },
-          signal: AbortSignal.timeout(10000),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Job status check failed: ${response.status}`);
-        }
-
-        const data = (await response.json()) as {
-          status: string;
-          result?: GenerateResponse['result'];
-        };
-
-        logger.debug({ jobId, status: data.status }, 'Job status check');
-
-        if (data.status === 'completed') {
-          logger.info({ jobId }, 'Job completed');
-          return data.result;
-        }
-
-        if (data.status === 'failed') {
-          throw new Error(`Job ${jobId} failed`);
-        }
-
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-      } catch (error) {
-        // Re-throw job failure errors - they should not be retried
-        // Format: "Job {jobId} failed" - NOT "Job status check failed"
-        if (error instanceof Error && /^Job .+ failed$/.exec(error.message)) {
-          throw error;
-        }
-        // On network error, wait and retry
-        logger.warn({ err: error, jobId }, 'Poll request failed, retrying');
-        await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-      }
-    }
-
-    throw new Error(`Job ${jobId} timed out after ${maxWaitMs}ms`);
   }
 
   /**

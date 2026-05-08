@@ -8,11 +8,15 @@ import { JobTracker, type PendingJobContext } from './JobTracker.js';
 // Helper to create mock context
 function createMockContext(): PendingJobContext {
   return {
+    kind: 'message',
+    channel: { id: 'channel-123' } as any,
+    guildId: 'guild-123',
+    clientId: 'bot-client-id',
+    userMessageTime: new Date(),
     message: { id: 'msg-123' } as any,
     personality: { id: 'pers-123', displayName: 'Test' } as any,
     personaId: 'persona-123',
     userMessageContent: 'test message',
-    userMessageTime: new Date(),
   };
 }
 

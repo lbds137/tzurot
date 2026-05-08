@@ -7,7 +7,14 @@
 
 import { createLogger, INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
 import { ChannelType, Client } from 'discord.js';
-import type { TextChannel, ThreadChannel, ForumChannel, Webhook, Message } from 'discord.js';
+import type {
+  TextChannel,
+  ThreadChannel,
+  ForumChannel,
+  NewsChannel,
+  Webhook,
+  Message,
+} from 'discord.js';
 import type { LoadedPersonality } from '../types.js';
 
 const logger = createLogger('WebhookManager');
@@ -88,30 +95,41 @@ export class WebhookManager {
   }
 
   /**
-   * Get or create a webhook for a channel (or thread's parent channel)
-   * Throws an error if webhook creation fails
-   * Supports TextChannel, ThreadChannel (including forum threads), and ForumChannel
+   * Get or create a webhook for a channel (or thread's parent channel).
+   * Supports TextChannel, NewsChannel (announcement channels), ThreadChannel
+   * (including announcement-threads + forum threads), and ForumChannel
+   * (which only fires on threads parented by it).
+   *
+   * Throws if webhook creation fails or the parent type is unsupported.
    */
-  async getWebhook(channel: TextChannel | ThreadChannel): Promise<Webhook> {
-    // For threads, we need to get the webhook from the parent channel
-    let targetChannel: TextChannel | ForumChannel;
+  async getWebhook(channel: TextChannel | NewsChannel | ThreadChannel): Promise<Webhook> {
+    // For threads, we need to get the webhook from the parent channel.
+    // NewsChannel-parented threads (announcement threads) take this branch
+    // and resolve to their NewsChannel parent.
+    let targetChannel: TextChannel | NewsChannel | ForumChannel;
 
     if (channel.isThread()) {
       const parent = channel.parent;
 
-      // Forum threads have ForumChannel parents, regular threads have TextChannel parents
       if (!parent) {
         throw new Error(`Thread ${channel.id} has no parent channel`);
       }
 
-      if (parent.type !== ChannelType.GuildText && parent.type !== ChannelType.GuildForum) {
+      // Threads can be parented by Text, Announcement (News), or Forum channels.
+      if (
+        parent.type !== ChannelType.GuildText &&
+        parent.type !== ChannelType.GuildAnnouncement &&
+        parent.type !== ChannelType.GuildForum
+      ) {
         throw new Error(`Thread ${channel.id} has unsupported parent channel type: ${parent.type}`);
       }
 
       targetChannel = parent;
     } else {
-      // channel is TextChannel since it's not a thread
-      targetChannel = channel as TextChannel;
+      // channel is TextChannel | NewsChannel since it's not a thread.
+      // The cast preserves the existing pattern; narrowing through
+      // `isThread()` is not always reliable across discord.js versions.
+      targetChannel = channel as TextChannel | NewsChannel;
     }
 
     // Check cache first (cache by parent channel ID for threads)
@@ -157,7 +175,7 @@ export class WebhookManager {
    * DM handling should be done in the message handler, not here.
    */
   async sendAsPersonality(
-    channel: TextChannel | ThreadChannel,
+    channel: TextChannel | NewsChannel | ThreadChannel,
     personality: LoadedPersonality,
     content: string,
     files?: { attachment: Buffer; name: string }[]

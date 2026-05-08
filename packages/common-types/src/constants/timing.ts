@@ -16,8 +16,6 @@ export const TIMEOUTS = {
   QUEUE_RETRY_DELAY: 2000,
   /** Cache TTL for personality/user data (5 minutes) */
   CACHE_TTL: 5 * 60 * 1000,
-  /** Base job timeout for requests with no attachments (2 minutes) */
-  JOB_BASE: 120000,
 
   // Individual component timeouts (PER ATTEMPT - with 3 retries via job chain)
   /** Vision model invocation timeout per attempt (90 seconds - handles slow models and high-res images) */
@@ -67,8 +65,6 @@ export const INTERVALS = {
   ATTACHMENT_CLEANUP_DELAY: 5000,
   /** Typing indicator refresh interval (8 seconds - Discord expires at 10s) */
   TYPING_INDICATOR_REFRESH: 8000,
-  /** Job polling interval for synchronous-style waiting (1 second) */
-  JOB_POLL_INTERVAL: 1000,
   /** Default delay for embed processing in referenced messages (2.5 seconds) */
   EMBED_PROCESSING_DELAY: 2500,
   /** Message age window for deduplication checks (60 seconds) */
