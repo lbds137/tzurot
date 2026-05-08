@@ -1,24 +1,24 @@
 # Current
 
-> **Session**: 2026-05-08 — v3.0.0-beta.117 shipped. Six PRs merged this cycle (#988–#992 today + #983–#987 earlier in the week). Heavy Discord-interaction-correctness theme + `/character chat` random mode + temporal-marker hook.
+> **Session**: 2026-05-08 (evening) — Doc-only intake. Confirmed `/character chat` orphan-job production bug (free-model users only); merged structural fix into the existing PersonalityChatManager extract theme as a two-phase epic. Sequenced before TTS Phase 3 PR 1 plan-mode pass. Also intook a provider prompt caching cost-reduction epic.
 > **Version**: v3.0.0-beta.117 (released 2026-05-08; develop is currently SHA-aligned with main)
-> **🚧 Release freeze status**: LIFTED. Phase 3 (`/voice` consolidation + STT cutover) and Phase 2 (NeuTTS Air) remain on the TTS Engine Upgrade epic.
+> **🚧 Release freeze status**: LIFTED. `/character chat` epic inserted before TTS Phase 3 work resumes.
 
 ---
 
 ## Next Session Goal
 
-**Phase 3 PR 1 plan-mode pass** — pure refactor consolidating `/settings tts/*` and `/settings voices/*` handlers into a new top-level `/voice` namespace, with deprecation stubs left on the old paths. **Zero new behavior** in this PR — that's the design choice for blast-radius isolation. Phase 3 PR 2 (the actual STT cutover + `/voice provider set` + `/voice stt set` + 4-layer resolver wiring) lands on top of the clean namespace afterwards.
+**`/character chat` push-based result delivery + DM support** — paused TTS Phase 3 to land this first. Production bug confirmed 2026-05-07: free-model users on `/character chat` hit the 2-min polling cap (`TIMEOUTS.JOB_BASE`) while ai-worker happily completes 4+ min later → orphan response, wasted compute. User chose structural fix over stop-gap timeout bump. The existing PersonalityChatManager extract theme expanded with Phase A (push-based result delivery) alongside the original Phase B (DM support).
 
-**Read first tomorrow**: [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md) — captures the locked decisions from today's two council passes (architectural shape, slicing rationale, bundled-default single-field-write semantic, Discord client-cache gotchas, plan-mode verification checklist).
+**Read first tomorrow**: [`backlog/future-themes.md`](backlog/future-themes.md) § "Theme: `/character chat` — push-based result delivery + DM support" — full plan, file:line entry points, risks, scope estimate. Production evidence in [`backlog/production-issues.md`](backlog/production-issues.md).
 
 **Plan-mode entry points** (verify before code):
 
-- Current `/settings` registration mode (global vs guild) — affects deploy strategy.
-- Whether `default_provider` field exists today on user/persona records, or PR 2 needs a Prisma migration to add it.
-- File-move count under `services/bot-client/src/commands/settings/{tts,voices}/` — sets PR 1 review surface size.
-- `CommandHandler.int.test.ts` snapshot update mechanics for the namespace change.
-- `/voice view` dashboard fetch shape (inline cloned-voice summary vs handoff to `/voice browse`).
+- Read existing `ResultsListener` + `MessageHandler.handleJobResult` + `JobTracker` end-to-end — the @mention path uses this infra; we're aligning slash command to match.
+- Decide whether to ship Phase A standalone first (closes the prod bug fast, ~1-2 days) or bundle Phase A+B in one PR cycle (saves a `chat.ts` round-trip).
+- `chat.test.ts` is ~1000 lines and the bulk of effort — polling mocks become `JobTracker.trackJob` + slash-branch handler mocks. Worth scoping the test rewrite up front.
+
+**TTS Phase 3 PR 1 plan-mode pass deferred** to after this epic. Original Next Session Goal content captured in [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md) — re-read that before resuming Phase 3.
 
 **This session (2026-05-05 evening)**:
 
