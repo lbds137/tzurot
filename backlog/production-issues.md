@@ -2,7 +2,13 @@
 
 _Active bugs observed in production. Fix before new features._
 
-- **`/character chat` orphans long-running jobs on free models** — bot-client polls with a 2-min cap (`TIMEOUTS.JOB_BASE` in `packages/common-types/src/constants/timing.ts:20`); free-model users see "something went wrong" while ai-worker successfully completes the job 4+ min later (compute wasted, response discarded). Paid-model users unaffected because they finish under the cap. Confirmed 2026-05-07: `Job llm-c5f21e08-6d91-443b-992e-544814562873` finished at processingTime=363266ms (6m3s) on ai-worker; bot-client gave up at 2m, surfaced "Error processing chat" from `chat.ts:53`. Surfaced via `/character chat random` with `baxter-madan-metoraf`. **Fix queued**: structural push-based result delivery — see `backlog/future-themes.md` § "Theme: `/character chat` — push-based result delivery + DM support". Scheduled before TTS-epic PR 3 continuation.
+_(none — all recent prod issues resolved through v3.0.0-beta.119)_
+
+_Cleared 2026-05-08:_
+
+- _**`/character chat` orphans long-running jobs on free models** → resolved by **PR #994** (shipped in v3.0.0-beta.118). Structural fix: bot-client switched from polling (2-min `TIMEOUTS.JOB_BASE` cap) to push-based result delivery via `ResultsListener` + `MessageHandler.handleSlashJobResult`. Slash chat now delivers via the same `JobTracker` infrastructure as the @mention path; free-model users with multi-minute jobs receive their responses cleanly. Bundled with DM support (channel-type guard loosened) and the council-blessed `PersonalityChatManager` extract. Fast-follow PR #995 added test gaps; #996/#998 closed dependency vulnerabilities discovered during the cycle._
+
+- _**Voice transcription pipeline hang via `await channel.sendTyping()`** → resolved across **PR #1000 + PR #1001** (shipped in v3.0.0-beta.119). PR #1000 wrapped sendTyping in a fire-and-forget helper with latency telemetry + ESLint guard against re-introducing `await` on the call (root cause: discord.js REST queue stalls under sustained Discord rate-limit pressure, leaving the promise neither resolved nor rejected). PR #1001 added an `asyncio.Lock` around `Parakeet.transcribe()` in voice-engine to fix a NeMo `freeze()`/`unfreeze()` race when concurrent transcription requests arrive on a single model instance. Both root causes captured; see `backlog/inbox.md` for the `@discordjs/rest@2.6.1` upstream investigation follow-up._
 
 _Cleared 2026-05-06:_
 
