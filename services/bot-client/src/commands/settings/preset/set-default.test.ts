@@ -1,12 +1,12 @@
 /**
- * Tests for Preset Default Handler
+ * Tests for Preset Set-Default Handler
  *
  * Note: This command uses editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleDefault } from './default.js';
+import { handleSetDefault } from './set-default.js';
 import {
   mockSetDefaultConfigResponse,
   mockListWalletKeysResponse,
@@ -40,7 +40,7 @@ vi.mock('../../../utils/userGatewayClient.js', async () => {
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
-describe('handleDefault', () => {
+describe('handleSetDefault', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
@@ -57,7 +57,7 @@ describe('handleDefault', () => {
         },
       },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleDefault>[0];
+    } as unknown as Parameters<typeof handleSetDefault>[0];
   }
 
   // Helper to mock all API calls for a non-guest user with free config
@@ -92,7 +92,7 @@ describe('handleDefault', () => {
   it('should call API with correct parameters', async () => {
     mockNonGuestUserApis('00000000-0000-4000-8000-000000000456', 'Test Config');
 
-    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000456'));
+    await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000456'));
 
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'PUT',
@@ -108,7 +108,7 @@ describe('handleDefault', () => {
   it('should display success embed on successful update', async () => {
     mockNonGuestUserApis('00000000-0000-4000-8000-000000000123', 'My Default Config');
 
-    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
+    await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -152,7 +152,7 @@ describe('handleDefault', () => {
       return Promise.resolve({ ok: false as const, error: 'Unknown path' });
     }) as never);
 
-    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
+    await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ Failed to set default: Config not found',
@@ -162,7 +162,7 @@ describe('handleDefault', () => {
   it('should handle network errors', async () => {
     vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
+    await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ An error occurred. Please try again later.',
@@ -194,7 +194,7 @@ describe('handleDefault', () => {
       return Promise.resolve({ ok: false as const, error: 'Should not be called' });
     }) as never);
 
-    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000100'));
+    await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000100'));
 
     // Should NOT call the set-default API
     expect(callGatewayApi).not.toHaveBeenCalledWith(
@@ -250,7 +250,7 @@ describe('handleDefault', () => {
       return Promise.resolve({ ok: false as const, error: 'Unknown path' });
     }) as never);
 
-    await handleDefault(createMockContext('00000000-0000-4000-8000-000000000f00'));
+    await handleSetDefault(createMockContext('00000000-0000-4000-8000-000000000f00'));
 
     // Should call the set-default API
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {

@@ -5,7 +5,7 @@
  *
  * - /settings timezone get|set - Manage timezone
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
- * - /settings preset browse|set|reset|default|clear-default - Manage preset overrides
+ * - /settings preset browse|set|clear|set-default|clear-default - Manage preset overrides
  * - /settings defaults edit - Manage global default settings (config cascade)
  * - /settings voices browse|delete|clear - Manage ElevenLabs cloned voices
  *
@@ -49,8 +49,8 @@ import { ApikeyCustomIds } from '../../utils/customIds.js';
 // Preset handlers
 import { handleBrowseOverrides } from './preset/browse.js';
 import { handleSet as handlePresetSet } from './preset/set.js';
-import { handleReset as handlePresetReset } from './preset/reset.js';
-import { handleDefault as handlePresetDefault } from './preset/default.js';
+import { handleClear as handlePresetClear } from './preset/clear.js';
+import { handleSetDefault as handlePresetSetDefault } from './preset/set-default.js';
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 // Deprecation-stub helper for /settings tts and /settings voices subcommands.
@@ -104,8 +104,8 @@ const presetRouter = createTypedSubcommandRouter(
   {
     browse: handleBrowseOverrides,
     set: handlePresetSet,
-    reset: handlePresetReset,
-    default: handlePresetDefault,
+    clear: handlePresetClear,
+    'set-default': handlePresetSetDefault,
     'clear-default': handlePresetClearDefault,
   },
   { logger, logPrefix: '[Settings/Preset]' }
@@ -346,19 +346,19 @@ export default defineCommand({
         )
         .addSubcommand(subcommand =>
           subcommand
-            .setName('reset')
+            .setName('clear')
             .setDescription('Remove preset override for a personality')
             .addStringOption(option =>
               option
                 .setName('personality')
-                .setDescription('The personality to reset')
+                .setDescription('The personality to clear')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
         )
         .addSubcommand(subcommand =>
           subcommand
-            .setName('default')
+            .setName('set-default')
             .setDescription('Set your global default preset')
             .addStringOption(option =>
               option

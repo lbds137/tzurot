@@ -1,16 +1,20 @@
 /**
- * Settings Preset Default Handler
- * Handles /settings preset default subcommand
+ * Settings Preset Set-Default Handler
+ * Handles /settings preset set-default subcommand
  * Sets the user's global default preset (applies to all personalities)
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, settingsPresetDefaultOptions } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  settingsPresetSetDefaultOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { handleUnlockModelsUpsell, checkGuestModePremiumAccess } from './guestModeValidation.js';
 
-const logger = createLogger('settings-preset-default');
+const logger = createLogger('settings-preset-set-default');
 
 interface SetDefaultResponse {
   default: {
@@ -20,11 +24,11 @@ interface SetDefaultResponse {
 }
 
 /**
- * Handle /settings preset default
+ * Handle /settings preset set-default
  */
-export async function handleDefault(context: DeferredCommandContext): Promise<void> {
+export async function handleSetDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = settingsPresetDefaultOptions(context.interaction);
+  const options = settingsPresetSetDefaultOptions(context.interaction);
   const configId = options.preset();
 
   if (await handleUnlockModelsUpsell(context, configId, userId)) {
@@ -73,7 +77,7 @@ export async function handleDefault(context: DeferredCommandContext): Promise<vo
       'Set default config'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset Default' }, 'Error');
+    logger.error({ err: error, userId, command: 'Preset Set-Default' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }
