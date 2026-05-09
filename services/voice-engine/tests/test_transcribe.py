@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock
 
 import httpx
@@ -61,9 +62,7 @@ async def test_transcribe_requires_auth_when_key_set(
     assert response.status_code == 401
 
 
-async def test_transcribe_accepts_bearer_token(
-    client: httpx.AsyncClient, mock_asr: MagicMock, api_key: str
-) -> None:
+async def test_transcribe_accepts_bearer_token(client: httpx.AsyncClient, mock_asr: MagicMock, api_key: str) -> None:
     response = await client.post(
         "/v1/transcribe",
         files={"file": ("test.wav", b"RIFF" + b"\x00" * 100, "audio/wav")},
@@ -85,9 +84,7 @@ async def test_transcribe_accepts_x_api_key_header(
     assert response.status_code == 200
 
 
-async def test_transcribe_returns_empty_string_for_silent_audio(
-    client: httpx.AsyncClient, mock_asr: MagicMock
-) -> None:
+async def test_transcribe_returns_empty_string_for_silent_audio(client: httpx.AsyncClient, mock_asr: MagicMock) -> None:
     from tests.helpers import FakeTranscription
 
     mock_asr.transcribe.return_value = [FakeTranscription("")]
@@ -111,3 +108,33 @@ async def test_transcribe_handles_model_error(client: httpx.AsyncClient, mock_as
 
     assert response.status_code == 500
     assert "Transcription failed" in response.json()["detail"]
+
+
+async def test_transcribe_serializes_concurrent_calls(client: httpx.AsyncClient, mock_asr: MagicMock) -> None:
+    # NeMo's RNNT freeze/unfreeze state is shared per-model. Without the lock,
+    # two concurrent transcribe calls overlap inside `.transcribe()` and the
+    # second one's cleanup hook raises ValueError. The lock guarantees the
+    # underlying call is invoked one-at-a-time even when callers race.
+    from tests.helpers import FakeTranscription
+
+    in_flight = 0
+    max_in_flight = 0
+
+    def tracking_transcribe(_audio: object) -> list[object]:
+        nonlocal in_flight, max_in_flight
+        in_flight += 1
+        max_in_flight = max(max_in_flight, in_flight)
+        try:
+            return [FakeTranscription("ok")]
+        finally:
+            in_flight -= 1
+
+    mock_asr.transcribe.side_effect = tracking_transcribe
+    fake_wav = b"RIFF" + b"\x00" * 100
+
+    responses = await asyncio.gather(
+        *(client.post("/v1/transcribe", files={"file": ("t.wav", fake_wav, "audio/wav")}) for _ in range(4))
+    )
+
+    assert all(r.status_code == 200 for r in responses)
+    assert max_in_flight == 1
