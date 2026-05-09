@@ -178,6 +178,16 @@ except ValueError:
     _INFERENCE_CONCURRENCY = 2
 _inference_semaphore: asyncio.Semaphore = asyncio.Semaphore(_INFERENCE_CONCURRENCY)
 
+# Serializes calls into Parakeet TDT's `.transcribe()`. NeMo's RNNT models share
+# `freeze()`/`unfreeze()` state across concurrent invocations on a single model
+# instance — when two transcribes interleave, the second one's `_transcribe_on_end`
+# cleanup raises `ValueError: Cannot unfreeze partially without first freezing the
+# module with freeze()` because the first call already unfroze it. Audio decoding
+# and resampling stay outside this lock so they overlap freely; only the NeMo
+# call itself is serialized. Throughput cost is minimal — Parakeet is CPU-bound
+# and `_inference_semaphore` already caps total concurrent flights.
+_asr_inference_lock: asyncio.Lock = asyncio.Lock()
+
 
 def _cache_voice(voice_id: str, voice_state: Any) -> None:
     """Cache a voice state with LRU eviction when at capacity."""
@@ -376,8 +386,12 @@ async def transcribe(file: UploadFile = File(...)) -> dict[str, str]:
                     partial(librosa.resample, audio_array, orig_sr=sample_rate, target_sr=16000),
                 )
 
-            # Transcribe — NeMo returns objects with .text attribute
-            transcriptions: list[Any] = await loop.run_in_executor(None, asr_model.transcribe, [audio_array])
+            # Transcribe — NeMo returns objects with .text attribute. The lock
+            # serializes parallel callers because NeMo's freeze/unfreeze state
+            # is per-model not per-call (see _asr_inference_lock definition).
+            async with _asr_inference_lock:
+                transcriptions: list[Any] = await loop.run_in_executor(None, asr_model.transcribe, [audio_array])
+            # transcriptions is coroutine-local — safe to read after lock release.
             text: str = transcriptions[0].text if transcriptions else ""
 
         # Cleanup
