@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-05-08 (late) — Shipped v3.0.0-beta.118: `/character chat` push delivery + DM support + PersonalityChatManager extract (#994), fast-follow tests (#995), Dependabot security patches (#996). Three PRs landed clean; backlog stayed neutral.
-> **Version**: v3.0.0-beta.118 (released 2026-05-08; develop is currently SHA-aligned with main)
+> **Session**: 2026-05-08 (late) — Shipped v3.0.0-beta.119 hotfix: voice transcription hang fix via fire-and-forget sendTyping helper + ESLint guard (#1000), voice-engine NeMo concurrency lock (#1001), fast-uri security patch (#998). Two voice-pipeline bugs fixed end-to-end (sendTyping REST queue stall surfaced by Discord typing-indicator outage; concurrent `.transcribe()` race in Parakeet TDT). Backlog gained two investigation entries (`@discordjs/rest` queue-stall, deploy-window retry-helper).
+> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is currently SHA-aligned with main)
 > **🚧 Release freeze status**: LIFTED. TTS Phase 3 PR 1 plan-mode pass is the next pickup.
 
 ---
@@ -41,7 +41,7 @@
 
 ## Unreleased on Develop
 
-_(empty — develop is currently SHA-aligned with main at v3.0.0-beta.118)_
+_(empty — develop is currently SHA-aligned with main at v3.0.0-beta.119)_
 
 ---
 
