@@ -194,7 +194,7 @@ describe('handleVoiceClearButton', () => {
 
   it('should handle cancel button', async () => {
     const interaction = {
-      customId: `settings::destructive::cancel_button::${VOICE_CLEAR_OPERATION}::all`,
+      customId: `voice::destructive::cancel_button::${VOICE_CLEAR_OPERATION}::all`,
     } as unknown as ButtonInteraction;
 
     await handleVoiceClearButton(interaction);
@@ -204,7 +204,7 @@ describe('handleVoiceClearButton', () => {
 
   it('should handle confirm button', async () => {
     const interaction = {
-      customId: `settings::destructive::confirm_button::${VOICE_CLEAR_OPERATION}::all`,
+      customId: `voice::destructive::confirm_button::${VOICE_CLEAR_OPERATION}::all`,
     } as unknown as ButtonInteraction;
 
     await handleVoiceClearButton(interaction);
@@ -220,7 +220,7 @@ describe('handleVoiceClearModal', () => {
 
   it('should handle modal submit', async () => {
     const interaction = {
-      customId: `settings::destructive::modal_submit::${VOICE_CLEAR_OPERATION}::all`,
+      customId: `voice::destructive::modal_submit::${VOICE_CLEAR_OPERATION}::all`,
       user: { id: 'user-123' },
     } as unknown as ModalSubmitInteraction;
 

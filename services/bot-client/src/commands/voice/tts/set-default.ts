@@ -1,11 +1,11 @@
 /**
- * Settings TTS Default Handler
- * Handles /settings tts default subcommand
+ * Voice TTS Set-Default Handler
+ * Handles /voice tts set-default subcommand
  * Sets the user's global default TTS config (applies to all personalities)
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, settingsTtsDefaultOptions } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, voiceTtsSetDefaultOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -14,7 +14,7 @@ import {
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { checkTtsByokAccess } from './guestModeValidation.js';
 
-const logger = createLogger('settings-tts-default');
+const logger = createLogger('voice-tts-set-default');
 
 interface SetDefaultResponse {
   default: {
@@ -23,10 +23,10 @@ interface SetDefaultResponse {
   };
 }
 
-/** Handle /settings tts default */
-export async function handleTtsDefault(context: DeferredCommandContext): Promise<void> {
+/** Handle /voice tts set-default */
+export async function handleTtsSetDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = settingsTtsDefaultOptions(context.interaction);
+  const options = voiceTtsSetDefaultOptions(context.interaction);
   const configId = options.tts();
 
   // Guard the autocomplete-backed `tts` option. If autocomplete failed
@@ -69,7 +69,7 @@ export async function handleTtsDefault(context: DeferredCommandContext): Promise
         `Your default TTS config is now **${data.default.configName}**.\n\n` +
           'This will be used for all personalities unless you have a specific override.'
       )
-      .setFooter({ text: 'Use /settings tts clear-default to remove this setting' })
+      .setFooter({ text: 'Use /voice tts clear-default to remove this setting' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
@@ -79,7 +79,7 @@ export async function handleTtsDefault(context: DeferredCommandContext): Promise
       'Set default TTS config'
     );
   } catch (error) {
-    logger.error({ err: error, userId, command: 'TTS Default' }, 'Error');
+    logger.error({ err: error, userId, command: 'TTS Set-Default' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

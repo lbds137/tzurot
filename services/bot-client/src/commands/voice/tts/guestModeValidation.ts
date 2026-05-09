@@ -1,5 +1,5 @@
 /**
- * BYOK access validation for /settings tts set/default.
+ * BYOK access validation for /voice tts set/default.
  *
  * Block at command time when the selected TTS config requires a provider
  * key (mistral, elevenlabs) the user hasn't configured. Self-hosted is
@@ -26,7 +26,7 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import type { GatewayUser } from '../../../utils/userGatewayClient.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
-const logger = createLogger('settings-tts-byok-validation');
+const logger = createLogger('voice-tts-byok-validation');
 
 export interface ByokAccessOutcome {
   /** True when the user lacks the BYOK key for this config; the handler should bail. */

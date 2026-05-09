@@ -17,11 +17,15 @@ import {
   type AudioProviderId,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+} from '../../../utils/userGatewayClient.js';
 import type { VoicesListResponse } from './types.js';
 import { getCachedVoices, setCachedVoices, invalidateVoiceCache } from './voiceCache.js';
 
-const logger = createLogger('settings-voices-delete');
+const logger = createLogger('voice-voices-delete');
 
 interface VoiceDeleteResponse {
   deleted: boolean;
@@ -49,7 +53,7 @@ function parseVoiceOption(value: string): { provider: AudioProviderId; voiceId: 
 }
 
 /**
- * Handle /settings voices delete <voice>
+ * Handle /voice voices delete <voice>
  * Deletes a single tzurot-prefixed voice from whichever provider it lives in.
  */
 export async function handleDeleteVoice(context: DeferredCommandContext): Promise<void> {

@@ -261,6 +261,26 @@ describe('CommandHandler (component)', () => {
         flags: MessageFlags.Ephemeral,
       });
     });
+
+    it('should route voice::destructive::* customIds to voice command', async () => {
+      // Regression: voice/voices/clear.ts must build customIds with
+      // source: 'voice' (not 'settings') so destructive confirm/cancel/modal
+      // interactions route to /voice's handleButton + handleModal. Using
+      // source: 'settings' silently fails because /settings.handleButton
+      // no longer dispatches voice-clear after the /voice consolidation.
+      const voiceCommand = handler.getCommand('voice');
+      expect(voiceCommand?.handleButton).toBeDefined();
+
+      const handleButtonSpy = vi.spyOn(voiceCommand!, 'handleButton');
+
+      const interaction = createMockButtonInteraction(
+        'voice::destructive::confirm_button::voice-clear::all'
+      );
+      await handler.handleComponentInteraction(interaction);
+
+      expect(handleButtonSpy).toHaveBeenCalledWith(interaction);
+      handleButtonSpy.mockRestore();
+    });
   });
 
   /**
@@ -345,7 +365,9 @@ describe('CommandHandler (component)', () => {
           'persona', // Persona command - entityType matches command name
           'preset',
           'settings', // Settings command - consolidates timezone, apikey, preset
+          'settings-voices', // Voice browse pagination prefix (preserved during /voice migration)
           'shapes', // Shapes command - import/export from shapes.inc
+          'voice', // Voice command - TTS provider config + cloned-voice lifecycle
         ])
       );
     });
@@ -401,6 +423,15 @@ describe('CommandHandler (component)', () => {
       const data = shapesCommand!.data.toJSON();
       expect(data.name).toBe('shapes');
       expect(data.options).toMatchSnapshot('shapes-command-options');
+    });
+
+    it('should have stable /voice command structure', () => {
+      const voiceCommand = handler.getCommand('voice');
+      expect(voiceCommand).toBeDefined();
+
+      const data = voiceCommand!.data.toJSON();
+      expect(data.name).toBe('voice');
+      expect(data.options).toMatchSnapshot('voice-command-options');
     });
 
     it('should have stable command count', () => {

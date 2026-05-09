@@ -1,13 +1,23 @@
 /**
  * Voice Clear Handler
- * Deletes ALL tzurot-prefixed voices with destructive confirmation
+ * Deletes ALL tzurot-prefixed voices with destructive confirmation.
+ *
+ * `createHardDeleteConfig({ source: 'voice', ... })` is load-bearing: it
+ * generates customIds prefixed `voice::destructive::...` so CommandHandler
+ * routes confirm/cancel/modal interactions to /voice's handleButton +
+ * handleModal. Using `source: 'settings'` would route to /settings, which
+ * no longer dispatches voice-clear after the /voice consolidation.
  */
 
 import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+} from '../../../utils/userGatewayClient.js';
 import {
   buildDestructiveWarning,
   createHardDeleteConfig,
@@ -19,7 +29,7 @@ import { DestructiveCustomIds } from '../../../utils/customIds.js';
 import type { VoicesListResponse } from './types.js';
 import { invalidateVoiceCache } from './voiceCache.js';
 
-const logger = createLogger('settings-voices-clear');
+const logger = createLogger('voice-voices-clear');
 
 /** Operation name for destructive confirmation custom IDs */
 export const VOICE_CLEAR_OPERATION = 'voice-clear';
@@ -32,7 +42,7 @@ interface VoiceClearResponse {
 }
 
 /**
- * Handle /settings voices clear
+ * Handle /voice voices clear
  * Shows destructive confirmation before clearing all tzurot voices
  */
 export async function handleClearVoices(context: DeferredCommandContext): Promise<void> {
@@ -68,7 +78,7 @@ export async function handleClearVoices(context: DeferredCommandContext): Promis
       additionalWarning:
         'This will remove all auto-cloned voices from your audio provider accounts.\n' +
         'They will be re-cloned automatically when needed.',
-      source: 'settings',
+      source: 'voice',
       operation: VOICE_CLEAR_OPERATION,
       entityId: 'all',
     });
@@ -142,7 +152,7 @@ export async function handleVoiceClearModalSubmit(
       embed.setDescription(`Deleted **${deleted}** cloned voice${deleted !== 1 ? 's' : ''}.`);
     }
 
-    // Invalidate autocomplete cache so deleted voices don't appear in /settings voices delete
+    // Invalidate autocomplete cache so deleted voices don't appear in /voice voices delete
     invalidateVoiceCache(userId);
 
     logger.info({ userId, deleted, total }, 'Cleared voices');
