@@ -52,12 +52,12 @@ vi.mock('./preset/set.js', () => ({
   handleSet: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./preset/reset.js', () => ({
-  handleReset: vi.fn().mockResolvedValue(undefined),
+vi.mock('./preset/clear.js', () => ({
+  handleClear: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./preset/default.js', () => ({
-  handleDefault: vi.fn().mockResolvedValue(undefined),
+vi.mock('./preset/set-default.js', () => ({
+  handleSetDefault: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./preset/clear-default.js', () => ({
@@ -155,7 +155,7 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('test');
     });
 
-    it('should have preset subcommand group with browse, set, reset, default, clear-default', () => {
+    it('should have preset subcommand group with symmetric set/clear/set-default/clear-default', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -167,10 +167,13 @@ describe('Settings Command Index', () => {
       const subcommands = (
         (presetGroup as { options?: Array<{ name: string }> })?.options ?? []
       ).map(s => s.name);
+      // Names mirror the /voice tts pattern: action verb (set / clear) +
+      // optional scope qualifier (-default for global vs no suffix for
+      // per-personality).
       expect(subcommands).toContain('browse');
       expect(subcommands).toContain('set');
-      expect(subcommands).toContain('reset');
-      expect(subcommands).toContain('default');
+      expect(subcommands).toContain('clear');
+      expect(subcommands).toContain('set-default');
       expect(subcommands).toContain('clear-default');
     });
 
@@ -345,22 +348,22 @@ describe('Settings Command Index', () => {
         expect(handleSet).toHaveBeenCalledWith(context);
       });
 
-      it('should route to preset reset handler', async () => {
-        const { handleReset } = await import('./preset/reset.js');
-        const context = createMockContext('preset', 'reset');
+      it('should route to preset clear handler', async () => {
+        const { handleClear } = await import('./preset/clear.js');
+        const context = createMockContext('preset', 'clear');
 
         await execute(context);
 
-        expect(handleReset).toHaveBeenCalledWith(context);
+        expect(handleClear).toHaveBeenCalledWith(context);
       });
 
-      it('should route to preset default handler', async () => {
-        const { handleDefault } = await import('./preset/default.js');
-        const context = createMockContext('preset', 'default');
+      it('should route to preset set-default handler', async () => {
+        const { handleSetDefault } = await import('./preset/set-default.js');
+        const context = createMockContext('preset', 'set-default');
 
         await execute(context);
 
-        expect(handleDefault).toHaveBeenCalledWith(context);
+        expect(handleSetDefault).toHaveBeenCalledWith(context);
       });
 
       it('should route to preset clear-default handler', async () => {

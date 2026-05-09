@@ -44,7 +44,7 @@ export async function redirectToVoiceCommand(
     content:
       `ℹ️ This command has moved to **\`${newPath}\`**.\n\n` +
       'The /settings voice surface was consolidated under a unified `/voice` command. ' +
-      'The legacy /settings paths will be removed in about a month.',
+      'The legacy /settings paths are scheduled for removal — use /voice going forward.',
   });
 }
 
