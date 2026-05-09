@@ -1,9 +1,9 @@
 /**
- * Settings Preset Reset Handler
- * Handles /settings preset reset subcommand
+ * Settings Preset Clear Handler
+ * Handles /settings preset clear subcommand
  */
 
-import { createLogger, settingsPresetResetOptions } from '@tzurot/common-types';
+import { createLogger, settingsPresetClearOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -12,19 +12,19 @@ import {
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('settings-preset-reset');
+const logger = createLogger('settings-preset-clear');
 
-interface ResetResponse {
+interface ClearResponse {
   deleted: boolean;
   wasSet?: boolean; // false if no override existed
 }
 
 /**
- * Handle /settings preset reset
+ * Handle /settings preset clear
  */
-export async function handleReset(context: DeferredCommandContext): Promise<void> {
+export async function handleClear(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = settingsPresetResetOptions(context.interaction);
+  const options = settingsPresetClearOptions(context.interaction);
   const personalityId = options.personality();
 
   if (isAutocompleteErrorSentinel(personalityId)) {
@@ -33,7 +33,7 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
   }
 
   try {
-    const result = await callGatewayApi<ResetResponse>(
+    const result = await callGatewayApi<ClearResponse>(
       `/user/model-override/${encodeURIComponent(personalityId)}`,
       {
         method: 'DELETE',
@@ -42,8 +42,8 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
     );
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, personalityId }, 'Failed to reset override');
-      await context.editReply({ content: `❌ Failed to reset preset: ${result.error}` });
+      logger.warn({ userId, status: result.status, personalityId }, 'Failed to clear override');
+      await context.editReply({ content: `❌ Failed to clear preset: ${result.error}` });
       return;
     }
 
@@ -62,9 +62,9 @@ export async function handleReset(context: DeferredCommandContext): Promise<void
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId, wasSet }, 'Reset override');
+    logger.info({ userId, personalityId, wasSet }, 'Cleared override');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'Preset Reset' }, 'Error');
+    logger.error({ err: error, userId, command: 'Preset Clear' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

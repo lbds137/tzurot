@@ -95,16 +95,22 @@ async function execute(context: SafeCommandContext): Promise<void> {
 }
 
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
-  const focusedOption = interaction.options.getFocused(true);
   const subcommandGroup = interaction.options.getSubcommandGroup();
 
   if (subcommandGroup === 'tts') {
     await handleTtsAutocomplete(interaction);
-  } else if (subcommandGroup === 'voices' && focusedOption.name === 'voice') {
-    await handleVoiceAutocomplete(interaction);
-  } else {
-    await interaction.respond([]);
+    return;
   }
+  if (subcommandGroup === 'voices') {
+    // getFocused only inside the branch that reads it — avoids dead
+    // computation when autocompleting /voice tts options.
+    const focusedOption = interaction.options.getFocused(true);
+    if (focusedOption.name === 'voice') {
+      await handleVoiceAutocomplete(interaction);
+      return;
+    }
+  }
+  await interaction.respond([]);
 }
 
 async function handleButton(interaction: ButtonInteraction): Promise<void> {

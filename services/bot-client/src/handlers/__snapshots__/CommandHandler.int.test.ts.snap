@@ -912,13 +912,13 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
       {
         "description": "Remove preset override for a personality",
         "description_localizations": undefined,
-        "name": "reset",
+        "name": "clear",
         "name_localizations": undefined,
         "options": [
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to reset",
+            "description": "The personality to clear",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -933,7 +933,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
       {
         "description": "Set your global default preset",
         "description_localizations": undefined,
-        "name": "default",
+        "name": "set-default",
         "name_localizations": undefined,
         "options": [
           {

@@ -69,6 +69,9 @@ const ALLOWLIST: Record<string, Set<string>> = {
   'bot-client': new Set([
     'handleBrowse',
     'handleButton',
+    // Same-name "clear" handlers across distinct command modules (history,
+    // settings/preset). Different state machines, different endpoints.
+    'handleClear',
     'handleSelectMenu',
     'handleAutocomplete',
     'execute',

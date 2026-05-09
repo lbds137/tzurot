@@ -199,6 +199,16 @@ describe('Voice Command', () => {
       await autocomplete!(interaction as any);
       expect(interaction.respond).toHaveBeenCalledWith([]);
     });
+
+    it('responds empty for voices group with non-voice focused option', async () => {
+      // Refactor introduced an explicit fallthrough — previously this case
+      // was handled by the shared `else` branch. Verify the inner branch
+      // returns empty without delegating to handleVoiceAutocomplete.
+      const interaction = createMockAutocompleteInteraction('something-else', 'voices');
+      await autocomplete!(interaction as any);
+      expect(interaction.respond).toHaveBeenCalledWith([]);
+      expect(handleVoiceAutocomplete).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleButton', () => {

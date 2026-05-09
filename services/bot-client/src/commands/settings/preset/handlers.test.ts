@@ -1,5 +1,5 @@
 /**
- * Tests for Preset Command Handlers (browse, set, reset)
+ * Tests for Preset Command Handlers (browse, set, clear)
  *
  * Note: These handlers use editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBrowseOverrides } from './browse.js';
 import { handleSet } from './set.js';
-import { handleReset } from './reset.js';
+import { handleClear } from './clear.js';
 import {
   mockListModelOverridesResponse,
   mockSetModelOverrideResponse,
@@ -233,7 +233,7 @@ describe('Preset Command Handlers', () => {
     });
   });
 
-  describe('handleReset', () => {
+  describe('handleClear', () => {
     function createMockContext(personalityId = PERSONALITY_ID_1) {
       return {
         user: { id: '123456789', username: 'testuser' },
@@ -246,16 +246,16 @@ describe('Preset Command Handlers', () => {
           },
         },
         editReply: mockEditReply,
-      } as unknown as Parameters<typeof handleReset>[0];
+      } as unknown as Parameters<typeof handleClear>[0];
     }
 
-    it('should reset model override', async () => {
+    it('should clear model override', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: mockDeleteModelOverrideResponse(),
       });
 
-      await handleReset(createMockContext());
+      await handleClear(createMockContext());
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         `/user/model-override/${PERSONALITY_ID_1}`,
@@ -281,17 +281,17 @@ describe('Preset Command Handlers', () => {
         error: 'No override found',
       });
 
-      await handleReset(createMockContext());
+      await handleClear(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to reset preset'),
+        content: expect.stringContaining('Failed to clear preset'),
       });
     });
 
     it('should handle exceptions', async () => {
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      await handleReset(createMockContext());
+      await handleClear(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('An error occurred'),

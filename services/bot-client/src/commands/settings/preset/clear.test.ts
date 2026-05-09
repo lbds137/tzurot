@@ -1,12 +1,12 @@
 /**
- * Tests for Me Preset Reset Handler
+ * Tests for Preset Clear Handler
  *
  * Note: This command uses editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleReset } from './reset.js';
+import { handleClear } from './clear.js';
 
 // Mock dependencies
 vi.mock('../../../utils/userGatewayClient.js', async () => {
@@ -55,7 +55,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
-describe('Me Preset Reset Handler', () => {
+describe('Preset Clear Handler', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
@@ -77,17 +77,17 @@ describe('Me Preset Reset Handler', () => {
         },
       },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleReset>[0];
+    } as unknown as Parameters<typeof handleClear>[0];
   }
 
-  describe('handleReset', () => {
-    it('should successfully reset model override when one exists', async () => {
+  describe('handleClear', () => {
+    it('should successfully clear model override when one exists', async () => {
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: { deleted: true }, // wasSet defaults to true when not specified
       });
 
-      await handleReset(createMockContext('personality-123'));
+      await handleClear(createMockContext('personality-123'));
 
       expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/personality-123', {
         method: 'DELETE',
@@ -114,7 +114,7 @@ describe('Me Preset Reset Handler', () => {
         data: { deleted: true, wasSet: false },
       });
 
-      await handleReset(createMockContext('personality-123'));
+      await handleClear(createMockContext('personality-123'));
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'ℹ️ No Override Set',
@@ -133,17 +133,17 @@ describe('Me Preset Reset Handler', () => {
         error: 'Override not found',
       });
 
-      await handleReset(createMockContext('nonexistent'));
+      await handleClear(createMockContext('nonexistent'));
 
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ Failed to reset preset: Override not found',
+        content: '❌ Failed to clear preset: Override not found',
       });
     });
 
     it('should handle network errors', async () => {
       vi.mocked(callGatewayApi).mockRejectedValue(new Error('Connection refused'));
 
-      await handleReset(createMockContext('personality-123'));
+      await handleClear(createMockContext('personality-123'));
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: '❌ An error occurred. Please try again later.',
@@ -151,7 +151,7 @@ describe('Me Preset Reset Handler', () => {
     });
 
     it('rejects the autocomplete-error sentinel before calling the gateway', async () => {
-      await handleReset(createMockContext('__autocomplete_error__'));
+      await handleClear(createMockContext('__autocomplete_error__'));
 
       expect(callGatewayApi).not.toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
