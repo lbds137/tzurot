@@ -1,6 +1,6 @@
 /**
- * Settings TTS Clear-Default Handler
- * Handles /settings tts clear-default subcommand
+ * Voice TTS Clear-Default Handler
+ * Handles /voice tts clear-default subcommand
  * Clears the user's global default TTS config
  *
  * Mirrors `/settings preset clear-default` UX shape exactly.
@@ -15,9 +15,9 @@ import {
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
-const logger = createLogger('settings-tts-clear-default');
+const logger = createLogger('voice-tts-clear-default');
 
-/** Handle /settings tts clear-default */
+/** Handle /voice tts clear-default */
 export async function handleTtsClearDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 

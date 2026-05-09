@@ -1,5 +1,5 @@
 /**
- * Tests for the BYOK access validator at /settings tts set/default.
+ * Tests for the BYOK access validator at /voice tts set/default.
  *
  * Locks the three branches the council called out:
  *   - self-hosted always allowed

@@ -1,6 +1,6 @@
 /**
- * Settings TTS Browse Handler
- * Handles /settings tts browse — lists user's per-personality TTS overrides
+ * Voice TTS Browse Handler
+ * Handles /voice tts browse — lists user's per-personality TTS overrides
  *
  * Mirrors `/settings preset browse` shape: shows the user's overrides, not
  * the underlying TtsConfig catalog. (The catalog is implicit through
@@ -16,13 +16,13 @@ import {
   toGatewayUser,
 } from '../../../utils/userGatewayClient.js';
 
-const logger = createLogger('settings-tts-browse');
+const logger = createLogger('voice-tts-browse');
 
 interface ListResponse {
   overrides: TtsOverrideSummary[];
 }
 
-/** Handle /settings tts browse */
+/** Handle /voice tts browse */
 export async function handleTtsBrowseOverrides(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
@@ -50,8 +50,8 @@ export async function handleTtsBrowseOverrides(context: DeferredCommandContext):
     if (data.overrides.length === 0) {
       embed.setDescription(
         "You haven't set any TTS overrides.\n\n" +
-          'Use `/settings tts set` to override which TTS config a personality uses, or ' +
-          '`/settings tts default` to set your global default.'
+          'Use `/voice tts set` to override which TTS config a personality uses, or ' +
+          '`/voice tts set-default` to set your global default.'
       );
     } else {
       const lines = data.overrides.map(
@@ -61,7 +61,7 @@ export async function handleTtsBrowseOverrides(context: DeferredCommandContext):
 
       embed.setDescription(lines.join('\n'));
       embed.setFooter({
-        text: `${data.overrides.length} override(s) • Use /settings tts reset to remove`,
+        text: `${data.overrides.length} override(s) • Use /voice tts clear to remove`,
       });
     }
 

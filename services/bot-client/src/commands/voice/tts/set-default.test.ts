@@ -1,6 +1,6 @@
 /**
- * Tests for /settings tts set handler.
- * Locks the BYOK gate + per-personality override flow.
+ * Tests for /voice tts set-default handler.
+ * Locks the BYOK-gate-then-mutation flow.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -29,19 +29,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    settingsTtsSetOptions: vi.fn(() => ({
-      personality: () => 'personality-uuid-1',
+    voiceTtsSetDefaultOptions: vi.fn(() => ({
       tts: () => 'cfg-uuid-1',
     })),
   };
 });
 
-vi.mock('../../../utils/apiCheck.js', () => ({
-  AUTOCOMPLETE_UNAVAILABLE_MESSAGE: '⚠️ Autocomplete unavailable',
-  isAutocompleteErrorSentinel: vi.fn(() => false),
-}));
-
-const { handleTtsSet: handleSet } = await import('./set.js');
+const { handleTtsSetDefault: handleSetDefault } = await import('./set-default.js');
 
 function makeContext() {
   return {
@@ -51,7 +45,7 @@ function makeContext() {
   };
 }
 
-describe('handleSet', () => {
+describe('handleSetDefault', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -60,39 +54,33 @@ describe('handleSet', () => {
     mockCheckTtsByokAccess.mockResolvedValue({ blocked: true, reason: 'blocked-byok' });
     const context = makeContext();
 
-    await handleSet(context as never);
+    await handleSetDefault(context as never);
+
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
-  it('PUTs /user/tts-override on happy path', async () => {
-    mockCheckTtsByokAccess.mockResolvedValue({ blocked: false, reason: 'has-key' });
+  it('PUTs /user/tts-override/default on happy path', async () => {
+    mockCheckTtsByokAccess.mockResolvedValue({ blocked: false, reason: 'self-hosted' });
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        override: {
-          personalityId: 'personality-uuid-1',
-          personalityName: 'Alice',
-          configId: 'cfg-uuid-1',
-          configName: 'kyutai-self-hosted',
-        },
-      },
+      data: { default: { configId: 'cfg-uuid-1', configName: 'kyutai-self-hosted' } },
     });
     const context = makeContext();
 
-    await handleSet(context as never);
+    await handleSetDefault(context as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/tts-override',
+      '/user/tts-override/default',
       expect.objectContaining({
         method: 'PUT',
-        body: { personalityId: 'personality-uuid-1', configId: 'cfg-uuid-1' },
+        body: { configId: 'cfg-uuid-1' },
       })
     );
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            data: expect.objectContaining({ title: expect.stringContaining('Set') }),
+            data: expect.objectContaining({ title: expect.stringContaining('Default TTS') }),
           }),
         ],
       })
@@ -104,7 +92,7 @@ describe('handleSet', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    await handleSet(context as never);
+    await handleSetDefault(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('❌') })

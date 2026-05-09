@@ -1,5 +1,5 @@
 /**
- * Tests for /settings tts clear-default handler.
+ * Tests for /voice tts clear-default handler.
  * Smoke-tests happy path + gateway-error path.
  */
 

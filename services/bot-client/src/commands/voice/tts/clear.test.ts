@@ -1,6 +1,6 @@
 /**
- * Tests for /settings tts reset handler.
- * Verifies the per-personality reset flow + idempotent wasSet messaging.
+ * Tests for /voice tts clear handler.
+ * Verifies the per-personality clear flow + idempotent wasSet messaging.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -24,7 +24,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    settingsTtsResetOptions: vi.fn(() => ({
+    voiceTtsClearOptions: vi.fn(() => ({
       personality: () => 'personality-uuid-1',
     })),
   };
@@ -35,7 +35,7 @@ vi.mock('../../../utils/apiCheck.js', () => ({
   isAutocompleteErrorSentinel: vi.fn(() => false),
 }));
 
-const { handleTtsReset: handleReset } = await import('./reset.js');
+const { handleTtsClear: handleClear } = await import('./clear.js');
 
 function makeContext() {
   return {
@@ -45,7 +45,7 @@ function makeContext() {
   };
 }
 
-describe('handleReset', () => {
+describe('handleTtsClear', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -54,7 +54,7 @@ describe('handleReset', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true } });
     const context = makeContext();
 
-    await handleReset(context as never);
+    await handleClear(context as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       expect.stringContaining('/user/tts-override/'),
@@ -78,7 +78,7 @@ describe('handleReset', () => {
     });
     const context = makeContext();
 
-    await handleReset(context as never);
+    await handleClear(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -95,7 +95,7 @@ describe('handleReset', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    await handleReset(context as never);
+    await handleClear(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('❌') })
