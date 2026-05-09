@@ -4,13 +4,14 @@ _This week's active work. Max 3 items._
 
 ### Active
 
-1. **`/character chat` push-based result delivery + DM support** — closes orphan-job production bug (free-model users only — paid-model users unaffected) AND ships the council-blessed PersonalityChatManager extract for DM support. Two-phase epic merged from prior themes. ~2-3 days focused work; Phase A (push-based delivery, closes the prod bug) can ship standalone if blast-radius isolation desired. See [`future-themes.md`](future-themes.md) § "Theme: `/character chat` — push-based result delivery + DM support". Production evidence in [`production-issues.md`](production-issues.md). **Sequenced before TTS Phase 3 PR 1 plan-mode pass.**
+1. **TTS Engine Upgrade Phase 3 PR 1** (`/voice` namespace consolidation) — pure-refactor PR per the locked 2026-05-05 council passes: move `/settings tts` and `/settings voices` under a unified `/voice` namespace with deprecation stubs on the old paths. No behavior change. See [`active-epic.md`](active-epic.md) Phase 3 section and [`tts-phase-3-voice-consolidation-plan.md`](../docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md). Sets up Phase 3 PR 2 (Mistral STT cutover, the actual material payoff of yesterday's BYOK decision).
 
 ### Most likely next-session pickups
 
-1. **TTS Engine Upgrade Phase 3 PR 1** (`/voice` namespace consolidation) — see [`active-epic.md`](active-epic.md) and [`tts-phase-3-voice-consolidation-plan.md`](../docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md). Plan-mode locked from 2026-05-05 council passes; resumes after `/character chat` epic above lands.
-2. **`/settings tts` UX polish** — smaller user-visible work on what Phase 1 already shipped. Good warm-up if a plan-mode session feels too large.
-3. **TTS Engine Upgrade Phase 2** (NeuTTS Air) — second self-hosted engine. Lower urgency than Phase 3.
+1. **TTS Engine Upgrade Phase 3 PR 2** (Mistral STT cutover + provider-set + 4-layer resolver wiring) — the material payoff of the consolidation. Lights up Mistral as the BYOK STT path in production.
+2. **TTS Engine Upgrade Phase 2** (NeuTTS Air) — second self-hosted engine, voice-cloning capable, completes the additive provider matrix. Independent of Phase 3 ordering.
+
+_UX polish on the new `/voice` surface is folded into PR 1/PR 2 instead of being a standalone item — doing it on `/settings tts` right before the rename would be throwaway work._
 
 ### Other in-flight
 

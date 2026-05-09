@@ -8,34 +8,20 @@
 
 ## Next Session Goal
 
-**`/character chat` push-based result delivery + DM support** — paused TTS Phase 3 to land this first. Production bug confirmed 2026-05-07: free-model users on `/character chat` hit the 2-min polling cap (`TIMEOUTS.JOB_BASE`) while ai-worker happily completes 4+ min later → orphan response, wasted compute. User chose structural fix over stop-gap timeout bump. The existing PersonalityChatManager extract theme expanded with Phase A (push-based result delivery) alongside the original Phase B (DM support).
+**TTS Engine Upgrade Phase 3 PR 1** — `/voice` namespace consolidation refactor. Plan-mode locked from the 2026-05-05 council passes; resume in plan-mode this session, then implement.
 
-**Read first tomorrow**: [`backlog/future-themes.md`](backlog/future-themes.md) § "Theme: `/character chat` — push-based result delivery + DM support" — full plan, file:line entry points, risks, scope estimate. Production evidence in [`backlog/production-issues.md`](backlog/production-issues.md).
+**Sequencing (decided 2026-05-09)**: PR 1 is a pure structural move with deprecation stubs — no behavior change. Standalone `/settings tts` UX polish was dropped from the queue because doing it on a surface about to be relocated would be throwaway work; UX wins fold into PR 1 / PR 2 directly in the new namespace. Order: **PR 1 (consolidation) → PR 2 (Mistral STT cutover, the material payoff of yesterday's BYOK decision) → Phase 2 (NeuTTS Air, independent)**.
+
+**Read first**: [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md) — locked plan from 2026-05-05 council passes. Also [`backlog/active-epic.md`](backlog/active-epic.md) Phase 3 section.
 
 **Plan-mode entry points** (verify before code):
 
-- Read existing `ResultsListener` + `MessageHandler.handleJobResult` + `JobTracker` end-to-end — the @mention path uses this infra; we're aligning slash command to match.
-- Decide whether to ship Phase A standalone first (closes the prod bug fast, ~1-2 days) or bundle Phase A+B in one PR cycle (saves a `chat.ts` round-trip).
-- `chat.test.ts` is ~1000 lines and the bulk of effort — polling mocks become `JobTracker.trackJob` + slash-branch handler mocks. Worth scoping the test rewrite up front.
+- Read `services/bot-client/src/commands/settings/tts/` and `services/bot-client/src/commands/settings/voices/` end-to-end — these are the two subgroups being unified into `/voice`.
+- Confirm the deprecation-stub shape: redirect `/settings tts ...` and `/settings voices ...` to the new `/voice ...` paths with a one-time user-visible notice ("This command moved to /voice ...").
+- Scope test rewrite: any `commands/settings/tts/*.test.ts` and `commands/settings/voices/*.test.ts` files migrate to `commands/voice/*.test.ts`. `CommandHandler.int.test.ts` snapshots will break — expected, regenerate them as part of the PR.
+- Inbox item already filed: stub-removal scheduling ~1 month after PR 1 lands.
 
-**TTS Phase 3 PR 1 plan-mode pass deferred** to after this epic. Original Next Session Goal content captured in [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md) — re-read that before resuming Phase 3.
-
-**This session (2026-05-05 evening)**:
-
-- TTS Phase 3 reshaped during user-driven design discussion. Original framing was "flip STT consumer + add `/settings stt` parallel surface." User pushed back on parallel-namespace approach citing project precedent (`/preset` is top-level alongside `/settings preset` alias). Grepping `services/bot-client/src/commands/settings/` surfaced two voice-related subgroups (`tts` for provider config + `voices` for cloned-voice management) — wider consolidation opportunity than initial framing.
-- Two council passes (Gemini 3.1 Pro Preview, sequential) on the design. **Pass 1**: validated minimal `/settings stt view/set/clear` parallel shape with JIT teaching in `view` embed and `tts set` success message; rejected `--stt-override` flags-on-TTS approach. **Pass 2 (after scope expansion)**: validated unified `/voice` consolidation absorbing both subgroups; **reversed** slicing recommendation to "refactor first, feature second" for blast-radius isolation; **corrected** bundled-default semantic from dual-field-write to single-field-write (preserves 4-layer chain integrity); confirmed unified dashboard `/voice view` over separate per-domain views.
-- Locked Phase 3 as two-PR plan: PR 1 pure refactor (`/voice` namespace, deprecation stubs on old paths), PR 2 STT cutover + provider-set + 4-layer resolver wiring.
-- Documented in [`docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md`](docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md), [`backlog/active-epic.md`](backlog/active-epic.md) Phase 3 section, this CURRENT.md, and inbox item filed for stub-removal scheduling ~1 month after PR 1.
-- **No code written this session.** Documentation-only; plan-mode pickup tomorrow.
-
-**Beta.116 shipped** (post-Phase-1 hardening + tooling):
-
-- TTS dispatch-layer cleanup, Mistral hygiene, Mistral list-failure handling, TTS fallback semantics + 30s pre-flight (PRs #974–#977)
-- Config-service `checkDeleteConstraints` returns `{ blocker, warning }` (LLM + TTS pair fix, #978)
-- TTS default-config Ouroboros sync int test (#980)
-- Attachment aggregate cap raised to 100 MiB, per-image lowered to 5 MiB (#981 — real user fix)
-- `pr-merge-review-check` hook structurally enforces "read claude-review before `gh pr merge`" (#979)
-- Recovery migration `20260504140720_align_tts_globals_to_deterministic_ids` (already prod-applied prior to release)
+**Last session (2026-05-08, full day)**: shipped v3.0.0-beta.118 (`/character chat` push delivery + DM support PR #994, fast-follow tests #995, dependabot patches #996), then v3.0.0-beta.119 hotfix the same evening (voice transcription hang fix #1000, voice-engine NeMo concurrency lock #1001, fast-uri patch #998). Two voice-pipeline production bugs fully resolved end-to-end. User canceled ElevenLabs subscription and locked in Mistral as the BYOK path going forward — Phase 3 PR 2 is the material follow-through on that decision. Backlog gained two follow-up entries (`@discordjs/rest@2.6.1` upstream queue-stall investigation; deploy-window `UND_ERR_SOCKET` retry helper); decision recorded on the Mistral 30s reference-audio overflow inbox entry (option (b) — surface user-facing notice).
 
 ---
 
