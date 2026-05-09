@@ -10,7 +10,7 @@ import { GatewayClient } from '../utils/GatewayClient.js';
 import { splitMessage, createLogger, CONTENT_TYPES, isTimeoutError } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
-import { handleTypingError } from '../utils/typingErrorClassifier.js';
+import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
 import { classifyBotAudio } from '../utils/botAudioClassifier.js';
 
 const logger = createLogger('VoiceTranscriptionService');
@@ -169,20 +169,14 @@ export class VoiceTranscriptionService {
    * @param isReply - Whether message is a reply
    * @returns Transcript text if successful, undefined on error
    */
-  // eslint-disable-next-line complexity, max-lines-per-function -- TEMPORARY: diagnostic INFO logs raise complexity + line count; revert after voice-transcription regression is diagnosed
   async transcribe(
     message: Message,
     hasMention: boolean,
     isReply: boolean
   ): Promise<VoiceTranscriptionResult | null> {
-    logger.info(
-      { messageId: message.id, hasMention, isReply },
-      'TRANSCRIBE_DEBUG: enter transcribe'
-    );
-
     // Skip transcription of bot's own voice messages (e.g., forwarded TTS)
     if (message.author.id === message.client.user?.id) {
-      logger.info({ messageId: message.id }, 'TRANSCRIBE_DEBUG: skipping bot-own message');
+      logger.debug({ messageId: message.id }, 'Skipping transcription of bot own message');
       return null;
     }
 
@@ -191,17 +185,6 @@ export class VoiceTranscriptionService {
     // bail out early when the audio is our own bot's TTS output (encoded in
     // the filename) — no STT cost, no fake typing indicator, no wait.
     const attachments = this.resolveTranscriptionAttachments(message);
-    logger.info(
-      {
-        messageId: message.id,
-        attachmentCount: attachments.length,
-        directAttachmentSize: message.attachments.size,
-        snapshotsSize: message.messageSnapshots?.size ?? 0,
-        firstAttachmentName: attachments[0]?.name,
-        firstAttachmentContentType: attachments[0]?.contentType,
-      },
-      'TRANSCRIBE_DEBUG: attachments resolved'
-    );
 
     // Bot-authored audio short-circuit. Discord's MessageSnapshot strips
     // author metadata from forwards (see botAudioClassifier.ts), so the only
@@ -211,54 +194,43 @@ export class VoiceTranscriptionService {
     // write + reply only fire on the matched branch, keeping the unmatched
     // path microtask-equivalent to the pre-fix behavior.
     const ownAuthoredSlugs = this.classifyAsOwnBotAudio(message, attachments);
-    logger.info(
-      { messageId: message.id, ownAuthored: ownAuthoredSlugs !== null, slugs: ownAuthoredSlugs },
-      'TRANSCRIBE_DEBUG: classifier result'
-    );
     if (ownAuthoredSlugs !== null) {
       return this.handleOwnBotAudio(message, attachments, ownAuthoredSlugs, hasMention, isReply);
     }
 
     let typingInterval: NodeJS.Timeout | undefined;
     try {
-      logger.info({ messageId: message.id }, 'TRANSCRIBE_DEBUG: entering try block');
-      // Show typing indicator (if channel supports it)
-      // Refresh every 8s to keep it alive during long transcriptions (Discord expires at ~10s)
+      // Show typing indicator (if channel supports it). All sendTyping calls
+      // route through the helper for fire-and-forget semantics + latency
+      // telemetry — see sendTypingIndicator's docstring for why we never
+      // await sendTyping directly.
+      //
+      // Order matters: arm the interval BEFORE the initial send so that if
+      // the initial send fails with `channel-unreachable`, handleTypingError
+      // can clear the interval immediately. Reversed order means the initial
+      // send sees `typingInterval = undefined` and the interval fires once
+      // more before self-terminating. JobTracker.trackJob uses this same
+      // order for the same reason.
       if ('sendTyping' in message.channel) {
         const channel = message.channel;
-        logger.info(
-          { messageId: message.id, channelType: message.channel.type },
-          'TRANSCRIBE_DEBUG: about to call sendTyping'
-        );
-        await channel.sendTyping();
-        logger.info({ messageId: message.id }, 'TRANSCRIBE_DEBUG: sendTyping returned');
         typingInterval = setInterval(() => {
-          void (channel as { sendTyping: () => Promise<void> }).sendTyping().catch(err => {
-            handleTypingError(err, {
-              logger,
-              context: {
-                channelId: message.channelId,
-                source: 'voice-transcription-interval',
-              },
-              typingInterval,
-            });
+          sendTypingIndicator(channel, {
+            logger,
+            source: 'voice-transcription-interval',
+            typingInterval,
+            extraContext: { messageId: message.id },
           });
         }, TYPING_INDICATOR_INTERVAL_MS);
+        sendTypingIndicator(channel, {
+          logger,
+          source: 'voice-transcription-initial',
+          typingInterval,
+          extraContext: { messageId: message.id },
+        });
       }
 
-      logger.info(
-        { messageId: message.id, attachmentCount: attachments.length, userId: message.author.id },
-        'TRANSCRIBE_DEBUG: about to call gatewayClient.transcribe'
-      );
       // Send transcribe job to api-gateway (include userId for BYOK key resolution)
       const response = await this.gatewayClient.transcribe(attachments, message.author.id);
-      logger.info(
-        {
-          messageId: message.id,
-          hasContent: response?.content !== undefined && response.content.length > 0,
-        },
-        'TRANSCRIBE_DEBUG: gatewayClient.transcribe returned'
-      );
 
       if (!response?.content) {
         throw new Error('No transcript returned from transcription service');
