@@ -1,10 +1,10 @@
 /**
- * Settings TTS Set Handler
- * Handles /settings tts set subcommand — overrides TTS config for a personality
+ * Voice TTS Set Handler
+ * Handles /voice tts set subcommand — overrides TTS config for a personality
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, settingsTtsSetOptions } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, voiceTtsSetOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -13,7 +13,7 @@ import {
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { checkTtsByokAccess } from './guestModeValidation.js';
 
-const logger = createLogger('settings-tts-set');
+const logger = createLogger('voice-tts-set');
 
 interface SetResponse {
   override: {
@@ -24,10 +24,10 @@ interface SetResponse {
   };
 }
 
-/** Handle /settings tts set */
+/** Handle /voice tts set */
 export async function handleTtsSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = settingsTtsSetOptions(context.interaction);
+  const options = voiceTtsSetOptions(context.interaction);
   const personalityId = options.personality();
   const configId = options.tts();
 
@@ -70,7 +70,7 @@ export async function handleTtsSet(context: DeferredCommandContext): Promise<voi
       .setDescription(
         `**${data.override.personalityName}** will now use the **${data.override.configName}** TTS config.`
       )
-      .setFooter({ text: 'Use /settings tts reset to remove this override' })
+      .setFooter({ text: 'Use /voice tts clear to remove this override' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });

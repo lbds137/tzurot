@@ -1,5 +1,5 @@
 /**
- * Tests for /settings tts autocomplete handler.
+ * Tests for /voice tts autocomplete handler.
  * Locks the dual personality+tts dispatch + provider-badge formatting.
  */
 

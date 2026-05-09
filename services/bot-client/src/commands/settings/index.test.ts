@@ -68,25 +68,11 @@ vi.mock('./preset/autocomplete.js', () => ({
   handleAutocomplete: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock voice handlers
-vi.mock('./voices/browse.js', () => ({
-  handleBrowseVoices: vi.fn().mockResolvedValue(undefined),
-  handleVoiceBrowsePagination: vi.fn().mockResolvedValue(undefined),
-  isVoiceBrowseInteraction: vi.fn((customId: string) =>
-    customId.startsWith('settings-voices::browse')
-  ),
-}));
-
-vi.mock('./voices/delete.js', () => ({
-  handleDeleteVoice: vi.fn().mockResolvedValue(undefined),
-  handleVoiceAutocomplete: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('./voices/clear.js', () => ({
-  handleClearVoices: vi.fn().mockResolvedValue(undefined),
-  handleVoiceClearButton: vi.fn().mockResolvedValue(undefined),
-  handleVoiceClearModal: vi.fn().mockResolvedValue(undefined),
-  VOICE_CLEAR_OPERATION: 'voice-clear',
+// Mock the deprecation-stub redirect helper. The real handlers for
+// /settings tts and /settings voices subcommands moved to /voice; the
+// legacy schemas still register but route through this redirect.
+vi.mock('../voice/redirectToVoiceCommand.js', () => ({
+  tryRedirectToVoice: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock destructive confirmation utilities
@@ -203,9 +189,7 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('edit');
     });
 
-    it('should have voices subcommand group with browse, delete, clear', () => {
-      // Note: 'model' was removed in PR 3b — replaced by /settings tts set
-      // which supports per-personality config overrides across all providers.
+    it('keeps the legacy /settings voices schema (deprecation stub for /voice voices)', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -217,13 +201,14 @@ describe('Settings Command Index', () => {
       const subcommands = (
         (voicesGroup as { options?: Array<{ name: string }> })?.options ?? []
       ).map(s => s.name);
+      // Legacy subcommand names preserved so users typing the old paths
+      // still resolve to a registered handler (which then redirects).
       expect(subcommands).toContain('browse');
       expect(subcommands).toContain('delete');
       expect(subcommands).toContain('clear');
-      expect(subcommands).not.toContain('model');
     });
 
-    it('should have tts subcommand group with browse, set, reset, default, clear-default', () => {
+    it('keeps the legacy /settings tts schema (deprecation stub for /voice tts)', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
 
@@ -235,6 +220,8 @@ describe('Settings Command Index', () => {
       const subcommands = ((ttsGroup as { options?: Array<{ name: string }> })?.options ?? []).map(
         s => s.name
       );
+      // Original vocabulary (set/reset/default/clear-default/browse) preserved
+      // — the rename to set/clear/set-default/clear-default lives on /voice tts.
       expect(subcommands).toContain('browse');
       expect(subcommands).toContain('set');
       expect(subcommands).toContain('reset');
@@ -242,11 +229,8 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('clear-default');
     });
 
-    it('should have componentPrefixes for user-defaults and voice browse', () => {
-      expect(settingsCommand.componentPrefixes).toEqual([
-        'user-defaults-settings',
-        'settings-voices',
-      ]);
+    it('should have componentPrefixes for user-defaults only (settings-voices moved to /voice)', () => {
+      expect(settingsCommand.componentPrefixes).toEqual(['user-defaults-settings']);
     });
 
     it('should have correct deferral modes', () => {
@@ -400,32 +384,37 @@ describe('Settings Command Index', () => {
       });
     });
 
-    describe('voices group', () => {
-      it('should route to voices browse handler', async () => {
-        const { handleBrowseVoices } = await import('./voices/browse.js');
+    describe('legacy /settings tts and /settings voices deprecation stubs', () => {
+      it('routes /settings tts <subcommand> to the redirect helper', async () => {
+        const { tryRedirectToVoice } = await import('../voice/redirectToVoiceCommand.js');
+        const context = createMockContext('tts', 'set');
+
+        await execute(context);
+
+        expect(tryRedirectToVoice).toHaveBeenCalledWith(context, 'tts', 'set');
+      });
+
+      it('replies with an error when /settings tts is invoked with no subcommand', async () => {
+        const { tryRedirectToVoice } = await import('../voice/redirectToVoiceCommand.js');
+        // Schema-drift guard: in normal operation Discord rejects subcommand-less
+        // group invocations, but the dispatcher defends against it anyway.
+        const context = createMockContext('tts', null as unknown as string);
+
+        await execute(context);
+
+        expect(tryRedirectToVoice).not.toHaveBeenCalled();
+        expect(context.editReply).toHaveBeenCalledWith({
+          content: expect.stringContaining('No subcommand specified'),
+        });
+      });
+
+      it('routes /settings voices <subcommand> to the redirect helper', async () => {
+        const { tryRedirectToVoice } = await import('../voice/redirectToVoiceCommand.js');
         const context = createMockContext('voices', 'browse');
 
         await execute(context);
 
-        expect(handleBrowseVoices).toHaveBeenCalledWith(context);
-      });
-
-      it('should route to voices delete handler', async () => {
-        const { handleDeleteVoice } = await import('./voices/delete.js');
-        const context = createMockContext('voices', 'delete');
-
-        await execute(context);
-
-        expect(handleDeleteVoice).toHaveBeenCalledWith(context);
-      });
-
-      it('should route to voices clear handler', async () => {
-        const { handleClearVoices } = await import('./voices/clear.js');
-        const context = createMockContext('voices', 'clear');
-
-        await execute(context);
-
-        expect(handleClearVoices).toHaveBeenCalledWith(context);
+        expect(tryRedirectToVoice).toHaveBeenCalledWith(context, 'voices', 'browse');
       });
     });
 
@@ -479,30 +468,6 @@ describe('Settings Command Index', () => {
       expect(handleUserDefaultsButton).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route voice browse pagination buttons to browse handler', async () => {
-      const { handleVoiceBrowsePagination } = await import('./voices/browse.js');
-
-      const interaction = {
-        customId: 'settings-voices::browse::1::all::',
-      } as any;
-
-      await handleButton(interaction);
-
-      expect(handleVoiceBrowsePagination).toHaveBeenCalledWith(interaction);
-    });
-
-    it('should route voice-clear destructive buttons to voice handler', async () => {
-      const { handleVoiceClearButton } = await import('./voices/clear.js');
-
-      const interaction = {
-        customId: 'settings::destructive::confirm_button::voice-clear::all',
-      } as any;
-
-      await handleButton(interaction);
-
-      expect(handleVoiceClearButton).toHaveBeenCalledWith(interaction);
-    });
-
     it('should log warning for unknown button custom ID', async () => {
       const interaction = {
         customId: 'unknown-entity::action::id',
@@ -533,20 +498,6 @@ describe('Settings Command Index', () => {
 
       // Should not throw
       await handleSelectMenu(interaction);
-    });
-  });
-
-  describe('handleModal - voice-clear routing', () => {
-    it('should route voice-clear destructive modals to voice handler', async () => {
-      const { handleVoiceClearModal } = await import('./voices/clear.js');
-
-      const interaction = {
-        customId: 'settings::destructive::modal_submit::voice-clear::all',
-      } as any;
-
-      await handleModal(interaction);
-
-      expect(handleVoiceClearModal).toHaveBeenCalledWith(interaction);
     });
   });
 
@@ -584,19 +535,18 @@ describe('Settings Command Index', () => {
       expect(handlePresetAutocomplete).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route voice autocomplete to voice handler', async () => {
-      const { handleVoiceAutocomplete } = await import('./voices/delete.js');
-
+    it('returns empty for /settings tts and /settings voices autocomplete (deprecation stubs)', async () => {
       const interaction = {
         options: {
           getFocused: () => ({ name: 'voice', value: 'ali' }),
           getSubcommandGroup: () => 'voices',
         },
+        respond: vi.fn(),
       } as any;
 
       await autocomplete(interaction);
 
-      expect(handleVoiceAutocomplete).toHaveBeenCalledWith(interaction);
+      expect(interaction.respond).toHaveBeenCalledWith([]);
     });
 
     it('should return empty array for unknown options', async () => {

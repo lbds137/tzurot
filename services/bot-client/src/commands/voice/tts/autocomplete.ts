@@ -1,5 +1,5 @@
 /**
- * Settings TTS Autocomplete Handler
+ * Voice TTS Autocomplete Handler
  * Provides autocomplete suggestions for personality and tts options.
  *
  * Mirrors `commands/settings/preset/autocomplete.ts` shape:
@@ -24,9 +24,9 @@ import {
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
 
-const logger = createLogger('settings-tts-autocomplete');
+const logger = createLogger('voice-tts-autocomplete');
 
-/** Handle autocomplete for /settings tts commands */
+/** Handle autocomplete for /voice tts commands */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
   const userId = interaction.user.id;

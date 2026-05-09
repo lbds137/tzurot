@@ -55,7 +55,7 @@ describe('handleBrowseVoices', () => {
 
   function createMockContext(): DeferredCommandContext {
     const mockInteraction = {
-      user: { id: 'user-123' , username: 'testuser' },
+      user: { id: 'user-123', username: 'testuser' },
       editReply: mockEditReply,
     } as unknown as ChatInputCommandInteraction;
 
@@ -96,7 +96,9 @@ describe('handleBrowseVoices', () => {
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/voices',
-      expect.objectContaining({ user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' } })
+      expect.objectContaining({
+        user: { discordId: 'user-123', username: 'testuser', displayName: 'testuser' },
+      })
     );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -161,7 +163,7 @@ describe('handleBrowseVoices', () => {
       expect.arrayContaining([
         expect.objectContaining({
           name: '💡 Management',
-          value: expect.stringContaining('/settings voices delete'),
+          value: expect.stringContaining('/voice voices delete'),
         }),
       ])
     );
@@ -303,7 +305,7 @@ describe('handleVoiceBrowsePagination', () => {
   function createMockButtonInteraction(customId: string): ButtonInteraction {
     return {
       customId,
-      user: { id: 'user-123' , username: 'testuser' },
+      user: { id: 'user-123', username: 'testuser' },
       deferUpdate: mockDeferUpdate,
       editReply: mockEditReply,
     } as unknown as ButtonInteraction;

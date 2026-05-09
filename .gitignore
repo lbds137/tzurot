@@ -86,7 +86,11 @@ services/voice-engine/voices/*
 
 # Dev logs
 railway_dev_logs.md
-voices/
+# Voice-engine runtime cloned-voice data + ad-hoc test recordings at repo root.
+# Anchored so a top-level pattern doesn't accidentally swallow code paths like
+# commands/voice/voices/.
+/services/voice-engine/voices/
+/voices/
 
 # Session-local Claude runtime state
 .claude/scheduled_tasks.lock

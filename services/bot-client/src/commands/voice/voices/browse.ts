@@ -8,7 +8,11 @@ import { EmbedBuilder } from 'discord.js';
 import type { ButtonInteraction, ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type AudioProviderId } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi, GATEWAY_TIMEOUTS, toGatewayUser } from '../../../utils/userGatewayClient.js';
+import {
+  callGatewayApi,
+  GATEWAY_TIMEOUTS,
+  toGatewayUser,
+} from '../../../utils/userGatewayClient.js';
 import {
   ITEMS_PER_PAGE,
   createBrowseCustomIdHelpers,
@@ -28,7 +32,7 @@ const PROVIDER_DISPLAY_NAMES: Record<AudioProviderId, string> = {
   mistral: 'Mistral',
 };
 
-const logger = createLogger('settings-voices-browse');
+const logger = createLogger('voice-voices-browse');
 
 type VoiceBrowseFilter = 'all';
 
@@ -57,7 +61,7 @@ function renderWarningsField(warnings: NonNullable<VoicesListResponse['warnings'
     return `• **${providerName}**: ${w.message}`;
   });
   return {
-    name: '⚠️ Some providers couldn\'t be loaded',
+    name: "⚠️ Some providers couldn't be loaded",
     value: lines.join('\n'),
     inline: false,
   };
@@ -84,10 +88,7 @@ function buildVoiceBrowsePage(
       ? DISCORD_COLORS.SUCCESS
       : DISCORD_COLORS.BLURPLE;
 
-  const embed = new EmbedBuilder()
-    .setTitle('🎤 Cloned Voices')
-    .setColor(color)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle('🎤 Cloned Voices').setColor(color).setTimestamp();
 
   if (hasWarnings) {
     embed.addFields(renderWarningsField(warnings));
@@ -123,8 +124,8 @@ function buildVoiceBrowsePage(
     embed.addFields({
       name: '💡 Management',
       value: [
-        '`/settings voices delete <voice>` - Remove a single voice',
-        '`/settings voices clear` - Remove all Tzurot voices',
+        '`/voice voices delete <voice>` - Remove a single voice',
+        '`/voice voices clear` - Remove all Tzurot voices',
       ].join('\n'),
       inline: false,
     });
@@ -150,7 +151,7 @@ function buildVoiceBrowsePage(
 }
 
 /**
- * Handle /settings voices browse
+ * Handle /voice voices browse
  * Lists all tzurot-prefixed cloned voices from ElevenLabs.
  *
  * Intentionally does NOT use the voiceCache (autocomplete cache) — browse
@@ -212,10 +213,7 @@ export async function handleVoiceBrowsePagination(interaction: ButtonInteraction
     const { embed, components } = buildVoiceBrowsePage(result.data, parsed.page);
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
-    logger.error(
-      { err: error, userId, page: parsed.page },
-      'Failed to load browse page'
-    );
+    logger.error({ err: error, userId, page: parsed.page }, 'Failed to load browse page');
     // Keep existing content on error (same pattern as character browse)
   }
 }

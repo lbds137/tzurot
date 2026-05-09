@@ -1,9 +1,9 @@
 /**
- * Settings TTS Reset Handler
- * Handles /settings tts reset subcommand — clears per-personality TTS override
+ * Voice TTS Clear Handler
+ * Handles /voice tts clear subcommand — clears per-personality TTS override
  */
 
-import { createLogger, settingsTtsResetOptions } from '@tzurot/common-types';
+import { createLogger, voiceTtsClearOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
@@ -12,17 +12,17 @@ import {
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('settings-tts-reset');
+const logger = createLogger('voice-tts-clear');
 
-interface ResetResponse {
+interface ClearResponse {
   deleted: boolean;
   wasSet?: boolean;
 }
 
-/** Handle /settings tts reset */
-export async function handleTtsReset(context: DeferredCommandContext): Promise<void> {
+/** Handle /voice tts clear */
+export async function handleTtsClear(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = settingsTtsResetOptions(context.interaction);
+  const options = voiceTtsClearOptions(context.interaction);
   const personalityId = options.personality();
 
   if (isAutocompleteErrorSentinel(personalityId)) {
@@ -31,7 +31,7 @@ export async function handleTtsReset(context: DeferredCommandContext): Promise<v
   }
 
   try {
-    const result = await callGatewayApi<ResetResponse>(
+    const result = await callGatewayApi<ClearResponse>(
       `/user/tts-override/${encodeURIComponent(personalityId)}`,
       {
         method: 'DELETE',
@@ -40,8 +40,8 @@ export async function handleTtsReset(context: DeferredCommandContext): Promise<v
     );
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, personalityId }, 'Failed to reset TTS override');
-      await context.editReply({ content: `❌ Failed to reset TTS: ${result.error}` });
+      logger.warn({ userId, status: result.status, personalityId }, 'Failed to clear TTS override');
+      await context.editReply({ content: `❌ Failed to clear TTS: ${result.error}` });
       return;
     }
 
@@ -59,9 +59,9 @@ export async function handleTtsReset(context: DeferredCommandContext): Promise<v
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId, wasSet }, 'Reset TTS override');
+    logger.info({ userId, personalityId, wasSet }, 'Cleared TTS override');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'TTS Reset' }, 'Error');
+    logger.error({ err: error, userId, command: 'TTS Clear' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

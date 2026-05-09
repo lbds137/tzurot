@@ -1,19 +1,19 @@
 /**
- * TTS subcommand group builder for /settings.
+ * TTS subcommand group builder for /voice.
  *
- * Extracted from settings/index.ts to keep that file under the ESLint
- * max-lines limit. The handler routing still lives in settings/index.ts
- * — only the slash-command schema is here.
+ * Symmetric naming: set / clear / set-default / clear-default / browse.
+ * Each subcommand owns one (action × scope) pair. The shape mirrors what
+ * /voice stt will adopt in PR 2 — sharing the pattern keeps both subgroups
+ * predictable for users.
+ *
+ * Renamed from the legacy /settings tts shape:
+ *   reset   → clear        (per-personality clear, action verb consistent with set)
+ *   default → set-default  (global-default set, parallel verb prefix)
  */
 
 import type { SlashCommandSubcommandGroupBuilder } from 'discord.js';
 
-/**
- * Add TTS subcommands (browse, set, reset, default, clear-default) to the
- * given subcommand group builder. Mirrors the preset subcommand shape
- * (commands/settings/index.ts /settings preset block).
- */
-export function buildTtsSubcommandGroup(
+export function buildVoiceTtsSubcommandGroup(
   group: SlashCommandSubcommandGroupBuilder
 ): SlashCommandSubcommandGroupBuilder {
   return group
@@ -43,19 +43,19 @@ export function buildTtsSubcommandGroup(
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('reset')
+        .setName('clear')
         .setDescription('Remove TTS config override for a personality')
         .addStringOption(option =>
           option
             .setName('personality')
-            .setDescription('The personality to reset')
+            .setDescription('The personality to clear')
             .setRequired(true)
             .setAutocomplete(true)
         )
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('default')
+        .setName('set-default')
         .setDescription('Set your global default TTS config')
         .addStringOption(option =>
           option

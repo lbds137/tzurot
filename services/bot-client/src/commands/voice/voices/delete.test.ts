@@ -240,9 +240,7 @@ describe('handleVoiceAutocomplete', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        voices: [
-          { provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' },
-        ],
+        voices: [{ provider: 'elevenlabs', voiceId: 'v1', name: 'tzurot-alice', slug: 'alice' }],
         totalVoices: 10,
         tzurotCount: 1,
       },

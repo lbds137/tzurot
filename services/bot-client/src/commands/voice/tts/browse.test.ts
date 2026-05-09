@@ -1,5 +1,5 @@
 /**
- * Tests for /settings tts browse handler.
+ * Tests for /voice tts browse handler.
  * Verifies override-list rendering for empty + populated cases.
  */
 
