@@ -79,6 +79,96 @@ export interface HandleTypingErrorOptions {
 }
 
 /**
+ * Latency threshold above which a successful sendTyping call is logged as
+ * a warning. Discord's typical sendTyping latency is <500ms; sustained
+ * latency above this threshold is the early-warning signal for the
+ * REST-queue stall class of bug (see callers — sendTyping has been
+ * observed to hang indefinitely under sustained rate-limit pressure).
+ *
+ * The 3000ms value coincides with Discord's interaction-acknowledgement
+ * deadline (3s) — chosen deliberately. A sendTyping call slower than the
+ * smallest deadline the bot must meet for any Discord operation is already
+ * in problem territory, regardless of REST-queue stall specifics.
+ */
+const SLOW_TYPING_THRESHOLD_MS = 3000;
+
+/**
+ * Channel-shape we need from the caller. discord.js channel types
+ * conditionally have `sendTyping`; callers are responsible for the
+ * `'sendTyping' in channel` guard before calling this helper.
+ */
+interface SendTypingChannel {
+  id: string;
+  sendTyping: () => Promise<void>;
+}
+
+export interface SendTypingIndicatorOptions {
+  logger: Logger;
+  /**
+   * Free-form label describing where this typing indicator is being fired
+   * from (e.g., 'voice-transcription-initial', 'job-tracker-initial').
+   * Surfaces in both the slow-warn log and the handleTypingError log.
+   */
+  source: string;
+  /** If provided, cleared when handleTypingError sees `channel-unreachable`. */
+  typingInterval?: NodeJS.Timeout;
+  /**
+   * Optional structured fields to merge into log entries (slow-warn and
+   * error). Use for caller-specific correlation IDs that aren't covered by
+   * the default `source` + `channelId` fields — e.g., `{ jobId }` for
+   * JobTracker calls, `{ messageId }` for one-shot calls. Spread last so
+   * caller fields can override defaults if they have richer info for the
+   * same key.
+   */
+  extraContext?: Record<string, unknown>;
+}
+
+/**
+ * Single source of truth for firing a Discord typing indicator. Three
+ * properties of this helper that callers should NOT replicate inline:
+ *
+ *  1. **Fire-and-forget**: never returns a Promise, never awaitable. Awaiting
+ *     `channel.sendTyping()` directly has been observed to hang indefinitely
+ *     when Discord's REST queue stalls under rate-limit pressure (the
+ *     promise neither resolves nor rejects). The typing indicator is purely
+ *     visual; a missed flash is strictly better than a hung pipeline.
+ *  2. **Latency telemetry**: warns when sendTyping resolves slower than
+ *     SLOW_TYPING_THRESHOLD_MS. Provides early warning for the queue-stall
+ *     class of bug before it degrades into a full hang.
+ *  3. **Error classification**: routes failures through `handleTypingError`
+ *     so rate-limit / channel-unreachable / network / unknown all get the
+ *     right log level + interval cleanup.
+ *
+ * An ESLint rule (no-restricted-syntax) blocks `await channel.sendTyping()`
+ * project-wide to prevent accidental reintroduction of the hang.
+ */
+export function sendTypingIndicator(
+  channel: SendTypingChannel,
+  options: SendTypingIndicatorOptions
+): void {
+  const { logger, source, typingInterval, extraContext } = options;
+  const start = Date.now();
+  channel
+    .sendTyping()
+    .then(() => {
+      const elapsed = Date.now() - start;
+      if (elapsed > SLOW_TYPING_THRESHOLD_MS) {
+        logger.warn(
+          { source, channelId: channel.id, elapsedMs: elapsed, ...extraContext },
+          'sendTyping resolved slowly — possible REST queue pressure'
+        );
+      }
+    })
+    .catch((err: unknown) => {
+      handleTypingError(err, {
+        logger,
+        context: { source, channelId: channel.id, ...extraContext },
+        typingInterval,
+      });
+    });
+}
+
+/**
  * Log a sendTyping failure with the right level for its classification, and
  * clear the typing interval when the channel has become unreachable. Returns
  * the classification so callers can take additional action (e.g., marking the

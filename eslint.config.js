@@ -48,6 +48,23 @@ const PINO_LOGGER_RULES = PINO_LEVELS.flatMap(level => [
 // route through UserService. Shared across the main block and the route-level
 // override so it stays enforced even when the routes override replaces the
 // `no-restricted-syntax` rule wholesale.
+// Block `await channel.sendTyping()` — the specific pattern that exposes the
+// hang. discord.js's sendTyping has been observed to hang indefinitely under
+// sustained Discord rate-limit pressure (the promise neither resolves nor
+// rejects), so awaiting it blocks the surrounding pipeline indefinitely.
+// Direct `.then()/.catch()` chains on `channel.sendTyping()` aren't blocked
+// here — they're fire-and-forget by construction and don't expose the bug —
+// but contributors should still prefer the `sendTypingIndicator` helper at
+// services/bot-client/src/utils/typingErrorClassifier.ts for latency
+// telemetry + classified error handling.
+const SEND_TYPING_RULES = [
+  {
+    selector: "AwaitExpression > CallExpression[callee.property.name='sendTyping']",
+    message:
+      'Never `await channel.sendTyping()` — discord.js sendTyping can hang indefinitely under rate-limit pressure (queue stall with no resolver). Use `sendTypingIndicator(channel, { logger, source, typingInterval? })` from utils/typingErrorClassifier instead. See its docstring for rationale.',
+  },
+];
+
 const IDENTITY_PROVISIONING_RULES = [
   {
     selector:
@@ -254,7 +271,12 @@ export default tseslint.config(
       // syntactic rule is a strong first line of defense. If that changes,
       // either stop the destructure in review or extend this with a
       // dependency-cruiser rule that catches the import-level pattern.
-      'no-restricted-syntax': ['error', ...PINO_LOGGER_RULES, ...IDENTITY_PROVISIONING_RULES],
+      'no-restricted-syntax': [
+        'error',
+        ...PINO_LOGGER_RULES,
+        ...IDENTITY_PROVISIONING_RULES,
+        ...SEND_TYPING_RULES,
+      ],
 
       // ============================================================================
       // MODULE SIZE & COMPLEXITY RULES
