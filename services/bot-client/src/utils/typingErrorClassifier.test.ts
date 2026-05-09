@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { DiscordAPIError } from 'discord.js';
 import type { Logger } from 'pino';
-import { classifyTypingError, handleTypingError } from './typingErrorClassifier.js';
+import {
+  classifyTypingError,
+  handleTypingError,
+  sendTypingIndicator,
+} from './typingErrorClassifier.js';
 
 function buildMockLogger(): Logger {
   return {
@@ -219,6 +223,98 @@ describe('handleTypingError', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ jobId: 'job-5', err }),
       expect.stringContaining('unclassified')
+    );
+  });
+});
+
+describe('sendTypingIndicator', () => {
+  function buildMockChannel(sendTypingImpl: () => Promise<void>) {
+    return {
+      id: 'channel-test',
+      sendTyping: vi.fn(sendTypingImpl),
+    };
+  }
+
+  it('returns void (not a Promise) so callers cannot accidentally await', () => {
+    // Type-level guarantee + runtime check: if a future contributor changes
+    // the helper to return a Promise, this test catches the regression. The
+    // whole point of the helper is to enforce fire-and-forget semantics.
+    const channel = buildMockChannel(() => Promise.resolve());
+    const logger = buildMockLogger();
+    const result = sendTypingIndicator(channel, { logger, source: 'unit-test' });
+    expect(result).toBeUndefined();
+  });
+
+  it('invokes channel.sendTyping exactly once per call', async () => {
+    const channel = buildMockChannel(() => Promise.resolve());
+    const logger = buildMockLogger();
+    sendTypingIndicator(channel, { logger, source: 'unit-test' });
+    // Microtask flush so the .then() inside the helper runs.
+    await Promise.resolve();
+    expect(channel.sendTyping).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs warn with elapsedMs when sendTyping resolves slower than threshold', async () => {
+    // Simulate a slow resolution by stubbing Date.now: first call captures
+    // start, second call returns start + 4000 (above the 3000ms threshold).
+    let nowReturn = 1_000_000;
+    const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowReturn);
+    const channel = buildMockChannel(() => {
+      // Bump the clock between start and resolution so elapsed crosses threshold.
+      nowReturn += 4000;
+      return Promise.resolve();
+    });
+    const logger = buildMockLogger();
+
+    sendTypingIndicator(channel, { logger, source: 'unit-test-slow' });
+    await Promise.resolve(); // Flush the .then()
+    await Promise.resolve(); // Second tick for nested microtasks if any
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'unit-test-slow',
+        channelId: 'channel-test',
+        elapsedMs: 4000,
+      }),
+      expect.stringContaining('slowly')
+    );
+    dateNowSpy.mockRestore();
+  });
+
+  it('does NOT log warn when sendTyping resolves under the threshold', async () => {
+    const channel = buildMockChannel(() => Promise.resolve());
+    const logger = buildMockLogger();
+
+    sendTypingIndicator(channel, { logger, source: 'unit-test-fast' });
+    await Promise.resolve();
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('routes errors through handleTypingError on rejection', async () => {
+    // Use a rate-limit error so handleTypingError logs warn (the easiest
+    // assertion target — the helper itself doesn't log on the error path).
+    // Mirror buildDiscordApiError's bodyData shape (`{ body, files }`) — the
+    // discord.js constructor reads `.files` and crashes on undefined.
+    const rateLimitErr = new DiscordAPIError(
+      { code: 0, message: 'You are being rate limited.', retry_after: 1.5 } as never,
+      0,
+      429,
+      'POST',
+      'https://discord.com/api/v10/channels/123/typing',
+      { body: undefined, files: [] }
+    );
+    const channel = buildMockChannel(() => Promise.reject(rateLimitErr));
+    const logger = buildMockLogger();
+
+    sendTypingIndicator(channel, { logger, source: 'unit-test-error' });
+    // Rejection routes through .catch → handleTypingError → logger.warn (rate-limit branch)
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'unit-test-error', channelId: 'channel-test' }),
+      expect.stringContaining('rate-limited')
     );
   });
 });
