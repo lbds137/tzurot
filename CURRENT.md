@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-05-09 → 2026-05-10 (extended) — Shipped TTS Phase 3 end-to-end in **5 merged PRs**. Started from PR #1003 (`/voice` consolidation) → ended with PR #1007 (cascade simplification down to 3 layers, ~2,650 LoC removed). Mistral live as BYOK STT provider. Schema migrations applied to dev + prod across two waves (PR #1005 added 3 columns; PR #1007 dropped 2 of them after the simplification). **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
-> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~5 PRs ahead — release pending)
+> **Session**: 2026-05-09 → 2026-05-10 (extended) — Shipped TTS Phase 3 end-to-end in **6 merged PRs**. Started from PR #1003 (`/voice` consolidation) → ended with PR #1008 (polish sweep absorbing all 3 surviving Phase 3 follow-ups). Mistral live as BYOK STT provider. Schema migrations applied to dev + prod across three waves (#1005 added 3 cols; #1007 dropped 2; #1008 added a CHECK constraint — pending dev/prod apply). **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
+> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~6 PRs ahead — release pending)
 > **🚧 Release freeze status**: LIFTED. Develop is ready for the v3.0.0-beta.120 release cut.
 
 ---
@@ -10,32 +10,33 @@
 
 **Choose between**:
 
-1. **Cut release v3.0.0-beta.120** (Recommended first) — bundle the 5 merged PRs (#1003 → #1007) and ship to prod. Migrations already applied to prod, so this release is purely the code deploy + Discord-side surface refresh. Required before users see the new `/voice` surface and Mistral STT in prod.
-2. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
-3. **TTS Phase 3 polish from inbox** — 3 surviving follow-ups (DB CHECK constraint, in-band attachment STT, ai-worker cache-invalidation wiring). Could batch as a small follow-up PR or absorb opportunistically.
+1. **Apply PR #1008 migration to dev + prod** — pre-release housekeeping. `pnpm ops db:migrate --env dev` then `--env prod`. The CHECK constraint is `ALTER TABLE ADD CONSTRAINT` only (no data risk).
+2. **Cut release v3.0.0-beta.120** (Recommended after #1) — bundle the 6 merged PRs (#1003 → #1008) and ship to prod. Required before users see the new `/voice` surface and Mistral STT in prod.
+3. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
 
 **Read first** (if continuing TTS work):
 
 - [`backlog/active-epic.md`](backlog/active-epic.md) — Phase 3 marked DONE; Phase 2 (NeuTTS Air) is the next checkpoint
-- [`backlog/inbox.md`](backlog/inbox.md) — the surviving Phase 3 follow-ups (much smaller list after PR #1007's simplification removed two of the originally-filed items)
+- [`backlog/inbox.md`](backlog/inbox.md) — small set of follow-ups from #1008 review (named-type alias, options-object refactor, degraded-fallback resilience, future 4th-provider migration coupling)
 
 ---
 
 ## Last Session (2026-05-09 → 2026-05-10, extended marathon)
 
-Shipped TTS Phase 3 end-to-end in five merged PRs:
+Shipped TTS Phase 3 end-to-end in six merged PRs:
 
 - **PR #1003** — `/voice` namespace consolidation. Pure refactor moving `/settings tts` + `/settings voices` under unified `/voice`. Deprecation stubs preserved for ~1 month. ~3,400 LoC.
 - **PR #1004** — `/settings preset` symmetric naming quick-win (set/clear/set-default/clear-default).
 - **PR #1005** — Mistral STT cutover + 5-layer cascade resolver + `/voice provider/stt/view`. ~5,500 LoC. Surfaced "barely understand even as a technical user" UX feedback that triggered #1006 + #1007.
 - **PR #1006** — UX language polish on `/voice` surface + transcript provider attribution (`-# transcribed by X` subtext under each transcript). ~300 LoC. 7 review rounds; reviewer caught a real 2000-char overflow bug + a `GenerateResponse` mistype during the cycle.
 - **PR #1007** — STT cascade simplification (5 layers → 3). User identified the asymmetry: STT is speaker-bound (your voice doesn't change per character) so per-personality + admin-default layers were code-shape masquerading as product-shape. ~2,650 LoC removed. Schema migration dropped two of the columns added by #1005.
+- **PR #1008** — Polish sweep: DB CHECK constraint on `users.default_stt_provider_id`, wired `SttResolverCacheInvalidationService` into ai-worker, routed in-band `MultimodalProcessor` attachment path through `SttResolver` via `auth.sttDispatch`. Closed all 3 surviving Phase 3 follow-ups. 3 review rounds, LGTM verdict. ~200 LoC net additions (mostly tests).
 
 Reviewer cycle insight from this session: **the symmetric STT/TTS design from PR #1005 was caught and fixed within hours of being deployed**, before users ever saw it. The simplification was the right call and the deletion was clean. Filing the meta-lesson about "code-symmetry vs product-symmetry" is worth doing.
 
-3 substantive Phase 3 follow-ups remain in `backlog/inbox.md` (down from 5 after PR #1007 closed two by simplification): DB CHECK constraint, in-band attachment STT routing, ai-worker cache-invalidation wiring.
+4 small follow-ups from #1008 review now in `backlog/inbox.md`: `SttDispatch` named type alias, AuthStep options-object refactor, degraded-fallback for STT resolver errors, future companion migration when a 4th STT provider ships.
 
-Next-session decision: cut beta.120 release vs continue TTS work (Phase 2 or follow-up sweep).
+Next-session decision: apply PR #1008 migration to dev + prod, then cut beta.120.
 
 ---
 
