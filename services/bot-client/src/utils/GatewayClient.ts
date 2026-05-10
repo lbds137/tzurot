@@ -22,6 +22,42 @@ const logger = createLogger('GatewayClient');
 const config = getConfig();
 
 /**
+ * Transport-layer error codes that indicate the api-gateway is mid-restart
+ * (Railway container swap). The TCP connection is accepted but the HTTP
+ * listener isn't bound yet, so undici closes the socket. Safe to retry.
+ */
+const TRANSIENT_NETWORK_CODES = new Set(['UND_ERR_SOCKET', 'ECONNRESET', 'ECONNREFUSED']);
+const TRANSCRIBE_RETRY_ATTEMPTS = 3;
+const TRANSCRIBE_RETRY_BASE_DELAY_MS = 500;
+
+function isTransientNetworkError(err: unknown): boolean {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+  const cause = (err as Error & { cause?: { code?: string } }).cause;
+  return cause?.code !== undefined && TRANSIENT_NETWORK_CODES.has(cause.code);
+}
+
+async function retryTranscribeOnTransientNetworkError<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt < TRANSCRIBE_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isTransientNetworkError(err)) {
+        throw err;
+      }
+      const delayMs = TRANSCRIBE_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      logger.warn(
+        { err, attempt, nextDelayMs: delayMs },
+        'Transient network error during transcribe; retrying'
+      );
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  return fn();
+}
+
+/**
  * Cache for channel settings lookups.
  * TTL of 30 seconds balances performance with responsiveness to changes.
  * Max 1000 channels to prevent unbounded memory growth.
@@ -145,6 +181,13 @@ export class GatewayClient {
 
   /**
    * Request voice transcription from the gateway
+   *
+   * Retries on transient network errors (api-gateway container swap during
+   * Railway deploy: socket accepted but HTTP listener not bound yet, surfacing
+   * as `UND_ERR_SOCKET` / `ECONNRESET` / `ECONNREFUSED`). Safe to retry
+   * because transcription is idempotent — the ai-worker job is keyed by
+   * `requestId`. HTTP-level errors (non-2xx responses, validation failures,
+   * empty results) are NOT retried — only transport-layer failures.
    */
   async transcribe(
     attachments: {
@@ -166,49 +209,62 @@ export class GatewayClient {
     };
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/ai/transcribe?wait=true`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': CONTENT_TYPES.JSON,
-          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
-        },
-        body: JSON.stringify({
-          attachments,
-          ...(userId !== undefined && { userId }),
-        }),
-        signal: AbortSignal.timeout(TIMEOUTS.STT_GATEWAY),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
-      }
-
-      const data = (await response.json()) as TranscribeResponse;
-
-      if (data.status !== JobStatus.Completed) {
-        throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
-      }
-
-      if (
-        data.result?.content === undefined ||
-        data.result.content === null ||
-        data.result.content.length === 0
-      ) {
-        throw new Error('No transcript in job result');
-      }
-
-      logger.info({ jobId: data.jobId }, 'Transcription completed');
-
-      return {
-        content: data.result.content,
-        provider: data.result.provider,
-        metadata: data.result.metadata,
-      };
+      return await retryTranscribeOnTransientNetworkError(() =>
+        this.transcribeOnce(attachments, userId)
+      );
     } catch (error) {
       logger.error({ err: error }, 'Transcription failed');
       throw error;
     }
+  }
+
+  private async transcribeOnce(
+    attachments: Parameters<GatewayClient['transcribe']>[0],
+    userId: string | undefined
+  ): Promise<{
+    content: string;
+    provider?: SttProvider;
+    metadata?: { processingTimeMs?: number };
+  }> {
+    const response = await fetch(`${this.baseUrl}/ai/transcribe?wait=true`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': CONTENT_TYPES.JSON,
+        'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+      },
+      body: JSON.stringify({
+        attachments,
+        ...(userId !== undefined && { userId }),
+      }),
+      signal: AbortSignal.timeout(TIMEOUTS.STT_GATEWAY),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
+    }
+
+    const data = (await response.json()) as TranscribeResponse;
+
+    if (data.status !== JobStatus.Completed) {
+      throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
+    }
+
+    if (
+      data.result?.content === undefined ||
+      data.result.content === null ||
+      data.result.content.length === 0
+    ) {
+      throw new Error('No transcript in job result');
+    }
+
+    logger.info({ jobId: data.jobId }, 'Transcription completed');
+
+    return {
+      content: data.result.content,
+      provider: data.result.provider,
+      metadata: data.result.metadata,
+    };
   }
 
   /**
