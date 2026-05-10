@@ -83,6 +83,7 @@ describe('AudioTranscriptionJob', () => {
         content: 'Mocked transcription text',
         attachmentUrl: 'https://example.com/audio.ogg',
         attachmentName: 'audio.ogg',
+        provider: 'voice-engine',
         metadata: {
           processingTimeMs: 1000,
           duration: 10,

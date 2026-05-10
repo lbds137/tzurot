@@ -14,8 +14,9 @@ import {
   type GetChannelSettingsResponse,
   type GetAdminSettingsResponse,
   type DenylistCacheResponse,
+  type SttProvider,
 } from '@tzurot/common-types';
-import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
+import type { LoadedPersonality, MessageContext, TranscribeResponse } from '../types.js';
 
 const logger = createLogger('GatewayClient');
 const config = getConfig();
@@ -158,6 +159,8 @@ export class GatewayClient {
     userId?: string
   ): Promise<{
     content: string;
+    /** Which STT provider produced the transcript; surfaced as user-visible attribution. */
+    provider?: SttProvider;
     metadata?: {
       processingTimeMs?: number;
     };
@@ -181,7 +184,7 @@ export class GatewayClient {
         throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
       }
 
-      const data = (await response.json()) as GenerateResponse;
+      const data = (await response.json()) as TranscribeResponse;
 
       if (data.status !== JobStatus.Completed) {
         throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
@@ -199,6 +202,7 @@ export class GatewayClient {
 
       return {
         content: data.result.content,
+        provider: data.result.provider,
         metadata: data.result.metadata,
       };
     } catch (error) {

@@ -33,6 +33,7 @@ import {
 } from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
+import type { SttProvider } from './sttProvider.js';
 
 /**
  * Job dependency - represents a preprocessing job that must complete first
@@ -201,6 +202,8 @@ export interface AudioTranscriptionResult {
   sourceReferenceNumber?: number;
   /** Error message if failed */
   error?: string;
+  /** Which STT provider produced the transcript; surfaced as user-visible attribution. */
+  provider?: SttProvider;
   metadata?: {
     processingTimeMs?: number;
     duration?: number;

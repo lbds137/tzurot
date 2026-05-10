@@ -110,6 +110,7 @@ export async function processAudioTranscriptionJob(
       attachmentUrl: attachment.url,
       attachmentName: attachment.name,
       sourceReferenceNumber,
+      provider: sttOpts.provider,
       metadata: {
         processingTimeMs: result.totalTimeMs,
         duration: attachment.duration,

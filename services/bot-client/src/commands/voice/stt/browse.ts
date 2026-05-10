@@ -45,23 +45,23 @@ export async function handleSttBrowse(context: DeferredCommandContext): Promise<
       defaultResult.ok && defaultResult.data.default.providerId !== null
         ? sttProviderDisplayName(defaultResult.data.default.providerId)
         : null;
-    const adminDefault =
+    const voiceProviderDefault =
       providerResult.ok && providerResult.data.providerId !== null
         ? sttProviderDisplayName(providerResult.data.providerId)
         : null;
 
     const lines: string[] = [];
-    lines.push(`**User-default STT:** ${userDefault ?? '_(not set — cascade falls through)_'}`);
-    lines.push(`**Admin default provider:** ${adminDefault ?? '_(not set)_'}`);
+    lines.push(`**Default transcription provider:** ${userDefault ?? '_(not set)_'}`);
+    lines.push(`**Default voice provider:** ${voiceProviderDefault ?? '_(not set)_'}`);
     lines.push('');
 
     if (overrides.length === 0) {
-      lines.push('_No per-personality STT overrides set._');
+      lines.push('_No per-personality transcription preferences set._');
       lines.push(
-        'Use `/voice stt set <personality> <provider>` to override STT for a specific personality.'
+        'Use `/voice stt set <personality> <provider>` to pick a transcription provider for a specific personality.'
       );
     } else {
-      lines.push(`**Per-personality overrides (${overrides.length}):**`);
+      lines.push(`**Per-personality preferences (${overrides.length}):**`);
       for (const o of overrides) {
         const providerLabel =
           o.providerId !== null ? sttProviderDisplayName(o.providerId) : '_(cleared)_';
@@ -70,11 +70,11 @@ export async function handleSttBrowse(context: DeferredCommandContext): Promise<
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('🎤 Your STT Settings')
+      .setTitle('🎤 Your Transcription Settings')
       .setColor(DISCORD_COLORS.BLURPLE)
       .setDescription(lines.join('\n'))
       .setFooter({
-        text: 'Cascade: per-personality > user-default > TTS-derived > admin > fallback',
+        text: 'Per-personality preferences win over your defaults.',
       })
       .setTimestamp();
 

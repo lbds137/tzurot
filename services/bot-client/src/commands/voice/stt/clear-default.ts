@@ -36,11 +36,12 @@ export async function handleSttClearDefault(context: DeferredCommandContext): Pr
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ Default STT Provider Cleared')
+      .setTitle('✅ Transcription Default Cleared')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        'Your default STT provider has been removed.\n\n' +
-          'Cascade now resolves via TTS-derived → admin default → voice-engine fallback.'
+        'Your transcription default has been cleared.\n\n' +
+          'Voice messages will be transcribed by the same provider you use for speaking, ' +
+          'or by the free self-hosted engine if neither applies.'
       )
       .setTimestamp();
 

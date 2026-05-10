@@ -41,12 +41,11 @@ export async function handleSttSetDefault(context: DeferredCommandContext): Prom
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ Default STT Provider Set')
+      .setTitle('✅ Transcription Default Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your default STT provider is now **${sttProviderDisplayName(providerId)}**.\n\n` +
-          'Personalities without their own per-personality STT override will use this. ' +
-          'Personalities with overrides are unaffected.'
+        `🎤 **${sttProviderDisplayName(providerId)}** will now transcribe your voice messages.\n\n` +
+          '_Per-personality preferences take priority over this default._'
       )
       .setFooter({ text: 'Use /voice stt clear-default to remove this setting' })
       .setTimestamp();

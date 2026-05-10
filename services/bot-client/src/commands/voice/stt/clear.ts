@@ -1,8 +1,9 @@
 /**
  * Voice STT Clear Handler
- * Handles /voice stt clear <personality> — clears the per-personality STT
- * override (Layer 1 of the cascade). Cascade falls through to user-default
- * (Layer 2) on the next transcription for that personality.
+ *
+ * Handles /voice stt clear <personality> — removes the per-personality
+ * transcription preference. Subsequent voice messages to that personality
+ * use the user's default transcription provider (or the free fallback).
  */
 
 import {
@@ -41,24 +42,32 @@ export async function handleSttClear(context: DeferredCommandContext): Promise<v
     );
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status, personalityId }, 'Failed to clear STT override');
-      await context.editReply({ content: `❌ Failed to clear STT: ${result.error}` });
+      logger.warn(
+        { userId, status: result.status, personalityId },
+        'Failed to clear transcription preference'
+      );
+      await context.editReply({
+        content: `❌ Failed to clear transcription preference: ${result.error}`,
+      });
       return;
     }
 
     const wasSet = result.data.wasSet !== false;
     const embed = wasSet
       ? createSuccessEmbed(
-          '🔄 STT Override Removed',
-          'The personality will now use the cascade fallback for transcription.'
+          '✅ Transcription Preference Removed',
+          'This personality will now use your default transcription provider.'
         )
-      : createInfoEmbed('ℹ️ No Override Set', 'This personality had no STT override.');
+      : createInfoEmbed(
+          'ℹ️ Nothing to Remove',
+          'This personality has no transcription preference set.'
+        );
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId, wasSet }, 'Cleared STT override');
+    logger.info({ userId, personalityId, wasSet }, 'Cleared transcription preference');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'STT Clear' }, 'Error');
+    logger.error({ err: error, userId, command: 'voice stt clear' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }
