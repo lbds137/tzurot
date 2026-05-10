@@ -98,7 +98,13 @@ async function processSingleAttachment(
     attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
     attachment.isVoiceMessage === true
   ) {
-    const description = await transcribeAudio(attachment, elevenlabsApiKey);
+    // In-band attachment STT preserves prior shape (ElevenLabs-or-voice-engine).
+    // Full SttResolver wiring for this path is a future enhancement — the PR
+    // 2 STT cutover only flows through the dedicated AudioTranscriptionJob.
+    const description = await transcribeAudio(attachment, {
+      provider: elevenlabsApiKey !== undefined ? 'elevenlabs' : 'voice-engine',
+      apiKey: elevenlabsApiKey,
+    });
     logger.info({ name: attachment.name }, 'Processed audio attachment');
     return {
       type: AttachmentType.Audio,

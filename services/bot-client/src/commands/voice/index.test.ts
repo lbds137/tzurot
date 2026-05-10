@@ -83,12 +83,13 @@ describe('Voice Command', () => {
   });
 
   describe('command data', () => {
-    it('registers as /voice with two subcommand groups', () => {
+    it('registers as /voice with the full top-level shape', () => {
       const json = data.toJSON();
       expect(json.name).toBe('voice');
 
       const groups = (json.options ?? []).map(opt => opt.name).sort();
-      expect(groups).toEqual(['tts', 'voices']);
+      // top-level: 4 subcommand groups + 1 direct subcommand (`view`)
+      expect(groups).toEqual(['provider', 'stt', 'tts', 'view', 'voices']);
     });
 
     it('exposes the symmetric tts subcommand naming', () => {
@@ -164,7 +165,7 @@ describe('Voice Command', () => {
     it('replies with error on unknown subcommand group', async () => {
       const ctx = createMockContext('whatever', 'unknown-group');
       await execute(ctx as any);
-      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ Unknown voice group.' });
+      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ Unknown voice subcommand.' });
     });
   });
 

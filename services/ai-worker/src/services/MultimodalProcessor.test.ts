@@ -155,10 +155,10 @@ describe('MultimodalProcessor', () => {
         size: 1024,
       };
 
-      const result = await transcribeAudio(attachment);
+      const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
       expect(result).toBe('Mocked transcription');
-      expect(mockTranscribeAudio).toHaveBeenCalledWith(attachment);
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(attachment, { provider: 'voice-engine' });
     });
 
     it('should handle transcription errors', async () => {
@@ -171,7 +171,9 @@ describe('MultimodalProcessor', () => {
 
       mockTranscribeAudio.mockRejectedValue(new Error('No STT provider available'));
 
-      await expect(transcribeAudio(attachment)).rejects.toThrow('No STT provider available');
+      await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
+        'No STT provider available'
+      );
     });
   });
 

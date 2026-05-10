@@ -99,6 +99,8 @@ export const REDIS_CHANNELS = {
   CONFIG_CASCADE_CACHE_INVALIDATION: 'cache:config-cascade-invalidation',
   /** Channel for broadcasting denylist cache invalidation events across bot-client instances */
   DENYLIST_CACHE_INVALIDATION: 'cache:denylist-invalidation',
+  /** Channel for broadcasting STT resolver cache invalidation events across services */
+  STT_RESOLVER_CACHE_INVALIDATION: 'cache:stt-resolver-invalidation',
 } as const;
 
 /**
