@@ -20,6 +20,13 @@ vi.mock('../redis.js', () => ({
   },
 }));
 
+// Hoisted spy so individual tests can flip `isBotOwner` per case without
+// re-mocking the whole common-types module. Default returns false (matches
+// the prod path for non-owner users).
+const { mockIsBotOwner } = vi.hoisted(() => ({
+  mockIsBotOwner: vi.fn((_id: string) => false),
+}));
+
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -32,6 +39,7 @@ vi.mock('@tzurot/common-types', async () => {
       }
       return chunks.length > 0 ? chunks : [content];
     }),
+    isBotOwner: mockIsBotOwner,
   };
 });
 
@@ -1364,6 +1372,127 @@ describe('DiscordResponseSender', () => {
           },
         ],
       });
+    });
+  });
+
+  describe('sendResponse - TTS owner-only notices', () => {
+    const noticeText = 'Voice reference for "emily" is 45.0s, exceeding 30s limit.';
+
+    it('renders the notice when recipient is the bot owner', async () => {
+      mockIsBotOwner.mockImplementation((id: string) => id === 'owner-id');
+      const mockChannel = createMockTextChannel('channel-1');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-1' });
+
+      await sender.sendResponse({
+        content: 'Hello.',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        ttsNotices: [noticeText],
+        recipientUserId: 'owner-id',
+      });
+
+      const sentContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      expect(sentContent).toContain(`-# ⚠️ ${noticeText}`);
+    });
+
+    it('omits the notice when recipient is not the bot owner', async () => {
+      mockIsBotOwner.mockReturnValue(false);
+      const mockChannel = createMockTextChannel('channel-2');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-2' });
+
+      await sender.sendResponse({
+        content: 'Hello.',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        ttsNotices: [noticeText],
+        recipientUserId: 'someone-else',
+      });
+
+      const sentContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      expect(sentContent).not.toContain('⚠️');
+      expect(sentContent).not.toContain(noticeText);
+    });
+
+    it('omits the notice when recipientUserId is missing (fail-closed)', async () => {
+      mockIsBotOwner.mockImplementation(() => true); // even if check would pass
+      const mockChannel = createMockTextChannel('channel-3');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-3' });
+
+      await sender.sendResponse({
+        content: 'Hello.',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        ttsNotices: [noticeText],
+        // recipientUserId intentionally absent
+      });
+
+      const sentContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      expect(sentContent).not.toContain('⚠️');
+      expect(mockIsBotOwner).not.toHaveBeenCalled();
+    });
+
+    it('omits the notice when the array is empty (defensive guard)', async () => {
+      // Distinct from `ttsNotices: undefined` — verifies the explicit `length === 0`
+      // branch in `buildOwnerOnlyTtsNoticeLines`. An owner sending a response with
+      // an empty notice array should see no warning lines AND no isBotOwner check.
+      mockIsBotOwner.mockImplementation(() => true);
+      const mockChannel = createMockTextChannel('channel-empty');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-empty' });
+
+      await sender.sendResponse({
+        content: 'Hello.',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        ttsNotices: [],
+        recipientUserId: 'owner-id',
+      });
+
+      const sentContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      expect(sentContent).not.toContain('⚠️');
+      expect(mockIsBotOwner).not.toHaveBeenCalled();
+    });
+
+    it('escapes markdown in the notice (defends against slug-injected formatting)', async () => {
+      mockIsBotOwner.mockImplementation((id: string) => id === 'owner-id');
+      const mockChannel = createMockTextChannel('channel-5');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-5' });
+
+      // A malicious or accidental slug containing markdown would otherwise
+      // render with unintended formatting in Discord. The slug travels
+      // through ai-worker → bot-client unescaped; the sender must escape
+      // before rendering.
+      const notice = 'Voice reference for "*evil_slug*" exceeds limit.';
+
+      await sender.sendResponse({
+        content: 'Hello.',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        ttsNotices: [notice],
+        recipientUserId: 'owner-id',
+      });
+
+      const sentContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      // discord.js escapeMarkdown turns *...* into \*...\* and _ into \_
+      expect(sentContent).toContain('\\*evil\\_slug\\*');
+      expect(sentContent).not.toContain('*evil_slug*');
+    });
+
+    it('renders multiple notices on separate lines', async () => {
+      mockIsBotOwner.mockImplementation((id: string) => id === 'owner-id');
+      const mockChannel = createMockTextChannel('channel-4');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-4' });
+
+      await sender.sendResponse({
+        content: 'Hello.',
+        personality: mockPersonality,
+        ...senderTargetFrom(mockMessage),
+        ttsNotices: ['First notice.', 'Second notice.'],
+        recipientUserId: 'owner-id',
+      });
+
+      const sentContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      expect(sentContent).toContain('-# ⚠️ First notice.');
+      expect(sentContent).toContain('-# ⚠️ Second notice.');
     });
   });
 });

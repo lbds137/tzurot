@@ -112,6 +112,16 @@ const generationPayloadSchema = z.object({
        *  Expected values: 'audio/wav' (voice-engine) or 'audio/mpeg' (ElevenLabs).
        *  Consumer defaults to .wav for unrecognized types. */
       ttsAudioContentType: z.string().optional(),
+      /** Bot-owner-visible diagnostics from the TTS dispatcher's fallback walk —
+       *  e.g., "Mistral skipped because reference audio exceeds 30s". Rendered
+       *  by bot-client only when the receiving user is the bot owner; silent
+       *  for other users (the audio still plays via fallback, no UX disruption).
+       *
+       *  Bounded to defend against a future contributor inadvertently sending
+       *  a notice that would push the response past Discord's 2000-char per-message
+       *  limit. The 500-char per-notice cap and 10-notice array cap each give 2x
+       *  headroom over the single-provider-chain worst case. */
+      ttsNotices: z.array(z.string().max(500)).max(10).optional(),
     })
     .optional(),
 });

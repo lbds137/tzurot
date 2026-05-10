@@ -64,16 +64,45 @@ export const STT_RESOLUTION_SOURCES = ['user-default', 'tts-derived', 'hardcoded
 export type SttResolutionSource = (typeof STT_RESOLUTION_SOURCES)[number];
 
 /**
+ * Display + canonical-URL metadata for each STT provider, kept as a single
+ * data table so adding a new provider is one entry — display name and
+ * canonical URL stay in sync automatically.
+ *
+ * `displayName` is the user-friendly label rendered in `/voice view` and
+ * transcript attribution footers. `infoUrl` points to the canonical model
+ * card / project page (vendor docs for Mistral + ElevenLabs, upstream
+ * HuggingFace card for the self-hosted Parakeet TDT model). There's no
+ * API-discoverable URL for either category, so these are hardcoded — when
+ * a vendor rebrands or relocates their docs, this is the one place to update.
+ */
+const STT_PROVIDER_METADATA: Record<SttProvider, { displayName: string; infoUrl: string }> = {
+  mistral: {
+    displayName: 'Mistral',
+    infoUrl: 'https://mistral.ai/news/voxtral',
+  },
+  elevenlabs: {
+    displayName: 'ElevenLabs',
+    infoUrl: 'https://elevenlabs.io/speech-to-text',
+  },
+  'voice-engine': {
+    displayName: 'Self-hosted (Parakeet TDT)',
+    infoUrl: 'https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2',
+  },
+};
+
+/**
  * User-friendly display name for an STT provider. Used by `/voice view`
  * dashboard sections and embed footers.
  */
 export function sttProviderDisplayName(provider: SttProvider): string {
-  switch (provider) {
-    case 'mistral':
-      return 'Mistral';
-    case 'elevenlabs':
-      return 'ElevenLabs';
-    case 'voice-engine':
-      return 'Self-hosted (Parakeet TDT)';
-  }
+  return STT_PROVIDER_METADATA[provider].displayName;
+}
+
+/**
+ * Canonical project / vendor page for an STT provider's transcription model.
+ * Used to render the transcript attribution as a clickable Discord link, mirroring
+ * the LLM model footer's `Model: [name](<url>)` shape.
+ */
+export function sttProviderInfoUrl(provider: SttProvider): string {
+  return STT_PROVIDER_METADATA[provider].infoUrl;
 }
