@@ -5,9 +5,17 @@
  * Sends transcription to Discord and stores in Redis for personality processing.
  */
 
-import type { Message } from 'discord.js';
+import type { Message, MessageMentionOptions } from 'discord.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
-import { splitMessage, createLogger, CONTENT_TYPES, isTimeoutError } from '@tzurot/common-types';
+import {
+  splitMessage,
+  createLogger,
+  CONTENT_TYPES,
+  DISCORD_LIMITS,
+  isTimeoutError,
+  sttProviderDisplayName,
+  type SttProvider,
+} from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
 import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
 import { sendTypingIndicator } from '../utils/typingErrorClassifier.js';
@@ -17,6 +25,42 @@ const logger = createLogger('VoiceTranscriptionService');
 
 /** Interval for refreshing the typing indicator (Discord expires at ~10s, matches JobTracker.ts) */
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
+
+/** Uses Discord `-#` subtext so the line renders small+muted under the transcript. */
+function formatProviderAttribution(provider?: SttProvider): string | null {
+  if (provider === undefined) {
+    return null;
+  }
+  return `-# transcribed by ${sttProviderDisplayName(provider)}`;
+}
+
+/** Inlines attribution on the last chunk; spills to a follow-up reply when inlining would exceed Discord's 2000-char limit (50035). */
+async function sendTranscriptChunks(
+  message: Message,
+  chunks: string[],
+  attribution: string | null
+): Promise<void> {
+  const allowedMentions: MessageMentionOptions = { parse: [], repliedUser: false };
+
+  for (let i = 0; i < chunks.length; i++) {
+    const isLast = i === chunks.length - 1;
+
+    // Non-last chunks (and last chunk with no attribution to append) just go out as-is.
+    if (!isLast || attribution === null) {
+      await message.reply({ content: chunks[i], allowedMentions });
+      continue;
+    }
+
+    // Last chunk + attribution present: try inline; spill to a follow-up if too long.
+    const withAttribution = `${chunks[i]}\n${attribution}`;
+    if (withAttribution.length > DISCORD_LIMITS.MESSAGE_LENGTH) {
+      await message.reply({ content: chunks[i], allowedMentions });
+      await message.reply({ content: attribution, allowedMentions });
+    } else {
+      await message.reply({ content: withAttribution, allowedMentions });
+    }
+  }
+}
 
 /** Attachment info for transcription */
 interface TranscriptionAttachment {
@@ -256,14 +300,10 @@ export class VoiceTranscriptionService {
         );
       }
 
-      // Send each chunk as a reply (these will appear BEFORE personality webhook response)
-      // Don't ping the user - they already know they sent a voice message
-      for (const chunk of chunks) {
-        await message.reply({
-          content: chunk,
-          allowedMentions: { parse: [], repliedUser: false },
-        });
-      }
+      // Send chunks + the attribution suffix to Discord as message replies.
+      // These appear BEFORE the personality webhook response so the user
+      // sees their transcript first.
+      await sendTranscriptChunks(message, chunks, formatProviderAttribution(response.provider));
 
       // Determine if we should continue to personality handler
       const continueToPersonalityHandler = hasMention || isReply;

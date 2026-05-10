@@ -25,35 +25,35 @@ import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js'
 
 const logger = createLogger('voice-view');
 
-/** User-friendly name for an STT cascade source layer. */
+/** Friendly description of why this provider was chosen for transcription. */
 function sttSourceLabel(source: SttResolutionSource): string {
   switch (source) {
     case 'user-personality':
-      return 'per-personality override';
+      return 'set for this personality';
     case 'user-default':
-      return 'your user-default';
+      return 'your transcription default';
     case 'tts-derived':
-      return 'derived from your TTS choice';
+      return 'matches your TTS choice';
     case 'admin-default':
-      return 'your /voice provider baseline';
+      return 'your default voice provider';
     case 'hardcoded':
-      return 'free-tier fallback';
+      return 'free fallback';
   }
 }
 
-/** User-friendly name for a TTS cascade source layer. */
+/** Friendly description of why this provider was chosen for speaking. */
 function ttsSourceLabel(source: TtsResolutionSource): string {
   switch (source) {
     case 'user-personality':
-      return 'per-personality override';
+      return 'set for this personality';
     case 'user-default':
-      return 'your user-default';
+      return 'your TTS default';
     case 'personality':
       return 'personality default';
     case 'free-default':
-      return 'system free default';
+      return 'system default';
     case 'hardcoded':
-      return 'self-hosted fallback';
+      return 'free fallback';
   }
 }
 
@@ -112,7 +112,7 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
         { name: '📚 Cloned Voices', value: voicesLine, inline: false }
       )
       .setFooter({
-        text: 'Cascade: per-personality > user-default > TTS-derived > admin > fallback',
+        text: 'Per-personality settings win over your defaults.',
       })
       .setTimestamp();
 

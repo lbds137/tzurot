@@ -183,6 +183,35 @@ describe('GatewayClient', () => {
       });
     });
 
+    it('passes the provider field through when present in the result', async () => {
+      // Pins the field through the response shape: an unsafe cast back to
+      // GenerateResponse (which lacks `provider`) would silently drop it.
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            jobId: 'job-1',
+            status: JobStatus.Completed,
+            result: {
+              content: 'Transcribed text',
+              provider: 'mistral',
+              metadata: { processingTimeMs: 1500 },
+            },
+          }),
+      });
+
+      const result = await client.transcribe([
+        { url: 'http://audio.test/file.ogg', contentType: 'audio/ogg' },
+      ]);
+
+      expect(result).toEqual({
+        content: 'Transcribed text',
+        provider: 'mistral',
+        metadata: { processingTimeMs: 1500 },
+      });
+    });
+
     it('should throw on non-ok response', async () => {
       const client = new GatewayClient('http://test.gateway');
       mockFetch.mockResolvedValueOnce({

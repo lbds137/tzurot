@@ -272,6 +272,57 @@ describe('VoiceTranscriptionService', () => {
       );
     });
 
+    it('appends a Discord subtext attribution to the last chunk when provider is known', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Hello there',
+        provider: 'mistral',
+      });
+
+      await service.transcribe(message, false, false);
+
+      // Single chunk → attribution appended to the only reply
+      expect(message.reply).toHaveBeenCalledWith({
+        content: 'Hello there\n-# transcribed by Mistral',
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
+    it('omits attribution when provider is unknown (silent rather than ugly)', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Hello there',
+        // no provider field
+      });
+
+      await service.transcribe(message, false, false);
+
+      expect(message.reply).toHaveBeenCalledWith({
+        content: 'Hello there',
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
     it('should set continueToPersonalityHandler=true when hasMention=true', async () => {
       const message = createMockMessage({
         attachments: [
@@ -342,6 +393,75 @@ describe('VoiceTranscriptionService', () => {
 
       // Should send multiple replies (mocked to create 2 chunks)
       expect(message.reply).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to a separate attribution message when inline would exceed the 2000-char limit', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 30.0,
+          },
+        ],
+      });
+
+      // 4000-char transcript → splits into [2000, 2000]. Inlining attribution
+      // on the last chunk would yield 2045+ chars, tripping Discord's 50035
+      // error. Verify the helper falls back to a separate follow-up reply.
+      const longTranscript = 'x'.repeat(4000);
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: longTranscript,
+        provider: 'voice-engine', // longest display name → worst-case overflow
+      });
+
+      await service.transcribe(message, false, false);
+
+      // Expect 3 replies: chunk1 (2000), chunk2 (2000, raw), attribution (~46)
+      expect(message.reply).toHaveBeenCalledTimes(3);
+      const calls = (message.reply as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls[0][0].content).toBe('x'.repeat(2000));
+      expect(calls[1][0].content).toBe('x'.repeat(2000));
+      expect(calls[1][0].content).not.toContain('-# transcribed by');
+      expect(calls[2][0].content).toBe('-# transcribed by Self-hosted (Parakeet TDT)');
+    });
+
+    it('attaches the provider attribution only to the LAST chunk on multi-chunk transcripts', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 30.0,
+          },
+        ],
+      });
+
+      // 3000-char transcript splits into two 2000-char chunks via the mocked
+      // splitMessage at the top of this file. Pin the invariant that the
+      // attribution rides only on the final chunk so future loop changes
+      // can't silently put it on every chunk or skip it entirely.
+      const longTranscript = 'x'.repeat(3000);
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: longTranscript,
+        provider: 'mistral',
+      });
+
+      await service.transcribe(message, false, false);
+
+      expect(message.reply).toHaveBeenCalledTimes(2);
+      const calls = (message.reply as ReturnType<typeof vi.fn>).mock.calls;
+
+      // First chunk: raw, no attribution
+      expect(calls[0][0].content).toBe('x'.repeat(2000));
+      expect(calls[0][0].content).not.toContain('-# transcribed by');
+
+      // Last chunk: ends with the attribution line
+      expect(calls[1][0].content).toBe(`${'x'.repeat(1000)}\n-# transcribed by Mistral`);
     });
 
     it('should handle missing contentType gracefully', async () => {

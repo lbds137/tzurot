@@ -19,12 +19,13 @@ import type {
   GenerateResponse,
   LoadedPersonality,
   RequestContext,
+  TranscribeResponse,
 } from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
 import type { DeferralMode, SafeCommandContext } from './utils/commandContext/index.js';
 
 // Re-export shared API types
-export type { GenerateResponse, LoadedPersonality };
+export type { GenerateResponse, LoadedPersonality, TranscribeResponse };
 
 /**
  * Message context for AI generation

@@ -7,6 +7,7 @@
 
 import { JobStatus } from '../constants/index.js';
 import type { LLMGenerationResult } from './schemas/index.js';
+import type { AudioTranscriptionResult } from './jobs.js';
 
 // Re-export schema-derived types
 export type {
@@ -64,5 +65,20 @@ export interface GenerateResponse {
   status: JobStatus;
   // When wait=true, includes the result directly (uses full LLMGenerationResult)
   result?: LLMGenerationResult;
+  timestamp?: string;
+}
+
+/**
+ * Response from /ai/transcribe endpoint
+ *
+ * Same envelope shape as GenerateResponse but typed against
+ * AudioTranscriptionResult so the `provider` field is reachable on the
+ * caller side without unsafe casts.
+ */
+export interface TranscribeResponse {
+  jobId: string;
+  requestId: string;
+  status: JobStatus;
+  result?: AudioTranscriptionResult;
   timestamp?: string;
 }

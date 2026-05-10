@@ -42,9 +42,10 @@ export async function handleProviderSet(context: DeferredCommandContext): Promis
       .setTitle('✅ Voice Provider Default Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `Your foundational voice provider is now **${sttProviderDisplayName(providerId)}**.\n\n` +
-          'This is the baseline both TTS and STT cascade through if no other layer wins. ' +
-          'Use `/voice tts set-default` or `/voice stt set-default` to override on a per-direction basis.'
+        `**${sttProviderDisplayName(providerId)}** will now handle both:\n` +
+          '🔊 **Speaking** — when the bot replies with audio\n' +
+          '🎤 **Listening** — when you send voice messages\n\n' +
+          '_Per-personality choices take priority over this default._'
       )
       .setFooter({ text: 'Use /voice provider clear to remove this setting' })
       .setTimestamp();
