@@ -89,7 +89,8 @@ describe('Voice Command', () => {
 
       const groups = (json.options ?? []).map(opt => opt.name).sort();
       // top-level: 4 subcommand groups + 1 direct subcommand (`view`)
-      expect(groups).toEqual(['provider', 'stt', 'tts', 'view', 'voices']);
+      // top-level: 3 subcommand groups (tts/stt/voices) + 1 direct subcommand (view)
+      expect(groups).toEqual(['stt', 'tts', 'view', 'voices']);
     });
 
     it('exposes the symmetric tts subcommand naming', () => {

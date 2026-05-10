@@ -1,7 +1,8 @@
 /**
  * Voice STT Set Handler
- * Handles /voice stt set <personality> <provider> — Layer 1 of the STT cascade
- * (per-personality override on User PersonalityConfig.sttProviderId).
+ * Handles /voice stt set <provider> — writes User.defaultSttProviderId
+ * (the user's transcription preference). One per user; STT is speaker-bound
+ * so there's no per-personality dimension.
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -10,14 +11,10 @@ import {
   DISCORD_COLORS,
   voiceSttSetOptions,
   sttProviderDisplayName,
-  type SetSttOverrideResponse,
+  type SetSttDefaultProviderResponse,
   type SttProvider,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
-  isAutocompleteErrorSentinel,
-} from '../../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('voice-stt-set');
@@ -26,47 +23,40 @@ const logger = createLogger('voice-stt-set');
 export async function handleSttSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = voiceSttSetOptions(context.interaction);
-  const personalityId = options.personality();
   const providerId = options.provider() as SttProvider;
 
-  if (isAutocompleteErrorSentinel(personalityId)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return;
-  }
-
   try {
-    const result = await callGatewayApi<SetSttOverrideResponse>('/user/stt-override', {
+    const result = await callGatewayApi<SetSttDefaultProviderResponse>('/user/stt-override', {
       method: 'PUT',
       user: toGatewayUser(context.user),
-      body: { personalityId, providerId },
+      body: { providerId },
     });
 
     if (!result.ok) {
       logger.warn(
-        { userId, status: result.status, personalityId, providerId },
-        'Failed to set STT override'
+        { userId, status: result.status, providerId },
+        'Failed to set transcription provider'
       );
-      await context.editReply({ content: `❌ Failed to set STT override: ${result.error}` });
+      await context.editReply({
+        content: `❌ Failed to set transcription provider: ${result.error}`,
+      });
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ Transcription Preference Set')
+      .setTitle('✅ Transcription Provider Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `🎤 Your voice messages to **${result.data.override.personalityName}** will now be transcribed by **${sttProviderDisplayName(providerId)}**.`
+        `🎤 **${sttProviderDisplayName(providerId)}** will now transcribe your voice messages.`
       )
       .setFooter({ text: 'Use /voice stt clear to remove this preference' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info(
-      { userId, personalityId, personalityName: result.data.override.personalityName, providerId },
-      'Set STT override'
-    );
+    logger.info({ userId, providerId }, 'Set transcription provider');
   } catch (error) {
-    logger.error({ err: error, userId, command: 'STT Set' }, 'Error');
+    logger.error({ err: error, userId, command: 'voice stt set' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

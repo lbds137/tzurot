@@ -1,8 +1,7 @@
 /**
- * Tests for /user/voice-resolution route — exercises the inline cascade
- * computation directly. The TtsConfigResolver and fetchAllTzurotVoices
- * dependencies are mocked at the boundary so we only validate the
- * route's orchestration + cascade ordering.
+ * Tests for /user/voice-resolution route. Mocks TtsConfigResolver,
+ * SttResolver, and fetchAllTzurotVoices at the boundary so we only validate
+ * the route's orchestration.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -31,6 +30,7 @@ vi.mock('./voices.js', () => ({
 }));
 
 const mockResolveConfig = vi.fn();
+const mockResolveStt = vi.fn();
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   class FakeTtsConfigResolver {
@@ -38,10 +38,16 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       return mockResolveConfig(...args);
     }
   }
+  class FakeSttResolver {
+    resolveProvider(...args: unknown[]) {
+      return mockResolveStt(...args);
+    }
+  }
   return {
     ...actual,
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     TtsConfigResolver: FakeTtsConfigResolver,
+    SttResolver: FakeSttResolver,
   };
 });
 
@@ -94,21 +100,14 @@ describe('user/voice-resolution route', () => {
   });
 
   it('returns the resolved tts/stt/voices payload on the happy path', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({
-      id: VALID_PERSONALITY_ID,
-      name: 'Alice',
-      defaultTtsConfigLink: { ttsConfigId: 'tts-1' },
-    });
-    mockPrisma.user.findUnique.mockResolvedValue({
-      defaultProvider: null,
-      defaultSttProviderId: null,
-      personalityConfigs: [],
-    });
+    mockPrisma.personality.findFirst.mockResolvedValue({ id: VALID_PERSONALITY_ID, name: 'Alice' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
       config: { provider: 'mistral' },
       source: 'user-default',
       configName: 'mistral-default',
     });
+    mockResolveStt.mockResolvedValue({ provider: 'mistral', source: 'tts-derived' });
     mockResolveAudioProviderKeys.mockResolvedValue({
       keys: new Map([['mistral', 'sk-test']]),
     });
@@ -140,50 +139,14 @@ describe('user/voice-resolution route', () => {
     );
   });
 
-  it('STT cascade picks user-personality (Layer 1) over everything else', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({
-      id: VALID_PERSONALITY_ID,
-      name: 'Alice',
-      defaultTtsConfigLink: null,
-    });
-    mockPrisma.user.findUnique.mockResolvedValue({
-      defaultProvider: 'mistral',
-      defaultSttProviderId: 'mistral',
-      personalityConfigs: [{ sttProviderId: 'voice-engine' }],
-    });
-    mockResolveConfig.mockResolvedValue({
-      config: { provider: 'mistral' },
-      source: 'user-default',
-    });
-    mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
-
-    const handler = extractHandler(buildRouter(), 'get', '/');
-    const { res, json } = makeMockRes();
-
-    await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
-
-    expect(json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stt: { provider: 'voice-engine', source: 'user-personality' },
-      })
-    );
-  });
-
-  it('STT cascade falls through to hardcoded when nothing else applies', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({
-      id: VALID_PERSONALITY_ID,
-      name: 'Alice',
-      defaultTtsConfigLink: null,
-    });
-    mockPrisma.user.findUnique.mockResolvedValue({
-      defaultProvider: null,
-      defaultSttProviderId: null,
-      personalityConfigs: [],
-    });
+  it('STT resolution is delegated to SttResolver (returns whatever it returns)', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue({ id: VALID_PERSONALITY_ID, name: 'Alice' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
       config: { provider: 'self-hosted' },
       source: 'hardcoded',
     });
+    mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
     mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
 
     const handler = extractHandler(buildRouter(), 'get', '/');
@@ -191,6 +154,7 @@ describe('user/voice-resolution route', () => {
 
     await handler(makeMockReq({ personalityId: VALID_PERSONALITY_ID }), res);
 
+    expect(mockResolveStt).toHaveBeenCalledWith('111111111111111111');
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({
         stt: { provider: 'voice-engine', source: 'hardcoded' },
@@ -199,20 +163,13 @@ describe('user/voice-resolution route', () => {
   });
 
   it('returns empty voice summary when user has no audio provider keys', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({
-      id: VALID_PERSONALITY_ID,
-      name: 'Alice',
-      defaultTtsConfigLink: null,
-    });
-    mockPrisma.user.findUnique.mockResolvedValue({
-      defaultProvider: null,
-      defaultSttProviderId: null,
-      personalityConfigs: [],
-    });
+    mockPrisma.personality.findFirst.mockResolvedValue({ id: VALID_PERSONALITY_ID, name: 'Alice' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-uuid-1' });
     mockResolveConfig.mockResolvedValue({
       config: { provider: 'self-hosted' },
       source: 'hardcoded',
     });
+    mockResolveStt.mockResolvedValue({ provider: 'voice-engine', source: 'hardcoded' });
     mockResolveAudioProviderKeys.mockResolvedValue({ keys: new Map() });
 
     const handler = extractHandler(buildRouter(), 'get', '/');
@@ -230,11 +187,6 @@ describe('user/voice-resolution route', () => {
 
   it('returns 404 when personality is missing', async () => {
     mockPrisma.personality.findFirst.mockResolvedValue(null);
-    mockPrisma.user.findUnique.mockResolvedValue({
-      defaultProvider: null,
-      defaultSttProviderId: null,
-      personalityConfigs: [],
-    });
 
     const handler = extractHandler(buildRouter(), 'get', '/');
     const { res, status } = makeMockRes();

@@ -49,7 +49,7 @@ export function isSttProvider(value: string): value is SttProvider {
  */
 const BYOK_AUDIO_PROVIDERS = new Set<string>(['mistral', 'elevenlabs']);
 
-/** True when a TTS provider also serves as the BYOK STT provider via Layer 3. */
+/** True when a TTS provider also serves as the BYOK STT provider via the tts-derived layer. */
 export function isByokAudioProvider(provider: string): provider is 'mistral' | 'elevenlabs' {
   return BYOK_AUDIO_PROVIDERS.has(provider);
 }
@@ -60,13 +60,7 @@ export function isByokAudioProvider(provider: string): provider is 'mistral' | '
  * `packages/common-types/src/schemas/api/voice-resolution.ts` builds its enum
  * from this tuple — keeping the runtime values and the type in one place.
  */
-export const STT_RESOLUTION_SOURCES = [
-  'user-personality',
-  'user-default',
-  'tts-derived',
-  'admin-default',
-  'hardcoded',
-] as const;
+export const STT_RESOLUTION_SOURCES = ['user-default', 'tts-derived', 'hardcoded'] as const;
 export type SttResolutionSource = (typeof STT_RESOLUTION_SOURCES)[number];
 
 /**

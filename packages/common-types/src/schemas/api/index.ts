@@ -35,9 +35,6 @@ export * from './tts-override.js';
 // STT Override endpoints (per-personality + user default STT provider)
 export * from './stt-override.js';
 
-// Voice provider foundational default (User.defaultProvider — set by /voice provider)
-export * from './voice-provider.js';
-
 // Voice resolution aggregate read endpoint backing /voice view
 export * from './voice-resolution.js';
 

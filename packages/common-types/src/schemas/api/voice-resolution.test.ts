@@ -11,20 +11,18 @@ import {
 
 describe('voice-resolution schemas', () => {
   describe('SttResolutionSourceSchema', () => {
-    it('accepts the 5 cascade source values', () => {
-      for (const s of [
-        'user-personality',
-        'user-default',
-        'tts-derived',
-        'admin-default',
-        'hardcoded',
-      ]) {
+    it('accepts the 3 cascade source values', () => {
+      for (const s of ['user-default', 'tts-derived', 'hardcoded']) {
         expect(SttResolutionSourceSchema.parse(s)).toBe(s);
       }
     });
 
     it('rejects unknown source values', () => {
       expect(() => SttResolutionSourceSchema.parse('personality')).toThrow();
+      // Per-personality + admin-default layers were removed when STT collapsed
+      // to a speaker-bound cascade; their string values are no longer valid.
+      expect(() => SttResolutionSourceSchema.parse('user-personality')).toThrow();
+      expect(() => SttResolutionSourceSchema.parse('admin-default')).toThrow();
     });
   });
 

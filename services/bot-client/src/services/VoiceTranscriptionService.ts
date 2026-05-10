@@ -34,7 +34,7 @@ function formatProviderAttribution(provider?: SttProvider): string | null {
   return `-# transcribed by ${sttProviderDisplayName(provider)}`;
 }
 
-/** Inlines attribution on the last chunk; spills to a follow-up reply when inlining would exceed Discord's 2000-char limit (50035). */
+/** Inlines attribution on the last chunk; spills to a follow-up reply when inlining would exceed Discord's per-message length limit. */
 async function sendTranscriptChunks(
   message: Message,
   chunks: string[],

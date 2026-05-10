@@ -28,14 +28,10 @@ const logger = createLogger('voice-view');
 /** Friendly description of why this provider was chosen for transcription. */
 function sttSourceLabel(source: SttResolutionSource): string {
   switch (source) {
-    case 'user-personality':
-      return 'set for this personality';
     case 'user-default':
-      return 'your transcription default';
+      return 'your transcription preference';
     case 'tts-derived':
       return 'matches your TTS choice';
-    case 'admin-default':
-      return 'your default voice provider';
     case 'hardcoded':
       return 'free fallback';
   }
