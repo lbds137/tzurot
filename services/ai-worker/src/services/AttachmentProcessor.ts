@@ -187,11 +187,20 @@ async function processVoiceAttachment(
       { referenceNumber, url: attachment.url, duration: attachment.duration },
       'Transcribing voice message'
     );
-    const result = await withRetry(() => transcribeAudio(attachment, elevenlabsApiKey), {
-      maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
-      logger,
-      operationName: `Voice transcription (reference ${referenceNumber})`,
-    });
+    // In-band attachment STT preserves prior shape (ElevenLabs-or-voice-engine).
+    // PR-2 STT cutover only flows through the dedicated AudioTranscriptionJob.
+    const result = await withRetry(
+      () =>
+        transcribeAudio(attachment, {
+          provider: elevenlabsApiKey !== undefined ? 'elevenlabs' : 'voice-engine',
+          apiKey: elevenlabsApiKey,
+        }),
+      {
+        maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        logger,
+        operationName: `Voice transcription (reference ${referenceNumber})`,
+      }
+    );
     return { index, line: `- Voice Message (${attachment.duration}s): "${result.value}"` };
   } catch (error) {
     logger.error(

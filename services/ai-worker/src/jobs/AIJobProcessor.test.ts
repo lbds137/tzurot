@@ -121,6 +121,19 @@ function createMockApiKeyResolver(elevenlabsApiKey?: string): ApiKeyResolver {
   } as unknown as ApiKeyResolver;
 }
 
+/** Minimal SttResolver double — only the two methods the audio path calls. */
+function createMockSttResolver(
+  provider: 'mistral' | 'elevenlabs' | 'voice-engine' = 'voice-engine'
+) {
+  return {
+    resolveProviderForTranscription: vi.fn().mockResolvedValue({
+      provider,
+      source: provider === 'voice-engine' ? 'hardcoded' : 'user-default',
+    }),
+    invalidateUserCache: vi.fn(),
+  } as never;
+}
+
 function createMockJob<T>(data: T, id = 'job-123'): Job<T> {
   return {
     id,
@@ -213,7 +226,12 @@ describe('AIJobProcessor', () => {
 
         const result = await processor.processJob(job);
 
-        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, undefined);
+        // STT cascade with no user settings resolves to voice-engine; no API
+        // key is fetched for that provider so apiKey is undefined.
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, {
+          provider: 'voice-engine',
+          apiKey: undefined,
+        });
         expect(result).toEqual(audioResult);
       });
 
@@ -279,13 +297,15 @@ describe('AIJobProcessor', () => {
         );
       });
 
-      it('should resolve and pass ElevenLabs API key to audio transcription job', async () => {
+      it('resolves ElevenLabs API key when STT cascade picks elevenlabs', async () => {
         const elApiKey = 'el-test-key-abc';
         const mockResolver = createMockApiKeyResolver(elApiKey);
+        const mockStt = createMockSttResolver('elevenlabs');
         const processorWithResolver = new AIJobProcessor({
           prisma: mockPrisma,
           ragService: mockRAGService,
           apiKeyResolver: mockResolver,
+          sttResolver: mockStt,
         });
 
         vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
@@ -294,15 +314,39 @@ describe('AIJobProcessor', () => {
         await processorWithResolver.processJob(job);
 
         expect(mockResolver.resolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.ElevenLabs);
-        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, elApiKey);
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, {
+          provider: 'elevenlabs',
+          apiKey: elApiKey,
+        });
       });
 
-      it('should pass undefined ElevenLabs key when user is in guest mode', async () => {
-        const mockResolver = createMockApiKeyResolver(); // No ElevenLabs key
+      it('resolves Mistral API key when STT cascade picks mistral', async () => {
+        const mistralKey = 'mistral-test-key';
+        const mockResolver = {
+          resolveApiKey: vi.fn().mockImplementation((_userId: string, provider: AIProvider) => {
+            if (provider === AIProvider.Mistral) {
+              return Promise.resolve({
+                apiKey: mistralKey,
+                source: 'user',
+                provider: AIProvider.Mistral,
+                isGuestMode: false,
+              });
+            }
+            return Promise.resolve({
+              apiKey: 'system-key',
+              source: 'system',
+              provider,
+              isGuestMode: true,
+            });
+          }),
+          invalidateCacheForUser: vi.fn(),
+        } as unknown as ApiKeyResolver;
+        const mockStt = createMockSttResolver('mistral');
         const processorWithResolver = new AIJobProcessor({
           prisma: mockPrisma,
           ragService: mockRAGService,
           apiKeyResolver: mockResolver,
+          sttResolver: mockStt,
         });
 
         vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
@@ -310,16 +354,45 @@ describe('AIJobProcessor', () => {
 
         await processorWithResolver.processJob(job);
 
-        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, undefined);
+        expect(mockResolver.resolveApiKey).toHaveBeenCalledWith('user-123', AIProvider.Mistral);
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, {
+          provider: 'mistral',
+          apiKey: mistralKey,
+        });
       });
 
-      it('should pass undefined ElevenLabs key when resolver throws', async () => {
+      it('passes undefined apiKey when STT cascade picks voice-engine (no key needed)', async () => {
+        const mockResolver = createMockApiKeyResolver();
+        const mockStt = createMockSttResolver('voice-engine');
+        const processorWithResolver = new AIJobProcessor({
+          prisma: mockPrisma,
+          ragService: mockRAGService,
+          apiKeyResolver: mockResolver,
+          sttResolver: mockStt,
+        });
+
+        vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
+        const job = createMockJob(audioJobData, 'audio-job-123');
+
+        await processorWithResolver.processJob(job);
+
+        // voice-engine doesn't need a key, so resolveApiKey is skipped entirely.
+        expect(mockResolver.resolveApiKey).not.toHaveBeenCalled();
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, {
+          provider: 'voice-engine',
+          apiKey: undefined,
+        });
+      });
+
+      it('falls back to undefined apiKey when key resolver throws for the BYOK path', async () => {
         const mockResolver = createMockApiKeyResolver();
         vi.mocked(mockResolver.resolveApiKey).mockRejectedValue(new Error('DB error'));
+        const mockStt = createMockSttResolver('elevenlabs');
         const processorWithResolver = new AIJobProcessor({
           prisma: mockPrisma,
           ragService: mockRAGService,
           apiKeyResolver: mockResolver,
+          sttResolver: mockStt,
         });
 
         vi.mocked(processAudioTranscriptionJob).mockResolvedValue(audioResult);
@@ -327,8 +400,11 @@ describe('AIJobProcessor', () => {
 
         await processorWithResolver.processJob(job);
 
-        // Should gracefully fall back to no ElevenLabs key
-        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, undefined);
+        // AudioProcessor handles missing apiKey by falling through to voice-engine.
+        expect(processAudioTranscriptionJob).toHaveBeenCalledWith(job, {
+          provider: 'elevenlabs',
+          apiKey: undefined,
+        });
       });
     });
 

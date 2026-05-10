@@ -75,7 +75,7 @@ describe('AudioTranscriptionJob', () => {
         data: jobData,
       } as Job<AudioTranscriptionJobData>;
 
-      const result = await processAudioTranscriptionJob(job);
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
 
       expect(result).toEqual({
         requestId: 'test-req-audio-0',
@@ -130,7 +130,7 @@ describe('AudioTranscriptionJob', () => {
         return { value, attempts: 1, totalTimeMs: 100 };
       });
 
-      await processAudioTranscriptionJob(job);
+      await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
 
       // Verify shouldRetry callback rejects config errors
       const retryOpts = mockWithRetry.mock.calls[0][1];
@@ -176,7 +176,7 @@ describe('AudioTranscriptionJob', () => {
         };
       });
 
-      const result = await processAudioTranscriptionJob(job);
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
 
       expect(result.success).toBe(true);
       expect(result.content).toBe('Mocked transcription text');
@@ -212,7 +212,7 @@ describe('AudioTranscriptionJob', () => {
       // Simulate withRetry failing after all attempts
       mockWithRetry.mockRejectedValue(new Error('STT API timeout after 3 attempts'));
 
-      const result = await processAudioTranscriptionJob(job);
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
 
       expect(result).toMatchObject({
         requestId: 'test-req-audio-2',
@@ -250,7 +250,7 @@ describe('AudioTranscriptionJob', () => {
         data: jobData,
       } as Job<AudioTranscriptionJobData>;
 
-      const result = await processAudioTranscriptionJob(job);
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
 
       expect(result).toMatchObject({
         requestId: 'test-req-audio-3',
@@ -290,7 +290,7 @@ describe('AudioTranscriptionJob', () => {
         data: jobData,
       } as Job<AudioTranscriptionJobData>;
 
-      const result = await processAudioTranscriptionJob(job);
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
 
       expect(result.success).toBe(true);
       expect(result.content).toBe('Mocked transcription text');
@@ -324,16 +324,17 @@ describe('AudioTranscriptionJob', () => {
       } as Job<AudioTranscriptionJobData>;
 
       const testApiKey = 'el-test-key-123';
-      await processAudioTranscriptionJob(job, testApiKey);
+      const sttOpts = { provider: 'elevenlabs' as const, apiKey: testApiKey };
+      await processAudioTranscriptionJob(job, sttOpts);
 
       // Verify withRetry was called with a function that passes the key
       expect(mockWithRetry).toHaveBeenCalledTimes(1);
       const retryFn = mockWithRetry.mock.calls[0][0];
       await retryFn();
-      expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, testApiKey);
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, sttOpts);
     });
 
-    it('should not pass elevenlabsApiKey when not provided', async () => {
+    it('passes the resolved STT options through to transcribeAudio', async () => {
       const jobData: AudioTranscriptionJobData = {
         requestId: 'test-req-audio-nokey',
         jobType: JobType.AudioTranscription,
@@ -359,13 +360,14 @@ describe('AudioTranscriptionJob', () => {
         data: jobData,
       } as Job<AudioTranscriptionJobData>;
 
-      await processAudioTranscriptionJob(job);
+      const sttOpts = { provider: 'voice-engine' as const };
+      await processAudioTranscriptionJob(job, sttOpts);
 
-      // Verify withRetry was called with a function that does NOT pass a key
+      // Verify withRetry was called with a function that forwards the opts unchanged
       expect(mockWithRetry).toHaveBeenCalledTimes(1);
       const retryFn = mockWithRetry.mock.calls[0][0];
       await retryFn();
-      expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, undefined);
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(jobData.attachment, sttOpts);
     });
 
     describe('queue-age gate', () => {
@@ -407,7 +409,9 @@ describe('AudioTranscriptionJob', () => {
           timestamp: justOverThreshold,
         } as Job<AudioTranscriptionJobData>;
 
-        await expect(processAudioTranscriptionJob(job)).rejects.toThrow(/likely expired/);
+        await expect(
+          processAudioTranscriptionJob(job, { provider: 'voice-engine' })
+        ).rejects.toThrow(/likely expired/);
         // Load-bearing: gate must fire BEFORE any transcription work. Neither
         // withRetry nor transcribeAudio should have been called.
         expect(mockWithRetry).not.toHaveBeenCalled();
@@ -426,7 +430,7 @@ describe('AudioTranscriptionJob', () => {
         data: invalidJobData,
       } as Job<AudioTranscriptionJobData>;
 
-      await expect(processAudioTranscriptionJob(job)).rejects.toThrow(
+      await expect(processAudioTranscriptionJob(job, { provider: 'voice-engine' })).rejects.toThrow(
         'Audio transcription job validation failed'
       );
 
@@ -470,7 +474,7 @@ describe('AudioTranscriptionJob', () => {
         };
       });
 
-      const result = await processAudioTranscriptionJob(job);
+      const result = await processAudioTranscriptionJob(job, { provider: 'voice-engine' });
 
       expect(result.success).toBe(true);
       expect(result.metadata!.processingTimeMs).toBe(6500);

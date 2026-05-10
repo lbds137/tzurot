@@ -14,6 +14,7 @@ import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import {
   LlmConfigResolver,
   TtsConfigResolver,
+  SttResolver,
   type ConfigCascadeResolver,
 } from '@tzurot/common-types';
 import { PersonaResolver } from '../services/resolvers/index.js';
@@ -61,6 +62,8 @@ interface AIJobProcessorOptions {
   configResolver?: LlmConfigResolver;
   /** Optional: TTS config resolver (for DI in tests) */
   ttsConfigResolver?: TtsConfigResolver;
+  /** Optional: STT resolver (for DI in tests) */
+  sttResolver?: SttResolver;
   /** Optional: Persona resolver for persona-based memory retrieval (for DI in tests) */
   personaResolver?: PersonaResolver;
   /** Optional: Local embedding service for semantic duplicate detection */
@@ -77,6 +80,7 @@ export class AIJobProcessor {
   private apiKeyResolver: ApiKeyResolver;
   private configResolver: LlmConfigResolver;
   private ttsConfigResolver: TtsConfigResolver;
+  private sttResolver: SttResolver;
 
   constructor(options: AIJobProcessorOptions) {
     const {
@@ -86,6 +90,7 @@ export class AIJobProcessor {
       apiKeyResolver,
       configResolver,
       ttsConfigResolver,
+      sttResolver,
       personaResolver,
       embeddingService,
       cascadeResolver,
@@ -109,6 +114,10 @@ export class AIJobProcessor {
     // Same pattern for TtsConfigResolver — production wires the cache-invalidation
     // subscription via cacheInvalidation.ts; tests can construct an isolated one.
     this.ttsConfigResolver = ttsConfigResolver ?? new TtsConfigResolver(prisma);
+
+    // SttResolver composes TtsConfigResolver for Layer 3 (TTS-derived); reuses
+    // the same instance to share its cache + invalidation pipeline.
+    this.sttResolver = sttResolver ?? new SttResolver(prisma, this.ttsConfigResolver);
 
     this.llmGenerationHandler = new LLMGenerationHandler(this.ragService, this.apiKeyResolver, {
       configResolver: this.configResolver,
@@ -164,24 +173,51 @@ export class AIJobProcessor {
   private async processAudioTranscriptionJobWrapper(
     job: Job<AudioTranscriptionJobData>
   ): Promise<AudioTranscriptionResult> {
-    // Resolve ElevenLabs BYOK key for premium STT (if user has one configured)
-    let elevenlabsApiKey: string | undefined;
-    try {
-      const elResult = await this.apiKeyResolver.resolveApiKey(
-        job.data.context.userId,
-        AIProvider.ElevenLabs
-      );
-      if (!elResult.isGuestMode && elResult.apiKey !== undefined) {
-        elevenlabsApiKey = elResult.apiKey;
+    // Resolve which STT provider to use via the user's cascade. Transcription
+    // happens before personality dispatch, so we use the personality-less
+    // variant (Layer 2 → Layer 4 → Layer 5).
+    const sttResult = await this.sttResolver.resolveProviderForTranscription(
+      job.data.context.userId
+    );
+
+    // Fetch the corresponding API key for BYOK providers. voice-engine needs
+    // no key; mistral/elevenlabs need their respective BYOK key. If key
+    // resolution fails (no key configured, decryption error), fall through
+    // to voice-engine — AudioProcessor handles the missing-key dispatch.
+    let apiKey: string | undefined;
+    if (sttResult.provider !== 'voice-engine') {
+      const aiProvider =
+        sttResult.provider === 'mistral' ? AIProvider.Mistral : AIProvider.ElevenLabs;
+      try {
+        const keyResult = await this.apiKeyResolver.resolveApiKey(
+          job.data.context.userId,
+          aiProvider
+        );
+        if (!keyResult.isGuestMode && keyResult.apiKey !== undefined) {
+          apiKey = keyResult.apiKey;
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, userId: job.data.context.userId, provider: sttResult.provider },
+          'Failed to resolve STT provider API key — falling back to voice-engine'
+        );
       }
-    } catch (error) {
-      logger.warn(
-        { err: error, userId: job.data.context.userId },
-        'Failed to resolve ElevenLabs key — falling back to voice-engine STT'
-      );
     }
 
-    const result = await processAudioTranscriptionJob(job, elevenlabsApiKey);
+    logger.info(
+      {
+        userId: job.data.context.userId,
+        provider: sttResult.provider,
+        source: sttResult.source,
+        hasApiKey: apiKey !== undefined,
+      },
+      'STT provider resolved'
+    );
+
+    const result = await processAudioTranscriptionJob(job, {
+      provider: sttResult.provider,
+      apiKey,
+    });
 
     // Store result in Redis for dependent jobs (with userId namespacing)
     const jobId = job.id ?? job.data.requestId;

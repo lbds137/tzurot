@@ -76,7 +76,7 @@ describe('AudioProcessor', () => {
 
         mockVoiceTranscriptCacheGet.mockResolvedValue('Cached transcription from Redis');
 
-        const result = await transcribeAudio(attachment);
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(result).toBe('Cached transcription from Redis');
         expect(mockVoiceTranscriptCacheGet).toHaveBeenCalledWith(attachment.originalUrl);
@@ -99,7 +99,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment);
+        await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(mockVoiceTranscriptCacheGet).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment);
+        await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(mockVoiceTranscriptCacheGet).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
@@ -147,7 +147,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment);
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(result).toBe('Fallback result');
         expect(global.fetch).toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment);
+        await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(global.fetch).toHaveBeenCalled();
       });
@@ -196,7 +196,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await transcribeAudio(attachment);
+        await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(global.fetch).toHaveBeenCalled();
       });
@@ -219,7 +219,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment);
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(result).toBe('Voice engine transcription');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
@@ -241,7 +241,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        const result = await transcribeAudio(attachment);
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(result).toBe('');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
@@ -263,7 +263,9 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await expect(transcribeAudio(attachment)).rejects.toThrow('No STT provider available');
+        await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
+          'No STT provider available'
+        );
       });
 
       it('should throw when no STT provider is configured', async () => {
@@ -281,7 +283,9 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
         });
 
-        await expect(transcribeAudio(attachment)).rejects.toThrow('No STT provider available');
+        await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
+          'No STT provider available'
+        );
       });
     });
 
@@ -304,7 +308,7 @@ describe('AudioProcessor', () => {
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'warm result' });
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
-        await transcribeAudio(warmupAttachment);
+        await transcribeAudio(warmupAttachment, { provider: 'voice-engine' });
 
         expect(mockWaitForVoiceEngine).toHaveBeenCalledWith(mockVoiceEngineClient, 'asr');
         expect(mockWaitForVoiceEngine).toHaveBeenCalledTimes(1);
@@ -316,7 +320,7 @@ describe('AudioProcessor', () => {
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'still works' });
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
-        const result = await transcribeAudio(warmupAttachment);
+        const result = await transcribeAudio(warmupAttachment, { provider: 'voice-engine' });
 
         expect(result).toBe('still works');
         expect(mockWaitForVoiceEngine).toHaveBeenCalledWith(mockVoiceEngineClient, 'asr');
@@ -325,9 +329,9 @@ describe('AudioProcessor', () => {
 
       it('does not call warm-up when voice engine client is null', async () => {
         // No voice engine configured — should throw "No STT provider"
-        await expect(transcribeAudio(warmupAttachment)).rejects.toThrow(
-          'No STT provider available'
-        );
+        await expect(
+          transcribeAudio(warmupAttachment, { provider: 'voice-engine' })
+        ).rejects.toThrow('No STT provider available');
         expect(mockWaitForVoiceEngine).not.toHaveBeenCalled();
       });
     });
@@ -349,7 +353,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048)),
         });
 
-        const result = await transcribeAudio(attachment);
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(result).toBe('transcribed');
         expect(global.fetch).toHaveBeenCalledWith(
@@ -370,7 +374,9 @@ describe('AudioProcessor', () => {
 
         (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
-        await expect(transcribeAudio(attachment)).rejects.toThrow('Network error');
+        await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
+          'Network error'
+        );
       });
 
       it('should handle HTTP error responses', async () => {
@@ -386,7 +392,7 @@ describe('AudioProcessor', () => {
           statusText: 'Not Found',
         });
 
-        await expect(transcribeAudio(attachment)).rejects.toThrow(
+        await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
           'Failed to fetch audio: Not Found'
         );
       });
@@ -403,7 +409,7 @@ describe('AudioProcessor', () => {
         abortError.name = 'AbortError';
         (global.fetch as any).mockRejectedValue(abortError);
 
-        const error = await transcribeAudio(attachment).catch(e => e);
+        const error = await transcribeAudio(attachment, { provider: 'voice-engine' }).catch(e => e);
         expect(error).toBeInstanceOf(TimeoutError);
         expect(error.operationName).toBe('audio file download');
         expect(error.timeoutMs).toBe(30_000);
@@ -421,7 +427,9 @@ describe('AudioProcessor', () => {
           size: 1024,
         };
 
-        await expect(transcribeAudio(attachment)).rejects.toThrow(/must be from Discord CDN/);
+        await expect(transcribeAudio(attachment, { provider: 'voice-engine' })).rejects.toThrow(
+          /must be from Discord CDN/
+        );
         // Load-bearing: the SSRF guard short-circuits before fetch is invoked.
         expect(global.fetch).not.toHaveBeenCalled();
       });
@@ -446,7 +454,7 @@ describe('AudioProcessor', () => {
           arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8192)),
         });
 
-        const result = await transcribeAudio(attachment);
+        const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
         expect(result).toBe('Voice message text');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
@@ -478,7 +486,7 @@ describe('AudioProcessor', () => {
           .mockRejectedValueOnce(fetchError)
           .mockResolvedValueOnce({ text: 'Transcribed after retry' });
 
-        const result = await transcribeAudio(retryAttachment);
+        const result = await transcribeAudio(retryAttachment, { provider: 'voice-engine' });
 
         expect(result).toBe('Transcribed after retry');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(2);
@@ -489,7 +497,9 @@ describe('AudioProcessor', () => {
 
         mockVoiceEngineTranscribe.mockRejectedValue(fetchError);
 
-        await expect(transcribeAudio(retryAttachment)).rejects.toThrow('No STT provider available');
+        await expect(
+          transcribeAudio(retryAttachment, { provider: 'voice-engine' })
+        ).rejects.toThrow('No STT provider available');
         // 2 attempts (MAX_ATTEMPTS = 2)
         expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(2);
       });
@@ -498,7 +508,9 @@ describe('AudioProcessor', () => {
         const { VoiceEngineError } = await import('../voice/VoiceEngineClient.js');
         mockVoiceEngineTranscribe.mockRejectedValue(new VoiceEngineError(401, 'Unauthorized'));
 
-        await expect(transcribeAudio(retryAttachment)).rejects.toThrow('No STT provider available');
+        await expect(
+          transcribeAudio(retryAttachment, { provider: 'voice-engine' })
+        ).rejects.toThrow('No STT provider available');
         // Only 1 attempt — shouldRetry returned false for 401
         expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(1);
       });
@@ -522,7 +534,10 @@ describe('AudioProcessor', () => {
       it('should use ElevenLabs STT when apiKey is provided', async () => {
         mockElevenLabsSTT.mockResolvedValue({ text: 'ElevenLabs transcription' });
 
-        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
 
         expect(result).toBe('ElevenLabs transcription');
         expect(mockElevenLabsSTT).toHaveBeenCalledWith(
@@ -541,7 +556,10 @@ describe('AudioProcessor', () => {
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Voice engine result' });
 
-        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
 
         expect(result).toBe('Voice engine result');
         expect(mockElevenLabsSTT).toHaveBeenCalled();
@@ -552,9 +570,9 @@ describe('AudioProcessor', () => {
         mockElevenLabsSTT.mockRejectedValue(new Error('ElevenLabs down'));
         // No voice engine configured
 
-        await expect(transcribeAudio(audioAttachment, 'sk_el_test')).rejects.toThrow(
-          'No STT provider available'
-        );
+        await expect(
+          transcribeAudio(audioAttachment, { provider: 'elevenlabs', apiKey: 'sk_el_test' })
+        ).rejects.toThrow('No STT provider available');
       });
 
       it('should retry ElevenLabs STT on transient error and succeed', async () => {
@@ -563,7 +581,10 @@ describe('AudioProcessor', () => {
           .mockRejectedValueOnce(new ElevenLabsApiError(429, 'Rate limited'))
           .mockResolvedValueOnce({ text: 'Retry succeeded' });
 
-        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
 
         expect(result).toBe('Retry succeeded');
         expect(mockElevenLabsSTT).toHaveBeenCalledTimes(2);
@@ -576,7 +597,10 @@ describe('AudioProcessor', () => {
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Fallback result' });
 
-        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
 
         expect(result).toBe('Fallback result');
         // 2 attempts before fallback
@@ -590,7 +614,10 @@ describe('AudioProcessor', () => {
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'Fallback after auth' });
 
-        const result = await transcribeAudio(audioAttachment, 'sk_el_test');
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
 
         expect(result).toBe('Fallback after auth');
         // Only 1 attempt — auth errors fast-fail
@@ -601,7 +628,7 @@ describe('AudioProcessor', () => {
         mockVoiceEngineTranscribe.mockResolvedValue({ text: 'voice engine result' });
         mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
 
-        const result = await transcribeAudio(audioAttachment);
+        const result = await transcribeAudio(audioAttachment, { provider: 'voice-engine' });
 
         expect(mockElevenLabsSTT).not.toHaveBeenCalled();
         expect(result).toBe('voice engine result');
