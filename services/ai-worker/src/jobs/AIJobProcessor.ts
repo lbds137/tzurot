@@ -115,9 +115,9 @@ export class AIJobProcessor {
     // subscription via cacheInvalidation.ts; tests can construct an isolated one.
     this.ttsConfigResolver = ttsConfigResolver ?? new TtsConfigResolver(prisma);
 
-    // SttResolver composes TtsConfigResolver for Layer 3 (TTS-derived); reuses
-    // the same instance to share its cache + invalidation pipeline.
-    this.sttResolver = sttResolver ?? new SttResolver(prisma, this.ttsConfigResolver);
+    // SttResolver reads User.defaultSttProviderId + the user's default-TTS
+    // config provider directly — no cross-resolver dependency required.
+    this.sttResolver = sttResolver ?? new SttResolver(prisma);
 
     this.llmGenerationHandler = new LLMGenerationHandler(this.ragService, this.apiKeyResolver, {
       configResolver: this.configResolver,
@@ -173,12 +173,9 @@ export class AIJobProcessor {
   private async processAudioTranscriptionJobWrapper(
     job: Job<AudioTranscriptionJobData>
   ): Promise<AudioTranscriptionResult> {
-    // Resolve which STT provider to use via the user's cascade. Transcription
-    // happens before personality dispatch, so we use the personality-less
-    // variant (Layer 2 → Layer 4 → Layer 5).
-    const sttResult = await this.sttResolver.resolveProviderForTranscription(
-      job.data.context.userId
-    );
+    // Resolve which STT provider to use via the user's cascade
+    // (user-default → tts-derived → voice-engine fallback).
+    const sttResult = await this.sttResolver.resolveProvider(job.data.context.userId);
 
     // Fetch the corresponding API key for BYOK providers. voice-engine needs
     // no key; mistral/elevenlabs need their respective BYOK key. If key

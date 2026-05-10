@@ -531,31 +531,9 @@ export const voiceTtsSetDefaultOptions = defineTypedOptions({
 });
 
 /**
- * /voice stt set <personality, provider>
+ * /voice stt set <provider>
  */
 export const voiceSttSetOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
-  provider: { type: 'string', required: true },
-});
-
-/**
- * /voice stt clear <personality>
- */
-export const voiceSttClearOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
-});
-
-/**
- * /voice stt set-default <provider>
- */
-export const voiceSttSetDefaultOptions = defineTypedOptions({
-  provider: { type: 'string', required: true },
-});
-
-/**
- * /voice provider set <provider>
- */
-export const voiceProviderSetOptions = defineTypedOptions({
   provider: { type: 'string', required: true },
 });
 

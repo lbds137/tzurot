@@ -3,15 +3,10 @@
  *
  * Unified namespace for voice configuration:
  *
- * - /voice tts browse|set|clear|set-default|clear-default — TTS provider config
- * - /voice stt browse|set|clear|set-default|clear-default — STT provider overrides
- * - /voice provider set|clear — foundational voice provider default (Layer 4)
+ * - /voice tts browse|set|clear|set-default|clear-default — TTS provider config (per-personality + user-default)
+ * - /voice stt set|clear — transcription provider preference (user-scoped; STT is speaker-bound)
  * - /voice voices browse|delete|clear — cloned-voice lifecycle
  * - /voice view <personality> — unified TTS+STT+voices dashboard
- *
- * Symmetric subcommand naming (set / clear / set-default / clear-default) across
- * tts and stt groups. /voice provider holds the foundational User.defaultProvider
- * baseline that the TTS and STT cascades fall through to.
  *
  * The legacy /settings tts and /settings voices subcommand groups remain
  * registered as deprecation stubs that ephemerally redirect users to the
@@ -42,17 +37,9 @@ import { handleTtsSetDefault } from './tts/set-default.js';
 import { handleTtsClearDefault } from './tts/clear-default.js';
 import { handleAutocomplete as handleTtsAutocomplete } from './tts/autocomplete.js';
 
-// STT handlers
-import { handleSttBrowse } from './stt/browse.js';
+// STT handlers (set / clear — user-scoped, no per-personality)
 import { handleSttSet } from './stt/set.js';
 import { handleSttClear } from './stt/clear.js';
-import { handleSttSetDefault } from './stt/set-default.js';
-import { handleSttClearDefault } from './stt/clear-default.js';
-import { handleAutocomplete as handleSttAutocomplete } from './stt/autocomplete.js';
-
-// Provider handlers
-import { handleProviderSet } from './provider/set.js';
-import { handleProviderClear } from './provider/clear.js';
 
 // View handler
 import { handleVoiceView } from './view.js';
@@ -74,7 +61,8 @@ import {
 import { buildVoiceTtsSubcommandGroup } from './tts/subcommandBuilder.js';
 import { buildVoiceVoicesSubcommandGroup } from './voices/subcommandBuilder.js';
 import { buildVoiceSttSubcommandGroup } from './stt/subcommandBuilder.js';
-import { buildVoiceProviderSubcommandGroup } from './provider/subcommandBuilder.js';
+
+import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
 
 const logger = createLogger('voice-command');
 
@@ -91,21 +79,10 @@ const ttsRouter = createTypedSubcommandRouter(
 
 const sttRouter = createTypedSubcommandRouter(
   {
-    browse: handleSttBrowse,
     set: handleSttSet,
     clear: handleSttClear,
-    'set-default': handleSttSetDefault,
-    'clear-default': handleSttClearDefault,
   },
   { logger, logPrefix: '[Voice/Stt]' }
-);
-
-const providerRouter = createTypedSubcommandRouter(
-  {
-    set: handleProviderSet,
-    clear: handleProviderClear,
-  },
-  { logger, logPrefix: '[Voice/Provider]' }
 );
 
 const voicesRouter = createTypedSubcommandRouter(
@@ -127,10 +104,6 @@ async function execute(context: SafeCommandContext): Promise<void> {
   }
   if (group === 'stt') {
     await sttRouter(deferredCtx);
-    return;
-  }
-  if (group === 'provider') {
-    await providerRouter(deferredCtx);
     return;
   }
   if (group === 'voices') {
@@ -156,13 +129,7 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     await handleTtsAutocomplete(interaction);
     return;
   }
-  if (subcommandGroup === 'stt') {
-    await handleSttAutocomplete(interaction);
-    return;
-  }
   if (subcommandGroup === 'voices') {
-    // getFocused only inside the branch that reads it — avoids dead
-    // computation when autocompleting /voice tts options.
     const focusedOption = interaction.options.getFocused(true);
     if (focusedOption.name === 'voice') {
       await handleVoiceAutocomplete(interaction);
@@ -170,14 +137,16 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     }
   }
 
-  // Top-level subcommands (e.g. /voice view) — only `personality` is
-  // autocompleted; route via the personality autocomplete shared utility.
+  // Top-level subcommands (e.g. /voice view) — only `personality` is autocompleted.
   if (subcommandGroup === null) {
     const focusedOption = interaction.options.getFocused(true);
     if (focusedOption.name === 'personality') {
-      // Reuse the STT autocomplete handler — it already handles `personality`
-      // identically to what /voice view needs.
-      await handleSttAutocomplete(interaction);
+      await handlePersonalityAutocomplete(interaction, {
+        optionName: 'personality',
+        ownedOnly: false,
+        showVisibility: true,
+        valueField: 'id',
+      });
       return;
     }
   }
@@ -214,10 +183,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   logger.warn({ customId: interaction.customId }, 'Unknown modal customId');
 }
 
-// Voice command currently has no select menus. Reserved for the /voice view
-// dashboard. Returns Promise.resolve() rather than being marked async so we
-// satisfy defineCommand's Promise<void> contract without an unnecessary
-// microtask tick (and without tripping the require-await lint).
+// Voice command currently has no select menus.
 function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   logger.debug({ customId: interaction.customId }, 'Unhandled select menu in voice command');
   return Promise.resolve();
@@ -241,7 +207,6 @@ export default defineCommand({
     )
     .addSubcommandGroup(buildVoiceTtsSubcommandGroup)
     .addSubcommandGroup(buildVoiceSttSubcommandGroup)
-    .addSubcommandGroup(buildVoiceProviderSubcommandGroup)
     .addSubcommandGroup(buildVoiceVoicesSubcommandGroup),
   deferralMode: 'ephemeral',
   execute,
@@ -250,8 +215,6 @@ export default defineCommand({
   handleModal,
   handleSelectMenu,
   // settings-voices prefix preserved so pre-deploy pagination embeds created
-  // by the legacy /settings voices browse remain routable post-deploy. Safe
-  // to rename to voice-voices once the deprecation stubs are removed (tracked
-  // in backlog/inbox.md).
+  // by the legacy /settings voices browse remain routable post-deploy.
   componentPrefixes: ['settings-voices'],
 });

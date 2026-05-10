@@ -1,71 +1,55 @@
 /**
  * Voice STT Clear Handler
- *
- * Handles /voice stt clear <personality> — removes the per-personality
- * transcription preference. Subsequent voice messages to that personality
- * use the user's default transcription provider (or the free fallback).
+ * Handles /voice stt clear — clears the user's transcription provider
+ * preference. Subsequent voice messages will derive from the user's default
+ * TTS (BYOK pairs like Mistral) or fall back to the self-hosted engine.
  */
 
+import { EmbedBuilder } from 'discord.js';
 import {
   createLogger,
-  voiceSttClearOptions,
-  type DeleteSttOverrideResponse,
+  DISCORD_COLORS,
+  type ClearSttDefaultProviderResponse,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  AUTOCOMPLETE_UNAVAILABLE_MESSAGE,
-  isAutocompleteErrorSentinel,
-} from '../../../utils/apiCheck.js';
 import { callGatewayApi, toGatewayUser } from '../../../utils/userGatewayClient.js';
-import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('voice-stt-clear');
 
 /** Handle /voice stt clear */
 export async function handleSttClear(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const options = voiceSttClearOptions(context.interaction);
-  const personalityId = options.personality();
-
-  if (isAutocompleteErrorSentinel(personalityId)) {
-    await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
-    return;
-  }
 
   try {
-    const result = await callGatewayApi<DeleteSttOverrideResponse>(
-      `/user/stt-override/${encodeURIComponent(personalityId)}`,
-      {
-        method: 'DELETE',
-        user: toGatewayUser(context.user),
-      }
-    );
+    const result = await callGatewayApi<ClearSttDefaultProviderResponse>('/user/stt-override', {
+      method: 'DELETE',
+      user: toGatewayUser(context.user),
+    });
 
     if (!result.ok) {
-      logger.warn(
-        { userId, status: result.status, personalityId },
-        'Failed to clear transcription preference'
-      );
-      await context.editReply({
-        content: `❌ Failed to clear transcription preference: ${result.error}`,
-      });
+      logger.warn({ userId, status: result.status }, 'Failed to clear transcription preference');
+      await context.editReply({ content: `❌ Failed to clear: ${result.error}` });
       return;
     }
 
     const wasSet = result.data.wasSet !== false;
     const embed = wasSet
-      ? createSuccessEmbed(
-          '✅ Transcription Preference Removed',
-          'This personality will now use your default transcription provider.'
-        )
-      : createInfoEmbed(
-          'ℹ️ Nothing to Remove',
-          'This personality has no transcription preference set.'
-        );
+      ? new EmbedBuilder()
+          .setTitle('✅ Transcription Preference Cleared')
+          .setColor(DISCORD_COLORS.SUCCESS)
+          .setDescription(
+            'Voice messages will now follow the same provider you use for speaking, or fall back to the free self-hosted engine.'
+          )
+          .setTimestamp()
+      : new EmbedBuilder()
+          .setTitle('ℹ️ Nothing to Clear')
+          .setColor(DISCORD_COLORS.BLURPLE)
+          .setDescription('You had no transcription preference set.')
+          .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId, wasSet }, 'Cleared transcription preference');
+    logger.info({ userId, wasSet }, 'Cleared transcription preference');
   } catch (error) {
     logger.error({ err: error, userId, command: 'voice stt clear' }, 'Error');
     await context.editReply({ content: '❌ An error occurred. Please try again later.' });
