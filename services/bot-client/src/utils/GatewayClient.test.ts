@@ -320,6 +320,118 @@ describe('GatewayClient', () => {
       expect(body.userId).toBeUndefined();
     });
 
+    describe('transient network retry', () => {
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+
+      function buildSocketError(code: 'UND_ERR_SOCKET' | 'ECONNRESET' | 'ECONNREFUSED'): Error {
+        const err = new TypeError('fetch failed');
+        (err as Error & { cause: { code: string } }).cause = { code };
+        return err;
+      }
+
+      function buildSuccessResponse(): {
+        ok: boolean;
+        json: () => Promise<unknown>;
+      } {
+        return {
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              jobId: 'job-after-retry',
+              status: JobStatus.Completed,
+              result: { content: 'recovered' },
+            }),
+        };
+      }
+
+      it('should retry on UND_ERR_SOCKET and succeed on second attempt', async () => {
+        const client = new GatewayClient('http://test.gateway');
+        mockFetch
+          .mockRejectedValueOnce(buildSocketError('UND_ERR_SOCKET'))
+          .mockResolvedValueOnce(buildSuccessResponse());
+
+        const promise = client.transcribe([
+          { url: 'http://test/audio.ogg', contentType: 'audio/ogg' },
+        ]);
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(result.content).toBe('recovered');
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+      });
+
+      it('should retry on ECONNRESET and ECONNREFUSED', async () => {
+        const client = new GatewayClient('http://test.gateway');
+        mockFetch
+          .mockRejectedValueOnce(buildSocketError('ECONNRESET'))
+          .mockRejectedValueOnce(buildSocketError('ECONNREFUSED'))
+          .mockResolvedValueOnce(buildSuccessResponse());
+
+        const promise = client.transcribe([
+          { url: 'http://test/audio.ogg', contentType: 'audio/ogg' },
+        ]);
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(result.content).toBe('recovered');
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+      });
+
+      it('should throw after exhausting all retry attempts', async () => {
+        const client = new GatewayClient('http://test.gateway');
+        mockFetch.mockRejectedValue(buildSocketError('UND_ERR_SOCKET'));
+
+        const promise = client.transcribe([
+          { url: 'http://test/audio.ogg', contentType: 'audio/ogg' },
+        ]);
+        const assertion = expect(promise).rejects.toThrow('fetch failed');
+        await vi.runAllTimersAsync();
+        await assertion;
+
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+      });
+
+      it('should not retry on non-transient errors (e.g., 4xx HTTP responses)', async () => {
+        const client = new GatewayClient('http://test.gateway');
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve('Bad Request'),
+        });
+
+        await expect(
+          client.transcribe([{ url: 'http://test/audio.ogg', contentType: 'audio/ogg' }])
+        ).rejects.toThrow('Transcription request failed: 400 Bad Request');
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not retry on 5xx HTTP responses', async () => {
+        const client = new GatewayClient('http://test.gateway');
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          text: () => Promise.resolve('Service Unavailable'),
+        });
+
+        await expect(
+          client.transcribe([{ url: 'http://test/audio.ogg', contentType: 'audio/ogg' }])
+        ).rejects.toThrow('Transcription request failed: 503 Service Unavailable');
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not retry on errors without cause.code', async () => {
+        const client = new GatewayClient('http://test.gateway');
+        mockFetch.mockRejectedValueOnce(new Error('Generic error'));
+
+        await expect(
+          client.transcribe([{ url: 'http://test/audio.ogg', contentType: 'audio/ogg' }])
+        ).rejects.toThrow('Generic error');
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it('should include AbortSignal timeout on transcribe requests', async () => {
       const client = new GatewayClient('http://test.gateway');
       mockFetch.mockResolvedValueOnce({
