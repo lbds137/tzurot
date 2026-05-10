@@ -1,6 +1,6 @@
 /**
  * Tests for the /voice stt subcommand group builder.
- * Locks the symmetric subcommand naming and the static-choice provider option.
+ * STT is user-scoped: just set / clear, no per-personality dimension.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -14,81 +14,48 @@ function buildJson() {
 }
 
 describe('buildVoiceSttSubcommandGroup', () => {
-  it('attaches the 5 expected subcommands with symmetric naming', () => {
+  it('attaches just set + clear (no per-personality variants)', () => {
     const json = buildJson();
     const sttGroup = json.options?.find(
       (o): o is typeof o & { options?: unknown[] } => o.name === 'stt'
     );
 
     expect(sttGroup).toBeDefined();
-    expect(sttGroup?.options?.length).toBe(5);
-    const names = (sttGroup?.options as Array<{ name: string }> | undefined)?.map(s => s.name);
-    expect(names).toEqual(['browse', 'set', 'clear', 'set-default', 'clear-default']);
+    expect(sttGroup?.options?.length).toBe(2);
+    const names = (sttGroup?.options as { name: string }[] | undefined)?.map(s => s.name);
+    expect(names).toEqual(['set', 'clear']);
   });
 
-  it('set requires personality (autocomplete) + provider (static choices)', () => {
+  it('set requires a provider (static choices for the 3 STT providers)', () => {
     const json = buildJson();
     const sttGroup = json.options?.find(
       (o): o is typeof o & { options?: unknown[] } => o.name === 'stt'
     );
-    const setSub = (
-      sttGroup?.options as Array<{ name: string; options?: unknown[] }> | undefined
-    )?.find(s => s.name === 'set');
+    const setSub = (sttGroup?.options as { name: string; options?: unknown[] }[] | undefined)?.find(
+      s => s.name === 'set'
+    );
     const opts = setSub?.options as
-      | Array<{
-          name: string;
-          required?: boolean;
-          autocomplete?: boolean;
-          choices?: Array<{ name: string; value: string }>;
-        }>
+      | { name: string; required?: boolean; choices?: { value: string }[] }[]
       | undefined;
 
-    expect(opts?.length).toBe(2);
-    const personality = opts?.find(o => o.name === 'personality');
-    expect(personality?.required).toBe(true);
-    expect(personality?.autocomplete).toBe(true);
-
-    const provider = opts?.find(o => o.name === 'provider');
+    expect(opts?.length).toBe(1);
+    const provider = opts?.[0];
+    expect(provider?.name).toBe('provider');
     expect(provider?.required).toBe(true);
     expect(provider?.choices?.map(c => c.value).sort()).toEqual(
       ['elevenlabs', 'mistral', 'voice-engine'].sort()
     );
   });
 
-  it('clear requires only personality', () => {
+  it('clear takes no options', () => {
     const json = buildJson();
     const sttGroup = json.options?.find(
       (o): o is typeof o & { options?: unknown[] } => o.name === 'stt'
     );
     const clearSub = (
-      sttGroup?.options as Array<{ name: string; options?: unknown[] }> | undefined
+      sttGroup?.options as { name: string; options?: unknown[] }[] | undefined
     )?.find(s => s.name === 'clear');
-    const opts = clearSub?.options as Array<{ name: string }> | undefined;
-    expect(opts?.length).toBe(1);
-    expect(opts?.[0].name).toBe('personality');
-  });
 
-  it('set-default requires only provider (no personality)', () => {
-    const json = buildJson();
-    const sttGroup = json.options?.find(
-      (o): o is typeof o & { options?: unknown[] } => o.name === 'stt'
-    );
-    const setDefault = (
-      sttGroup?.options as Array<{ name: string; options?: unknown[] }> | undefined
-    )?.find(s => s.name === 'set-default');
-    const opts = setDefault?.options as Array<{ name: string }> | undefined;
-    expect(opts?.length).toBe(1);
-    expect(opts?.[0].name).toBe('provider');
-  });
-
-  it('clear-default has no options', () => {
-    const json = buildJson();
-    const sttGroup = json.options?.find(
-      (o): o is typeof o & { options?: unknown[] } => o.name === 'stt'
-    );
-    const clearDefault = (
-      sttGroup?.options as Array<{ name: string; options?: unknown[] }> | undefined
-    )?.find(s => s.name === 'clear-default');
-    expect(clearDefault?.options ?? []).toEqual([]);
+    expect(clearSub?.options ?? []).toEqual([]);
   });
 });

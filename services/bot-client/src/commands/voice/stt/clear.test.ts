@@ -18,16 +18,8 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   return {
     ...actual,
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
-    voiceSttClearOptions: vi.fn(() => ({
-      personality: () => 'personality-uuid-1',
-    })),
   };
 });
-
-vi.mock('../../../utils/apiCheck.js', () => ({
-  AUTOCOMPLETE_UNAVAILABLE_MESSAGE: '⚠️ Autocomplete unavailable',
-  isAutocompleteErrorSentinel: vi.fn(() => false),
-}));
 
 const { handleSttClear } = await import('./clear.js');
 
@@ -42,42 +34,25 @@ function makeContext() {
 describe('handleSttClear', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('DELETEs /user/stt-override/:id with encoded path', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { deleted: true, wasSet: true },
-    });
+  it('DELETEs /user/stt-override', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { deleted: true, wasSet: true } });
 
     await handleSttClear(makeContext() as never);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/stt-override/personality-uuid-1',
+      '/user/stt-override',
       expect.objectContaining({ method: 'DELETE' })
     );
   });
 
-  it('shows info embed when no override existed', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { deleted: true, wasSet: false },
-    });
-    const context = makeContext();
-
-    await handleSttClear(context as never);
-
-    expect(context.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ embeds: expect.any(Array) })
-    );
-  });
-
   it('reports gateway error', async () => {
-    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 404, error: 'not found' });
+    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'oh no' });
     const context = makeContext();
 
     await handleSttClear(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('not found'),
+      content: expect.stringContaining('oh no'),
     });
   });
 });

@@ -1,6 +1,5 @@
 /**
  * Tests for /voice stt set handler.
- * Locks the per-personality STT override write flow (Layer 1).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -20,16 +19,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     ...actual,
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     voiceSttSetOptions: vi.fn(() => ({
-      personality: () => 'personality-uuid-1',
-      provider: () => 'mistral',
+      provider: () => 'voice-engine',
     })),
   };
 });
-
-vi.mock('../../../utils/apiCheck.js', () => ({
-  AUTOCOMPLETE_UNAVAILABLE_MESSAGE: '⚠️ Autocomplete unavailable',
-  isAutocompleteErrorSentinel: vi.fn(() => false),
-}));
 
 const { handleSttSet } = await import('./set.js');
 
@@ -44,16 +37,10 @@ function makeContext() {
 describe('handleSttSet', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('PUTs /user/stt-override on happy path', async () => {
+  it('PUTs /user/stt-override with the provider and shows the success embed', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: {
-        override: {
-          personalityId: 'personality-uuid-1',
-          personalityName: 'Alice',
-          providerId: 'mistral',
-        },
-      },
+      data: { default: { providerId: 'voice-engine' } },
     });
     const context = makeContext();
 
@@ -63,7 +50,7 @@ describe('handleSttSet', () => {
       '/user/stt-override',
       expect.objectContaining({
         method: 'PUT',
-        body: { personalityId: 'personality-uuid-1', providerId: 'mistral' },
+        body: { providerId: 'voice-engine' },
       })
     );
     expect(context.editReply).toHaveBeenCalledWith(
@@ -71,18 +58,14 @@ describe('handleSttSet', () => {
     );
   });
 
-  it('reports error when gateway returns failure', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 500,
-      error: 'boom',
-    });
+  it('reports gateway error', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'oops' });
     const context = makeContext();
 
     await handleSttSet(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('boom'),
+      content: expect.stringContaining('oops'),
     });
   });
 });

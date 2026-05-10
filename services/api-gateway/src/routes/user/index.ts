@@ -71,7 +71,6 @@ import { createLlmConfigRoutes } from './llm-config.js';
 import { createTtsConfigRoutes } from './tts-config.js';
 import { createTtsOverrideRoutes } from './tts-override.js';
 import { createSttOverrideRoutes } from './stt-override.js';
-import { createVoiceProviderRoutes } from './voice-provider.js';
 import { createVoiceResolutionRoutes } from './voice-resolution.js';
 import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
@@ -138,11 +137,8 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   // TTS override routes (per-personality TTS overrides + user global default)
   router.use('/tts-override', createTtsOverrideRoutes(prisma, ttsConfigCacheInvalidation));
 
-  // STT override routes (per-personality STT provider + user-default STT)
+  // STT preference (user-level — STT is speaker-bound, no per-personality dimension)
   router.use('/stt-override', createSttOverrideRoutes(prisma, sttResolverCacheInvalidation));
-
-  // Voice provider foundational default (User.defaultProvider — Layer 4 of STT cascade)
-  router.use('/voice-provider', createVoiceProviderRoutes(prisma, sttResolverCacheInvalidation));
 
   // Voice resolution aggregate read endpoint (powers /voice view dashboard)
   router.use('/voice-resolution', createVoiceResolutionRoutes(prisma));

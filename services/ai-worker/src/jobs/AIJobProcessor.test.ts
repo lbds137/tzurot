@@ -121,12 +121,12 @@ function createMockApiKeyResolver(elevenlabsApiKey?: string): ApiKeyResolver {
   } as unknown as ApiKeyResolver;
 }
 
-/** Minimal SttResolver double — only the two methods the audio path calls. */
+/** Minimal SttResolver double — only the methods the audio path calls. */
 function createMockSttResolver(
   provider: 'mistral' | 'elevenlabs' | 'voice-engine' = 'voice-engine'
 ) {
   return {
-    resolveProviderForTranscription: vi.fn().mockResolvedValue({
+    resolveProvider: vi.fn().mockResolvedValue({
       provider,
       source: provider === 'voice-engine' ? 'hardcoded' : 'user-default',
     }),

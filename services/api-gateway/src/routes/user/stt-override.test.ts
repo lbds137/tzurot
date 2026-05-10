@@ -1,9 +1,8 @@
 /**
  * Tests for /user/stt-override routes.
  *
- * Mirrors the tts-override.test.ts pattern: mocks Prisma + the auth/handler
- * middleware at the boundary, then exercises each route handler directly
- * via the router stack.
+ * STT is user-scoped — single preference, no per-personality dimension.
+ * Routes: GET /, PUT /, DELETE /.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -41,7 +40,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    generateUserPersonalityConfigUuid: vi.fn(() => 'upc-uuid-1'),
   };
 });
 
@@ -86,13 +84,6 @@ function extractHandler(router: Router, method: string, path: string) {
 }
 
 const mockPrisma = {
-  personality: { findFirst: vi.fn() },
-  userPersonalityConfig: {
-    findMany: vi.fn(),
-    findFirst: vi.fn(),
-    upsert: vi.fn(),
-    update: vi.fn(),
-  },
   user: { findUnique: vi.fn(), update: vi.fn() },
 };
 
@@ -102,83 +93,48 @@ function buildRouter() {
   return createSttOverrideRoutes(mockPrisma as never, mockCache as never);
 }
 
-const VALID_UUID = '11111111-1111-4111-8111-111111111111';
-
 describe('user/stt-override routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('GET /', () => {
-    it('returns the user list of per-personality STT overrides', async () => {
-      mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
-        {
-          personalityId: 'p-1',
-          personality: { name: 'Alice' },
-          sttProviderId: 'mistral',
-        },
-      ]);
+    it('returns the user STT preference when set', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ defaultSttProviderId: 'mistral' });
       const handler = extractHandler(buildRouter(), 'get', '/');
       const { res, json, status } = makeMockRes();
 
       await handler(makeMockReq(), res);
 
       expect(status).toHaveBeenCalledWith(StatusCodes.OK);
-      expect(json).toHaveBeenCalledWith({
-        overrides: [{ personalityId: 'p-1', personalityName: 'Alice', providerId: 'mistral' }],
-      });
+      expect(json).toHaveBeenCalledWith({ default: { providerId: 'mistral' } });
+    });
+
+    it('returns null when no preference is set', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ defaultSttProviderId: null });
+      const handler = extractHandler(buildRouter(), 'get', '/');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq(), res);
+
+      expect(json).toHaveBeenCalledWith({ default: { providerId: null } });
+    });
+
+    it('narrows unknown DB strings to null (legacy / out-of-band data defense)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ defaultSttProviderId: 'whisper' });
+      const handler = extractHandler(buildRouter(), 'get', '/');
+      const { res, json } = makeMockRes();
+
+      await handler(makeMockReq(), res);
+
+      expect(json).toHaveBeenCalledWith({ default: { providerId: null } });
     });
   });
 
   describe('PUT /', () => {
-    it('upserts the per-personality STT override and returns the summary', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({ id: VALID_UUID, name: 'Alice' });
-      mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
-        personalityId: VALID_UUID,
-        personality: { name: 'Alice' },
-        sttProviderId: 'elevenlabs',
-      });
-      const handler = extractHandler(buildRouter(), 'put', '/');
-      const { res, json } = makeMockRes();
-
-      await handler(
-        makeMockReq({ body: { personalityId: VALID_UUID, providerId: 'elevenlabs' } }),
-        res
-      );
-
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalled();
-      expect(json).toHaveBeenCalledWith({
-        override: {
-          personalityId: VALID_UUID,
-          personalityName: 'Alice',
-          providerId: 'elevenlabs',
-        },
-      });
-      // Cache invalidation flows through the mocked tryInvalidateCache
-      // wrapper; direct assertion on mockCache.invalidateUserStt would fail
-      // because the wrapper is a vi.fn() no-op. Wrapper coverage lives in
-      // configOverrideHelpers tests.
-    });
-
-    it('rejects unknown providers via Zod validation', async () => {
-      const handler = extractHandler(buildRouter(), 'put', '/');
-      const { res, status, json } = makeMockRes();
-
-      await handler(
-        makeMockReq({ body: { personalityId: VALID_UUID, providerId: 'whisper' } }),
-        res
-      );
-
-      expect(status).toHaveBeenCalledWith(400);
-      expect(mockPrisma.userPersonalityConfig.upsert).not.toHaveBeenCalled();
-      expect(json).toHaveBeenCalled();
-    });
-  });
-
-  describe('PUT /default', () => {
     it('writes User.defaultSttProviderId and returns the value', async () => {
       mockPrisma.user.update.mockResolvedValue({});
-      const handler = extractHandler(buildRouter(), 'put', '/default');
+      const handler = extractHandler(buildRouter(), 'put', '/');
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq({ body: { providerId: 'mistral' } }), res);
@@ -189,12 +145,23 @@ describe('user/stt-override routes', () => {
       });
       expect(json).toHaveBeenCalledWith({ default: { providerId: 'mistral' } });
     });
+
+    it('rejects unknown providers via Zod validation', async () => {
+      const handler = extractHandler(buildRouter(), 'put', '/');
+      const { res, status, json } = makeMockRes();
+
+      await handler(makeMockReq({ body: { providerId: 'whisper' } }), res);
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(json).toHaveBeenCalled();
+    });
   });
 
-  describe('DELETE /default', () => {
-    it('returns wasSet:false when no default was set (idempotent)', async () => {
+  describe('DELETE /', () => {
+    it('returns wasSet:false when no preference was set (idempotent)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ defaultSttProviderId: null });
-      const handler = extractHandler(buildRouter(), 'delete', '/default');
+      const handler = extractHandler(buildRouter(), 'delete', '/');
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -203,10 +170,10 @@ describe('user/stt-override routes', () => {
       expect(json).toHaveBeenCalledWith({ deleted: true, wasSet: false });
     });
 
-    it('clears the default when one was set', async () => {
+    it('clears the preference when one was set', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ defaultSttProviderId: 'mistral' });
       mockPrisma.user.update.mockResolvedValue({});
-      const handler = extractHandler(buildRouter(), 'delete', '/default');
+      const handler = extractHandler(buildRouter(), 'delete', '/');
       const { res, json } = makeMockRes();
 
       await handler(makeMockReq(), res);
@@ -214,37 +181,6 @@ describe('user/stt-override routes', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-uuid-1' },
         data: { defaultSttProviderId: null },
-      });
-      expect(json).toHaveBeenCalledWith({ deleted: true, wasSet: true });
-    });
-  });
-
-  describe('DELETE /:personalityId', () => {
-    it('returns wasSet:false when no override existed', async () => {
-      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
-      const handler = extractHandler(buildRouter(), 'delete', '/:personalityId');
-      const { res, json } = makeMockRes();
-
-      await handler(makeMockReq({ params: { personalityId: 'p-1' } }), res);
-
-      expect(json).toHaveBeenCalledWith({ deleted: true, wasSet: false });
-    });
-
-    it('clears an existing per-personality STT override', async () => {
-      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
-        id: 'upc-1',
-        sttProviderId: 'mistral',
-        personality: { name: 'Alice' },
-      });
-      mockPrisma.userPersonalityConfig.update.mockResolvedValue({});
-      const handler = extractHandler(buildRouter(), 'delete', '/:personalityId');
-      const { res, json } = makeMockRes();
-
-      await handler(makeMockReq({ params: { personalityId: 'p-1' } }), res);
-
-      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalledWith({
-        where: { id: 'upc-1' },
-        data: { sttProviderId: null },
       });
       expect(json).toHaveBeenCalledWith({ deleted: true, wasSet: true });
     });
