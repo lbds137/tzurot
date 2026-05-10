@@ -19,6 +19,8 @@ import {
   LlmConfigResolver,
   TtsConfigResolver,
   TtsConfigCacheInvalidationService,
+  SttResolver,
+  SttResolverCacheInvalidationService,
   type PrismaClient,
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
@@ -39,6 +41,7 @@ export interface CacheInvalidationResult {
   apiKeyResolver: ApiKeyResolver;
   llmConfigResolver: LlmConfigResolver;
   ttsConfigResolver: TtsConfigResolver;
+  sttResolver: SttResolver;
   personaResolver: PersonaResolver;
   cascadeResolver: ConfigCascadeResolver;
   cleanupFns: (() => Promise<void>)[];
@@ -93,6 +96,22 @@ export async function setupCacheInvalidation(
     cleanupFns,
   });
 
+  // SttResolver with cache invalidation. STT preference (User.defaultSttProviderId)
+  // is user-scoped only — narrower event taxonomy than the LLM/TTS config resolvers.
+  const sttResolver = new SttResolver(prisma);
+  const sttCacheInvalidation = new SttResolverCacheInvalidationService(cacheRedis);
+  await sttCacheInvalidation.subscribe(event => {
+    if (event.type === 'all') {
+      sttResolver.clearCache();
+      logger.info('Cleared all STT resolver cache entries');
+    } else {
+      sttResolver.invalidateUserCache(event.discordId);
+      logger.info({ discordId: event.discordId }, 'Invalidated STT cache for user');
+    }
+  });
+  cleanupFns.push(() => sttCacheInvalidation.unsubscribe());
+  logger.info('SttResolver initialized with cache invalidation');
+
   // PersonaResolver with cache invalidation
   const personaResolver = new PersonaResolver(prisma);
   const personaCacheInvalidation = new PersonaCacheInvalidationService(cacheRedis);
@@ -141,6 +160,7 @@ export async function setupCacheInvalidation(
     apiKeyResolver,
     llmConfigResolver,
     ttsConfigResolver,
+    sttResolver,
     personaResolver,
     cascadeResolver,
     cleanupFns,

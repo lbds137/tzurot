@@ -20,6 +20,7 @@ import {
   AIProvider,
   type AttachmentMetadata,
   type LoadedPersonality,
+  type SttProvider,
 } from '@tzurot/common-types';
 import { withParallelRetry } from '../utils/parallelRetry.js';
 import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
@@ -54,8 +55,13 @@ export interface ProcessAttachmentOptions {
    * the vision provider's API.
    */
   userApiKey?: string;
-  /** Optional ElevenLabs BYOK key for premium STT */
-  elevenlabsApiKey?: string;
+  /**
+   * Resolved STT dispatch (provider + matching BYOK key when applicable).
+   * Computed once at the pipeline-step level via SttResolver so per-user
+   * preferences are honored on in-band attachment transcription, not just
+   * on the dedicated AudioTranscriptionJob path.
+   */
+  sttDispatch?: { provider: SttProvider; apiKey?: string };
   /** Diagnostic context for vision-failure logging + source-aware fallback strings */
   loggingContext?: VisionLoggingContext;
   /**
@@ -74,13 +80,7 @@ async function processSingleAttachment(
   personality: LoadedPersonality,
   options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment | null> {
-  const {
-    isGuestMode,
-    userApiKey,
-    elevenlabsApiKey,
-    loggingContext = {},
-    visionProvider,
-  } = options;
+  const { isGuestMode, userApiKey, sttDispatch, loggingContext = {}, visionProvider } = options;
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
     const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
       skipNegativeCache: true,
@@ -98,14 +98,16 @@ async function processSingleAttachment(
     attachment.contentType.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ||
     attachment.isVoiceMessage === true
   ) {
-    // In-band attachment STT preserves prior shape (ElevenLabs-or-voice-engine).
-    // Full SttResolver wiring for this path is a future enhancement — the PR
-    // 2 STT cutover only flows through the dedicated AudioTranscriptionJob.
-    const description = await transcribeAudio(attachment, {
-      provider: elevenlabsApiKey !== undefined ? 'elevenlabs' : 'voice-engine',
-      apiKey: elevenlabsApiKey,
-    });
-    logger.info({ name: attachment.name }, 'Processed audio attachment');
+    // In-band attachment STT honors the user's resolved STT preference (or
+    // the voice-engine fallback when no caller computed one).
+    const description = await transcribeAudio(
+      attachment,
+      sttDispatch ?? { provider: 'voice-engine' }
+    );
+    logger.info(
+      { name: attachment.name, sttProvider: sttDispatch?.provider ?? 'voice-engine' },
+      'Processed audio attachment'
+    );
     return {
       type: AttachmentType.Audio,
       description,
@@ -126,13 +128,7 @@ export async function processAttachments(
   personality: LoadedPersonality,
   options: ProcessAttachmentOptions
 ): Promise<ProcessedAttachment[]> {
-  const {
-    isGuestMode,
-    userApiKey,
-    elevenlabsApiKey,
-    loggingContext = {},
-    visionProvider,
-  } = options;
+  const { isGuestMode, userApiKey, sttDispatch, loggingContext = {}, visionProvider } = options;
   logger.info(
     {
       attachmentCount: attachments.length,
@@ -154,7 +150,7 @@ export async function processAttachments(
       processSingleAttachment(attachment, personality, {
         isGuestMode,
         userApiKey,
-        elevenlabsApiKey,
+        sttDispatch,
         loggingContext,
         visionProvider,
       }),

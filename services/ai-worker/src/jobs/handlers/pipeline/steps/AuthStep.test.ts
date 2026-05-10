@@ -17,7 +17,7 @@ import type {
   ApiKeyResolver,
   ApiKeyResolutionResult,
 } from '../../../../services/ApiKeyResolver.js';
-import type { LlmConfigResolver } from '@tzurot/common-types';
+import type { LlmConfigResolver, SttResolver, SttProvider } from '@tzurot/common-types';
 
 // Mock common-types logger and isFreeModel
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -92,6 +92,14 @@ function createMockConfigResolver(): LlmConfigResolver {
     invalidateUserCache: vi.fn(),
     clearCache: vi.fn(),
   } as unknown as LlmConfigResolver;
+}
+
+function createMockSttResolver(provider: SttProvider): SttResolver {
+  return {
+    resolveProvider: vi.fn().mockResolvedValue({ provider, source: 'hardcoded' }),
+    invalidateUserCache: vi.fn(),
+    clearCache: vi.fn(),
+  } as unknown as SttResolver;
 }
 
 describe('AuthStep', () => {
@@ -554,6 +562,111 @@ describe('AuthStep', () => {
       expect(result.auth?.apiKey).toBe('sk-or-test');
       expect(result.auth?.audioProviderKeys?.has('elevenlabs')).toBe(false);
       expect(result.auth?.isGuestMode).toBe(false);
+    });
+
+    describe('sttDispatch', () => {
+      function setupResolvers(): {
+        openRouter: ApiKeyResolutionResult;
+        elevenLabs: ApiKeyResolutionResult;
+        mistralUnconfigured: ApiKeyResolutionResult;
+      } {
+        return {
+          openRouter: {
+            apiKey: 'sk-or-test',
+            provider: AIProvider.OpenRouter,
+            source: 'user',
+            isGuestMode: false,
+          },
+          elevenLabs: {
+            apiKey: 'sk_el_test',
+            provider: AIProvider.ElevenLabs,
+            source: 'user',
+            isGuestMode: false,
+          },
+          mistralUnconfigured: {
+            apiKey: '',
+            provider: AIProvider.Mistral,
+            source: 'system',
+            isGuestMode: true,
+          },
+        };
+      }
+
+      function buildContext(): GenerationContext {
+        return {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: {
+            effectivePersonality: TEST_PERSONALITY,
+            configSource: 'personality',
+          },
+        };
+      }
+
+      it('should return undefined sttDispatch when no SttResolver is wired', async () => {
+        const { openRouter, elevenLabs, mistralUnconfigured } = setupResolvers();
+        vi.mocked(mockApiKeyResolver.resolveApiKey)
+          .mockResolvedValueOnce(openRouter)
+          .mockResolvedValueOnce(elevenLabs)
+          .mockResolvedValueOnce(mistralUnconfigured);
+
+        step = new AuthStep(mockApiKeyResolver);
+        const result = await step.process(buildContext());
+
+        expect(result.auth?.sttDispatch).toBeUndefined();
+      });
+
+      it('should set apiKey to undefined when resolver picks voice-engine', async () => {
+        const { openRouter, elevenLabs, mistralUnconfigured } = setupResolvers();
+        vi.mocked(mockApiKeyResolver.resolveApiKey)
+          .mockResolvedValueOnce(openRouter)
+          .mockResolvedValueOnce(elevenLabs)
+          .mockResolvedValueOnce(mistralUnconfigured);
+
+        const sttResolver = createMockSttResolver('voice-engine');
+        step = new AuthStep(mockApiKeyResolver, undefined, undefined, sttResolver);
+        const result = await step.process(buildContext());
+
+        expect(result.auth?.sttDispatch).toEqual({ provider: 'voice-engine', apiKey: undefined });
+        expect(sttResolver.resolveProvider).toHaveBeenCalledWith('user-456');
+      });
+
+      it('should attach matching BYOK key when resolver picks elevenlabs', async () => {
+        const { openRouter, elevenLabs, mistralUnconfigured } = setupResolvers();
+        vi.mocked(mockApiKeyResolver.resolveApiKey)
+          .mockResolvedValueOnce(openRouter)
+          .mockResolvedValueOnce(elevenLabs)
+          .mockResolvedValueOnce(mistralUnconfigured);
+
+        const sttResolver = createMockSttResolver('elevenlabs');
+        step = new AuthStep(mockApiKeyResolver, undefined, undefined, sttResolver);
+        const result = await step.process(buildContext());
+
+        expect(result.auth?.sttDispatch).toEqual({
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
+      });
+
+      it('should leave apiKey undefined when resolver picks BYOK provider with no key', async () => {
+        // Mistral resolver picks mistral, but user has no Mistral key — apiKey stays
+        // undefined. AudioProcessor's tryBYOKTranscription returns null in that case
+        // and the dispatch falls through to voice-engine.
+        const { openRouter, elevenLabs, mistralUnconfigured } = setupResolvers();
+        vi.mocked(mockApiKeyResolver.resolveApiKey)
+          .mockResolvedValueOnce(openRouter)
+          .mockResolvedValueOnce(elevenLabs)
+          .mockResolvedValueOnce(mistralUnconfigured);
+
+        const sttResolver = createMockSttResolver('mistral');
+        step = new AuthStep(mockApiKeyResolver, undefined, undefined, sttResolver);
+        const result = await step.process(buildContext());
+
+        expect(result.auth?.sttDispatch).toEqual({
+          provider: 'mistral',
+          apiKey: undefined,
+        });
+      });
     });
 
     it('should clear non-free vision model in guest mode', async () => {

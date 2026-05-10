@@ -13,6 +13,7 @@ import {
   generateErrorReferenceId,
   USER_ERROR_MESSAGES,
   type ResolvedConfigOverrides,
+  type SttProvider,
 } from '@tzurot/common-types';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
@@ -83,7 +84,7 @@ export class GenerationStep implements IPipelineStep {
     conversationContext: ConversationContext;
     recentAssistantMessages: string[];
     apiKey: string | undefined;
-    elevenlabsApiKey: string | undefined;
+    sttDispatch: { provider: SttProvider; apiKey?: string } | undefined;
     isGuestMode: boolean;
     jobId: string | undefined;
     diagnosticCollector?: DiagnosticCollector;
@@ -136,7 +137,7 @@ export class GenerationStep implements IPipelineStep {
       try {
         response = await this.ragService.generateResponse(personality, message, attemptContext, {
           userApiKey: apiKey,
-          elevenlabsApiKey: opts.elevenlabsApiKey,
+          sttDispatch: opts.sttDispatch,
           isGuestMode,
           retryConfig: { attempt, ...retryConfig },
           skipMemoryStorage: true,
@@ -311,7 +312,7 @@ export class GenerationStep implements IPipelineStep {
             conversationContext,
             recentAssistantMessages,
             apiKey,
-            elevenlabsApiKey: auth.audioProviderKeys.get('elevenlabs'),
+            sttDispatch: auth.sttDispatch,
             isGuestMode,
             jobId: job.id,
             diagnosticCollector,

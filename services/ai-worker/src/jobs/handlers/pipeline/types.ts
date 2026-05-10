@@ -14,6 +14,7 @@ import type {
   LLMGenerationJobData,
   LLMGenerationResult,
   ResolvedConfigOverrides,
+  SttProvider,
 } from '@tzurot/common-types';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';
@@ -120,6 +121,15 @@ export interface ResolvedAuth {
    * forget the field.
    */
   audioProviderKeys: ReadonlyMap<AudioProviderId, string>;
+  /**
+   * Resolved STT dispatch (provider + matching BYOK key when applicable).
+   * Computed by AuthStep from `audioProviderKeys` + `SttResolver` so the
+   * downstream attachment-processing path picks up the user's STT preference
+   * without each step needing to re-resolve. Optional because AuthStep can
+   * skip computation when no SttResolver is wired (test fixtures); the
+   * downstream consumers fall back to a voice-engine dispatch in that case.
+   */
+  sttDispatch?: { provider: SttProvider; apiKey?: string };
   /**
    * `true` when ProviderRouter auto-promoted an OpenRouter `z-ai/<model>`
    * request to z.ai-direct. Together with `fallback`, enables GenerationStep

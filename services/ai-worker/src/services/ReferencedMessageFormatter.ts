@@ -10,6 +10,7 @@ import {
   createLogger,
   type ReferencedMessage,
   type LoadedPersonality,
+  type SttProvider,
   TEXT_LIMITS,
   formatTimestampWithDelta,
 } from '@tzurot/common-types';
@@ -55,7 +56,7 @@ export class ReferencedMessageFormatter {
    * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
    * @param preprocessedAttachments - Pre-processed attachments keyed by reference number (avoids inline API calls)
    * @param userApiKey - User's BYOK API key (for BYOK users)
-   * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
+   * @param sttDispatch - Resolved STT dispatch (provider + matching BYOK key)
    * @returns Formatted string ready for prompt
    */
   async formatReferencedMessages(
@@ -63,10 +64,10 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode = false,
     preprocessedAttachments?: Record<number, ProcessedAttachment[]>,
-    apiKeys?: { userApiKey?: string; elevenlabsApiKey?: string }
+    apiKeys?: { userApiKey?: string; sttDispatch?: { provider: SttProvider; apiKey?: string } }
   ): Promise<string> {
     const userApiKey = apiKeys?.userApiKey;
-    const elevenlabsApiKey = apiKeys?.elevenlabsApiKey;
+    const sttDispatch = apiKeys?.sttDispatch;
     const referenceElements: string[] = [];
 
     // Process each reference into XML
@@ -94,7 +95,7 @@ export class ReferencedMessageFormatter {
           personality,
           isGuestMode,
           preprocessedAttachments?.[ref.referenceNumber],
-          { userApiKey, elevenlabsApiKey }
+          { userApiKey, sttDispatch }
         );
         referenceElements.push(forwardedElement);
         continue;
@@ -106,7 +107,7 @@ export class ReferencedMessageFormatter {
         personality,
         isGuestMode,
         preprocessedAttachments?.[ref.referenceNumber],
-        { userApiKey, elevenlabsApiKey }
+        { userApiKey, sttDispatch }
       );
       referenceElements.push(standardElement);
     }
@@ -138,9 +139,9 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    apiKeys?: { userApiKey?: string; elevenlabsApiKey?: string }
+    apiKeys?: { userApiKey?: string; sttDispatch?: { provider: SttProvider; apiKey?: string } }
   ): Promise<string> {
-    const { userApiKey, elevenlabsApiKey } = apiKeys ?? {};
+    const { userApiKey, sttDispatch } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
     let attachmentLines: string[] = [];
@@ -152,7 +153,7 @@ export class ReferencedMessageFormatter {
         isGuestMode,
         preprocessedAttachments: preprocessedForRef,
         userApiKey,
-        elevenlabsApiKey,
+        sttDispatch,
       });
     }
 
@@ -177,9 +178,9 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    apiKeys?: { userApiKey?: string; elevenlabsApiKey?: string }
+    apiKeys?: { userApiKey?: string; sttDispatch?: { provider: SttProvider; apiKey?: string } }
   ): Promise<string> {
-    const { userApiKey, elevenlabsApiKey } = apiKeys ?? {};
+    const { userApiKey, sttDispatch } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
 
     const forwardedContent: ForwardedMessageContent = {
@@ -197,7 +198,7 @@ export class ReferencedMessageFormatter {
         isGuestMode,
         preprocessedAttachments: preprocessedForRef,
         userApiKey,
-        elevenlabsApiKey,
+        sttDispatch,
       });
 
       if (attachmentLines.length > 0) {

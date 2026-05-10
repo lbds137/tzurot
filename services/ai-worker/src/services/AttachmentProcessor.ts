@@ -13,6 +13,7 @@ import {
   CONTENT_TYPES,
   RETRY_CONFIG,
   AIProvider,
+  type SttProvider,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
@@ -48,8 +49,8 @@ interface ProcessSingleAttachmentOptions {
   preprocessedAttachments?: ProcessedAttachment[];
   /** User's BYOK API key (resolved for the **vision provider**) */
   userApiKey?: string;
-  /** ElevenLabs BYOK API key for premium STT */
-  elevenlabsApiKey?: string;
+  /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
+  sttDispatch?: { provider: SttProvider; apiKey?: string };
   /** Diagnostic context for vision-failure logging (see VisionLoggingContext in VisionProcessor.ts) */
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
@@ -85,8 +86,8 @@ export interface ProcessAttachmentsOptions {
   preprocessedAttachments?: ProcessedAttachment[];
   /** User's BYOK API key (resolved for the **vision provider**) */
   userApiKey?: string;
-  /** ElevenLabs BYOK API key for premium STT */
-  elevenlabsApiKey?: string;
+  /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
+  sttDispatch?: { provider: SttProvider; apiKey?: string };
   /** Diagnostic context for vision-failure logging */
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
@@ -110,7 +111,7 @@ export async function processAttachmentsParallel(
     isGuestMode,
     preprocessedAttachments,
     userApiKey,
-    elevenlabsApiKey,
+    sttDispatch,
     loggingContext,
     visionProvider,
   } = options;
@@ -127,7 +128,7 @@ export async function processAttachmentsParallel(
       isGuestMode,
       preprocessedAttachments,
       userApiKey,
-      elevenlabsApiKey,
+      sttDispatch,
       loggingContext,
       visionProvider,
     })
@@ -169,7 +170,7 @@ async function processVoiceAttachment(
   index: number,
   referenceNumber: number,
   preprocessed?: ProcessedAttachment,
-  elevenlabsApiKey?: string
+  sttDispatch?: { provider: SttProvider; apiKey?: string }
 ): Promise<ProcessedAttachmentResult> {
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug(
@@ -184,17 +185,16 @@ async function processVoiceAttachment(
 
   try {
     logger.info(
-      { referenceNumber, url: attachment.url, duration: attachment.duration },
+      {
+        referenceNumber,
+        url: attachment.url,
+        duration: attachment.duration,
+        sttProvider: sttDispatch?.provider ?? 'voice-engine',
+      },
       'Transcribing voice message'
     );
-    // In-band attachment STT preserves prior shape (ElevenLabs-or-voice-engine).
-    // PR-2 STT cutover only flows through the dedicated AudioTranscriptionJob.
     const result = await withRetry(
-      () =>
-        transcribeAudio(attachment, {
-          provider: elevenlabsApiKey !== undefined ? 'elevenlabs' : 'voice-engine',
-          apiKey: elevenlabsApiKey,
-        }),
+      () => transcribeAudio(attachment, sttDispatch ?? { provider: 'voice-engine' }),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         logger,
@@ -276,20 +276,14 @@ async function processSingleAttachment(
     isGuestMode,
     preprocessedAttachments,
     userApiKey,
-    elevenlabsApiKey,
+    sttDispatch,
     loggingContext,
     visionProvider,
   } = options;
   const preprocessed = findPreprocessedByUrl(attachment.url, preprocessedAttachments);
 
   if (attachment.isVoiceMessage === true) {
-    return processVoiceAttachment(
-      attachment,
-      index,
-      referenceNumber,
-      preprocessed,
-      elevenlabsApiKey
-    );
+    return processVoiceAttachment(attachment, index, referenceNumber, preprocessed, sttDispatch);
   }
 
   if (attachment.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {

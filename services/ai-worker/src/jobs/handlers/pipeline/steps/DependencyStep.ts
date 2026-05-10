@@ -15,6 +15,7 @@ import {
   type AttachmentMetadata,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
+  type SttProvider,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
 import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
@@ -116,7 +117,7 @@ export class DependencyStep implements IPipelineStep {
         {
           isGuestMode: auth?.isGuestMode ?? false,
           userApiKey: auth?.apiKey,
-          elevenlabsApiKey: auth?.audioProviderKeys.get('elevenlabs'),
+          sttDispatch: auth?.sttDispatch,
           mainProvider: auth?.provider,
         },
         jobContext.userId
@@ -214,7 +215,7 @@ export class DependencyStep implements IPipelineStep {
    * @param jobId - Job ID for logging
    * @param isGuestMode - Whether user is in guest mode (uses free models)
    * @param userApiKey - User's BYOK API key (for BYOK users)
-   * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
+   * @param sttDispatch - Resolved STT dispatch (provider + matching BYOK key)
    */
   private async processExtendedContextAttachments(
     attachments: AttachmentMetadata[],
@@ -223,12 +224,12 @@ export class DependencyStep implements IPipelineStep {
     authOptions: {
       isGuestMode: boolean;
       userApiKey?: string;
-      elevenlabsApiKey?: string;
+      sttDispatch?: { provider: SttProvider; apiKey?: string };
       mainProvider?: AIProvider;
     },
     userId: string
   ): Promise<ProcessedAttachment[]> {
-    const { isGuestMode, userApiKey, elevenlabsApiKey, mainProvider } = authOptions;
+    const { isGuestMode, userApiKey, sttDispatch, mainProvider } = authOptions;
     // Filter to only images
     const imageAttachments = attachments.filter(a => a.contentType?.startsWith('image/'));
     if (imageAttachments.length === 0) {
@@ -308,7 +309,7 @@ export class DependencyStep implements IPipelineStep {
         const processed = await processAttachments(imageAttachments, personality, {
           isGuestMode,
           userApiKey: visionAuth.apiKey,
-          elevenlabsApiKey,
+          sttDispatch,
           visionProvider: visionAuth.provider,
           loggingContext: {
             userId,
@@ -357,7 +358,7 @@ export class DependencyStep implements IPipelineStep {
       const processed = await processAttachments(imageAttachments, personality, {
         isGuestMode,
         userApiKey,
-        elevenlabsApiKey,
+        sttDispatch,
         loggingContext: {
           userId,
           apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),

@@ -2,6 +2,10 @@
 
 _Ideas for later. Resist the shiny object._
 
+### Triaged from Inbox 2026-05-10
+
+- 🏗️ `[LIFT]` **Could in-band attachment STT path become cache-reader-only?** — Today there are two STT entry points: (1) the dedicated `AudioTranscriptionJob` (BullMQ job, runs ahead of the LLM pipeline, populates `voiceTranscriptCache`), and (2) the in-band `MultimodalProcessor` path inside the synchronous LLM pipeline (handles attachments arriving inside extended-context messages, also reads/writes `voiceTranscriptCache`). Both call into `transcribeAudio` and now both resolve via `SttResolver`. The architectural question: could path 2 become cache-reader-only — if the cache misses, fall back to enqueuing an `AudioTranscriptionJob` and waiting on it — eliminating the duplicate STT plumbing inside `MultimodalProcessor` / `AttachmentProcessor` / `ConversationInputProcessor` / `ReferencedMessageFormatter`? **Why iceboxed**: dual paths are justified by genuinely different invocation contexts (preprocessing job vs. mid-pipeline attachment discovery); the duplication is shallow (both threads pass `sttDispatch` through identical surface). User confirmed not urgent. Promote when: a third STT consumer appears, OR a bug reveals divergence between the two paths' provider-resolution behavior. Surfaced 2026-05-10 during the STT polish sweep.
+
 ### Triaged from Inbox 2026-05-07
 
 - 🏗️ `[LIFT]` **Voice fingerprint / speaker embedding alongside reference audio** — Surfaced 2026-05-01 in Kimi K2.6 council review. Future-facing design: `fetchVoiceReference(slug)` could eventually return `{ buffer, embedding: Float32Array }` instead of just `buffer`. The embedding field is unused today, but unlocks next-generation providers that accept speaker embeddings rather than raw reference audio (e.g., Zonos's speaker embedding pathway, future Voxtral variants). **Why iceboxed**: no current provider needs the embedding; pure speculation about future provider shapes. Promote if a provider lands that natively accepts embeddings, OR if reference-audio uploads become a bandwidth bottleneck.

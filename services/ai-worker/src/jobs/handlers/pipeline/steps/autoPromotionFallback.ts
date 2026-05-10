@@ -12,7 +12,12 @@
  * Pure orchestration; doesn't know about RAG, only about the swap shape.
  */
 
-import { createLogger, MessageContent, type ResolvedConfigOverrides } from '@tzurot/common-types';
+import {
+  createLogger,
+  MessageContent,
+  type ResolvedConfigOverrides,
+  type SttProvider,
+} from '@tzurot/common-types';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {
   RAGResponse,
@@ -34,7 +39,7 @@ export interface GenerateAttemptOpts {
   conversationContext: ConversationContext;
   recentAssistantMessages: string[];
   apiKey: string | undefined;
-  elevenlabsApiKey: string | undefined;
+  sttDispatch: { provider: SttProvider; apiKey?: string } | undefined;
   isGuestMode: boolean;
   jobId: string | undefined;
   diagnosticCollector?: DiagnosticCollector;

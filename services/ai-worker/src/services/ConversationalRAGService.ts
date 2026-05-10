@@ -343,7 +343,7 @@ export class ConversationalRAGService {
   ): Promise<RAGResponse> {
     const {
       userApiKey,
-      elevenlabsApiKey,
+      sttDispatch,
       isGuestMode = false,
       retryConfig,
       diagnosticCollector: diagnosticCollectorRef,
@@ -356,7 +356,7 @@ export class ConversationalRAGService {
       const inputs = await this.inputProcessor.processInputs(personality, message, context, {
         isGuestMode,
         userApiKey,
-        elevenlabsApiKey,
+        sttDispatch,
       });
 
       // Record input processing for diagnostics
@@ -386,7 +386,7 @@ export class ConversationalRAGService {
           processAttachments(atts, personality, {
             isGuestMode,
             userApiKey,
-            elevenlabsApiKey,
+            sttDispatch,
             loggingContext: visionLoggingContext,
           })
       );
