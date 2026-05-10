@@ -4,14 +4,12 @@ _This week's active work. Max 3 items._
 
 ### Active
 
-1. **TTS Engine Upgrade Phase 3 PR 1** (`/voice` namespace consolidation) — pure-refactor PR per the locked 2026-05-05 council passes: move `/settings tts` and `/settings voices` under a unified `/voice` namespace with deprecation stubs on the old paths. No behavior change. See [`active-epic.md`](active-epic.md) Phase 3 section and [`tts-phase-3-voice-consolidation-plan.md`](../docs/proposals/backlog/tts-phase-3-voice-consolidation-plan.md). Sets up Phase 3 PR 2 (Mistral STT cutover, the actual material payoff of yesterday's BYOK decision).
+1. **Cut release v3.0.0-beta.120** — bundle PR #1003 (`/voice` consolidation), #1004 (preset rename), and #1005 (Mistral STT cutover). Migration already applied to prod, so this release is purely the code deploy + Discord-side surface refresh. Required before users see the new `/voice` namespace.
 
 ### Most likely next-session pickups
 
-1. **TTS Engine Upgrade Phase 3 PR 2** (Mistral STT cutover + provider-set + 4-layer resolver wiring) — the material payoff of the consolidation. Lights up Mistral as the BYOK STT path in production.
-2. **TTS Engine Upgrade Phase 2** (NeuTTS Air) — second self-hosted engine, voice-cloning capable, completes the additive provider matrix. Independent of Phase 3 ordering.
-
-_UX polish on the new `/voice` surface is folded into PR 1/PR 2 instead of being a standalone item — doing it on `/settings tts` right before the rename would be throwaway work._
+1. **TTS Engine Upgrade Phase 2** (NeuTTS Air) — last remaining phase of the epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending. See [`active-epic.md`](active-epic.md) Phase 2 section.
+2. **TTS Phase 3 follow-up sweep** — 5 PR-#1005 review-flagged items in inbox (cache-invalidation wiring, in-band attachment STT path, shared cascade helper, JIT footer timeout, DB CHECK constraints). Could be batched as one PR or absorbed opportunistically during Phase 2 work.
 
 ### Other in-flight
 
