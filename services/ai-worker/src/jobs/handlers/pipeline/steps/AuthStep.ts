@@ -11,6 +11,8 @@ import {
   GUEST_MODE,
   isFreeModel,
   type AudioProviderId,
+  type SttProvider,
+  type SttResolver,
 } from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
 import { ProviderRouter } from '../../../../services/ProviderRouter.js';
@@ -26,7 +28,8 @@ export class AuthStep implements IPipelineStep {
   constructor(
     private readonly apiKeyResolver?: ApiKeyResolver,
     private readonly configResolver?: LlmConfigResolver,
-    providerRouter?: ProviderRouter
+    providerRouter?: ProviderRouter,
+    private readonly sttResolver?: SttResolver
   ) {
     // ProviderRouter wraps ApiKeyResolver to encode the auto-fallthrough
     // routing rule for `zai-coding` (and any future provider that needs it).
@@ -112,6 +115,12 @@ export class AuthStep implements IPipelineStep {
     // Map is ReadonlyMap on the type contract; constructed Map narrows fine.
     const audioProviderKeys: ReadonlyMap<AudioProviderId, string> = audioKeysBuilder;
 
+    // Resolve STT dispatch once here so downstream steps (DependencyStep,
+    // GenerationStep → MultimodalProcessor) don't each re-resolve. SttResolver
+    // is optional in the constructor for test fixtures; production always
+    // wires it via LLMGenerationHandler.
+    const sttDispatch = await this.resolveSttDispatch(jobContext.userId, audioProviderKeys);
+
     // Update config with potentially modified personality
     const updatedConfig = {
       ...config,
@@ -126,6 +135,7 @@ export class AuthStep implements IPipelineStep {
         provider: resolvedProvider,
         isGuestMode,
         audioProviderKeys,
+        sttDispatch,
         // wasAutoPromoted and fallback are co-invariant by ProviderRouter
         // construction (always set together or neither). Spread separately
         // here only because they're both optional on the type. If a future
@@ -135,6 +145,31 @@ export class AuthStep implements IPipelineStep {
         ...(wasAutoPromoted === true ? { wasAutoPromoted: true } : {}),
         ...(fallback !== undefined ? { fallback } : {}),
       },
+    };
+  }
+
+  /**
+   * Resolve the STT dispatch (provider + matching BYOK key) once per job.
+   * Returns undefined when no SttResolver is wired (test fixtures); downstream
+   * consumers fall back to a voice-engine dispatch in that case.
+   *
+   * BYOK providers (mistral, elevenlabs) need their key looked up from
+   * `audioProviderKeys`; voice-engine is keyless. If the resolver picks a BYOK
+   * provider but no matching key is present, apiKey stays undefined and
+   * AudioProcessor's dispatch falls through to voice-engine on attempt.
+   */
+  private async resolveSttDispatch(
+    userId: string,
+    audioProviderKeys: ReadonlyMap<AudioProviderId, string>
+  ): Promise<{ provider: SttProvider; apiKey?: string } | undefined> {
+    if (!this.sttResolver) {
+      return undefined;
+    }
+    const result = await this.sttResolver.resolveProvider(userId);
+    return {
+      provider: result.provider,
+      apiKey:
+        result.provider === 'voice-engine' ? undefined : audioProviderKeys.get(result.provider),
     };
   }
 

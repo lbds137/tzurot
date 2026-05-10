@@ -13,6 +13,7 @@ const capturedCallbacks = {
   apiKey: null as SubscribeCallback | null,
   llmConfig: null as SubscribeCallback | null,
   ttsConfig: null as SubscribeCallback | null,
+  stt: null as SubscribeCallback | null,
   persona: null as SubscribeCallback | null,
   cascade: null as SubscribeCallback | null,
 };
@@ -23,6 +24,7 @@ const mockUnsubscribe = vi.fn().mockResolvedValue(undefined);
 const mockApiKeyResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
 const mockLlmConfigResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
 const mockTtsConfigResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
+const mockSttResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
 const mockPersonaResolver = { clearCache: vi.fn(), invalidateUserCache: vi.fn() };
 const mockCascadeResolver = {
   clearCache: vi.fn(),
@@ -95,6 +97,17 @@ vi.mock('@tzurot/common-types', async () => {
       clearCache = mockTtsConfigResolver.clearCache;
       invalidateUserCache = mockTtsConfigResolver.invalidateUserCache;
     },
+    SttResolver: class {
+      clearCache = mockSttResolver.clearCache;
+      invalidateUserCache = mockSttResolver.invalidateUserCache;
+    },
+    SttResolverCacheInvalidationService: class {
+      subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
+        capturedCallbacks.stt = cb;
+        return Promise.resolve();
+      });
+      unsubscribe = mockUnsubscribe;
+    },
   };
 });
 
@@ -125,6 +138,7 @@ describe('setupCacheInvalidation', () => {
     capturedCallbacks.apiKey = null;
     capturedCallbacks.llmConfig = null;
     capturedCallbacks.ttsConfig = null;
+    capturedCallbacks.stt = null;
     capturedCallbacks.persona = null;
     capturedCallbacks.cascade = null;
   });
@@ -140,9 +154,10 @@ describe('setupCacheInvalidation', () => {
     expect(result.apiKeyResolver).toBeDefined();
     expect(result.llmConfigResolver).toBeDefined();
     expect(result.ttsConfigResolver).toBeDefined();
+    expect(result.sttResolver).toBeDefined();
     expect(result.personaResolver).toBeDefined();
     expect(result.cascadeResolver).toBeDefined();
-    expect(result.cleanupFns).toHaveLength(6);
+    expect(result.cleanupFns).toHaveLength(7);
   });
 
   it('should provide cleanup functions that unsubscribe', async () => {
@@ -153,7 +168,7 @@ describe('setupCacheInvalidation', () => {
 
     await Promise.all(result.cleanupFns.map(fn => fn()));
 
-    expect(mockUnsubscribe).toHaveBeenCalledTimes(6);
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(7);
   });
 
   describe('API key cache invalidation events', () => {
@@ -207,6 +222,20 @@ describe('setupCacheInvalidation', () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.ttsConfig?.({ type: 'config', configId: 'cfg-tts-1' });
       expect(mockTtsConfigResolver.clearCache).toHaveBeenCalled();
+    });
+  });
+
+  describe('STT cache invalidation events', () => {
+    it('should clear all STT cache on "all" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.stt?.({ type: 'all' });
+      expect(mockSttResolver.clearCache).toHaveBeenCalled();
+    });
+
+    it('should invalidate user STT cache on "user" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.stt?.({ type: 'user', discordId: 'user-123' });
+      expect(mockSttResolver.invalidateUserCache).toHaveBeenCalledWith('user-123');
     });
   });
 
