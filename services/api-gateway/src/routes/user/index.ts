@@ -61,6 +61,7 @@ import type {
   CacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   ConfigCascadeResolver,
+  SttResolverCacheInvalidationService,
 } from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createTimezoneRoutes } from './timezone.js';
@@ -69,6 +70,9 @@ import { createPersonalityRoutes } from './personality/index.js';
 import { createLlmConfigRoutes } from './llm-config.js';
 import { createTtsConfigRoutes } from './tts-config.js';
 import { createTtsOverrideRoutes } from './tts-override.js';
+import { createSttOverrideRoutes } from './stt-override.js';
+import { createVoiceProviderRoutes } from './voice-provider.js';
+import { createVoiceResolutionRoutes } from './voice-resolution.js';
 import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
 import { createHistoryRoutes } from './history.js';
@@ -92,6 +96,7 @@ interface UserRouterOptions {
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService;
   cascadeResolver?: ConfigCascadeResolver;
   aiQueue?: Queue;
+  sttResolverCacheInvalidation?: SttResolverCacheInvalidationService;
 }
 
 /**
@@ -108,6 +113,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
     cascadeInvalidation,
     cascadeResolver,
     aiQueue,
+    sttResolverCacheInvalidation,
   } = opts;
   const router = Router();
 
@@ -131,6 +137,15 @@ export function createUserRouter(opts: UserRouterOptions): Router {
 
   // TTS override routes (per-personality TTS overrides + user global default)
   router.use('/tts-override', createTtsOverrideRoutes(prisma, ttsConfigCacheInvalidation));
+
+  // STT override routes (per-personality STT provider + user-default STT)
+  router.use('/stt-override', createSttOverrideRoutes(prisma, sttResolverCacheInvalidation));
+
+  // Voice provider foundational default (User.defaultProvider — Layer 4 of STT cascade)
+  router.use('/voice-provider', createVoiceProviderRoutes(prisma, sttResolverCacheInvalidation));
+
+  // Voice resolution aggregate read endpoint (powers /voice view dashboard)
+  router.use('/voice-resolution', createVoiceResolutionRoutes(prisma));
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));

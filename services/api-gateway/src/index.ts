@@ -24,6 +24,7 @@ import {
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
   TtsConfigCacheInvalidationService,
+  SttResolverCacheInvalidationService,
   DenylistCacheInvalidationService,
   ConfigCascadeCacheInvalidationService,
   ConfigCascadeResolver,
@@ -98,6 +99,7 @@ interface ServicesContext {
   apiKeyCacheInvalidation: ApiKeyCacheInvalidationService;
   llmConfigCacheInvalidation: LlmConfigCacheInvalidationService;
   ttsConfigCacheInvalidation: TtsConfigCacheInvalidationService;
+  sttResolverCacheInvalidation: SttResolverCacheInvalidationService;
   denylistInvalidation: DenylistCacheInvalidationService;
   cascadeInvalidation: ConfigCascadeCacheInvalidationService;
   cascadeResolver: ConfigCascadeResolver;
@@ -141,6 +143,9 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
 
   const ttsConfigCacheInvalidation = new TtsConfigCacheInvalidationService(cacheRedis);
   logger.info('TTS config cache invalidation service initialized');
+
+  const sttResolverCacheInvalidation = new SttResolverCacheInvalidationService(cacheRedis);
+  logger.info('STT resolver cache invalidation service initialized');
 
   const denylistInvalidation = new DenylistCacheInvalidationService(cacheRedis);
   logger.info('Denylist cache invalidation service initialized');
@@ -194,6 +199,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
     ttsConfigCacheInvalidation,
+    sttResolverCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
@@ -213,6 +219,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
     ttsConfigCacheInvalidation,
+    sttResolverCacheInvalidation,
     denylistInvalidation,
     cascadeInvalidation,
     cascadeResolver,
@@ -249,6 +256,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
       cascadeInvalidation,
       cascadeResolver,
       aiQueue,
+      sttResolverCacheInvalidation,
     })
   );
   logger.info('User routes registered (with personality cache invalidation, incognito)');

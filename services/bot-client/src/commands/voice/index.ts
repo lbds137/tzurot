@@ -4,13 +4,14 @@
  * Unified namespace for voice configuration:
  *
  * - /voice tts browse|set|clear|set-default|clear-default — TTS provider config
+ * - /voice stt browse|set|clear|set-default|clear-default — STT provider overrides
+ * - /voice provider set|clear — foundational voice provider default (Layer 4)
  * - /voice voices browse|delete|clear — cloned-voice lifecycle
+ * - /voice view <personality> — unified TTS+STT+voices dashboard
  *
- * Consolidates the former /settings tts and /settings voices surfaces under
- * a single top-level command. Symmetric subcommand naming (set / clear /
- * set-default / clear-default) replaces the legacy mix of set/reset/default/
- * clear-default. The same shape will extend to /voice stt, /voice provider
- * for the bundled-default semantic, and a /voice view dashboard when added.
+ * Symmetric subcommand naming (set / clear / set-default / clear-default) across
+ * tts and stt groups. /voice provider holds the foundational User.defaultProvider
+ * baseline that the TTS and STT cascades fall through to.
  *
  * The legacy /settings tts and /settings voices subcommand groups remain
  * registered as deprecation stubs that ephemerally redirect users to the
@@ -41,6 +42,21 @@ import { handleTtsSetDefault } from './tts/set-default.js';
 import { handleTtsClearDefault } from './tts/clear-default.js';
 import { handleAutocomplete as handleTtsAutocomplete } from './tts/autocomplete.js';
 
+// STT handlers
+import { handleSttBrowse } from './stt/browse.js';
+import { handleSttSet } from './stt/set.js';
+import { handleSttClear } from './stt/clear.js';
+import { handleSttSetDefault } from './stt/set-default.js';
+import { handleSttClearDefault } from './stt/clear-default.js';
+import { handleAutocomplete as handleSttAutocomplete } from './stt/autocomplete.js';
+
+// Provider handlers
+import { handleProviderSet } from './provider/set.js';
+import { handleProviderClear } from './provider/clear.js';
+
+// View handler
+import { handleVoiceView } from './view.js';
+
 // Voices handlers
 import {
   handleBrowseVoices,
@@ -57,6 +73,8 @@ import {
 
 import { buildVoiceTtsSubcommandGroup } from './tts/subcommandBuilder.js';
 import { buildVoiceVoicesSubcommandGroup } from './voices/subcommandBuilder.js';
+import { buildVoiceSttSubcommandGroup } from './stt/subcommandBuilder.js';
+import { buildVoiceProviderSubcommandGroup } from './provider/subcommandBuilder.js';
 
 const logger = createLogger('voice-command');
 
@@ -69,6 +87,25 @@ const ttsRouter = createTypedSubcommandRouter(
     'clear-default': handleTtsClearDefault,
   },
   { logger, logPrefix: '[Voice/Tts]' }
+);
+
+const sttRouter = createTypedSubcommandRouter(
+  {
+    browse: handleSttBrowse,
+    set: handleSttSet,
+    clear: handleSttClear,
+    'set-default': handleSttSetDefault,
+    'clear-default': handleSttClearDefault,
+  },
+  { logger, logPrefix: '[Voice/Stt]' }
+);
+
+const providerRouter = createTypedSubcommandRouter(
+  {
+    set: handleProviderSet,
+    clear: handleProviderClear,
+  },
+  { logger, logPrefix: '[Voice/Provider]' }
 );
 
 const voicesRouter = createTypedSubcommandRouter(
@@ -86,12 +123,30 @@ async function execute(context: SafeCommandContext): Promise<void> {
 
   if (group === 'tts') {
     await ttsRouter(deferredCtx);
-  } else if (group === 'voices') {
-    await voicesRouter(deferredCtx);
-  } else {
-    logger.warn({ group }, 'Unknown voice subcommand group');
-    await deferredCtx.editReply({ content: '❌ Unknown voice group.' });
+    return;
   }
+  if (group === 'stt') {
+    await sttRouter(deferredCtx);
+    return;
+  }
+  if (group === 'provider') {
+    await providerRouter(deferredCtx);
+    return;
+  }
+  if (group === 'voices') {
+    await voicesRouter(deferredCtx);
+    return;
+  }
+
+  // No subcommand group → top-level subcommand (currently only `view`)
+  const subcommand = context.getSubcommand();
+  if (subcommand === 'view') {
+    await handleVoiceView(deferredCtx);
+    return;
+  }
+
+  logger.warn({ group, subcommand }, 'Unknown voice subcommand');
+  await deferredCtx.editReply({ content: '❌ Unknown voice subcommand.' });
 }
 
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
@@ -99,6 +154,10 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 
   if (subcommandGroup === 'tts') {
     await handleTtsAutocomplete(interaction);
+    return;
+  }
+  if (subcommandGroup === 'stt') {
+    await handleSttAutocomplete(interaction);
     return;
   }
   if (subcommandGroup === 'voices') {
@@ -110,6 +169,19 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
       return;
     }
   }
+
+  // Top-level subcommands (e.g. /voice view) — only `personality` is
+  // autocompleted; route via the personality autocomplete shared utility.
+  if (subcommandGroup === null) {
+    const focusedOption = interaction.options.getFocused(true);
+    if (focusedOption.name === 'personality') {
+      // Reuse the STT autocomplete handler — it already handles `personality`
+      // identically to what /voice view needs.
+      await handleSttAutocomplete(interaction);
+      return;
+    }
+  }
+
   await interaction.respond([]);
 }
 
@@ -154,8 +226,22 @@ function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<voi
 export default defineCommand({
   data: new SlashCommandBuilder()
     .setName('voice')
-    .setDescription('Voice configuration: TTS providers + cloned voices')
+    .setDescription('Voice configuration: TTS + STT providers + cloned voices')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('view')
+        .setDescription('Show resolved TTS + STT + voices for a personality')
+        .addStringOption(option =>
+          option
+            .setName('personality')
+            .setDescription('Which personality to inspect')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
     .addSubcommandGroup(buildVoiceTtsSubcommandGroup)
+    .addSubcommandGroup(buildVoiceSttSubcommandGroup)
+    .addSubcommandGroup(buildVoiceProviderSubcommandGroup)
     .addSubcommandGroup(buildVoiceVoicesSubcommandGroup),
   deferralMode: 'ephemeral',
   execute,

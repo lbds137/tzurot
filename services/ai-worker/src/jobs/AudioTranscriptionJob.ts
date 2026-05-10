@@ -15,7 +15,10 @@ import {
   type AudioTranscriptionResult,
   audioTranscriptionJobDataSchema,
 } from '@tzurot/common-types';
-import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
+import {
+  transcribeAudio,
+  type TranscribeAudioOptions,
+} from '../services/multimodal/AudioProcessor.js';
 import { withRetry } from '../utils/retry.js';
 import { checkQueueAge } from '../utils/jobAgeGate.js';
 
@@ -25,11 +28,13 @@ const logger = createLogger('AudioTranscriptionJob');
  * Process audio transcription job
  *
  * @param job - BullMQ job with audio transcription data
- * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
+ * @param sttOpts - Resolved STT provider + matching API key (caller should
+ *   resolve via SttResolver.resolveProviderForTranscription, then fetch the
+ *   key via ApiKeyResolver if the provider needs one)
  */
 export async function processAudioTranscriptionJob(
   job: Job<AudioTranscriptionJobData>,
-  elevenlabsApiKey?: string
+  sttOpts: TranscribeAudioOptions
 ): Promise<AudioTranscriptionResult> {
   const startTime = Date.now();
 
@@ -79,7 +84,7 @@ export async function processAudioTranscriptionJob(
     // Transcribe the audio with retry logic (3 attempts).
     // Config errors ("No STT provider available") are non-retryable — fast-fail
     // instead of wasting ~30s on guaranteed-identical failures.
-    const result = await withRetry(() => transcribeAudio(attachment, elevenlabsApiKey), {
+    const result = await withRetry(() => transcribeAudio(attachment, sttOpts), {
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       shouldRetry: err =>
         !(err instanceof Error && err.message.startsWith('No STT provider available')),

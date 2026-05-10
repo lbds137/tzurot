@@ -155,7 +155,7 @@ async function listVoicesForProvider(
  * — a working ElevenLabs key + bad Mistral key shouldn't break the listing
  * the user's actual ElevenLabs voices).
  */
-async function fetchAllTzurotVoices(keys: Map<AudioProviderId, string>): Promise<{
+export async function fetchAllTzurotVoices(keys: Map<AudioProviderId, string>): Promise<{
   voices: TaggedVoice[];
   totalVoicesByProvider: Map<AudioProviderId, number>;
   warnings: ProviderWarning[];

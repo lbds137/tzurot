@@ -25,6 +25,13 @@ model User {
   nsfwVerifiedAt        DateTime?                  @map("nsfw_verified_at")
   defaultLlmConfigId    String?                    @map("default_llm_config_id") @db.Uuid
   defaultTtsConfigId    String?                    @map("default_tts_config_id") @db.Uuid
+  /// Foundational voice provider default written by /voice provider set.
+  /// Read by SttResolver as Layer 4 (admin-default) of the STT cascade.
+  /// Holds 'mistral' | 'elevenlabs' | 'voice-engine'.
+  defaultProvider       String?                    @map("default_provider")        @db.VarChar(20)
+  /// User-level STT provider default written by /voice stt set-default.
+  /// Read by SttResolver as Layer 2 of the STT cascade.
+  defaultSttProviderId  String?                    @map("default_stt_provider_id") @db.VarChar(20)
   defaultPersonaId      String                     @map("default_persona_id") @db.Uuid
   /// JSONB config cascade defaults (user tier). Validated against ConfigOverridesSchema at runtime.
   configDefaults        Json?                      @map("config_defaults")
@@ -338,6 +345,9 @@ model UserPersonalityConfig {
   personaId        String?  @map("persona_id") @db.Uuid
   llmConfigId      String?  @map("llm_config_id") @db.Uuid
   ttsConfigId      String?  @map("tts_config_id") @db.Uuid
+  /// Per-personality STT provider override written by /voice stt set <personality>.
+  /// Read by SttResolver as Layer 1 (most-specific) of the STT cascade.
+  sttProviderId    String?  @map("stt_provider_id") @db.VarChar(20)
   /// JSONB config cascade overrides (user+personality tier). Validated against ConfigOverridesSchema at runtime.
   configOverrides  Json?    @map("config_overrides")
   createdAt        DateTime @default(now()) @map("created_at")

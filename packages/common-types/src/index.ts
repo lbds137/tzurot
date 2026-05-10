@@ -7,6 +7,7 @@ export * from './constants/index.js';
 // Export types
 export * from './types/ai.js';
 export * from './types/audio-provider.js';
+export * from './types/sttProvider.js';
 export * from './types/diagnostic.js';
 export * from './types/incognito.js';
 
@@ -78,6 +79,8 @@ export * from './services/LlmConfigResolver.js';
 export * from './services/TtsConfigMapper.js';
 export * from './services/TtsConfigResolver.js';
 export * from './services/TtsConfigCacheInvalidationService.js';
+export * from './services/SttResolver.js';
+export * from './services/SttResolverCacheInvalidationService.js';
 export * from './services/tts/TtsProvider.js';
 export * from './services/tts/TtsProviderError.js';
 export * from './services/ConversationHistoryService.js';

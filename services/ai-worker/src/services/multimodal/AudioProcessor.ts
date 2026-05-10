@@ -2,8 +2,11 @@
  * Audio Processor
  *
  * Processes audio (voice messages, audio files) to extract text transcriptions.
- * Primary path: ElevenLabs STT (when BYOK key available).
- * Fallback: self-hosted voice-engine (Parakeet TDT) when VOICE_ENGINE_URL is set.
+ * Provider selection: callers pass a {@link SttProvider} that they've already
+ * resolved via {@link SttResolver}; this module just dispatches to the
+ * corresponding HTTP client. Voice-engine (self-hosted) is the fallback when
+ * a BYOK provider's call fails OR when no key is supplied.
+ *
  * Includes Redis caching for faster repeated access.
  */
 
@@ -13,6 +16,7 @@ import {
   isTransientNetworkError,
   TimeoutError,
   type AttachmentMetadata,
+  type SttProvider,
 } from '@tzurot/common-types';
 import { withRetry, RetryError } from '../../utils/retry.js';
 import { validateAttachmentUrl, isDataUrl } from '../../utils/attachmentFetch.js';
@@ -24,6 +28,11 @@ import {
 } from '../voice/VoiceEngineClient.js';
 import { waitForVoiceEngine } from '../voice/voiceEngineWarmup.js';
 import { elevenLabsSTT, ElevenLabsApiError } from '../voice/ElevenLabsClient.js';
+import {
+  mistralTranscribeAudio,
+  MistralSttApiError,
+  MistralSttTimeoutError,
+} from '../voice/MistralSttClient.js';
 
 const logger = createLogger('AudioProcessor');
 
@@ -199,12 +208,12 @@ async function transcribeWithElevenLabs(
     const originalError = error instanceof RetryError ? error.lastError : error;
     if (originalError instanceof ElevenLabsApiError && originalError.isAuthError) {
       logger.error(
-        { err: originalError, fallback: 'voice-engine' },
+        { err: originalError, fallback: STT_FALLBACK_LABEL },
         'ElevenLabs STT auth error — falling back'
       );
     } else {
       logger.warn(
-        { err: error, fallback: 'voice-engine' },
+        { err: error, fallback: STT_FALLBACK_LABEL },
         'ElevenLabs STT failed after retries — trying voice-engine'
       );
     }
@@ -212,67 +221,182 @@ async function transcribeWithElevenLabs(
   }
 }
 
+/** Logged when a BYOK STT provider fails and we cascade to voice-engine. */
+const STT_FALLBACK_LABEL = 'voice-engine';
+
+/** Retry config for Mistral STT — same shape as ElevenLabs STT. */
+const MISTRAL_STT_RETRY = {
+  MAX_ATTEMPTS: 2,
+  INITIAL_DELAY_MS: 3_000,
+} as const;
+
+function isTransientMistralSttError(error: unknown): boolean {
+  if (error instanceof MistralSttApiError) {
+    return error.isTransient;
+  }
+  if (error instanceof MistralSttTimeoutError) {
+    return true;
+  }
+  return isTransientNetworkError(error);
+}
+
+/**
+ * Transcribe via Mistral. Returns the transcription text, or null if the
+ * request fails after retries. Auth failures (401/403) fast-fail without
+ * retry — no point hammering on a bad key.
+ */
+async function transcribeWithMistral(
+  attachment: AttachmentMetadata,
+  audioBuffer: ArrayBuffer,
+  apiKey: string
+): Promise<string | null> {
+  try {
+    const filename =
+      attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'audio.ogg';
+
+    const { value: result } = await withRetry(
+      () =>
+        mistralTranscribeAudio({
+          audioBuffer: Buffer.from(audioBuffer),
+          filename,
+          contentType: attachment.contentType,
+          apiKey,
+        }),
+      {
+        maxAttempts: MISTRAL_STT_RETRY.MAX_ATTEMPTS,
+        initialDelayMs: MISTRAL_STT_RETRY.INITIAL_DELAY_MS,
+        shouldRetry: isTransientMistralSttError,
+        operationName: 'Mistral STT',
+        logger,
+      }
+    );
+
+    logger.info(
+      { transcriptionLength: result.text.length, duration: attachment.duration },
+      'Audio transcribed via Mistral STT'
+    );
+
+    return result.text;
+  } catch (error) {
+    const originalError = error instanceof RetryError ? error.lastError : error;
+    if (originalError instanceof MistralSttApiError && originalError.isAuthError) {
+      logger.error(
+        { err: originalError, fallback: STT_FALLBACK_LABEL },
+        'Mistral STT auth error — falling back'
+      );
+    } else {
+      logger.warn(
+        { err: error, fallback: STT_FALLBACK_LABEL },
+        'Mistral STT failed after retries — trying voice-engine'
+      );
+    }
+    return null;
+  }
+}
+
+/** Options for {@link transcribeAudio} dispatch. */
+export interface TranscribeAudioOptions {
+  /** Resolved STT provider chosen by SttResolver. */
+  provider: SttProvider;
+  /** API key for the provider — required for mistral/elevenlabs, omitted
+   *  for voice-engine (no key needed). When the BYOK provider is selected
+   *  but no key is available, dispatch falls through to voice-engine. */
+  apiKey?: string;
+}
+
+/**
+ * Look up a previously-transcribed result in Redis. Returns null on cache
+ * miss, missing originalUrl, or any Redis error (logged + swallowed so
+ * Redis outages can't break transcription).
+ */
+async function lookupCachedTranscript(attachment: AttachmentMetadata): Promise<string | null> {
+  if (attachment.originalUrl === undefined || attachment.originalUrl.length === 0) {
+    return null;
+  }
+  try {
+    // Dynamic import: must stay dynamic for vi.mock() compatibility in tests.
+    // Static import causes "Cannot access before initialization" because vitest
+    // hoists vi.mock() above const declarations that the factory references.
+    const { voiceTranscriptCache } = await import('../../redis.js');
+    const cachedTranscript = await voiceTranscriptCache.get(attachment.originalUrl);
+    if (cachedTranscript === null || cachedTranscript.length === 0) {
+      return null;
+    }
+    logger.info(
+      { originalUrl: attachment.originalUrl, transcriptLength: cachedTranscript.length },
+      'Using cached voice transcript from Redis'
+    );
+    return cachedTranscript;
+  } catch (error) {
+    // Redis errors shouldn't break transcription - just log and continue
+    logger.warn({ err: error }, 'Failed to check Redis cache, proceeding with transcription');
+    return null;
+  }
+}
+
+/** Try the BYOK path for the resolved provider. Returns null when the
+ *  resolved provider has no key, isn't BYOK, or fails outright. */
+async function tryBYOKTranscription(
+  attachment: AttachmentMetadata,
+  audioBuffer: ArrayBuffer,
+  opts: TranscribeAudioOptions
+): Promise<string | null> {
+  if (opts.apiKey === undefined) {
+    return null;
+  }
+  if (opts.provider === 'mistral') {
+    return transcribeWithMistral(attachment, audioBuffer, opts.apiKey);
+  }
+  if (opts.provider === 'elevenlabs') {
+    return transcribeWithElevenLabs(attachment, audioBuffer, opts.apiKey);
+  }
+  return null;
+}
+
 /**
  * Transcribe audio (voice message or audio file).
- * Tries ElevenLabs STT first (if BYOK key), then voice-engine.
- * Throws when no STT provider is available — surfaces config issues.
  *
- * @param attachment - Audio attachment to transcribe
- * @param elevenlabsApiKey - Optional ElevenLabs BYOK key for premium STT
+ * Provider dispatch is driven by `opts.provider` (resolved via SttResolver
+ * upstream). Each BYOK path (mistral/elevenlabs) falls back to voice-engine
+ * on failure or missing key, so callers always get a usable transcription
+ * unless the audio itself is malformed.
+ *
+ * Throws only when ALL providers (the chosen one + voice-engine fallback)
+ * fail to produce text — surfaces actionable "no STT available" errors
+ * to the caller.
  */
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
-  elevenlabsApiKey?: string
+  opts: TranscribeAudioOptions
 ): Promise<string> {
-  // Check Redis cache first (if originalUrl is available).
-  // Cache is populated by bot-client's VoiceTranscriptionService after receiving job results.
-  if (attachment.originalUrl !== undefined && attachment.originalUrl.length > 0) {
-    try {
-      // Dynamic import: must stay dynamic for vi.mock() compatibility in tests.
-      // Static import causes "Cannot access before initialization" because vitest
-      // hoists vi.mock() above const declarations that the factory references.
-      const { voiceTranscriptCache } = await import('../../redis.js');
-      const cachedTranscript = await voiceTranscriptCache.get(attachment.originalUrl);
-
-      if (cachedTranscript !== null && cachedTranscript.length > 0) {
-        logger.info(
-          {
-            originalUrl: attachment.originalUrl,
-            transcriptLength: cachedTranscript.length,
-          },
-          'Using cached voice transcript from Redis'
-        );
-        return cachedTranscript;
-      }
-    } catch (error) {
-      // Redis errors shouldn't break transcription - just log and continue
-      logger.warn({ err: error }, 'Failed to check Redis cache, proceeding with transcription');
-    }
+  const cached = await lookupCachedTranscript(attachment);
+  if (cached !== null) {
+    return cached;
   }
 
   // Fetch audio once — shared by all transcription paths
   const audioBuffer = await fetchAudioBuffer(attachment.url);
 
-  // Try ElevenLabs STT first (BYOK premium path)
-  if (elevenlabsApiKey !== undefined) {
-    const elevenLabsResult = await transcribeWithElevenLabs(
-      attachment,
-      audioBuffer,
-      elevenlabsApiKey
-    );
-    if (elevenLabsResult !== null) {
-      return elevenLabsResult;
-    }
+  // Primary path — dispatch to the resolved provider. Each BYOK path
+  // returns null on failure (logged) so we fall through to voice-engine.
+  const byokResult = await tryBYOKTranscription(attachment, audioBuffer, opts);
+  if (byokResult !== null) {
+    return byokResult;
   }
 
-  // Try voice-engine (returns null if unconfigured or failed)
+  // Fallback / `provider === 'voice-engine'` — try voice-engine.
   const voiceEngineResult = await transcribeWithVoiceEngine(attachment, audioBuffer);
   if (voiceEngineResult !== null) {
     return voiceEngineResult;
   }
 
-  // No STT provider available — fail with clear error
+  // No STT provider produced text — surface the issue. voice-engine doesn't
+  // need a key, so the "(no API key)" annotation only applies to BYOK providers.
+  if (opts.provider === 'voice-engine') {
+    throw new Error('No STT provider available: voice-engine failed');
+  }
+  const annotation = opts.apiKey === undefined ? '(no API key)' : '(failed)';
   throw new Error(
-    'No STT provider available: configure an ElevenLabs API key (BYOK) or VOICE_ENGINE_URL'
+    `No STT provider available: ${opts.provider} ${annotation} and voice-engine fallback also failed`
   );
 }
