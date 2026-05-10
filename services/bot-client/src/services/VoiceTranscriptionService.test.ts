@@ -293,7 +293,7 @@ describe('VoiceTranscriptionService', () => {
 
       // Single chunk → attribution appended to the only reply
       expect(message.reply).toHaveBeenCalledWith({
-        content: 'Hello there\n-# transcribed by Mistral',
+        content: 'Hello there\n-# Transcribed by [Mistral](<https://mistral.ai/news/voxtral>)',
         allowedMentions: { parse: [], repliedUser: false },
       });
     });
@@ -424,8 +424,10 @@ describe('VoiceTranscriptionService', () => {
       const calls = (message.reply as ReturnType<typeof vi.fn>).mock.calls;
       expect(calls[0][0].content).toBe('x'.repeat(2000));
       expect(calls[1][0].content).toBe('x'.repeat(2000));
-      expect(calls[1][0].content).not.toContain('-# transcribed by');
-      expect(calls[2][0].content).toBe('-# transcribed by Self-hosted (Parakeet TDT)');
+      expect(calls[1][0].content).not.toContain('-# Transcribed by');
+      expect(calls[2][0].content).toBe(
+        '-# Transcribed by [Self-hosted (Parakeet TDT)](<https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2>)'
+      );
     });
 
     it('attaches the provider attribution only to the LAST chunk on multi-chunk transcripts', async () => {
@@ -458,10 +460,12 @@ describe('VoiceTranscriptionService', () => {
 
       // First chunk: raw, no attribution
       expect(calls[0][0].content).toBe('x'.repeat(2000));
-      expect(calls[0][0].content).not.toContain('-# transcribed by');
+      expect(calls[0][0].content).not.toContain('-# Transcribed by');
 
       // Last chunk: ends with the attribution line
-      expect(calls[1][0].content).toBe(`${'x'.repeat(1000)}\n-# transcribed by Mistral`);
+      expect(calls[1][0].content).toBe(
+        `${'x'.repeat(1000)}\n-# Transcribed by [Mistral](<https://mistral.ai/news/voxtral>)`
+      );
     });
 
     it('should handle missing contentType gracefully', async () => {

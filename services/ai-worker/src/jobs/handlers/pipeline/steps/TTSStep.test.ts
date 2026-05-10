@@ -318,6 +318,40 @@ describe('TTSStep', () => {
       await step.process(ctx);
       expect(mockStoreTTSAudio).toHaveBeenCalledWith('req-1', expect.any(Buffer));
     });
+
+    it('forwards dispatcher notices into result.metadata.ttsNotices', async () => {
+      mockDispatchTts.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('synthesized'),
+        providerUsed: 'self-hosted',
+        usedFallback: true,
+        outputFormat: 'wav',
+        notices: ['Voice reference for "testbot" is 45.0s, exceeding limit. Mistral was skipped.'],
+      });
+      const ctx = createContext();
+      await step.process(ctx);
+      expect(ctx.result?.metadata?.ttsNotices).toEqual([
+        'Voice reference for "testbot" is 45.0s, exceeding limit. Mistral was skipped.',
+      ]);
+    });
+
+    it('omits ttsNotices when dispatcher returns no notices (happy path)', async () => {
+      const ctx = createContext();
+      await step.process(ctx);
+      expect(ctx.result?.metadata?.ttsNotices).toBeUndefined();
+    });
+
+    it('omits ttsNotices when dispatcher returns an empty notice list', async () => {
+      mockDispatchTts.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('synthesized'),
+        providerUsed: 'mistral',
+        usedFallback: false,
+        outputFormat: 'wav',
+        notices: [],
+      });
+      const ctx = createContext();
+      await step.process(ctx);
+      expect(ctx.result?.metadata?.ttsNotices).toBeUndefined();
+    });
   });
 
   // ===== Error / timeout paths =============================================

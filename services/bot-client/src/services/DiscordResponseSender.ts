@@ -6,7 +6,7 @@
  */
 
 import type { DMChannel } from 'discord.js';
-import { NewsChannel, TextChannel, ThreadChannel } from 'discord.js';
+import { NewsChannel, TextChannel, ThreadChannel, escapeMarkdown } from 'discord.js';
 import {
   splitMessage,
   createLogger,
@@ -15,6 +15,7 @@ import {
   BOT_FOOTER_TEXT,
   buildModelFooterText,
   buildModelInfoUrl,
+  isBotOwner,
   type TypingChannel,
 } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
@@ -90,6 +91,20 @@ interface SendResponseOptions {
   ttsAudioKey?: string;
   /** MIME type of TTS audio (e.g., 'audio/wav', 'audio/mpeg') for file extension */
   ttsAudioContentType?: string;
+  /**
+   * Bot-owner-visible TTS dispatch notices (e.g., "Mistral skipped because
+   * reference audio >30s"). Surfaced as a `-#` subtext only when the user
+   * receiving the response IS the bot owner; silent for everyone else (the
+   * audio still plays via fallback, no UX disruption for normal users).
+   */
+  ttsNotices?: string[];
+  /**
+   * Discord user ID of the user this response is being sent to. Required to
+   * gate `ttsNotices` rendering on `isBotOwner(recipientUserId)`. Optional
+   * because not every caller surfaces notices, but if `ttsNotices` is set
+   * without `recipientUserId`, the notices are silently dropped (fail-closed).
+   */
+  recipientUserId?: string;
 }
 
 /** Shared options for internal send methods */
@@ -269,7 +284,30 @@ export class DiscordResponseSender {
     if (incognitoModeActive === true) {
       footer += `\n-# ${BOT_FOOTER_TEXT.INCOGNITO_MODE}`;
     }
+    footer += this.buildOwnerOnlyTtsNoticeLines(options);
     return footer;
+  }
+
+  /**
+   * TTS dispatch notices (e.g., "Mistral skipped because reference audio >30s")
+   * are bot-owner-visible only — silent for everyone else so a personality with
+   * a too-long voice ref doesn't leak diagnostic noise to its users. The audio
+   * still plays via fallback regardless of who's receiving the response.
+   */
+  private buildOwnerOnlyTtsNoticeLines(options: SendResponseOptions): string {
+    const { ttsNotices, recipientUserId } = options;
+    if (
+      ttsNotices === undefined ||
+      ttsNotices.length === 0 ||
+      recipientUserId === undefined ||
+      !isBotOwner(recipientUserId)
+    ) {
+      return '';
+    }
+    // Escape markdown because the notice embeds user-controllable strings
+    // (personality slug). Bot-owner-only scope keeps the impact cosmetic, but
+    // an unescaped `]` or `(` could break the embedded `-# ⚠️` rendering.
+    return ttsNotices.map(notice => `\n-# ⚠️ ${escapeMarkdown(notice)}`).join('');
   }
 
   /** Fetch TTS audio files from Redis, if a key is provided.

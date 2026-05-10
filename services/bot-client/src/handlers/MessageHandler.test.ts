@@ -254,6 +254,7 @@ describe('MessageHandler', () => {
 
       const mockMessage = {
         id: 'msg-123',
+        author: { id: 'user-recipient' },
       } as Message;
 
       const mockContext = {

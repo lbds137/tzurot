@@ -443,7 +443,7 @@ describe('MistralReferenceAudioTooLongError', () => {
     const err = new MistralReferenceAudioTooLongError(31.78);
     expect(err.durationSec).toBeCloseTo(31.78, 5);
     expect(err.limitSec).toBe(MISTRAL_MAX_REFERENCE_AUDIO_SEC);
-    expect(err.message).toMatch(/31\.78s/);
+    expect(err.message).toMatch(/31\.8s/);
     expect(err.message).toMatch(/30\.0s/);
   });
 
