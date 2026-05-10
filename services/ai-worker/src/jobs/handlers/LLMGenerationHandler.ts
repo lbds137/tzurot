@@ -33,6 +33,7 @@ import type {
   LlmConfigResolver,
   TtsConfigResolver,
   ConfigCascadeResolver,
+  SttResolver,
 } from '@tzurot/common-types';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import {
@@ -105,9 +106,11 @@ export class LLMGenerationHandler {
       embeddingService?: EmbeddingServiceInterface;
       cascadeResolver?: ConfigCascadeResolver;
       ttsConfigResolver?: TtsConfigResolver;
+      sttResolver?: SttResolver;
     } = {}
   ) {
-    const { configResolver, embeddingService, cascadeResolver, ttsConfigResolver } = options;
+    const { configResolver, embeddingService, cascadeResolver, ttsConfigResolver, sttResolver } =
+      options;
     // Build the pipeline with all steps
     // Order matters: each step may depend on results from previous steps
     //
@@ -132,7 +135,7 @@ export class LLMGenerationHandler {
       new ValidationStep(),
       new NormalizationStep(),
       new ConfigStep(configResolver, cascadeResolver),
-      new AuthStep(apiKeyResolver, configResolver),
+      new AuthStep(apiKeyResolver, configResolver, undefined, sttResolver),
       new DownloadAttachmentsStep(),
       new DependencyStep(apiKeyResolver),
       new ContextStep(),

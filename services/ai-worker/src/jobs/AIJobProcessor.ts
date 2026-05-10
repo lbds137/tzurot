@@ -124,6 +124,7 @@ export class AIJobProcessor {
       embeddingService,
       cascadeResolver,
       ttsConfigResolver: this.ttsConfigResolver,
+      sttResolver: this.sttResolver,
     });
   }
 

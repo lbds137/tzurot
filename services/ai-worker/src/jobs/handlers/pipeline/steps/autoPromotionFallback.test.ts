@@ -50,7 +50,7 @@ const baseOpts: GenerateAttemptOpts = {
   },
   recentAssistantMessages: [],
   apiKey: 'zai-key',
-  elevenlabsApiKey: undefined,
+  sttDispatch: undefined,
   isGuestMode: false,
   jobId: 'job-1',
 };

@@ -12,6 +12,7 @@ import type {
   AttachmentMetadata,
   ReferencedMessage,
   ResolvedConfigOverrides,
+  SttProvider,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
@@ -308,8 +309,8 @@ export interface DuplicateRetryConfig {
 export interface GenerateResponseOptions {
   /** User's BYOK API key (for BYOK users) */
   userApiKey?: string;
-  /** ElevenLabs BYOK API key for premium STT (voice transcription) */
-  elevenlabsApiKey?: string;
+  /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
+  sttDispatch?: { provider: SttProvider; apiKey?: string };
   /** Whether user is in guest mode (uses free models). Default: false */
   isGuestMode?: boolean;
   /** Retry configuration for duplicate detection retries */

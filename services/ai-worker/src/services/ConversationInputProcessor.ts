@@ -8,7 +8,12 @@
  * - Search query construction
  */
 
-import { createLogger, type LoadedPersonality, type MessageContent } from '@tzurot/common-types';
+import {
+  createLogger,
+  type LoadedPersonality,
+  type MessageContent,
+  type SttProvider,
+} from '@tzurot/common-types';
 import {
   processAttachments,
   deriveApiKeySource,
@@ -61,10 +66,10 @@ export class ConversationInputProcessor {
     authOptions: {
       isGuestMode: boolean;
       userApiKey?: string;
-      elevenlabsApiKey?: string;
+      sttDispatch?: { provider: SttProvider; apiKey?: string };
     }
   ): Promise<ProcessedInputs> {
-    const { isGuestMode, userApiKey, elevenlabsApiKey } = authOptions;
+    const { isGuestMode, userApiKey, sttDispatch } = authOptions;
     // Use pre-processed attachments from dependency jobs if available
     let processedAttachments: ProcessedAttachment[] = [];
     if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
@@ -78,7 +83,7 @@ export class ConversationInputProcessor {
       processedAttachments = await processAttachments(context.attachments, personality, {
         isGuestMode,
         userApiKey,
-        elevenlabsApiKey,
+        sttDispatch,
         loggingContext: {
           userId: context.userId,
           apiKeySource: deriveApiKeySource(isGuestMode, userApiKey),
@@ -107,7 +112,7 @@ export class ConversationInputProcessor {
             personality,
             isGuestMode,
             context.preprocessedReferenceAttachments,
-            { userApiKey, elevenlabsApiKey }
+            { userApiKey, sttDispatch }
           )
         : undefined;
 
