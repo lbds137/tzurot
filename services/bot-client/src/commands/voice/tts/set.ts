@@ -164,5 +164,5 @@ function buildSttDerivedFooter(oldStt: SttSnapshot, newStt: SttSnapshot): string
     ? sttProviderDisplayName(oldStt.provider)
     : oldStt.provider;
 
-  return `ℹ️ STT now resolves to ${newLabel} (was ${oldLabel}) via your TTS choice. Use /voice stt set to override.`;
+  return `ℹ️ Transcription will now use ${newLabel} (was ${oldLabel}) to match your TTS choice. Use /voice stt set to pick a different one.`;
 }

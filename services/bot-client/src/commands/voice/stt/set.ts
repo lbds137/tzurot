@@ -51,12 +51,12 @@ export async function handleSttSet(context: DeferredCommandContext): Promise<voi
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ STT Override Set')
+      .setTitle('✅ Transcription Preference Set')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        `**${result.data.override.personalityName}** will now use **${sttProviderDisplayName(providerId)}** for transcription.`
+        `🎤 Your voice messages to **${result.data.override.personalityName}** will now be transcribed by **${sttProviderDisplayName(providerId)}**.`
       )
-      .setFooter({ text: 'Use /voice stt clear to remove this override' })
+      .setFooter({ text: 'Use /voice stt clear to remove this preference' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });

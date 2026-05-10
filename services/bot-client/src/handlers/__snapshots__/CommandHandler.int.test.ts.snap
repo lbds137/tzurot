@@ -1313,13 +1313,13 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "type": 2,
   },
   {
-    "description": "Manage speech-to-text provider overrides",
+    "description": "Choose who transcribes your voice messages",
     "description_localizations": undefined,
     "name": "stt",
     "name_localizations": undefined,
     "options": [
       {
-        "description": "Browse your STT provider overrides",
+        "description": "See your transcription preferences",
         "description_localizations": undefined,
         "name": "browse",
         "name_localizations": undefined,
@@ -1327,7 +1327,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Override STT provider for a personality",
+        "description": "Pick who transcribes your voice messages for a specific personality",
         "description_localizations": undefined,
         "name": "set",
         "name_localizations": undefined,
@@ -1335,7 +1335,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to override",
+            "description": "The personality",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1363,7 +1363,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
                 "value": "voice-engine",
               },
             ],
-            "description": "Which STT backend to use for this personality",
+            "description": "Which provider to transcribe with",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1376,7 +1376,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Remove STT provider override for a personality",
+        "description": "Remove your transcription preference for a personality",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,
@@ -1384,7 +1384,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to clear",
+            "description": "The personality",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1397,7 +1397,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Set your global default STT provider",
+        "description": "Pick a default provider for transcribing your voice messages",
         "description_localizations": undefined,
         "name": "set-default",
         "name_localizations": undefined,
@@ -1421,7 +1421,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
                 "value": "voice-engine",
               },
             ],
-            "description": "Which STT backend to use as your default",
+            "description": "Which provider to transcribe with",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1434,7 +1434,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Clear your global default STT provider",
+        "description": "Remove your default transcription provider",
         "description_localizations": undefined,
         "name": "clear-default",
         "name_localizations": undefined,
@@ -1445,13 +1445,13 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "type": 2,
   },
   {
-    "description": "Manage your foundational voice provider default",
+    "description": "Pick a default voice provider for both speaking and transcription",
     "description_localizations": undefined,
     "name": "provider",
     "name_localizations": undefined,
     "options": [
       {
-        "description": "Set your foundational voice provider (Layer 4 of the STT cascade)",
+        "description": "Pick a default voice provider used for both speaking and transcription",
         "description_localizations": undefined,
         "name": "set",
         "name_localizations": undefined,
@@ -1475,7 +1475,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
                 "value": "voice-engine",
               },
             ],
-            "description": "Which voice provider to use as your baseline",
+            "description": "Which voice provider to use",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
@@ -1488,7 +1488,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Clear your foundational voice provider",
+        "description": "Remove your default voice provider",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,

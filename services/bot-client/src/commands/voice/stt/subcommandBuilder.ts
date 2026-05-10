@@ -19,25 +19,25 @@ export function buildVoiceSttSubcommandGroup(
 ): SlashCommandSubcommandGroupBuilder {
   return group
     .setName('stt')
-    .setDescription('Manage speech-to-text provider overrides')
+    .setDescription('Choose who transcribes your voice messages')
     .addSubcommand(subcommand =>
-      subcommand.setName('browse').setDescription('Browse your STT provider overrides')
+      subcommand.setName('browse').setDescription('See your transcription preferences')
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('set')
-        .setDescription('Override STT provider for a personality')
+        .setDescription('Pick who transcribes your voice messages for a specific personality')
         .addStringOption(option =>
           option
             .setName('personality')
-            .setDescription('The personality to override')
+            .setDescription('The personality')
             .setRequired(true)
             .setAutocomplete(true)
         )
         .addStringOption(option =>
           option
             .setName('provider')
-            .setDescription('Which STT backend to use for this personality')
+            .setDescription('Which provider to transcribe with')
             .setRequired(true)
             .addChoices(...PROVIDER_CHOICES)
         )
@@ -45,11 +45,11 @@ export function buildVoiceSttSubcommandGroup(
     .addSubcommand(subcommand =>
       subcommand
         .setName('clear')
-        .setDescription('Remove STT provider override for a personality')
+        .setDescription('Remove your transcription preference for a personality')
         .addStringOption(option =>
           option
             .setName('personality')
-            .setDescription('The personality to clear')
+            .setDescription('The personality')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -57,16 +57,18 @@ export function buildVoiceSttSubcommandGroup(
     .addSubcommand(subcommand =>
       subcommand
         .setName('set-default')
-        .setDescription('Set your global default STT provider')
+        .setDescription('Pick a default provider for transcribing your voice messages')
         .addStringOption(option =>
           option
             .setName('provider')
-            .setDescription('Which STT backend to use as your default')
+            .setDescription('Which provider to transcribe with')
             .setRequired(true)
             .addChoices(...PROVIDER_CHOICES)
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('clear-default').setDescription('Clear your global default STT provider')
+      subcommand
+        .setName('clear-default')
+        .setDescription('Remove your default transcription provider')
     );
 }

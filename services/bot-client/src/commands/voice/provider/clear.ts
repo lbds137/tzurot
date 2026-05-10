@@ -35,9 +35,9 @@ export async function handleProviderClear(context: DeferredCommandContext): Prom
       .setTitle('✅ Voice Provider Default Cleared')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        'Your foundational voice provider has been removed.\n\n' +
-          'STT now falls through to voice-engine (free tier). ' +
-          'Per-direction overrides via `/voice tts` and `/voice stt` are unaffected.'
+        'Your default voice provider has been cleared.\n\n' +
+          'Voice messages will be transcribed by the free self-hosted engine. ' +
+          'Any per-personality preferences you set are unchanged.'
       )
       .setTimestamp();
 

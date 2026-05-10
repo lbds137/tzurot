@@ -167,7 +167,7 @@ describe('handleSet', () => {
       embeds: Array<{ data: { footer?: { text: string } } }>;
     };
     const footer = reply.embeds[0].data.footer?.text ?? '';
-    expect(footer).toContain('STT now resolves');
+    expect(footer).toContain('Transcription will now use');
     expect(footer).toContain('Mistral');
   });
 
@@ -185,7 +185,7 @@ describe('handleSet', () => {
       embeds: Array<{ data: { footer?: { text: string } } }>;
     };
     const footer = reply.embeds[0].data.footer?.text ?? '';
-    expect(footer).not.toContain('STT now resolves');
+    expect(footer).not.toContain('Transcription will now use');
     expect(footer).toContain('Use /voice tts clear');
   });
 
@@ -257,6 +257,6 @@ describe('handleSet', () => {
       embeds: Array<{ data: { footer?: { text: string } } }>;
     };
     const footer = reply.embeds[0].data.footer?.text ?? '';
-    expect(footer).not.toContain('STT now resolves');
+    expect(footer).not.toContain('Transcription will now use');
   });
 });

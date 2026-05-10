@@ -19,20 +19,20 @@ export function buildVoiceProviderSubcommandGroup(
 ): SlashCommandSubcommandGroupBuilder {
   return group
     .setName('provider')
-    .setDescription('Manage your foundational voice provider default')
+    .setDescription('Pick a default voice provider for both speaking and transcription')
     .addSubcommand(subcommand =>
       subcommand
         .setName('set')
-        .setDescription('Set your foundational voice provider (Layer 4 of the STT cascade)')
+        .setDescription('Pick a default voice provider used for both speaking and transcription')
         .addStringOption(option =>
           option
             .setName('provider')
-            .setDescription('Which voice provider to use as your baseline')
+            .setDescription('Which voice provider to use')
             .setRequired(true)
             .addChoices(...PROVIDER_CHOICES)
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('clear').setDescription('Clear your foundational voice provider')
+      subcommand.setName('clear').setDescription('Remove your default voice provider')
     );
 }
