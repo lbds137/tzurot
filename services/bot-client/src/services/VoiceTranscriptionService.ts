@@ -14,6 +14,7 @@ import {
   DISCORD_LIMITS,
   isTimeoutError,
   sttProviderDisplayName,
+  sttProviderInfoUrl,
   type SttProvider,
 } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
@@ -26,12 +27,20 @@ const logger = createLogger('VoiceTranscriptionService');
 /** Interval for refreshing the typing indicator (Discord expires at ~10s, matches JobTracker.ts) */
 const TYPING_INDICATOR_INTERVAL_MS = 8000;
 
-/** Uses Discord `-#` subtext so the line renders small+muted under the transcript. */
+/**
+ * Uses Discord `-#` subtext so the line renders small+muted under the transcript.
+ *
+ * Mirrors the LLM model footer's `Model: [name](<url>)` clickable-link shape from
+ * `buildModelFooterText` in `@tzurot/common-types/constants/discord` — readers
+ * can click through to the upstream model card to learn what produced the text.
+ */
 function formatProviderAttribution(provider?: SttProvider): string | null {
   if (provider === undefined) {
     return null;
   }
-  return `-# transcribed by ${sttProviderDisplayName(provider)}`;
+  const name = sttProviderDisplayName(provider);
+  const url = sttProviderInfoUrl(provider);
+  return `-# Transcribed by [${name}](<${url}>)`;
 }
 
 /** Inlines attribution on the last chunk; spills to a follow-up reply when inlining would exceed Discord's per-message length limit. */

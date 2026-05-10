@@ -212,7 +212,7 @@ export class MistralReferenceAudioTooLongError extends Error {
 
   constructor(durationSec: number, limitSec: number = MISTRAL_MAX_REFERENCE_AUDIO_SEC) {
     super(
-      `Mistral reference audio duration ${durationSec.toFixed(2)}s exceeds the maximum allowed duration of ${limitSec.toFixed(1)}s`
+      `Mistral reference audio duration ${durationSec.toFixed(1)}s exceeds the maximum allowed duration of ${limitSec.toFixed(1)}s`
     );
     this.name = 'MistralReferenceAudioTooLongError';
     this.durationSec = durationSec;

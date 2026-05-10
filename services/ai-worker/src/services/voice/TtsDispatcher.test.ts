@@ -782,3 +782,127 @@ describe('dispatchTts — provider.dispose() lifecycle', () => {
     expect(mistral.dispose).toBeUndefined();
   });
 });
+
+describe('dispatchTts — diagnostic notices', () => {
+  it('attaches a notice when MistralReferenceAudioTooLongError causes fallback', async () => {
+    const mistral = makeProvider('mistral', {
+      prepare: vi.fn(async () => {
+        throw new MistralReferenceAudioTooLongError(45.7, 30);
+      }),
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hello',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistral, selfHosted]),
+    });
+
+    expect(result.providerUsed).toBe('self-hosted');
+    expect(result.usedFallback).toBe(true);
+    expect(result.notices).toEqual([
+      `Voice reference for "${baseCtx.slug}" is 45.7s, exceeding Mistral's 30.0s limit. Mistral was skipped; consider re-uploading a shorter reference.`,
+    ]);
+  });
+
+  it('omits notices on the happy path (no fallback)', async () => {
+    const mistral = makeProvider('mistral');
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hello',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistral, selfHosted]),
+    });
+
+    expect(result.providerUsed).toBe('mistral');
+    expect(result.notices).toBeUndefined();
+  });
+
+  // Pin the contract that `buildAttemptNotice` only surfaces notices for
+  // errors with explicit registration. A future contributor adding a new
+  // error class without wiring it into the notice builder will see zero
+  // notices in the success result — matching the "non-notable error" row
+  // here. When a new notice class lands, add a row to `NOTICE_CASES` (with
+  // expected presence) so the contract test fails until the wiring exists.
+  describe('buildAttemptNotice extensibility contract', () => {
+    interface NoticeCase {
+      label: string;
+      error: () => Error;
+      expectsNotice: boolean;
+    }
+
+    const NOTICE_CASES: readonly NoticeCase[] = [
+      {
+        label: 'MistralReferenceAudioTooLongError → notice',
+        error: () => new MistralReferenceAudioTooLongError(40.0, 30),
+        expectsNotice: true,
+      },
+      {
+        label: 'generic Error → no notice',
+        error: () => new Error('boom'),
+        expectsNotice: false,
+      },
+      {
+        label: 'TypeError → no notice (not a known surfaceable class)',
+        error: () => new TypeError('whatever'),
+        expectsNotice: false,
+      },
+    ];
+
+    NOTICE_CASES.forEach(({ label, error, expectsNotice }) => {
+      it(label, async () => {
+        const mistral = makeProvider('mistral', {
+          prepare: vi.fn(async () => {
+            throw error();
+          }),
+        });
+        const selfHosted = makeProvider('self-hosted');
+
+        const result = await dispatchTts({
+          text: 'hello',
+          resolvedConfig: mistralConfig,
+          ctx: baseCtx,
+          audioProviderKeys: audioKeysWithBoth,
+          registry: makeRegistry([mistral, selfHosted]),
+        });
+
+        if (expectsNotice) {
+          expect(result.notices).toBeDefined();
+          expect(result.notices?.length).toBeGreaterThan(0);
+        } else {
+          expect(result.notices).toBeUndefined();
+        }
+      });
+    });
+  });
+
+  it('omits notices when fallback is caused by a non-notable error', async () => {
+    // Generic synthesize failure → fallback fires but no notice generated.
+    // Bot owner doesn't need to see "Mistral generic-error fallback" because
+    // (a) it's already in structured logs and (b) it's not actionable from
+    // their end without more context.
+    const mistral = makeProvider('mistral', {
+      synthesize: vi.fn(async () => {
+        throw new Error('mistral 503');
+      }),
+    });
+    const selfHosted = makeProvider('self-hosted');
+
+    const result = await dispatchTts({
+      text: 'hello',
+      resolvedConfig: mistralConfig,
+      ctx: baseCtx,
+      audioProviderKeys: audioKeysWithBoth,
+      registry: makeRegistry([mistral, selfHosted]),
+    });
+
+    expect(result.providerUsed).toBe('self-hosted');
+    expect(result.usedFallback).toBe(true);
+    expect(result.notices).toBeUndefined();
+  });
+});

@@ -56,6 +56,10 @@ interface TtsResult {
   key: string;
   audioSize: number;
   contentType: string;
+  /** Bot-owner-visible diagnostics from the dispatcher's fallback walk
+   *  (e.g., "Mistral skipped because reference audio >30s"). Empty/undefined
+   *  on the happy path. */
+  notices?: string[];
 }
 
 export class TTSStep implements IPipelineStep {
@@ -116,12 +120,16 @@ export class TTSStep implements IPipelineStep {
       if (ttsResult !== null && context.result?.metadata !== undefined) {
         context.result.metadata.ttsAudioKey = ttsResult.key;
         context.result.metadata.ttsAudioContentType = ttsResult.contentType;
+        if (ttsResult.notices !== undefined && ttsResult.notices.length > 0) {
+          context.result.metadata.ttsNotices = ttsResult.notices;
+        }
         logger.info(
           {
             slug,
             audioSize: ttsResult.audioSize,
             contentType: ttsResult.contentType,
             key: ttsResult.key,
+            noticeCount: ttsResult.notices?.length ?? 0,
           },
           'TTS audio stored in Redis'
         );
@@ -164,12 +172,30 @@ export class TTSStep implements IPipelineStep {
         audioProviderKeys,
         registry: ttsProviderRegistry,
       });
-      return this.storeTTSResult(
+      const stored = await this.storeTTSResult(
         context,
         dispatchResult.audioBuffer,
         dispatchResult.outputFormat,
         slug
       );
+      // Bind to a local so TS narrowing carries through subsequent checks
+      // without needing `?.length ?? 0` defensiveness inside the warn block.
+      const notices = dispatchResult.notices;
+      const hasNotices = notices !== undefined && notices.length > 0;
+      if (stored === null && hasNotices) {
+        // Notices are observability-only — losing them on a Redis write failure
+        // doesn't change behavior, but the silent drop is surprising. Log so a
+        // future debug session can correlate "missing owner notice" with a
+        // Redis incident in the same window.
+        logger.warn(
+          { slug, noticeCount: notices.length },
+          'TTS notices dropped: storeTTSResult returned null (likely Redis write failure)'
+        );
+      }
+      if (stored === null) {
+        return null;
+      }
+      return hasNotices ? { ...stored, notices } : stored;
     })();
 
     void work.then(

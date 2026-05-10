@@ -52,6 +52,7 @@ import {
   type TtsProvider,
   type TtsProviderId,
 } from '@tzurot/common-types';
+import { MistralReferenceAudioTooLongError } from './MistralTtsClient.js';
 
 const logger = createLogger('TtsDispatcher');
 
@@ -101,6 +102,15 @@ export interface DispatchResult {
   /** Output format from the provider's capabilities — TTSStep normalizes
    *  cross-provider differences before persisting to Redis. */
   outputFormat: 'mp3' | 'wav' | 'pcm' | 'opus';
+  /**
+   * Diagnostic notices accumulated during the fallback walk — typically
+   * "configured-primary-was-skipped-because-X" cases worth surfacing to
+   * the bot owner so they know a personality silently degraded. Empty/undefined
+   * on the happy path. Currently populated only for
+   * `MistralReferenceAudioTooLongError` (reference >30s skips the clone),
+   * but the field is generic so future "primary skipped" diagnostics can use it.
+   */
+  notices?: string[];
 }
 
 /**
@@ -361,6 +371,26 @@ function describeEmptyChainCauses(
 }
 
 /**
+ * Map a fallback-eligible attempt error to a bot-owner-visible notice
+ * describing WHY the attempt was skipped. Returns undefined for errors
+ * that don't warrant surfacing — most failure modes are either transient
+ * (network blips) or already covered by other observability paths.
+ *
+ * The notice is short, actionable, and references the specific personality
+ * (`ctx.slug`) so the bot owner can identify which voice ref needs attention.
+ */
+function buildAttemptNotice(error: unknown, ctx: TtsContext): string | undefined {
+  if (error instanceof MistralReferenceAudioTooLongError) {
+    // We name the skipped provider (Mistral) but NOT the fallback target —
+    // the notice fires before subsequent providers attempt, so the chain
+    // could continue to ElevenLabs or be empty. Hardcoding "falling back to
+    // self-hosted" would be wrong in either of those cases.
+    return `Voice reference for "${ctx.slug}" is ${error.durationSec.toFixed(1)}s, exceeding Mistral's ${error.limitSec.toFixed(1)}s limit. Mistral was skipped; consider re-uploading a shorter reference.`;
+  }
+  return undefined;
+}
+
+/**
  * Walk the fallback chain and return the first successful synthesis result.
  *
  * Errors during one provider's attempt are caught and logged; the walk
@@ -385,6 +415,7 @@ export async function dispatchTts(options: DispatchOptions): Promise<DispatchRes
   );
 
   const attempts: { provider: TtsProviderId; error: unknown }[] = [];
+  const notices: string[] = [];
   const primaryProviderId = resolvedConfig.provider;
   // Explicit flag so the "is this the primary attempt?" invariant doesn't
   // depend on `attempts.length === 0` (which silently breaks if a future
@@ -400,10 +431,14 @@ export async function dispatchTts(options: DispatchOptions): Promise<DispatchRes
     const outcome = await attemptCandidate({ candidateId, isPrimaryAttempt, options });
 
     if (outcome.kind === 'success') {
-      return outcome.result;
+      return notices.length > 0 ? { ...outcome.result, notices } : outcome.result;
     }
     if (outcome.kind === 'failed') {
       attempts.push({ provider: candidateId, error: outcome.error });
+      const notice = buildAttemptNotice(outcome.error, ctx);
+      if (notice !== undefined) {
+        notices.push(notice);
+      }
     }
     // 'skip' → just move on
   }

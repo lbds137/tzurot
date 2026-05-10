@@ -3,6 +3,7 @@ import {
   isSttProvider,
   isByokAudioProvider,
   sttProviderDisplayName,
+  sttProviderInfoUrl,
   STT_PROVIDERS,
   type SttProvider,
 } from './sttProvider.js';
@@ -58,6 +59,18 @@ describe('SttProvider helpers', () => {
       expect(sttProviderDisplayName('mistral')).toBe('Mistral');
       expect(sttProviderDisplayName('elevenlabs')).toBe('ElevenLabs');
       expect(sttProviderDisplayName('voice-engine')).toContain('Self-hosted');
+    });
+  });
+
+  describe('sttProviderInfoUrl', () => {
+    it('returns the canonical model-card URL for each provider', () => {
+      // Pin the exact URLs so a typo in the metadata table fails here, not in
+      // a downstream rendering test where the failure mode is harder to trace.
+      expect(sttProviderInfoUrl('mistral')).toBe('https://mistral.ai/news/voxtral');
+      expect(sttProviderInfoUrl('elevenlabs')).toBe('https://elevenlabs.io/speech-to-text');
+      expect(sttProviderInfoUrl('voice-engine')).toBe(
+        'https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2'
+      );
     });
   });
 });
