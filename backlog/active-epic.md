@@ -2,13 +2,13 @@
 
 _Focus: Eliminate the ~$200/month ElevenLabs recurring cost — BOTH the TTS subscription AND the Scribe STT line — via self-hosted + Mistral BYOK alternatives._
 
-**Phase 1 (Mistral Voxtral BYOK) shipped** in v3.0.0-beta.115 (2026-05-04) with post-deploy hardening + UX polish landing in v3.0.0-beta.116 (2026-05-05). Phase 2 (NeuTTS Air) and Phase 3 (Mistral STT cutover) remain. Release freeze LIFTED — develop accumulates Phase 2/3 work; the next release ships when one of those phases is ready.
+**Phase 1 (Mistral Voxtral BYOK) shipped** in v3.0.0-beta.115 (2026-05-04) with post-deploy hardening + UX polish landing in v3.0.0-beta.116 (2026-05-05). **Phase 3 (Mistral STT cutover + `/voice` consolidation) shipped** across PR #1003 + #1005, awaiting the v3.0.0-beta.120 release to reach prod. Phase 2 (NeuTTS Air) remains. Release freeze LIFTED.
 
 **Epic-complete bar** (all three required):
 
-1. ✅ Phase 1 — Mistral TTS BYOK shipped
+1. ✅ Phase 1 — Mistral TTS BYOK shipped (beta.115)
 2. ⬜ Phase 2 — NeuTTS Air free-tier engine shipped
-3. ⬜ Phase 3 — Mistral STT cutover shipped (gated on quality benchmark passing)
+3. ✅ Phase 3 — Mistral STT cutover shipped (PR #1003 + #1005, merged 2026-05-09 → 2026-05-10; awaiting beta.120 release)
 
 **The goal**: ~85% cost reduction on the ElevenLabs line item via BYOK Voxtral, plus a self-hosted free tier with optional voice cloning via NeuTTS Air alongside the existing Kyutai/Pocket TTS.
 
@@ -37,9 +37,19 @@ Settled-decisions snapshot from the original Phase 1 plan is captured in `docs/p
 
 ---
 
-### Phase 3: `/voice` consolidation + Mistral STT cutover
+### Phase 3: `/voice` consolidation + Mistral STT cutover — DONE
 
-**Status**: Plan-mode pending. **Architectural decisions locked 2026-05-05** via two council passes (Gemini 3.1 Pro Preview). Cleared for PR 1 plan-mode tomorrow.
+**Status**: SHIPPED across two PRs, awaiting beta.120 release to reach prod.
+
+- **PR #1003** (merged 2026-05-09) — `/voice` namespace consolidation. Pure refactor moving `/settings tts` + `/settings voices` under unified `/voice`. Deprecation stubs preserved for ~1 month.
+- **PR #1004** (merged 2026-05-09) — `/settings preset` symmetric naming quick-win. Foreshadowed Phase 3 PR 2's command shape.
+- **PR #1005** (merged 2026-05-10) — Mistral STT cutover + 5-layer cascade resolver + `/voice provider/stt/view` + JIT teaching footer on `/voice tts set`. Migration applied to dev + prod. ~5,500 LoC, 7 review rounds, all blocking findings resolved or properly backlogged.
+
+The cascade ended up at **5 layers** (not the originally-planned 4) because `/voice stt` adopted the symmetric `set/clear/set-default/clear-default` shape during PR 2 plan-mode, adding a user-default STT layer (Layer 2) on top of the original 4-layer design.
+
+5 substantive follow-ups filed in `backlog/inbox.md` from PR #1005 review (cache-invalidation wiring, in-band attachment STT path, shared cascade helper, DB CHECK constraints, JIT footer timeout). All have concrete fix shapes + promote-when criteria.
+
+**Original plan-mode content (kept for reference)**:
 
 **Scope expansion**: Phase 3 grew during 2026-05-05 design discussion. Original framing was "flip STT consumer + add `/settings stt` parallel command surface." Council pass 1 validated parallel surface with Option B shape (minimal `view/set/clear`); user pushed back during follow-up that consolidating to a top-level `/voice` namespace is cleaner — citing existing `/preset` precedent for top-level domain commands. Grepping `services/bot-client/src/commands/settings/` surfaced that **`/settings` has TWO voice-related subgroups today** (`tts` for provider config + `voices` for cloned-voice management), making the consolidation opportunity bigger than initial framing.
 
