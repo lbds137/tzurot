@@ -32,9 +32,9 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
   const userId = interaction.user.id;
 
   try {
-    if (focusedOption.name === 'personality') {
+    if (focusedOption.name === 'character') {
       await handlePersonalityAutocomplete(interaction, {
-        optionName: 'personality',
+        optionName: 'character',
         ownedOnly: false,
         showVisibility: true,
         valueField: 'id',

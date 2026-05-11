@@ -89,7 +89,7 @@ describe('/channel activate', () => {
         editReply: mockEditReply,
         options: {
           getString: vi.fn((name: string) => {
-            if (name === 'personality') return personalitySlug;
+            if (name === 'character') return personalitySlug;
             return null;
           }),
         },
@@ -104,7 +104,7 @@ describe('/channel activate', () => {
       isEphemeral: true,
       getOption: vi.fn(),
       getRequiredOption: vi.fn((name: string) => {
-        if (name === 'personality') return personalitySlug;
+        if (name === 'character') return personalitySlug;
         throw new Error(`Unknown option: ${name}`);
       }),
       getSubcommand: () => 'activate',

@@ -33,7 +33,7 @@ export async function handleHardDelete(context: DeferredCommandContext): Promise
   const userId = context.user.id;
   const channelId = context.channelId;
   const options = historyHardDeleteOptions(context.interaction);
-  const personalitySlug = options.personality();
+  const personalitySlug = options.character();
 
   if (isAutocompleteErrorSentinel(personalitySlug)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });

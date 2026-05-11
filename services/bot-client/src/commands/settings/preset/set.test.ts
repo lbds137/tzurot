@@ -53,7 +53,7 @@ describe('Me Preset Set Handler', () => {
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
-            if (name === 'personality') return personalityId;
+            if (name === 'character') return personalityId;
             if (name === 'preset') return presetId;
             return null;
           },

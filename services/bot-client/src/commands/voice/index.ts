@@ -3,10 +3,10 @@
  *
  * Unified namespace for voice configuration:
  *
- * - /voice tts browse|set|clear|set-default|clear-default — TTS provider config (per-personality + user-default)
+ * - /voice tts list|set|clear|set-default|clear-default — TTS provider config (per-character + user-default)
  * - /voice stt set|clear — transcription provider preference (user-scoped; STT is speaker-bound)
  * - /voice voices browse|delete|clear — cloned-voice lifecycle
- * - /voice view <personality> — unified TTS+STT+voices dashboard
+ * - /voice view <character> — unified TTS+STT+voices dashboard
  *
  * The legacy /settings tts and /settings voices subcommand groups remain
  * registered as deprecation stubs that ephemerally redirect users to the
@@ -68,7 +68,7 @@ const logger = createLogger('voice-command');
 
 const ttsRouter = createTypedSubcommandRouter(
   {
-    browse: handleTtsBrowseOverrides,
+    list: handleTtsBrowseOverrides,
     set: handleTtsSet,
     clear: handleTtsClear,
     'set-default': handleTtsSetDefault,
@@ -137,12 +137,12 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     }
   }
 
-  // Top-level subcommands (e.g. /voice view) — only `personality` is autocompleted.
+  // Top-level subcommands (e.g. /voice view) — only `character` is autocompleted.
   if (subcommandGroup === null) {
     const focusedOption = interaction.options.getFocused(true);
-    if (focusedOption.name === 'personality') {
+    if (focusedOption.name === 'character') {
       await handlePersonalityAutocomplete(interaction, {
-        optionName: 'personality',
+        optionName: 'character',
         ownedOnly: false,
         showVisibility: true,
         valueField: 'id',
@@ -196,11 +196,11 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('view')
-        .setDescription('Show resolved TTS + STT + voices for a personality')
+        .setDescription('Show resolved TTS + STT + voices for a character')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('Which personality to inspect')
+            .setName('character')
+            .setDescription('Which character to inspect')
             .setRequired(true)
             .setAutocomplete(true)
         )

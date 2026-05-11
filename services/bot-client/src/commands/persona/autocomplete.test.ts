@@ -53,7 +53,7 @@ describe('handlePersonalityAutocomplete', () => {
     await handlePersonalityAutocomplete(createMockInteraction());
 
     expect(mockSharedPersonalityAutocomplete).toHaveBeenCalledWith(expect.any(Object), {
-      optionName: 'personality',
+      optionName: 'character',
       ownedOnly: false,
       showVisibility: true,
     });

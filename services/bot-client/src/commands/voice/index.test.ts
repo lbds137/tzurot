@@ -100,7 +100,7 @@ describe('Voice Command', () => {
       const ttsSubcommands = ((tts as { options?: { name: string }[] }).options ?? [])
         .map(s => s.name)
         .sort();
-      expect(ttsSubcommands).toEqual(['browse', 'clear', 'clear-default', 'set', 'set-default']);
+      expect(ttsSubcommands).toEqual(['clear', 'clear-default', 'list', 'set', 'set-default']);
     });
 
     it('exposes the voices subcommand shape', () => {
@@ -139,8 +139,8 @@ describe('Voice Command', () => {
       expect(handleTtsClearDefault).toHaveBeenCalledOnce();
     });
 
-    it('routes /voice tts browse to handleTtsBrowseOverrides', async () => {
-      const ctx = createMockContext('browse', 'tts');
+    it('routes /voice tts list to handleTtsBrowseOverrides', async () => {
+      const ctx = createMockContext('list', 'tts');
       await execute(ctx as any);
       expect(handleTtsBrowseOverrides).toHaveBeenCalledOnce();
     });

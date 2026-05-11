@@ -106,7 +106,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
 
-  if (focusedOption.name === 'personality') {
+  if (focusedOption.name === 'character') {
     await handlePersonalityAutocomplete(interaction);
   } else {
     await interaction.respond([]);
@@ -130,8 +130,8 @@ export default defineCommand({
         .setDescription('View memory statistics')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to view stats for')
+            .setName('character')
+            .setDescription('The character to view stats for')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -142,8 +142,8 @@ export default defineCommand({
         .setDescription('Browse your memories with pagination')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('Filter by personality (optional)')
+            .setName('character')
+            .setDescription('Filter by character (optional)')
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -160,8 +160,8 @@ export default defineCommand({
         )
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('Filter by personality (optional)')
+            .setName('character')
+            .setDescription('Filter by character (optional)')
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -180,8 +180,8 @@ export default defineCommand({
         .setDescription('Batch delete memories with filters (skips locked)')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to delete memories for')
+            .setName('character')
+            .setDescription('The character to delete memories for')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -202,11 +202,11 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('purge')
-        .setDescription('Delete ALL memories for a personality (requires typed confirmation)')
+        .setDescription('Delete ALL memories for a character (requires typed confirmation)')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to purge all memories for')
+            .setName('character')
+            .setDescription('The character to purge all memories for')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -221,8 +221,8 @@ export default defineCommand({
             .setDescription('Enable focus mode - stop retrieving long-term memories')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('The personality to enable focus mode for')
+                .setName('character')
+                .setDescription('The character to enable focus mode for')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -233,8 +233,8 @@ export default defineCommand({
             .setDescription('Disable focus mode - resume retrieving long-term memories')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('The personality to disable focus mode for')
+                .setName('character')
+                .setDescription('The character to disable focus mode for')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -245,8 +245,8 @@ export default defineCommand({
             .setDescription('Check current focus mode status')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('The personality to check status for')
+                .setName('character')
+                .setDescription('The character to check status for')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -262,8 +262,8 @@ export default defineCommand({
             .setDescription('Enable incognito mode - new memories will NOT be saved')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('Personality or "all" for global incognito')
+                .setName('character')
+                .setDescription('Character or "all" for global incognito')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -286,8 +286,8 @@ export default defineCommand({
             .setDescription('Disable incognito mode - resume saving memories')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('Personality or "all" to disable global incognito')
+                .setName('character')
+                .setDescription('Character or "all" to disable global incognito')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -301,8 +301,8 @@ export default defineCommand({
             .setDescription('Retroactively delete recent memories')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('Personality or "all" for all personalities')
+                .setName('character')
+                .setDescription('Character or "all" for all characters')
                 .setRequired(true)
                 .setAutocomplete(true)
             )

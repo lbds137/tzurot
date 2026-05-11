@@ -43,7 +43,7 @@ vi.mock('@tzurot/common-types', async () => {
       };
     }) => ({
       query: () => interaction.options?.getString('query') ?? 'test query',
-      personality: () => interaction.options?.getString('personality') ?? null,
+      character: () => interaction.options?.getString('character') ?? null,
       limit: () => interaction.options?.getInteger?.('limit') ?? null,
     }),
     formatDateShort: (d: string | Date) => String(d),
@@ -165,7 +165,7 @@ function createDeferredContext(
     interaction: {
       options: {
         getString: vi.fn((name: string) =>
-          name === 'query' ? query : name === 'personality' ? null : null
+          name === 'query' ? query : name === 'character' ? null : null
         ),
         getInteger: vi.fn((name: string) => (name === 'limit' ? limit : null)),
       },

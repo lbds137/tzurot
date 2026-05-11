@@ -1,7 +1,7 @@
 /**
  * Persona Override Set Handler
  *
- * Allows users to set different personas for specific personalities.
+ * Allows users to set different personas for specific characters.
  * This enables per-personality customization while keeping a default persona.
  *
  * Flow:
@@ -136,7 +136,7 @@ async function showCreateOverrideModal(
   );
 }
 
-/** Set an existing persona as override for a personality */
+/** Set an existing persona as override for a character */
 async function setExistingOverride(
   context: ModalCommandContext,
   discordId: string,
@@ -186,7 +186,7 @@ async function setExistingOverride(
 export async function handleOverrideSet(context: ModalCommandContext): Promise<void> {
   const discordId = context.user.id;
   const options = personaOverrideSetOptions(context.interaction);
-  const personalitySlug = options.personality();
+  const personalitySlug = options.character();
   const personaId = options.persona();
 
   if (isAutocompleteErrorSentinel(personalitySlug) || isAutocompleteErrorSentinel(personaId)) {

@@ -62,7 +62,7 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focused = interaction.options.getFocused(true);
-  if (focused.name === 'personality') {
+  if (focused.name === 'character') {
     await handlePersonalityAutocomplete(interaction);
   }
 }
@@ -95,7 +95,7 @@ const SCOPE_CHOICES: { name: string; value: string }[] = [
   { name: 'Bot (bot-wide)', value: 'BOT' },
   { name: 'Guild (this server)', value: 'GUILD' },
   { name: 'Channel (specific channel)', value: 'CHANNEL' },
-  { name: 'Personality (specific character)', value: 'PERSONALITY' },
+  { name: 'Character (specific character)', value: 'PERSONALITY' },
 ];
 
 const MODE_CHOICES: { name: string; value: string }[] = [
@@ -146,8 +146,8 @@ export default defineCommand({
         )
         .addStringOption(opt =>
           opt
-            .setName('personality')
-            .setDescription('Target character name (for Personality scope)')
+            .setName('character')
+            .setDescription('Target character name (for Character scope)')
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -192,8 +192,8 @@ export default defineCommand({
         )
         .addStringOption(opt =>
           opt
-            .setName('personality')
-            .setDescription('Target character name (for Personality scope)')
+            .setName('character')
+            .setDescription('Target character name (for Character scope)')
             .setRequired(false)
             .setAutocomplete(true)
         )

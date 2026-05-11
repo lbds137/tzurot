@@ -30,7 +30,7 @@ interface SetResponse {
 export async function handleSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = settingsPresetSetOptions(context.interaction);
-  const personalityId = options.personality();
+  const personalityId = options.character();
   const configId = options.preset();
 
   if (isAutocompleteErrorSentinel(personalityId)) {

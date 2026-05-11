@@ -49,7 +49,7 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryFocusStatusOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
 
   try {
     // Resolve personality slug to ID
@@ -106,7 +106,7 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
   const options = enabled
     ? memoryFocusEnableOptions(context.interaction)
     : memoryFocusDisableOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
 
   try {
     // Resolve personality slug to ID

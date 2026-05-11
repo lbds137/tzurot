@@ -35,14 +35,14 @@ export type MemoryListEntityType =
 export type MemoryListSession =
   | {
       kind: 'browse';
-      /** Optional personality filter (undefined = all personalities) */
+      /** Optional character filter (undefined = all; field stores personality UUID per internal type) */
       personalityId?: string;
       /** Current page number (0-indexed) */
       currentPage: number;
     }
   | {
       kind: 'search';
-      /** Optional personality filter (undefined = all personalities) */
+      /** Optional character filter (undefined = all; field stores personality UUID per internal type) */
       personalityId?: string;
       /** Current page number (0-indexed) */
       currentPage: number;

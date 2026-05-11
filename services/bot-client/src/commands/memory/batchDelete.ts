@@ -75,7 +75,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryDeleteOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
   const timeframe = options.timeframe();
 
   if (isAutocompleteErrorSentinel(personalityInput)) {

@@ -1,7 +1,7 @@
 /**
  * Persona Override Clear Handler
  *
- * Allows users to clear persona overrides for specific personalities.
+ * Allows users to clear persona overrides for specific characters.
  * After clearing, the user's default persona will be used instead.
  *
  * Uses gateway API for all data access (no direct Prisma).
@@ -34,7 +34,7 @@ interface ClearOverrideResponse {
 export async function handleOverrideClear(context: DeferredCommandContext): Promise<void> {
   const discordId = context.user.id;
   const options = personaOverrideClearOptions(context.interaction);
-  const personalitySlug = options.personality();
+  const personalitySlug = options.character();
 
   if (isAutocompleteErrorSentinel(personalitySlug)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });

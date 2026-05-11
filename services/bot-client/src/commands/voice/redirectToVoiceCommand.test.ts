@@ -24,7 +24,7 @@ describe('SETTINGS_TO_VOICE_REDIRECTS table', () => {
     expect(SETTINGS_TO_VOICE_REDIRECTS['tts reset']).toBe('/voice tts clear');
     expect(SETTINGS_TO_VOICE_REDIRECTS['tts default']).toBe('/voice tts set-default');
     expect(SETTINGS_TO_VOICE_REDIRECTS['tts clear-default']).toBe('/voice tts clear-default');
-    expect(SETTINGS_TO_VOICE_REDIRECTS['tts browse']).toBe('/voice tts browse');
+    expect(SETTINGS_TO_VOICE_REDIRECTS['tts browse']).toBe('/voice tts list');
   });
 
   it('maps every legacy /settings voices subcommand to its new /voice voices path', () => {

@@ -169,8 +169,8 @@ describe('Settings Command Index', () => {
       ).map(s => s.name);
       // Names mirror the /voice tts pattern: action verb (set / clear) +
       // optional scope qualifier (-default for global vs no suffix for
-      // per-personality).
-      expect(subcommands).toContain('browse');
+      // per-personality). `list` (not `browse`) for the user-overrides view.
+      expect(subcommands).toContain('list');
       expect(subcommands).toContain('set');
       expect(subcommands).toContain('clear');
       expect(subcommands).toContain('set-default');
@@ -330,9 +330,9 @@ describe('Settings Command Index', () => {
     });
 
     describe('preset group', () => {
-      it('should route to preset browse handler', async () => {
+      it('should route /preset list to handleBrowseOverrides', async () => {
         const { handleBrowseOverrides } = await import('./preset/browse.js');
-        const context = createMockContext('preset', 'browse');
+        const context = createMockContext('preset', 'list');
 
         await execute(context);
 
@@ -528,7 +528,7 @@ describe('Settings Command Index', () => {
 
       const interaction = {
         options: {
-          getFocused: () => ({ name: 'personality', value: '' }),
+          getFocused: () => ({ name: 'character', value: '' }),
           getSubcommandGroup: () => 'preset',
         },
       } as any;

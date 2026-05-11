@@ -30,7 +30,7 @@ interface UndoResponse {
 export async function handleUndo(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = historyUndoOptions(context.interaction);
-  const personalitySlug = options.personality();
+  const personalitySlug = options.character();
   const personaId = options.persona(); // Optional profile/persona
 
   if (

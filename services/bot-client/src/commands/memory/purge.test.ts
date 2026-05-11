@@ -75,7 +75,7 @@ describe('handlePurge', () => {
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
-            if (name === 'personality') return personality;
+            if (name === 'character') return personality;
             return null;
           },
         },

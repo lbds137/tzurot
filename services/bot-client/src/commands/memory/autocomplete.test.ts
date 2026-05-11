@@ -39,7 +39,7 @@ describe('Memory Autocomplete', () => {
       await handlePersonalityAutocomplete(mockInteraction);
 
       expect(mockSharedAutocomplete).toHaveBeenCalledWith(mockInteraction, {
-        optionName: 'personality',
+        optionName: 'character',
         showVisibility: true,
         ownedOnly: false,
         valueField: 'slug',

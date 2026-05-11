@@ -59,7 +59,7 @@ describe('handleStats', () => {
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
-            if (name === 'personality') return personalitySlug;
+            if (name === 'character') return personalitySlug;
             return null;
           },
         },

@@ -64,10 +64,10 @@ export const adminPresenceOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /channel activate <personality>
+ * /channel activate <character>
  */
 export const channelActivateOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
@@ -169,27 +169,27 @@ export const characterOverridesOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /deny add <target, type, scope, channel, personality, reason, mode>
+ * /deny add <target, type, scope, channel, character, reason, mode>
  */
 export const denyAddOptions = defineTypedOptions({
   target: { type: 'string', required: true },
   type: { type: 'string', required: false },
   scope: { type: 'string', required: false },
   channel: { type: 'channel', required: false },
-  personality: { type: 'string', required: false },
+  character: { type: 'string', required: false },
   reason: { type: 'string', required: false },
   mode: { type: 'string', required: false },
 });
 
 /**
- * /deny remove <target, type, scope, channel, personality>
+ * /deny remove <target, type, scope, channel, character>
  */
 export const denyRemoveOptions = defineTypedOptions({
   target: { type: 'string', required: true },
   type: { type: 'string', required: false },
   scope: { type: 'string', required: false },
   channel: { type: 'channel', required: false },
-  personality: { type: 'string', required: false },
+  character: { type: 'string', required: false },
 });
 
 /**
@@ -223,34 +223,34 @@ export const helpOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /history clear <personality, persona>
+ * /history clear <character, persona>
  */
 export const historyClearOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   persona: { type: 'string', required: false },
 });
 
 /**
- * /history undo <personality, persona>
+ * /history undo <character, persona>
  */
 export const historyUndoOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   persona: { type: 'string', required: false },
 });
 
 /**
- * /history stats <personality, persona>
+ * /history stats <character, persona>
  */
 export const historyStatsOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   persona: { type: 'string', required: false },
 });
 
 /**
- * /history hard-delete <personality>
+ * /history hard-delete <character>
  */
 export const historyHardDeleteOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 // =============================================================================
@@ -269,85 +269,85 @@ export const inspectOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /memory focus enable <personality>
+ * /memory focus enable <character>
  */
 export const memoryFocusEnableOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
- * /memory focus disable <personality>
+ * /memory focus disable <character>
  */
 export const memoryFocusDisableOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
- * /memory focus status <personality>
+ * /memory focus status <character>
  */
 export const memoryFocusStatusOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
- * /memory incognito enable <personality, duration>
+ * /memory incognito enable <character, duration>
  */
 export const memoryIncognitoEnableOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   duration: { type: 'string', required: true },
 });
 
 /**
- * /memory incognito disable <personality>
+ * /memory incognito disable <character>
  */
 export const memoryIncognitoDisableOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
- * /memory incognito forget <personality, timeframe>
+ * /memory incognito forget <character, timeframe>
  */
 export const memoryIncognitoForgetOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   timeframe: { type: 'string', required: true },
 });
 
 /**
- * /memory stats <personality>
+ * /memory stats <character>
  */
 export const memoryStatsOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
- * /memory browse <personality>
+ * /memory browse <character>
  */
 export const memoryBrowseOptions = defineTypedOptions({
-  personality: { type: 'string', required: false },
+  character: { type: 'string', required: false },
 });
 
 /**
- * /memory search <query, personality, limit>
+ * /memory search <query, character, limit>
  */
 export const memorySearchOptions = defineTypedOptions({
   query: { type: 'string', required: true },
-  personality: { type: 'string', required: false },
+  character: { type: 'string', required: false },
   limit: { type: 'integer', required: false },
 });
 
 /**
- * /memory delete <personality, timeframe>
+ * /memory delete <character, timeframe>
  */
 export const memoryDeleteOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   timeframe: { type: 'string', required: false },
 });
 
 /**
- * /memory purge <personality>
+ * /memory purge <character>
  */
 export const memoryPurgeOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 // =============================================================================
@@ -355,18 +355,18 @@ export const memoryPurgeOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /persona override set <personality, persona>
+ * /persona override set <character, persona>
  */
 export const personaOverrideSetOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   persona: { type: 'string', required: true },
 });
 
 /**
- * /persona override clear <personality>
+ * /persona override clear <character>
  */
 export const personaOverrideClearOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
@@ -463,18 +463,18 @@ export const settingsApikeyTestOptions = defineTypedOptions({
 });
 
 /**
- * /settings preset set <personality, preset>
+ * /settings preset set <character, preset>
  */
 export const settingsPresetSetOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   preset: { type: 'string', required: true },
 });
 
 /**
- * /settings preset clear <personality>
+ * /settings preset clear <character>
  */
 export const settingsPresetClearOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
@@ -509,18 +509,18 @@ export const shapesExportOptions = defineTypedOptions({
 // =============================================================================
 
 /**
- * /voice tts set <personality, tts>
+ * /voice tts set <character, tts>
  */
 export const voiceTtsSetOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
   tts: { type: 'string', required: true },
 });
 
 /**
- * /voice tts clear <personality>
+ * /voice tts clear <character>
  */
 export const voiceTtsClearOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });
 
 /**
@@ -545,8 +545,8 @@ export const voiceVoicesDeleteOptions = defineTypedOptions({
 });
 
 /**
- * /voice view <personality>
+ * /voice view <character>
  */
 export const voiceViewOptions = defineTypedOptions({
-  personality: { type: 'string', required: true },
+  character: { type: 'string', required: true },
 });

@@ -28,7 +28,7 @@ export async function handlePersonalityAutocomplete(
 ): Promise<void> {
   try {
     const handled = await sharedHandlePersonalityAutocomplete(interaction, {
-      optionName: 'personality',
+      optionName: 'character',
       ownedOnly: false, // Override can be set for any accessible personality
       showVisibility: true,
     });
