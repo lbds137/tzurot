@@ -80,12 +80,12 @@ describe('fetchCrossChannelHistory', () => {
     vi.restoreAllMocks();
   });
 
-  it('should return empty array when remainingMessageCount is zero', async () => {
+  it('should return empty array when messageBudget is zero', async () => {
     const result = await fetchCrossChannelHistory({
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 0,
+      messageBudget: 0,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService(),
     });
@@ -100,7 +100,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: service,
     });
@@ -139,7 +139,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -178,7 +178,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -220,7 +220,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -245,7 +245,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -271,7 +271,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -298,7 +298,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -344,7 +344,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -382,7 +382,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -418,7 +418,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -457,7 +457,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageCount: 50,
+      messageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -489,9 +489,9 @@ describe('fetchCrossChannelIfEnabled', () => {
   });
 
   it('fetches cross-channel history with its own dbLimit budget regardless of current-channel size', async () => {
-    // Regression test for the residual-filler bug: prior code computed
-    // `remainingMessageCount = dbLimit - currentHistoryLength` and silently
-    // skipped cross-channel when the current channel was full. The user-reported
+    // Regression test for the residual-filler bug: prior code computed the
+    // cross-channel budget as `dbLimit - currentHistoryLength` and silently
+    // skipped when the current channel was full. The user-reported
     // symptom was zero cross-channel context after setting maxAge=48h on a
     // personality whose current thread was 5 days stale — the stale rows leaked
     // through (separate bug, fixed in getChannelHistory) and starved this fetch.
@@ -545,7 +545,12 @@ describe('fetchCrossChannelIfEnabled', () => {
     );
   });
 
-  it('should return undefined when cross-channel returns empty', async () => {
+  it('returns [] (NOT undefined) when enabled but the DB returned no eligible messages', async () => {
+    // Distinguishing []-when-enabled from undefined-when-disabled is what
+    // lets the diagnostic surface render "Cross-channel: 0 msgs" — the
+    // silent-skip case where a context bug (wrong filter, fetch failure)
+    // would otherwise be invisible. Collapsing both to undefined re-creates
+    // the gap.
     const result = await fetchCrossChannelIfEnabled({
       enabled: true,
       channelId: 'channel-1',
@@ -555,7 +560,7 @@ describe('fetchCrossChannelIfEnabled', () => {
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService([]),
     });
-    expect(result).toBeUndefined();
+    expect(result).toEqual([]);
   });
 });
 

@@ -11,6 +11,7 @@ import {
   MessageRole,
   MESSAGE_LIMITS,
   ConversationSyncService,
+  computeHistoryCutoff,
 } from '@tzurot/common-types';
 import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
 import type {
@@ -171,7 +172,7 @@ export class DiscordChannelFetcher {
   /**
    * Process and filter Discord messages
    */
-  // eslint-disable-next-line complexity, max-lines-per-function, max-statements, sonarjs/cognitive-complexity -- Cohesive message processing pipeline with sequential filters, voice transcript fallback, and participant collection
+  // eslint-disable-next-line complexity, max-lines-per-function, sonarjs/cognitive-complexity -- Cohesive message processing pipeline with sequential filters, voice transcript fallback, and participant collection
   private async processMessages(
     messages: Message[],
     options: FetchOptions,
@@ -232,6 +233,12 @@ export class DiscordChannelFetcher {
     // Sort by timestamp ascending (oldest first)
     const sortedMessages = [...messages].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
+    // Single source of truth for the time-cutoff semantic, shared with the
+    // Prisma queries in ConversationHistoryService. Computed once outside the
+    // loop so a 200-message extended context doesn't re-compute Date.now() per
+    // iteration. `null` maxAge collapses to undefined (no filter).
+    const historyCutoff = computeHistoryCutoff(options.maxAge, options.contextEpoch);
+
     for (const msg of sortedMessages) {
       // Apply filters
       if (!isUserContentMessage(msg)) {
@@ -250,14 +257,8 @@ export class DiscordChannelFetcher {
       if (options.isBlockDenied?.(msg.author.id) === true) {
         continue;
       }
-      if (options.contextEpoch !== undefined && msg.createdAt < options.contextEpoch) {
+      if (historyCutoff !== undefined && msg.createdAt < historyCutoff) {
         continue;
-      }
-      if (options.maxAge !== undefined && options.maxAge !== null) {
-        const cutoffTime = new Date(Date.now() - options.maxAge * 1000);
-        if (msg.createdAt < cutoffTime) {
-          continue;
-        }
       }
 
       // Convert to ConversationMessage

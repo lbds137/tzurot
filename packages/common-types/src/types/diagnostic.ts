@@ -149,6 +149,14 @@ export interface DiagnosticTokenBudget {
   memoriesDropped: number;
   /** Number of history messages dropped due to budget */
   historyMessagesDropped: number;
+  /**
+   * Number of cross-channel messages actually included in the assembled prompt
+   * (post-token-budget trim). Surfaces a "cross-channel: N msgs" line in the
+   * diagnostic UI so a user can tell at a glance whether their crossChannel
+   * setting + maxAge interaction actually produced context. `undefined` when
+   * cross-channel was disabled for this turn.
+   */
+  crossChannelMessagesIncluded?: number;
 }
 
 /**

@@ -479,6 +479,36 @@ describe('buildTokenBudgetView', () => {
     const content = result.files![0].attachment.toString();
     expect(content).not.toContain('Dropped:');
   });
+
+  it('renders the cross-channel line when crossChannelMessagesIncluded is set', () => {
+    const payload = createMockPayload();
+    payload.tokenBudget.crossChannelMessagesIncluded = 3;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const content = result.files![0].attachment.toString();
+    expect(content).toContain('Cross-channel: 3 msgs included from other channels');
+  });
+
+  it('renders "0 msgs" when cross-channel was enabled but produced no eligible messages', () => {
+    // The exact silent-skip case the diagnostic exists to surface — this test
+    // pins the empty-but-enabled visibility so a future refactor that
+    // collapses 0 to undefined re-introduces the gap loudly.
+    const payload = createMockPayload();
+    payload.tokenBudget.crossChannelMessagesIncluded = 0;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const content = result.files![0].attachment.toString();
+    expect(content).toContain('Cross-channel: 0 msgs included from other channels');
+  });
+
+  it('omits the cross-channel line when the feature was disabled this turn', () => {
+    const payload = createMockPayload();
+    // crossChannelMessagesIncluded intentionally undefined
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const content = result.files![0].attachment.toString();
+    expect(content).not.toContain('Cross-channel:');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -30,7 +30,7 @@ interface FetchOptions {
   personalityId: string;
   currentChannelId: string;
   /** Maximum number of messages to fetch across all channels (DB row limit, not token budget) */
-  remainingMessageCount: number;
+  messageBudget: number;
   discordClient: Client;
   conversationHistoryService: ConversationHistoryService;
   /** Max-age cutoff in SECONDS, mirroring the current-channel filter. */
@@ -173,12 +173,12 @@ export async function fetchCrossChannelHistory(
     personaId,
     personalityId,
     currentChannelId,
-    remainingMessageCount,
+    messageBudget,
     discordClient,
     conversationHistoryService,
   } = opts;
 
-  if (remainingMessageCount <= 0) {
+  if (messageBudget <= 0) {
     return [];
   }
 
@@ -186,7 +186,7 @@ export async function fetchCrossChannelHistory(
     personaId,
     personalityId,
     currentChannelId,
-    remainingMessageCount,
+    messageBudget,
     { maxAgeSeconds: opts.maxAge, contextEpoch: opts.contextEpoch }
   );
 
@@ -254,18 +254,24 @@ export async function fetchCrossChannelIfEnabled(opts: {
     return undefined;
   }
 
-  const groups = await fetchCrossChannelHistory({
+  // Return value distinguishes three states for downstream consumers
+  // (notably the diagnostic surface):
+  //   undefined → feature disabled this turn
+  //   []        → feature enabled, fetch ran, no eligible messages
+  //   [...]     → feature enabled, found N messages
+  // Collapsing []-when-enabled to undefined would hide the silent-skip case
+  // where the user enabled cross-channel but the time-filter / fetch path
+  // produced nothing — bugs in either are invisible without it.
+  return fetchCrossChannelHistory({
     personaId: opts.personaId,
     personalityId: opts.personalityId,
     currentChannelId: opts.channelId,
-    remainingMessageCount: opts.dbLimit,
+    messageBudget: opts.dbLimit,
     discordClient: opts.discordClient,
     conversationHistoryService: opts.conversationHistoryService,
     maxAge: opts.maxAge,
     contextEpoch: opts.contextEpoch,
   });
-
-  return groups.length > 0 ? groups : undefined;
 }
 
 /**

@@ -377,6 +377,17 @@ export function buildTokenBudgetView(
     `  ${pad('Remaining:')}${remaining.toLocaleString().padStart(8)} tokens (${remainingPct.toFixed(0).padStart(2)}%)`,
   ];
 
+  // Cross-channel disclosure: surfaces "0 cross-channel msgs" when the user
+  // has crossChannelHistory enabled but the time-filter / personality-history
+  // combination produced nothing. Without this line, the silent-skip case is
+  // indistinguishable from "feature disabled" in the embed.
+  if (tokenBudget.crossChannelMessagesIncluded !== undefined) {
+    lines.push('');
+    lines.push(
+      `Cross-channel: ${tokenBudget.crossChannelMessagesIncluded} msgs included from other channels`
+    );
+  }
+
   const dropped: string[] = [];
   if (tokenBudget.memoriesDropped > 0) {
     dropped.push(`${tokenBudget.memoriesDropped} memories`);
