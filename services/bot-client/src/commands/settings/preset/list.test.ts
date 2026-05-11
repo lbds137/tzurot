@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleBrowseOverrides } from './browse.js';
+import { handleListOverrides } from './list.js';
 import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
@@ -46,17 +46,17 @@ describe('Settings Preset Browse Handler', () => {
     return {
       user: { id: 'user-123' },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleBrowseOverrides>[0];
+    } as unknown as Parameters<typeof handleListOverrides>[0];
   }
 
-  describe('handleBrowseOverrides', () => {
+  describe('handleListOverrides', () => {
     it('should show empty state when no overrides', async () => {
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: { overrides: [] },
       });
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
@@ -81,7 +81,7 @@ describe('Settings Preset Browse Handler', () => {
         },
       });
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
@@ -102,7 +102,7 @@ describe('Settings Preset Browse Handler', () => {
         },
       });
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
@@ -118,7 +118,7 @@ describe('Settings Preset Browse Handler', () => {
         error: 'Internal error',
       });
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: '❌ Failed to get overrides. Please try again later.',
@@ -128,7 +128,7 @@ describe('Settings Preset Browse Handler', () => {
     it('should handle network errors', async () => {
       vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: '❌ An error occurred. Please try again later.',

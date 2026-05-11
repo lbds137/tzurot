@@ -2,7 +2,7 @@
  * STT subcommand group builder for /voice.
  *
  * Two subcommands: set / clear. STT is user-scoped (your voice doesn't
- * change per character) so there's no per-personality dimension. When the
+ * change per character) so there's no per-character dimension. When the
  * user has no preference set, transcription derives from their default
  * TTS provider (BYOK pairs like Mistral handle both audio directions),
  * otherwise falls back to the self-hosted voice-engine.

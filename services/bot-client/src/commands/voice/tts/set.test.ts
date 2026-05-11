@@ -1,6 +1,6 @@
 /**
  * Tests for /voice tts set handler.
- * Locks the BYOK gate + per-personality TTS override flow.
+ * Locks the BYOK gate + per-character TTS override flow.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

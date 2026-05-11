@@ -94,8 +94,8 @@ const TYPE_CHOICES: { name: string; value: string }[] = [
 const SCOPE_CHOICES: { name: string; value: string }[] = [
   { name: 'Bot (bot-wide)', value: 'BOT' },
   { name: 'Guild (this server)', value: 'GUILD' },
-  { name: 'Channel (specific channel)', value: 'CHANNEL' },
-  { name: 'Character (specific character)', value: 'PERSONALITY' },
+  { name: 'Channel', value: 'CHANNEL' },
+  { name: 'Character', value: 'PERSONALITY' },
 ];
 
 const MODE_CHOICES: { name: string; value: string }[] = [

@@ -36,7 +36,7 @@ export async function handleTtsClearDefault(context: DeferredCommandContext): Pr
       return;
     }
 
-    // Tell the user explicitly what they'll get next. Per-personality
+    // Tell the user explicitly what they'll get next. Per-character
     // overrides are unaffected and surface in the second sentence.
     const fallbackLine =
       result.data.newEffectiveDefault !== null
@@ -48,7 +48,7 @@ export async function handleTtsClearDefault(context: DeferredCommandContext): Pr
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
         `Your default TTS config has been removed.\n\n${fallbackLine}\n\n` +
-          'Personalities with their own per-personality overrides will continue to use those.'
+          'Characters with their own per-character overrides will continue to use those.'
       )
       .setTimestamp();
 

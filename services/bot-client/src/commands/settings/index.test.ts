@@ -44,8 +44,8 @@ vi.mock('./apikey/modal.js', () => ({
 }));
 
 // Mock preset handlers
-vi.mock('./preset/browse.js', () => ({
-  handleBrowseOverrides: vi.fn().mockResolvedValue(undefined),
+vi.mock('./preset/list.js', () => ({
+  handleListOverrides: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./preset/set.js', () => ({
@@ -66,13 +66,6 @@ vi.mock('./preset/clear-default.js', () => ({
 
 vi.mock('./preset/autocomplete.js', () => ({
   handleAutocomplete: vi.fn().mockResolvedValue(undefined),
-}));
-
-// Mock the deprecation-stub redirect helper. The real handlers for
-// /settings tts and /settings voices subcommands moved to /voice; the
-// legacy schemas still register but route through this redirect.
-vi.mock('../voice/redirectToVoiceCommand.js', () => ({
-  tryRedirectToVoice: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock destructive confirmation utilities
@@ -169,7 +162,7 @@ describe('Settings Command Index', () => {
       ).map(s => s.name);
       // Names mirror the /voice tts pattern: action verb (set / clear) +
       // optional scope qualifier (-default for global vs no suffix for
-      // per-personality). `list` (not `browse`) for the user-overrides view.
+      // per-character). `list` (not `browse`) for the user-overrides view.
       expect(subcommands).toContain('list');
       expect(subcommands).toContain('set');
       expect(subcommands).toContain('clear');
@@ -192,47 +185,20 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('edit');
     });
 
-    it('keeps the legacy /settings voices schema (deprecation stub for /voice voices)', () => {
+    it('does NOT register the legacy /settings tts or /settings voices stubs', () => {
       const json = data.toJSON();
       const options = json.options ?? [];
-
-      const groups = options.filter((opt: { type: number }) => opt.type === 2);
-      const voicesGroup = groups.find((g: { name: string }) => g.name === 'voices');
-
-      expect(voicesGroup).toBeDefined();
-
-      const subcommands = (
-        (voicesGroup as { options?: Array<{ name: string }> })?.options ?? []
-      ).map(s => s.name);
-      // Legacy subcommand names preserved so users typing the old paths
-      // still resolve to a registered handler (which then redirects).
-      expect(subcommands).toContain('browse');
-      expect(subcommands).toContain('delete');
-      expect(subcommands).toContain('clear');
+      const groupNames = options
+        .filter((opt: { type: number }) => opt.type === 2)
+        .map((g: { name: string }) => g.name);
+      // /settings tts and /settings voices live under /voice now;
+      // Discord surfaces "Unknown command" for legacy paths instead of
+      // an in-bot redirect.
+      expect(groupNames).not.toContain('tts');
+      expect(groupNames).not.toContain('voices');
     });
 
-    it('keeps the legacy /settings tts schema (deprecation stub for /voice tts)', () => {
-      const json = data.toJSON();
-      const options = json.options ?? [];
-
-      const groups = options.filter((opt: { type: number }) => opt.type === 2);
-      const ttsGroup = groups.find((g: { name: string }) => g.name === 'tts');
-
-      expect(ttsGroup).toBeDefined();
-
-      const subcommands = ((ttsGroup as { options?: Array<{ name: string }> })?.options ?? []).map(
-        s => s.name
-      );
-      // Original vocabulary (set/reset/default/clear-default/browse) preserved
-      // — the rename to set/clear/set-default/clear-default lives on /voice tts.
-      expect(subcommands).toContain('browse');
-      expect(subcommands).toContain('set');
-      expect(subcommands).toContain('reset');
-      expect(subcommands).toContain('default');
-      expect(subcommands).toContain('clear-default');
-    });
-
-    it('should have componentPrefixes for user-defaults only (settings-voices moved to /voice)', () => {
+    it('should have componentPrefixes for user-defaults only', () => {
       expect(settingsCommand.componentPrefixes).toEqual(['user-defaults-settings']);
     });
 
@@ -330,13 +296,13 @@ describe('Settings Command Index', () => {
     });
 
     describe('preset group', () => {
-      it('should route /preset list to handleBrowseOverrides', async () => {
-        const { handleBrowseOverrides } = await import('./preset/browse.js');
+      it('should route /preset list to handleListOverrides', async () => {
+        const { handleListOverrides } = await import('./preset/list.js');
         const context = createMockContext('preset', 'list');
 
         await execute(context);
 
-        expect(handleBrowseOverrides).toHaveBeenCalledWith(context);
+        expect(handleListOverrides).toHaveBeenCalledWith(context);
       });
 
       it('should route to preset set handler', async () => {
@@ -384,40 +350,6 @@ describe('Settings Command Index', () => {
         await execute(context);
 
         expect(handleDefaultsEdit).toHaveBeenCalledWith(context);
-      });
-    });
-
-    describe('legacy /settings tts and /settings voices deprecation stubs', () => {
-      it('routes /settings tts <subcommand> to the redirect helper', async () => {
-        const { tryRedirectToVoice } = await import('../voice/redirectToVoiceCommand.js');
-        const context = createMockContext('tts', 'set');
-
-        await execute(context);
-
-        expect(tryRedirectToVoice).toHaveBeenCalledWith(context, 'tts', 'set');
-      });
-
-      it('replies with an error when /settings tts is invoked with no subcommand', async () => {
-        const { tryRedirectToVoice } = await import('../voice/redirectToVoiceCommand.js');
-        // Schema-drift guard: in normal operation Discord rejects subcommand-less
-        // group invocations, but the dispatcher defends against it anyway.
-        const context = createMockContext('tts', null as unknown as string);
-
-        await execute(context);
-
-        expect(tryRedirectToVoice).not.toHaveBeenCalled();
-        expect(context.editReply).toHaveBeenCalledWith({
-          content: expect.stringContaining('No subcommand specified'),
-        });
-      });
-
-      it('routes /settings voices <subcommand> to the redirect helper', async () => {
-        const { tryRedirectToVoice } = await import('../voice/redirectToVoiceCommand.js');
-        const context = createMockContext('voices', 'browse');
-
-        await execute(context);
-
-        expect(tryRedirectToVoice).toHaveBeenCalledWith(context, 'voices', 'browse');
       });
     });
 
@@ -536,20 +468,6 @@ describe('Settings Command Index', () => {
       await autocomplete(interaction);
 
       expect(handlePresetAutocomplete).toHaveBeenCalledWith(interaction);
-    });
-
-    it('returns empty for /settings tts and /settings voices autocomplete (deprecation stubs)', async () => {
-      const interaction = {
-        options: {
-          getFocused: () => ({ name: 'voice', value: 'ali' }),
-          getSubcommandGroup: () => 'voices',
-        },
-        respond: vi.fn(),
-      } as any;
-
-      await autocomplete(interaction);
-
-      expect(interaction.respond).toHaveBeenCalledWith([]);
     });
 
     it('should return empty array for unknown options', async () => {

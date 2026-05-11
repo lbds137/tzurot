@@ -50,7 +50,7 @@ describe('buildVoiceTtsSubcommandGroup', () => {
     expect(ttsOpt?.autocomplete).toBe(true);
   });
 
-  it('clear subcommand requires personality option (per-personality clear)', () => {
+  it('clear subcommand requires personality option (per-character clear)', () => {
     const builder = new SlashCommandBuilder().setName('test').setDescription('test');
     builder.addSubcommandGroup(group => buildVoiceTtsSubcommandGroup(group));
 

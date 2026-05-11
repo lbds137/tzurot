@@ -2,7 +2,7 @@
  * Voice STT Set Handler
  * Handles /voice stt set <provider> — writes User.defaultSttProviderId
  * (the user's transcription preference). One per user; STT is speaker-bound
- * so there's no per-personality dimension.
+ * so there's no per-character dimension.
  */
 
 import { EmbedBuilder } from 'discord.js';

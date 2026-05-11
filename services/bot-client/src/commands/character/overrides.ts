@@ -1,7 +1,7 @@
 /**
  * Character Overrides Dashboard
  *
- * Interactive dashboard for managing per-user per-personality config overrides.
+ * Interactive dashboard for managing per-user per-character config overrides.
  * Shows effective values from the full cascade with source indicators.
  * Any user can set their own overrides for any personality.
  *

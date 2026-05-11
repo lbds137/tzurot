@@ -1,7 +1,7 @@
 /**
  * Tests for Character Overrides Dashboard
  *
- * Tests the interactive overrides dashboard for per-user per-personality settings.
+ * Tests the interactive overrides dashboard for per-user per-character settings.
  * Uses cascade config overrides via /user/config-overrides/ endpoints.
  */
 

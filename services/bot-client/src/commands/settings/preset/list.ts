@@ -1,6 +1,6 @@
 /**
- * Settings Preset Browse Handler
- * Handles /settings preset browse subcommand
+ * Settings Preset List Handler
+ * Handles /settings preset list subcommand
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
@@ -19,9 +19,9 @@ interface ListResponse {
 }
 
 /**
- * Handle /settings preset browse
+ * Handle /settings preset list
  */
-export async function handleBrowseOverrides(context: DeferredCommandContext): Promise<void> {
+export async function handleListOverrides(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
@@ -45,7 +45,7 @@ export async function handleBrowseOverrides(context: DeferredCommandContext): Pr
 
     if (data.overrides.length === 0) {
       embed.setDescription(
-        "You haven't set any preset overrides.\n\nUse `/settings preset set` to override which preset a personality uses."
+        "You haven't set any preset overrides.\n\nUse `/settings preset set` to override which preset a character uses."
       );
     } else {
       const lines = data.overrides.map(
@@ -55,7 +55,7 @@ export async function handleBrowseOverrides(context: DeferredCommandContext): Pr
 
       embed.setDescription(lines.join('\n'));
       embed.setFooter({
-        text: `${data.overrides.length} override(s) • Use /settings preset reset to remove`,
+        text: `${data.overrides.length} override(s) • Use /settings preset clear to remove`,
       });
     }
 

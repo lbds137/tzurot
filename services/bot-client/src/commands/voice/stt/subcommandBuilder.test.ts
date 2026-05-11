@@ -1,6 +1,6 @@
 /**
  * Tests for the /voice stt subcommand group builder.
- * STT is user-scoped: just set / clear, no per-personality dimension.
+ * STT is user-scoped: just set / clear, no per-character dimension.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -14,7 +14,7 @@ function buildJson() {
 }
 
 describe('buildVoiceSttSubcommandGroup', () => {
-  it('attaches just set + clear (no per-personality variants)', () => {
+  it('attaches just set + clear (no per-character variants)', () => {
     const json = buildJson();
     const sttGroup = json.options?.find(
       (o): o is typeof o & { options?: unknown[] } => o.name === 'stt'

@@ -73,7 +73,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
       .setDescription(
         `**${data.override.personalityName}** will now use the **${data.override.configName}** preset.`
       )
-      .setFooter({ text: 'Use /settings preset reset to remove this override' })
+      .setFooter({ text: 'Use /settings preset clear to remove this override' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });
