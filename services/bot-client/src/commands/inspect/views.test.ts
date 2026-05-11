@@ -509,6 +509,54 @@ describe('buildTokenBudgetView', () => {
     const content = result.files![0].attachment.toString();
     expect(content).not.toContain('Cross-channel:');
   });
+
+  it('renders the TTS line when ttsProviderUsed is set and no fallback fired', () => {
+    const payload = createMockPayload();
+    payload.tokenBudget.ttsProviderUsed = 'mistral';
+    payload.tokenBudget.ttsUsedFallback = false;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const content = result.files![0].attachment.toString();
+    expect(content).toContain('TTS: mistral');
+    expect(content).not.toContain('(via fallback)');
+  });
+
+  it('annotates the TTS line with "(via fallback)" when the dispatcher fell through', () => {
+    // Regression contract for the silent-fallback misattribution class —
+    // user configures Mistral, Mistral fails, voice-engine produces audio,
+    // diagnostic UI must surface the divergence so the user can tell.
+    const payload = createMockPayload();
+    payload.tokenBudget.ttsProviderUsed = 'self-hosted';
+    payload.tokenBudget.ttsUsedFallback = true;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const content = result.files![0].attachment.toString();
+    expect(content).toContain('TTS: self-hosted (via fallback)');
+  });
+
+  it('omits the TTS line when ttsProviderUsed is undefined (TTS disabled or failed)', () => {
+    const payload = createMockPayload();
+    // ttsProviderUsed intentionally undefined
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const content = result.files![0].attachment.toString();
+    expect(content).not.toContain('TTS:');
+  });
+
+  it('omits the "(via fallback)" suffix when ttsUsedFallback is undefined', () => {
+    // The renderer uses strict `=== true` so undefined renders the bare line.
+    // Pipeline always sets the two fields together, but pinning the strict
+    // check here guards against a future contributor flipping to a truthy
+    // comparison that would render "(via fallback)" on undefined.
+    const payload = createMockPayload();
+    payload.tokenBudget.ttsProviderUsed = 'mistral';
+    payload.tokenBudget.ttsUsedFallback = undefined;
+    const result = buildTokenBudgetView(payload, 'req-123', OWNER_CTX);
+
+    const content = result.files![0].attachment.toString();
+    expect(content).toContain('TTS: mistral');
+    expect(content).not.toContain('(via fallback)');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -641,6 +689,20 @@ describe('non-owner redaction', () => {
       const content = result.files![0].attachment.toString();
       expect(content).toContain('Context Window');
       expect(content).toContain('System Prompt:');
+    });
+
+    it('renders the TTS attribution line for non-owners as well (no ownership gate)', () => {
+      // Pins the intentional design: TTS provider attribution is a non-sensitive
+      // numeric/categorical field, same class as the other token-budget lines,
+      // so non-owners also see it. Without this assertion, a future contributor
+      // could add an ownership gate to the TTS line and the test suite would
+      // accept the change silently.
+      const payload = createMockPayload();
+      payload.tokenBudget.ttsProviderUsed = 'mistral';
+      payload.tokenBudget.ttsUsedFallback = false;
+      const result = buildTokenBudgetView(payload, 'req-123', NON_OWNER_CTX);
+      const content = result.files![0].attachment.toString();
+      expect(content).toContain('TTS: mistral');
     });
   });
 });

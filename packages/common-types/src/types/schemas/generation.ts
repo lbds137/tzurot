@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { ApiErrorType, ApiErrorCategory } from '../../constants/index.js';
+import { TTS_PROVIDER_IDS } from '../../services/tts/TtsProvider.js';
 import { loadedPersonalitySchema, requestContextSchema } from './personality.js';
 
 /**
@@ -112,6 +113,20 @@ const generationPayloadSchema = z.object({
        *  Expected values: 'audio/wav' (voice-engine) or 'audio/mpeg' (ElevenLabs).
        *  Consumer defaults to .wav for unrecognized types. */
       ttsAudioContentType: z.string().optional(),
+      /** TTS provider that ACTUALLY produced the audio (post-dispatch). May
+       *  differ from the user's configured provider if the dispatcher fell
+       *  through to a fallback. Surfacing this catches the same misattribution
+       *  class that hid the Mistral STT bug — silent fallbacks mean a user
+       *  configured Mistral but heard self-hosted output and couldn't tell.
+       *  Constrained to the runtime TtsProviderId union (derived from the
+       *  shared TTS_PROVIDER_IDS tuple — single source of truth). */
+      ttsProviderUsed: z.enum(TTS_PROVIDER_IDS).optional(),
+      /** Whether the TTS dispatcher fell through from the configured provider
+       *  to a fallback. True iff `ttsProviderUsed` differs from the user's
+       *  resolved configured provider for this turn. Surfaces silent-fallback
+       *  cases in the diagnostic UI without requiring users to compare
+       *  provider IDs themselves. */
+      ttsUsedFallback: z.boolean().optional(),
       /** Bot-owner-visible diagnostics from the TTS dispatcher's fallback walk —
        *  e.g., "Mistral skipped because reference audio exceeds 30s". Rendered
        *  by bot-client only when the receiving user is the bot owner; silent

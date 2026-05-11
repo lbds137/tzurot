@@ -388,6 +388,17 @@ export function buildTokenBudgetView(
     );
   }
 
+  // TTS provider attribution: reports the provider that ACTUALLY produced
+  // the audio. The "(via fallback)" suffix surfaces silent dispatcher
+  // fall-throughs where the user's configured provider failed and the
+  // dispatcher selected a backup — the exact diagnostic gap that hid the
+  // sister Mistral STT misattribution.
+  if (tokenBudget.ttsProviderUsed !== undefined) {
+    lines.push('');
+    const fallbackSuffix = tokenBudget.ttsUsedFallback === true ? ' (via fallback)' : '';
+    lines.push(`TTS: ${tokenBudget.ttsProviderUsed}${fallbackSuffix}`);
+  }
+
   const dropped: string[] = [];
   if (tokenBudget.memoriesDropped > 0) {
     dropped.push(`${tokenBudget.memoriesDropped} memories`);

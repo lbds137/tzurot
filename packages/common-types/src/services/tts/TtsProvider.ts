@@ -41,12 +41,18 @@ export interface ResolvedTtsConfig {
 /** Provider-specific knobs. Opaque to the dispatcher; validated per-provider. */
 export type TtsAdvancedParams = Record<string, unknown>;
 
-/** Stable provider id strings — persisted to DB in `tts_configs.provider`. */
-export type TtsProviderId = 'self-hosted' | 'elevenlabs' | 'mistral';
+/**
+ * Stable provider id strings — persisted to DB in `tts_configs.provider`.
+ * Single source of truth: the type, the runtime guard, and any Zod
+ * validators all derive from this tuple, so adding a new provider is a
+ * one-line change here.
+ */
+export const TTS_PROVIDER_IDS = ['self-hosted', 'elevenlabs', 'mistral'] as const;
+export type TtsProviderId = (typeof TTS_PROVIDER_IDS)[number];
 
 /** Type guard for runtime narrowing of DB-sourced provider strings. */
 export function isTtsProviderId(value: string): value is TtsProviderId {
-  return value === 'self-hosted' || value === 'elevenlabs' || value === 'mistral';
+  return (TTS_PROVIDER_IDS as readonly string[]).includes(value);
 }
 
 /**
