@@ -33,6 +33,10 @@ interface FetchOptions {
   remainingMessageCount: number;
   discordClient: Client;
   conversationHistoryService: ConversationHistoryService;
+  /** Max-age cutoff in SECONDS, mirroring the current-channel filter. */
+  maxAge?: number | null;
+  /** Explicit context epoch from `/conversation reset`. */
+  contextEpoch?: Date;
 }
 
 /**
@@ -182,7 +186,8 @@ export async function fetchCrossChannelHistory(
     personaId,
     personalityId,
     currentChannelId,
-    remainingMessageCount
+    remainingMessageCount,
+    { maxAgeSeconds: opts.maxAge, contextEpoch: opts.contextEpoch }
   );
 
   if (groups.length === 0) {
@@ -220,35 +225,32 @@ export async function fetchCrossChannelHistory(
 }
 
 /**
- * Fetch cross-channel history if enabled and there's remaining budget.
- * Returns undefined if disabled or no room for additional history.
+ * Fetch cross-channel history if enabled.
+ *
+ * Cross-channel context gets its own DB-row budget (capped at `dbLimit`)
+ * rather than what's left over after the current-channel fetch. The previous
+ * "residual filler" model silently zeroed cross-channel out whenever the
+ * current channel was full of stale rows — a privacy / continuity surprise
+ * for users who had set max-age expecting cross-channel to bridge the gap.
+ *
+ * Token-budget enforcement still happens downstream in `ContentBudgetManager`,
+ * which trims both sources to fit the model's context window. Pulling more
+ * DB rows here just gives that layer real choices to make.
  */
 export async function fetchCrossChannelIfEnabled(opts: {
   enabled: boolean;
   channelId: string;
   personaId: string;
   personalityId: string;
-  currentHistoryLength: number;
   dbLimit: number;
   discordClient: Client;
   conversationHistoryService: ConversationHistoryService;
+  /** Max-age cutoff in SECONDS, threaded from the user's LLM config. */
+  maxAge?: number | null;
+  /** Explicit context epoch from `/conversation reset`. */
+  contextEpoch?: Date;
 }): Promise<ResolvedCrossChannelGroup[] | undefined> {
   if (!opts.enabled) {
-    return undefined;
-  }
-
-  // currentHistoryLength is the DB row count from getChannelHistory (before any Discord
-  // extension), so this subtraction gives the correct remaining DB-level message budget.
-  const remainingMessageCount = opts.dbLimit - opts.currentHistoryLength;
-  if (remainingMessageCount <= 0) {
-    logger.debug(
-      {
-        channelId: opts.channelId,
-        currentHistoryLength: opts.currentHistoryLength,
-        dbLimit: opts.dbLimit,
-      },
-      'No remaining message count for cross-channel history'
-    );
     return undefined;
   }
 
@@ -256,9 +258,11 @@ export async function fetchCrossChannelIfEnabled(opts: {
     personaId: opts.personaId,
     personalityId: opts.personalityId,
     currentChannelId: opts.channelId,
-    remainingMessageCount,
+    remainingMessageCount: opts.dbLimit,
     discordClient: opts.discordClient,
     conversationHistoryService: opts.conversationHistoryService,
+    maxAge: opts.maxAge,
+    contextEpoch: opts.contextEpoch,
   });
 
   return groups.length > 0 ? groups : undefined;

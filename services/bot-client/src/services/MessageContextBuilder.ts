@@ -119,35 +119,6 @@ export class MessageContextBuilder {
   }
 
   /**
-   * Fetch conversation history from database.
-   * Always fetches ALL channel messages (not filtered by personality) to provide
-   * complete conversation context and align with Discord extended context messages.
-   *
-   * The limit parameter caps the DB fetch to the maxMessages setting from LlmConfig,
-   * preventing the DB lookup from going much farther back than necessary.
-   */
-  private async fetchDbHistory(
-    channelId: string,
-    contextEpoch: Date | undefined,
-    limit: number = MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES
-  ): Promise<ConversationMessage[]> {
-    // Always use getChannelHistory for complete conversation context
-    // This prevents divergence between DB and Discord message views
-    const history = await this.conversationHistory.getChannelHistory(
-      channelId,
-      limit,
-      contextEpoch
-    );
-
-    logger.debug(
-      { channelId, limit, dbHistoryCount: history.length },
-      'Fetched conversation history from database'
-    );
-
-    return history;
-  }
-
-  /**
    * Fetch extended context from Discord channel and merge with history.
    */
   // eslint-disable-next-line max-lines-per-function, sonarjs/cognitive-complexity -- Cohesive extended context workflow with guard clauses and optional feature checks
@@ -392,11 +363,19 @@ export class MessageContextBuilder {
     // Always fetch complete channel history (not personality-filtered)
     // Use maxMessages from resolved LLM config or extended context settings
     // Hard cap at MAX_EXTENDED_CONTEXT (100) as defense-in-depth against API validation bypass
+    // dbLimit caps the DB fetch to maxMessages from LlmConfig (hard cap MAX_EXTENDED_CONTEXT).
+    // maxAge mirrors the DiscordChannelFetcher filter so stale DB rows don't leak past
+    // the user's "forget after X" preference and starve cross-channel context.
     const dbLimit = Math.min(
       options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
     );
-    const dbHistory = await this.fetchDbHistory(message.channel.id, contextEpoch, dbLimit);
+    const dbHistory = await this.conversationHistory.getChannelHistory(
+      message.channel.id,
+      dbLimit,
+      contextEpoch,
+      options.extendedContext?.maxAge
+    );
 
     // Step 4: Fetch extended context from Discord (if enabled) and merge with DB history
     const extendedContext = await this.fetchExtendedContext({
@@ -410,19 +389,18 @@ export class MessageContextBuilder {
     const extendedContextAttachments = extendedContext.attachments;
     const participantGuildInfo = extendedContext.participantGuildInfo;
 
-    // Step 4b: Fetch cross-channel history (if enabled and there's remaining budget)
-    // Disabled in weigh-in mode: weigh-in is an anonymous poke that skips LTM and history
-    // from other channels. Cross-channel history would surface prior conversations,
-    // contradicting the "fresh perspective" intent of weigh-in.
+    // Step 4b: Fetch cross-channel history. Disabled in weigh-in mode (anonymous
+    // poke that skips LTM and other-channel history for a fresh-perspective response).
     const crossChannelGroups = await fetchCrossChannelIfEnabled({
       enabled: options.crossChannelHistoryEnabled === true && options.isWeighInMode !== true,
       channelId: message.channel.id,
       personaId,
       personalityId: personality.id,
-      currentHistoryLength: dbHistory.length, // DB row count, not merged DB+Discord count
       dbLimit,
       discordClient: message.client,
       conversationHistoryService: this.conversationHistory,
+      maxAge: options.extendedContext?.maxAge,
+      contextEpoch,
     }).catch((err: unknown) => {
       logger.warn(
         { err, personaId, personalityId: personality.id, channelId: message.channel.id },
