@@ -3,20 +3,18 @@
 [![codecov](https://codecov.io/gh/lbds137/tzurot/branch/develop/graph/badge.svg)](https://codecov.io/gh/lbds137/tzurot)
 [![CI](https://github.com/lbds137/tzurot/workflows/CI/badge.svg)](https://github.com/lbds137/tzurot/actions)
 
-> **🚀 Status**: Public beta - BYOK (Bring Your Own Key) enabled
+> **🚀 Status**: Public beta — BYOK (Bring Your Own Key) enabled
 
-A modern, scalable Discord bot with customizable AI personalities, powered by microservices architecture with long-term memory.
+A modern, scalable Discord bot with customizable AI characters, powered by a microservices architecture with long-term memory, voice in/out, and BYOK-first provider routing.
 
-## Why v3?
+## Highlights
 
-Shapes.inc (v2's AI provider) killed their API to force users to their website only, forcing a complete rewrite. v3 is better in every way:
-
-- **Vendor Independence**: Clean abstraction for AI providers (OpenRouter primary)
-- **TypeScript + Python**: Full type safety, with a Python FastAPI voice engine
-- **True Microservices**: Each service has a single, clear responsibility
-- **Long-term Memory**: pgvector for personality memory across conversations
-- **Multiple Providers**: OpenRouter (400+ models including free tier), ElevenLabs TTS, local voice engine
-- **Clean Architecture**: No over-engineered DDD - just simple, maintainable code
+- **Multi-provider, vendor-flexible**: Default routing through OpenRouter (400+ models, free tier included). Voice via Mistral (BYOK), ElevenLabs (BYOK), or self-hosted (no key needed). All provider boundaries are clean abstractions — no lock-in.
+- **BYOK by default**: Users supply their own keys via `/settings apikey`. Free-model guest mode available for users without keys.
+- **Long-term memory**: pgvector with locally-computed embeddings (no third-party embedding API).
+- **Voice in + out**: STT for incoming voice messages, TTS for outgoing replies, with bot-owner-visible attribution telling you which provider actually ran (catches silent fallbacks).
+- **Per-character config cascade**: User-default → per-character → per-user-per-character override. Surfaces resolved state via `/voice view <character>`, `/inspect`, and dedicated dashboards.
+- **Clean microservice boundaries**: 4 services (3 TypeScript + 1 Python), explicit responsibility per service, no DDD over-engineering.
 
 ## Architecture
 
@@ -34,43 +32,44 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
                                          +-----+------+
                                                |
                                                v
-                    +--------------------------+-------------------------+
-                    |                                                    |
-                    v                                                    v
-              +------------+                                      +------------+
-              | AI Worker  |------------------------------------->| PostgreSQL |
-              |  Service   |                                      | (pgvector) |
-              +-----+------+                                      +------------+
+                    +--------------------------+--------------------------+
+                    |                                                     |
+                    v                                                     v
+              +------------+                                       +------------+
+              | AI Worker  |-------------------------------------->| PostgreSQL |
+              |  Service   |                                       | (pgvector) |
+              +-----+------+                                       +------------+
                     |
-                    +------+-----------+----------+
-                    |      |           |
-                    v      v           v
-              +----------+ +----------+ +----------+
-              | Open     | | Eleven   | |  Voice   |
-              | Router   | |  Labs    | |  Engine  |
-              | (400+    | |  (TTS)   | | (Python) |
-              |  models) | |          | |          |
-              +----------+ +----------+ +----------+
+        +-----------+-----------+----------+----------+
+        |           |           |          |          |
+        v           v           v          v          v
+  +----------+ +----------+ +----------+ +--------+ +----------+
+  |   Open   | | Mistral  | |  Eleven  | | Voice  | |  Local   |
+  |  Router  | | (BYOK    | |  Labs    | | Engine | |Embeddings|
+  | (400+    | |  TTS+STT)| |  (BYOK   | |(Python | |  (BGE,   |
+  |  models) | |          | |   TTS)   | | STT/TTS| |  no API) |
+  +----------+ +----------+ +----------+ +--------+ +----------+
 ```
 
 **Services:**
 
-- **bot-client**: Discord.js interface, webhook management, slash commands
-- **api-gateway**: HTTP API, request routing, job queue management
-- **ai-worker**: AI processing, memory retrieval, prompt building, response generation
-- **voice-engine**: Python FastAPI service for local STT (Parakeet) and TTS (PocketTTS)
+- **bot-client**: Discord.js interface, slash commands, webhooks, voice attachment handling
+- **api-gateway**: HTTP API, request validation, BullMQ job dispatch, cascade resolvers
+- **ai-worker**: LLM calls, memory retrieval, prompt building, voice synthesis dispatch, diagnostic flight recorder
+- **voice-engine**: Python FastAPI service for self-hosted STT (NVIDIA Parakeet TDT) and TTS (Pocket TTS)
 
 **Data Stores:**
 
-- **PostgreSQL + pgvector**: User data, personalities, conversation history, vector embeddings for long-term memory
-- **Redis**: BullMQ job queue for async processing, ioredis client
+- **PostgreSQL + pgvector**: Users, characters, conversation history, vector embeddings for long-term memory
+- **Redis**: BullMQ queues + caching layer (TTL caches with pub/sub invalidation)
 
 **Integrations:**
 
-- **OpenRouter**: 400+ AI models via unified API (primary provider, includes free models)
-- **ElevenLabs**: Text-to-speech with voice cloning (primary TTS provider)
-- **Local Embeddings**: Xenova/bge-small-en-v1.5 (384-dim vectors, no API needed)
-- **Voice Engine**: Local STT/TTS fallback (NVIDIA Parakeet + PocketTTS, no external API needed)
+- **OpenRouter** (LLM): 400+ AI models, free tier included. Primary LLM provider.
+- **Mistral** (BYOK voice): Voxtral for STT, voice-cloning TTS. Primary BYOK voice provider.
+- **ElevenLabs** (BYOK voice): TTS + STT. Alternate BYOK provider.
+- **Voice Engine** (self-hosted): Python service running NVIDIA Parakeet TDT for STT and Pocket TTS for TTS. No external API needed; fallback for guest users and BYOK users when their provider fails.
+- **Local Embeddings** (no API): Xenova/bge-small-en-v1.5 (384-dim vectors).
 
 ## Quick Start
 
@@ -78,7 +77,8 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 
 - Node.js 25+
 - pnpm 10+
-- Redis (for BullMQ)
+- PostgreSQL 16+ with pgvector extension
+- Redis 7+ (for BullMQ)
 - Discord Bot Token
 - OpenRouter API Key
 
@@ -98,7 +98,7 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
    # Required: DISCORD_TOKEN, DATABASE_URL (PostgreSQL with pgvector)
    # Required: OPENROUTER_API_KEY (for AI responses)
    # Optional: REDIS_URL (Railway provides this automatically)
-   # Note: Embeddings use local model (Xenova/bge-small-en-v1.5), no API key needed
+   # Note: Embeddings run locally (Xenova/bge-small-en-v1.5), no API key needed
    ```
 
 3. **Start services:**
@@ -115,57 +115,63 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 
 ## Project Structure
 
-- **`services/`** - Microservices
-  - `bot-client/` - Discord bot interface (TypeScript)
-  - `api-gateway/` - HTTP API and request routing (TypeScript)
-  - `ai-worker/` - Background AI processing (TypeScript)
-  - `voice-engine/` - Local STT/TTS service (Python FastAPI)
-- **`packages/`** - Shared code
-  - `common-types/` - TypeScript types, schemas, and shared utilities
-  - `embeddings/` - Local embedding model (BGE-small-en-v1.5)
-  - `test-utils/` - Shared test helpers and PGLite integration
-  - `tooling/` - Ops CLI (`pnpm ops`) and codebase analysis
-- **`prisma/`** - Database schema and migrations
-- **`scripts/`** - One-off utilities: analysis, debug, data migrations, deployment helpers
-- **`tzurot-legacy/`** - Archived v2 codebase (for reference)
-
-## AI Provider System
-
-All AI model access goes through OpenRouter's unified API, with model selection configured per-personality via `ModelFactory`. This provides access to 400+ models (including free tier) through a single API key. ElevenLabs provides text-to-speech with voice cloning. A local Python voice engine (Parakeet + PocketTTS) serves as a fallback for STT/TTS without external API dependencies.
+- **`services/`** — Microservices
+  - `bot-client/` — Discord bot interface (TypeScript)
+  - `api-gateway/` — HTTP API and request routing (TypeScript)
+  - `ai-worker/` — Background AI processing (TypeScript)
+  - `voice-engine/` — Self-hosted STT/TTS service (Python FastAPI)
+- **`packages/`** — Shared code
+  - `common-types/` — TypeScript types, schemas, shared utilities, cascade resolvers
+  - `embeddings/` — Local embedding model (BGE-small-en-v1.5)
+  - `test-utils/` — Shared test helpers and PGLite integration
+  - `tooling/` — Ops CLI (`pnpm ops`) and codebase analysis
+- **`prisma/`** — Database schema and migrations
+- **`scripts/`** — One-off utilities: analysis, debug, data migrations, deployment helpers
+- **`tzurot-legacy/`** — Archived v2 codebase (kept for migration reference)
 
 ## Features
 
 ### ✅ Working in Production
 
-- **Multiple Personalities**: @mention different personalities (@lilith, @default, @sarcastic)
-- **Reply Detection**: Reply to bot messages to continue conversations
+- **Multiple Characters**: `@mention` different characters (e.g. `@lilith`, `@default`) for per-character routing
+- **Reply Detection**: Reply to bot messages to continue conversations seamlessly
 - **Message References**: Reference other messages via Discord links or replies
-- **Long-term Memory**: pgvector stores personality memories across sessions
-- **Conversation History**: Contextual responses using recent message history
-- **Webhook Avatars**: Each personality has unique name and avatar
-- **Image Support**: Send images to personalities for analysis
-- **Voice Support**: Send voice messages for transcription, text-to-speech with voice cloning
-- **Message Chunking**: Automatically handles Discord's 2000 character limit
-- **Model Indicators**: Shows which AI model generated each response
-- **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter API keys
-- **Guest Mode**: Free model access for users without API keys
-- **Channel Activation**: Personalities can auto-respond to all messages in a channel
+- **Long-term Memory**: pgvector stores per-character memories across sessions
+- **Conversation History**: Contextual responses using recent message history with cross-channel bridging when configured
+- **Webhook Avatars**: Each character has unique name and avatar
+- **Image Support**: Send images to characters for vision processing
+- **Voice In**: Send Discord voice messages — STT via Mistral (BYOK), ElevenLabs (BYOK), or self-hosted Parakeet (free fallback). Transcripts include attribution showing which provider produced them.
+- **Voice Out**: TTS replies with voice cloning (Mistral or ElevenLabs BYOK) or self-hosted Pocket TTS (free fallback). Bot-owner-only diagnostic notices surface silent fallbacks (e.g., voice reference exceeded provider limit).
+- **Message Chunking**: Automatic handling of Discord's 2000-character limit
+- **Model Indicators**: Footer shows which AI model produced each response (toggleable per-user/per-character)
+- **BYOK (Bring Your Own Key)**: Users provide their own LLM + voice provider keys via `/settings apikey`
+- **Guest Mode**: Free model + self-hosted voice access for users without keys
+- **Channel Activation**: Characters can auto-respond to all messages in a channel
 - **NSFW Verification**: Age verification via Discord's native age-gated channels
-- **DM Chat**: Chat with personalities in DMs by replying to bot messages
-- **Slash Commands** (see details below)
+- **DM Chat**: Chat with characters in DMs by replying to bot messages
+- **Diagnostic Surface**: `/inspect` shows the full LLM request flight recorder (memory retrieval, token budget, prompt assembly, response, post-processing) for debugging and transparency
 
 ### Slash Commands
 
 **Characters & Personas**
 
-| Command      | Subcommands                               | Purpose                                     |
-| ------------ | ----------------------------------------- | ------------------------------------------- |
-| `/character` | `create` `edit` `view` `browse`           | Manage AI characters                        |
-|              | `import` `export` `template`              | Character portability (JSON)                |
-|              | `chat` `avatar` `voice` `voice-clear`     | Interaction and media                       |
-|              | `settings` `overrides`                    | Per-character config and personal overrides |
-| `/persona`   | `view` `edit` `create` `browse` `default` | User persona management                     |
-|              | `override set` `override clear`           | Per-character persona overrides             |
+| Command      | Subcommands                               | Purpose                                                |
+| ------------ | ----------------------------------------- | ------------------------------------------------------ |
+| `/character` | `create` `edit` `view` `browse`           | Manage AI characters                                   |
+|              | `import` `export` `template`              | Character portability (JSON)                           |
+|              | `chat` `avatar` `voice` `voice-clear`     | Interaction and per-character voice cloning enrollment |
+|              | `settings` `overrides`                    | Per-character config and personal overrides            |
+| `/persona`   | `view` `edit` `create` `browse` `default` | User persona management                                |
+|              | `override set` `override clear`           | Per-character persona overrides                        |
+
+**Voice Configuration** _(TTS + STT providers, cloned-voice library)_
+
+| Command  | Subcommands                                    | Purpose                                                  |
+| -------- | ---------------------------------------------- | -------------------------------------------------------- |
+| `/voice` | `view <character>`                             | Resolved TTS + STT for a character (with cascade source) |
+|          | `tts list set clear set-default clear-default` | Per-character + user-default TTS provider config         |
+|          | `stt set clear`                                | Transcription provider preference (user-scoped)          |
+|          | `voices browse delete clear`                   | Cloned-voice library lifecycle                           |
 
 **Presets & Channels**
 
@@ -188,16 +194,15 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 
 **Settings & Tools**
 
-| Command     | Subcommands                                                 | Purpose                                                                     |
-| ----------- | ----------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `/settings` | `timezone` (`set` `get`)                                    | Timezone for timestamps                                                     |
-|             | `apikey` (`set` `browse` `remove` `test`)                   | BYOK API key management                                                     |
-|             | `preset` (`browse` `set` `reset` `default` `clear-default`) | Per-character preset overrides                                              |
-|             | `defaults` (`edit`)                                         | User default settings dashboard                                             |
-|             | `voices` (`browse` `delete` `clear` `model`)                | ElevenLabs voice management                                                 |
-| `/shapes`   | `auth` `logout` `browse` `import` `export` `status`         | Shapes.inc character migration                                              |
-| `/inspect`  | `[identifier]`                                              | Diagnostic log browser — omit to browse recent, provide to inspect specific |
-| `/help`     | _(optional command)_                                        | Show available commands                                                     |
+| Command     | Subcommands                                                   | Purpose                                                                     |
+| ----------- | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `/settings` | `timezone` (`set` `get`)                                      | Timezone for timestamps                                                     |
+|             | `apikey` (`set` `browse` `remove` `test`)                     | BYOK API key management                                                     |
+|             | `preset` (`list` `set` `clear` `set-default` `clear-default`) | Per-character preset overrides                                              |
+|             | `defaults` (`edit`)                                           | User default settings dashboard                                             |
+| `/shapes`   | `auth` `logout` `browse` `import` `export` `status`           | Shapes.inc character migration (legacy import)                              |
+| `/inspect`  | `[identifier]`                                                | Diagnostic log browser — omit to browse recent, provide to inspect specific |
+| `/help`     | _(optional command)_                                          | Show available commands                                                     |
 
 **Administration (owner only)**
 
@@ -207,12 +212,12 @@ All AI model access goes through OpenRouter's unified API, with model selection 
 |          | `cleanup` `db-sync` `settings` `presence` `stop-sequences` | Maintenance and configuration    |
 | `/deny`  | `add` `remove` `browse` `view`                             | User and guild denial management |
 
-### 📋 Planned Features
+### 📋 Planned
 
-- Multi-personality per channel (multiple bots responding naturally)
-- Advanced memory features (LTM summarization, OpenMemory integration)
-- Lorebooks / sticky context (keyword-triggered lore injection)
-- Chatterbox TTS evaluation (next-gen local voice cloning)
+- **TTS Phase 2 — NeuTTS Air**: Self-hosted next-gen voice cloning engine alongside Pocket TTS, for free-tier voice-clone users
+- **Multi-character per channel**: Multiple characters responding naturally to the same conversation
+- **Lorebooks / sticky context**: Keyword-triggered lore injection
+- **Memory enhancements**: LTM summarization, OpenMemory integration
 
 ## Development
 
@@ -227,33 +232,33 @@ pnpm ops --help       # CLI tooling reference
 
 ## Deployment
 
-### Railway Deployment
+### Railway
 
-**Current Status**: Public beta running on Railway
+**Current Status**: Public beta on Railway
 
 - **API Gateway**: https://api-gateway-development-83e8.up.railway.app
 - **Health Check**: https://api-gateway-development-83e8.up.railway.app/health
 
-**BYOK Enabled**: Users can bring their own API keys via `/settings apikey` commands. Guest users without keys get access to free models only.
+**BYOK Enabled**: Users bring their own LLM + voice provider keys via `/settings apikey`. Guest users get free models + self-hosted voice.
 
-See [Railway Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md) for detailed deployment guide.
+See [Railway Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md) for full deployment details.
 
 ```bash
-# Deploy updates (auto-deploys on push to develop)
+# Auto-deploys on push to develop
 git push origin develop
 
-# View logs
+# Logs
 railway logs --service api-gateway
 railway logs --service ai-worker
 railway logs --service bot-client
 
-# Check status
+# Status
 railway status
 ```
 
 ### Local Development
 
-Local development requires PostgreSQL (with pgvector) and Redis. Start them before running services:
+Local development requires PostgreSQL (with pgvector) and Redis:
 
 ```bash
 # Using Podman (SteamOS/Distrobox) or Docker
@@ -265,40 +270,33 @@ pnpm dev
 
 ### Project Status & Planning
 
-- **[CURRENT.md](CURRENT.md)** - Current session status and active work
-- **[BACKLOG.md](BACKLOG.md)** - Project backlog and priorities
-- **[GitHub Releases](https://github.com/lbds137/tzurot/releases)** - Version history and changelogs
+- **[CURRENT.md](CURRENT.md)** — Current session status and active work
+- **[BACKLOG.md](BACKLOG.md)** — Project backlog and priorities
+- **[GitHub Releases](https://github.com/lbds137/tzurot/releases)** — Version history and changelogs
 
 ### Architecture & Design
 
-- **[Architecture Decisions](docs/reference/architecture/ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
-- **[Caching Audit](docs/reference/architecture/CACHING_AUDIT.md)** - Cache implementations and patterns
-- **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
+- **[Architecture Decisions](docs/reference/architecture/ARCHITECTURE_DECISIONS.md)** — Why v3 is designed this way
+- **[Caching Audit](docs/reference/architecture/CACHING_AUDIT.md)** — Cache implementations and patterns
+- **[CLAUDE.md](CLAUDE.md)** — Project configuration for AI assistants
 
 ### Development Guides
 
-- **[Testing Guide](docs/reference/guides/TESTING.md)** - Testing philosophy and patterns
-- **[Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md)** - Railway deployment and operations
-- **[OPS CLI Reference](docs/reference/tooling/OPS_CLI_REFERENCE.md)** - CLI tooling reference
+- **[Testing Guide](docs/reference/guides/TESTING.md)** — Testing philosophy and patterns
+- **[Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md)** — Railway deployment and operations
+- **[OPS CLI Reference](docs/reference/tooling/OPS_CLI_REFERENCE.md)** — CLI tooling reference
 
 > Local dev setup: see [Quick Start](#quick-start) and [Development](#development) above. Steam Deck specifics: [`docs/steam-deck/`](docs/steam-deck/).
 
 ## Project History
 
-**v2** (archived in `tzurot-legacy/`): JavaScript, DDD architecture, Shapes.inc AI provider
+**v2** (archived in `tzurot-legacy/`): JavaScript, DDD-style architecture, single AI provider. Vendor lock-in caused the rewrite to v3 in 2025.
 
-- API Shutdown: Shapes.inc killed their API to force users to their website, forcing migration
-- Lessons: Over-engineered architecture, vendor lock-in
-
-**v3** (current): TypeScript, microservices, vendor-agnostic
-
-- Complete rewrite with modern patterns
-- Production deployment: 2025-10
-- Focus: Simple, maintainable, scalable
+**v3** (current): TypeScript microservices, vendor-flexible provider routing, BYOK-first. Production deployment 2025-10. Focus: simple, maintainable, scalable.
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details
+MIT License — See [LICENSE](LICENSE) file for details
 
 ## Maintainer
 
