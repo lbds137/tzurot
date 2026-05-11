@@ -34,13 +34,17 @@ const BASE_URL = AI_ENDPOINTS.MISTRAL_BASE_URL;
 const MISTRAL_STT_TIMEOUT_MS = 60_000;
 
 /**
- * Default Mistral STT model alias. Following the TTS pattern of using
- * `*-latest` rather than a pinned version (e.g., `voxtral-mini-transcribe-2507`)
- * so we automatically pick up Mistral's published improvements without
- * a code change. Mistral has historically broken `*-latest` aliases on
- * occasion — backlog item filed for startup-time canary monitoring.
+ * Default Mistral STT model alias. `voxtral-mini-latest` is the only
+ * `*-latest` alias Mistral publishes for Voxtral; the `voxtral-mini-transcribe-*`
+ * family only ships pinned dated IDs (e.g., `voxtral-mini-transcribe-26-02`).
+ * Picking the alias keeps us on Mistral's "current best" without code changes.
+ *
+ * Backlog item filed for startup-time canary monitoring — Mistral has
+ * historically broken `*-latest` aliases on occasion; without monitoring,
+ * those failures are silently absorbed by the voice-engine fallback path
+ * and become invisible to operators.
  */
-const DEFAULT_MISTRAL_STT_MODEL = 'voxtral-mini-transcribe-latest';
+const DEFAULT_MISTRAL_STT_MODEL = 'voxtral-mini-latest';
 
 // ============================================================================
 // Public types
@@ -54,7 +58,7 @@ export interface MistralSTTOptions {
   filename: string;
   contentType: string;
   apiKey: string;
-  /** Model override. Defaults to `voxtral-mini-transcribe-latest`. */
+  /** Model override. Defaults to `voxtral-mini-latest`. */
   modelId?: string;
 }
 

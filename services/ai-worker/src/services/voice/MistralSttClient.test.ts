@@ -73,17 +73,20 @@ describe('mistralTranscribeAudio', () => {
 
     const init = mockFetch.mock.calls[0][1];
     const body = init.body as FormData;
-    expect(body.get('model')).toBe('voxtral-mini-transcribe-latest');
+    expect(body.get('model')).toBe('voxtral-mini-latest');
   });
 
   it('respects an explicit modelId override', async () => {
     mockFetch.mockResolvedValue(jsonResponse(200, { text: 'ok' }));
 
-    await mistralTranscribeAudio({ ...baseOpts, modelId: 'voxtral-mini-transcribe-2507' });
+    // Pinned dated model ID for the dedicated transcription endpoint
+    // (*-latest aliases live on the broader voxtral-mini family;
+    // voxtral-mini-transcribe-* only ships dated IDs).
+    await mistralTranscribeAudio({ ...baseOpts, modelId: 'voxtral-mini-transcribe-26-02' });
 
     const init = mockFetch.mock.calls[0][1];
     const body = init.body as FormData;
-    expect(body.get('model')).toBe('voxtral-mini-transcribe-2507');
+    expect(body.get('model')).toBe('voxtral-mini-transcribe-26-02');
   });
 
   it('throws MistralSttApiError on a 401 with body forwarded', async () => {
