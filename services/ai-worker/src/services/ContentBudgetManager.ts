@@ -82,7 +82,8 @@ export class ContentBudgetManager {
       historyBudget,
       historyTokensUsed,
       messagesDropped,
-      crossChannelMessagesIncluded,
+      crossChannelMessagesIncluded:
+        opts.context.crossChannelHistory !== undefined ? crossChannelMessagesIncluded : undefined,
     });
 
     return {
@@ -278,7 +279,10 @@ export class ContentBudgetManager {
     historyBudget: number;
     historyTokensUsed: number;
     messagesDropped: number;
-    crossChannelMessagesIncluded: number;
+    /** Undefined when cross-channel was disabled this turn; 0 when enabled but
+     *  no eligible messages (still logged so a "why are my logs showing 0?"
+     *  debugging session sees the silent-skip case explicitly). */
+    crossChannelMessagesIncluded: number | undefined;
   }): void {
     const {
       contextWindowTokens,
@@ -300,8 +304,7 @@ export class ContentBudgetManager {
         memoryTokensTotal: this.countMemoryTokensSafe(retrievedMemories),
         historyBudget,
         historyTokensUsed,
-        crossChannelMessagesIncluded:
-          crossChannelMessagesIncluded > 0 ? crossChannelMessagesIncluded : undefined,
+        crossChannelMessagesIncluded,
       },
       'Token allocation'
     );
