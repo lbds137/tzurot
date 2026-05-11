@@ -1,6 +1,6 @@
 # Current
 
-> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end, 3-PR cross-channel context bug-fix arc, **plus** a 2-PR Mistral STT critical fix arc that surfaced from user observation "Mistral seems identical to self-hosted." Investigation found: (a) attribution was lying about which provider produced each transcript — voice-engine fallbacks labeled as the requested BYOK provider — and (b) **Mistral STT had been 100% non-functional since the feature shipped** because the hardcoded model ID `voxtral-mini-transcribe-latest` doesn't exist in Mistral's catalog. Every transcription was silently falling through to voice-engine with mislabeled attribution. **13 merged PRs total** this session. Latest: #1014 (attribution fix) + #1015 (model ID `voxtral-mini-latest`). Migrations applied to dev + prod. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
+> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end, 3-PR cross-channel context bug-fix arc, a 2-PR Mistral STT critical fix arc, **plus** the TTS-side mirror of #1014 (PR #1016 — TTS attribution + diagnostic surface for silent fallbacks). The Mistral STT investigation surfaced from user observation "Mistral seems identical to self-hosted"; root cause was two interlocking silent-skip bugs (attribution lied + model ID was invalid since day-one). #1016 closed the symmetric gap on the TTS path so future silent-fallbacks (e.g., Mistral TTS reference-audio rejection falling through to self-hosted) are visible in `/inspect` Token Budget instead of masquerading as the configured provider. **14 merged PRs total** this session. Latest: #1016 (TTS attribution mirror, 6 review rounds, merged 2026-05-11). Migrations applied to dev + prod across all three migration waves. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
 > **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~13 PRs ahead — release pending)
 > **🚧 Release freeze status**: LIFTED. Develop is ready for the v3.0.0-beta.120 release cut.
 
@@ -8,11 +8,11 @@
 
 ## Next Session Goal
 
-**Choose between**:
+**Plan**:
 
-1. **Cut release v3.0.0-beta.120** (Recommended) — bundle the 13 merged PRs (#1003 → #1015) and ship to prod. All migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT (now actually working post-#1015), accurate transcript attribution, Mistral 30s notice, transcribe retry, cross-channel-context fix, and cross-channel diagnostic in prod.
-2. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
-3. **TTS-side provider attribution + diagnostic** — mirrors the STT fix from #1014 on the TTS side. `TtsDispatcher` already populates `providerUsed` / `usedFallback` but neither reaches the bot-client. Same shape of plumbing as #1014 + cross-channel diagnostic. ~80-150 LOC. User-flagged this as a follow-up to the STT work.
+1. **TTS/STT cleanup sweep PR** (next) — absorb recently-added inbox items in the TTS/STT area before the release. Candidates: round-6/7 polish from #1016 (caller-ref comments, persistDiagnosticOnSuccess test, recordTtsDispatch logger.warn, optional-chain nit), MistralSttClient.test.ts hardening, generation.test.ts schema bounds, slash-job TTS notice path. Scope decision pending — tight (~50 LOC, round-6 only) vs wider (~150 LOC, +test hardening + UX gap).
+2. **Cut release v3.0.0-beta.120** (after sweep merges) — bundle the 14 merged PRs (#1003 → #1016) plus the sweep and ship to prod. All schema migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT (now actually working post-#1015), accurate transcript attribution, TTS attribution + silent-fallback visibility (#1016), Mistral 30s notice, transcribe retry, cross-channel-context fix, and cross-channel diagnostic in prod.
+3. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
 
 **Read first** (if continuing TTS work):
 
@@ -66,6 +66,7 @@ Next-session decision: cut beta.120.
 - **PR #1013** — fix(ai-worker): logAllocation surfaces 0 cross-channel msgs when enabled
 - **PR #1014** — fix(ai-worker): STT attribution reflects actual provider, not requested
 - **PR #1015** — fix(ai-worker): Mistral STT model ID was always invalid (`voxtral-mini-transcribe-latest` → `voxtral-mini-latest`)
+- **PR #1016** — fix(ai-worker): TTS attribution + diagnostic surface for silent fallbacks (mirrors #1014 onto TTS path; `TTS_PROVIDER_IDS` const-tuple refactor; `StoredTtsAudio`/`TtsResult` split)
 
 Migrations applied to both dev and prod across all three waves:
 
