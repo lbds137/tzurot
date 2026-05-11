@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end, 3-PR cross-channel context bug-fix arc, a 2-PR Mistral STT critical fix arc, the TTS-side mirror of #1014 (PR #1016 — TTS attribution + diagnostic surface for silent fallbacks), a focused TTS/STT inbox sweep (PR #1017), **plus** a coordinated UX rename PR (#1020 — `personality → character` slash command params + `browse → list` for override-listing commands) flagged during dev verification. **16 merged PRs total** this session (+2 dependabot bumps). Latest: #1020 (rename, 3 review rounds + post-autosquash LGTM, merged 2026-05-11). Migrations applied to dev + prod across all three migration waves. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
-> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~16 PRs ahead — release pending)
+> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end, 3-PR cross-channel context bug-fix arc, a 2-PR Mistral STT critical fix arc, the TTS-side mirror of #1014 (PR #1016), a focused TTS/STT inbox sweep (#1017), a coordinated UX rename (#1020 — `personality → character` slash params + `browse → list` for override-listing commands), **plus** a final pre-release sweep (#1021 — deprecation stub removal + 8 user-facing `personality → character` text leaks fixed + `/voice view` structural overhaul + handler/file renames + `/deny SCOPE_CHOICES` tautology drop). **17 merged PRs total** this session (+2 dependabot bumps). Latest: #1021 (sweep, 3 review rounds + post-autosquash LGTM, merged 2026-05-11). Migrations applied to dev + prod across all three migration waves. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
+> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~17 PRs ahead — release pending)
 > **🚧 Release freeze status**: LIFTED. Develop is ready for the v3.0.0-beta.120 release cut.
 
 ---
@@ -10,7 +10,7 @@
 
 **Plan**:
 
-1. **Cut release v3.0.0-beta.120** (next) — bundle the 16 merged PRs (#1003 → #1020) and ship to prod. All schema migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT (now actually working post-#1015), accurate transcript attribution, TTS attribution + silent-fallback visibility (#1016), bot-owner ttsNotices on `/character chat` (#1017), polished UX vocabulary (#1020 — `character` everywhere, `list` for override views), Mistral 30s notice, transcribe retry, cross-channel-context fix, and cross-channel diagnostic in prod.
+1. **Cut release v3.0.0-beta.120** (next) — bundle the 17 merged PRs (#1003 → #1021) and ship to prod. All schema migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT (now actually working post-#1015), accurate transcript attribution, TTS attribution + silent-fallback visibility (#1016), bot-owner ttsNotices on `/character chat` (#1017), polished UX vocabulary (#1020/#1021 — `character` everywhere including embed/footer text, `list` for override views, no leftover deprecation stubs, `/voice view` redesigned to read as character-scoped), Mistral 30s notice, transcribe retry, cross-channel-context fix, and cross-channel diagnostic in prod.
 2. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
 
 **Read first** (if continuing TTS work):
@@ -68,6 +68,7 @@ Next-session decision: cut beta.120.
 - **PR #1016** — fix(ai-worker): TTS attribution + diagnostic surface for silent fallbacks (mirrors #1014 onto TTS path; `TTS_PROVIDER_IDS` const-tuple refactor; `StoredTtsAudio`/`TtsResult` split)
 - **PR #1017** — chore: TTS/STT inbox sweep (round-6/7 polish + MistralSttClient test hardening + new `generation.test.ts` schema bounds + slash-job `ttsNotices` delivery gap closed; `CONFIG_SOURCE_IDS` extracted; `SlashJobContext.userId` added)
 - **PR #1020** — chore(bot-client): rename `personality → character` (~75 slash command UX sites) + `browse → list` for `/voice tts` and `/settings preset` (override-listing commands). Internal types preserved. 78 files, 4 review rounds.
+- **PR #1021** — chore(bot-client): pre-beta.120 sweep — deprecation stub removal (~200 LOC deleted), 8 user-facing `personality → character` text leaks fixed, `/voice view` structural overhaul (title with character name, dropped Cloned Voices section, clarified cascade labels), handler+file renames (`handleBrowseOverrides` → `handleListOverrides`, `browse.ts` → `list.ts`), `/deny SCOPE_CHOICES` tautology drop. 32 files, 3 review rounds + post-autosquash LGTM.
 - **deps: production-dependencies group bump (5 updates)** — dependabot, no manual changes
 - **deps-dev: development-dependencies group bump (15 updates)** — dependabot, no manual changes
 
