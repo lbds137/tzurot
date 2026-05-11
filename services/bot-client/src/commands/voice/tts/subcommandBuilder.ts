@@ -7,7 +7,7 @@
  * predictable for users.
  *
  * Renamed from the legacy /settings tts shape:
- *   reset   → clear        (per-personality clear, action verb consistent with set)
+ *   reset   → clear        (per-character clear, action verb consistent with set)
  *   default → set-default  (global-default set, parallel verb prefix)
  */
 

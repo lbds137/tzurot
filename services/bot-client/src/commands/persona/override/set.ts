@@ -2,7 +2,7 @@
  * Persona Override Set Handler
  *
  * Allows users to set different personas for specific characters.
- * This enables per-personality customization while keeping a default persona.
+ * This enables per-character customization while keeping a default persona.
  *
  * Flow:
  * - /persona override set <personality> <persona> - Set existing persona or create new

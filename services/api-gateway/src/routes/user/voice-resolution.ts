@@ -122,6 +122,7 @@ export function createVoiceResolutionRoutes(prisma: PrismaClient): Router {
       }
 
       const response: GetVoiceResolutionResponse = {
+        personalityName: personality.name,
         tts: ttsView,
         stt: sttView,
         voices: voicesSummary,

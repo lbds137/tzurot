@@ -25,7 +25,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-vi.mock('./tts/browse.js', () => ({ handleTtsBrowseOverrides: vi.fn() }));
+vi.mock('./tts/list.js', () => ({ handleTtsListOverrides: vi.fn() }));
 vi.mock('./tts/set.js', () => ({ handleTtsSet: vi.fn() }));
 vi.mock('./tts/clear.js', () => ({ handleTtsClear: vi.fn() }));
 vi.mock('./tts/set-default.js', () => ({ handleTtsSetDefault: vi.fn() }));
@@ -48,7 +48,7 @@ vi.mock('./voices/clear.js', () => ({
   VOICE_CLEAR_OPERATION: 'voice-clear',
 }));
 
-import { handleTtsBrowseOverrides } from './tts/browse.js';
+import { handleTtsListOverrides } from './tts/list.js';
 import { handleTtsSet } from './tts/set.js';
 import { handleTtsClear } from './tts/clear.js';
 import { handleTtsSetDefault } from './tts/set-default.js';
@@ -139,10 +139,10 @@ describe('Voice Command', () => {
       expect(handleTtsClearDefault).toHaveBeenCalledOnce();
     });
 
-    it('routes /voice tts list to handleTtsBrowseOverrides', async () => {
+    it('routes /voice tts list to handleTtsListOverrides', async () => {
       const ctx = createMockContext('list', 'tts');
       await execute(ctx as any);
-      expect(handleTtsBrowseOverrides).toHaveBeenCalledOnce();
+      expect(handleTtsListOverrides).toHaveBeenCalledOnce();
     });
 
     it('routes /voice voices browse to handleBrowseVoices', async () => {

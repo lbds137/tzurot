@@ -28,7 +28,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-const { handleTtsBrowseOverrides: handleBrowseOverrides } = await import('./browse.js');
+const { handleTtsListOverrides: handleListOverrides } = await import('./list.js');
 
 function makeContext() {
   return {
@@ -37,7 +37,7 @@ function makeContext() {
   };
 }
 
-describe('handleBrowseOverrides', () => {
+describe('handleListOverrides', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -46,7 +46,7 @@ describe('handleBrowseOverrides', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: { overrides: [] } });
     const context = makeContext();
 
-    await handleBrowseOverrides(context as never);
+    await handleListOverrides(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -77,7 +77,7 @@ describe('handleBrowseOverrides', () => {
     });
     const context = makeContext();
 
-    await handleBrowseOverrides(context as never);
+    await handleListOverrides(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -96,7 +96,7 @@ describe('handleBrowseOverrides', () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'INTERNAL_ERROR' });
     const context = makeContext();
 
-    await handleBrowseOverrides(context as never);
+    await handleListOverrides(context as never);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Failed') })

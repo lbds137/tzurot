@@ -1,7 +1,8 @@
 /**
  * Tests for /voice view handler.
- * Locks the single-round-trip resolution endpoint shape + the embed
- * source-layer rendering.
+ * Locks the single-round-trip resolution endpoint shape, the title
+ * including the character name, and the embed structure (TTS + STT
+ * fields, no Cloned Voices section, no footer).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -48,6 +49,7 @@ describe('handleVoiceView', () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
+        personalityName: 'Test Character',
         tts: {
           configId: 'cfg-1',
           configName: 'kyutai',
@@ -67,10 +69,15 @@ describe('handleVoiceView', () => {
     );
   });
 
-  it('renders the embed with TTS + STT + voices fields', async () => {
+  it('renders an embed scoped to the resolved character (title + TTS + STT)', async () => {
+    // Pin the character-scoping signal that was missing before the overhaul:
+    // the embed title MUST name the character so the view doesn't read like
+    // global state. Cloned-voice library is intentionally NOT shown — that's
+    // user-scoped and lives in /voice voices browse.
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
+        personalityName: 'Lila',
         tts: {
           configId: 'cfg-1',
           configName: 'mistral-config',
@@ -91,7 +98,57 @@ describe('handleVoiceView', () => {
 
     const reply = context.editReply.mock.calls[0]?.[0];
     expect(reply).toEqual(expect.objectContaining({ embeds: expect.any(Array) }));
+
+    const embed = reply.embeds[0];
+    const json = embed.toJSON ? embed.toJSON() : embed.data;
+    expect(json.title).toContain('Lila');
+    const fieldNames = (json.fields ?? []).map((f: { name: string }) => f.name);
+    expect(fieldNames.some((n: string) => n.includes('TTS'))).toBe(true);
+    expect(fieldNames.some((n: string) => n.includes('STT'))).toBe(true);
+    // Cloned Voices field intentionally absent (user-scoped data, not character-scoped)
+    expect(fieldNames.some((n: string) => n.includes('Cloned Voices'))).toBe(false);
+    // Footer dropped — title now carries the character-scoping signal
+    expect(json.footer).toBeUndefined();
   });
+
+  it.each([
+    { ttsSource: 'user-personality', sttSource: 'user-default' },
+    { ttsSource: 'user-default', sttSource: 'user-default' },
+    { ttsSource: 'personality', sttSource: 'tts-derived' },
+    { ttsSource: 'free-default', sttSource: 'tts-derived' },
+    { ttsSource: 'hardcoded', sttSource: 'hardcoded' },
+  ] as const)(
+    'renders cascade labels for tts.source=$ttsSource + stt.source=$sttSource',
+    async ({ ttsSource, sttSource }) => {
+      // Pins each cascade-source branch in the label switch — without this,
+      // a future cascade-source addition that forgets a `case` arm would
+      // silently produce `undefined` in the embed body.
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: {
+          personalityName: 'Char',
+          tts: {
+            configId: null,
+            configName: null,
+            provider: 'self-hosted',
+            source: ttsSource,
+          },
+          stt: { provider: 'voice-engine', source: sttSource },
+          voices: { tzurotCount: 0, totalVoices: 0, previewSlugs: [] },
+        },
+      });
+      const context = makeContext();
+      await handleVoiceView(context as never);
+
+      const reply = context.editReply.mock.calls[0]?.[0];
+      const embed = reply.embeds[0];
+      const json = embed.toJSON ? embed.toJSON() : embed.data;
+      const ttsField = (json.fields ?? []).find((f: { name: string }) => f.name.includes('TTS'));
+      const sttField = (json.fields ?? []).find((f: { name: string }) => f.name.includes('STT'));
+      expect(ttsField?.value).not.toContain('undefined');
+      expect(sttField?.value).not.toContain('undefined');
+    }
+  );
 
   it('reports gateway error', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'oops' });

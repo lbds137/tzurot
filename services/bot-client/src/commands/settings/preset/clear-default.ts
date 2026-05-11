@@ -37,7 +37,7 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
     }
 
     // Tell the user explicitly what they'll get next, instead of generic
-    // "use their own defaults" guidance. Per-personality overrides are
+    // "use their own defaults" guidance. Per-character overrides are
     // unaffected and surface in the second sentence.
     const fallbackLine =
       result.data.newEffectiveDefault !== null
@@ -49,7 +49,7 @@ export async function handleClearDefault(context: DeferredCommandContext): Promi
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
         `Your default preset has been removed.\n\n${fallbackLine}\n\n` +
-          'Personalities with their own per-personality overrides will continue to use those.'
+          'Characters with their own per-character overrides will continue to use those.'
       )
       .setTimestamp();
 

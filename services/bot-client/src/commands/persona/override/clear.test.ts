@@ -1,6 +1,6 @@
 /**
  * Tests for Override Clear Handler
- * Tests gateway API calls for clearing per-personality persona overrides.
+ * Tests gateway API calls for clearing per-character persona overrides.
  *
  * Uses validated mock factories from @tzurot/common-types to ensure
  * test mocks match actual gateway API responses.

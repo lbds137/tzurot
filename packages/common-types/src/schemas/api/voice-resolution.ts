@@ -66,6 +66,10 @@ export type ClonedVoicesSummary = z.infer<typeof ClonedVoicesSummarySchema>;
 // ============================================================================
 
 export const GetVoiceResolutionResponseSchema = z.object({
+  /** Display name of the resolved character. Surfaces in the dashboard
+   *  title so the view reads as character-scoped instead of looking like
+   *  global settings. */
+  personalityName: z.string(),
   tts: ResolvedTtsViewSchema,
   stt: ResolvedSttViewSchema,
   voices: ClonedVoicesSummarySchema,

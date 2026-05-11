@@ -1,6 +1,6 @@
 /**
  * Tests for /voice tts clear handler.
- * Verifies the per-personality clear flow + idempotent wasSet messaging.
+ * Verifies the per-character clear flow + idempotent wasSet messaging.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
