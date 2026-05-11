@@ -214,6 +214,10 @@ export class DiagnosticCollector {
    */
   recordTtsDispatch(data: { providerUsed: TtsProviderId; usedFallback: boolean }): void {
     if (this.tokenBudget === null) {
+      logger.warn(
+        { requestId: this.meta.requestId, providerUsed: data.providerUsed },
+        'recordTtsDispatch called before recordTokenBudget — TTS attribution dropped'
+      );
       return;
     }
     this.tokenBudget = {

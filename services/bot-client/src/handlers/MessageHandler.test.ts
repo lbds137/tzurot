@@ -758,6 +758,7 @@ describe('MessageHandler', () => {
         personaId: 'persona-slash',
         characterSlug: 'slash-char',
         isWeighInMode: false,
+        userId: 'user-slash',
         ...overrides,
       };
     }
@@ -786,16 +787,50 @@ describe('MessageHandler', () => {
 
       // Slash branch dispatches with channel/guildId/clientId from context
       // (no `message` field — that's the parity-gain compared to the old polling sender).
+      // recipientUserId must be explicit on this path — SlashJobContext has no
+      // Message anchor so there's no message.author.id to fall back on at
+      // delivery time when gating bot-owner-only signals (ttsNotices).
       expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
         expect.objectContaining({
           content: 'Slash response',
           channel: ctx.channel,
           guildId: 'guild-slash',
           clientId: 'bot-slash',
+          recipientUserId: 'user-slash',
           modelUsed: 'anthropic/claude',
           ttsAudioKey: 'tts-key-1',
           thinkingContent: 'reasoning...',
           showThinking: true,
+        })
+      );
+    });
+
+    it('forwards ttsNotices on the slash success path so bot-owner notices reach delivery', async () => {
+      // ttsNotices from the job result must reach sendResponse on the slash
+      // path. SlashJobContext carries userId explicitly (no Message anchor
+      // to read author.id from) so the response sender can gate bot-owner-
+      // only signals by recipient.
+      const ctx = createSlashContext();
+      mockJobTracker.getContext.mockReturnValue(ctx);
+      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['m-1'] });
+
+      const result = {
+        requestId: 'req-slash-notices',
+        success: true,
+        content: 'Hello with notices',
+        metadata: {
+          ttsNotices: [
+            'Voice reference for "slash-char" is 45.0s, exceeding limit. Mistral was skipped.',
+          ],
+        },
+      } as unknown as LLMGenerationResult;
+
+      await messageHandler.handleJobResult('job-slash-notices', result);
+
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientUserId: 'user-slash',
+          ttsNotices: result.metadata!.ttsNotices,
         })
       );
     });

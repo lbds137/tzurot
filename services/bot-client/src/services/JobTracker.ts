@@ -56,6 +56,13 @@ export interface SlashJobContext extends BaseJobContext {
   kind: 'slash';
   characterSlug: string;
   isWeighInMode: boolean;
+  /**
+   * Submitting user's Discord ID. Needed at delivery time so the response
+   * sender can gate bot-owner-only signals (e.g., `ttsNotices`) by user.
+   * MessageJobContext gets this from `message.author.id`; slash has no
+   * Message anchor so it must be carried explicitly.
+   */
+  userId: string;
 }
 
 const logger = createLogger('JobTracker');
