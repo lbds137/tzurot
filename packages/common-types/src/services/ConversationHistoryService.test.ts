@@ -2,7 +2,7 @@
  * Tests for ConversationHistoryService - Token Count Caching
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrismaClient } from './prisma.js';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { MessageRole } from '../constants/index.js';
@@ -1055,40 +1055,47 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       );
     });
 
-    it('should apply maxAge filter when provided (no contextEpoch)', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-      const before = Date.now();
+    describe('time-filter behavior', () => {
+      // Fake timers per project standard (02-code-standards.md) — collapses the
+      // wall-clock tolerance window to a deterministic equality check, immune
+      // to slow CI.
+      beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-05-10T12:00:00Z'));
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
 
-      await service.getChannelHistory('channel-123', 20, undefined, 60); // 60s
+      it('should apply maxAge filter when provided (no contextEpoch)', async () => {
+        mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-      const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
-      const cutoff = call.where.createdAt.gte as Date;
-      // Cutoff should be roughly (now - 60s); allow small wall-clock drift
-      const expectedCutoffMs = before - 60_000;
-      expect(cutoff.getTime()).toBeGreaterThanOrEqual(expectedCutoffMs);
-      expect(cutoff.getTime()).toBeLessThanOrEqual(expectedCutoffMs + 1000);
-    });
+        await service.getChannelHistory('channel-123', 20, undefined, 60); // 60s
 
-    it('should pick the more recent of maxAge and contextEpoch when both provided', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-      // contextEpoch is 1 hour ago; maxAge=60s gives a 60s-ago cutoff
-      // The 60s-ago cutoff is more recent → it wins
-      const contextEpoch = new Date(Date.now() - 60 * 60 * 1000);
+        const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+        expect(call.where.createdAt.gte).toEqual(new Date('2026-05-10T11:59:00Z'));
+      });
 
-      await service.getChannelHistory('channel-123', 20, contextEpoch, 60);
+      it('should pick the more recent of maxAge and contextEpoch when both provided', async () => {
+        mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+        // contextEpoch is 1 hour ago; maxAge=60s gives a 60s-ago cutoff
+        // The 60s-ago cutoff is more recent → it wins
+        const contextEpoch = new Date('2026-05-10T11:00:00Z');
 
-      const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
-      const cutoff = call.where.createdAt.gte as Date;
-      expect(cutoff.getTime()).toBeGreaterThan(contextEpoch.getTime());
-    });
+        await service.getChannelHistory('channel-123', 20, contextEpoch, 60);
 
-    it('omits the time filter when neither maxAge nor contextEpoch is provided', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+        const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+        expect(call.where.createdAt.gte).toEqual(new Date('2026-05-10T11:59:00Z'));
+      });
 
-      await service.getChannelHistory('channel-123', 20);
+      it('omits the time filter when neither maxAge nor contextEpoch is provided', async () => {
+        mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-      const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
-      expect(call.where).not.toHaveProperty('createdAt');
+        await service.getChannelHistory('channel-123', 20);
+
+        const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+        expect(call.where).not.toHaveProperty('createdAt');
+      });
     });
 
     it('should return empty array on error', async () => {
@@ -1280,45 +1287,53 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       );
     });
 
-    it('applies maxAge cutoff when provided', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-      const before = Date.now();
-
-      await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel', 50, {
-        maxAgeSeconds: 60,
+    describe('time-filter behavior', () => {
+      // Fake timers per project standard (02-code-standards.md). See same block
+      // in getChannelHistory tests above for rationale.
+      beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-05-10T12:00:00Z'));
+      });
+      afterEach(() => {
+        vi.useRealTimers();
       });
 
-      const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
-      const cutoff = call.where.createdAt.gte as Date;
-      const expectedCutoffMs = before - 60_000;
-      expect(cutoff.getTime()).toBeGreaterThanOrEqual(expectedCutoffMs);
-      expect(cutoff.getTime()).toBeLessThanOrEqual(expectedCutoffMs + 1000);
-    });
+      it('applies maxAge cutoff when provided', async () => {
+        mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-    it('applies contextEpoch cutoff when provided', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
-      const epoch = new Date('2026-05-01T00:00:00Z');
+        await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel', 50, {
+          maxAgeSeconds: 60,
+        });
 
-      await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel', 50, {
-        contextEpoch: epoch,
+        const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+        expect(call.where.createdAt.gte).toEqual(new Date('2026-05-10T11:59:00Z'));
       });
 
-      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            createdAt: { gte: epoch },
-          }),
-        })
-      );
-    });
+      it('applies contextEpoch cutoff when provided', async () => {
+        mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+        const epoch = new Date('2026-05-01T00:00:00Z');
 
-    it('omits the time filter when neither maxAge nor contextEpoch is provided', async () => {
-      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+        await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel', 50, {
+          contextEpoch: epoch,
+        });
 
-      await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel');
+        expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              createdAt: { gte: epoch },
+            }),
+          })
+        );
+      });
 
-      const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
-      expect(call.where).not.toHaveProperty('createdAt');
+      it('omits the time filter when neither maxAge nor contextEpoch is provided', async () => {
+        mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+        await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel');
+
+        const call = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+        expect(call.where).not.toHaveProperty('createdAt');
+      });
     });
   });
 

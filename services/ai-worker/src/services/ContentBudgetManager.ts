@@ -94,6 +94,11 @@ export class ContentBudgetManager {
       memoriesDroppedCount,
       messagesDropped,
       contentForStorage,
+      // Attach whenever cross-channel was enabled this turn (groups defined,
+      // even if empty). The empty case must be surfaced — "enabled but found
+      // 0 msgs" is the silent-skip that hides bugs in the time-filter / fetch
+      // path. Disabled turns omit the field entirely (groups === undefined).
+      ...(opts.context.crossChannelHistory !== undefined ? { crossChannelMessagesIncluded } : {}),
     };
   }
 
