@@ -45,6 +45,15 @@ vi.mock('../voice/ElevenLabsClient.js', async importOriginal => {
   };
 });
 
+const mockMistralSTT = vi.fn();
+vi.mock('../voice/MistralSttClient.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../voice/MistralSttClient.js')>();
+  return {
+    ...actual,
+    mistralTranscribeAudio: (...args: unknown[]) => mockMistralSTT(...args),
+  };
+});
+
 // Mock fetch
 global.fetch = vi.fn();
 
@@ -78,7 +87,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('Cached transcription from Redis');
+        expect(result.text).toBe('Cached transcription from Redis');
         expect(mockVoiceTranscriptCacheGet).toHaveBeenCalledWith(attachment.originalUrl);
         expect(global.fetch).not.toHaveBeenCalled();
       });
@@ -149,7 +158,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('Fallback result');
+        expect(result.text).toBe('Fallback result');
         expect(global.fetch).toHaveBeenCalled();
       });
 
@@ -221,7 +230,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('Voice engine transcription');
+        expect(result.text).toBe('Voice engine transcription');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
       });
 
@@ -243,7 +252,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('');
+        expect(result.text).toBe('');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
       });
 
@@ -322,7 +331,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(warmupAttachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('still works');
+        expect(result.text).toBe('still works');
         expect(mockWaitForVoiceEngine).toHaveBeenCalledWith(mockVoiceEngineClient, 'asr');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
       });
@@ -355,7 +364,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('transcribed');
+        expect(result.text).toBe('transcribed');
         expect(global.fetch).toHaveBeenCalledWith(
           attachment.url,
           expect.objectContaining({
@@ -456,7 +465,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('Voice message text');
+        expect(result.text).toBe('Voice message text');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
       });
     });
@@ -488,7 +497,7 @@ describe('AudioProcessor', () => {
 
         const result = await transcribeAudio(retryAttachment, { provider: 'voice-engine' });
 
-        expect(result).toBe('Transcribed after retry');
+        expect(result.text).toBe('Transcribed after retry');
         expect(mockVoiceEngineTranscribe).toHaveBeenCalledTimes(2);
       });
 
@@ -539,7 +548,7 @@ describe('AudioProcessor', () => {
           apiKey: 'sk_el_test',
         });
 
-        expect(result).toBe('ElevenLabs transcription');
+        expect(result.text).toBe('ElevenLabs transcription');
         expect(mockElevenLabsSTT).toHaveBeenCalledWith(
           expect.objectContaining({
             apiKey: 'sk_el_test',
@@ -561,7 +570,7 @@ describe('AudioProcessor', () => {
           apiKey: 'sk_el_test',
         });
 
-        expect(result).toBe('Voice engine result');
+        expect(result.text).toBe('Voice engine result');
         expect(mockElevenLabsSTT).toHaveBeenCalled();
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
       });
@@ -586,7 +595,7 @@ describe('AudioProcessor', () => {
           apiKey: 'sk_el_test',
         });
 
-        expect(result).toBe('Retry succeeded');
+        expect(result.text).toBe('Retry succeeded');
         expect(mockElevenLabsSTT).toHaveBeenCalledTimes(2);
         expect(mockVoiceEngineTranscribe).not.toHaveBeenCalled();
       });
@@ -602,7 +611,7 @@ describe('AudioProcessor', () => {
           apiKey: 'sk_el_test',
         });
 
-        expect(result).toBe('Fallback result');
+        expect(result.text).toBe('Fallback result');
         // 2 attempts before fallback
         expect(mockElevenLabsSTT).toHaveBeenCalledTimes(2);
         expect(mockVoiceEngineTranscribe).toHaveBeenCalled();
@@ -619,7 +628,7 @@ describe('AudioProcessor', () => {
           apiKey: 'sk_el_test',
         });
 
-        expect(result).toBe('Fallback after auth');
+        expect(result.text).toBe('Fallback after auth');
         // Only 1 attempt — auth errors fast-fail
         expect(mockElevenLabsSTT).toHaveBeenCalledTimes(1);
       });
@@ -631,7 +640,124 @@ describe('AudioProcessor', () => {
         const result = await transcribeAudio(audioAttachment, { provider: 'voice-engine' });
 
         expect(mockElevenLabsSTT).not.toHaveBeenCalled();
-        expect(result).toBe('voice engine result');
+        expect(result.text).toBe('voice engine result');
+      });
+    });
+
+    describe('actualProvider attribution (regression contract)', () => {
+      // Pin the contract that `actualProvider` reflects what PRODUCED the
+      // text, not what was REQUESTED. Misattribution here is the bug class
+      // where users reported "Mistral sounds identical to self-hosted" —
+      // every BYOK failure that fell through to voice-engine was being
+      // labeled as the requested provider, masking the silent-skip.
+      const audioAttachment: AttachmentMetadata = {
+        url: 'https://cdn.discordapp.com/audio.ogg',
+        name: 'audio.ogg',
+        contentType: CONTENT_TYPES.AUDIO_OGG,
+        size: 2048,
+      };
+
+      beforeEach(() => {
+        (global.fetch as any).mockResolvedValue({
+          ok: true,
+          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(2048)),
+        });
+      });
+
+      it('returns actualProvider=voice-engine when provider is voice-engine and succeeds', async () => {
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'self-hosted text' });
+
+        const result = await transcribeAudio(audioAttachment, { provider: 'voice-engine' });
+
+        expect(result.actualProvider).toBe('voice-engine');
+      });
+
+      it('returns actualProvider=elevenlabs on a successful ElevenLabs request', async () => {
+        mockElevenLabsSTT.mockResolvedValue({ text: 'elevenlabs text' });
+
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
+
+        expect(result.actualProvider).toBe('elevenlabs');
+      });
+
+      it('returns actualProvider=voice-engine when ElevenLabs was requested but failed (the lying-attribution case)', async () => {
+        // Same shape as the Mistral case from the bug report — BYOK
+        // provider fails, voice-engine takes over, attribution must
+        // reflect what actually produced the text.
+        mockElevenLabsSTT.mockRejectedValue(new Error('ElevenLabs 500'));
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'self-hosted fallback' });
+
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
+
+        // Invariant this test pins: voice-engine fallback after BYOK
+        // failure must produce actualProvider='voice-engine', not the
+        // requested provider. Re-introducing the requested-provider value
+        // here is the misattribution class this contract guards against.
+        expect(result.text).toBe('self-hosted fallback');
+        expect(result.actualProvider).toBe('voice-engine');
+      });
+
+      it('returns actualProvider=voice-engine when Mistral was requested but failed (named bug case)', async () => {
+        // The exact scenario from the user-reported symptom: Mistral was
+        // configured, but the audio output sounded identical to self-hosted
+        // because Mistral was failing silently and voice-engine was producing
+        // every transcript while still being labeled as Mistral. ElevenLabs
+        // covers the same code path above — this test exists to make the
+        // named bug case explicit so a future change that breaks ONLY the
+        // Mistral path (e.g., a regression in tryBYOKTranscription's mistral
+        // branch) fails with an unambiguous message.
+        const { MistralSttApiError } = await import('../voice/MistralSttClient.js');
+        mockMistralSTT.mockRejectedValue(new MistralSttApiError(500, 'Mistral down'));
+        mockVoiceEngineClient = { transcribe: mockVoiceEngineTranscribe, getHealth: mockGetHealth };
+        mockVoiceEngineTranscribe.mockResolvedValue({ text: 'self-hosted fallback' });
+
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'mistral',
+          apiKey: 'sk_mi_test',
+        });
+
+        expect(result.text).toBe('self-hosted fallback');
+        expect(result.actualProvider).toBe('voice-engine');
+      });
+
+      it('returns actualProvider=mistral on a successful Mistral request', async () => {
+        mockMistralSTT.mockResolvedValue({ text: 'mistral text' });
+
+        const result = await transcribeAudio(audioAttachment, {
+          provider: 'mistral',
+          apiKey: 'sk_mi_test',
+        });
+
+        expect(result.actualProvider).toBe('mistral');
+      });
+
+      it('omits actualProvider on cache hit (cache stores text only — provenance unknown)', async () => {
+        const { voiceTranscriptCache } = await import('../../redis.js');
+        vi.mocked(voiceTranscriptCache.get).mockResolvedValueOnce('cached text from previous turn');
+        const audioAttachmentWithOriginal = {
+          ...audioAttachment,
+          originalUrl: 'https://cdn.example/voice.ogg',
+        };
+
+        const result = await transcribeAudio(audioAttachmentWithOriginal, {
+          provider: 'elevenlabs',
+          apiKey: 'sk_el_test',
+        });
+
+        expect(result.text).toBe('cached text from previous turn');
+        // Cache stores text only — provenance not preserved across the
+        // cache boundary. Omit attribution rather than re-claim it as the
+        // currently-resolved provider; the latter would lie about a cached
+        // entry that originally came from a different provider.
+        expect(result.actualProvider).toBeUndefined();
       });
     });
   });

@@ -98,7 +98,9 @@ export async function processAudioTranscriptionJob(
         requestId,
         processingTimeMs: result.totalTimeMs,
         attempts: result.attempts,
-        transcriptLength: result.value.length,
+        transcriptLength: result.value.text.length,
+        requestedProvider: sttOpts.provider,
+        actualProvider: result.value.actualProvider,
       },
       'Audio transcription completed'
     );
@@ -106,11 +108,18 @@ export async function processAudioTranscriptionJob(
     return {
       requestId,
       success: true,
-      content: result.value,
+      content: result.value.text,
       attachmentUrl: attachment.url,
       attachmentName: attachment.name,
       sourceReferenceNumber,
-      provider: sttOpts.provider,
+      // Report the provider that ACTUALLY produced the text. If a BYOK
+      // provider was requested but fell through to voice-engine, attribution
+      // must reflect voice-engine — reporting the requested provider over a
+      // fallback transcript would misattribute voice-engine output as BYOK
+      // output. Undefined (cache hit) → no badge rendered.
+      ...(result.value.actualProvider !== undefined
+        ? { provider: result.value.actualProvider }
+        : {}),
       metadata: {
         processingTimeMs: result.totalTimeMs,
         duration: attachment.duration,

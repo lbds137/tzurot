@@ -201,7 +201,7 @@ async function processVoiceAttachment(
         operationName: `Voice transcription (reference ${referenceNumber})`,
       }
     );
-    return { index, line: `- Voice Message (${attachment.duration}s): "${result.value}"` };
+    return { index, line: `- Voice Message (${attachment.duration}s): "${result.value.text}"` };
   } catch (error) {
     logger.error(
       { err: error, referenceNumber, url: attachment.url },

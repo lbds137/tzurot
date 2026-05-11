@@ -95,8 +95,11 @@ describe('MultimodalProcessor', () => {
       modelName: 'test-model',
     });
 
-    // Mock transcribeAudio to return transcription text
-    mockTranscribeAudio.mockResolvedValue('Mocked transcription');
+    // Mock transcribeAudio to return transcription result with actualProvider
+    mockTranscribeAudio.mockResolvedValue({
+      text: 'Mocked transcription',
+      actualProvider: 'voice-engine',
+    });
 
     // Reset redis mocks to default
     mockCheckModelVisionSupport.mockResolvedValue(false); // Default to no vision support
@@ -157,7 +160,8 @@ describe('MultimodalProcessor', () => {
 
       const result = await transcribeAudio(attachment, { provider: 'voice-engine' });
 
-      expect(result).toBe('Mocked transcription');
+      expect(result.text).toBe('Mocked transcription');
+      expect(result.actualProvider).toBe('voice-engine');
       expect(mockTranscribeAudio).toHaveBeenCalledWith(attachment, { provider: 'voice-engine' });
     });
 
