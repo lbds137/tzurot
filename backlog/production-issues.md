@@ -2,7 +2,11 @@
 
 _Active bugs observed in production. Fix before new features._
 
-- 🐛 `[FIX]` **Cross-channel history bypasses `maxAge` (and `contextEpoch`) filter** — Surfaced 2026-05-09 by user note "channel context sharing and max age combination might not be working correctly." Verified 2026-05-10. **Bug**: `ConversationHistoryService.getCrossChannelHistory()` (`packages/common-types/src/services/ConversationHistoryService.ts:419`) queries Prisma with only `personaId`, `personalityId`, `channelId: { not: excludeChannelId }`, `deletedAt: null` — no time filter. Meanwhile `DiscordChannelFetcher.ts:256-261` correctly filters current-channel messages by `options.maxAge` and `options.contextEpoch`. **User-visible consequence**: a user who sets max-age (or context-clears via `/conversation reset`) on a personality expecting it to "forget" old context still gets cross-channel context bleed from messages that pre-date the cutoff. Affects every user who has both cross-channel history enabled AND a non-null max-age / past contextEpoch. **Fix shape**: thread `maxAge` and `contextEpoch` from `CrossChannelHistoryFetcher.fetchCrossChannelHistory` opts into `getCrossChannelHistory`; add the same `createdAt` cutoff to the Prisma `where` clause. Also audit per the user's earlier "off vs inherit" note (already in `quick-wins.md:7`) — when max-age is "off" at a level where global has a value, the override should hold, not fall through. ~30-50 LOC + tests for both filters at the cross-channel boundary. **Why production-issue tier**: silent correctness bug in a privacy/memory feature; user actively bothered.
+_(none — all recent prod issues resolved through v3.0.0-beta.119)_
+
+_Cleared 2026-05-10:_
+
+- _**Cross-channel history bypassed `maxAge` and `contextEpoch` filters; cross-channel budget was a residual** → resolved by **PR #1011** (merged 2026-05-10, ships in next release). Three interlocking bugs: `getChannelHistory` ignored maxAge at the DB layer (stale rows leaked through, filling dbHistory to dbLimit); `fetchCrossChannelIfEnabled` computed cross-channel budget as `dbLimit - currentHistoryLength` (silently zero when current is full); `getCrossChannelHistory` had no time filter at all (would surface arbitrarily old context even after the other two fixed). Fix: shared `computeHistoryCutoff` helper used by both Prisma queries; cross-channel gets its own dbLimit budget (additive, not residual) — matches the user's mental model that cross-channel context is part of memory continuity, not "filler when current is sparse"._
 
 _Cleared 2026-05-08:_
 
