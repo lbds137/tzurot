@@ -30,8 +30,11 @@ describe('AudioTranscriptionJob', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Default: transcribeAudio returns mock text
-    mockTranscribeAudio.mockResolvedValue('Mocked transcription text');
+    // Default: transcribeAudio returns mock result with actualProvider
+    mockTranscribeAudio.mockResolvedValue({
+      text: 'Mocked transcription text',
+      actualProvider: 'voice-engine',
+    });
 
     // Default: withRetry calls the function and returns successful result
     mockWithRetry.mockImplementation(async fn => {
@@ -98,6 +101,46 @@ describe('AudioTranscriptionJob', () => {
           operationName: 'Audio transcription (audio.ogg)',
         })
       );
+    });
+
+    it('omits provider field on the result when transcribeAudio returns actualProvider undefined (cache hit)', async () => {
+      // The conditional spread `...(actualProvider !== undefined ? { provider } : {})`
+      // is its own code path. The transcribeAudio-boundary attribution tests
+      // in AudioProcessor.test.ts don't exercise it. This test pins the
+      // job-level invariant: cache hits (where the original provider isn't
+      // recorded) must NOT carry a `provider` field on the result, so the
+      // bot-client-side attribution badge is omitted rather than lying.
+      mockTranscribeAudio.mockResolvedValueOnce({
+        text: 'Cached transcription text',
+        actualProvider: undefined,
+      });
+
+      const jobData: AudioTranscriptionJobData = {
+        requestId: 'test-req-cache-hit',
+        jobType: JobType.AudioTranscription,
+        attachment: {
+          url: 'https://example.com/audio.ogg',
+          name: 'audio.ogg',
+          contentType: CONTENT_TYPES.AUDIO_OGG,
+          size: 2048,
+          duration: 10,
+        },
+        context: { userId: 'user-123', channelId: 'channel-456' },
+        responseDestination: { type: 'discord', channelId: 'channel-456' },
+      };
+      const job = {
+        id: 'audio-test-cache-hit',
+        data: jobData,
+      } as Job<AudioTranscriptionJobData>;
+
+      const result = await processAudioTranscriptionJob(job, { provider: 'mistral' });
+
+      expect(result.success).toBe(true);
+      expect(result.content).toBe('Cached transcription text');
+      // The key invariant: no `provider` field on cache hits, so the
+      // bot-client renders no attribution badge rather than re-claiming the
+      // currently-resolved provider over a transcript with unknown provenance.
+      expect('provider' in result).toBe(false);
     });
 
     it('should not retry permanent config errors (no STT provider)', async () => {

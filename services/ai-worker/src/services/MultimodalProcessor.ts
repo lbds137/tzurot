@@ -100,17 +100,21 @@ async function processSingleAttachment(
   ) {
     // In-band attachment STT honors the user's resolved STT preference (or
     // the voice-engine fallback when no caller computed one).
-    const description = await transcribeAudio(
+    const transcribed = await transcribeAudio(
       attachment,
       sttDispatch ?? { provider: 'voice-engine' }
     );
     logger.info(
-      { name: attachment.name, sttProvider: sttDispatch?.provider ?? 'voice-engine' },
+      {
+        name: attachment.name,
+        requestedSttProvider: sttDispatch?.provider ?? 'voice-engine',
+        actualSttProvider: transcribed.actualProvider,
+      },
       'Processed audio attachment'
     );
     return {
       type: AttachmentType.Audio,
-      description,
+      description: transcribed.text,
       originalUrl: attachment.url,
       metadata: attachment,
     };

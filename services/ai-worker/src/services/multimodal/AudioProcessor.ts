@@ -221,8 +221,10 @@ async function transcribeWithElevenLabs(
   }
 }
 
-/** Logged when a BYOK STT provider fails and we cascade to voice-engine. */
-const STT_FALLBACK_LABEL = 'voice-engine';
+/** Logged when a BYOK STT provider fails and we cascade to voice-engine.
+ *  Also used as the actualProvider tag when voice-engine produces the text
+ *  (whether as primary or fallback). */
+const STT_FALLBACK_LABEL = 'voice-engine' satisfies SttProvider;
 
 /** Retry config for Mistral STT — same shape as ElevenLabs STT. */
 const MISTRAL_STT_RETRY = {
@@ -305,6 +307,21 @@ export interface TranscribeAudioOptions {
 }
 
 /**
+ * Result of a successful transcription.
+ *
+ * `actualProvider` is what *produced* the text, not what was *requested*.
+ * Always set on a fresh transcribe — `undefined` only on cache hits, where
+ * the originating provider isn't recorded in the (text-only) cache schema.
+ * Surfacing the actual provider closes the silent-fallback misattribution
+ * where a Mistral request that fell through to voice-engine still claimed
+ * to be Mistral output.
+ */
+export interface TranscribeAudioResult {
+  text: string;
+  actualProvider?: SttProvider;
+}
+
+/**
  * Look up a previously-transcribed result in Redis. Returns null on cache
  * miss, missing originalUrl, or any Redis error (logged + swallowed so
  * Redis outages can't break transcription).
@@ -334,21 +351,23 @@ async function lookupCachedTranscript(attachment: AttachmentMetadata): Promise<s
   }
 }
 
-/** Try the BYOK path for the resolved provider. Returns null when the
- *  resolved provider has no key, isn't BYOK, or fails outright. */
+/** Try the BYOK path for the resolved provider. Returns the actual provider
+ *  alongside the text on success; null when no key, not BYOK, or failed. */
 async function tryBYOKTranscription(
   attachment: AttachmentMetadata,
   audioBuffer: ArrayBuffer,
   opts: TranscribeAudioOptions
-): Promise<string | null> {
+): Promise<TranscribeAudioResult | null> {
   if (opts.apiKey === undefined) {
     return null;
   }
   if (opts.provider === 'mistral') {
-    return transcribeWithMistral(attachment, audioBuffer, opts.apiKey);
+    const text = await transcribeWithMistral(attachment, audioBuffer, opts.apiKey);
+    return text !== null ? { text, actualProvider: 'mistral' } : null;
   }
   if (opts.provider === 'elevenlabs') {
-    return transcribeWithElevenLabs(attachment, audioBuffer, opts.apiKey);
+    const text = await transcribeWithElevenLabs(attachment, audioBuffer, opts.apiKey);
+    return text !== null ? { text, actualProvider: 'elevenlabs' } : null;
   }
   return null;
 }
@@ -368,10 +387,15 @@ async function tryBYOKTranscription(
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
   opts: TranscribeAudioOptions
-): Promise<string> {
+): Promise<TranscribeAudioResult> {
   const cached = await lookupCachedTranscript(attachment);
   if (cached !== null) {
-    return cached;
+    // Cache stores text only — original provider isn't recorded, so omit
+    // attribution rather than re-claim it as the currently-resolved provider.
+    // Telling the user "Transcribed by [Mistral]" over a cached voice-engine
+    // transcript would be the exact misattribution this fix is designed to
+    // prevent.
+    return { text: cached };
   }
 
   // Fetch audio once — shared by all transcription paths
@@ -385,14 +409,14 @@ export async function transcribeAudio(
   }
 
   // Fallback / `provider === 'voice-engine'` — try voice-engine.
-  const voiceEngineResult = await transcribeWithVoiceEngine(attachment, audioBuffer);
-  if (voiceEngineResult !== null) {
-    return voiceEngineResult;
+  const voiceEngineText = await transcribeWithVoiceEngine(attachment, audioBuffer);
+  if (voiceEngineText !== null) {
+    return { text: voiceEngineText, actualProvider: STT_FALLBACK_LABEL };
   }
 
   // No STT provider produced text — surface the issue. voice-engine doesn't
   // need a key, so the "(no API key)" annotation only applies to BYOK providers.
-  if (opts.provider === 'voice-engine') {
+  if (opts.provider === STT_FALLBACK_LABEL) {
     throw new Error('No STT provider available: voice-engine failed');
   }
   const annotation = opts.apiKey === undefined ? '(no API key)' : '(failed)';

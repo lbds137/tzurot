@@ -533,7 +533,10 @@ describe('ReferencedMessageFormatter', () => {
       // Use hoisted mock directly
       mockTranscribeAudio.mockImplementation(async (attachment: { duration: number }) => {
         await new Promise(resolve => setTimeout(resolve, 100));
-        return `Transcription of voice ${attachment.duration}s`;
+        return {
+          text: `Transcription of voice ${attachment.duration}s`,
+          actualProvider: 'voice-engine',
+        };
       });
 
       const references: ReferencedMessage[] = [
@@ -620,7 +623,10 @@ describe('ReferencedMessageFormatter', () => {
     it('should handle images, voice messages, and files together in parallel', async () => {
       // Use hoisted mocks directly
       mockDescribeImage.mockResolvedValue('Image description');
-      mockTranscribeAudio.mockResolvedValue('Voice transcription');
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'Voice transcription',
+        actualProvider: 'voice-engine',
+      });
 
       const references: ReferencedMessage[] = [
         {
@@ -1336,7 +1342,10 @@ Line three</content>
 
       // Use hoisted mocks directly
       mockDescribeImage.mockResolvedValue('A cat sitting on a windowsill');
-      mockTranscribeAudio.mockResolvedValue('This is a test transcription');
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'This is a test transcription',
+        actualProvider: 'voice-engine',
+      });
 
       const references: ReferencedMessage[] = [
         {
