@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end **plus** a 3-PR cross-channel context bug-fix arc surfaced from user notes triage. **11 merged PRs total.** Latest: #1013 closed a `logAllocation` log-consistency reviewer follow-up. Mistral live as BYOK STT; voice-surface UX polished; cross-channel context now respects `maxAge` + `contextEpoch` and surfaces "0 msgs" diagnostic for silent-skip debugging. Migrations applied to dev + prod. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
-> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~11 PRs ahead — release pending)
+> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end, 3-PR cross-channel context bug-fix arc, **plus** a 2-PR Mistral STT critical fix arc that surfaced from user observation "Mistral seems identical to self-hosted." Investigation found: (a) attribution was lying about which provider produced each transcript — voice-engine fallbacks labeled as the requested BYOK provider — and (b) **Mistral STT had been 100% non-functional since the feature shipped** because the hardcoded model ID `voxtral-mini-transcribe-latest` doesn't exist in Mistral's catalog. Every transcription was silently falling through to voice-engine with mislabeled attribution. **13 merged PRs total** this session. Latest: #1014 (attribution fix) + #1015 (model ID `voxtral-mini-latest`). Migrations applied to dev + prod. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
+> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~13 PRs ahead — release pending)
 > **🚧 Release freeze status**: LIFTED. Develop is ready for the v3.0.0-beta.120 release cut.
 
 ---
@@ -10,8 +10,9 @@
 
 **Choose between**:
 
-1. **Cut release v3.0.0-beta.120** (Recommended) — bundle the 11 merged PRs (#1003 → #1013) and ship to prod. All migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT, clickable transcript attribution, Mistral 30s notice, transcribe retry, and the cross-channel-context fix in prod.
+1. **Cut release v3.0.0-beta.120** (Recommended) — bundle the 13 merged PRs (#1003 → #1015) and ship to prod. All migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT (now actually working post-#1015), accurate transcript attribution, Mistral 30s notice, transcribe retry, cross-channel-context fix, and cross-channel diagnostic in prod.
 2. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
+3. **TTS-side provider attribution + diagnostic** — mirrors the STT fix from #1014 on the TTS side. `TtsDispatcher` already populates `providerUsed` / `usedFallback` but neither reaches the bot-client. Same shape of plumbing as #1014 + cross-channel diagnostic. ~80-150 LOC. User-flagged this as a follow-up to the STT work.
 
 **Read first** (if continuing TTS work):
 
@@ -35,6 +36,10 @@ Shipped TTS Phase 3 end-to-end in six merged PRs:
 - **PR #1011** — Cross-channel history honors maxAge + contextEpoch + gets own budget. User-reported symptom: "channel context sharing and max age combination might not be working correctly" — set maxAge=48h on a personality, expected cross-channel bridge when current thread was 5 days stale, got zero. Three interlocking bugs fixed: `getChannelHistory` ignored maxAge at DB layer; cross-channel budget was a residual of current-channel; `getCrossChannelHistory` had no time filter. New `computeHistoryCutoff` helper as single source of truth. ~280 LoC.
 - **PR #1012** — Cross-channel followup: DRY consolidation (DiscordChannelFetcher uses `computeHistoryCutoff`) + cross-channel diagnostic surface in LLM Diagnostic Summary + reviewer items from #1011 (fake-timer migration, `messageBudget` rename, `[]` vs `undefined` three-state semantic). The diagnostic surface is the meta-fix: a future "Cross-channel: 0 msgs" line in the embed makes silent-skip debugging self-service. ~140 LoC + 2 review rounds.
 - **PR #1013** — Tiny `logAllocation` consistency fix: ContentBudgetManager log-line now preserves the `0` cross-channel case (was filtered with `> 0 ? value : undefined`, contradicting the rest of the plumbing). 5 LOC, single-round LGTM.
+- **PR #1014** — STT attribution reflects actual provider, not requested. `transcribeAudio` previously returned a bare `string`; callers had no way to know whether a BYOK provider succeeded or fell through. The clickable `-# Transcribed by [Mistral]` badge from PR #1010 was lying — it used `sttOpts.provider` (what was requested) instead of what produced the text. New `TranscribeAudioResult` interface with `actualProvider?: SttProvider`; cache hits return undefined (omit badge rather than re-claim). Regression contract pins the named bug case (Mistral failure → voice-engine fallback → `actualProvider: 'voice-engine'`). ~290 LoC across common-types + ai-worker. 4 review rounds, all LGTM.
+- **PR #1015** — **Mistral STT model ID critical fix** (the actual user-facing bug behind #1014's investigation). Production logs revealed every Mistral STT request since the feature shipped returned HTTP 400 "Invalid model: voxtral-mini-transcribe-latest" — the alias never existed in Mistral's catalog. Voice-engine was producing 100% of "Mistral" transcripts. Fix: `voxtral-mini-latest` per Mistral's actual catalog. 2-line code change + test update. Discovery sequence: user observation → #1014 investigation → in-flight log check → root cause. Filed canary backlog item to prevent silent-skip recurrence.
+
+Critical-bug discovery insight from this session: **two interlocking silent-skip bugs masked each other**. The misattribution (#1014) hid which provider actually ran; the wrong model ID (#1015) ensured Mistral never ran at all. Without the user noticing "Mistral seems identical to self-hosted," neither would have surfaced. The fact that this was 100% broken from day-one of the feature shipping is the architectural signal worth filing — the diagnostic gap from #1014 + the missing canary monitoring (now in `backlog/inbox.md`) are the structural fixes that prevent the next instance.
 
 Reviewer cycle insight from this session: **the symmetric STT/TTS design from PR #1005 was caught and fixed within hours of being deployed**, before users ever saw it. The simplification was the right call and the deletion was clean. Filing the meta-lesson about "code-symmetry vs product-symmetry" is worth doing.
 
@@ -59,6 +64,8 @@ Next-session decision: cut beta.120.
 - **PR #1011** — fix: cross-channel history honors maxAge/contextEpoch + gets own budget
 - **PR #1012** — fix: cross-channel followup — DRY consolidation + diagnostic surface
 - **PR #1013** — fix(ai-worker): logAllocation surfaces 0 cross-channel msgs when enabled
+- **PR #1014** — fix(ai-worker): STT attribution reflects actual provider, not requested
+- **PR #1015** — fix(ai-worker): Mistral STT model ID was always invalid (`voxtral-mini-transcribe-latest` → `voxtral-mini-latest`)
 
 Migrations applied to both dev and prod across all three waves:
 
