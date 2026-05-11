@@ -272,10 +272,13 @@ describe('MessageContextBuilder', () => {
         'personality-123'
       );
 
-      // Verify history retrieval (2nd arg is limit, 3rd is contextEpoch - undefined when no STM clear)
+      // Verify history retrieval. Args: (channelId, limit, contextEpoch, maxAge).
+      // Both contextEpoch and maxAge are undefined here — no STM clear, no
+      // extendedContext.maxAge set on this fixture.
       expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
         50,
+        undefined,
         undefined
       );
 
@@ -742,11 +745,12 @@ describe('MessageContextBuilder', () => {
         },
       });
 
-      // Verify history was fetched WITH the context epoch
+      // Verify history was fetched WITH the context epoch (and no maxAge)
       expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
         50,
-        contextEpoch
+        contextEpoch,
+        undefined
       );
     });
 
@@ -772,10 +776,11 @@ describe('MessageContextBuilder', () => {
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello');
 
-      // Verify history was fetched WITHOUT epoch (undefined)
+      // Verify history was fetched WITHOUT epoch (undefined) and without maxAge
       expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
         50,
+        undefined,
         undefined
       );
     });

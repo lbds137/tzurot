@@ -21,11 +21,24 @@ import {
   type CrossChannelHistoryGroup,
 } from './ConversationMessageMapper.js';
 import { generateConversationHistoryUuid } from '../utils/deterministicUuid.js';
+import { computeHistoryCutoff } from './historyCutoff.js';
 
 // Re-export types for consumers that import from this module
 export type { ConversationMessage, CrossChannelHistoryGroup } from './ConversationMessageMapper.js';
 
 const logger = createLogger('ConversationHistoryService');
+
+/**
+ * Optional time-bound filters for history fetches. Kept as a sub-options
+ * object so adding a new filter (e.g., per-personality scope) doesn't push
+ * `getChannelHistory` / `getCrossChannelHistory` past the max-params limit.
+ */
+export interface HistoryTimeFilter {
+  /** Max-age cutoff in SECONDS (matches DiscordChannelFetcher's unit). */
+  maxAgeSeconds?: number | null;
+  /** Explicit reset point — e.g., from `/conversation reset`. */
+  contextEpoch?: Date;
+}
 
 /**
  * Options for adding a message to conversation history
@@ -362,23 +375,30 @@ export class ConversationHistoryService {
    * @param channelId Channel ID
    * @param limit Number of messages to fetch (default: 20)
    * @param contextEpoch Optional epoch timestamp - messages before this time are excluded
+   * @param maxAgeSeconds Optional max-age cutoff in SECONDS. Mirrors the same filter
+   *   in DiscordChannelFetcher so DB-resident messages don't leak past the user's
+   *   "forget after X" preference (which would otherwise let stale rows fill the
+   *   message budget and starve cross-channel context).
+   *
+   * Time-bound filters are positional rather than collapsed into a sub-options
+   * object to keep the call-site shape stable; the public test surface asserts
+   * positional args. If a 3rd time filter ever lands, fold them all into a
+   * trailing `HistoryTimeFilter` opts object together.
    */
   async getChannelHistory(
     channelId: string,
     limit = 20,
-    contextEpoch?: Date
+    contextEpoch?: Date,
+    maxAgeSeconds?: number | null
   ): Promise<ConversationMessage[]> {
     try {
+      const cutoff = computeHistoryCutoff(maxAgeSeconds, contextEpoch);
       const messages = await this.prisma.conversationHistory.findMany({
         where: {
           channelId,
           // NO personalityId filter - fetch ALL channel messages
           deletedAt: null,
-          ...(contextEpoch !== undefined && {
-            createdAt: {
-              gt: contextEpoch,
-            },
-          }),
+          ...(cutoff !== undefined ? { createdAt: { gte: cutoff } } : {}),
         },
         orderBy: {
           createdAt: 'desc',
@@ -406,8 +426,10 @@ export class ConversationHistoryService {
    * Returns messages grouped by channel, ordered by most recent activity.
    * Messages within each group are in chronological order (oldest first).
    *
-   * Used to fill unused context budget with cross-channel history when
-   * crossChannelHistoryEnabled is true.
+   * Used to surface cross-channel context with a personality when
+   * crossChannelHistoryEnabled is true. Results are NOT scoped to a guild —
+   * messages from any channel (including DMs) the same persona has used
+   * with this personality are eligible.
    *
    * @param personaId User's persona ID
    * @param personalityId AI personality ID
@@ -415,15 +437,21 @@ export class ConversationHistoryService {
    * @param limit Maximum total messages to fetch across all channels (capped at 100).
    *   The limit applies globally, not per-channel. If the N most recent messages
    *   all come from one channel, older channels will be entirely absent from results.
+   * @param timeFilter Optional max-age + contextEpoch cutoffs. Mirrors the
+   *   current-channel filter in DiscordChannelFetcher so a user's "forget after X"
+   *   preference applies uniformly across both context sources. The two cutoffs
+   *   are combined via max(); the more recent timestamp wins.
    */
   async getCrossChannelHistory(
     personaId: string,
     personalityId: string,
     excludeChannelId: string,
-    limit = 50
+    limit = 50,
+    timeFilter: HistoryTimeFilter = {}
   ): Promise<CrossChannelHistoryGroup[]> {
     try {
       const safeLimit = Math.min(limit, 100);
+      const cutoff = computeHistoryCutoff(timeFilter.maxAgeSeconds, timeFilter.contextEpoch);
 
       const messages = await this.prisma.conversationHistory.findMany({
         where: {
@@ -431,6 +459,7 @@ export class ConversationHistoryService {
           personalityId,
           channelId: { not: excludeChannelId },
           deletedAt: null,
+          ...(cutoff !== undefined ? { createdAt: { gte: cutoff } } : {}),
         },
         orderBy: {
           createdAt: 'desc',
