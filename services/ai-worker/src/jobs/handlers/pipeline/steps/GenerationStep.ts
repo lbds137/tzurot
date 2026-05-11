@@ -276,9 +276,8 @@ export class GenerationStep implements IPipelineStep {
       personalityName: effectivePersonality.name,
       personalityOwnerInternalId: effectivePersonality.ownerId,
     });
-    // Stash on context so later pipeline stages (TTSStep) can record
-    // additional data; LLMGenerationHandler.persistDiagnosticOnSuccess
-    // owns the success-path store rationale.
+    // Stash on context so downstream pipeline stages can append data
+    // before the orchestrator stores the final diagnostic log.
     context.diagnosticCollector = diagnosticCollector;
 
     try {

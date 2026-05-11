@@ -332,8 +332,16 @@ export class MessageHandler {
       return;
     }
 
-    const { channel, guildId, clientId, personality, personaId, userMessageTime, isWeighInMode } =
-      jobContext;
+    const {
+      channel,
+      guildId,
+      clientId,
+      personality,
+      personaId,
+      userMessageTime,
+      isWeighInMode,
+      userId,
+    } = jobContext;
 
     try {
       const { chunkMessageIds } = await this.responseSender.sendResponse({
@@ -342,6 +350,7 @@ export class MessageHandler {
         channel,
         guildId,
         clientId,
+        recipientUserId: userId,
         modelUsed: result.metadata?.modelUsed,
         providerUsed: result.metadata?.providerUsed,
         isGuestMode: result.metadata?.isGuestMode,
@@ -352,6 +361,7 @@ export class MessageHandler {
         showModelFooter: result.metadata?.showModelFooter,
         ttsAudioKey: result.metadata?.ttsAudioKey,
         ttsAudioContentType: result.metadata?.ttsAudioContentType,
+        ttsNotices: result.metadata?.ttsNotices,
       });
 
       // Persist assistant message; skip in weigh-in mode (ai-worker also skips

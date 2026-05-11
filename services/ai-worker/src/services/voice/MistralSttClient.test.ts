@@ -99,42 +99,41 @@ describe('mistralTranscribeAudio', () => {
   });
 
   it('isAuthError true for 401 and 403, false for others', async () => {
-    mockFetch.mockResolvedValue(textResponse(401, 'auth'));
-    try {
-      await mistralTranscribeAudio(baseOpts);
-    } catch (err) {
-      expect((err as MistralSttApiError).isAuthError).toBe(true);
-    }
+    // Pattern: capture-the-error rather than try/catch with assertions in
+    // the catch block. The earlier shape silently passed if the function
+    // didn't throw — `expect` ran zero times. `.catch(e => e)` forces the
+    // test to surface either the real error or a clearly-typed undefined.
+    mockFetch.mockResolvedValueOnce(textResponse(401, 'auth'));
+    const err401 = (await mistralTranscribeAudio(baseOpts).catch(e => e)) as MistralSttApiError;
+    expect(err401).toBeInstanceOf(MistralSttApiError);
+    expect(err401.isAuthError).toBe(true);
 
-    mockFetch.mockResolvedValue(textResponse(500, 'server'));
-    try {
-      await mistralTranscribeAudio(baseOpts);
-    } catch (err) {
-      expect((err as MistralSttApiError).isAuthError).toBe(false);
-    }
+    mockFetch.mockResolvedValueOnce(textResponse(403, 'forbidden'));
+    const err403 = (await mistralTranscribeAudio(baseOpts).catch(e => e)) as MistralSttApiError;
+    expect(err403).toBeInstanceOf(MistralSttApiError);
+    expect(err403.isAuthError).toBe(true);
+
+    mockFetch.mockResolvedValueOnce(textResponse(500, 'server'));
+    const err500 = (await mistralTranscribeAudio(baseOpts).catch(e => e)) as MistralSttApiError;
+    expect(err500).toBeInstanceOf(MistralSttApiError);
+    expect(err500.isAuthError).toBe(false);
   });
 
   it('isTransient true for 429 and 5xx, false for 4xx other than 429', async () => {
-    mockFetch.mockResolvedValue(textResponse(429, 'rate limited'));
-    try {
-      await mistralTranscribeAudio(baseOpts);
-    } catch (err) {
-      expect((err as MistralSttApiError).isTransient).toBe(true);
-    }
+    mockFetch.mockResolvedValueOnce(textResponse(429, 'rate limited'));
+    const err429 = (await mistralTranscribeAudio(baseOpts).catch(e => e)) as MistralSttApiError;
+    expect(err429).toBeInstanceOf(MistralSttApiError);
+    expect(err429.isTransient).toBe(true);
 
-    mockFetch.mockResolvedValue(textResponse(503, 'service unavailable'));
-    try {
-      await mistralTranscribeAudio(baseOpts);
-    } catch (err) {
-      expect((err as MistralSttApiError).isTransient).toBe(true);
-    }
+    mockFetch.mockResolvedValueOnce(textResponse(503, 'service unavailable'));
+    const err503 = (await mistralTranscribeAudio(baseOpts).catch(e => e)) as MistralSttApiError;
+    expect(err503).toBeInstanceOf(MistralSttApiError);
+    expect(err503.isTransient).toBe(true);
 
-    mockFetch.mockResolvedValue(textResponse(400, 'bad request'));
-    try {
-      await mistralTranscribeAudio(baseOpts);
-    } catch (err) {
-      expect((err as MistralSttApiError).isTransient).toBe(false);
-    }
+    mockFetch.mockResolvedValueOnce(textResponse(400, 'bad request'));
+    const err400 = (await mistralTranscribeAudio(baseOpts).catch(e => e)) as MistralSttApiError;
+    expect(err400).toBeInstanceOf(MistralSttApiError);
+    expect(err400.isTransient).toBe(false);
   });
 
   it('throws MistralSttResponseShapeError on a 200 missing the text field', async () => {

@@ -275,6 +275,7 @@ interface SubmitJobParams {
   guildId: string | null;
   clientId: string | undefined;
   userMessageTime: Date;
+  userId: string;
 }
 
 async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
@@ -288,6 +289,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
     guildId,
     clientId,
     userMessageTime,
+    userId,
   } = params;
 
   const { jobId, requestId } = await getGatewayClient().generate(personality, context);
@@ -308,6 +310,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
     personaId,
     characterSlug,
     isWeighInMode,
+    userId,
   });
 }
 
@@ -437,6 +440,7 @@ export async function handleChat(
       guildId: context.guildId,
       clientId: context.interaction.client.user?.id,
       userMessageTime,
+      userId,
     });
   } catch (error) {
     logger.error({ err: error, characterSlug }, 'Error processing chat');

@@ -36,14 +36,26 @@ vi.mock('../utils/conversationUtils.js', () => ({
   convertConversationHistory: vi.fn(),
 }));
 
+// Mock the diagnostic-storage side-effect so we can assert which code paths
+// trigger persistence without exercising real Prisma writes. Both
+// GenerationStep (inline error-path stores) and LLMGenerationHandler
+// (post-pipeline success-path store) import from this module, so the spy
+// observes both call sites and the test counts which fired.
+vi.mock('./pipeline/steps/diagnosticStorage.js', () => ({
+  storeDiagnosticLog: vi.fn(),
+}));
+
 // Import mocked modules
 import { redisService } from '../../redis.js';
 import { extractParticipants, convertConversationHistory } from '../utils/conversationUtils.js';
+import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
+import type { GenerationContext } from './pipeline/types.js';
 
 // Get mocked functions
 const mockGetJobResult = vi.mocked(redisService.getJobResult);
 const mockExtractParticipants = vi.mocked(extractParticipants);
 const mockConvertConversationHistory = vi.mocked(convertConversationHistory);
+const mockStoreDiagnosticLog = vi.mocked(storeDiagnosticLog);
 
 // Mock RAG service
 function createMockRAGService() {
@@ -1151,6 +1163,80 @@ describe('LLMGenerationHandler', () => {
         const job2Context = job2RagCall[2];
         expect(job2Context.preprocessedAttachments).toBeUndefined();
       });
+    });
+  });
+
+  // ===== persistDiagnosticOnSuccess ==========================================
+
+  describe('persistDiagnosticOnSuccess', () => {
+    // Success-path storeDiagnosticLog runs from this orchestrator helper
+    // (not inline in GenerationStep) so TTSStep has a chance to record TTS
+    // attribution before the log is finalized. Error paths still store
+    // inline in GenerationStep because the pipeline aborts before TTSStep
+    // on failure. These tests pin the three branches of the guard separately
+    // — without them, removing or weakening the guard would leave no
+    // failing assertion.
+
+    it('stores once on the success path (post-pipeline, not from GenerationStep)', async () => {
+      const job = {
+        id: 'job-persist-success',
+        data: createValidJobData(),
+      } as Job<LLMGenerationJobData>;
+
+      const result = await handler.processJob(job);
+
+      expect(result.success).toBe(true);
+      // Exactly one store: the post-pipeline call from persistDiagnosticOnSuccess.
+      // GenerationStep does NOT store on the success path (its inline store is
+      // error-path only).
+      expect(mockStoreDiagnosticLog).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not store from persistDiagnosticOnSuccess when the result is unsuccessful', async () => {
+      // Force GenerationStep down its error path by having the RAG service throw.
+      // GenerationStep catches the throw, records the error inline (via its own
+      // storeDiagnosticLog call), and returns success: false. The pipeline loop
+      // completes without throwing, so persistDiagnosticOnSuccess fires — and
+      // its `success !== true` guard must short-circuit so we don't double-store.
+      mockRAGService.generateResponse.mockRejectedValueOnce(new Error('RAG synthetic failure'));
+      const job = {
+        id: 'job-persist-error',
+        data: createValidJobData(),
+      } as Job<LLMGenerationJobData>;
+
+      const result = await handler.processJob(job);
+
+      expect(result.success).toBe(false);
+      // Exactly one store: the inline GenerationStep error-path call. If
+      // persistDiagnosticOnSuccess also fired, we'd see 2.
+      expect(mockStoreDiagnosticLog).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not store when context.diagnosticCollector is undefined', () => {
+      // This branch is structurally unreachable through processJob because
+      // GenerationStep always initializes a collector. Direct invocation with
+      // a bare context pins the guard so a future refactor that loosens
+      // collector init doesn't accidentally start storing on null collectors.
+      const persist = (
+        handler as unknown as {
+          persistDiagnosticOnSuccess(ctx: GenerationContext): void;
+        }
+      ).persistDiagnosticOnSuccess.bind(handler);
+
+      const ctx: GenerationContext = {
+        job: { id: 'job-no-collector' } as Job<LLMGenerationJobData>,
+        startTime: Date.now(),
+        result: {
+          requestId: 'req-no-collector',
+          success: true,
+          content: 'ignored',
+        },
+        // diagnosticCollector intentionally undefined
+      };
+
+      persist(ctx);
+
+      expect(mockStoreDiagnosticLog).not.toHaveBeenCalled();
     });
   });
 });
