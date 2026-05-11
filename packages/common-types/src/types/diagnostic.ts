@@ -8,6 +8,8 @@
  * @module diagnostic
  */
 
+import type { TtsProviderId } from '../services/tts/TtsProvider.js';
+
 /**
  * Top-level diagnostic payload stored in the database.
  * Contains the complete "narrative" of an LLM request from input to output.
@@ -157,6 +159,21 @@ export interface DiagnosticTokenBudget {
    * cross-channel was disabled for this turn.
    */
   crossChannelMessagesIncluded?: number;
+  /**
+   * TTS provider that actually produced the audio for this turn. `undefined`
+   * when TTS was disabled or the dispatch failed (no audio attached). Surfaces
+   * silent-fallback cases where the user's configured provider failed and the
+   * dispatcher fell through to a backup. Pairs with `ttsUsedFallback` for the
+   * UI rendering.
+   */
+  ttsProviderUsed?: TtsProviderId;
+  /**
+   * Whether `ttsProviderUsed` differs from the user's configured TTS provider
+   * for this turn. The bot-client diagnostic UI annotates the TTS line with
+   * "(via fallback)" when true so silent fallbacks don't masquerade as the
+   * configured provider.
+   */
+  ttsUsedFallback?: boolean;
 }
 
 /**

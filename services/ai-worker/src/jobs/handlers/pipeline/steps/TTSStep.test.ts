@@ -283,6 +283,46 @@ describe('TTSStep', () => {
       expect(ctx.result?.metadata?.ttsAudioKey).toBe('tts:test-job');
       // normalizeLoudness emits Opus-in-Ogg (single ffmpeg pass: loudnorm + libopus)
       expect(ctx.result?.metadata?.ttsAudioContentType).toBe('audio/ogg');
+      // Attribution surface: the dispatcher's provider + fallback flag must
+      // land on result.metadata so bot-client can render "TTS: mistral" in
+      // /inspect Token Budget. Without this, the silent-misattribution class
+      // applies — user configures provider X, dispatcher falls back to Y,
+      // and the diagnostic UI shows X (the configured value) instead of Y.
+      expect(ctx.result?.metadata?.ttsProviderUsed).toBe('mistral');
+      expect(ctx.result?.metadata?.ttsUsedFallback).toBe(false);
+    });
+
+    it('writes ttsProviderUsed + ttsUsedFallback=true when dispatcher fell through to a fallback', async () => {
+      mockDispatchTts.mockResolvedValueOnce({
+        audioBuffer: Buffer.from('synthesized'),
+        providerUsed: 'self-hosted',
+        usedFallback: true,
+        outputFormat: 'wav',
+      });
+      const ctx = createContext();
+      await step.process(ctx);
+
+      expect(ctx.result?.metadata?.ttsProviderUsed).toBe('self-hosted');
+      expect(ctx.result?.metadata?.ttsUsedFallback).toBe(true);
+    });
+
+    it('forwards provider attribution to diagnosticCollector.recordTtsDispatch when wired', async () => {
+      // Pins the TTSStep → DiagnosticCollector wiring. Without this assertion,
+      // removing the recordTtsDispatch call from TTSStep would silently drop
+      // TTS attribution from the stored diagnostic log while every other
+      // test in this file kept passing — the metadata path covers result
+      // attachment, not the flight-recorder path.
+      const recordTtsDispatch = vi.fn();
+      const fakeCollector = { recordTtsDispatch } as unknown as NonNullable<
+        GenerationContext['diagnosticCollector']
+      >;
+      const ctx = createContext({ diagnosticCollector: fakeCollector });
+      await step.process(ctx);
+
+      expect(recordTtsDispatch).toHaveBeenCalledWith({
+        providerUsed: 'mistral',
+        usedFallback: false,
+      });
     });
 
     it('falls back to unnormalized audio when normalization throws', async () => {

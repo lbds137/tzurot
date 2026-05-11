@@ -36,6 +36,7 @@ import type {
   SttResolver,
 } from '@tzurot/common-types';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
+import { storeDiagnosticLog } from './pipeline/steps/diagnosticStorage.js';
 import {
   type IPipelineStep,
   type GenerationContext,
@@ -187,6 +188,8 @@ export class LLMGenerationHandler {
         throw new Error('Pipeline completed but no result was generated');
       }
 
+      this.persistDiagnosticOnSuccess(context);
+
       const processingTimeMs = Date.now() - startTime;
       logger.info(
         { jobId: job.id, processingTimeMs, success: context.result.success },
@@ -249,5 +252,28 @@ export class LLMGenerationHandler {
         },
       };
     }
+  }
+
+  /**
+   * Fire-and-forget persistence of the success-path diagnostic log.
+   *
+   * Runs after all pipeline stages — including TTSStep — so TTS attribution
+   * data (provider used, fallback fired) makes it into the saved log.
+   * Error paths still store from inside GenerationStep because the pipeline
+   * aborts before TTSStep on failure; the error's diagnostic value comes
+   * from the LLM-stage data alone.
+   *
+   * Extracted to its own method to keep `processJob`'s cyclomatic complexity
+   * under the 20-branch limit.
+   */
+  private persistDiagnosticOnSuccess(context: GenerationContext): void {
+    if (context.diagnosticCollector === undefined || context.result?.success !== true) {
+      return;
+    }
+    storeDiagnosticLog(
+      context.diagnosticCollector,
+      context.result.metadata?.modelUsed ?? 'unknown',
+      context.auth?.provider ?? 'unknown'
+    );
   }
 }

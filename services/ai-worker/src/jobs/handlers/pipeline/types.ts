@@ -17,6 +17,7 @@ import type {
   SttProvider,
 } from '@tzurot/common-types';
 import type { BaseMessage } from '@langchain/core/messages';
+import type { DiagnosticCollector } from '../../../services/DiagnosticCollector.js';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';
 import type { FallbackRoute } from '../../../services/ProviderRouter.js';
 
@@ -209,6 +210,15 @@ export interface GenerationContext {
 
   /** Final response (set by GenerationStep) */
   result?: LLMGenerationResult;
+
+  /**
+   * Diagnostic collector instance, populated by GenerationStep so later
+   * pipeline stages (notably TTSStep) can record additional data before
+   * the orchestrator finalizes + stores the diagnostic log. Optional
+   * because GenerationStep only sets it when the diagnostic flight-recorder
+   * is active for this job (debug mode / always-on per config).
+   */
+  diagnosticCollector?: DiagnosticCollector;
 }
 
 /**

@@ -33,6 +33,7 @@ import {
   type DiagnosticPostProcessing,
   type DiagnosticTiming,
   type DiagnosticError,
+  type TtsProviderId,
 } from '@tzurot/common-types';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type {
@@ -177,7 +178,13 @@ export class DiagnosticCollector {
   }
 
   /**
-   * Record Stage 3: Token budget allocation
+   * Record Stage 3: Token budget allocation.
+   *
+   * Replaces `this.tokenBudget` wholesale — must be called BEFORE
+   * `recordTtsDispatch` or the TTS attribution fields it appends will be
+   * silently overwritten. Pipeline order (LLM-stage budget → TTSStep)
+   * already enforces this, but the ordering matters if a future caller
+   * inverts it.
    */
   recordTokenBudget(data: TokenBudgetData): void {
     this.tokenBudget = {
@@ -190,6 +197,29 @@ export class DiagnosticCollector {
       ...(data.crossChannelMessagesIncluded !== undefined && {
         crossChannelMessagesIncluded: data.crossChannelMessagesIncluded,
       }),
+    };
+  }
+
+  /**
+   * Record Stage 3b: TTS dispatch result (post-pipeline-stage data).
+   *
+   * Called by TTSStep after the dispatcher returns. Mutates the existing
+   * `tokenBudget` payload to add TTS-attribution fields. Must run AFTER
+   * `recordTokenBudget` (TTSStep runs after the LLM/budget step in the
+   * pipeline order) — if it runs before, the LLM-time recordTokenBudget
+   * will overwrite the TTS fields back to undefined.
+   *
+   * No-op if `tokenBudget` hasn't been initialized yet (defensive guard
+   * for unusual call orders / test fixtures).
+   */
+  recordTtsDispatch(data: { providerUsed: TtsProviderId; usedFallback: boolean }): void {
+    if (this.tokenBudget === null) {
+      return;
+    }
+    this.tokenBudget = {
+      ...this.tokenBudget,
+      ttsProviderUsed: data.providerUsed,
+      ttsUsedFallback: data.usedFallback,
     };
   }
 
