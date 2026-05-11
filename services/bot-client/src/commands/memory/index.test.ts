@@ -269,8 +269,8 @@ describe('Memory Command', () => {
       } as unknown as AutocompleteInteraction;
     }
 
-    it('should delegate personality autocomplete to handler', async () => {
-      const interaction = createMockAutocompleteInteraction('personality');
+    it('should delegate character autocomplete to handler', async () => {
+      const interaction = createMockAutocompleteInteraction('character');
 
       await autocomplete(interaction);
 

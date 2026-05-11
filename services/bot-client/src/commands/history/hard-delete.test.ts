@@ -59,7 +59,7 @@ describe('handleHardDelete', () => {
       interaction: {
         options: {
           getString: vi.fn((name: string) => {
-            if (name === 'personality') return personalitySlug;
+            if (name === 'character') return personalitySlug;
             return null;
           }),
           getBoolean: vi.fn(() => null),
@@ -76,7 +76,7 @@ describe('handleHardDelete', () => {
       isEphemeral: true,
       getOption: vi.fn(),
       getRequiredOption: vi.fn((name: string) => {
-        if (name === 'personality') return personalitySlug;
+        if (name === 'character') return personalitySlug;
         throw new Error(`Unknown required option: ${name}`);
       }),
       getSubcommand: () => 'hard-delete',

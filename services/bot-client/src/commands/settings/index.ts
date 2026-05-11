@@ -5,7 +5,7 @@
  *
  * - /settings timezone get|set - Manage timezone
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
- * - /settings preset browse|set|clear|set-default|clear-default - Manage preset overrides
+ * - /settings preset list|set|clear|set-default|clear-default - Manage preset overrides
  * - /settings defaults edit - Manage global default settings (config cascade)
  * - /settings voices browse|delete|clear - Manage ElevenLabs cloned voices
  *
@@ -102,7 +102,7 @@ const apikeyRouter = createMixedModeSubcommandRouter(
  */
 const presetRouter = createTypedSubcommandRouter(
   {
-    browse: handleBrowseOverrides,
+    list: handleBrowseOverrides,
     set: handlePresetSet,
     clear: handlePresetClear,
     'set-default': handlePresetSetDefault,
@@ -230,7 +230,7 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
     await interaction.respond(choices);
   } else if (subcommandGroup === 'preset') {
     // Personality and preset autocomplete for preset commands
-    // The handlePresetAutocomplete handles both 'personality' and 'preset' options
+    // The handlePresetAutocomplete handles both 'character' and 'preset' options
     await handlePresetAutocomplete(interaction);
   } else {
     // /settings tts and /settings voices autocomplete is no-op while the
@@ -323,16 +323,16 @@ export default defineCommand({
         .setName('preset')
         .setDescription('Manage preset/model overrides')
         .addSubcommand(subcommand =>
-          subcommand.setName('browse').setDescription('Browse your preset overrides')
+          subcommand.setName('list').setDescription('List your preset overrides')
         )
         .addSubcommand(subcommand =>
           subcommand
             .setName('set')
-            .setDescription('Override preset for a personality')
+            .setDescription('Override preset for a character')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('The personality to override')
+                .setName('character')
+                .setDescription('The character to override')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -347,11 +347,11 @@ export default defineCommand({
         .addSubcommand(subcommand =>
           subcommand
             .setName('clear')
-            .setDescription('Remove preset override for a personality')
+            .setDescription('Remove preset override for a character')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('The personality to clear')
+                .setName('character')
+                .setDescription('The character to clear')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -383,7 +383,7 @@ export default defineCommand({
         .setName('tts')
         .setDescription('[Moved to /voice tts] Manage TTS configuration overrides')
         .addSubcommand(subcommand =>
-          subcommand.setName('browse').setDescription('[Moved to /voice tts browse]')
+          subcommand.setName('browse').setDescription('[Moved to /voice tts list]')
         )
         .addSubcommand(subcommand =>
           subcommand.setName('set').setDescription('[Moved to /voice tts set]')

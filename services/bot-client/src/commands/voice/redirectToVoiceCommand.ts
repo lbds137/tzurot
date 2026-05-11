@@ -17,13 +17,14 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
  * Includes the renames done as part of the consolidation:
  *   tts reset           → /voice tts clear
  *   tts default         → /voice tts set-default
+ *   tts browse          → /voice tts list   (semantic rename: catalog-browse vs list-mine)
  */
 export const SETTINGS_TO_VOICE_REDIRECTS: Record<string, string> = {
   'tts set': '/voice tts set',
   'tts reset': '/voice tts clear',
   'tts default': '/voice tts set-default',
   'tts clear-default': '/voice tts clear-default',
-  'tts browse': '/voice tts browse',
+  'tts browse': '/voice tts list',
   'voices browse': '/voice voices browse',
   'voices clear': '/voice voices clear',
   'voices delete': '/voice voices delete',

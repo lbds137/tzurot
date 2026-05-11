@@ -1,10 +1,10 @@
 /**
  * Channel Command Group
- * Manages channel activation for automatic personality responses
+ * Manages channel activation for automatic character responses
  *
  * Commands:
- * - /channel activate <personality> - Activate a personality in the current channel
- * - /channel deactivate - Deactivate the personality from the current channel
+ * - /channel activate <character> - Activate a character in the current channel
+ * - /channel deactivate - Deactivate the character from the current channel
  * - /channel browse - Browse activated channels with search and filtering
  * - /channel settings - Open extended context settings dashboard
  *
@@ -123,30 +123,28 @@ export default defineCommand({
   deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
     .setName('channel')
-    .setDescription('Manage automatic personality responses in channels')
+    .setDescription('Manage automatic character responses in channels')
     .addSubcommand(subcommand =>
       subcommand
         .setName('activate')
-        .setDescription('Activate a personality to auto-respond in this channel')
+        .setDescription('Activate a character to auto-respond in this channel')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to activate')
+            .setName('character')
+            .setDescription('The character to activate')
             .setRequired(true)
             .setAutocomplete(true)
         )
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('deactivate')
-        .setDescription('Deactivate the personality from this channel')
+      subcommand.setName('deactivate').setDescription('Deactivate the character from this channel')
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('browse')
         .setDescription('Browse activated channels')
         .addStringOption(option =>
-          option.setName('query').setDescription('Search by personality name').setRequired(false)
+          option.setName('query').setDescription('Search by character name').setRequired(false)
         )
         .addStringOption(option =>
           option

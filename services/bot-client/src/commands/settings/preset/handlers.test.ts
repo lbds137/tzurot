@@ -150,7 +150,7 @@ describe('Preset Command Handlers', () => {
         interaction: {
           options: {
             getString: (name: string) => {
-              if (name === 'personality') return personalityId;
+              if (name === 'character') return personalityId;
               if (name === 'preset') return configId;
               return null;
             },
@@ -240,7 +240,7 @@ describe('Preset Command Handlers', () => {
         interaction: {
           options: {
             getString: (name: string) => {
-              if (name === 'personality') return personalityId;
+              if (name === 'character') return personalityId;
               return null;
             },
           },

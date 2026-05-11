@@ -17,7 +17,7 @@ export async function handlePersonalityAutocomplete(
   interaction: AutocompleteInteraction
 ): Promise<void> {
   await sharedPersonalityAutocomplete(interaction, {
-    optionName: 'personality',
+    optionName: 'character',
     showVisibility: true,
     ownedOnly: false, // Show all accessible personalities (public + owned)
   });

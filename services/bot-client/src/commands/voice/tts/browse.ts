@@ -1,8 +1,8 @@
 /**
  * Voice TTS Browse Handler
- * Handles /voice tts browse — lists user's per-personality TTS overrides
+ * Handles /voice tts list — lists user's per-personality TTS overrides
  *
- * Mirrors `/settings preset browse` shape: shows the user's overrides, not
+ * Mirrors `/settings preset list` shape: shows the user's overrides, not
  * the underlying TtsConfig catalog. (The catalog is implicit through
  * autocomplete; users don't need a separate "list all configs" view in v1.)
  */
@@ -22,7 +22,7 @@ interface ListResponse {
   overrides: TtsOverrideSummary[];
 }
 
-/** Handle /voice tts browse */
+/** Handle /voice tts list */
 export async function handleTtsBrowseOverrides(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 

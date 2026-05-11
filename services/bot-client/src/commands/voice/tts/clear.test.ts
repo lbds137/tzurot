@@ -25,7 +25,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
     }),
     voiceTtsClearOptions: vi.fn(() => ({
-      personality: () => 'personality-uuid-1',
+      character: () => 'personality-uuid-1',
     })),
   };
 });

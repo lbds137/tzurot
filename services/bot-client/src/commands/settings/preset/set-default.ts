@@ -1,7 +1,7 @@
 /**
  * Settings Preset Set-Default Handler
  * Handles /settings preset set-default subcommand
- * Sets the user's global default preset (applies to all personalities)
+ * Sets the user's global default preset (applies to all characters)
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -65,7 +65,7 @@ export async function handleSetDefault(context: DeferredCommandContext): Promise
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
         `Your default preset is now **${data.default.configName}**.\n\n` +
-          'This will be used for all personalities unless you have a specific override.'
+          'This will be used for all characters unless you have a specific override.'
       )
       .setFooter({ text: 'Use /settings preset clear-default to remove this setting' })
       .setTimestamp();

@@ -21,7 +21,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     ...actual,
     createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     voiceViewOptions: vi.fn(() => ({
-      personality: () => 'personality-uuid-1',
+      character: () => 'personality-uuid-1',
     })),
   };
 });

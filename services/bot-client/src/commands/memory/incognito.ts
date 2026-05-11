@@ -38,7 +38,7 @@ const logger = createLogger('memory-incognito');
 /** Shared message for catch-all error logs in this module's four handlers. */
 const UNEXPECTED_ERROR_LOG_MESSAGE = 'Unexpected error';
 
-const ALL_PERSONALITIES_LABEL = 'all personalities';
+const ALL_PERSONALITIES_LABEL = 'all characters';
 const INCOGNITO_API_PATH = '/user/memory/incognito';
 const UNEXPECTED_ERROR_MESSAGE = '❌ An unexpected error occurred. Please try again.';
 
@@ -106,7 +106,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryIncognitoEnableOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
   const duration = options.duration() as IncognitoDuration;
 
   if (isAutocompleteErrorSentinel(personalityInput)) {
@@ -119,7 +119,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
 
     if (resolved === null) {
       await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`,
+        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
       });
       return;
     }
@@ -167,7 +167,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryIncognitoDisableOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
 
   if (isAutocompleteErrorSentinel(personalityInput)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });
@@ -179,7 +179,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
 
     if (resolved === null) {
       await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`,
+        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
       });
       return;
     }
@@ -283,7 +283,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryIncognitoForgetOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
   const timeframe = options.timeframe();
 
   if (isAutocompleteErrorSentinel(personalityInput)) {
@@ -296,7 +296,7 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
 
     if (resolved === null) {
       await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`,
+        content: `❌ Character "${personalityInput}" not found. Use autocomplete to select a valid character, or type "all" for all characters.`,
       });
       return;
     }

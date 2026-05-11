@@ -23,7 +23,7 @@ describe('buildVoiceTtsSubcommandGroup', () => {
     const subcommandNames = (ttsGroup?.options as Array<{ name: string }> | undefined)?.map(
       s => s.name
     );
-    expect(subcommandNames).toEqual(['browse', 'set', 'clear', 'set-default', 'clear-default']);
+    expect(subcommandNames).toEqual(['list', 'set', 'clear', 'set-default', 'clear-default']);
   });
 
   it('set subcommand requires personality + tts options with autocomplete', () => {
@@ -42,7 +42,7 @@ describe('buildVoiceTtsSubcommandGroup', () => {
       | undefined;
 
     expect(setOptions?.length).toBe(2);
-    const personalityOpt = setOptions?.find(o => o.name === 'personality');
+    const personalityOpt = setOptions?.find(o => o.name === 'character');
     expect(personalityOpt?.required).toBe(true);
     expect(personalityOpt?.autocomplete).toBe(true);
     const ttsOpt = setOptions?.find(o => o.name === 'tts');
@@ -66,7 +66,7 @@ describe('buildVoiceTtsSubcommandGroup', () => {
       | undefined;
 
     expect(clearOptions?.length).toBe(1);
-    expect(clearOptions?.[0].name).toBe('personality');
+    expect(clearOptions?.[0].name).toBe('character');
     expect(clearOptions?.[0].required).toBe(true);
   });
 

@@ -62,7 +62,7 @@ describe('handleOverrideSet', () => {
       interaction: {
         options: {
           getString: (name: string) => {
-            if (name === 'personality') return personalitySlug;
+            if (name === 'character') return personalitySlug;
             if (name === 'persona') return personaId;
             return null;
           },

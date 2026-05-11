@@ -111,7 +111,7 @@ describe('handleAutocomplete', () => {
     it('should respond with filtered personalities with visibility and slug', async () => {
       // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'personality',
+        name: 'character',
         value: 'test',
       } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue({
@@ -152,7 +152,7 @@ describe('handleAutocomplete', () => {
     it('should use name when displayName is null', async () => {
       // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'personality',
+        name: 'character',
         value: '',
       } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue({
@@ -178,7 +178,7 @@ describe('handleAutocomplete', () => {
 
     it('should filter by slug', async () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'personality',
+        name: 'character',
         value: 'lil',
       } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue({
@@ -214,7 +214,7 @@ describe('handleAutocomplete', () => {
     it('should show 📖 icon for public personalities not owned', async () => {
       // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'personality',
+        name: 'character',
         value: '',
       } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue({
@@ -242,7 +242,7 @@ describe('handleAutocomplete', () => {
     it('should respond with empty array on API error', async () => {
       // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'personality',
+        name: 'character',
         value: 'test',
       } as unknown as string);
       mockGetCachedPersonalities.mockRejectedValue(new Error('Cache error'));
@@ -255,7 +255,7 @@ describe('handleAutocomplete', () => {
     it('should limit results to 25', async () => {
       // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'personality',
+        name: 'character',
         value: '',
       } as unknown as string);
       const manyPersonalities = Array.from({ length: 30 }, (_, i) =>
@@ -611,7 +611,7 @@ describe('handleAutocomplete', () => {
     it('should respond with empty array on exception', async () => {
       // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
-        name: 'personality',
+        name: 'character',
         value: 'test',
       } as unknown as string);
       vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));

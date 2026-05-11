@@ -71,7 +71,7 @@ describe('Memory Incognito Handlers', () => {
 
   // Helper to create mock DeferredCommandContext with different options
   function createMockContext(options: {
-    personality?: string;
+    character?: string;
     duration?: string;
     timeframe?: string;
   }) {
@@ -80,7 +80,7 @@ describe('Memory Incognito Handlers', () => {
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
-            if (name === 'personality') return options.personality ?? 'lilith';
+            if (name === 'character') return options.character ?? 'lilith';
             if (name === 'duration') return options.duration ?? '1h';
             if (name === 'timeframe') return options.timeframe ?? '15m';
             return null;
@@ -115,7 +115,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'lilith', duration: '1h' });
+      const context = createMockContext({ character: 'lilith', duration: '1h' });
       await handleIncognitoEnable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
@@ -156,7 +156,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'all', duration: 'forever' });
+      const context = createMockContext({ character: 'all', duration: 'forever' });
       await handleIncognitoEnable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -195,7 +195,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoEnable(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
@@ -207,7 +207,7 @@ describe('Memory Incognito Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const context = createMockContext({ personality: 'unknown' });
+      const context = createMockContext({ character: 'unknown' });
       await handleIncognitoEnable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -225,7 +225,7 @@ describe('Memory Incognito Handlers', () => {
         error: 'Server error',
       });
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoEnable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -237,7 +237,7 @@ describe('Memory Incognito Handlers', () => {
       const error = new Error('Network error');
       mockResolvePersonalityId.mockRejectedValue(error);
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoEnable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -246,7 +246,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
-      const context = createMockContext({ personality: '__autocomplete_error__' });
+      const context = createMockContext({ character: '__autocomplete_error__' });
       await handleIncognitoEnable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -269,7 +269,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoDisable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
@@ -296,7 +296,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'all' });
+      const context = createMockContext({ character: 'all' });
       await handleIncognitoDisable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -322,7 +322,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoDisable(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
@@ -334,7 +334,7 @@ describe('Memory Incognito Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const context = createMockContext({ personality: 'unknown' });
+      const context = createMockContext({ character: 'unknown' });
       await handleIncognitoDisable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -350,7 +350,7 @@ describe('Memory Incognito Handlers', () => {
         error: 'Server error',
       });
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoDisable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -362,7 +362,7 @@ describe('Memory Incognito Handlers', () => {
       const error = new Error('Network error');
       mockResolvePersonalityId.mockRejectedValue(error);
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoDisable(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -371,7 +371,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
-      const context = createMockContext({ personality: '__autocomplete_error__' });
+      const context = createMockContext({ character: '__autocomplete_error__' });
       await handleIncognitoDisable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -504,7 +504,7 @@ describe('Memory Incognito Handlers', () => {
       expect(mockGetPersonalityName).not.toHaveBeenCalled();
       expect(mockCreateWarningEmbed).toHaveBeenCalledWith(
         '👻 Incognito Active',
-        expect.stringContaining('all personalities')
+        expect.stringContaining('all characters')
       );
     });
 
@@ -549,7 +549,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'lilith', timeframe: '15m' });
+      const context = createMockContext({ character: 'lilith', timeframe: '15m' });
       await handleIncognitoForget(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito/forget', {
@@ -577,7 +577,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'all', timeframe: '1h' });
+      const context = createMockContext({ character: 'all', timeframe: '1h' });
       await handleIncognitoForget(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -604,7 +604,7 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const context = createMockContext({ personality: 'lilith', timeframe: '5m' });
+      const context = createMockContext({ character: 'lilith', timeframe: '5m' });
       await handleIncognitoForget(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
@@ -616,7 +616,7 @@ describe('Memory Incognito Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const context = createMockContext({ personality: 'unknown' });
+      const context = createMockContext({ character: 'unknown' });
       await handleIncognitoForget(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -633,7 +633,7 @@ describe('Memory Incognito Handlers', () => {
         error: 'Server error',
       });
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoForget(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -645,7 +645,7 @@ describe('Memory Incognito Handlers', () => {
       const error = new Error('Network error');
       mockResolvePersonalityId.mockRejectedValue(error);
 
-      const context = createMockContext({ personality: 'lilith' });
+      const context = createMockContext({ character: 'lilith' });
       await handleIncognitoForget(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -654,7 +654,7 @@ describe('Memory Incognito Handlers', () => {
     });
 
     it('rejects the autocomplete-error sentinel before calling resolver or gateway', async () => {
-      const context = createMockContext({ personality: '__autocomplete_error__' });
+      const context = createMockContext({ character: '__autocomplete_error__' });
       await handleIncognitoForget(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();

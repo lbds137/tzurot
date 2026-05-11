@@ -1,6 +1,6 @@
 /**
  * Voice TTS Set Handler
- * Handles /voice tts set subcommand — overrides TTS config for a personality.
+ * Handles /voice tts set subcommand — overrides TTS config for a character.
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -28,7 +28,7 @@ interface SetResponse {
 export async function handleTtsSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = voiceTtsSetOptions(context.interaction);
-  const personalityId = options.personality();
+  const personalityId = options.character();
   const configId = options.tts();
 
   if (isAutocompleteErrorSentinel(personalityId) || isAutocompleteErrorSentinel(configId)) {

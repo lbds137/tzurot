@@ -57,7 +57,7 @@ function ttsSourceLabel(source: TtsResolutionSource): string {
 export async function handleVoiceView(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = voiceViewOptions(context.interaction);
-  const personalityId = options.personality();
+  const personalityId = options.character();
 
   if (isAutocompleteErrorSentinel(personalityId)) {
     await context.editReply({ content: AUTOCOMPLETE_UNAVAILABLE_MESSAGE });

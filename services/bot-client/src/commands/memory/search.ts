@@ -275,7 +275,7 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
   const user = toGatewayUser(context.user);
   const options = memorySearchOptions(context.interaction);
   const query = options.query();
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
   // The slash command bounds limit to 1–10; default to 5 when omitted.
   // Persisted in the session so pagination uses the same size as the
   // original search rather than reverting to the default.
