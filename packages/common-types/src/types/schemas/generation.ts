@@ -10,6 +10,14 @@ import { TTS_PROVIDER_IDS } from '../../services/tts/TtsProvider.js';
 import { loadedPersonalitySchema, requestContextSchema } from './personality.js';
 
 /**
+ * Source of the resolved LLM config in the cascade. Single source of truth:
+ * the type, the runtime guard, and the Zod validator all derive from this
+ * tuple, so a new layer is a one-line change here.
+ */
+export const CONFIG_SOURCE_IDS = ['personality', 'user-personality', 'user-default'] as const;
+export type ConfigSourceId = (typeof CONFIG_SOURCE_IDS)[number];
+
+/**
  * Generate request schema
  * Full validation schema for /ai/generate endpoint
  */
@@ -74,8 +82,8 @@ const generationPayloadSchema = z.object({
       modelUsed: z.string().optional(),
       /** AI provider used (from API key resolution) */
       providerUsed: z.string().optional(),
-      /** Source of LLM config: 'personality' | 'user-personality' | 'user-default' */
-      configSource: z.enum(['personality', 'user-personality', 'user-default']).optional(),
+      /** Source of LLM config (derived from CONFIG_SOURCE_IDS — single source of truth). */
+      configSource: z.enum(CONFIG_SOURCE_IDS).optional(),
       /** Whether response was generated using guest mode (free model, no API key) */
       isGuestMode: z.boolean().optional(),
       /** Whether cross-turn duplication was detected (same response as previous turn) */

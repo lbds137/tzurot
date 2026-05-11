@@ -147,8 +147,8 @@ export class TTSStep implements IPipelineStep {
         }
         // Record TTS attribution in the diagnostic flight recorder so the
         // /inspect Token Budget view can render "TTS: provider (via fallback)".
-        // Must run before the orchestrator's storeDiagnosticLog call (in
-        // LLMGenerationHandler) so the saved log carries the TTS fields.
+        // Must run before the orchestrator stores the final diagnostic log
+        // so the saved log carries the TTS fields.
         context.diagnosticCollector?.recordTtsDispatch({
           providerUsed: ttsResult.providerUsed,
           usedFallback: ttsResult.usedFallback,

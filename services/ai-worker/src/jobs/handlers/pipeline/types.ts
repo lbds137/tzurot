@@ -217,6 +217,11 @@ export interface GenerationContext {
    * the orchestrator finalizes + stores the diagnostic log. Optional
    * because GenerationStep only sets it when the diagnostic flight-recorder
    * is active for this job (debug mode / always-on per config).
+   *
+   * Storage is asymmetric by design: success-path persistence happens
+   * post-pipeline in the orchestrator (after TTSStep contributes its
+   * attribution data), while error paths persist inline in GenerationStep
+   * because the pipeline aborts before reaching TTSStep on failure.
    */
   diagnosticCollector?: DiagnosticCollector;
 }
