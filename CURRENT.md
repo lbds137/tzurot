@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-05-09 → 2026-05-10 (extended) — Shipped TTS Phase 3 end-to-end in **6 merged PRs**. Started from PR #1003 (`/voice` consolidation) → ended with PR #1008 (polish sweep absorbing all 3 surviving Phase 3 follow-ups). Mistral live as BYOK STT provider. Schema migrations applied to dev + prod across three waves (#1005 added 3 cols; #1007 dropped 2; #1008 added a CHECK constraint — pending dev/prod apply). **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
-> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~6 PRs ahead — release pending)
+> **Session**: 2026-05-09 → 2026-05-10 (extended) — Shipped TTS Phase 3 end-to-end in **8 merged PRs**. Started from PR #1003 (`/voice` consolidation) → ended with PR #1010 (clickable transcript attribution + bot-owner Mistral 30s notice). Mistral live as BYOK STT provider; voice-surface UX polished pre-release. Schema migrations applied to dev + prod across three waves (#1005 added 3 cols; #1007 dropped 2; #1008 added a CHECK constraint, applied to dev + prod). **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
+> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~8 PRs ahead — release pending)
 > **🚧 Release freeze status**: LIFTED. Develop is ready for the v3.0.0-beta.120 release cut.
 
 ---
@@ -10,14 +10,13 @@
 
 **Choose between**:
 
-1. **Apply PR #1008 migration to dev + prod** — pre-release housekeeping. `pnpm ops db:migrate --env dev` then `--env prod`. The CHECK constraint is `ALTER TABLE ADD CONSTRAINT` only (no data risk).
-2. **Cut release v3.0.0-beta.120** (Recommended after #1) — bundle the 6 merged PRs (#1003 → #1008) and ship to prod. Required before users see the new `/voice` surface and Mistral STT in prod.
-3. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
+1. **Cut release v3.0.0-beta.120** (Recommended) — bundle the 8 merged PRs (#1003 → #1010) and ship to prod. All migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT, clickable transcript attribution, and Mistral 30s notice in prod.
+2. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
 
 **Read first** (if continuing TTS work):
 
 - [`backlog/active-epic.md`](backlog/active-epic.md) — Phase 3 marked DONE; Phase 2 (NeuTTS Air) is the next checkpoint
-- [`backlog/inbox.md`](backlog/inbox.md) — small set of follow-ups from #1008 review (named-type alias, options-object refactor, degraded-fallback resilience, future 4th-provider migration coupling)
+- [`backlog/inbox.md`](backlog/inbox.md) — small set of polish follow-ups from #1009 + #1010 reviews (showModelFooter toggle parity, slash-job notice path, dispatcher coupling refactor, generation.ts schema test, generate() Railway-deploy retry)
 
 ---
 
@@ -31,6 +30,8 @@ Shipped TTS Phase 3 end-to-end in six merged PRs:
 - **PR #1006** — UX language polish on `/voice` surface + transcript provider attribution (`-# transcribed by X` subtext under each transcript). ~300 LoC. 7 review rounds; reviewer caught a real 2000-char overflow bug + a `GenerateResponse` mistype during the cycle.
 - **PR #1007** — STT cascade simplification (5 layers → 3). User identified the asymmetry: STT is speaker-bound (your voice doesn't change per character) so per-personality + admin-default layers were code-shape masquerading as product-shape. ~2,650 LoC removed. Schema migration dropped two of the columns added by #1005.
 - **PR #1008** — Polish sweep: DB CHECK constraint on `users.default_stt_provider_id`, wired `SttResolverCacheInvalidationService` into ai-worker, routed in-band `MultimodalProcessor` attachment path through `SttResolver` via `auth.sttDispatch`. Closed all 3 surviving Phase 3 follow-ups. 3 review rounds, LGTM verdict. ~200 LoC net additions (mostly tests).
+- **PR #1009** — `GatewayClient.transcribe` transient-network retry. Closes the silent-failure window when api-gateway is mid-restart on Railway (`UND_ERR_SOCKET` / `ECONNRESET` / `ECONNREFUSED`). 3-attempt exponential backoff (500ms, 1000ms). 5 review rounds. ~200 LoC.
+- **PR #1010** — Voice transcription clickable attribution + bot-owner Mistral 30s notice. `-# Transcribed by [Mistral](<...>)` clickable link mirroring the LLM model footer; new `ttsNotices` schema field surfaced bot-owner-only when Mistral preflight skips a too-long voice reference. ~290 LoC across common-types + ai-worker + bot-client. 7 review rounds — convergence-failure pattern, all post-round-2 items were reviewer style preferences, eventually merged on explicit "Approve when ready" verdict.
 
 Reviewer cycle insight from this session: **the symmetric STT/TTS design from PR #1005 was caught and fixed within hours of being deployed**, before users ever saw it. The simplification was the right call and the deletion was clean. Filing the meta-lesson about "code-symmetry vs product-symmetry" is worth doing.
 
