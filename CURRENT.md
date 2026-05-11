@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-05-09 → 2026-05-10 (extended) — Shipped TTS Phase 3 end-to-end in **8 merged PRs**. Started from PR #1003 (`/voice` consolidation) → ended with PR #1010 (clickable transcript attribution + bot-owner Mistral 30s notice). Mistral live as BYOK STT provider; voice-surface UX polished pre-release. Schema migrations applied to dev + prod across three waves (#1005 added 3 cols; #1007 dropped 2; #1008 added a CHECK constraint, applied to dev + prod). **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
-> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~8 PRs ahead — release pending)
+> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end **plus** a 3-PR cross-channel context bug-fix arc surfaced from user notes triage. **11 merged PRs total.** Latest: #1013 closed a `logAllocation` log-consistency reviewer follow-up. Mistral live as BYOK STT; voice-surface UX polished; cross-channel context now respects `maxAge` + `contextEpoch` and surfaces "0 msgs" diagnostic for silent-skip debugging. Migrations applied to dev + prod. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
+> **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~11 PRs ahead — release pending)
 > **🚧 Release freeze status**: LIFTED. Develop is ready for the v3.0.0-beta.120 release cut.
 
 ---
@@ -10,7 +10,7 @@
 
 **Choose between**:
 
-1. **Cut release v3.0.0-beta.120** (Recommended) — bundle the 8 merged PRs (#1003 → #1010) and ship to prod. All migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT, clickable transcript attribution, and Mistral 30s notice in prod.
+1. **Cut release v3.0.0-beta.120** (Recommended) — bundle the 11 merged PRs (#1003 → #1013) and ship to prod. All migrations already applied to prod. Required before users see the new `/voice` surface, Mistral STT, clickable transcript attribution, Mistral 30s notice, transcribe retry, and the cross-channel-context fix in prod.
 2. **TTS Phase 2 (NeuTTS Air)** — last remaining phase of the TTS Engine Upgrade epic. Self-hosted free-tier engine with voice cloning, alongside Kyutai/Pocket TTS. Plan-mode pending.
 
 **Read first** (if continuing TTS work):
@@ -32,12 +32,17 @@ Shipped TTS Phase 3 end-to-end in six merged PRs:
 - **PR #1008** — Polish sweep: DB CHECK constraint on `users.default_stt_provider_id`, wired `SttResolverCacheInvalidationService` into ai-worker, routed in-band `MultimodalProcessor` attachment path through `SttResolver` via `auth.sttDispatch`. Closed all 3 surviving Phase 3 follow-ups. 3 review rounds, LGTM verdict. ~200 LoC net additions (mostly tests).
 - **PR #1009** — `GatewayClient.transcribe` transient-network retry. Closes the silent-failure window when api-gateway is mid-restart on Railway (`UND_ERR_SOCKET` / `ECONNRESET` / `ECONNREFUSED`). 3-attempt exponential backoff (500ms, 1000ms). 5 review rounds. ~200 LoC.
 - **PR #1010** — Voice transcription clickable attribution + bot-owner Mistral 30s notice. `-# Transcribed by [Mistral](<...>)` clickable link mirroring the LLM model footer; new `ttsNotices` schema field surfaced bot-owner-only when Mistral preflight skips a too-long voice reference. ~290 LoC across common-types + ai-worker + bot-client. 7 review rounds — convergence-failure pattern, all post-round-2 items were reviewer style preferences, eventually merged on explicit "Approve when ready" verdict.
+- **PR #1011** — Cross-channel history honors maxAge + contextEpoch + gets own budget. User-reported symptom: "channel context sharing and max age combination might not be working correctly" — set maxAge=48h on a personality, expected cross-channel bridge when current thread was 5 days stale, got zero. Three interlocking bugs fixed: `getChannelHistory` ignored maxAge at DB layer; cross-channel budget was a residual of current-channel; `getCrossChannelHistory` had no time filter. New `computeHistoryCutoff` helper as single source of truth. ~280 LoC.
+- **PR #1012** — Cross-channel followup: DRY consolidation (DiscordChannelFetcher uses `computeHistoryCutoff`) + cross-channel diagnostic surface in LLM Diagnostic Summary + reviewer items from #1011 (fake-timer migration, `messageBudget` rename, `[]` vs `undefined` three-state semantic). The diagnostic surface is the meta-fix: a future "Cross-channel: 0 msgs" line in the embed makes silent-skip debugging self-service. ~140 LoC + 2 review rounds.
+- **PR #1013** — Tiny `logAllocation` consistency fix: ContentBudgetManager log-line now preserves the `0` cross-channel case (was filtered with `> 0 ? value : undefined`, contradicting the rest of the plumbing). 5 LOC, single-round LGTM.
 
 Reviewer cycle insight from this session: **the symmetric STT/TTS design from PR #1005 was caught and fixed within hours of being deployed**, before users ever saw it. The simplification was the right call and the deletion was clean. Filing the meta-lesson about "code-symmetry vs product-symmetry" is worth doing.
 
-4 small follow-ups from #1008 review now in `backlog/inbox.md`: `SttDispatch` named type alias, AuthStep options-object refactor, degraded-fallback for STT resolver errors, future companion migration when a 4th STT provider ships.
+Cross-channel triage insight: user-reported "X isn't working" notes are gold — went from one note ("channel context sharing and max age combination might not be working correctly") to three interlocking bugs found, three architectural concerns surfaced, two PRs of follow-up work. Pattern worth repeating: every user "this seems off" note is potentially a multi-bug investigation.
 
-Next-session decision: apply PR #1008 migration to dev + prod, then cut beta.120.
+Backlog additions from this work in `backlog/inbox.md`: `SttDispatch` named type alias, AuthStep options-object refactor, degraded-fallback for STT resolver errors, future 4th-STT-provider migration coupling, slash-job notice path, dispatcher coupling refactor, generation.ts schema test, generate() Railway-deploy retry, intake from screenshots (multi-bot tag, memory Found/Included math, OmniVoice TTS eval, character card visibility toggle, truncation UX), cross-channel architectural concerns (DRY filter consolidation already shipped in #1012; budget-allocation-site audit; pipeline-wide diagnostic surface).
+
+Next-session decision: cut beta.120.
 
 ---
 
@@ -48,11 +53,18 @@ Next-session decision: apply PR #1008 migration to dev + prod, then cut beta.120
 - **PR #1005** — feat: Mistral STT cutover + 5-layer cascade resolver + `/voice provider/stt/view` (TTS Phase 3 PR 2)
 - **PR #1006** — feat(bot-client): plain-language `/voice` surface + transcript provider attribution
 - **PR #1007** — feat: simplify STT cascade — speaker-bound, 3-layer (TTS Phase 3 follow-up)
+- **PR #1008** — feat: polish sweep for STT cutover (DB CHECK, cache invalidation, in-band routing)
+- **PR #1009** — fix(bot-client): retry transient network errors in `GatewayClient.transcribe`
+- **PR #1010** — feat: voice transcription clickable attribution + bot-owner Mistral 30s notice
+- **PR #1011** — fix: cross-channel history honors maxAge/contextEpoch + gets own budget
+- **PR #1012** — fix: cross-channel followup — DRY consolidation + diagnostic surface
+- **PR #1013** — fix(ai-worker): logAllocation surfaces 0 cross-channel msgs when enabled
 
-Migrations applied to both dev and prod across both waves:
+Migrations applied to both dev and prod across all three waves:
 
 - `add_stt_provider_columns` (PR #1005, additive)
 - `drop_unused_voice_provider_columns` (PR #1007, drops two of the three columns added by #1005)
+- `add_stt_provider_check_constraint` (PR #1008, defense-in-depth CHECK on `users.default_stt_provider_id`)
 
 ---
 
