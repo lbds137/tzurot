@@ -1,6 +1,6 @@
 # Current
 
-> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end, 3-PR cross-channel context bug-fix arc, a 2-PR Mistral STT critical fix arc, the TTS-side mirror of #1014 (PR #1016 — TTS attribution + diagnostic surface for silent fallbacks), a focused TTS/STT inbox sweep (PR #1017), **plus** a coordinated UX rename PR (#1020 — `personality → character` slash command params + `browse → list` for override-listing commands) flagged during dev verification. **16 merged PRs total** this session (+1 dependabot bump). Latest: #1020 (rename, 3 review rounds + post-autosquash LGTM, merged 2026-05-11). Migrations applied to dev + prod across all three migration waves. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
+> **Session**: 2026-05-09 → 2026-05-11 (extended marathon) — Shipped TTS Phase 3 end-to-end, 3-PR cross-channel context bug-fix arc, a 2-PR Mistral STT critical fix arc, the TTS-side mirror of #1014 (PR #1016 — TTS attribution + diagnostic surface for silent fallbacks), a focused TTS/STT inbox sweep (PR #1017), **plus** a coordinated UX rename PR (#1020 — `personality → character` slash command params + `browse → list` for override-listing commands) flagged during dev verification. **16 merged PRs total** this session (+2 dependabot bumps). Latest: #1020 (rename, 3 review rounds + post-autosquash LGTM, merged 2026-05-11). Migrations applied to dev + prod across all three migration waves. **TTS Phase 3 is COMPLETE.** Only Phase 2 (NeuTTS Air) remains in the epic.
 > **Version**: v3.0.0-beta.119 (released 2026-05-08; develop is ~16 PRs ahead — release pending)
 > **🚧 Release freeze status**: LIFTED. Develop is ready for the v3.0.0-beta.120 release cut.
 
@@ -69,6 +69,7 @@ Next-session decision: cut beta.120.
 - **PR #1017** — chore: TTS/STT inbox sweep (round-6/7 polish + MistralSttClient test hardening + new `generation.test.ts` schema bounds + slash-job `ttsNotices` delivery gap closed; `CONFIG_SOURCE_IDS` extracted; `SlashJobContext.userId` added)
 - **PR #1020** — chore(bot-client): rename `personality → character` (~75 slash command UX sites) + `browse → list` for `/voice tts` and `/settings preset` (override-listing commands). Internal types preserved. 78 files, 4 review rounds.
 - **deps: production-dependencies group bump (5 updates)** — dependabot, no manual changes
+- **deps-dev: development-dependencies group bump (15 updates)** — dependabot, no manual changes
 
 Migrations applied to both dev and prod across all three waves:
 
