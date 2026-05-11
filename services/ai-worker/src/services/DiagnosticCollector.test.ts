@@ -286,6 +286,61 @@ describe('DiagnosticCollector', () => {
     });
   });
 
+  describe('recordTtsDispatch', () => {
+    // Pin the invariant that TTS attribution lives on the tokenBudget payload
+    // (same view in the /inspect UI) and that recordTtsDispatch is order-
+    // sensitive — it must run AFTER recordTokenBudget or it no-ops.
+    const baseBudget = {
+      contextWindowSize: 128000,
+      systemPromptTokens: 500,
+      memoryTokensUsed: 0,
+      historyTokensUsed: 1000,
+      memoriesDropped: 0,
+      historyMessagesDropped: 0,
+    };
+
+    it('appends ttsProviderUsed + ttsUsedFallback when called after recordTokenBudget', () => {
+      collector.recordTokenBudget(baseBudget);
+      collector.recordTtsDispatch({ providerUsed: 'mistral', usedFallback: false });
+
+      const payload = collector.finalize();
+
+      expect(payload.tokenBudget).toMatchObject({
+        ttsProviderUsed: 'mistral',
+        ttsUsedFallback: false,
+      });
+    });
+
+    it('captures usedFallback=true when the dispatcher fell through to a backup', () => {
+      // Regression contract for the silent-fallback misattribution class —
+      // user configures Mistral, Mistral fails, dispatcher selects
+      // self-hosted, attribution must reflect the actual producer.
+      collector.recordTokenBudget(baseBudget);
+      collector.recordTtsDispatch({ providerUsed: 'self-hosted', usedFallback: true });
+
+      const payload = collector.finalize();
+
+      expect(payload.tokenBudget?.ttsProviderUsed).toBe('self-hosted');
+      expect(payload.tokenBudget?.ttsUsedFallback).toBe(true);
+    });
+
+    it('no-ops when called before recordTokenBudget (defensive guard)', () => {
+      // Defensive: order is enforced by the pipeline (TTSStep runs after
+      // recordTokenBudget). This test pins the safe-fail behavior if a
+      // future refactor inverts the order — silent no-op rather than crash,
+      // and no TTS fields leak onto the default token-budget payload.
+      collector.recordTtsDispatch({ providerUsed: 'mistral', usedFallback: false });
+
+      const payload = collector.finalize();
+
+      // finalize() falls back to a default tokenBudget when none was recorded;
+      // the key invariant is that recordTtsDispatch did NOT mutate that
+      // default to add TTS fields (which would be misleading attribution).
+      expect(payload.tokenBudget?.ttsProviderUsed).toBeUndefined();
+      expect(payload.tokenBudget?.ttsUsedFallback).toBeUndefined();
+    });
+  });
+
   describe('recordAssembledPrompt', () => {
     it('should convert LangChain messages to diagnostic format', () => {
       const messages = [

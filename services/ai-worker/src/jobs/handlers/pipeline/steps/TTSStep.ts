@@ -23,6 +23,7 @@ import {
   TimeoutError,
   type AudioProviderId,
   type TtsConfigResolver,
+  type TtsProviderId,
 } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 import { dispatchTts } from '../../../../services/voice/TtsDispatcher.js';
@@ -52,14 +53,29 @@ export function resetTTSStepState(): void {
   resetTtsProviderRegistry();
 }
 
-interface TtsResult {
+/** Output of the Redis-storage step. Narrow on purpose — the dispatcher's
+ *  attribution data (providerUsed/usedFallback) doesn't pass through
+ *  storage; it's merged in by the outer pipeline call site. */
+interface StoredTtsAudio {
   key: string;
   audioSize: number;
   contentType: string;
+}
+
+/** Full TtsResult that flows to the result metadata + diagnostic recorder.
+ *  Storage fields plus dispatcher attribution + optional bot-owner notices. */
+interface TtsResult extends StoredTtsAudio {
   /** Bot-owner-visible diagnostics from the dispatcher's fallback walk
    *  (e.g., "Mistral skipped because reference audio >30s"). Empty/undefined
    *  on the happy path. */
   notices?: string[];
+  /** Provider that actually produced the audio (post-dispatch). May differ
+   *  from the user's configured provider if the dispatcher fell through to
+   *  a fallback. Always set on a successful dispatch. */
+  providerUsed: TtsProviderId;
+  /** Whether `providerUsed` differs from the user's configured provider for
+   *  this turn (i.e., the dispatcher fell through to a fallback). */
+  usedFallback: boolean;
 }
 
 export class TTSStep implements IPipelineStep {
@@ -120,15 +136,31 @@ export class TTSStep implements IPipelineStep {
       if (ttsResult !== null && context.result?.metadata !== undefined) {
         context.result.metadata.ttsAudioKey = ttsResult.key;
         context.result.metadata.ttsAudioContentType = ttsResult.contentType;
+        // Attribution: report what ACTUALLY produced the audio. If the
+        // dispatcher fell through from the configured provider to a
+        // fallback, the bot-client's diagnostic UI surfaces the divergence
+        // so silent fallbacks don't masquerade as the requested provider.
+        context.result.metadata.ttsProviderUsed = ttsResult.providerUsed;
+        context.result.metadata.ttsUsedFallback = ttsResult.usedFallback;
         if (ttsResult.notices !== undefined && ttsResult.notices.length > 0) {
           context.result.metadata.ttsNotices = ttsResult.notices;
         }
+        // Record TTS attribution in the diagnostic flight recorder so the
+        // /inspect Token Budget view can render "TTS: provider (via fallback)".
+        // Must run before the orchestrator's storeDiagnosticLog call (in
+        // LLMGenerationHandler) so the saved log carries the TTS fields.
+        context.diagnosticCollector?.recordTtsDispatch({
+          providerUsed: ttsResult.providerUsed,
+          usedFallback: ttsResult.usedFallback,
+        });
         logger.info(
           {
             slug,
             audioSize: ttsResult.audioSize,
             contentType: ttsResult.contentType,
             key: ttsResult.key,
+            providerUsed: ttsResult.providerUsed,
+            usedFallback: ttsResult.usedFallback,
             noticeCount: ttsResult.notices?.length ?? 0,
           },
           'TTS audio stored in Redis'
@@ -195,7 +227,15 @@ export class TTSStep implements IPipelineStep {
       if (stored === null) {
         return null;
       }
-      return hasNotices ? { ...stored, notices } : stored;
+      // Always attach providerUsed/usedFallback — they're load-bearing for
+      // the diagnostic UI's silent-fallback detection. Notices remain
+      // optional (only set when something noteworthy happened).
+      const baseResult: TtsResult = {
+        ...stored,
+        providerUsed: dispatchResult.providerUsed,
+        usedFallback: dispatchResult.usedFallback,
+      };
+      return hasNotices ? { ...baseResult, notices } : baseResult;
     })();
 
     void work.then(
@@ -270,7 +310,7 @@ export class TTSStep implements IPipelineStep {
     audioBuffer: Buffer,
     outputFormat: string,
     slug: string
-  ): Promise<TtsResult | null> {
+  ): Promise<StoredTtsAudio | null> {
     const jobId = context.job.id ?? context.job.data.requestId;
     if (jobId === undefined) {
       logger.warn({ slug }, 'TTS: no job ID available, skipping audio storage');

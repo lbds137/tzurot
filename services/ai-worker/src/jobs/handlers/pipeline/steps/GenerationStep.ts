@@ -276,6 +276,10 @@ export class GenerationStep implements IPipelineStep {
       personalityName: effectivePersonality.name,
       personalityOwnerInternalId: effectivePersonality.ownerId,
     });
+    // Stash on context so later pipeline stages (TTSStep) can record
+    // additional data; LLMGenerationHandler.persistDiagnosticOnSuccess
+    // owns the success-path store rationale.
+    context.diagnosticCollector = diagnosticCollector;
 
     try {
       // Build conversation context once (reused for retry if needed)
@@ -408,13 +412,8 @@ export class GenerationStep implements IPipelineStep {
         };
       }
 
-      // Fire-and-forget: Store diagnostic data for flight recorder
-      // This runs async and doesn't block the response
-      storeDiagnosticLog(
-        diagnosticCollector,
-        response.modelUsed ?? 'unknown',
-        provider ?? 'unknown'
-      );
+      // Success-path diagnostic store happens in LLMGenerationHandler
+      // (post-pipeline). Error-path stores remain inline above.
 
       return {
         ...context,
