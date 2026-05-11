@@ -91,7 +91,10 @@ describe('AttachmentProcessor', () => {
     });
 
     it('should process voice message attachments', async () => {
-      mockTranscribeAudio.mockResolvedValue('Hello world');
+      mockTranscribeAudio.mockResolvedValue({
+        text: 'Hello world',
+        actualProvider: 'voice-engine',
+      });
 
       const result = await processAttachmentsParallel({
         attachments: [
