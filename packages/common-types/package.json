@@ -26,7 +26,7 @@
     "discord.js": "^14.26.4",
     "ioredis": "^5.10.1",
     "lru-cache": "^11.3.6",
-    "openai": "^6.35.0",
+    "openai": "^6.37.0",
     "parse-duration": "^2.1.6",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
