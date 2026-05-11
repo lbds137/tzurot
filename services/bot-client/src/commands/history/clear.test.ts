@@ -62,7 +62,7 @@ describe('handleClear', () => {
       interaction: {
         options: {
           getString: vi.fn((name: string) => {
-            if (name === 'personality') return personalitySlug;
+            if (name === 'character') return personalitySlug;
             if (name === 'persona') return personaId;
             return null;
           }),
@@ -83,7 +83,7 @@ describe('handleClear', () => {
         return null;
       }),
       getRequiredOption: vi.fn((name: string) => {
-        if (name === 'personality') return personalitySlug;
+        if (name === 'character') return personalitySlug;
         throw new Error(`Unknown required option: ${name}`);
       }),
       getSubcommand: () => 'clear',

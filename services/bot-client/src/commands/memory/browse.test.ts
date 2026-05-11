@@ -36,7 +36,7 @@ vi.mock('@tzurot/common-types', async () => {
     ...actual,
     createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
     memoryBrowseOptions: (interaction: { options?: { getString: (name: string) => string } }) => ({
-      personality: () => interaction.options?.getString('personality') ?? null,
+      character: () => interaction.options?.getString('character') ?? null,
     }),
     formatDateShort: (d: string | Date) => String(d),
   };
@@ -148,7 +148,7 @@ function createDeferredContext(): MockDeferredContext {
   return {
     interaction: {
       options: {
-        getString: vi.fn((name: string) => (name === 'personality' ? null : null)),
+        getString: vi.fn((name: string) => (name === 'character' ? null : null)),
       },
     },
     user: { id: TEST_USER_ID },

@@ -31,7 +31,7 @@ interface ClearResponse {
 export async function handleClear(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const options = historyClearOptions(context.interaction);
-  const personalitySlug = options.personality();
+  const personalitySlug = options.character();
   const personaId = options.persona(); // Optional profile/persona
 
   if (

@@ -53,7 +53,7 @@ describe('/channel autocomplete', () => {
     await handleAutocomplete(interaction);
 
     expect(mockHandlePersonalityAutocomplete).toHaveBeenCalledWith(interaction, {
-      optionName: 'personality',
+      optionName: 'character',
       ownedOnly: false,
       showVisibility: true,
     });

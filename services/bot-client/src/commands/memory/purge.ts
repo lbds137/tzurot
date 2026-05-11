@@ -1,6 +1,6 @@
 /**
  * Purge Handler
- * Handles /memory purge command - delete ALL memories for a personality
+ * Handles /memory purge command - delete ALL memories for a character
  * Requires typed confirmation modal for safety
  */
 
@@ -50,7 +50,7 @@ interface PurgeResponse {
 }
 
 /**
- * Generate the confirmation phrase for a personality
+ * Generate the confirmation phrase for a character
  */
 function getConfirmationPhrase(personalityName: string): string {
   return `DELETE ${personalityName.toUpperCase()} MEMORIES`;
@@ -65,7 +65,7 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryPurgeOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
 
   try {
     // Resolve personality slug to ID

@@ -365,7 +365,7 @@ describe('Persona Command Index', () => {
 
       const interaction = {
         options: {
-          getFocused: () => ({ name: 'personality', value: '' }),
+          getFocused: () => ({ name: 'character', value: '' }),
           getSubcommandGroup: () => 'override',
           getSubcommand: () => 'set',
         },

@@ -35,7 +35,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryStatsOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
 
   try {
     // Resolve personality slug to ID

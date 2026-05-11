@@ -76,7 +76,7 @@ describe('handleBatchDelete', () => {
       interaction: {
         options: {
           getString: (name: string, _required?: boolean) => {
-            if (name === 'personality') return personality;
+            if (name === 'character') return personality;
             if (name === 'timeframe') return timeframe;
             return null;
           },

@@ -165,7 +165,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
 
-  if (focusedOption.name === 'personality') {
+  if (focusedOption.name === 'character') {
     await handlePersonalityAutocomplete(interaction);
   } else if (focusedOption.name === 'persona') {
     await handlePersonaAutocomplete(interaction);
@@ -252,8 +252,8 @@ export default defineCommand({
         .setDescription('Clear conversation context (soft reset)')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to clear history for')
+            .setName('character')
+            .setDescription('The character to clear history for')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -271,8 +271,8 @@ export default defineCommand({
         .setDescription('Restore previously cleared context')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to restore history for')
+            .setName('character')
+            .setDescription('The character to restore history for')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -290,8 +290,8 @@ export default defineCommand({
         .setDescription('View conversation statistics')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to view stats for')
+            .setName('character')
+            .setDescription('The character to view stats for')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -312,8 +312,8 @@ export default defineCommand({
         .setDescription('PERMANENTLY delete conversation history (cannot be undone!)')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to delete history for')
+            .setName('character')
+            .setDescription('The character to delete history for')
             .setRequired(true)
             .setAutocomplete(true)
         )

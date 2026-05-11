@@ -51,7 +51,7 @@ describe('handleOverrideClear', () => {
       interaction: {
         options: {
           getString: (name: string) => {
-            if (name === 'personality') return personalitySlug;
+            if (name === 'character') return personalitySlug;
             return null;
           },
         },

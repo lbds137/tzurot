@@ -19,13 +19,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
 
   try {
     const handled = await handlePersonalityAutocomplete(interaction, {
-      optionName: 'personality',
+      optionName: 'character',
       ownedOnly: false, // Channel activation can use any accessible personality
       showVisibility: true,
     });
 
     if (!handled) {
-      // Option wasn't 'personality', return empty
+      // Option wasn't 'character', return empty
       await interaction.respond([]);
     }
   } catch (error) {

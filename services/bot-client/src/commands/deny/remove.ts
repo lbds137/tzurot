@@ -18,7 +18,7 @@ export async function handleRemove(context: DeferredCommandContext): Promise<voi
   const target = stripMention(context.getRequiredOption<string>('target'));
   const scope = context.getOption<string>('scope') ?? 'BOT';
   const channelId = context.interaction.options.getChannel('channel')?.id ?? null;
-  const personality = context.getOption<string>('personality');
+  const personality = context.getOption<string>('character');
 
   // Permission check + scopeId resolution
   const perm = await checkDenyPermission(context, scope, channelId, personality);

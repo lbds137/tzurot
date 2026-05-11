@@ -52,14 +52,14 @@ describe('handleAutocomplete', () => {
     vi.clearAllMocks();
   });
 
-  it('routes personality option to handlePersonalityAutocomplete', async () => {
-    const interaction = makeInteraction('personality', 'Al');
+  it('routes character option to handlePersonalityAutocomplete', async () => {
+    const interaction = makeInteraction('character', 'Al');
 
     await handleAutocomplete(interaction as never);
 
     expect(mockHandlePersonalityAutocomplete).toHaveBeenCalledWith(
       interaction,
-      expect.objectContaining({ optionName: 'personality' })
+      expect.objectContaining({ optionName: 'character' })
     );
   });
 

@@ -136,7 +136,7 @@ describe('History Command Definition', () => {
       | undefined;
     expect(clearSubcommand).toBeDefined();
     expect(clearSubcommand?.options).toHaveLength(2);
-    expect(clearSubcommand?.options?.[0]?.name).toBe('personality');
+    expect(clearSubcommand?.options?.[0]?.name).toBe('character');
     expect(clearSubcommand?.options?.[0]?.required).toBe(true);
     expect(clearSubcommand?.options?.[1]?.name).toBe('persona');
     expect(clearSubcommand?.options?.[1]?.required).toBe(false);
@@ -161,7 +161,7 @@ describe('History Command Definition', () => {
     ) as { options?: Array<{ name: string }> } | undefined;
     expect(hardDeleteSubcommand).toBeDefined();
     expect(hardDeleteSubcommand?.options).toHaveLength(1);
-    expect(hardDeleteSubcommand?.options?.[0]?.name).toBe('personality');
+    expect(hardDeleteSubcommand?.options?.[0]?.name).toBe('character');
   });
 
   // Note: category is now injected by CommandHandler based on folder structure
@@ -253,7 +253,7 @@ describe('autocomplete', () => {
   it('should delegate to handlePersonalityAutocomplete for personality option', async () => {
     const mockInteraction = {
       options: {
-        getFocused: () => ({ name: 'personality', value: 'lil' }),
+        getFocused: () => ({ name: 'character', value: 'lil' }),
       },
     };
 

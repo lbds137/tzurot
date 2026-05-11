@@ -221,7 +221,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
   const options = memoryBrowseOptions(context.interaction);
-  const personalityInput = options.personality();
+  const personalityInput = options.character();
 
   try {
     // Resolve personality if provided. Contract: null means the helper

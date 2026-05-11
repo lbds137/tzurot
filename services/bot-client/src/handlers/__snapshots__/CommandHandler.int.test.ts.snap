@@ -614,13 +614,13 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "type": 1,
   },
   {
-    "description": "Set different personas for specific personalities",
+    "description": "Set different personas for specific characters",
     "description_localizations": undefined,
     "name": "override",
     "name_localizations": undefined,
     "options": [
       {
-        "description": "Set a different persona for a specific personality",
+        "description": "Set a different persona for a specific character",
         "description_localizations": undefined,
         "name": "set",
         "name_localizations": undefined,
@@ -628,11 +628,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to override",
+            "description": "The character to override",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
-            "name": "personality",
+            "name": "character",
             "name_localizations": undefined,
             "required": true,
             "type": 3,
@@ -653,7 +653,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Clear persona override for a specific personality",
+        "description": "Clear persona override for a specific character",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,
@@ -661,11 +661,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to clear override for",
+            "description": "The character to clear override for",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
-            "name": "personality",
+            "name": "character",
             "name_localizations": undefined,
             "required": true,
             "type": 3,
@@ -869,15 +869,15 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "name_localizations": undefined,
     "options": [
       {
-        "description": "Browse your preset overrides",
+        "description": "List your preset overrides",
         "description_localizations": undefined,
-        "name": "browse",
+        "name": "list",
         "name_localizations": undefined,
         "options": [],
         "type": 1,
       },
       {
-        "description": "Override preset for a personality",
+        "description": "Override preset for a character",
         "description_localizations": undefined,
         "name": "set",
         "name_localizations": undefined,
@@ -885,11 +885,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to override",
+            "description": "The character to override",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
-            "name": "personality",
+            "name": "character",
             "name_localizations": undefined,
             "required": true,
             "type": 3,
@@ -910,7 +910,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Remove preset override for a personality",
+        "description": "Remove preset override for a character",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,
@@ -918,11 +918,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to clear",
+            "description": "The character to clear",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
-            "name": "personality",
+            "name": "character",
             "name_localizations": undefined,
             "required": true,
             "type": 3,
@@ -969,7 +969,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "name_localizations": undefined,
     "options": [
       {
-        "description": "[Moved to /voice tts browse]",
+        "description": "[Moved to /voice tts list]",
         "description_localizations": undefined,
         "name": "browse",
         "name_localizations": undefined,
@@ -1192,7 +1192,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
 exports[`CommandHandler (component) > command structure snapshots > should have stable /voice command structure > voice-command-options 1`] = `
 [
   {
-    "description": "Show resolved TTS + STT + voices for a personality",
+    "description": "Show resolved TTS + STT + voices for a character",
     "description_localizations": undefined,
     "name": "view",
     "name_localizations": undefined,
@@ -1200,11 +1200,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
       {
         "autocomplete": true,
         "choices": undefined,
-        "description": "Which personality to inspect",
+        "description": "Which character to inspect",
         "description_localizations": undefined,
         "max_length": undefined,
         "min_length": undefined,
-        "name": "personality",
+        "name": "character",
         "name_localizations": undefined,
         "required": true,
         "type": 3,
@@ -1219,15 +1219,15 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "name_localizations": undefined,
     "options": [
       {
-        "description": "Browse available TTS configs",
+        "description": "List your TTS overrides",
         "description_localizations": undefined,
-        "name": "browse",
+        "name": "list",
         "name_localizations": undefined,
         "options": [],
         "type": 1,
       },
       {
-        "description": "Override TTS config for a personality",
+        "description": "Override TTS config for a character",
         "description_localizations": undefined,
         "name": "set",
         "name_localizations": undefined,
@@ -1235,11 +1235,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to override",
+            "description": "The character to override",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
-            "name": "personality",
+            "name": "character",
             "name_localizations": undefined,
             "required": true,
             "type": 3,
@@ -1260,7 +1260,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "type": 1,
       },
       {
-        "description": "Remove TTS config override for a personality",
+        "description": "Remove TTS config override for a character",
         "description_localizations": undefined,
         "name": "clear",
         "name_localizations": undefined,
@@ -1268,11 +1268,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
           {
             "autocomplete": true,
             "choices": undefined,
-            "description": "The personality to clear",
+            "description": "The character to clear",
             "description_localizations": undefined,
             "max_length": undefined,
             "min_length": undefined,
-            "name": "personality",
+            "name": "character",
             "name_localizations": undefined,
             "required": true,
             "type": 3,

@@ -68,7 +68,7 @@ const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
     ...DISPLAY_SETTINGS,
     ...VOICE_CASCADE_SETTINGS,
   ],
-  descriptionNote: 'These defaults apply across all personalities unless overridden.',
+  descriptionNote: 'These defaults apply across all characters unless overridden.',
 };
 
 /**

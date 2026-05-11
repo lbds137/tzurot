@@ -165,7 +165,7 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
   const subcommandGroup = interaction.options.getSubcommandGroup();
   const subcommand = interaction.options.getSubcommand();
 
-  if (focusedOption.name === 'personality') {
+  if (focusedOption.name === 'character') {
     // Personality autocomplete (for override commands)
     await handlePersonalityAutocomplete(interaction);
   } else if (focusedOption.name === 'persona') {
@@ -287,15 +287,15 @@ export default defineCommand({
     .addSubcommandGroup(group =>
       group
         .setName('override')
-        .setDescription('Set different personas for specific personalities')
+        .setDescription('Set different personas for specific characters')
         .addSubcommand(subcommand =>
           subcommand
             .setName('set')
-            .setDescription('Set a different persona for a specific personality')
+            .setDescription('Set a different persona for a specific character')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('The personality to override')
+                .setName('character')
+                .setDescription('The character to override')
                 .setRequired(true)
                 .setAutocomplete(true)
             )
@@ -310,11 +310,11 @@ export default defineCommand({
         .addSubcommand(subcommand =>
           subcommand
             .setName('clear')
-            .setDescription('Clear persona override for a specific personality')
+            .setDescription('Clear persona override for a specific character')
             .addStringOption(option =>
               option
-                .setName('personality')
-                .setDescription('The personality to clear override for')
+                .setName('character')
+                .setDescription('The character to clear override for')
                 .setRequired(true)
                 .setAutocomplete(true)
             )

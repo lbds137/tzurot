@@ -20,16 +20,16 @@ export function buildVoiceTtsSubcommandGroup(
     .setName('tts')
     .setDescription('Manage TTS configuration overrides')
     .addSubcommand(subcommand =>
-      subcommand.setName('browse').setDescription('Browse available TTS configs')
+      subcommand.setName('list').setDescription('List your TTS overrides')
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('set')
-        .setDescription('Override TTS config for a personality')
+        .setDescription('Override TTS config for a character')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to override')
+            .setName('character')
+            .setDescription('The character to override')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -44,11 +44,11 @@ export function buildVoiceTtsSubcommandGroup(
     .addSubcommand(subcommand =>
       subcommand
         .setName('clear')
-        .setDescription('Remove TTS config override for a personality')
+        .setDescription('Remove TTS config override for a character')
         .addStringOption(option =>
           option
-            .setName('personality')
-            .setDescription('The personality to clear')
+            .setName('character')
+            .setDescription('The character to clear')
             .setRequired(true)
             .setAutocomplete(true)
         )

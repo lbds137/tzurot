@@ -266,7 +266,7 @@ describe('User Default Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
       expect(embedJson.description).toContain(
-        'These defaults apply across all personalities unless overridden.'
+        'These defaults apply across all characters unless overridden.'
       );
     });
 

@@ -53,7 +53,7 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
   const userId = context.user.id;
   const channelId = context.channelId;
   const options = historyStatsOptions(context.interaction);
-  const personalitySlug = options.personality();
+  const personalitySlug = options.character();
   const personaId = options.persona(); // Optional profile/persona
 
   if (

@@ -47,7 +47,7 @@ async function invalidateSettingsCache(channelId: string): Promise<void> {
  */
 export async function handleActivate(context: DeferredCommandContext): Promise<void> {
   const options = channelActivateOptions(context.interaction);
-  const personalitySlug = options.personality();
+  const personalitySlug = options.character();
   const { channelId, guildId } = context;
 
   if (isAutocompleteErrorSentinel(personalitySlug)) {
