@@ -110,7 +110,8 @@ describe('fetchCrossChannelHistory', () => {
       'persona-1',
       'personality-1',
       'channel-1',
-      50
+      50,
+      { maxAgeSeconds: undefined, contextEpoch: undefined }
     );
   });
 
@@ -480,7 +481,6 @@ describe('fetchCrossChannelIfEnabled', () => {
       channelId: 'channel-1',
       personaId: 'persona-1',
       personalityId: 'p-1',
-      currentHistoryLength: 0,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService(),
@@ -488,37 +488,61 @@ describe('fetchCrossChannelIfEnabled', () => {
     expect(result).toBeUndefined();
   });
 
-  it('should return undefined when no budget remaining', async () => {
-    const result = await fetchCrossChannelIfEnabled({
-      enabled: true,
-      channelId: 'channel-1',
-      personaId: 'persona-1',
-      personalityId: 'p-1',
-      currentHistoryLength: 50,
-      dbLimit: 50,
-      discordClient: createMockDiscordClient(),
-      conversationHistoryService: createMockConversationHistoryService(),
-    });
-    expect(result).toBeUndefined();
-  });
-
-  it('should fetch cross-channel history when enabled with budget', async () => {
-    const groups: CrossChannelHistoryGroup[] = [
+  it('fetches cross-channel history with its own dbLimit budget regardless of current-channel size', async () => {
+    // Regression test for the residual-filler bug: prior code computed
+    // `remainingMessageCount = dbLimit - currentHistoryLength` and silently
+    // skipped cross-channel when the current channel was full. The user-reported
+    // symptom was zero cross-channel context after setting maxAge=48h on a
+    // personality whose current thread was 5 days stale — the stale rows leaked
+    // through (separate bug, fixed in getChannelHistory) and starved this fetch.
+    const service = createMockConversationHistoryService([
       { channelId: 'channel-2', guildId: null, messages: [createMockMessage()] },
-    ];
+    ]);
 
     const result = await fetchCrossChannelIfEnabled({
       enabled: true,
       channelId: 'channel-1',
       personaId: 'persona-1',
       personalityId: 'p-1',
-      currentHistoryLength: 1,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
-      conversationHistoryService: createMockConversationHistoryService(groups),
+      conversationHistoryService: service,
     });
 
     expect(result).toHaveLength(1);
+    // The DB query receives dbLimit (50) as its own budget, NOT a residual.
+    expect(service.getCrossChannelHistory).toHaveBeenCalledWith(
+      'persona-1',
+      'p-1',
+      'channel-1',
+      50,
+      { maxAgeSeconds: undefined, contextEpoch: undefined }
+    );
+  });
+
+  it('threads maxAge and contextEpoch through to the DB query', async () => {
+    const service = createMockConversationHistoryService([]);
+    const epoch = new Date('2026-05-01T00:00:00Z');
+
+    await fetchCrossChannelIfEnabled({
+      enabled: true,
+      channelId: 'channel-1',
+      personaId: 'persona-1',
+      personalityId: 'p-1',
+      dbLimit: 50,
+      discordClient: createMockDiscordClient(),
+      conversationHistoryService: service,
+      maxAge: 3600,
+      contextEpoch: epoch,
+    });
+
+    expect(service.getCrossChannelHistory).toHaveBeenCalledWith(
+      'persona-1',
+      'p-1',
+      'channel-1',
+      50,
+      { maxAgeSeconds: 3600, contextEpoch: epoch }
+    );
   });
 
   it('should return undefined when cross-channel returns empty', async () => {
@@ -527,7 +551,6 @@ describe('fetchCrossChannelIfEnabled', () => {
       channelId: 'channel-1',
       personaId: 'persona-1',
       personalityId: 'p-1',
-      currentHistoryLength: 1,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService([]),
