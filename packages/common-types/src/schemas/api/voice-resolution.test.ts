@@ -115,6 +115,7 @@ describe('voice-resolution schemas', () => {
   describe('GetVoiceResolutionResponseSchema', () => {
     it('parses a complete dashboard payload', () => {
       const parsed = GetVoiceResolutionResponseSchema.parse({
+        personalityName: 'Test Character',
         tts: {
           configId: '00000000-0000-4000-8000-000000000000',
           configName: 'mistral-default',

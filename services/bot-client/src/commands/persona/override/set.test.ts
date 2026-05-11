@@ -1,6 +1,6 @@
 /**
  * Tests for Override Set Handler
- * Tests gateway API calls for setting per-personality persona overrides.
+ * Tests gateway API calls for setting per-character persona overrides.
  *
  * Uses validated mock factories from @tzurot/common-types to ensure
  * test mocks match actual gateway API responses.

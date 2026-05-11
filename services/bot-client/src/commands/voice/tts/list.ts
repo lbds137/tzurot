@@ -1,6 +1,6 @@
 /**
- * Voice TTS Browse Handler
- * Handles /voice tts list — lists user's per-personality TTS overrides
+ * Voice TTS List Handler
+ * Handles /voice tts list — lists user's per-character TTS overrides
  *
  * Mirrors `/settings preset list` shape: shows the user's overrides, not
  * the underlying TtsConfig catalog. (The catalog is implicit through
@@ -23,7 +23,7 @@ interface ListResponse {
 }
 
 /** Handle /voice tts list */
-export async function handleTtsBrowseOverrides(context: DeferredCommandContext): Promise<void> {
+export async function handleTtsListOverrides(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
@@ -50,7 +50,7 @@ export async function handleTtsBrowseOverrides(context: DeferredCommandContext):
     if (data.overrides.length === 0) {
       embed.setDescription(
         "You haven't set any TTS overrides.\n\n" +
-          'Use `/voice tts set` to override which TTS config a personality uses, or ' +
+          'Use `/voice tts set` to override which TTS config a character uses, or ' +
           '`/voice tts set-default` to set your global default.'
       );
     } else {

@@ -7,10 +7,6 @@
  * - /voice stt set|clear — transcription provider preference (user-scoped; STT is speaker-bound)
  * - /voice voices browse|delete|clear — cloned-voice lifecycle
  * - /voice view <character> — unified TTS+STT+voices dashboard
- *
- * The legacy /settings tts and /settings voices subcommand groups remain
- * registered as deprecation stubs that ephemerally redirect users to the
- * new paths.
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -30,14 +26,14 @@ import type {
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 
 // TTS handlers
-import { handleTtsBrowseOverrides } from './tts/browse.js';
+import { handleTtsListOverrides } from './tts/list.js';
 import { handleTtsSet } from './tts/set.js';
 import { handleTtsClear } from './tts/clear.js';
 import { handleTtsSetDefault } from './tts/set-default.js';
 import { handleTtsClearDefault } from './tts/clear-default.js';
 import { handleAutocomplete as handleTtsAutocomplete } from './tts/autocomplete.js';
 
-// STT handlers (set / clear — user-scoped, no per-personality)
+// STT handlers (set / clear — user-scoped, no per-character)
 import { handleSttSet } from './stt/set.js';
 import { handleSttClear } from './stt/clear.js';
 
@@ -68,7 +64,7 @@ const logger = createLogger('voice-command');
 
 const ttsRouter = createTypedSubcommandRouter(
   {
-    list: handleTtsBrowseOverrides,
+    list: handleTtsListOverrides,
     set: handleTtsSet,
     clear: handleTtsClear,
     'set-default': handleTtsSetDefault,
@@ -214,7 +210,4 @@ export default defineCommand({
   handleButton,
   handleModal,
   handleSelectMenu,
-  // settings-voices prefix preserved so pre-deploy pagination embeds created
-  // by the legacy /settings voices browse remain routable post-deploy.
-  componentPrefixes: ['settings-voices'],
 });

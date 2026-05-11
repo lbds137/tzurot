@@ -7,7 +7,6 @@
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
  * - /settings preset list|set|clear|set-default|clear-default - Manage preset overrides
  * - /settings defaults edit - Manage global default settings (config cascade)
- * - /settings voices browse|delete|clear - Manage ElevenLabs cloned voices
  *
  * HISTORY:
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
@@ -47,16 +46,12 @@ import { handleApikeyModalSubmit } from './apikey/modal.js';
 import { ApikeyCustomIds } from '../../utils/customIds.js';
 
 // Preset handlers
-import { handleBrowseOverrides } from './preset/browse.js';
+import { handleListOverrides } from './preset/list.js';
 import { handleSet as handlePresetSet } from './preset/set.js';
 import { handleClear as handlePresetClear } from './preset/clear.js';
 import { handleSetDefault as handlePresetSetDefault } from './preset/set-default.js';
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
-// Deprecation-stub helper for /settings tts and /settings voices subcommands.
-// Real handlers moved to /voice; the legacy schema is retained so users
-// running old paths see an explanatory ephemeral redirect.
-import { tryRedirectToVoice } from '../voice/redirectToVoiceCommand.js';
 
 // Defaults handlers (user-default config cascade settings)
 import {
@@ -102,7 +97,7 @@ const apikeyRouter = createMixedModeSubcommandRouter(
  */
 const presetRouter = createTypedSubcommandRouter(
   {
-    list: handleBrowseOverrides,
+    list: handleListOverrides,
     set: handlePresetSet,
     clear: handlePresetClear,
     'set-default': handlePresetSetDefault,
@@ -110,30 +105,6 @@ const presetRouter = createTypedSubcommandRouter(
   },
   { logger, logPrefix: '[Settings/Preset]' }
 );
-
-/**
- * Deprecation stub dispatcher for /settings tts and /settings voices.
- *
- * Both subcommand groups remain registered so users typing the old paths
- * resolve to a real handler — but the handler now just redirects them to
- * the equivalent /voice path. Stub-removal scheduling tracked in backlog/inbox.md.
- */
-async function dispatchVoiceMigrationStub(
-  context: DeferredCommandContext,
-  group: 'tts' | 'voices'
-): Promise<void> {
-  const subcommand = context.getSubcommand();
-  if (subcommand === null) {
-    await context.editReply({ content: '❌ No subcommand specified' });
-    return;
-  }
-
-  const handled = await tryRedirectToVoice(context, group, subcommand);
-  if (!handled) {
-    logger.warn({ group, subcommand }, 'Unknown legacy /settings subcommand');
-    await context.editReply({ content: '❌ Unknown subcommand' });
-  }
-}
 
 /**
  * Command execution router
@@ -147,12 +118,8 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await apikeyRouter(context);
   } else if (group === 'preset') {
     await presetRouter(context as DeferredCommandContext);
-  } else if (group === 'tts') {
-    await dispatchVoiceMigrationStub(context as DeferredCommandContext, 'tts');
   } else if (group === 'defaults') {
     await handleDefaultsEdit(context as DeferredCommandContext);
-  } else if (group === 'voices') {
-    await dispatchVoiceMigrationStub(context as DeferredCommandContext, 'voices');
   } else {
     logger.warn({ group }, 'Unknown subcommand group');
     await (context as DeferredCommandContext).editReply({
@@ -229,13 +196,9 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 
     await interaction.respond(choices);
   } else if (subcommandGroup === 'preset') {
-    // Personality and preset autocomplete for preset commands
-    // The handlePresetAutocomplete handles both 'character' and 'preset' options
+    // handlePresetAutocomplete handles both 'character' and 'preset' options
     await handlePresetAutocomplete(interaction);
   } else {
-    // /settings tts and /settings voices autocomplete is no-op while the
-    // legacy schema is preserved for the deprecation stubs — autocomplete
-    // values are irrelevant since the user just gets the redirect message.
     await interaction.respond([]);
   }
 }
@@ -372,32 +335,6 @@ export default defineCommand({
           subcommand.setName('clear-default').setDescription('Clear your global default preset')
         )
     )
-    // DEPRECATION STUB: legacy /settings tts schema preserved (real handlers
-    // moved to /voice tts). Subcommand names retain the original vocabulary
-    // (set/reset/default/clear-default/browse) so users typing the old
-    // commands still resolve to a registered handler — which then ephemerally
-    // redirects them to the new /voice tts path. Scheduled removal tracked
-    // in backlog/inbox.md.
-    .addSubcommandGroup(group =>
-      group
-        .setName('tts')
-        .setDescription('[Moved to /voice tts] Manage TTS configuration overrides')
-        .addSubcommand(subcommand =>
-          subcommand.setName('browse').setDescription('[Moved to /voice tts list]')
-        )
-        .addSubcommand(subcommand =>
-          subcommand.setName('set').setDescription('[Moved to /voice tts set]')
-        )
-        .addSubcommand(subcommand =>
-          subcommand.setName('reset').setDescription('[Moved to /voice tts clear]')
-        )
-        .addSubcommand(subcommand =>
-          subcommand.setName('default').setDescription('[Moved to /voice tts set-default]')
-        )
-        .addSubcommand(subcommand =>
-          subcommand.setName('clear-default').setDescription('[Moved to /voice tts clear-default]')
-        )
-    )
     // Defaults subcommand group (user-default config cascade settings)
     .addSubcommandGroup(group =>
       group
@@ -406,32 +343,11 @@ export default defineCommand({
         .addSubcommand(subcommand =>
           subcommand.setName('edit').setDescription('Open your default settings dashboard')
         )
-    )
-    // DEPRECATION STUB: legacy /settings voices schema preserved (real
-    // handlers moved to /voice voices). Same redirect-stub pattern as tts.
-    .addSubcommandGroup(group =>
-      group
-        .setName('voices')
-        .setDescription('[Moved to /voice voices] Manage your cloned voices')
-        .addSubcommand(subcommand =>
-          subcommand.setName('browse').setDescription('[Moved to /voice voices browse]')
-        )
-        .addSubcommand(subcommand =>
-          subcommand.setName('delete').setDescription('[Moved to /voice voices delete]')
-        )
-        .addSubcommand(subcommand =>
-          subcommand.setName('clear').setDescription('[Moved to /voice voices clear]')
-        )
     ),
   execute,
   autocomplete,
   handleModal,
   handleButton,
   handleSelectMenu,
-  // settings-voices prefix moved to /voice (cloned-voice lifecycle now under
-  // /voice voices). Pre-deploy in-flight pagination created by the legacy
-  // /settings voices browse command will route to /voice's handleButton via
-  // the prefix transfer. The prefix itself can be renamed once the legacy
-  // entry point is removed; both are tracked in backlog/inbox.md.
   componentPrefixes: ['user-defaults-settings'],
 });

@@ -6,7 +6,7 @@
  *   hardcoded → admin → personality → channel → USER-DEFAULT → user-personality
  *
  * Any user can set their global defaults here. These apply across all
- * personalities unless overridden by per-personality settings.
+ * personalities unless overridden by per-character settings.
  *
  * This handler receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.

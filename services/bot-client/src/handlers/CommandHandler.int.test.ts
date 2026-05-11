@@ -365,7 +365,6 @@ describe('CommandHandler (component)', () => {
           'persona', // Persona command - entityType matches command name
           'preset',
           'settings', // Settings command - consolidates timezone, apikey, preset
-          'settings-voices', // Voice browse pagination prefix (preserved during /voice migration)
           'shapes', // Shapes command - import/export from shapes.inc
           'voice', // Voice command - TTS provider config + cloned-voice lifecycle
         ])

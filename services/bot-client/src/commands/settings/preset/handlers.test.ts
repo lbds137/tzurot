@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleBrowseOverrides } from './browse.js';
+import { handleListOverrides } from './list.js';
 import { handleSet } from './set.js';
 import { handleClear } from './clear.js';
 import {
@@ -66,12 +66,12 @@ describe('Preset Command Handlers', () => {
     vi.clearAllMocks();
   });
 
-  describe('handleBrowseOverrides', () => {
+  describe('handleListOverrides', () => {
     function createMockContext() {
       return {
         user: { id: '123456789', username: 'testuser' },
         editReply: mockEditReply,
-      } as unknown as Parameters<typeof handleBrowseOverrides>[0];
+      } as unknown as Parameters<typeof handleListOverrides>[0];
     }
 
     it('should list overrides', async () => {
@@ -93,7 +93,7 @@ describe('Preset Command Handlers', () => {
         ]),
       });
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/model-override',
@@ -119,7 +119,7 @@ describe('Preset Command Handlers', () => {
         data: mockListModelOverridesResponse([]),
       });
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
@@ -135,7 +135,7 @@ describe('Preset Command Handlers', () => {
     it('should handle API error', async () => {
       mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Error' });
 
-      await handleBrowseOverrides(createMockContext());
+      await handleListOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to get overrides'),

@@ -1,11 +1,19 @@
 /**
  * Voice View Handler
- * Handles /voice view <personality> — unified dashboard showing the
- * resolved TTS provider, resolved STT provider (with cascade source layer),
- * and a cloned-voice summary. Single round-trip via /user/voice-resolution.
+ * Handles /voice view <character> — character-scoped dashboard showing the
+ * resolved TTS provider and STT provider for the picked character. Single
+ * round-trip via /user/voice-resolution.
+ *
+ * Cascade labels are written so each line reads as "the setting resolved
+ * FOR THIS CHARACTER" — even when the resolved value falls through to a
+ * user-default tier, the framing keeps the character scope explicit.
+ *
+ * The cloned-voice library (user-scoped, not character-specific) lives in
+ * `/voice voices browse` — intentionally NOT shown here because it's not
+ * tied to the picked character.
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
@@ -25,7 +33,13 @@ import { callGatewayApi, toGatewayUser } from '../../utils/userGatewayClient.js'
 
 const logger = createLogger('voice-view');
 
-/** Friendly description of why this provider was chosen for transcription. */
+/**
+ * Friendly description of why this provider was chosen for transcription.
+ *
+ * STT is user-scoped (your voice doesn't change per character), so we don't
+ * frame the label as "for this character" — that would imply scope it doesn't
+ * have. The label describes the cascade tier hit instead.
+ */
 function sttSourceLabel(source: SttResolutionSource): string {
   switch (source) {
     case 'user-default':
@@ -37,15 +51,21 @@ function sttSourceLabel(source: SttResolutionSource): string {
   }
 }
 
-/** Friendly description of why this provider was chosen for speaking. */
+/**
+ * Friendly description of why this TTS provider was chosen for the character.
+ *
+ * TTS resolution IS character-scoped — labels lean into that to make clear
+ * the view is showing what's resolved FOR THIS CHARACTER, including when the
+ * resolution falls through to a user-default or system-default tier.
+ */
 function ttsSourceLabel(source: TtsResolutionSource): string {
   switch (source) {
     case 'user-personality':
-      return 'set for this personality';
+      return 'set for this character';
     case 'user-default':
-      return 'your TTS default';
+      return 'falls back to your TTS default — no character-specific override';
     case 'personality':
-      return 'personality default';
+      return 'character default';
     case 'free-default':
       return 'system default';
     case 'hardcoded':
@@ -76,7 +96,7 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
       return;
     }
 
-    const { tts, stt, voices } = result.data;
+    const { personalityName, tts, stt } = result.data;
 
     const ttsLine =
       tts.configName !== null
@@ -88,28 +108,13 @@ export async function handleVoiceView(context: DeferredCommandContext): Promise<
       : stt.provider;
     const sttLine = `**${sttProviderLabel}** _(${sttSourceLabel(stt.source)})_`;
 
-    let voicesLine: string;
-    if (voices.tzurotCount === 0) {
-      voicesLine = '_No cloned voices yet._ Use `/voice voices ...` to manage cloned voices.';
-    } else if (voices.previewSlugs.length === voices.tzurotCount) {
-      voicesLine = `**${voices.tzurotCount}** cloned voice${voices.tzurotCount === 1 ? '' : 's'}: ${voices.previewSlugs.map(s => `\`${s}\``).join(', ')}`;
-    } else {
-      voicesLine =
-        `**${voices.tzurotCount}** cloned voice${voices.tzurotCount === 1 ? '' : 's'} (showing first ${voices.previewSlugs.length}): ` +
-        `${voices.previewSlugs.map(s => `\`${s}\``).join(', ')} — see \`/voice voices browse\` for full list`;
-    }
-
     const embed = new EmbedBuilder()
-      .setTitle('🎙️ Voice Settings')
+      .setTitle(`🎙️ Voice Settings for ${escapeMarkdown(personalityName)}`)
       .setColor(DISCORD_COLORS.BLURPLE)
       .addFields(
-        { name: '🔊 Active TTS', value: ttsLine, inline: false },
-        { name: '🎤 Active STT', value: sttLine, inline: false },
-        { name: '📚 Cloned Voices', value: voicesLine, inline: false }
+        { name: '🔊 TTS (speaks as character)', value: ttsLine, inline: false },
+        { name: '🎤 STT (transcribes your voice)', value: sttLine, inline: false }
       )
-      .setFooter({
-        text: 'Per-personality settings win over your defaults.',
-      })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });

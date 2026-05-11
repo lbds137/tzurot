@@ -1,6 +1,6 @@
 /**
  * Voice TTS Clear Handler
- * Handles /voice tts clear subcommand — clears per-personality TTS override
+ * Handles /voice tts clear subcommand — clears per-character TTS override
  */
 
 import { createLogger, voiceTtsClearOptions } from '@tzurot/common-types';
@@ -50,11 +50,11 @@ export async function handleTtsClear(context: DeferredCommandContext): Promise<v
     const embed = wasSet
       ? createSuccessEmbed(
           '🔄 TTS Override Removed',
-          'The personality will now use its default TTS config.'
+          'The character will now use its default TTS config.'
         )
       : createInfoEmbed(
           'ℹ️ No Override Set',
-          'This personality was already using its default TTS config.'
+          'This character was already using its default TTS config.'
         );
 
     await context.editReply({ embeds: [embed] });
