@@ -84,6 +84,7 @@ export * from './services/SttResolverCacheInvalidationService.js';
 export * from './services/tts/TtsProvider.js';
 export * from './services/tts/TtsProviderError.js';
 export * from './services/ConversationHistoryService.js';
+export * from './services/historyCutoff.js';
 export * from './services/ConversationRetentionService.js';
 export * from './services/ConversationSyncService.js';
 export * from './services/UserService.js';

@@ -187,6 +187,9 @@ export class DiagnosticCollector {
       historyTokensUsed: data.historyTokensUsed,
       memoriesDropped: data.memoriesDropped,
       historyMessagesDropped: data.historyMessagesDropped,
+      ...(data.crossChannelMessagesIncluded !== undefined && {
+        crossChannelMessagesIncluded: data.crossChannelMessagesIncluded,
+      }),
     };
   }
 

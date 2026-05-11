@@ -439,6 +439,7 @@ export class ConversationalRAGService {
           historyTokensUsed: budgetResult.historyTokensUsed,
           memoriesDropped: budgetResult.memoriesDroppedCount,
           historyMessagesDropped: budgetResult.messagesDropped,
+          crossChannelMessagesIncluded: budgetResult.crossChannelMessagesIncluded,
         });
       }
 

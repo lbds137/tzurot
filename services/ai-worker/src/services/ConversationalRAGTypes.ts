@@ -223,6 +223,11 @@ export interface BudgetAllocationResult {
   memoriesDroppedCount: number;
   messagesDropped: number;
   contentForStorage: string;
+  /** How many cross-channel messages survived the token-budget trim and made
+   *  it into `serializedHistory`. Surfaced into diagnostics so users can see
+   *  whether their crossChannel + maxAge configuration produced any context.
+   *  Undefined when cross-channel was disabled for this turn. */
+  crossChannelMessagesIncluded?: number;
 }
 
 /** Result of model invocation */

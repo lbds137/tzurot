@@ -59,6 +59,8 @@ export interface TokenBudgetData {
   historyTokensUsed: number;
   memoriesDropped: number;
   historyMessagesDropped: number;
+  /** Optional — undefined when cross-channel was disabled for this turn. */
+  crossChannelMessagesIncluded?: number;
 }
 
 /**
