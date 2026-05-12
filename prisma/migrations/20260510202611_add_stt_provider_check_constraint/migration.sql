@@ -4,6 +4,10 @@
 -- admin scripts, future migrations). Application-side narrowing via
 -- isSttProvider() already handles unknown values at every read site, but a
 -- DB-level check fails fast at the write boundary.
+--
+-- Companion to STT_PROVIDERS in packages/common-types/src/types/sttProvider.ts:
+-- adding a new provider there requires a companion migration here to extend
+-- the CHECK list (DROP CONSTRAINT + ADD CONSTRAINT with the new value).
 
 ALTER TABLE "users"
   ADD CONSTRAINT "valid_default_stt_provider_id"

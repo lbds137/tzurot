@@ -216,7 +216,7 @@ describe('Voice Command', () => {
   describe('handleButton', () => {
     it('routes voice-browse customIds to handleVoiceBrowsePagination', async () => {
       vi.mocked(isVoiceBrowseInteraction).mockReturnValue(true);
-      const interaction = { customId: 'settings-voices::browse::all::1' };
+      const interaction = { customId: 'voice-voices::browse::all::1' };
       await handleButton!(interaction as any);
       expect(handleVoiceBrowsePagination).toHaveBeenCalledOnce();
     });

@@ -12,9 +12,11 @@
  * the self-hosted free-tier backend that needs no key and is the
  * cascade's hardcoded fallback.
  *
- * Stable contract: these strings are persisted in `users.default_provider`,
- * `users.default_stt_provider_id`, and `user_personality_configs.stt_provider_id`.
- * Renaming any of them is a database migration.
+ * Stable contract: these strings are persisted in
+ * `users.default_stt_provider_id` (the surviving column after the cascade
+ * simplification migration). Renaming any of them is a database migration
+ * — and any new value added here also needs a companion ALTER on the
+ * `valid_default_stt_provider_id` CHECK constraint.
  */
 export type SttProvider = 'mistral' | 'elevenlabs' | 'voice-engine';
 
