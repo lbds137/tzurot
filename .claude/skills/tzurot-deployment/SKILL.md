@@ -50,7 +50,7 @@ railway logs --service api-gateway -n 100
 ### 4. Verify health
 
 ```bash
-curl https://api-gateway-development-83e8.up.railway.app/health
+curl https://api-gateway-<your-deployment>.railway.app/health
 ```
 
 ## Rollback Procedure

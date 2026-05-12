@@ -185,16 +185,11 @@ pnpm ops --help       # CLI tooling reference
 
 ## Deployment
 
-### Railway
+The reference deployment runs on **Railway** with auto-deploy from `develop`. Each microservice + the voice engine runs as its own Railway service; PostgreSQL (with pgvector) and Redis are Railway-provided.
 
-**Current Status**: Public beta on Railway
+**BYOK enabled**: users bring their own LLM + voice provider keys via `/settings apikey`. Guest users get free models + self-hosted voice.
 
-- **API Gateway**: https://api-gateway-development-83e8.up.railway.app
-- **Health Check**: https://api-gateway-development-83e8.up.railway.app/health
-
-**BYOK Enabled**: Users bring their own LLM + voice provider keys via `/settings apikey`. Guest users get free models + self-hosted voice.
-
-See [Railway Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md) for full deployment details.
+See [Railway Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md) for the full deployment runbook.
 
 ```bash
 # Auto-deploys on push to develop
