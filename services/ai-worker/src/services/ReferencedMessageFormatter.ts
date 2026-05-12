@@ -10,7 +10,7 @@ import {
   createLogger,
   type ReferencedMessage,
   type LoadedPersonality,
-  type SttProvider,
+  type SttDispatch,
   TEXT_LIMITS,
   formatTimestampWithDelta,
 } from '@tzurot/common-types';
@@ -64,7 +64,7 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode = false,
     preprocessedAttachments?: Record<number, ProcessedAttachment[]>,
-    apiKeys?: { userApiKey?: string; sttDispatch?: { provider: SttProvider; apiKey?: string } }
+    apiKeys?: { userApiKey?: string; sttDispatch?: SttDispatch }
   ): Promise<string> {
     const userApiKey = apiKeys?.userApiKey;
     const sttDispatch = apiKeys?.sttDispatch;
@@ -139,7 +139,7 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    apiKeys?: { userApiKey?: string; sttDispatch?: { provider: SttProvider; apiKey?: string } }
+    apiKeys?: { userApiKey?: string; sttDispatch?: SttDispatch }
   ): Promise<string> {
     const { userApiKey, sttDispatch } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
@@ -178,7 +178,7 @@ export class ReferencedMessageFormatter {
     personality: LoadedPersonality,
     isGuestMode: boolean,
     preprocessedForRef?: ProcessedAttachment[],
-    apiKeys?: { userApiKey?: string; sttDispatch?: { provider: SttProvider; apiKey?: string } }
+    apiKeys?: { userApiKey?: string; sttDispatch?: SttDispatch }
   ): Promise<string> {
     const { userApiKey, sttDispatch } = apiKeys ?? {};
     const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);

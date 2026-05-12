@@ -11,7 +11,7 @@ import {
   GUEST_MODE,
   isFreeModel,
   type AudioProviderId,
-  type SttProvider,
+  type SttDispatch,
   type SttResolver,
 } from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
@@ -161,16 +161,24 @@ export class AuthStep implements IPipelineStep {
   private async resolveSttDispatch(
     userId: string,
     audioProviderKeys: ReadonlyMap<AudioProviderId, string>
-  ): Promise<{ provider: SttProvider; apiKey?: string } | undefined> {
+  ): Promise<SttDispatch | undefined> {
     if (!this.sttResolver) {
       return undefined;
     }
-    const result = await this.sttResolver.resolveProvider(userId);
-    return {
-      provider: result.provider,
-      apiKey:
-        result.provider === 'voice-engine' ? undefined : audioProviderKeys.get(result.provider),
-    };
+    try {
+      const result = await this.sttResolver.resolveProvider(userId);
+      return {
+        provider: result.provider,
+        apiKey:
+          result.provider === 'voice-engine' ? undefined : audioProviderKeys.get(result.provider),
+      };
+    } catch (error) {
+      // STT dispatch is only consumed on attachment paths; a resolver failure
+      // (DB/network) shouldn't fail a turn that has no audio. Degrade to the
+      // self-hosted fallback and let AudioProcessor handle it from there.
+      logger.warn({ err: error, userId }, 'STT resolver failed; falling back to voice-engine');
+      return { provider: 'voice-engine' };
+    }
   }
 
   /**

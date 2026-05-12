@@ -57,6 +57,20 @@ export function isByokAudioProvider(provider: string): provider is 'mistral' | '
 }
 
 /**
+ * Resolved STT dispatch — the (provider, optional-key) tuple passed through
+ * the ai-worker pipeline from `SttResolver` down to `AudioProcessor`. The
+ * `apiKey` is undefined when `provider === 'voice-engine'` (self-hosted, no
+ * key concept); BYOK paths carry a key from `ApiKeyResolver`.
+ *
+ * Single source of truth — inline `{ provider: SttProvider; apiKey?: string }`
+ * shapes in pipeline code should reference this type instead.
+ */
+export interface SttDispatch {
+  provider: SttProvider;
+  apiKey?: string;
+}
+
+/**
  * Source layer for an STT resolution result. Canonical declaration alongside
  * the STT provider type. The Zod schema in
  * `packages/common-types/src/schemas/api/voice-resolution.ts` builds its enum

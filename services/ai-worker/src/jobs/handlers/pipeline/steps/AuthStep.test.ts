@@ -667,6 +667,26 @@ describe('AuthStep', () => {
           apiKey: undefined,
         });
       });
+
+      it('should degrade to voice-engine when STT resolver throws', async () => {
+        // Resolver failures (DB/network blip) shouldn't fail a non-audio turn.
+        // The catch path returns the self-hosted fallback so AudioProcessor
+        // can take over only if there's actually an attachment.
+        const { openRouter, elevenLabs, mistralUnconfigured } = setupResolvers();
+        vi.mocked(mockApiKeyResolver.resolveApiKey)
+          .mockResolvedValueOnce(openRouter)
+          .mockResolvedValueOnce(elevenLabs)
+          .mockResolvedValueOnce(mistralUnconfigured);
+
+        const sttResolver = createMockSttResolver('mistral');
+        vi.mocked(sttResolver.resolveProvider).mockRejectedValueOnce(
+          new Error('DB connection refused')
+        );
+        step = new AuthStep(mockApiKeyResolver, undefined, undefined, sttResolver);
+        const result = await step.process(buildContext());
+
+        expect(result.auth?.sttDispatch).toEqual({ provider: 'voice-engine' });
+      });
     });
 
     it('should clear non-free vision model in guest mode', async () => {

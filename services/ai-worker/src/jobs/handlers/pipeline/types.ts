@@ -14,7 +14,7 @@ import type {
   LLMGenerationJobData,
   LLMGenerationResult,
   ResolvedConfigOverrides,
-  SttProvider,
+  SttDispatch,
 } from '@tzurot/common-types';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { DiagnosticCollector } from '../../../services/DiagnosticCollector.js';
@@ -130,7 +130,7 @@ export interface ResolvedAuth {
    * skip computation when no SttResolver is wired (test fixtures); the
    * downstream consumers fall back to a voice-engine dispatch in that case.
    */
-  sttDispatch?: { provider: SttProvider; apiKey?: string };
+  sttDispatch?: SttDispatch;
   /**
    * `true` when ProviderRouter auto-promoted an OpenRouter `z-ai/<model>`
    * request to z.ai-direct. Together with `fallback`, enables GenerationStep
