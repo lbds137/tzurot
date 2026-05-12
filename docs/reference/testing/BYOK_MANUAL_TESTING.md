@@ -42,7 +42,7 @@ railway variables --service api-gateway | grep INTERNAL_SERVICE_SECRET
 railway variables --service bot-client | grep INTERNAL_SERVICE_SECRET
 
 # Check services are healthy
-curl https://api-gateway-development-83e8.up.railway.app/health
+curl https://api-gateway-<your-deployment>.railway.app/health
 ```
 
 ---

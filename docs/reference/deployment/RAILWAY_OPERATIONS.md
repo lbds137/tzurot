@@ -80,7 +80,7 @@ See [Environment Variables](#environment-variables) section below.
 **Check service health**:
 
 ```bash
-curl https://api-gateway-development-83e8.up.railway.app/health
+curl https://api-gateway-<your-deployment>.railway.app/health
 ```
 
 **Expected startup logs**:
