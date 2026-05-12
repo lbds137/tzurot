@@ -13,7 +13,7 @@ import {
   generateErrorReferenceId,
   USER_ERROR_MESSAGES,
   type ResolvedConfigOverrides,
-  type SttProvider,
+  type SttDispatch,
 } from '@tzurot/common-types';
 import { createDiagnosticCollectorForRequest } from '../../../../services/diagnostics/personalityOwnerResolver.js';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
@@ -84,7 +84,7 @@ export class GenerationStep implements IPipelineStep {
     conversationContext: ConversationContext;
     recentAssistantMessages: string[];
     apiKey: string | undefined;
-    sttDispatch: { provider: SttProvider; apiKey?: string } | undefined;
+    sttDispatch: SttDispatch | undefined;
     isGuestMode: boolean;
     jobId: string | undefined;
     diagnosticCollector?: DiagnosticCollector;

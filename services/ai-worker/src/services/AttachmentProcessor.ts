@@ -13,7 +13,7 @@ import {
   CONTENT_TYPES,
   RETRY_CONFIG,
   AIProvider,
-  type SttProvider,
+  type SttDispatch,
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import type { VisionLoggingContext } from './multimodal/VisionProcessor.js';
@@ -50,7 +50,7 @@ interface ProcessSingleAttachmentOptions {
   /** User's BYOK API key (resolved for the **vision provider**) */
   userApiKey?: string;
   /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
-  sttDispatch?: { provider: SttProvider; apiKey?: string };
+  sttDispatch?: SttDispatch;
   /** Diagnostic context for vision-failure logging (see VisionLoggingContext in VisionProcessor.ts) */
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
@@ -87,7 +87,7 @@ export interface ProcessAttachmentsOptions {
   /** User's BYOK API key (resolved for the **vision provider**) */
   userApiKey?: string;
   /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
-  sttDispatch?: { provider: SttProvider; apiKey?: string };
+  sttDispatch?: SttDispatch;
   /** Diagnostic context for vision-failure logging */
   loggingContext?: VisionLoggingContext;
   /** Explicit provider for vision calls (from `detectVisionProvider` on the personality's vision model) */
@@ -170,7 +170,7 @@ async function processVoiceAttachment(
   index: number,
   referenceNumber: number,
   preprocessed?: ProcessedAttachment,
-  sttDispatch?: { provider: SttProvider; apiKey?: string }
+  sttDispatch?: SttDispatch
 ): Promise<ProcessedAttachmentResult> {
   if (preprocessed?.description !== undefined && preprocessed.description !== '') {
     logger.debug(

@@ -15,7 +15,7 @@ import {
   type AttachmentMetadata,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
-  type SttProvider,
+  type SttDispatch,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from '../../../../services/MultimodalProcessor.js';
 import type { IPipelineStep, GenerationContext, PreprocessingResults } from '../types.js';
@@ -224,7 +224,7 @@ export class DependencyStep implements IPipelineStep {
     authOptions: {
       isGuestMode: boolean;
       userApiKey?: string;
-      sttDispatch?: { provider: SttProvider; apiKey?: string };
+      sttDispatch?: SttDispatch;
       mainProvider?: AIProvider;
     },
     userId: string

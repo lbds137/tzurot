@@ -16,7 +16,7 @@ import {
   createLogger,
   MessageContent,
   type ResolvedConfigOverrides,
-  type SttProvider,
+  type SttDispatch,
 } from '@tzurot/common-types';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {
@@ -39,7 +39,7 @@ export interface GenerateAttemptOpts {
   conversationContext: ConversationContext;
   recentAssistantMessages: string[];
   apiKey: string | undefined;
-  sttDispatch: { provider: SttProvider; apiKey?: string } | undefined;
+  sttDispatch: SttDispatch | undefined;
   isGuestMode: boolean;
   jobId: string | undefined;
   diagnosticCollector?: DiagnosticCollector;

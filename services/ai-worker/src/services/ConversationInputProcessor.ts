@@ -12,7 +12,7 @@ import {
   createLogger,
   type LoadedPersonality,
   type MessageContent,
-  type SttProvider,
+  type SttDispatch,
 } from '@tzurot/common-types';
 import {
   processAttachments,
@@ -66,7 +66,7 @@ export class ConversationInputProcessor {
     authOptions: {
       isGuestMode: boolean;
       userApiKey?: string;
-      sttDispatch?: { provider: SttProvider; apiKey?: string };
+      sttDispatch?: SttDispatch;
     }
   ): Promise<ProcessedInputs> {
     const { isGuestMode, userApiKey, sttDispatch } = authOptions;

@@ -20,7 +20,7 @@ import {
   AIProvider,
   type AttachmentMetadata,
   type LoadedPersonality,
-  type SttProvider,
+  type SttDispatch,
 } from '@tzurot/common-types';
 import { withParallelRetry } from '../utils/parallelRetry.js';
 import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
@@ -61,7 +61,7 @@ export interface ProcessAttachmentOptions {
    * preferences are honored on in-band attachment transcription, not just
    * on the dedicated AudioTranscriptionJob path.
    */
-  sttDispatch?: { provider: SttProvider; apiKey?: string };
+  sttDispatch?: SttDispatch;
   /** Diagnostic context for vision-failure logging + source-aware fallback strings */
   loggingContext?: VisionLoggingContext;
   /**

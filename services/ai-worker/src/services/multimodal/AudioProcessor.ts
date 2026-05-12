@@ -16,6 +16,7 @@ import {
   isTransientNetworkError,
   TimeoutError,
   type AttachmentMetadata,
+  type SttDispatch,
   type SttProvider,
 } from '@tzurot/common-types';
 import { withRetry, RetryError } from '../../utils/retry.js';
@@ -296,16 +297,6 @@ async function transcribeWithMistral(
   }
 }
 
-/** Options for {@link transcribeAudio} dispatch. */
-export interface TranscribeAudioOptions {
-  /** Resolved STT provider chosen by SttResolver. */
-  provider: SttProvider;
-  /** API key for the provider — required for mistral/elevenlabs, omitted
-   *  for voice-engine (no key needed). When the BYOK provider is selected
-   *  but no key is available, dispatch falls through to voice-engine. */
-  apiKey?: string;
-}
-
 /**
  * Result of a successful transcription.
  *
@@ -356,7 +347,7 @@ async function lookupCachedTranscript(attachment: AttachmentMetadata): Promise<s
 async function tryBYOKTranscription(
   attachment: AttachmentMetadata,
   audioBuffer: ArrayBuffer,
-  opts: TranscribeAudioOptions
+  opts: SttDispatch
 ): Promise<TranscribeAudioResult | null> {
   if (opts.apiKey === undefined) {
     return null;
@@ -386,7 +377,7 @@ async function tryBYOKTranscription(
  */
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
-  opts: TranscribeAudioOptions
+  opts: SttDispatch
 ): Promise<TranscribeAudioResult> {
   const cached = await lookupCachedTranscript(attachment);
   if (cached !== null) {
