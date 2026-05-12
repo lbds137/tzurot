@@ -1,6 +1,6 @@
 # Current
 
-> **Session**: post-release reset (v3.0.0-beta.120 shipped 2026-05-11) — develop is now SHA-aligned with main. Next session starts from a clean slate; pick the next theme from active-epic / future-themes.
+> **Session**: post-release continuation — warmup quick-wins PR #1023 in flight (claude-review + CodeQL pending); inbox drained 33 → 0 via 2026-05-12 triage pass (6 items → quick-wins, 11 → icebox, 4 → deferred, 9 → 3 new mini-themes in future-themes). Backlog drain rate finally exceeded intake. Quick-wins.md now holds 8 entries to work through before NeuTTS.
 > **Version**: v3.0.0-beta.120 (released 2026-05-11)
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
@@ -12,13 +12,9 @@
 
 **Read first**:
 
+- [`backlog/quick-wins.md`](backlog/quick-wins.md) — 8 entries to drain before NeuTTS plan-mode (sttResolver fallback, SttDispatch alias, clickable transcript footer, generated-file hook skip, maxAge consolidation, gt/gte doc, plus the 2 pre-existing entries)
 - [`backlog/active-epic.md`](backlog/active-epic.md) — TTS Engine Upgrade epic; Phase 3 marked DONE, Phase 2 (NeuTTS Air) is the next checkpoint
-- [`backlog/inbox.md`](backlog/inbox.md) — accumulated polish + UX follow-ups from the beta.120 cycle:
-  - `/voice voices browse` UX overhaul (rename + select menu) — flagged during dev verification
-  - `/voice view` structural improvements still landing in inbox (cascade labels, etc.)
-  - `/inspect` views: inline-render small content, separate STT/TTS attribution from Token Budget
-  - 4 reviewer items from release PR #1022 (stale JSDoc cols, retry-attempts naming, gt→gte note, CHECK constraint drift)
-  - Several smaller polish items from prior PR cycles
+- [`backlog/future-themes.md`](backlog/future-themes.md) — new mini-themes from triage: API Security Hardening, `/voice` + `/inspect` UX Polish, TTS Provider Re-Eval (post-NeuTTS)
 
 ---
 
