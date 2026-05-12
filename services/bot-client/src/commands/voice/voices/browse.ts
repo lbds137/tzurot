@@ -37,7 +37,7 @@ const logger = createLogger('voice-voices-browse');
 type VoiceBrowseFilter = 'all';
 
 const browseHelpers = createBrowseCustomIdHelpers<VoiceBrowseFilter>({
-  prefix: 'settings-voices',
+  prefix: 'voice-voices',
   validFilters: ['all'] as const,
   includeSort: false,
 });

@@ -27,7 +27,7 @@ const config = getConfig();
  * listener isn't bound yet, so undici closes the socket. Safe to retry.
  */
 const TRANSIENT_NETWORK_CODES = new Set(['UND_ERR_SOCKET', 'ECONNRESET', 'ECONNREFUSED']);
-const TRANSCRIBE_RETRY_ATTEMPTS = 3;
+const TRANSCRIBE_MAX_ATTEMPTS = 3;
 const TRANSCRIBE_RETRY_BASE_DELAY_MS = 500;
 
 function isTransientNetworkError(err: unknown): boolean {
@@ -39,7 +39,7 @@ function isTransientNetworkError(err: unknown): boolean {
 }
 
 async function retryTranscribeOnTransientNetworkError<T>(fn: () => Promise<T>): Promise<T> {
-  for (let attempt = 1; attempt < TRANSCRIBE_RETRY_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt < TRANSCRIBE_MAX_ATTEMPTS; attempt++) {
     try {
       return await fn();
     } catch (err) {
