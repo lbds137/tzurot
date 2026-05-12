@@ -129,9 +129,13 @@ export class JobTracker {
   }
 
   /**
-   * Start tracking a job and maintain typing indicator
+   * Start tracking a job and maintain typing indicator. The channel for the
+   * typing-indicator loop is read from `context.channel` — single source of
+   * truth shared with the result-delivery path (which also reads
+   * `BaseJobContext.channel`).
    */
-  trackJob(jobId: string, channel: TypingChannel, context: PendingJobContext): void {
+  trackJob(jobId: string, context: PendingJobContext): void {
+    const channel = context.channel;
     // Clear any existing tracking for this jobId (shouldn't happen, but be safe)
     if (this.activeJobs.has(jobId)) {
       logger.warn({ jobId }, 'Job already tracked - clearing old tracker');

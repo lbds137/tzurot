@@ -64,6 +64,13 @@ if [ -n "$STAGED_CODE_FILES" ]; then
     HAS_VIOLATIONS=0
     VIOLATION_OUTPUT=""
     for file in $STAGED_CODE_FILES; do
+        # Skip auto-generated files. Generators emit a `Generated at: <date>`
+        # header line that's a meta-stamp, not author archaeology — flagging
+        # it forces TZUROT_SKIP_TEMPORAL_CHECK=1 on every regenerate. We check
+        # the first 5 lines for the standard generated-marker comments.
+        if [ -f "$file" ] && head -5 "$file" 2>/dev/null | grep -qE 'AUTO-GENERATED FILE|@generated'; then
+            continue
+        fi
         FILE_VIOLATIONS=$(git diff --cached -- "$file" | \
             grep -E '^[+]' | grep -v '^[+][+][+]' | \
             grep -E '^[+][[:space:]]*(//|\*|/\*)' | \

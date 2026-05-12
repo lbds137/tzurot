@@ -18,6 +18,14 @@
  *
  * Returns undefined when neither input is set, signalling the caller to omit
  * the time filter entirely from the underlying query.
+ *
+ * Semantic note: callers using this helper apply the cutoff as an INCLUSIVE
+ * lower bound (`{ createdAt: { gte: cutoff } }`). Older personality-scoped
+ * paths in `ConversationHistoryService` still use the EXCLUSIVE form
+ * (`{ createdAt: { gt: contextEpoch } }`) because they pre-date this helper
+ * and the practical difference at millisecond precision is zero. The
+ * inclusive shape is the intended forward-going semantic — when the older
+ * sites migrate to this helper, they'll naturally adopt it too.
  */
 export function computeHistoryCutoff(
   maxAgeSeconds: number | null | undefined,
