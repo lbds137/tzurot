@@ -14,11 +14,9 @@ import {
   type AudioTranscriptionJobData,
   type AudioTranscriptionResult,
   audioTranscriptionJobDataSchema,
+  type SttDispatch,
 } from '@tzurot/common-types';
-import {
-  transcribeAudio,
-  type TranscribeAudioOptions,
-} from '../services/multimodal/AudioProcessor.js';
+import { transcribeAudio } from '../services/multimodal/AudioProcessor.js';
 import { withRetry } from '../utils/retry.js';
 import { checkQueueAge } from '../utils/jobAgeGate.js';
 
@@ -34,7 +32,7 @@ const logger = createLogger('AudioTranscriptionJob');
  */
 export async function processAudioTranscriptionJob(
   job: Job<AudioTranscriptionJobData>,
-  sttOpts: TranscribeAudioOptions
+  sttOpts: SttDispatch
 ): Promise<AudioTranscriptionResult> {
   const startTime = Date.now();
 

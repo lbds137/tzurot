@@ -12,7 +12,7 @@ import type {
   AttachmentMetadata,
   ReferencedMessage,
   ResolvedConfigOverrides,
-  SttProvider,
+  SttDispatch,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
@@ -315,7 +315,7 @@ export interface GenerateResponseOptions {
   /** User's BYOK API key (for BYOK users) */
   userApiKey?: string;
   /** Resolved STT dispatch (provider + matching BYOK key when applicable). */
-  sttDispatch?: { provider: SttProvider; apiKey?: string };
+  sttDispatch?: SttDispatch;
   /** Whether user is in guest mode (uses free models). Default: false */
   isGuestMode?: boolean;
   /** Retry configuration for duplicate detection retries */
