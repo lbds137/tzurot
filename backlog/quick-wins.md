@@ -2,6 +2,8 @@
 
 _Small tasks that can be done between major features. Good for momentum._
 
+- 🧹 `[CHORE]` **`GatewayClient.transcribe` retry tail call lacks `logger.warn`** — The retry loop logs `warn` on each in-loop failure, but the final `return fn()` tail call (outside the try/catch) propagates a 3rd-attempt failure without any retry-context log line. Distinguishing "failed on final attempt after 2 retries" from "failed on the very first call" requires reading the outer `transcribe()` caller's `logger.error` — and even that loses the attempt-count context. **Fix shape**: wrap the tail call in try/catch + `logger.warn({ err, attempt: TRANSCRIBE_MAX_ATTEMPTS }, ...)` before re-throwing. ~5-8 LOC. Surfaced 2026-05-12 in PR #1023 post-autosquash claude-review (pre-existing, non-blocking).
+
 - 🧹 `[CHORE]` **`getChannelHistory` cutoff: document or revert `gt → gte` semantic shift** — The `computeHistoryCutoff` refactor changed the contextEpoch query from exclusive (`gt: contextEpoch`) to inclusive (`gte: cutoff`). Messages created at exactly the reset timestamp are now included. No practical impact at millisecond precision, but the shift was unintentional. **Fix**: either revert to `gt:` or document the intended semantic in `computeHistoryCutoff`'s JSDoc. ~2 LOC. Promoted from inbox 2026-05-12.
 
 - 🧹 `[CHORE]` **Consolidate maxAge filter sites around `computeHistoryCutoff`** — `DiscordChannelFetcher.ts:256-261` still computes its own cutoff inline instead of calling the shared helper added in PR #1011. Wire it through. **Fix**: `DiscordChannelFetcher` calls `computeHistoryCutoff(maxAgeSeconds, contextEpoch)` and uses the returned Date for the loop filter. ~10-20 LOC. Promoted from inbox 2026-05-12.
