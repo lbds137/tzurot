@@ -295,12 +295,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
   const { jobId, requestId } = await getGatewayClient().generate(personality, context);
   logger.info({ jobId, requestId, characterSlug, isWeighInMode }, 'Slash job submitted');
 
-  // Channel appears twice on purpose: the second arg drives JobTracker's
-  // typing-indicator loop, and the BaseJobContext.channel field is read at
-  // delivery time by handleSlashJobResult. They reference the same object
-  // but live at different layers — collapse only if trackJob's signature
-  // ever stops needing the channel separately.
-  getJobTracker().trackJob(jobId, channel, {
+  getJobTracker().trackJob(jobId, {
     kind: 'slash',
     channel,
     guildId,

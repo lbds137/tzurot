@@ -71,11 +71,7 @@ export class PersonalityMessageHandler {
         return;
       }
 
-      this.jobTracker.trackJob(
-        result.jobId,
-        result.trackingContext.channel,
-        result.trackingContext
-      );
+      this.jobTracker.trackJob(result.jobId, result.trackingContext);
     } catch (error) {
       logger.error({ err: error }, 'Error handling personality message');
 

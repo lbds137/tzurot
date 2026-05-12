@@ -3,13 +3,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { TypingChannel } from '@tzurot/common-types';
 import { JobTracker, type PendingJobContext } from './JobTracker.js';
 
-// Helper to create mock context
-function createMockContext(): PendingJobContext {
+// Helper to create mock context. `trackJob` reads the channel from
+// `context.channel`, so tests passing a channel mock with `sendTyping` need
+// to inject it here.
+function createMockContext(channel?: TypingChannel): PendingJobContext {
   return {
     kind: 'message',
-    channel: { id: 'channel-123' } as any,
+    channel: channel ?? ({ id: 'channel-123' } as TypingChannel),
     guildId: 'guild-123',
     clientId: 'bot-client-id',
     userMessageTime: new Date(),
@@ -40,7 +43,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Initial typing should be sent immediately
       await vi.advanceTimersByTimeAsync(0);
@@ -61,7 +64,7 @@ describe('JobTracker', () => {
       } as any;
 
       // Should not throw
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Wait for initial typing
       await vi.advanceTimersByTimeAsync(0);
@@ -79,7 +82,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Initial typing sent
       await vi.advanceTimersByTimeAsync(0);
@@ -105,7 +108,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       const channel1 = jobTracker.completeJob('job-123');
       expect(channel1).toBe(mockChannel);
@@ -127,8 +130,8 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-1', mockChannel1, createMockContext());
-      jobTracker.trackJob('job-2', mockChannel2, createMockContext());
+      jobTracker.trackJob('job-1', createMockContext(mockChannel1));
+      jobTracker.trackJob('job-2', createMockContext(mockChannel2));
 
       // Initial typing for both
       await vi.advanceTimersByTimeAsync(0);
@@ -153,7 +156,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: vi.fn() }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
       await vi.advanceTimersByTimeAsync(0);
 
       // Before 5 min: no notification yet
@@ -182,7 +185,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: vi.fn() }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Advance past 5 min plus several additional ticks
       await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
@@ -197,7 +200,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockRejectedValue(new Error('Channel deleted')),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
 
       expect(mockChannel.send).toHaveBeenCalled();
@@ -212,7 +215,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: deleteMock }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Trigger notification
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
@@ -231,7 +234,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: deleteMock }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
 
       // Must not throw — delete failure is silent-swallow per design
@@ -246,7 +249,7 @@ describe('JobTracker', () => {
         send: vi.fn(),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
       // Complete quickly — no notification should have fired
       await vi.advanceTimersByTimeAsync(30 * 1000);
 
@@ -272,7 +275,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockReturnValue(pendingSend),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Advance past 5 min — notification send is fired but still pending.
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 16 * 1000);
@@ -301,7 +304,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: vi.fn() }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Advance past 10 min typing cutoff
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
@@ -330,7 +333,7 @@ describe('JobTracker', () => {
         send: vi.fn().mockResolvedValue({ id: 'notif-1', delete: deleteMock }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Advance just past the typing cutoff — orphan sweep is armed here.
       // +16s = 2 typing-interval (8s) ticks past the 10-min cutoff so the
@@ -360,7 +363,7 @@ describe('JobTracker', () => {
           .mockResolvedValue({ id: 'notif-1', delete: vi.fn().mockResolvedValue(undefined) }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Advance past typing cutoff so the sweep is armed.
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
@@ -389,7 +392,7 @@ describe('JobTracker', () => {
           .mockResolvedValue({ id: 'notif-1', delete: vi.fn().mockResolvedValue(undefined) }),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       // Arm the sweep by passing typing cutoff.
       await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 16 * 1000);
@@ -415,7 +418,7 @@ describe('JobTracker', () => {
 
       expect(jobTracker.isTracking('job-123')).toBe(false);
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
 
       expect(jobTracker.isTracking('job-123')).toBe(true);
     });
@@ -426,7 +429,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
       expect(jobTracker.isTracking('job-123')).toBe(true);
 
       jobTracker.completeJob('job-123');
@@ -441,8 +444,8 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      const context = createMockContext();
-      jobTracker.trackJob('job-123', mockChannel, context);
+      const context = createMockContext(mockChannel);
+      jobTracker.trackJob('job-123', context);
 
       const retrieved = jobTracker.getContext('job-123');
       expect(retrieved).toBe(context);
@@ -460,7 +463,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-123', mockChannel, createMockContext());
+      jobTracker.trackJob('job-123', createMockContext(mockChannel));
       jobTracker.completeJob('job-123');
 
       const context = jobTracker.getContext('job-123');
@@ -487,11 +490,11 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-1', mockChannel1, createMockContext());
+      jobTracker.trackJob('job-1', createMockContext(mockChannel1));
 
       await vi.advanceTimersByTimeAsync(100);
 
-      jobTracker.trackJob('job-2', mockChannel2, createMockContext());
+      jobTracker.trackJob('job-2', createMockContext(mockChannel2));
 
       const stats = jobTracker.getStats();
       expect(stats.activeJobs).toBe(2);
@@ -503,7 +506,7 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-1', mockChannel, createMockContext());
+      jobTracker.trackJob('job-1', createMockContext(mockChannel));
 
       // Advance 5 minutes
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
@@ -526,13 +529,13 @@ describe('JobTracker', () => {
       } as any;
 
       // Start first job
-      jobTracker.trackJob('job-1', mockChannel1, createMockContext());
+      jobTracker.trackJob('job-1', createMockContext(mockChannel1));
 
       // Wait 3 minutes
       await vi.advanceTimersByTimeAsync(3 * 60 * 1000);
 
       // Start second job
-      jobTracker.trackJob('job-2', mockChannel2, createMockContext());
+      jobTracker.trackJob('job-2', createMockContext(mockChannel2));
 
       // Wait another 2 minutes
       await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
@@ -555,8 +558,8 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      jobTracker.trackJob('job-1', mockChannel1, createMockContext());
-      jobTracker.trackJob('job-2', mockChannel2, createMockContext());
+      jobTracker.trackJob('job-1', createMockContext(mockChannel1));
+      jobTracker.trackJob('job-2', createMockContext(mockChannel2));
 
       expect(jobTracker.getStats().activeJobs).toBe(2);
 
@@ -584,17 +587,17 @@ describe('JobTracker', () => {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       } as any;
 
-      const context1 = createMockContext();
-      const context2 = { ...createMockContext(), personaId: 'different-persona' };
+      const context1 = createMockContext(mockChannel1);
+      const context2 = { ...createMockContext(mockChannel2), personaId: 'different-persona' };
 
       // Track job first time
-      jobTracker.trackJob('job-123', mockChannel1, context1);
+      jobTracker.trackJob('job-123', context1);
 
       await vi.advanceTimersByTimeAsync(0);
       expect(mockChannel1.sendTyping).toHaveBeenCalled();
 
       // Track same jobId again (shouldn't happen, but handled gracefully)
-      jobTracker.trackJob('job-123', mockChannel2, context2);
+      jobTracker.trackJob('job-123', context2);
 
       // Old channel should have stopped typing
       const oldChannelCalls = mockChannel1.sendTyping.mock.calls.length;
@@ -628,13 +631,13 @@ describe('JobTracker', () => {
       } as any;
 
       // Start three jobs at different times
-      jobTracker.trackJob('job-1', mockChannel1, createMockContext());
+      jobTracker.trackJob('job-1', createMockContext(mockChannel1));
 
       await vi.advanceTimersByTimeAsync(1000);
-      jobTracker.trackJob('job-2', mockChannel2, createMockContext());
+      jobTracker.trackJob('job-2', createMockContext(mockChannel2));
 
       await vi.advanceTimersByTimeAsync(1000);
-      jobTracker.trackJob('job-3', mockChannel3, createMockContext());
+      jobTracker.trackJob('job-3', createMockContext(mockChannel3));
 
       // All should be tracked
       expect(jobTracker.isTracking('job-1')).toBe(true);

@@ -56,11 +56,7 @@ describe('PersonalityMessageHandler', () => {
       expect(mockManager.submitChatJob).toHaveBeenCalledWith(
         expect.objectContaining({ content: 'Hi', isAutoResponse: undefined })
       );
-      expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
-        'job-1',
-        baseTrackingContext.channel,
-        baseTrackingContext
-      );
+      expect(mockJobTracker.trackJob).toHaveBeenCalledWith('job-1', baseTrackingContext);
     });
 
     it('passes isAutoResponse through to the manager', async () => {
