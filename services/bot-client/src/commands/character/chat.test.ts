@@ -252,9 +252,9 @@ describe('Character Chat Handler (push delivery)', () => {
       expect(ctx.deleteReply).toHaveBeenCalled();
       expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
         'job-1',
-        channel,
         expect.objectContaining({
           kind: 'slash',
+          channel,
           characterSlug: 'test-char',
           isWeighInMode: false,
         })
@@ -283,9 +283,9 @@ describe('Character Chat Handler (push delivery)', () => {
       expect(channel.send).toHaveBeenCalled();
       expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
         'job-1',
-        channel,
         expect.objectContaining({
           kind: 'slash',
+          channel,
           guildId: null,
         })
       );
@@ -358,8 +358,7 @@ describe('Character Chat Handler (push delivery)', () => {
       expect(mockConversationPersistence.saveUserMessageFromFields).not.toHaveBeenCalled();
       expect(mockJobTracker.trackJob).toHaveBeenCalledWith(
         expect.any(String),
-        channel,
-        expect.objectContaining({ kind: 'slash', isWeighInMode: true })
+        expect.objectContaining({ kind: 'slash', channel, isWeighInMode: true })
       );
     });
 
