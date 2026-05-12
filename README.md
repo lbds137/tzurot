@@ -10,11 +10,53 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 ## Highlights
 
 - **Multi-provider, vendor-flexible**: Default routing through OpenRouter (400+ models, free tier included). Voice via Mistral (BYOK), ElevenLabs (BYOK), or self-hosted (no key needed). All provider boundaries are clean abstractions — no lock-in.
-- **BYOK by default**: Users supply their own keys via `/settings apikey`. Free-model guest mode available for users without keys.
-- **Long-term memory**: pgvector with locally-computed embeddings (no third-party embedding API).
-- **Voice in + out**: STT for incoming voice messages, TTS for outgoing replies, with bot-owner-visible attribution telling you which provider actually ran (catches silent fallbacks).
+- **BYOK by default**: Users supply their own LLM + voice provider keys via `/settings apikey` and pay their own usage. Free-model + self-hosted-voice guest mode available for users without keys.
+- **Privacy-respecting LTM**: pgvector with locally-computed embeddings — no third-party API call for memory operations.
+- **Voice in + out with attribution**: STT for incoming voice messages, TTS for outgoing replies, with bot-owner-visible attribution telling you which provider actually ran (catches silent fallbacks).
 - **Per-character config cascade**: User-default → per-character → per-user-per-character override. Surfaces resolved state via `/voice view <character>`, `/inspect`, and dedicated dashboards.
-- **Clean microservice boundaries**: 4 services (3 TypeScript + 1 Python), explicit responsibility per service, no DDD over-engineering.
+- **Clean microservice boundaries**: 4 services (3 TypeScript + 1 Python) with explicit, pragmatic responsibilities.
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 25+
+- pnpm 10+
+- PostgreSQL 16+ with pgvector extension
+- Redis 7+ (for BullMQ)
+- Discord Bot Token
+- OpenRouter API Key
+
+### Setup
+
+1. **Install dependencies:**
+
+   ```bash
+   pnpm install
+   ```
+
+2. **Configure environment:**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your tokens and keys
+   # Required: DISCORD_TOKEN, DATABASE_URL (PostgreSQL with pgvector)
+   # Required: OPENROUTER_API_KEY (for AI responses)
+   # Optional: REDIS_URL (Railway provides this automatically)
+   # Note: Embeddings run locally (Xenova/bge-small-en-v1.5), no API key needed
+   ```
+
+3. **Start services:**
+
+   ```bash
+   # Development mode (all services)
+   pnpm dev
+
+   # Or start individually:
+   pnpm --filter @tzurot/bot-client dev
+   pnpm --filter @tzurot/api-gateway dev
+   pnpm --filter @tzurot/ai-worker dev
+   ```
 
 ## Architecture
 
@@ -71,48 +113,6 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 - **Voice Engine** (self-hosted): Python service running NVIDIA Parakeet TDT for STT and Pocket TTS for TTS. No external API needed; fallback for guest users and BYOK users when their provider fails.
 - **Local Embeddings** (no API): Xenova/bge-small-en-v1.5 (384-dim vectors).
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js 25+
-- pnpm 10+
-- PostgreSQL 16+ with pgvector extension
-- Redis 7+ (for BullMQ)
-- Discord Bot Token
-- OpenRouter API Key
-
-### Setup
-
-1. **Install dependencies:**
-
-   ```bash
-   pnpm install
-   ```
-
-2. **Configure environment:**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your tokens and keys
-   # Required: DISCORD_TOKEN, DATABASE_URL (PostgreSQL with pgvector)
-   # Required: OPENROUTER_API_KEY (for AI responses)
-   # Optional: REDIS_URL (Railway provides this automatically)
-   # Note: Embeddings run locally (Xenova/bge-small-en-v1.5), no API key needed
-   ```
-
-3. **Start services:**
-
-   ```bash
-   # Development mode (all services)
-   pnpm dev
-
-   # Or start individually:
-   pnpm --filter @tzurot/bot-client dev
-   pnpm --filter @tzurot/api-gateway dev
-   pnpm --filter @tzurot/ai-worker dev
-   ```
-
 ## Project Structure
 
 - **`services/`** — Microservices
@@ -136,7 +136,7 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 - **Multiple Characters**: `@mention` different characters (e.g. `@lilith`, `@default`) for per-character routing
 - **Reply Detection**: Reply to bot messages to continue conversations seamlessly
 - **Message References**: Reference other messages via Discord links or replies
-- **Long-term Memory**: pgvector stores per-character memories across sessions
+- **Long-term Memory**: Characters remember context across sessions and conversations
 - **Conversation History**: Contextual responses using recent message history with cross-channel bridging when configured
 - **Webhook Avatars**: Each character has unique name and avatar
 - **Image Support**: Send images to characters for vision processing
@@ -153,64 +153,17 @@ A modern, scalable Discord bot with customizable AI characters, powered by a mic
 
 ### Slash Commands
 
-**Characters & Personas**
+Tzurot is fully managed via Discord slash commands. For the complete reference (every subcommand, every argument), see the **[Command Reference](docs/commands.md)**.
 
-| Command      | Subcommands                               | Purpose                                                |
-| ------------ | ----------------------------------------- | ------------------------------------------------------ |
-| `/character` | `create` `edit` `view` `browse`           | Manage AI characters                                   |
-|              | `import` `export` `template`              | Character portability (JSON)                           |
-|              | `chat` `avatar` `voice` `voice-clear`     | Interaction and per-character voice cloning enrollment |
-|              | `settings` `overrides`                    | Per-character config and personal overrides            |
-| `/persona`   | `view` `edit` `create` `browse` `default` | User persona management                                |
-|              | `override set` `override clear`           | Per-character persona overrides                        |
-
-**Voice Configuration** _(TTS + STT providers, cloned-voice library)_
-
-| Command  | Subcommands                                    | Purpose                                                  |
-| -------- | ---------------------------------------------- | -------------------------------------------------------- |
-| `/voice` | `view <character>`                             | Resolved TTS + STT for a character (with cascade source) |
-|          | `tts list set clear set-default clear-default` | Per-character + user-default TTS provider config         |
-|          | `stt set clear`                                | Transcription provider preference (user-scoped)          |
-|          | `voices browse delete clear`                   | Cloned-voice library lifecycle                           |
-
-**Presets & Channels**
-
-| Command    | Subcommands                                 | Purpose                                 |
-| ---------- | ------------------------------------------- | --------------------------------------- |
-| `/preset`  | `create` `edit` `browse`                    | Custom LLM presets (model + parameters) |
-|            | `export` `import` `template`                | Preset portability (JSON)               |
-|            | `global` (`default` `free-default`)         | System-wide defaults (owner only)       |
-| `/channel` | `activate` `deactivate` `browse` `settings` | Channel auto-response management        |
-
-**Memory & History**
-
-| Command    | Subcommands                                        | Purpose                              |
-| ---------- | -------------------------------------------------- | ------------------------------------ |
-| `/memory`  | `browse` `search` `stats`                          | Browse and search long-term memories |
-|            | `delete` `purge`                                   | Memory management operations         |
-|            | `focus` (`enable` `disable` `status`)              | Temporarily disable LTM retrieval    |
-|            | `incognito` (`enable` `disable` `status` `forget`) | Privacy mode (no LTM writes)         |
-| `/history` | `clear` `stats` `undo` `hard-delete`               | Conversation history management      |
-
-**Settings & Tools**
-
-| Command     | Subcommands                                                   | Purpose                                                                     |
-| ----------- | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `/settings` | `timezone` (`set` `get`)                                      | Timezone for timestamps                                                     |
-|             | `apikey` (`set` `browse` `remove` `test`)                     | BYOK API key management                                                     |
-|             | `preset` (`list` `set` `clear` `set-default` `clear-default`) | Per-character preset overrides                                              |
-|             | `defaults` (`edit`)                                           | User default settings dashboard                                             |
-| `/shapes`   | `auth` `logout` `browse` `import` `export` `status`           | Shapes.inc character migration (legacy import)                              |
-| `/inspect`  | `[identifier]`                                                | Diagnostic log browser — omit to browse recent, provide to inspect specific |
-| `/help`     | _(optional command)_                                          | Show available commands                                                     |
-
-**Administration (owner only)**
-
-| Command  | Subcommands                                                | Purpose                          |
-| -------- | ---------------------------------------------------------- | -------------------------------- |
-| `/admin` | `ping` `health` `servers` `kick` `usage`                   | Monitoring and management        |
-|          | `cleanup` `db-sync` `settings` `presence` `stop-sequences` | Maintenance and configuration    |
-| `/deny`  | `add` `remove` `browse` `view`                             | User and guild denial management |
+- **`/character`** — Create, edit, browse, import/export AI characters; chat with them; manage per-character config + voice cloning enrollment
+- **`/persona`** — User personas, defaults, per-character overrides
+- **`/voice`** — TTS/STT provider config, cloned-voice library, per-character resolved-state dashboard (`/voice view`)
+- **`/preset`** + **`/channel`** — Custom LLM presets, channel auto-response activation
+- **`/memory`** + **`/history`** — Long-term memory browse/search/prune, conversation history management, privacy modes (focus, incognito)
+- **`/settings`** — Timezone, BYOK API keys, per-character preset overrides, global default settings dashboard
+- **`/inspect`** — Diagnostic log browser (full LLM request flight recorder)
+- **`/shapes`** — Legacy Shapes.inc character migration
+- **`/admin`** + **`/deny`** — Owner-only monitoring, maintenance, denial management
 
 ### 📋 Planned
 
