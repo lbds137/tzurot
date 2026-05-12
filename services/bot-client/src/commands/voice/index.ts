@@ -210,4 +210,5 @@ export default defineCommand({
   handleButton,
   handleModal,
   handleSelectMenu,
+  componentPrefixes: ['voice-voices'],
 });

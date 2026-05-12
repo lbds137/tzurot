@@ -281,8 +281,8 @@ describe('handleBrowseVoices', () => {
 
 describe('isVoiceBrowseInteraction', () => {
   it('should match voice browse pagination custom IDs', () => {
-    expect(isVoiceBrowseInteraction('settings-voices::browse::0::all::')).toBe(true);
-    expect(isVoiceBrowseInteraction('settings-voices::browse::1::all::')).toBe(true);
+    expect(isVoiceBrowseInteraction('voice-voices::browse::0::all::')).toBe(true);
+    expect(isVoiceBrowseInteraction('voice-voices::browse::1::all::')).toBe(true);
   });
 
   it('should not match unrelated custom IDs', () => {
@@ -321,7 +321,7 @@ describe('handleVoiceBrowsePagination', () => {
 
     // Click "next" to go to page 1
     await handleVoiceBrowsePagination(
-      createMockButtonInteraction('settings-voices::browse::1::all::')
+      createMockButtonInteraction('voice-voices::browse::1::all::')
     );
 
     expect(mockDeferUpdate).toHaveBeenCalled();
@@ -356,7 +356,7 @@ describe('handleVoiceBrowsePagination', () => {
     });
 
     await handleVoiceBrowsePagination(
-      createMockButtonInteraction('settings-voices::browse::1::all::')
+      createMockButtonInteraction('voice-voices::browse::1::all::')
     );
 
     expect(mockDeferUpdate).toHaveBeenCalled();
@@ -371,7 +371,7 @@ describe('handleVoiceBrowsePagination', () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     await handleVoiceBrowsePagination(
-      createMockButtonInteraction('settings-voices::browse::1::all::')
+      createMockButtonInteraction('voice-voices::browse::1::all::')
     );
 
     expect(mockDeferUpdate).toHaveBeenCalled();

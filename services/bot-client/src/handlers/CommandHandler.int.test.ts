@@ -367,6 +367,7 @@ describe('CommandHandler (component)', () => {
           'settings', // Settings command - consolidates timezone, apikey, preset
           'shapes', // Shapes command - import/export from shapes.inc
           'voice', // Voice command - TTS provider config + cloned-voice lifecycle
+          'voice-voices', // Voice voices browse pagination (componentPrefixes alt)
         ])
       );
     });
