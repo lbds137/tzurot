@@ -54,7 +54,17 @@ async function retryTranscribeOnTransientNetworkError<T>(fn: () => Promise<T>): 
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
-  return fn();
+  // Final attempt — log on failure before re-throwing so attempt-count
+  // context survives propagation to the caller's error handler.
+  try {
+    return await fn();
+  } catch (err) {
+    logger.warn(
+      { err, attempt: TRANSCRIBE_MAX_ATTEMPTS },
+      'Transcribe failed on final attempt; no more retries'
+    );
+    throw err;
+  }
 }
 
 /**
