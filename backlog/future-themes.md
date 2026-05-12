@@ -716,3 +716,57 @@ Move hardcoded model patterns (e.g., capability flags, context-window limits) to
 #### 🧹 Ops CLI Command Migration
 
 Migrate remaining stub commands in `packages/tooling` to proper TypeScript implementations.
+
+### Theme: API Security Hardening (mini-epic)
+
+_Focus: close known gaps in the api-gateway public-route surface — rate limiting, security headers, and slug-enumeration on voice references._
+
+Surfaced 2026-05-11 from user-prompted security audit after redacting hosted-deployment URLs from public docs. Three concrete items in a single security pass, all touching `services/api-gateway/`.
+
+1. **Global rate limiter on public routes** — The 5 unauthenticated routes (`/health`, `/metrics`, `/avatars/:id`, `/voice-references/:slug`, `/exports/:jobId`) have NO global rate limiter; only the admin denylist mutation has one. Motivated attacker can bulk-hammer for compute/bandwidth waste OR enumerate predictable slugs on `/voice-references` to scrape voice samples. **Fix**: add `express-rate-limit` with existing Redis backend (`createRedisDenylistRateLimiter` is the reference pattern); apply globally before public routes mount. Defaults: ~60 req/min/IP, env-configurable. ~30-50 LOC + per-route exemption mechanism if `/health` needs higher monitoring allowance.
+
+2. **`helmet()` + CORS lockdown** — `services/api-gateway/src/index.ts` doesn't apply `helmet()` or any CORS middleware. Public routes lack standard security headers (X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security). **Fix**: `app.use(helmet())` near top of middleware chain; CORS config that explicitly allows only the bot's own origins (none — api-gateway is server-to-server). ~10 LOC.
+
+3. **`/voice-references/:slug` enumeration risk** — Per route's docstring, voice references are "intentionally semi-public — anyone with the personality slug can retrieve them." Slugs are predictable (`lilith`, `abigail`, etc), so an attacker can enumerate the voice-clone library. For public characters acceptable; for private characters, a guessable-slug leak is a real privacy concern. **Fix options**: (a) switch public endpoint to `/voice-references/:uuid` with slug→UUID lookup via authenticated path; (b) keep slug routing but require voice-engine service secret; (c) add per-character visibility controls and 404 private-character fetches. Bundles naturally with the future Character Visibility Toggle (icebox item).
+
+**Sequencing**: items 1 + 2 together as a single PR (same surface area, same risk class). Item 3 separately because it forces a design call on voice-engine integration shape vs privacy.
+
+**Promote when**: any sign of public-route abuse in Railway logs, OR opportunistic when next touching api-gateway middleware. Promoted from Inbox 2026-05-12.
+
+### Theme: `/voice` + `/inspect` UX Polish (mini-epic)
+
+_Focus: the `/voice` and `/inspect` surfaces accumulated UX rough edges during the TTS Phase 3 cutover. Group them to amortize the test-harness + integration-snapshot regen cost._
+
+Surfaced 2026-05-11 from user dev-verification feedback on beta.120 deployment.
+
+1. **`/voice view <character>` reads as global, not character-scoped** — User: "it asks me to pick a character but then I get this view." Four layered problems on the same embed: (a) title is generic `🎙️ Voice Settings` not `Voice Settings for [CharacterName]`; (b) cascade source labels ("your TTS default", "your transcription preference") describe tier but don't communicate "this is the resolved value FOR THIS CHARACTER"; (c) the "Cloned Voices" section is user-scoped (your full library, 40 entries), nothing to do with the picked character — creates false implication of association; (d) the footer is the only character-scoping clue. **Fix**: (1) title `🎙️ Voice Settings for **${characterName}**`; (2) annotate each setting line with character-specific vs fell-through-to-default; (3) drop Cloned Voices section here entirely (move to `/voice library` or bundle with item 2 below); (4) drop or rewrite footer. ~50-100 LOC in `commands/voice/view.ts`.
+
+2. **`/voice voices browse` UX overhaul: rename + interactive select menu** — User: "kinda clunky - both the naming scheme and the fact that you can't interact with any of the voices like we usually can with browse commands." Two interlocking problems: (a) naming stutters ("voice voices") AND `browse` is list-mine semantic (same class as PR #1020's `browse → list`); should likely become `/voice voices list` OR collapse the doubled noun (e.g., `/voice library list`); (b) no select menu on the paginated list — user has to type voice names verbatim into a separate `/voice voices delete <voice>`. `/character browse` is the codebase's reference pattern. **Fix**: rename + replicate `/character browse` pattern (select menu → detail view with `▶ Preview`, `🗑 Delete`, `Back to List`). ~150-300 LOC across browse handler + new detail handler + tests + customId routing.
+
+3. **`/inspect` STT/TTS attribution buried under Token Budget view** — User: "I don't love that the STT/TTS stuff is buried under token explorer or whatever. that's very unintuitive." TTS attribution + any STT attribution lives in `buildTokenBudgetView`, semantically about prompt-token consumption — not voice-pipeline routing. **Fix**: extract voice attribution into `buildVoiceAttributionView` rendering `sttProviderUsed` + `ttsProviderUsed` with fallback annotations, add select-menu entry to inspect dropdown. Consider including transcript content + audio key + duration. ~80-150 LOC.
+
+4. **`/inspect` views: inline-render small content instead of always file-attaching** — Several `/inspect` panel views unconditionally emit content as downloadable file (e.g., reasoning trace) even when it would fit in an ephemeral message body or embed description. Friction for the small-content case. **Fix**: in each affected view builder, check content length; render inline (embed description or message body) when under threshold (~4096 for embed desc, ~2000 for message), fall back to file when over. Affected: at least `buildReasoningView`; audit others in `services/bot-client/src/commands/inspect/views.ts`. ~50-100 LOC.
+
+5. **Diagnostic surface for "context dropped because X" pipeline decisions** — Connects to user's 2026-05-03 `Found: 20 / Included: 0` note. Pipeline stages currently make silent skip/drop decisions; the LLM Diagnostic Summary surfaces final counts but not the _why_ of intermediate drops. **Fix**: each pipeline stage that drops/skips emits a structured "decision" entry (stage + count + reason) into the diagnostic payload; Diagnostic Summary renders as a "Drops" section. ~80-150 LOC across pipeline + diagnostic UI.
+
+**Sequencing**: items 1 + 2 together (both touch voice-library presentation surface). Items 3 + 4 together (both touch `/inspect` views). Item 5 separately (depth-of-pipeline change, deserves its own design).
+
+**Promote when**: next `/voice` or `/inspect` UX pass, OR if the friction comes up again. Promoted from Inbox 2026-05-12.
+
+### Theme: TTS Provider Re-Evaluation (post-NeuTTS)
+
+_Focus: Mistral was the pragmatic call when ElevenLabs got canceled (2026-05-08), but quality bar for a primary BYOK voice provider needs to be higher. Reassess after NeuTTS Phase 2 ships._
+
+User feedback 2026-05-12: "Mistral still kinda sucks. after NeuTTS I may want to look into a better provider (again)."
+
+**Sequence**:
+
+1. Ship TTS Phase 2 (NeuTTS Air) — self-hosted free-tier voice cloning is foundation for the bake-off below.
+2. Bake-off candidates against Mistral with real character voices:
+   - **k2-fsa/OmniVoice** ([github](https://github.com/k2-fsa/OmniVoice)) — high-quality voice cloning, 600+ languages. User flagged 2026-05-06: "TTS to try. Output isn't bad at all."
+   - Whatever else has surfaced by NeuTTS-ship time (provider landscape moves fast).
+3. Decide: swap primary BYOK or add a third option alongside Mistral.
+
+**Evaluation axes**: quality (subjective + reference-listener), model size + GPU requirements (for self-hosted candidates), license, voice-cloning fidelity, latency, cost (for BYOK candidates), reference-audio constraints (Mistral's 30s cap is a real limitation).
+
+**Promote when**: TTS Phase 2 (NeuTTS Air) ships and quality-shopping headspace returns. Promoted from Inbox 2026-05-12.
