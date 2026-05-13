@@ -754,19 +754,35 @@ Surfaced 2026-05-11 from user dev-verification feedback on beta.120 deployment.
 
 **Promote when**: next `/voice` or `/inspect` UX pass, OR if the friction comes up again. Promoted from Inbox 2026-05-12.
 
-### Theme: TTS Provider Re-Evaluation (post-NeuTTS)
+### Theme: Self-Hosted TTS + BYOK Re-Evaluation (NeuTTS Air abandoned 2026-05-13)
 
-_Focus: Mistral was the pragmatic call when ElevenLabs got canceled (2026-05-08), but quality bar for a primary BYOK voice provider needs to be higher. Reassess after NeuTTS Phase 2 ships._
+_Focus: NeuTTS Air was the planned Phase 2 self-hosted voice-cloning engine but was abandoned after a hands-on probe revealed architectural mismatch. Need to evaluate replacement candidates AND reassess Mistral BYOK quality._
+
+**NeuTTS Air abandon evidence (2026-05-13 probe + research)**:
+
+- README spec: "Context Window: 2048 tokens, enough for processing ~30 seconds of audio" — hard cap incompatible with our 1-4 min long-form use case
+- Hands-on Railway probe (Sapphire Rapids Xeon 8581C, 16 cores): RTF 12-21x on completed inferences; outputs truncate well below requested length
+- GitHub issue [#41](https://github.com/neuphonic/neutts/issues/41): user on i9-9900K + RTX 2080 Ti reports RTF 4 — far worse than published "real-time" claims
+- GitHub issue [#62](https://github.com/neuphonic/neutts/issues/62): open feature request for chunked long-form support, no maintainer response in 7 months
+- GitHub issues [#15, #22](https://github.com/neuphonic/neutts/issues): output truncation reports, no maintainer responses
+- Pattern: maintainer team essentially unresponsive on quality/performance issues
 
 User feedback 2026-05-12: "Mistral still kinda sucks. after NeuTTS I may want to look into a better provider (again)."
 
+**Required: Step 0 — hands-on probe before promoting any candidate to plan-mode** (lesson learned from NeuTTS Air decision-without-probe). The probe pattern that worked well: SSH dev voice-engine, install candidate in `/tmp` venv, run a 20-line bench script that loads model + synthesizes 5-30s of output + measures elapsed time + RAM peak. Total 30 min, no PR. Decision criteria: RTF < 3.0 OR (constant-time pattern that yields acceptable per-request synth time at the user's actual desired output lengths) AND subjectively-better-than-Pocket-TTS quality. The 2026-05-13 NeuTTS Air probe scripts are a reusable template.
+
+**Candidates worth probing** (long-form-native unless noted):
+
+- **k2-fsa/OmniVoice** ([github](https://github.com/k2-fsa/OmniVoice)) — 600+ languages, voice cloning. User flagged 2026-05-06: "TTS to try. Output isn't bad at all."
+- **F5-TTS** — community-favorite voice cloning, native long-form
+- **CosyVoice** (Alibaba) — long-form, voice cloning, multilingual
+- **Verify Pocket TTS long-form support** — current self-hosted is fast and works; might already cover the long-form use case without any new engine. Check before adding a new one.
+
 **Sequence**:
 
-1. Ship TTS Phase 2 (NeuTTS Air) — self-hosted free-tier voice cloning is foundation for the bake-off below.
-2. Bake-off candidates against Mistral with real character voices:
-   - **k2-fsa/OmniVoice** ([github](https://github.com/k2-fsa/OmniVoice)) — high-quality voice cloning, 600+ languages. User flagged 2026-05-06: "TTS to try. Output isn't bad at all."
-   - Whatever else has surfaced by NeuTTS-ship time (provider landscape moves fast).
-3. Decide: swap primary BYOK or add a third option alongside Mistral.
+1. Probe each candidate (30 min each) before any plan-mode work. Eliminate fast on architectural caps or RTF blowouts.
+2. Bake-off survivors against current Pocket TTS (free-tier) and Mistral (BYOK) with real character voices.
+3. Decide: swap primary self-hosted, swap primary BYOK, or add a third option.
 
 **Evaluation axes**: quality (subjective + reference-listener), model size + GPU requirements (for self-hosted candidates), license, voice-cloning fidelity, latency, cost (for BYOK candidates), reference-audio constraints (Mistral's 30s cap is a real limitation).
 
