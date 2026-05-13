@@ -2,15 +2,15 @@
 
 _Focus: Eliminate the ~$200/month ElevenLabs recurring cost — BOTH the TTS subscription AND the Scribe STT line — via self-hosted + Mistral BYOK alternatives._
 
-**Phase 1 (Mistral Voxtral BYOK) shipped** in v3.0.0-beta.115 (2026-05-04) with post-deploy hardening + UX polish landing in v3.0.0-beta.116 (2026-05-05). **Phase 3 (Mistral STT cutover + `/voice` consolidation) shipped** across PR #1003 + #1005, awaiting the v3.0.0-beta.120 release to reach prod. Phase 2 (NeuTTS Air) remains. Release freeze LIFTED.
+**Phase 1 (Mistral Voxtral BYOK) shipped** in v3.0.0-beta.115 (2026-05-04) with post-deploy hardening + UX polish landing in v3.0.0-beta.116 (2026-05-05). **Phase 3 (Mistral STT cutover + `/voice` consolidation) shipped** in v3.0.0-beta.120 (2026-05-11). **Phase 2 (NeuTTS Air) ABANDONED 2026-05-13** after hands-on probe — see Phase 2 section below for evidence.
 
-**Epic-complete bar** (all three required):
+**Epic-complete bar** (revised after Phase 2 abandon):
 
 1. ✅ Phase 1 — Mistral TTS BYOK shipped (beta.115)
-2. ⬜ Phase 2 — NeuTTS Air free-tier engine shipped
-3. ✅ Phase 3 — Mistral STT cutover shipped (PR #1003 + #1005, merged 2026-05-09 → 2026-05-10; awaiting beta.120 release)
+2. ❌ Phase 2 — NeuTTS Air free-tier engine ABANDONED 2026-05-13 (architectural mismatch). Replacement candidates being evaluated under "Self-Hosted TTS + BYOK Re-Evaluation" theme in `future-themes.md`.
+3. ✅ Phase 3 — Mistral STT cutover shipped (v3.0.0-beta.120, 2026-05-11)
 
-**The goal**: ~85% cost reduction on the ElevenLabs line item via BYOK Voxtral, plus a self-hosted free tier with optional voice cloning via NeuTTS Air alongside the existing Kyutai/Pocket TTS.
+**The goal**: ~85% cost reduction on the ElevenLabs line item via BYOK Voxtral. Phase 1 + Phase 3 already captured the core cost win. Phase 2 was the "free-tier voice cloning polish" — still desirable but blocked on finding a better candidate than NeuTTS Air. Epic is **functionally complete** with the cost-reduction goal achieved; the polish goal moves to the re-eval theme.
 
 **Full research + decision log**: [`docs/research/voice-cloning-2026.md`](../docs/research/voice-cloning-2026.md) — the "2026-05-01 TTS Upgrade Decision" section captures the OpenRouter catalog survey, CPU-only candidate ranking, Chatterbox-CPU non-viability finding, and the rationale for each decision.
 
@@ -27,13 +27,24 @@ Settled-decisions snapshot from the original Phase 1 plan is captured in `docs/p
 
 ---
 
-### Phase 2: NeuTTS Air free-tier engine
+### Phase 2: NeuTTS Air free-tier engine — ABANDONED 2026-05-13
 
-**Status**: Plan-mode pending. Cleared to start whenever ready.
+**Status**: Abandoned after hands-on Railway probe revealed architectural mismatch.
 
-**Scope**: NeuTTS Air as a second self-hosted engine in `services/voice-engine/server.py`, alongside the existing Kyutai/Pocket TTS. TTS preset gains `selfHostedEngine: 'kyutai' | 'neutts-air'`. Hands-on eval after this ships will gate the question of whether Kyutai gets deprecated or stays.
+**Original scope**: NeuTTS Air as a second self-hosted engine in `services/voice-engine/server.py`, alongside Kyutai/Pocket TTS. TTS preset gains `selfHostedEngine: 'kyutai' | 'neutts-air'`. Voice cloning was the value prop (Kyutai doesn't support it).
 
-**Why second**: NeuTTS Air supports voice cloning (Kyutai doesn't) — useful as the free-tier cloning path for users who don't want to BYOK Mistral. Lower priority than Phase 3 (STT) because the cost win on TTS-side is already captured by Phase 1; NeuTTS Air is the "polish" that completes the additive provider matrix.
+**Why abandoned**:
+
+- **README spec**: "Context Window: 2048 tokens, enough for processing ~30 seconds of audio" — hard cap incompatible with our 1-4 minute long-form use case
+- **Hands-on Railway probe** (Sapphire Rapids Xeon 8581C, 16 cores, 32GB RAM): RTF 12-21x on completed inferences; outputs truncate well below requested length even with `max_context` patched to 32768
+- **GitHub issue [#41](https://github.com/neuphonic/neutts/issues/41)**: user on i9-9900K + RTX 2080 Ti reports RTF 4 — far worse than published "real-time" claims
+- **GitHub issue [#62](https://github.com/neuphonic/neutts/issues/62)**: open feature request for chunked long-form support, no maintainer response in 7 months
+- **GitHub issues [#15, #22](https://github.com/neuphonic/neutts/issues)**: output truncation reports, no maintainer responses
+- **Pattern**: maintainer team essentially unresponsive on quality/performance issues
+
+**Lesson learned (filed in re-eval theme as "Step 0")**: The 2026-05-01 research doc rated NeuTTS Air via process of elimination + marketing claims, with no hands-on probe. The 2026-05-13 probe took 30 minutes and would have killed the bet immediately if done at decision time. **Future TTS candidates require a hands-on probe before plan-mode promotion.** The 2026-05-13 probe scripts are reusable templates.
+
+**Next**: pursue replacement under the "Self-Hosted TTS + BYOK Re-Evaluation" theme in `backlog/future-themes.md`. Candidates to probe: OmniVoice, F5-TTS, CosyVoice. Plus verify Pocket TTS long-form support — current self-hosted engine might already cover the 1-4 min use case.
 
 ---
 

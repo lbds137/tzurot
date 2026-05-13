@@ -1,6 +1,6 @@
 # Current
 
-> **Session**: post-release continuation — warmup quick-wins PR #1023 in flight (claude-review + CodeQL pending); inbox drained 33 → 0 via 2026-05-12 triage pass (6 items → quick-wins, 11 → icebox, 4 → deferred, 9 → 3 new mini-themes in future-themes). Backlog drain rate finally exceeded intake. Quick-wins.md now holds 8 entries to work through before NeuTTS.
+> **Session**: 2026-05-12 → 2026-05-13 marathon. Shipped 4 quick-wins PRs (#1023-#1026), drained inbox 33→0, drained quick-wins to empty, hit NeuTTS Air plan-mode → **abandoned Phase 2** after hands-on Railway probe revealed architectural mismatch (~30s output cap incompatible with 1-4 min long-form use case). TTS Engine Upgrade epic is functionally complete (cost win achieved via Phase 1 + 3); Phase 2 polish moves to "Self-Hosted TTS + BYOK Re-Evaluation" theme.
 > **Version**: v3.0.0-beta.120 (released 2026-05-11)
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
@@ -8,13 +8,16 @@
 
 ## Next Session Goal
 
-**TTS Phase 2 — NeuTTS Air**: last remaining phase of the TTS Engine Upgrade epic. Self-hosted next-gen voice cloning engine alongside Pocket TTS, for free-tier voice-clone users. Plan-mode pending — needs design pass on (a) which model variant, (b) how it composes with the existing Pocket TTS path, (c) deployment shape (CPU vs GPU, model-size budget on Railway).
+**Open** — pick from the re-evaluation theme or other backlog work. Two natural candidates:
+
+1. **Self-Hosted TTS + BYOK Re-Eval — Step 0 probes** ([future-themes.md](backlog/future-themes.md)): hands-on probe (30 min each) of OmniVoice / F5-TTS / CosyVoice using the reusable pattern from the 2026-05-13 NeuTTS Air probe. Plus verify Pocket TTS long-form support — current self-hosted might already cover the user's 1-4 min reply use case without any new engine.
+2. **API Security Hardening** ([future-themes.md](backlog/future-themes.md)): rate limiter + helmet/CORS + `/voice-references/:slug` enumeration risk. 3 items in a single security pass.
 
 **Read first**:
 
-- [`backlog/quick-wins.md`](backlog/quick-wins.md) — 8 entries to drain before NeuTTS plan-mode (sttResolver fallback, SttDispatch alias, clickable transcript footer, generated-file hook skip, maxAge consolidation, gt/gte doc, plus the 2 pre-existing entries)
-- [`backlog/active-epic.md`](backlog/active-epic.md) — TTS Engine Upgrade epic; Phase 3 marked DONE, Phase 2 (NeuTTS Air) is the next checkpoint
-- [`backlog/future-themes.md`](backlog/future-themes.md) — new mini-themes from triage: API Security Hardening, `/voice` + `/inspect` UX Polish, TTS Provider Re-Eval (post-NeuTTS)
+- [`backlog/active-epic.md`](backlog/active-epic.md) — TTS Engine Upgrade epic; Phase 1 + 3 ✅, Phase 2 (NeuTTS Air) ABANDONED with full evidence
+- [`backlog/future-themes.md`](backlog/future-themes.md) — refreshed "Self-Hosted TTS + BYOK Re-Eval" theme with NeuTTS Air abandon evidence + Step-0-probe-required directive + candidate list
+- [`backlog/quick-wins.md`](backlog/quick-wins.md) — empty
 
 ---
 
