@@ -775,14 +775,24 @@ User feedback 2026-05-13 (post-NeuTTS-abandon): both self-hosted (Pocket TTS) AN
 
 **Update 2026-05-13 (Mistral guardrail evidence)**: Production logs revealed Mistral content-filtering innocuous humor (e.g., Monty Python references) with `code 1920 guardrail_violation`, silently degrading to self-hosted. Beyond a fix for visibility (see inbox), this is concrete evidence Mistral's content policy is too restrictive for our user base's irreverent personalities. Raises priority of BYOK re-eval.
 
-**Pivot plan (next session)**: skip more CPU-engine probes; tackle the BYOK side directly. BYOK probes are fast (API calls, no install dances). Candidates ranked by likelihood:
+**Pivot plan (next session)**: skip more CPU-engine probes; tackle the BYOK side directly. BYOK probes are fast (API calls, no install dances). **Step 0 — research pass first**: the candidate landscape is broader than the initial list captured here, and pricing has to be a primary filter (ElevenLabs was canceled 2026-05-08 specifically because it was too expensive — same constraint applies to candidate selection). Surface ALL viable BYOK voice-cloning options with current pricing, then probe the survivors.
 
-- **Cartesia Sonic** — known low-latency, good cloning fidelity, less restrictive content policy
-- **ElevenLabs Multilingual v2** — different tier from the canceled Flash; industry-standard quality
+**Candidates known (non-exhaustive):**
+
+- **Cartesia Sonic** — low-latency, good cloning fidelity, less restrictive content policy
+- **Fish Audio** — voice cloning, fast inference, competitive pricing (per user 2026-05-13)
 - **PlayHT** — multiple model tiers, voice cloning
 - **Resemble AI** — voice cloning, pricing unclear (verify)
 
-Same probe pattern as self-hosted, but with API requests instead of local inference. Listen-test against the existing emily/lila/lilith reference + same test text for direct A/B with Mistral output.
+**Hard out:**
+
+- **ElevenLabs (any tier)** — per-character pricing too high; subscription canceled 2026-05-08
+
+**Worth a research-pass scan** before bake-off:
+
+- Rime.ai, Murf.ai, Sesame.AI (CSM), Deepgram TTS (newer), and any 2025–2026 entrants. Cloud TTS (Google/Azure/AWS) typically requires custom-voice training rather than zero-shot reference clips, so probably out unless our flow can absorb that.
+
+Same probe pattern as self-hosted, but with API requests instead of local inference. Listen-test against the existing emily / lila / lilith reference + same test text for direct A/B with Mistral output. Pricing-per-1K-chars (or per-minute-of-output) needs to be in the comparison table alongside quality.
 
 **Required: Step 0 — hands-on probe before promoting any candidate to plan-mode** (lesson learned from NeuTTS Air decision-without-probe). The probe pattern that worked well: SSH dev voice-engine, install candidate in `/tmp` venv, run a 20-line bench script that loads model + synthesizes 5-30s of output + measures elapsed time + RAM peak. Total 30 min, no PR. Decision criteria: RTF < 3.0 OR (constant-time pattern that yields acceptable per-request synth time at the user's actual desired output lengths) AND subjectively-better-than-Pocket-TTS quality. The 2026-05-13 NeuTTS Air probe scripts are a reusable template.
 
