@@ -34,6 +34,10 @@ vi.mock('../test/audit-unified.js', () => ({
   auditUnified: vi.fn().mockReturnValue(true),
 }));
 
+vi.mock('../voice/audit-references.js', () => ({
+  auditReferences: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('command handlers', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
@@ -230,6 +234,34 @@ describe('command handlers', () => {
         expect(auditUnified).toHaveBeenCalledWith(
           expect.objectContaining({ category: 'services' })
         );
+      });
+    });
+  });
+
+  describe('voice commands', () => {
+    it('should call audit-references handler with --env prod', async () => {
+      const { registerVoiceCommands } = await import('./voice.js');
+      const { auditReferences } = await import('../voice/audit-references.js');
+      const cli = cac('test');
+      registerVoiceCommands(cli);
+
+      cli.parse(['node', 'test', 'voice-refs:audit', '--env', 'prod'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(auditReferences).toHaveBeenCalledWith(expect.objectContaining({ env: 'prod' }));
+      });
+    });
+
+    it('should call audit-references handler with --json flag', async () => {
+      const { registerVoiceCommands } = await import('./voice.js');
+      const { auditReferences } = await import('../voice/audit-references.js');
+      const cli = cac('test');
+      registerVoiceCommands(cli);
+
+      cli.parse(['node', 'test', 'voice-refs:audit', '--json'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(auditReferences).toHaveBeenCalledWith(expect.objectContaining({ json: true }));
       });
     });
   });

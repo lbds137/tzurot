@@ -219,6 +219,19 @@ Ratchet audits to enforce test coverage (CI runs these automatically):
 
 See `tzurot-testing` skill for chip-away workflow details.
 
+## Voice Commands
+
+| Command                                | Description                                                    |
+| -------------------------------------- | -------------------------------------------------------------- |
+| `pnpm ops voice-refs:audit`            | Probe Personality voice references against the Mistral 30s cap |
+| `pnpm ops voice-refs:audit --env dev`  | Same, against Railway dev database                             |
+| `pnpm ops voice-refs:audit --env prod` | Same, against Railway prod database (interactive confirmation) |
+| `pnpm ops voice-refs:audit --json`     | JSON output for scripting / piping                             |
+
+**Why this exists:** Mistral Voxtral TTS rejects reference audio >30s with a 400 error. The `TtsDispatcher` silently falls through to self-hosted voice-engine, so operators never see the downgrade unless they grep ai-worker logs. This audit surfaces all references in one report sorted by duration, color-coded by severity (red = over cap, yellow = within 0.5s of cap, green = comfortable margin).
+
+**Requirements:** `ffprobe` (part of `ffmpeg`) must be installed on the host running the command. If missing, every probe will return errored with "ffprobe spawn failed".
+
 ## Package.json Shortcuts
 
 Root `package.json` provides shortcuts for common ops CLI commands:
