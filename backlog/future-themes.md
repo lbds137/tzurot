@@ -769,6 +769,8 @@ _Focus: NeuTTS Air was the planned Phase 2 self-hosted voice-cloning engine but 
 
 User feedback 2026-05-12: "Mistral still kinda sucks. after NeuTTS I may want to look into a better provider (again)."
 
+User feedback 2026-05-13 (post-NeuTTS-abandon): both self-hosted (Pocket TTS) AND BYOK (Mistral) are below the quality bar. Pocket TTS has had at least one user complaint plus owner's own underwhelmed assessment. Tomorrow's priority: revisit BOTH tracks together — the goal isn't "find a NeuTTS replacement," it's "raise the quality floor on both self-hosted and BYOK paths."
+
 **Required: Step 0 — hands-on probe before promoting any candidate to plan-mode** (lesson learned from NeuTTS Air decision-without-probe). The probe pattern that worked well: SSH dev voice-engine, install candidate in `/tmp` venv, run a 20-line bench script that loads model + synthesizes 5-30s of output + measures elapsed time + RAM peak. Total 30 min, no PR. Decision criteria: RTF < 3.0 OR (constant-time pattern that yields acceptable per-request synth time at the user's actual desired output lengths) AND subjectively-better-than-Pocket-TTS quality. The 2026-05-13 NeuTTS Air probe scripts are a reusable template.
 
 **Candidates worth probing** (long-form-native unless noted):
