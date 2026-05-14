@@ -811,4 +811,48 @@ Same probe pattern as self-hosted, but with API requests instead of local infere
 
 **Evaluation axes**: quality (subjective + reference-listener), model size + GPU requirements (for self-hosted candidates), license, voice-cloning fidelity, latency, cost (for BYOK candidates), reference-audio constraints (Mistral's 30s cap is a real limitation).
 
-**Promote when**: TTS Phase 2 (NeuTTS Air) ships and quality-shopping headspace returns. Promoted from Inbox 2026-05-12.
+**Promote when**: BYOK quality-shopping headspace returns. Promoted from Inbox 2026-05-12.
+
+---
+
+#### Sub-track: Pocket TTS post-processing chain (probe pending)
+
+A separate angle from "swap the engine": keep Pocket TTS as the synthesis layer and improve perceived quality via a post-processing chain. Two pieces:
+
+**(B) ffmpeg DSP chain** — probed 2026-05-13/14 with conservative (HP80 + compress + LUFS-norm) and aggressive (+ 2.5kHz presence + 6.5kHz de-ess) variants. Level-matched A/B verdict: "very similar" to raw + LUFS-norm baseline. **Standalone: not worth shipping.** **Bundled with (C): worth including** as preprocessing for the VC pitch tracker (council noted clean signal benefits VC). Implementation: 5-line `subprocess.run(['ffmpeg', '-i', infile, '-af', FILTER_CHAIN, '-ar', '24000', outfile])` insertion before the VC step. Filter chain (conservative is the floor — aggressive is optional polish):
+
+```
+highpass=f=80,acompressor=threshold=-18dB:ratio=3:attack=5:release=80,loudnorm=I=-14:LRA=11:TP=-1.5,aresample=24000
+```
+
+Note `aresample=24000` at the end — `loudnorm` internally upsamples to 192kHz; without the resample the output file balloons 8x for no audio benefit. Don't omit.
+
+**(C) OpenVoice V2 Tone Color Converter** — voice-conversion layer that takes Pocket TTS output (the timbre we don't love) + reference clip (the timbre we want) → cloned-timbre output. MIT licensed, RTF 0.2-0.4 on CPU per council (verify in probe). Doesn't fix prosody, only timbre.
+
+**(C) probe steps (handoff for next session)**:
+
+1. SSH dev voice-engine (ask user to disable serverless first per `reference_dev_voice_engine_serverless_toggle`)
+2. Read OpenVoice repo USAGE.md / demo_part2.ipynb directly (WebFetch on README returned sparse results 2026-05-14; need actual install command + Python API from source)
+3. Verify install path: `pip install MyShell-OpenVoice` (canonical name TBD), `apt install espeak-ng` likely needed, ONNX vs torch CPU path
+4. Verify model weight licenses (V2 base TTS may differ from TCC license)
+5. Scratch script in `/tmp/openvoice-probe/`:
+   - Load TCC on CPU
+   - INPUT: `/tmp/dsp-probe/raw.wav` (existing Pocket TTS output, emily reference, 31.76s)
+   - TARGET: emily reference clip (the timbre to clone)
+   - OUTPUT: TCC'd version
+   - Measure: elapsed time, RTF, RAM peak
+6. Download output to `~/Downloads/openvoice-probe/` for A/B against raw + emily reference
+7. **Decision**: TCC'd version timbre meaningfully closer to emily than raw Pocket TTS → ship as PR. Marginal/no improvement → defer further VC work.
+
+**Probe budget**: ~45-60 min. The "verify install" step is the highest variance — MyShell pivoted away from OpenVoice in 2024-2025, so pip name + maintained-fork status is uncertain.
+
+**If (C) probe passes — PR shape**:
+
+- voice-engine: add `vc_postprocess: bool` form param to `/v1/tts` (default false initially, default true after dev verification)
+- voice-engine: load TCC lazily, run after Pocket TTS synth, use the same reference audio that's already in voice-engine's voice library
+- Bundle (B) DSP chain as preprocessing INSIDE the voice-engine `/v1/tts` handler (not a separate PR — per user 2026-05-14: "if B isn't a lot of work we could just roll it into the PR for C")
+- Toggle: env var `ENABLE_VC_POSTPROCESS=true` on dev, opt-in until A/B in production
+
+**If (C) probe fails**: drop both (B) and (C). Pocket TTS quality ceiling is what it is until the GPU-compute decision lands.
+
+**Surfaced**: 2026-05-14 (Pocket TTS quality-improvement brainstorm, post-DSP-probe).
