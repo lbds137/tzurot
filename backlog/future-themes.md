@@ -798,41 +798,33 @@ Same probe pattern as self-hosted, but with API requests instead of local infere
 
 **Candidates re-evaluated 2026-05-14** (council brainstorm via Gemini 3.1 Pro Preview, after dropping the Pocket TTS post-processing sub-track):
 
-- **F5-TTS** — **PROBE-WORTHY**. Flow Matching + DiT, "generational leap in open-source prosody". CPU RTF ~1.5 vanilla but reducible to **~0.5-0.8** via (a) ONNX runtime on Sapphire Rapids' AVX-512/AMX (look for community ports like `DakeQQ/F5-TTS-ONNX` or similar); (b) reduce inference steps from 32 NFEs to 8 (~75% time cut, minimal quality loss because flow matching is iterative denoising); (c) limit thread count to 16 (not 32 — thread-thrashing slows it down). Apache-style license suitable for our use. Probe budget: 60-90 min (heavier than OpenVoice — ONNX setup is the variance).
-- **k2-fsa/OmniVoice** — **RULE OUT**. Sherpa-ONNX makes it blazingly fast on CPU but the underlying VITS-based architecture has the same baked-in "machine-y" cadence as Pocket TTS. Lateral move on the actual user complaint, not improvement.
-- **CosyVoice 2.0** (Alibaba) — **RULE OUT**. CPU RTF >1.5-3.0 in community benchmarks, heavily CUDA-optimized. Would choke the Railway container without a complete inference rewrite (C++/ONNX), and even then it's heavy.
+- **F5-TTS** — **DROPPED 2026-05-14 after hands-on probe**. Council estimated vanilla CPU RTF ~1.5 reducible to ~0.5-0.8 via ONNX + step reduction + thread limiting. Reality on Sapphire Rapids 8581C with `f5-tts` from PyPI: **RTF 1.94** at NFE=4 / 32 threads (best config). Council's thread-thrashing hypothesis was **falsified for this workload** — fewer threads made it monotonically WORSE: NFE=4 hit RTF 2.74 at 8 threads, 3.69 at 4 threads. So the only path to council's optimistic 0.5-0.8 RTF would be the ONNX route (DakeQQ/F5-TTS-ONNX or similar community fork) on top of the probe-confirmed ~2x baseline — that's a ~3-4x further speedup needed from a separate engineering rabbit hole, with no guarantee it preserves quality. **And quality verdict from user listening test (CC-BY-NC weights, license OK for our non-commercial use): "wow it's not viable at all. not even a little bit."** No quality justification for the speed engineering. Closed.
+- **k2-fsa/OmniVoice** — **RULE OUT** (desk research only). Sherpa-ONNX makes it blazingly fast on CPU but the underlying VITS-based architecture has the same baked-in "machine-y" cadence as Pocket TTS. Lateral move on the actual user complaint, not improvement.
+- **CosyVoice 2.0** (Alibaba) — **RULE OUT** (desk research only). CPU RTF >1.5-3.0 in community benchmarks, heavily CUDA-optimized. Would choke the Railway container without a complete inference rewrite (C++/ONNX), and even then it's heavy.
+
+**Verdict 2026-05-14**: CPU-only voice cloning is now genuinely exhausted, not just structurally claimed-exhausted. Eight engines tested across two sessions (NeuTTS Air, XTTS v2, SoproTTS, MOSS-TTS-Nano, ZipVoice, OpenVoice V2 TCC, F5-TTS hands-on; OmniVoice and CosyVoice desk-research). Pocket TTS remains the local optimum and the user's quality complaint is unaddressable on CPU.
 
 **The "Iron Triangle" worth filing** for any future TTS evaluation — pick two of: CPU efficiency, zero-shot cloning, ElevenLabs-tier prosody. Pocket TTS picked efficiency + cloning. F5-TTS picks cloning + prosody. There's no engine that wins all three on commodity CPU; this is architectural, not implementation laziness.
 
-**Reusable probe insights** (apply to any future CPU TTS candidate, not just F5-TTS):
+**Reusable probe insights** (apply to any future CPU TTS candidate — preserved even though CPU path is closed, since they apply if GPU-compute decision changes the equation):
 
 1. **TTFB > RTF for Discord** — RTF 0.8 is invisible to users if you stream sentence-chunked output (first sentence plays while sentences 2-N synthesize in parallel).
 2. **Long-form (1-4 min) requires semantic chunking with last-3s carry-forward as new reference**. NO modern zero-shot model handles 4 min in one forward pass without hallucinating; this is universal.
-3. **Sapphire Rapids (Xeon 8581C) has AMX + AVX-512** that vanilla PyTorch CPU rarely uses. ONNX/OpenVINO compile path can substantially beat naive CPU PyTorch on this hardware.
-4. **Thread thrashing**: a 32 vCPU container should NOT use 32 inference threads; 8-16 is the sweet spot. Counter-intuitive but real.
-
-**Probe shape (F5-TTS specifically)**:
-
-1. SSH dev voice-engine (serverless off — see `reference_dev_voice_engine_serverless_toggle`)
-2. Find a working ONNX port: search GitHub for `F5-TTS-ONNX` (DakeQQ or similar community fork). If no working port exists, fall back to vanilla F5-TTS PyTorch CPU + step-reduction; expect RTF ~1.5 instead of ~0.6.
-3. Install in scratch venv: `onnxruntime` (or `onnxruntime-openvino`) + the F5-TTS port's deps
-4. Generate ~15s of output from a 30s reference clip + a known-quality test text (use `ha-shem-keev-ima` reference per the OpenVoice probe pattern)
-5. Measure: elapsed wall-clock, RTF, RAM peak. Verify RTF < 0.8 first; if it blows past that, rule out and stop.
-6. If RTF passes: subjective quality A/B against Pocket TTS for the same reference + text. **The decision question**: does it sound _meaningfully_ more natural / less machine-y than Pocket TTS? "Mixed" is not enough — we already learned that lesson with TCC.
-7. If quality A/B passes: separate session for integration plan (additive engine choice per the existing `selfHostedEngine` pattern, not replacement).
+3. **Sapphire Rapids (Xeon 8581C) has AMX + AVX-512** — ONNX/OpenVINO compile path _can_ beat naive CPU PyTorch on this hardware, but the F5-TTS probe revealed it's not a free 3-4x speedup; it's its own engineering effort.
+4. **Thread thrashing is workload-dependent.** Council's prior was "don't use all 32 vCPUs"; F5-TTS contradicted this — fewer threads monotonically slower. Always sweep, don't assume.
 
 **Status of other un-probed angles** (per 2026-05-14 honest exhaustion check):
 
 - **Pocket TTS hyperparameter tuning** — likely low-impact for the user's "machine-y" complaint per the Iron Triangle (the architecture is the cost of the speed). Not worth pursuing.
 - **Other voice conversion engines** (FreeVC, KNN-VC, SoftVC, RVC) — same dead end as TCC. VC fixes timbre, complaint is prosody/fidelity. Skip.
 - **Multi-pass generation + selection** — overkill, not guaranteed to improve, requires seed control we don't know Pocket TTS has. Skip.
+- **GPU-compute for voice-engine** (Modal / RunPod / Replicate / Banana / Fly.io GPU) — **the only remaining lever** to break the Iron Triangle's CPU constraint. Cost-per-request becomes a real concern (vs Railway CPU's $0.005/cold-start ballpark); ~$0.01-0.05/request typical for managed GPU inference services. Decision needs separate research and product judgment about user volume + willingness-to-pay-via-tier. Filing as the "next theme to consider" if BYOK quality-shopping also fails to satisfy.
 
-**Sequence**:
+**Sequence (revised after F5-TTS dropped)**:
 
-1. Probe F5-TTS (the only remaining viable CPU-TTS candidate). Eliminate fast on RTF blowout if that happens.
-2. If F5-TTS passes: bake-off against current Pocket TTS with real character voices.
-3. In parallel: BYOK quality-shopping (Cartesia, Fish Audio, PlayHT) — the API-call probes are independent of the F5-TTS path and lower-risk.
-4. Decide: swap primary self-hosted (F5-TTS), swap primary BYOK, or add a third option.
+1. **BYOK quality-shopping** is now the only forward path on the quality axis: Cartesia, Fish Audio, PlayHT, Resemble. API-call probes are fast and independent of any self-hosted work. See "Pivot plan" above.
+2. **If BYOK doesn't satisfy** — decide whether to invest in GPU-hosted voice-engine (separate research theme, see status list above).
+3. **Pocket TTS stays** as the free-tier self-hosted engine. Quality is what it is; that's the cost of free.
 
 **Evaluation axes**: quality (subjective + reference-listener), model size + GPU requirements (for self-hosted candidates), license, voice-cloning fidelity, latency, cost (for BYOK candidates), reference-audio constraints (Mistral's 30s cap is a real limitation).
 
