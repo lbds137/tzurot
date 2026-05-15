@@ -23,13 +23,23 @@ export type ResolvedSlug =
   | { kind: 'slug'; slug: string; randomPick: boolean }
   | { kind: 'error'; message: string };
 
+export interface ResolveCharacterSlugOptions {
+  /** When true and no slug was provided, exclude private personalities from the random pool. */
+  excludePrivate?: boolean;
+}
+
 /**
  * Resolve the character slug. If the user provided one, return it as-is.
  * If they didn't, pick a random personality from their accessible pool.
+ *
+ * The pool is `getCachedPersonalities` — owned + public per the autocomplete
+ * scope. With `excludePrivate: true`, the user's own private personalities
+ * are filtered out so the random pick lands on something publicly visible.
  */
 export async function resolveCharacterSlug(
   providedSlug: string | null,
-  context: DeferredCommandContext
+  context: DeferredCommandContext,
+  options: ResolveCharacterSlugOptions = {}
 ): Promise<ResolvedSlug> {
   if (providedSlug !== null) {
     return { kind: 'slug', slug: providedSlug, randomPick: false };
@@ -45,16 +55,19 @@ export async function resolveCharacterSlug(
     );
     return { kind: 'error', message: '❌ Unable to load characters. Please try again.' };
   }
-  if (result.value.length === 0) {
-    return {
-      kind: 'error',
-      message:
-        '❌ No characters available to chat with. Use `/character create` to make one, or check that public characters exist.',
-    };
+
+  const excludePrivate = options.excludePrivate === true;
+  const candidates = excludePrivate ? result.value.filter(p => p.isPublic) : result.value;
+
+  if (candidates.length === 0) {
+    const empty = excludePrivate
+      ? '❌ No public characters available to chat with. Drop the `exclude-private` option to include your own characters, or check that public characters exist.'
+      : '❌ No characters available to chat with. Use `/character create` to make one, or check that public characters exist.';
+    return { kind: 'error', message: empty };
   }
   // Index lands in [0, length-1] — Math.random() is half-open so floor() never
   // hits length itself; the length>0 guard above keeps the denominator safe.
-  const picked = result.value[Math.floor(Math.random() * result.value.length)];
+  const picked = candidates[Math.floor(Math.random() * candidates.length)];
   return { kind: 'slug', slug: picked.slug, randomPick: true };
 }
 

@@ -43,6 +43,18 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
+    // Default: requester is NOT the bot owner.
+    isBotOwner: vi.fn(() => false),
+    // Mock the permissions helper directly. The real implementation calls
+    // isBotOwner via a relative-path import inside the package, which the
+    // public-export mock above doesn't intercept; mocking the helper itself
+    // is the cleaner seam for route-level tests.
+    computeLlmConfigPermissions: vi.fn(
+      (config: { ownerId: string }, requestingUserId: string | null) => {
+        const isOwner = requestingUserId !== null && config.ownerId === requestingUserId;
+        return { canEdit: isOwner, canDelete: isOwner };
+      }
+    ),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -140,7 +152,7 @@ const mockCacheInvalidation = {
 
 import { createLlmConfigRoutes } from './llm-config.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { computeLlmConfigPermissions, type PrismaClient } from '@tzurot/common-types';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
@@ -843,6 +855,120 @@ describe('/user/llm-config routes', () => {
       // Service uses invalidateAll for all cache operations
       expect(mockCacheInvalidation.invalidateAll).toHaveBeenCalled();
     });
+
+    it('lets bot owner edit another user config (admin override)', async () => {
+      vi.mocked(computeLlmConfigPermissions).mockReturnValueOnce({
+        canEdit: true,
+        canDelete: true,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'other-user',
+        isGlobal: false,
+        name: 'Other User Config',
+        model: 'old-model',
+        provider: 'openrouter',
+        advancedParameters: null,
+      });
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'Other User Config',
+        description: null,
+        model: 'claude-3',
+        provider: 'openrouter',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'other-user',
+        advancedParameters: null,
+      });
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ model: 'claude-3' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.llmConfig.update).toHaveBeenCalled();
+      const callArgs = vi.mocked(res.json).mock.calls[0]?.[0] as
+        | { config?: { isOwned?: boolean; ownerId?: string } }
+        | undefined;
+      // Response reflects that the requester does NOT own the edited config.
+      expect(callArgs?.config?.isOwned).toBe(false);
+    });
+
+    it('bot-owner edit on non-owned config skips name-promotion suffixing', async () => {
+      // The promotion helper would suffix renames with the requester's username.
+      // For admin edits we apply the name as-is (the owner stays the original
+      // owner; suffixing under the bot owner's name would mis-attribute provenance).
+      vi.mocked(computeLlmConfigPermissions).mockReturnValueOnce({
+        canEdit: true,
+        canDelete: true,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'other-user',
+        isGlobal: true,
+        name: 'Other User Config',
+        model: 'claude-3',
+        provider: 'openrouter',
+        advancedParameters: null,
+      });
+      // Capture what name actually gets passed to the service.
+      mockPrisma.llmConfig.findFirst.mockResolvedValue(null); // no name collision
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'Renamed Verbatim',
+        description: null,
+        model: 'claude-3',
+        provider: 'openrouter',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'other-user',
+        advancedParameters: null,
+      });
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'Renamed Verbatim' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      // Name passed through unchanged — no suffix promotion.
+      expect(mockPrisma.llmConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ name: 'Renamed Verbatim' }),
+        })
+      );
+    });
+
+    it('regular user edit STILL rejects non-owned (no admin bypass for non-admins)', async () => {
+      // isBotOwner default false. Guards against the override accidentally
+      // widening to non-admin users.
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'other-user',
+        isGlobal: false,
+        name: 'Other User Config',
+        model: 'claude-3',
+        provider: 'openrouter',
+        advancedParameters: null,
+      });
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ model: 'new-model' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(mockPrisma.llmConfig.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('DELETE /user/llm-config/:id', () => {
@@ -1001,6 +1127,78 @@ describe('/user/llm-config routes', () => {
         | undefined;
       expect(callArgs?.deleted).toBe(true);
       expect(callArgs?.warning).toBeUndefined();
+    });
+
+    it('lets bot owner delete another user config (admin override)', async () => {
+      vi.mocked(computeLlmConfigPermissions).mockReturnValueOnce({
+        canEdit: true,
+        canDelete: true,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'other-user',
+        isGlobal: false,
+        name: 'Other User Config',
+      });
+      mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.llmConfig.delete).toHaveBeenCalledWith({ where: { id: 'config-123' } });
+    });
+
+    it('lets bot owner bypass the "in use" blocker via FK cascade (admin override)', async () => {
+      vi.mocked(computeLlmConfigPermissions).mockReturnValueOnce({
+        canEdit: true,
+        canDelete: true,
+      });
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'other-user',
+        isGlobal: false,
+        name: 'Other User Config',
+      });
+      // Service's checkDeleteConstraints would normally block on N user overrides.
+      mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      mockPrisma.userPersonalityConfig.count.mockResolvedValue(7);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      // Bypassed: delete still happens; FK cascade handles cleanup.
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.llmConfig.delete).toHaveBeenCalledWith({ where: { id: 'config-123' } });
+    });
+
+    it('regular owner-driven delete STILL respects the "in use" blocker (no admin bypass for non-admins)', async () => {
+      // isBotOwner mock stays false (default). This guards against the bypass
+      // accidentally widening to the owner-driven path.
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+      });
+      mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      mockPrisma.userPersonalityConfig.count.mockResolvedValue(2);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockPrisma.llmConfig.delete).not.toHaveBeenCalled();
     });
   });
 

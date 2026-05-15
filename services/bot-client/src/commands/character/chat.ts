@@ -337,7 +337,9 @@ export async function handleChat(
   const discordDisplayName = context.member?.displayName ?? context.user.displayName;
 
   // Resolve the character slug (either user-provided or random pick).
-  const resolved = await resolveCharacterSlug(options.character(), context);
+  const resolved = await resolveCharacterSlug(options.character(), context, {
+    excludePrivate: options['exclude-private']() ?? false,
+  });
   if (resolved.kind === 'error') {
     await context.editReply({ content: resolved.message });
     return;
