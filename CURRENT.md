@@ -1,7 +1,7 @@
 # Current
 
 > **Session**: 2026-05-12 → 2026-05-13 marathon. Shipped 4 quick-wins PRs (#1023-#1026), drained inbox 33→0, drained quick-wins to empty, hit NeuTTS Air plan-mode → **abandoned Phase 2** after hands-on Railway probe revealed architectural mismatch (~30s output cap incompatible with 1-4 min long-form use case). TTS Engine Upgrade epic is functionally complete (cost win achieved via Phase 1 + 3); Phase 2 polish moves to "Self-Hosted TTS + BYOK Re-Evaluation" theme.
-> **Version**: v3.0.0-beta.120 (released 2026-05-11)
+> **Version**: v3.0.0-beta.121 (released 2026-05-15)
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
@@ -42,7 +42,7 @@ Shipped v3.0.0-beta.120 — TTS Phase 3 end-to-end, 3-PR cross-channel context b
 
 ## Unreleased on Develop
 
-_(none yet — develop is SHA-aligned with main at v3.0.0-beta.120)_
+_(none yet — develop is SHA-aligned with main at v3.0.0-beta.121)_
 
 ---
 
