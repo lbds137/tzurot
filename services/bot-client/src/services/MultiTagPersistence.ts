@@ -25,6 +25,44 @@ import type { SlotSource } from './SlotResolver.js';
 const logger = createLogger('MultiTagPersistence');
 
 /**
+ * TTL applied to the stale-jobs SET key on every `markStale` call. Each
+ * call slides the expiry forward; the SET self-prunes when no shutdown
+ * has happened for this window. 24 hours comfortably exceeds the
+ * coordinator-entry TTL (`MULTI_TAG.REDIS_TTL_SEC`, 30 min) plus the
+ * BullMQ default-retry budget, so live entries are never aged out
+ * prematurely.
+ */
+const STALE_SET_TTL_SEC = 24 * 60 * 60;
+
+/**
+ * TTL for the "we already tried history-scan backfill for this DM" sentinel.
+ * 1 hour balances two failure modes: too short and we keep re-scanning DMs
+ * that legitimately have no session; too long and a session that
+ * materializes via /activate (admin path) waits in vain for its sentinel to
+ * expire. 1 hour is comfortably below any reasonable "user noticed and
+ * complained" window.
+ */
+const DM_BACKFILL_TRIED_TTL_SEC = 60 * 60;
+
+/**
+ * SCAN COUNT hint for `scanAllEntries`. Not a hard cap — Redis treats this
+ * as a per-call guideline. 100 matches the Redis convention for "moderate
+ * batch" scans; small enough to avoid blocking, large enough that recovery
+ * scans complete in O(entries / 100) round trips rather than O(entries).
+ */
+const SCAN_COUNT = 100;
+
+/**
+ * Defensive upper bound on a single Redis entry's serialized size. Snapshots
+ * are bounded structurally (≤5 slots, short string fields), so a realistic
+ * entry is well under 4 KB. 64 KB leaves comfortable headroom for legitimate
+ * growth while preventing a malformed or unexpectedly large value from
+ * blocking the recovery scan on `JSON.parse`. Redis is internal so the
+ * threat surface is small; this is hardening, not security.
+ */
+const MAX_ENTRY_BYTES = 64 * 1024;
+
+/**
  * Serializable snapshot of a single slot. Strips runtime-only fields
  * (personality object, result, timeoutHandle) — the coordinator rehydrates
  * those during recovery.
@@ -83,13 +121,30 @@ export class MultiTagPersistence {
   }
 
   /**
-   * Replace just the entry JSON (e.g., after a slot's status changed). The
-   * source-index and job-indices don't need refreshing on every update —
-   * they're set once at `putEntry` time with the same TTL.
+   * Replace the entry JSON and slide TTLs on its reverse indices.
+   *
+   * Slot status changes during fan-out (each slot result extends the
+   * entry's effective lifetime); the reverse-index keys must slide along
+   * with the main entry key so we don't end up with an entry whose
+   * `multitag:job-index:{jobId}` pointers have already expired. Without
+   * the slide, a slow-flushing group whose total wall time approaches
+   * `MULTI_TAG.REDIS_TTL_SEC` could break the jobId → groupId lookup
+   * silently in recovery scans.
    */
   async updateEntry(entry: CoordinatorEntrySnapshot): Promise<void> {
-    const entryKey = `${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}${entry.groupId}`;
-    await this.redis.set(entryKey, JSON.stringify(entry), 'EX', MULTI_TAG.REDIS_TTL_SEC);
+    const ttl = MULTI_TAG.REDIS_TTL_SEC;
+    const pipeline = this.redis.multi();
+    pipeline.set(
+      `${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}${entry.groupId}`,
+      JSON.stringify(entry),
+      'EX',
+      ttl
+    );
+    pipeline.expire(`${REDIS_KEY_PREFIXES.MULTI_TAG_SOURCE_INDEX}${entry.sourceMessageId}`, ttl);
+    for (const slot of entry.slots) {
+      pipeline.expire(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}${slot.jobId}`, ttl);
+    }
+    await pipeline.exec();
   }
 
   /**
@@ -116,7 +171,13 @@ export class MultiTagPersistence {
     let cursor = '0';
 
     do {
-      const [next, keys] = await this.redis.scan(cursor, 'MATCH', matchPattern, 'COUNT', 100);
+      const [next, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        matchPattern,
+        'COUNT',
+        SCAN_COUNT
+      );
       cursor = next;
       if (keys.length === 0) {
         continue;
@@ -136,18 +197,43 @@ export class MultiTagPersistence {
   /**
    * Mark jobIds as stale. Subsequent `isStale` checks will return true; the
    * MessageHandler interception path discards their results.
+   *
+   * Bumps a sliding TTL on the SET key itself so orphaned jobIds (results
+   * that never arrive — e.g., ai-worker also crashed between shutdown and
+   * recovery) eventually fall out of the SET instead of accumulating
+   * forever. The 24-hour window comfortably exceeds the coordinator-entry
+   * TTL (30 min) plus any reasonable retry/grace period, so live entries
+   * are never aged out prematurely.
    */
   async markStale(...jobIds: string[]): Promise<void> {
     if (jobIds.length === 0) {
       return;
     }
-    await this.redis.sadd(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, ...jobIds);
+    const pipeline = this.redis.multi();
+    pipeline.sadd(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, ...jobIds);
+    pipeline.expire(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, STALE_SET_TTL_SEC);
+    await pipeline.exec();
   }
 
-  /** Check whether a single jobId is in the stale set. */
+  /**
+   * Check whether a single jobId is in the stale set.
+   *
+   * Fails open on Redis errors: a transient connection blip must NOT drop
+   * a user's response. The cost of a false negative here is "one duplicate
+   * delivery in a restart-and-immediate-Redis-blip race" — far better than
+   * silently swallowing every result during the blip window.
+   */
   async isStale(jobId: string): Promise<boolean> {
-    const result = await this.redis.sismember(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, jobId);
-    return result === 1;
+    try {
+      const result = await this.redis.sismember(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, jobId);
+      return result === 1;
+    } catch (err) {
+      logger.warn(
+        { err, jobId },
+        'isStale Redis check failed; failing open (treating as not stale)'
+      );
+      return false;
+    }
   }
 
   /** Remove a jobId from the stale set after its result has been discarded. */
@@ -157,19 +243,34 @@ export class MultiTagPersistence {
 
   /**
    * Set the "we already tried history-scan backfill for this DM" sentinel.
-   * TTL prevents the scan from being permanently skipped if a session
-   * eventually materializes.
+   * TTL (`DM_BACKFILL_TRIED_TTL_SEC`) prevents the scan from being
+   * permanently skipped if a session eventually materializes.
    */
-  async markDMBackfillTried(channelId: string, ttlSec = 3600): Promise<void> {
+  async markDMBackfillTried(channelId: string, ttlSec = DM_BACKFILL_TRIED_TTL_SEC): Promise<void> {
     const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_DM_BACKFILL_TRIED}${channelId}`;
     await this.redis.set(key, '1', 'EX', ttlSec);
   }
 
-  /** Returns true if we already attempted (and gave up on) backfilling this DM. */
+  /**
+   * Returns true if we already attempted (and gave up on) backfilling this DM.
+   *
+   * Fails open on Redis errors: a hiccup must NOT cause the whole DM
+   * processor chain to throw and swallow the user's message. The cost
+   * of a false negative is "one extra history scan during the blip" —
+   * acceptable.
+   */
   async wasDMBackfillTried(channelId: string): Promise<boolean> {
     const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_DM_BACKFILL_TRIED}${channelId}`;
-    const v = await this.redis.get(key);
-    return v !== null;
+    try {
+      const v = await this.redis.get(key);
+      return v !== null;
+    } catch (err) {
+      logger.warn(
+        { err, channelId },
+        'wasDMBackfillTried Redis check failed; failing open (will re-scan)'
+      );
+      return false;
+    }
   }
 }
 
@@ -183,16 +284,40 @@ function parseSnapshotOrLog(key: string, raw: string | null): CoordinatorEntrySn
   if (raw === null) {
     return null;
   }
+  if (raw.length > MAX_ENTRY_BYTES) {
+    logger.error(
+      { key, size: raw.length, max: MAX_ENTRY_BYTES },
+      'Skipping multi-tag entry: serialized size exceeds defensive cap'
+    );
+    return null;
+  }
   try {
     const parsed = JSON.parse(raw) as CoordinatorEntrySnapshot;
+    // Validate every field the recovery path will consume. Tighter than
+    // strictly necessary today (no recovery yet), but locking the gate
+    // here keeps the follow-up PR's recovery code from having to add
+    // its own validation pass.
     if (
       typeof parsed.groupId === 'string' &&
+      typeof parsed.sourceMessageId === 'string' &&
+      typeof parsed.channelId === 'string' &&
+      typeof parsed.userId === 'string' &&
+      typeof parsed.userMessageTime === 'string' &&
+      typeof parsed.userMessageContent === 'string' &&
       Array.isArray(parsed.slots) &&
-      parsed.slots.length > 0
+      parsed.slots.length > 0 &&
+      parsed.slots.every(
+        s =>
+          typeof s.jobId === 'string' &&
+          typeof s.status === 'string' &&
+          typeof s.personalityId === 'string' &&
+          typeof s.personalitySlug === 'string' &&
+          typeof s.source === 'string'
+      )
     ) {
       return parsed;
     }
-    logger.warn({ key }, 'Skipping malformed multi-tag entry (missing required fields)');
+    logger.warn({ key }, 'Skipping malformed multi-tag entry (failed field validation)');
     return null;
   } catch (err) {
     logger.warn({ err, key }, 'Skipping multi-tag entry: JSON parse failed');

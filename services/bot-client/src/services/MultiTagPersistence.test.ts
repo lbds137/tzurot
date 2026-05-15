@@ -78,6 +78,14 @@ describe('MultiTagPersistence', () => {
         pipelineCalls.push({ method: 'del', args });
         return fakePipeline;
       }),
+      sadd: vi.fn((...args: unknown[]) => {
+        pipelineCalls.push({ method: 'sadd', args });
+        return fakePipeline;
+      }),
+      expire: vi.fn((...args: unknown[]) => {
+        pipelineCalls.push({ method: 'expire', args });
+        return fakePipeline;
+      }),
       exec: vi.fn().mockResolvedValue([]),
     };
 
@@ -123,18 +131,27 @@ describe('MultiTagPersistence', () => {
   });
 
   describe('updateEntry', () => {
-    it('replaces just the entry JSON, refreshing TTL', async () => {
+    it('replaces the entry JSON and slides TTLs on reverse indices via MULTI', async () => {
       const entry = buildEntry();
       await persistence.updateEntry(entry);
 
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}group-1`,
-        expect.any(String),
-        'EX',
-        MULTI_TAG.REDIS_TTL_SEC
-      );
-      // multi() is not used for partial updates
-      expect(mockRedis.multi).not.toHaveBeenCalled();
+      expect(mockRedis.multi).toHaveBeenCalledOnce();
+      // 1 SET for the entry key
+      const setCalls = pipelineCalls.filter(c => c.method === 'set');
+      expect(setCalls).toHaveLength(1);
+      expect(setCalls[0].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}group-1`);
+      expect(setCalls[0].args[2]).toBe('EX');
+      expect(setCalls[0].args[3]).toBe(MULTI_TAG.REDIS_TTL_SEC);
+      // 1 EXPIRE for the source-index + 1 per slot (2 slots = 2 here)
+      const expireCalls = pipelineCalls.filter(c => c.method === 'expire');
+      expect(expireCalls).toHaveLength(3);
+      expect(expireCalls[0].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_SOURCE_INDEX}src-msg-1`);
+      expect(expireCalls[1].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}job-A`);
+      expect(expireCalls[2].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}job-B`);
+      // All TTLs identical
+      for (const call of expireCalls) {
+        expect(call.args[1]).toBe(MULTI_TAG.REDIS_TTL_SEC);
+      }
     });
   });
 
@@ -220,18 +237,29 @@ describe('MultiTagPersistence', () => {
   });
 
   describe('stale-jobid set', () => {
-    it('SADDs jobIds when markStale is called', async () => {
+    it('SADDs jobIds and slides the SET TTL via MULTI when markStale is called', async () => {
       await persistence.markStale('job-A', 'job-B');
-      expect(mockRedis.sadd).toHaveBeenCalledWith(
+      const saddCalls = pipelineCalls.filter(c => c.method === 'sadd');
+      const expireCalls = pipelineCalls.filter(c => c.method === 'expire');
+      expect(saddCalls).toHaveLength(1);
+      expect(saddCalls[0].args).toEqual([
         REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS,
         'job-A',
-        'job-B'
-      );
+        'job-B',
+      ]);
+      // EXPIRE on the SET key — sliding TTL so orphan entries (results that
+      // never arrive) eventually fall out instead of accumulating forever.
+      expect(expireCalls).toHaveLength(1);
+      expect(expireCalls[0].args[0]).toBe(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS);
+      expect(typeof expireCalls[0].args[1]).toBe('number');
+      expect(expireCalls[0].args[1]).toBeGreaterThan(0);
     });
 
     it('no-ops when markStale is called with empty list', async () => {
       await persistence.markStale();
-      expect(mockRedis.sadd).not.toHaveBeenCalled();
+      // No MULTI pipeline opened at all — both sadd and expire skipped.
+      expect(pipelineCalls.filter(c => c.method === 'sadd')).toHaveLength(0);
+      expect(pipelineCalls.filter(c => c.method === 'expire')).toHaveLength(0);
     });
 
     it('isStale returns true when SISMEMBER returns 1', async () => {
@@ -244,6 +272,14 @@ describe('MultiTagPersistence', () => {
       expect(await persistence.isStale('job-A')).toBe(false);
     });
 
+    it('isStale fails open (returns false) on Redis error', async () => {
+      // A Redis hiccup must NOT swallow the user's response — fail-open
+      // here means a duplicate delivery in pathological restart-then-blip
+      // races is preferred over silently dropping every result.
+      mockRedis.sismember.mockRejectedValue(new Error('Redis connection lost'));
+      expect(await persistence.isStale('job-A')).toBe(false);
+    });
+
     it('clearStale removes the jobId from the set', async () => {
       await persistence.clearStale('job-A');
       expect(mockRedis.srem).toHaveBeenCalledWith(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, 'job-A');
@@ -251,13 +287,28 @@ describe('MultiTagPersistence', () => {
   });
 
   describe('DM backfill sentinel', () => {
-    it('markDMBackfillTried writes a TTL sentinel', async () => {
-      await persistence.markDMBackfillTried('dm-channel-1', 3600);
+    it('markDMBackfillTried writes a TTL sentinel using the default TTL', async () => {
+      // Production calls markDMBackfillTried(channelId) with no second arg;
+      // exercise that path so the test validates the actual default rather
+      // than a value the caller passes.
+      await persistence.markDMBackfillTried('dm-channel-1');
       expect(mockRedis.set).toHaveBeenCalledWith(
         `${REDIS_KEY_PREFIXES.MULTI_TAG_DM_BACKFILL_TRIED}dm-channel-1`,
         '1',
         'EX',
-        3600
+        expect.any(Number)
+      );
+      const setCall = mockRedis.set.mock.calls[0];
+      expect(setCall[3]).toBeGreaterThan(0);
+    });
+
+    it('markDMBackfillTried honors an explicit TTL override', async () => {
+      await persistence.markDMBackfillTried('dm-channel-1', 120);
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.MULTI_TAG_DM_BACKFILL_TRIED}dm-channel-1`,
+        '1',
+        'EX',
+        120
       );
     });
 
@@ -268,6 +319,13 @@ describe('MultiTagPersistence', () => {
 
     it('wasDMBackfillTried returns false when the sentinel is missing', async () => {
       mockRedis.get.mockResolvedValue(null);
+      expect(await persistence.wasDMBackfillTried('dm-channel-1')).toBe(false);
+    });
+
+    it('wasDMBackfillTried fails open (returns false) on Redis error', async () => {
+      // Same reasoning as isStale: a Redis blip must NOT throw out of the
+      // DM processor chain and swallow the user's message.
+      mockRedis.get.mockRejectedValue(new Error('Redis connection lost'));
       expect(await persistence.wasDMBackfillTried('dm-channel-1')).toBe(false);
     });
   });

@@ -41,9 +41,8 @@ import { ConversationPersistence } from './services/ConversationPersistence.js';
 import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.js';
 import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentService.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
-import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { SlotDeliveryService } from './services/SlotDeliveryService.js';
-import { PersonalityChatManager } from './services/character/PersonalityChatManager.js';
+import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
@@ -51,15 +50,11 @@ import { StartupDMPrewarmer } from './services/StartupDMPrewarmer.js';
 import { registerServices } from './services/serviceRegistry.js';
 
 // Processors
-import { BotMessageFilter } from './processors/BotMessageFilter.js';
-import { EmptyMessageFilter } from './processors/EmptyMessageFilter.js';
-import { VoiceMessageProcessor } from './processors/VoiceMessageProcessor.js';
-import { ReplyMessageProcessor } from './processors/ReplyMessageProcessor.js';
-import { ActivatedChannelProcessor } from './processors/ActivatedChannelProcessor.js';
-import { DMSessionProcessor } from './processors/DMSessionProcessor.js';
-import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
-import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
-import { DenylistFilter } from './processors/DenylistFilter.js';
+import {
+  buildPersonalityChatPipeline,
+  buildMultiTagCoordinator,
+  buildProcessorChain,
+} from './composition.js';
 import {
   startNotificationCacheCleanup,
   stopNotificationCacheCleanup,
@@ -141,6 +136,23 @@ interface Services {
   denylistCache: DenylistCache;
   denylistCacheInvalidationService: DenylistCacheInvalidationService;
   dmCacheWarmer: DMCacheWarmer;
+  multiTagCoordinator: MultiTagCoordinator;
+}
+
+/**
+ * Build the cache-invalidation Redis client. Validates env, wires the error
+ * handler, logs initialization. Extracted from `createServices` so its
+ * non-null-assertion suppression doesn't bloat the main wiring body.
+ */
+function buildCacheRedis(): Redis {
+  validateRedisUrl();
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated by validateRedisUrl() above; TS can't narrow across the function boundary
+  const cacheRedis = new Redis(envConfig.REDIS_URL!);
+  cacheRedis.on('error', err => {
+    logger.error({ err }, 'Cache Redis connection error');
+  });
+  logger.info('Redis client initialized for cache invalidation');
+  return cacheRedis;
 }
 
 /**
@@ -155,13 +167,7 @@ function createServices(): Services {
   logger.info('Prisma client initialized');
 
   // Initialize Redis for cache invalidation
-  validateRedisUrl();
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated by validateRedisUrl() above, but TypeScript can't infer the narrowed type across function boundaries
-  const cacheRedis = new Redis(envConfig.REDIS_URL!);
-  cacheRedis.on('error', err => {
-    logger.error({ err }, 'Cache Redis connection error');
-  });
-  logger.info('Redis client initialized for cache invalidation');
+  const cacheRedis = buildCacheRedis();
 
   // Core infrastructure
   const gatewayClient = new GatewayClient(config.gatewayUrl);
@@ -204,60 +210,56 @@ function createServices(): Services {
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
   const replyResolver = new ReplyResolutionService(personalityIdCache, gatewayClient);
 
-  // Domain pipeline for @mention/reply/auto-response chats: gates,
-  // config resolution, context build, persistence, job submission.
-  const personalityChatManager = new PersonalityChatManager({
+  // Personality chat pipeline (manager + Discord-shape adapter).
+  const { personalityChatManager, personalityHandler } = buildPersonalityChatPipeline({
     gatewayClient,
     contextBuilder,
     persistence,
     referenceEnricher,
     denylistCache,
-  });
-
-  // Discord-shape adapter; routes Messages through the manager + tracks the job.
-  const personalityHandler = new PersonalityMessageHandler({
-    manager: personalityChatManager,
     jobTracker,
   });
 
-  // Shared per-slot delivery (used by single-job MessageHandler today and
-  // multi-tag MultiTagCoordinator in the next commit).
+  // Shared per-slot delivery (used by single-job MessageHandler and
+  // multi-tag MultiTagCoordinator).
   const slotDelivery = new SlotDeliveryService({
     responseSender,
     persistence,
     gatewayClient,
   });
 
-  // Create processor chain (order matters!)
-  // 1. BotMessageFilter - Ignore bot messages
-  // 2. DenylistFilter - Silently ignore denied users/guilds/channels
-  // 3. EmptyMessageFilter - Ignore empty messages
-  // 4. VoiceMessageProcessor - Transcribe voice messages (sets transcript for later processors)
-  // 5. ReplyMessageProcessor - Handle replies to personality webhooks (HIGHEST PRIORITY)
-  // 6. ActivatedChannelProcessor - Auto-respond in channels with activated personalities
-  // 7. DMSessionProcessor - Handle sticky DM sessions (continue conversation without @mention)
-  // 8. PersonalityMentionProcessor - Handle @personality mentions
-  // 9. BotMentionProcessor - Handle @bot mentions
-  const processors = [
-    new BotMessageFilter(),
-    new DenylistFilter(denylistCache),
-    new EmptyMessageFilter(),
-    new VoiceMessageProcessor(voiceTranscription, personalityIdCache, gatewayClient),
-    new ReplyMessageProcessor(replyResolver, personalityHandler),
-    new ActivatedChannelProcessor(gatewayClient, personalityIdCache, personalityHandler),
-    new DMSessionProcessor(gatewayClient, personalityIdCache, personalityHandler),
-    new PersonalityMentionProcessor(personalityIdCache, personalityHandler),
-    new BotMentionProcessor(),
-  ];
+  // Multi-tag coordinator + Redis persistence. Persistence is shared with
+  // DMSessionProcessor for its backfill-tried sentinel.
+  const { coordinator: multiTagCoordinator, persistence: multiTagPersistence } =
+    buildMultiTagCoordinator({
+      chatManager: personalityChatManager,
+      gatewayClient,
+      jobTracker,
+      orderingService: responseOrderingService,
+      slotDelivery,
+    });
+
+  // Processor chain (order matters — see buildProcessorChain doc).
+  const processors = buildProcessorChain({
+    denylistCache,
+    voiceTranscription,
+    personalityIdCache,
+    gatewayClient,
+    replyResolver,
+    coordinator: multiTagCoordinator,
+    personalityHandler,
+    multiTagPersistence,
+  });
 
   // Create MessageHandler with full dependency injection
-  const messageHandler = new MessageHandler(
+  const messageHandler = new MessageHandler({
     processors,
     responseSender,
     persistence,
     jobTracker,
-    slotDelivery
-  );
+    slotDelivery,
+    coordinator: multiTagCoordinator,
+  });
 
   // Register services for global access (used by slash commands)
   registerServices({
@@ -288,6 +290,7 @@ function createServices(): Services {
     channelActivationCacheInvalidationService,
     denylistCache,
     denylistCacheInvalidationService,
+    multiTagCoordinator,
     dmCacheWarmer,
   };
 }
@@ -519,8 +522,20 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
   shutdownInitiated = true;
   logger.info({ signal }, 'Shutting down...');
 
-  // Stop accepting new results first to prevent race condition during shutdown
-  void services.resultsListener.stop();
+  // Sequence the two shutdown steps:
+  //   1. Stop accepting new results — close the door before draining.
+  //   2. Mark pending multi-tag slot jobIds stale + tear down in-memory state.
+  // Doing both as concurrent fire-and-forgets leaves a small race window
+  // where a result could still arrive between stop() returning and the
+  // coordinator clearing entries; sequencing closes it.
+  void (async () => {
+    try {
+      await services.resultsListener.stop();
+      await services.multiTagCoordinator.beginShutdown();
+    } catch (err) {
+      logger.error({ err }, 'Error during early shutdown sequence');
+    }
+  })();
 
   // Then deliver any buffered results
   void services.responseOrderingService

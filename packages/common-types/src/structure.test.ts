@@ -102,6 +102,10 @@ const EXCLUDE_PATTERNS = [
   // Pure type/interface definitions (no logic to test)
   /DiagnosticTypes\.ts$/, // ai-worker diagnostic types
   /ContextBuildOptions\.ts$/, // bot-client context builder options interface
+  // bot-client composition root — pure DI wiring (no logic). Verified
+  // indirectly by every integration test that exercises the services it
+  // instantiates; any constructor-signature change is caught by TypeScript.
+  /services\/bot-client\/src\/composition\.ts$/,
   // --- Tooling package exclusions ---
   // CLI command routers (thin wrappers that register yargs/cac commands, delegate to submodules)
   /packages\/tooling\/src\/commands\//,

@@ -278,6 +278,42 @@ export class GatewayClient {
   }
 
   /**
+   * Record the active personality in a DM channel after a multi-tag fan-out.
+   *
+   * Hits the service-only internal endpoint that upserts `channel_settings`
+   * with `guildId: null`. Idempotent — repeat calls for the same
+   * (channelId, personalitySlug) pair are safe.
+   *
+   * Failure is logged but not thrown — DM-session tracking is best-effort;
+   * a transient gateway hiccup shouldn't break the multi-tag delivery itself.
+   */
+  async setDmSessionPersonality(channelId: string, personalitySlug: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/internal/channel/dm-session/set`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': CONTENT_TYPES.JSON,
+          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+        },
+        body: JSON.stringify({ channelId, personalitySlug }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`DM session set failed: ${response.status} ${text}`);
+      }
+      // Invalidate the 30s channel-settings cache so the next bare DM message
+      // sees the newly-recorded active personality. Without this, multi-tag
+      // fan-outs followed by an immediate bare DM would route to the stale
+      // (previous-session) personality for up to 30 seconds.
+      invalidateChannelSettingsCache(channelId);
+      logger.debug({ channelId, personalitySlug }, 'DM session personality recorded');
+    } catch (error) {
+      logger.error({ err: error, channelId, personalitySlug }, 'Failed to record DM session');
+    }
+  }
+
+  /**
    * Confirm job delivery to Discord
    * Updates job_results status to DELIVERED
    */

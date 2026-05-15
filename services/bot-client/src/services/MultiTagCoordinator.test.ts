@@ -39,14 +39,19 @@ function buildResolvedSlot(personality: LoadedPersonality): ResolvedSlot {
   };
 }
 
-function buildMessage(): Message {
+function buildMessage(overrides: Partial<Message> = {}): Message {
   return {
     id: 'msg-source',
     author: { id: 'user-1' },
     guildId: 'guild-1',
     client: { user: { id: 'bot-1' } },
     reply: vi.fn(),
+    ...overrides,
   } as unknown as Message;
+}
+
+function buildDmMessage(): Message {
+  return buildMessage({ guildId: null } as Partial<Message>);
 }
 
 function buildChannel(): TypingChannel {
@@ -59,6 +64,7 @@ describe('MultiTagCoordinator', () => {
   };
   let gatewayClient: {
     confirmDelivery: ReturnType<typeof vi.fn>;
+    setDmSessionPersonality: ReturnType<typeof vi.fn>;
   };
   let jobTracker: {
     trackJob: ReturnType<typeof vi.fn>;
@@ -85,7 +91,10 @@ describe('MultiTagCoordinator', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     chatManager = { submitChatJob: vi.fn() };
-    gatewayClient = { confirmDelivery: vi.fn().mockResolvedValue(undefined) };
+    gatewayClient = {
+      confirmDelivery: vi.fn().mockResolvedValue(undefined),
+      setDmSessionPersonality: vi.fn().mockResolvedValue(undefined),
+    };
     jobTracker = { trackJob: vi.fn(), completeJob: vi.fn() };
     orderingService = {
       registerJob: vi.fn(),
@@ -121,9 +130,12 @@ describe('MultiTagCoordinator', () => {
     vi.useRealTimers();
   });
 
-  function fanOut(slots: ResolvedSlot[], opts: { jobIdsBySlotIndex?: string[] } = {}) {
+  function fanOut(
+    slots: ResolvedSlot[],
+    opts: { jobIdsBySlotIndex?: string[]; message?: Message } = {}
+  ) {
     const input: StartFanOutInput = {
-      message: buildMessage(),
+      message: opts.message ?? buildMessage(),
       channel: buildChannel(),
       slots,
       content: 'hi everyone',
@@ -137,7 +149,7 @@ describe('MultiTagCoordinator', () => {
         trackingContext: {
           kind: 'message',
           channel: input.channel,
-          guildId: 'guild-1',
+          guildId: input.message.guildId,
           clientId: 'bot-1',
           personality,
           personaId: `persona-${personality.name}`,
@@ -225,6 +237,41 @@ describe('MultiTagCoordinator', () => {
       });
       expect(chatManager.submitChatJob).not.toHaveBeenCalled();
       expect(persistence.putEntry).not.toHaveBeenCalled();
+    });
+
+    it('leaves no in-memory state when putEntry fails, registers slots per-job for ordering', async () => {
+      // If Redis hiccups, we must not register the group in the in-memory
+      // map (would orphan ownsJob → coordinator-blind recovery). But the
+      // slots were submitted with `skipOrderingRegistration: true`
+      // expecting the coordinator to register the GROUP — so we now have
+      // to register each slot INDIVIDUALLY in the failure path or their
+      // results bypass cross-message ordering entirely.
+      persistence.putEntry.mockRejectedValueOnce(new Error('Redis down'));
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)]);
+
+      await coordinator.startFanOut(input);
+
+      // Jobs were still submitted (uncancellable from here).
+      expect(chatManager.submitChatJob).toHaveBeenCalledTimes(2);
+      // Coordinator state NOT registered (would orphan ownsJob).
+      expect(coordinator.ownsJob('job-Alice')).toBe(false);
+      expect(coordinator.ownsJob('job-Bob')).toBe(false);
+      // Each slot IS registered with ordering individually (not the
+      // group-level groupId). This preserves cross-message channel
+      // ordering even though intra-fan-out slot order is lost.
+      expect(orderingService.registerJob).toHaveBeenCalledTimes(2);
+      expect(orderingService.registerJob).toHaveBeenCalledWith(
+        input.channel.id,
+        'job-Alice',
+        expect.any(Date)
+      );
+      expect(orderingService.registerJob).toHaveBeenCalledWith(
+        input.channel.id,
+        'job-Bob',
+        expect.any(Date)
+      );
     });
   });
 
@@ -335,6 +382,97 @@ describe('MultiTagCoordinator', () => {
       });
       expect(slotDelivery.deliverSuccess).not.toHaveBeenCalled();
     });
+
+    it('continues to remaining slots when one slot delivery throws', async () => {
+      // Slot delivery is best-effort per slot — a single slot's
+      // sendResponse / persistence failure must not block the remaining
+      // slots in the same burst from delivering. deliverGroup wraps each
+      // slot in its own try/catch.
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      slotDelivery.deliverSuccess
+        .mockRejectedValueOnce(new Error('Alice delivery exploded'))
+        .mockResolvedValueOnce({ chunkMessageIds: ['bob-msg'] });
+
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)]);
+      await coordinator.startFanOut(input);
+
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      await coordinator.handleJobResult('job-Bob', {
+        requestId: 'rb',
+        success: true,
+        content: 'B',
+      });
+
+      // Both attempts fired — Alice threw, Bob succeeded.
+      expect(slotDelivery.deliverSuccess).toHaveBeenCalledTimes(2);
+      // Group still cleaned up (confirmDelivery for both).
+      expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Alice');
+      expect(gatewayClient.confirmDelivery).toHaveBeenCalledWith('job-Bob');
+      // Entry deleted from in-memory map even though one slot threw.
+      expect(coordinator.ownsJob('job-Alice')).toBe(false);
+      expect(coordinator.ownsJob('job-Bob')).toBe(false);
+    });
+
+    it('routes empty-content "success" results through deliverError, not deliverSuccess', async () => {
+      // Parity with MessageHandler: if a job comes back with success !== false
+      // but empty/non-string content (rate-limit soft-fail, upstream weirdness),
+      // the multi-tag path must still surface an error to the user instead of
+      // letting deliverSuccess throw and the per-slot catch swallow it.
+      const a = buildPersonality('Alice');
+      const { input } = fanOut([buildResolvedSlot(a)]);
+      await coordinator.startFanOut(input);
+
+      // Alice's result is "successful" but content is empty
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: '',
+      });
+
+      expect(slotDelivery.deliverSuccess).not.toHaveBeenCalled();
+      expect(slotDelivery.deliverError).toHaveBeenCalledOnce();
+    });
+
+    it('clears in-memory state even when orderingService.handleResult throws', async () => {
+      // Regression guard: deliverGroup's tail does delivery-contingent
+      // cleanup (confirmDelivery, persistence delete). The in-memory map
+      // cleanup (entries, jobToGroup, flushingGroups) must run via
+      // flushEntry's finally so that an orderingService throw doesn't
+      // leak entries forever.
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      orderingService.handleResult.mockRejectedValueOnce(
+        new Error('ordering service exploded before callback')
+      );
+
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)]);
+      await coordinator.startFanOut(input);
+
+      // Push both results in — second triggers flush
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      await expect(
+        coordinator.handleJobResult('job-Bob', {
+          requestId: 'rb',
+          success: true,
+          content: 'B',
+        })
+      ).rejects.toThrow('ordering service exploded');
+
+      // deliverGroup never ran because handleResult threw before invoking it
+      expect(slotDelivery.deliverSuccess).not.toHaveBeenCalled();
+      // But in-memory state is cleaned up regardless
+      expect(coordinator.ownsJob('job-Alice')).toBe(false);
+      expect(coordinator.ownsJob('job-Bob')).toBe(false);
+    });
   });
 
   describe('safety timeout', () => {
@@ -358,6 +496,48 @@ describe('MultiTagCoordinator', () => {
       // Group flushed: Alice via success path, Bob via error path
       expect(slotDelivery.deliverSuccess).toHaveBeenCalledOnce();
       expect(slotDelivery.deliverError).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('DM session activation after flush', () => {
+    it('writes the textually-last mention to DM session state when channel is a DM', async () => {
+      const a = buildPersonality('Alice');
+      const b = buildPersonality('Bob');
+      // DM channel — message.guildId is null
+      const { input } = fanOut([buildResolvedSlot(a), buildResolvedSlot(b)], {
+        message: buildDmMessage(),
+      });
+      await coordinator.startFanOut(input);
+
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      await coordinator.handleJobResult('job-Bob', {
+        requestId: 'rb',
+        success: true,
+        content: 'B',
+      });
+
+      // Bob (slot 1, textually-last mention) becomes the new active session
+      expect(gatewayClient.setDmSessionPersonality).toHaveBeenCalledOnce();
+      expect(gatewayClient.setDmSessionPersonality).toHaveBeenCalledWith(
+        input.channel.id,
+        'bob' // slug
+      );
+    });
+
+    it('does NOT write DM session state for guild-channel fan-outs', async () => {
+      const a = buildPersonality('Alice');
+      const { input } = fanOut([buildResolvedSlot(a)]);
+      await coordinator.startFanOut(input);
+      await coordinator.handleJobResult('job-Alice', {
+        requestId: 'ra',
+        success: true,
+        content: 'A',
+      });
+      expect(gatewayClient.setDmSessionPersonality).not.toHaveBeenCalled();
     });
   });
 

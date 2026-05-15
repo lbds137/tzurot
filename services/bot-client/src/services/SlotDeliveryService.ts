@@ -156,14 +156,28 @@ export class SlotDeliveryService {
   /**
    * Deliver an error response for a single slot.
    * Falls back to `message.reply` if the webhook path fails.
+   *
+   * Two phases with distinct error handling — the user must not see the
+   * error message twice if the webhook succeeded and only persistence
+   * failed:
+   *
+   *   1. Webhook send (try/catch → reply fallback). Only this phase
+   *      triggers `message.reply` on failure.
+   *   2. Persistence + diagnostic (failures logged; do NOT trigger reply).
+   *
+   * Unlike `deliverSuccess`, this path does **not** call `updateUserMessage`
+   * — when AI generation failed there are no attachment descriptions to
+   * upgrade, and we don't want to mutate the user-message row on the AI
+   * error path. The asymmetry is intentional.
    */
   async deliverError(
     errorContent: string,
     result: LLMGenerationResult,
     slot: SlotDeliveryContext
   ): Promise<void> {
+    let chunkMessageIds: string[];
     try {
-      const { chunkMessageIds } = await this.responseSender.sendResponse({
+      const sendResult = await this.responseSender.sendResponse({
         content: errorContent,
         personality: slot.personality,
         channel: slot.channel,
@@ -177,23 +191,7 @@ export class SlotDeliveryService {
         incognitoModeActive: result.metadata?.incognitoModeActive,
         showModelFooter: result.metadata?.showModelFooter,
       });
-
-      await this.persistence.saveAssistantMessage({
-        message: slot.message,
-        personality: slot.personality,
-        personaId: slot.personaId,
-        content: stripErrorSpoiler(errorContent),
-        chunkMessageIds,
-        userMessageTime: slot.userMessageTime,
-      });
-
-      if (chunkMessageIds.length > 0) {
-        void this.gatewayClient
-          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-          .catch(err => {
-            logger.warn({ err }, 'Failed to update diagnostic response IDs for error');
-          });
-      }
+      chunkMessageIds = sendResult.chunkMessageIds;
     } catch (sendError) {
       logger.error(
         { err: sendError, personalityId: slot.personality.id },
@@ -202,6 +200,33 @@ export class SlotDeliveryService {
       await slot.message.reply(errorContent).catch(() => {
         // Already logged the webhook error; ignore reply failure to avoid noise.
       });
+      return;
+    }
+
+    // Webhook succeeded — persistence/diagnostic failures from here are
+    // logged but MUST NOT trigger the reply fallback (would double-send).
+    try {
+      await this.persistence.saveAssistantMessage({
+        message: slot.message,
+        personality: slot.personality,
+        personaId: slot.personaId,
+        content: stripErrorSpoiler(errorContent),
+        chunkMessageIds,
+        userMessageTime: slot.userMessageTime,
+      });
+    } catch (persistError) {
+      logger.error(
+        { err: persistError, personalityId: slot.personality.id },
+        'Failed to persist error message to conversation history (webhook already sent)'
+      );
+    }
+
+    if (chunkMessageIds.length > 0) {
+      void this.gatewayClient
+        .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
+        .catch(err => {
+          logger.warn({ err }, 'Failed to update diagnostic response IDs for error');
+        });
     }
   }
 }

@@ -44,6 +44,14 @@ const mockSlotDelivery = {
   deliverError: vi.fn(),
 };
 
+// Multi-tag coordinator — default to "not owning" any job and "not stale" so
+// existing single-personality tests flow through the original path.
+const mockCoordinator = {
+  ownsJob: vi.fn().mockReturnValue(false),
+  isStale: vi.fn().mockResolvedValue(false),
+  handleJobResult: vi.fn().mockResolvedValue(undefined),
+};
+
 describe('MessageHandler', () => {
   let messageHandler: MessageHandler;
   let mockProcessor1: IMessageProcessor;
@@ -67,13 +75,14 @@ describe('MessageHandler', () => {
       process: vi.fn().mockResolvedValue(false),
     };
 
-    messageHandler = new MessageHandler(
-      [mockProcessor1, mockProcessor2, mockProcessor3],
-      mockResponseSender as any,
-      mockPersistence as any,
-      mockJobTracker as any,
-      mockSlotDelivery as any
-    );
+    messageHandler = new MessageHandler({
+      processors: [mockProcessor1, mockProcessor2, mockProcessor3],
+      responseSender: mockResponseSender as any,
+      persistence: mockPersistence as any,
+      jobTracker: mockJobTracker as any,
+      slotDelivery: mockSlotDelivery as any,
+      coordinator: mockCoordinator as any,
+    });
 
     // Default: deliverSuccess/Error wire through to the existing mocks so legacy
     // assertions (mockResponseSender.sendResponse, mockPersistence.*) continue
