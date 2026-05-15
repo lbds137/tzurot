@@ -36,6 +36,14 @@ const mockJobTracker = {
   completeJob: vi.fn(),
 };
 
+// Slot-delivery surface — both deliverSuccess and deliverError forward to the
+// same response-sender + persistence mocks above so the existing assertions
+// (which check those mocks) keep working through the refactor.
+const mockSlotDelivery = {
+  deliverSuccess: vi.fn(),
+  deliverError: vi.fn(),
+};
+
 describe('MessageHandler', () => {
   let messageHandler: MessageHandler;
   let mockProcessor1: IMessageProcessor;
@@ -63,8 +71,84 @@ describe('MessageHandler', () => {
       [mockProcessor1, mockProcessor2, mockProcessor3],
       mockResponseSender as any,
       mockPersistence as any,
-      mockJobTracker as any
+      mockJobTracker as any,
+      mockSlotDelivery as any
     );
+
+    // Default: deliverSuccess/Error wire through to the existing mocks so legacy
+    // assertions (mockResponseSender.sendResponse, mockPersistence.*) continue
+    // to observe the indirect call path post-refactor.
+    mockSlotDelivery.deliverSuccess.mockImplementation(async (result, slot) => {
+      await mockPersistence.updateUserMessage({
+        message: slot.message,
+        personality: slot.personality,
+        personaId: slot.personaId,
+        messageContent: slot.userMessageContent,
+        attachmentDescriptions: result.attachmentDescriptions,
+      });
+      const { chunkMessageIds } = await mockResponseSender.sendResponse({
+        content: result.content,
+        personality: slot.personality,
+        channel: slot.channel,
+        guildId: slot.guildId,
+        clientId: slot.clientId,
+        isAutoResponse: slot.isAutoResponse,
+        recipientUserId: slot.recipientUserId,
+        modelUsed: result.metadata?.modelUsed,
+        providerUsed: result.metadata?.providerUsed,
+        isGuestMode: result.metadata?.isGuestMode,
+        focusModeEnabled: result.metadata?.focusModeEnabled,
+        incognitoModeActive: result.metadata?.incognitoModeActive,
+        thinkingContent: result.metadata?.thinkingContent,
+        showThinking: result.metadata?.showThinking,
+        showModelFooter: result.metadata?.showModelFooter,
+        ttsAudioKey: result.metadata?.ttsAudioKey,
+        ttsAudioContentType: result.metadata?.ttsAudioContentType,
+        ttsNotices: result.metadata?.ttsNotices,
+      });
+      await mockPersistence.saveAssistantMessage({
+        message: slot.message,
+        personality: slot.personality,
+        personaId: slot.personaId,
+        content: result.content,
+        chunkMessageIds,
+        userMessageTime: slot.userMessageTime,
+      });
+      if (chunkMessageIds.length > 0) {
+        void mockGatewayClient
+          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
+          .catch(() => undefined);
+      }
+      return { chunkMessageIds };
+    });
+    mockSlotDelivery.deliverError.mockImplementation(async (errorContent, result, slot) => {
+      try {
+        const { chunkMessageIds } = await mockResponseSender.sendResponse({
+          content: errorContent,
+          personality: slot.personality,
+          channel: slot.channel,
+          guildId: slot.guildId,
+          clientId: slot.clientId,
+          isAutoResponse: slot.isAutoResponse,
+          modelUsed: result.metadata?.modelUsed,
+          providerUsed: result.metadata?.providerUsed,
+          isGuestMode: result.metadata?.isGuestMode,
+          focusModeEnabled: result.metadata?.focusModeEnabled,
+          incognitoModeActive: result.metadata?.incognitoModeActive,
+          showModelFooter: result.metadata?.showModelFooter,
+        });
+        await mockPersistence.saveAssistantMessage({
+          message: slot.message,
+          personality: slot.personality,
+          personaId: slot.personaId,
+          content: (await import('@tzurot/common-types')).stripErrorSpoiler(errorContent),
+          chunkMessageIds,
+          userMessageTime: slot.userMessageTime,
+        });
+      } catch {
+        await slot.message.reply(errorContent).catch(() => undefined);
+      }
+    });
   });
 
   describe('handleMessage - Chain of Responsibility', () => {

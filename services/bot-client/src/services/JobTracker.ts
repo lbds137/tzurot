@@ -133,8 +133,18 @@ export class JobTracker {
    * typing-indicator loop is read from `context.channel` — single source of
    * truth shared with the result-delivery path (which also reads
    * `BaseJobContext.channel`).
+   *
+   * Pass `options.skipOrderingRegistration` when a higher-level coordinator
+   * (e.g., MultiTagCoordinator) owns the ordering-service registration for a
+   * group of jobs. The slot's individual job context still lives here for
+   * typing-indicator refresh and result-routing lookup; only the
+   * cross-message ordering hookup is skipped.
    */
-  trackJob(jobId: string, context: PendingJobContext): void {
+  trackJob(
+    jobId: string,
+    context: PendingJobContext,
+    options: { skipOrderingRegistration?: boolean } = {}
+  ): void {
     const channel = context.channel;
     // Clear any existing tracking for this jobId (shouldn't happen, but be safe)
     if (this.activeJobs.has(jobId)) {
@@ -233,8 +243,10 @@ export class JobTracker {
       context,
     });
 
-    // Register with ordering service to ensure responses are delivered in message order
-    if (this.orderingService) {
+    // Register with ordering service to ensure responses are delivered in message order.
+    // For multi-tag jobs, MultiTagCoordinator owns the group-level ordering entry, so
+    // individual slots skip this registration to avoid double-counting.
+    if (this.orderingService && options.skipOrderingRegistration !== true) {
       this.orderingService.registerJob(channel.id, jobId, context.userMessageTime);
     }
 

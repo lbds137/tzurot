@@ -42,6 +42,7 @@ import { VoiceTranscriptionService } from './services/VoiceTranscriptionService.
 import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentService.js';
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
+import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { PersonalityChatManager } from './services/character/PersonalityChatManager.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { DenylistCache } from './services/DenylistCache.js';
@@ -219,6 +220,14 @@ function createServices(): Services {
     jobTracker,
   });
 
+  // Shared per-slot delivery (used by single-job MessageHandler today and
+  // multi-tag MultiTagCoordinator in the next commit).
+  const slotDelivery = new SlotDeliveryService({
+    responseSender,
+    persistence,
+    gatewayClient,
+  });
+
   // Create processor chain (order matters!)
   // 1. BotMessageFilter - Ignore bot messages
   // 2. DenylistFilter - Silently ignore denied users/guilds/channels
@@ -242,7 +251,13 @@ function createServices(): Services {
   ];
 
   // Create MessageHandler with full dependency injection
-  const messageHandler = new MessageHandler(processors, responseSender, persistence, jobTracker);
+  const messageHandler = new MessageHandler(
+    processors,
+    responseSender,
+    persistence,
+    jobTracker,
+    slotDelivery
+  );
 
   // Register services for global access (used by slash commands)
   registerServices({
