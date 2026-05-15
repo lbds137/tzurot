@@ -20,21 +20,38 @@ import {
 } from '../services/JobTracker.js';
 import { getGatewayClient } from '../services/serviceRegistry.js';
 import type { SlotDeliveryService, SlotDeliveryContext } from '../services/SlotDeliveryService.js';
+import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 
 const logger = createLogger('MessageHandler');
 
 /**
  * Message Handler - routes Discord messages using Chain of Responsibility
  */
+export interface MessageHandlerDeps {
+  processors: IMessageProcessor[];
+  responseSender: DiscordResponseSender;
+  persistence: ConversationPersistence;
+  jobTracker: JobTracker;
+  slotDelivery: SlotDeliveryService;
+  coordinator: MultiTagCoordinator;
+}
+
 export class MessageHandler {
-  constructor(
-    private readonly processors: IMessageProcessor[],
-    private readonly responseSender: DiscordResponseSender,
-    private readonly persistence: ConversationPersistence,
-    private readonly jobTracker: JobTracker,
-    private readonly slotDelivery: SlotDeliveryService
-  ) {
-    logger.info({ processorCount: processors.length }, 'Initialized with processor chain');
+  private readonly processors: IMessageProcessor[];
+  private readonly responseSender: DiscordResponseSender;
+  private readonly persistence: ConversationPersistence;
+  private readonly jobTracker: JobTracker;
+  private readonly slotDelivery: SlotDeliveryService;
+  private readonly coordinator: MultiTagCoordinator;
+
+  constructor(deps: MessageHandlerDeps) {
+    this.processors = deps.processors;
+    this.responseSender = deps.responseSender;
+    this.persistence = deps.persistence;
+    this.jobTracker = deps.jobTracker;
+    this.slotDelivery = deps.slotDelivery;
+    this.coordinator = deps.coordinator;
+    logger.info({ processorCount: deps.processors.length }, 'Initialized with processor chain');
   }
 
   /**
@@ -95,7 +112,34 @@ export class MessageHandler {
    */
 
   async handleJobResult(jobId: string, result: LLMGenerationResult): Promise<void> {
-    // Get pending job context from JobTracker
+    // Multi-tag interception: in-memory map lookup (O(1)). Checked first so
+    // the common single-personality path doesn't pay the Redis round-trip
+    // of the stale check below. A currently-owned jobId can't also be
+    // stale — it was just registered in this process — so the order is
+    // semantically equivalent.
+    if (this.coordinator.ownsJob(jobId)) {
+      await this.coordinator.handleJobResult(jobId, result);
+      return;
+    }
+
+    // Pre-restart stale check: if the jobId was marked stale during a prior
+    // shutdown (because its result hadn't arrived yet), discard the result
+    // silently. Recovery already submitted a fresh job; the new jobId will
+    // arrive separately. confirmDelivery clears the Redis stream entry.
+    if (await this.coordinator.isStale(jobId)) {
+      logger.info({ jobId }, 'Discarding result for pre-restart (stale) jobId');
+      // Confirm delivery so the Redis stream entry clears, and remove the
+      // jobId from the stale SET so it doesn't accumulate across the bot's
+      // lifetime (each graceful shutdown adds N entries; without cleanup the
+      // SET grows monotonically).
+      void getGatewayClient()
+        .confirmDelivery(jobId)
+        .catch(() => undefined);
+      void this.coordinator.clearStale(jobId).catch(() => undefined);
+      return;
+    }
+
+    // Single-personality path: JobTracker has the context.
     const jobContext = this.jobTracker.getContext(jobId);
     if (!jobContext) {
       logger.warn({ jobId }, 'Received result for unknown job - ignoring');

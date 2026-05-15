@@ -1,0 +1,174 @@
+/**
+ * Tests for the pure projection helpers extracted from MultiTagCoordinator.
+ *
+ * Both functions are field-mapping projections — small, but with real logic
+ * (ISO-date conversion, slot-array transformation, nullable handling). Per
+ * `02-code-standards.md`, modules with logic get colocated tests rather
+ * than structure-test exclusions.
+ */
+
+import { describe, it, expect } from 'vitest';
+import type { Message } from 'discord.js';
+import type { LoadedPersonality, TypingChannel } from '@tzurot/common-types';
+import {
+  buildSlotContext,
+  toSnapshot,
+  type RuntimeEntry,
+  type RuntimeSlot,
+} from './multiTagCoordinatorHelpers.js';
+
+function buildPersonality(name: string): LoadedPersonality {
+  return {
+    id: `pid-${name}`,
+    name,
+    displayName: name,
+    slug: name.toLowerCase(),
+  } as unknown as LoadedPersonality;
+}
+
+function buildSlot(name: string, overrides: Partial<RuntimeSlot> = {}): RuntimeSlot {
+  return {
+    slotIndex: 0,
+    personality: buildPersonality(name),
+    personaId: `persona-${name}`,
+    source: 'mention',
+    isAutoResponse: false,
+    jobId: `job-${name}`,
+    status: 'pending',
+    ...overrides,
+  };
+}
+
+function buildEntry(overrides: Partial<RuntimeEntry> = {}): RuntimeEntry {
+  return {
+    groupId: 'group-1',
+    sourceMessageId: 'msg-1',
+    message: { id: 'msg-1', author: { id: 'user-1' } } as unknown as Message,
+    channel: { id: 'channel-1' } as unknown as TypingChannel,
+    guildId: 'guild-1',
+    clientId: 'bot-1',
+    userId: 'user-1',
+    userMessageTime: new Date('2026-05-15T10:00:00Z'),
+    userMessageContent: 'hi everyone',
+    slots: [buildSlot('Alice')],
+    createdAt: 1737900000000,
+    timeoutHandle: setTimeout(() => undefined, 1_000_000),
+    ...overrides,
+  };
+}
+
+describe('buildSlotContext', () => {
+  it('projects entry + slot into the SlotDelivery shape', () => {
+    const entry = buildEntry();
+    const slot = buildSlot('Bob', { slotIndex: 1, isAutoResponse: true });
+
+    const ctx = buildSlotContext(entry, slot);
+
+    expect(ctx).toMatchObject({
+      message: entry.message,
+      channel: entry.channel,
+      guildId: 'guild-1',
+      clientId: 'bot-1',
+      personality: slot.personality,
+      personaId: 'persona-Bob',
+      userMessageContent: 'hi everyone',
+      userMessageTime: entry.userMessageTime,
+      isAutoResponse: true,
+      recipientUserId: 'user-1',
+    });
+    clearTimeout(entry.timeoutHandle);
+  });
+
+  it('passes through null guildId for DM channels', () => {
+    const entry = buildEntry({ guildId: null });
+    const ctx = buildSlotContext(entry, entry.slots[0]);
+    expect(ctx.guildId).toBeNull();
+    clearTimeout(entry.timeoutHandle);
+  });
+
+  it('passes through undefined clientId', () => {
+    const entry = buildEntry({ clientId: undefined });
+    const ctx = buildSlotContext(entry, entry.slots[0]);
+    expect(ctx.clientId).toBeUndefined();
+    clearTimeout(entry.timeoutHandle);
+  });
+});
+
+describe('toSnapshot', () => {
+  it('serializes runtime entry into the Redis-storable shape', () => {
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', { slotIndex: 0, status: 'completed' }),
+        buildSlot('Bob', { slotIndex: 1, isAutoResponse: true, status: 'pending' }),
+      ],
+    });
+
+    const snap = toSnapshot(entry);
+
+    expect(snap.groupId).toBe('group-1');
+    expect(snap.sourceMessageId).toBe('msg-1');
+    expect(snap.channelId).toBe('channel-1');
+    expect(snap.guildId).toBe('guild-1');
+    expect(snap.userId).toBe('user-1');
+    expect(snap.userMessageContent).toBe('hi everyone');
+    expect(snap.createdAt).toBe(1737900000000);
+    expect(snap.slots).toEqual([
+      {
+        slotIndex: 0,
+        personalityId: 'pid-Alice',
+        personalitySlug: 'alice',
+        source: 'mention',
+        isAutoResponse: false,
+        jobId: 'job-Alice',
+        status: 'completed',
+      },
+      {
+        slotIndex: 1,
+        personalityId: 'pid-Bob',
+        personalitySlug: 'bob',
+        source: 'mention',
+        isAutoResponse: true,
+        jobId: 'job-Bob',
+        status: 'pending',
+      },
+    ]);
+    clearTimeout(entry.timeoutHandle);
+  });
+
+  it('converts userMessageTime to ISO string', () => {
+    const entry = buildEntry({ userMessageTime: new Date('2026-05-15T10:00:00.000Z') });
+    const snap = toSnapshot(entry);
+    expect(snap.userMessageTime).toBe('2026-05-15T10:00:00.000Z');
+    expect(typeof snap.userMessageTime).toBe('string');
+    clearTimeout(entry.timeoutHandle);
+  });
+
+  it('preserves null guildId in the snapshot (DM case)', () => {
+    const entry = buildEntry({ guildId: null });
+    const snap = toSnapshot(entry);
+    expect(snap.guildId).toBeNull();
+    clearTimeout(entry.timeoutHandle);
+  });
+
+  it('does not include runtime-only fields (timeoutHandle, message, channel object)', () => {
+    const entry = buildEntry();
+    const snap = toSnapshot(entry) as unknown as Record<string, unknown>;
+    expect(snap).not.toHaveProperty('timeoutHandle');
+    expect(snap).not.toHaveProperty('message');
+    // `channel` becomes the flat `channelId` string.
+    expect(snap).not.toHaveProperty('channel');
+    clearTimeout(entry.timeoutHandle);
+  });
+
+  it('maps personality.id and personality.slug onto slot fields', () => {
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Capitalized', { slotIndex: 0 }), // personality.slug is .toLowerCase()
+      ],
+    });
+    const snap = toSnapshot(entry);
+    expect(snap.slots[0].personalityId).toBe('pid-Capitalized');
+    expect(snap.slots[0].personalitySlug).toBe('capitalized');
+    clearTimeout(entry.timeoutHandle);
+  });
+});

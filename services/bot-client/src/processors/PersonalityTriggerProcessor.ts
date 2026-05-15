@@ -1,0 +1,242 @@
+/**
+ * Personality Trigger Processor
+ *
+ * Consolidates the three trigger sources that used to live in separate
+ * processors (Reply / Mention / ActivatedChannel) into one decision point.
+ * For every Discord message, this processor:
+ *
+ *   1. Resolves the reply-to-character (if the message is a reply to a webhook).
+ *   2. Resolves the activated channel personality (guild channels only).
+ *   3. Resolves inline `@`-mentioned personalities (textually, deduped, capped).
+ *   4. Hands the ordered slot list to MultiTagCoordinator for fan-out.
+ *
+ * DMs: bare messages with no mention/reply fall through to DMSessionProcessor
+ * (which keeps its existing history-scan + session-dispatch path). Multi-tag
+ * works in DMs the same way as guild channels — the rightmost mention will
+ * naturally become the new active session via slot-ordered delivery + the
+ * existing history-scan logic.
+ *
+ * Slot ordering rules:
+ *   slot 0 = reply (explicit user intent, `isAutoResponse: false`)
+ *   slot 1 = activation (ambient channel default, `isAutoResponse: true`)
+ *   slots 2..N = inline mentions (textual order, `isAutoResponse: false`)
+ */
+
+import type { Message } from 'discord.js';
+import { createLogger, getConfig, type LoadedPersonality } from '@tzurot/common-types';
+import type { IMessageProcessor } from './IMessageProcessor.js';
+import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
+import type { ReplyResolutionService } from '../services/ReplyResolutionService.js';
+import type { GatewayClient } from '../utils/GatewayClient.js';
+import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
+import { resolveSlots } from '../services/SlotResolver.js';
+import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
+import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
+import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
+import { getEffectiveContent } from '../utils/messageTypeUtils.js';
+import { getThreadParentId } from '../utils/discordChannelTypes.js';
+import { isTypingChannel } from '@tzurot/common-types';
+import { shouldNotifyUser } from './notificationCache.js';
+
+const logger = createLogger('PersonalityTriggerProcessor');
+
+export interface PersonalityTriggerProcessorDeps {
+  personalityService: IPersonalityLoader;
+  replyResolver: ReplyResolutionService;
+  gatewayClient: GatewayClient;
+  coordinator: MultiTagCoordinator;
+}
+
+export class PersonalityTriggerProcessor implements IMessageProcessor {
+  constructor(private readonly deps: PersonalityTriggerProcessorDeps) {}
+
+  async process(message: Message): Promise<boolean> {
+    if (isForwardedMessage(message)) {
+      logger.debug({ messageId: message.id }, 'Skipping forwarded message');
+      return false;
+    }
+    if (!isTypingChannel(message.channel)) {
+      // Coordinator + chat manager need a TypingChannel for delivery; bail
+      // out for channel types we don't support (announcement guild forum,
+      // voice channels with text, etc.).
+      return false;
+    }
+
+    const userId = message.author.id;
+    const channel = message.channel;
+
+    // Resolve the three trigger sources in parallel — they don't depend on
+    // each other and each may produce 0..1 personalities.
+    const [replyPersonality, activatedPersonality, mentionedPersonalities] = await Promise.all([
+      this.resolveReplyPersonality(message, userId),
+      this.resolveActivatedPersonality(message, userId),
+      this.resolveMentionedPersonalities(message, userId),
+    ]);
+
+    const slots = resolveSlots({
+      replyPersonality,
+      activatedPersonality,
+      mentionedPersonalities,
+    });
+
+    if (slots.length === 0) {
+      return false; // Nothing for this processor to do; let chain continue.
+    }
+
+    const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
+    const content = voiceTranscript ?? getEffectiveContent(message);
+
+    logger.info(
+      {
+        messageId: message.id,
+        slotCount: slots.length,
+        sources: slots.map(s => s.source),
+        personalityIds: slots.map(s => s.personality.id),
+      },
+      'Multi-tag trigger resolved, handing off to coordinator'
+    );
+
+    await this.deps.coordinator.startFanOut({
+      message,
+      channel,
+      slots,
+      content,
+    });
+
+    return true; // Stop chain — coordinator owns delivery from here.
+  }
+
+  /**
+   * Resolve the personality this message is a reply to (if any).
+   * Returns null when the message isn't a reply, doesn't reference a
+   * personality webhook, or the user lacks access.
+   */
+  private async resolveReplyPersonality(
+    message: Message,
+    userId: string
+  ): Promise<LoadedPersonality | null> {
+    if (!message.reference) {
+      return null;
+    }
+    try {
+      return await this.deps.replyResolver.resolvePersonality(message, userId);
+    } catch (err) {
+      logger.warn({ err, messageId: message.id, userId }, 'Reply resolution failed');
+      return null;
+    }
+  }
+
+  /**
+   * Resolve the activated-channel personality (guild channels only). Inherits
+   * thread→parent fallback behavior from the old ActivatedChannelProcessor.
+   * On access denial for a private activation, sends the same rate-limited
+   * notice the old processor sent.
+   */
+  private async resolveActivatedPersonality(
+    message: Message,
+    userId: string
+  ): Promise<LoadedPersonality | null> {
+    // Activation is a guild-channel concept — DMs don't have channel-level
+    // activation in v1.
+    if (message.guildId === null) {
+      return null;
+    }
+    try {
+      return await this.resolveActivatedPersonalityInner(message, userId);
+    } catch (err) {
+      // Resilience: a transient gateway error here must not poison the
+      // sibling resolvers (reply / mentions) in the Promise.all. The
+      // old per-processor design fell through to the next processor on
+      // failure; this catch preserves that behavior at the unified-processor
+      // level.
+      logger.warn(
+        { err, messageId: message.id, userId },
+        'Activated-channel resolution failed; continuing without activation slot'
+      );
+      return null;
+    }
+  }
+
+  private async resolveActivatedPersonalityInner(
+    message: Message,
+    userId: string
+  ): Promise<LoadedPersonality | null> {
+    const channelId = message.channelId;
+
+    let channelSettings = await this.deps.gatewayClient.getChannelSettings(channelId);
+
+    // Fall back to parent channel only when the thread has NO settings row
+    // at all. A thread with an explicit settings row + null personality
+    // means "explicitly deactivated" — respect that over parent inheritance.
+    // (Inherited from the old ActivatedChannelProcessor's documented behavior.)
+    if (channelSettings?.hasSettings !== true) {
+      const parentId = getThreadParentId(message.channel);
+      if (parentId !== null) {
+        channelSettings = await this.deps.gatewayClient.getChannelSettings(parentId);
+      }
+    }
+
+    if (
+      channelSettings?.hasSettings !== true ||
+      channelSettings.settings?.personalitySlug === undefined ||
+      channelSettings.settings.personalitySlug === null
+    ) {
+      return null;
+    }
+
+    const { personalitySlug, personalityName } = channelSettings.settings;
+
+    const personality = await this.deps.personalityService.loadPersonality(personalitySlug, userId);
+
+    if (personality === null) {
+      logger.debug(
+        { channelId, personalitySlug, personalityName, userId },
+        'Activated personality not accessible — skipping for this user'
+      );
+      // Rate-limited notice (matches old ActivatedChannelProcessor behavior).
+      if (shouldNotifyUser(channelId, userId)) {
+        await message
+          .reply({
+            content: `📍 This channel has **${personalityName}** activated, but it's a private personality you don't have access to. You can still @mention other personalities or ask the personality owner for access.`,
+            allowedMentions: { parse: [], repliedUser: false },
+          })
+          .catch(err =>
+            logger.warn({ err, channelId, userId }, 'Failed to send private-personality notice')
+          );
+      }
+      return null;
+    }
+
+    return personality;
+  }
+
+  /**
+   * Resolve inline `@`-mention personalities, in textual order, deduped,
+   * capped at the multi-tag MAX_TAGS. Returns just the personality objects;
+   * the slot resolver applies dedupe-vs-reply/activation and final ordering.
+   */
+  private async resolveMentionedPersonalities(
+    message: Message,
+    userId: string
+  ): Promise<LoadedPersonality[]> {
+    try {
+      const config = getConfig();
+      const matches = await findPersonalityMentions(
+        getEffectiveContent(message),
+        config.BOT_MENTION_CHAR,
+        this.deps.personalityService,
+        userId
+      );
+      return matches.map(m => m.personality);
+    } catch (err) {
+      // Resilience: see resolveActivatedPersonality. A transient DB hiccup
+      // during the batched personality lookup must not block reply /
+      // activation paths.
+      logger.warn(
+        { err, messageId: message.id, userId },
+        'Mention resolution failed; continuing without mention slots'
+      );
+      return [];
+    }
+  }
+}

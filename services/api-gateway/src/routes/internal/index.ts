@@ -9,9 +9,11 @@
 import { Router } from 'express';
 import type { PrismaClient } from '@tzurot/common-types';
 import { createUsersRecentHandler } from './usersRecent.js';
+import { createDmSessionSetHandler } from './dmSessionSet.js';
 
 export function createInternalRouter(prisma: PrismaClient): Router {
   const router = Router();
   router.get('/users/recent', createUsersRecentHandler(prisma));
+  router.post('/channel/dm-session/set', ...createDmSessionSetHandler(prisma));
   return router;
 }

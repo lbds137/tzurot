@@ -5,15 +5,16 @@
  * subsequent messages go to that personality without needing to mention again.
  * Users can switch by mentioning a different personality.
  *
- * This processor should be placed AFTER ActivatedChannelProcessor but BEFORE
- * PersonalityMentionProcessor in the chain:
- * - ReplyMessageProcessor takes priority (explicit replies)
- * - DMSessionProcessor handles plain DM messages with active sessions
- * - PersonalityMentionProcessor handles explicit @mentions (which update the session)
+ * This processor sits AFTER PersonalityTriggerProcessor in the chain:
+ * - PersonalityTriggerProcessor handles tagged messages (reply/activation/@mentions)
+ *   and updates the active DM session via channel_settings.
+ * - DMSessionProcessor handles bare DM messages, routing them to the active
+ *   session character. Reads channel_settings first; falls back to history
+ *   scan + lazy backfill if no settings row exists yet.
  */
 
 import type { Message, DMChannel } from 'discord.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
@@ -27,7 +28,7 @@ import {
 } from '../utils/nsfwVerification.js';
 import { toGatewayUser } from '../utils/userGatewayClient.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
-import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
+import type { MultiTagPersistence } from '../services/MultiTagPersistence.js';
 
 const logger = createLogger('DMSessionProcessor');
 
@@ -52,7 +53,8 @@ export class DMSessionProcessor implements IMessageProcessor {
   constructor(
     private readonly gatewayClient: GatewayClient,
     private readonly personalityService: IPersonalityLoader,
-    private readonly personalityHandler: PersonalityMessageHandler
+    private readonly personalityHandler: PersonalityMessageHandler,
+    private readonly multiTagPersistence: MultiTagPersistence
   ) {}
 
   async process(message: Message): Promise<boolean> {
@@ -89,27 +91,16 @@ export class DMSessionProcessor implements IMessageProcessor {
       return true; // Consume message
     }
 
-    // 3. Check for explicit personality mention - let PersonalityMentionProcessor handle it
-    const config = getConfig();
-    const effectiveContent = getEffectiveContent(message);
-    const matches = await findPersonalityMentions(
-      effectiveContent,
-      config.BOT_MENTION_CHAR,
-      this.personalityService,
-      userId,
-      1
-    );
-
-    if (matches.length > 0) {
-      logger.debug(
-        { userId, mentionedPersonality: matches[0].personality.name },
-        'Explicit mention found, deferring to PersonalityMentionProcessor'
-      );
-      return false; // Let PersonalityMentionProcessor handle it
-    }
-
-    // 5. Find active personality from recent DM messages
-    const personalityId = await this.findActivePersonality(message.channel as DMChannel, botId);
+    // 3. Find active personality — channel_settings first, lazy-backfill from
+    // history scan if no settings row yet. The multi-tag coordinator writes
+    // the active personality after every DM fan-out, so for any DM that has
+    // ever produced a multi-tag response, this hits the cached settings path.
+    //
+    // Note: explicit @-mentions / replies / activations are routed by
+    // PersonalityTriggerProcessor earlier in the chain. By the time this
+    // processor runs, the message is bare (no trigger). The previous "detect
+    // mention and defer" branch here was dead code under the new chain order.
+    const personalityId = await this.resolveActiveDmPersonality(message, botId);
 
     if (personalityId === null || personalityId.length === 0) {
       // No active session - send self-destructing help message
@@ -118,7 +109,7 @@ export class DMSessionProcessor implements IMessageProcessor {
       return true; // Consume message (don't continue chain)
     }
 
-    // 6. Load personality with access control
+    // 4. Load personality with access control
     const personality = await this.personalityService.loadPersonality(personalityId, userId);
 
     if (!personality) {
@@ -128,7 +119,7 @@ export class DMSessionProcessor implements IMessageProcessor {
       return true;
     }
 
-    // 7. Handle the message via existing infrastructure
+    // 5. Handle the message via existing infrastructure
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
     const content = voiceTranscript ?? getEffectiveContent(message);
 
@@ -145,9 +136,76 @@ export class DMSessionProcessor implements IMessageProcessor {
   }
 
   /**
+   * Resolve the active DM personality with cache-first lookup + lazy backfill.
+   *
+   * Priority order:
+   *   1. channel_settings (single Redis-cached lookup via GatewayClient) —
+   *      this is the steady-state path, written by MultiTagCoordinator
+   *      after every multi-tag DM fan-out.
+   *   2. History scan (existing logic) — only when no settings row exists
+   *      yet. On success, write the discovered personality slug to
+   *      channel_settings so subsequent messages take the fast path.
+   */
+  private async resolveActiveDmPersonality(
+    message: Message,
+    botId: string | undefined
+  ): Promise<string | null> {
+    const channelId = message.channelId;
+
+    const channelSettings = await this.gatewayClient.getChannelSettings(channelId);
+    if (
+      channelSettings?.hasSettings === true &&
+      channelSettings.settings?.activatedPersonalityId !== undefined &&
+      channelSettings.settings.activatedPersonalityId !== null
+    ) {
+      return channelSettings.settings.activatedPersonalityId;
+    }
+
+    // History scan is expensive (Discord API fetch of 50 messages). The
+    // backfill-tried sentinel prevents repeating the scan for DM channels
+    // we've already attempted to backfill and found nothing. TTL on the
+    // sentinel ensures a session that materializes later eventually gets
+    // discovered without manual cache clear.
+    if (await this.multiTagPersistence.wasDMBackfillTried(channelId)) {
+      return null;
+    }
+
+    // Fallback: history scan (lazy backfill).
+    const personalityId = await this.findActivePersonality(message.channel as DMChannel, botId);
+    if (personalityId !== null && personalityId.length > 0) {
+      // Look up slug for the backfill write. Loading the personality also
+      // validates access; if the user can't see it, we don't backfill.
+      const personality = await this.personalityService.loadPersonality(
+        personalityId,
+        message.author.id
+      );
+      if (personality !== null) {
+        // Fire-and-forget — best-effort, doesn't block the response.
+        void this.gatewayClient.setDmSessionPersonality(channelId, personality.slug);
+      }
+      return personalityId;
+    }
+
+    // Scan came back empty. Record the attempt so the next bare DM doesn't
+    // re-scan; the sentinel TTL caps how long this negative cache lasts.
+    // Fire-and-forget with explicit catch so a Redis blip doesn't silently
+    // swallow the sentinel write (next bare DM would otherwise re-scan).
+    void this.multiTagPersistence
+      .markDMBackfillTried(channelId)
+      .catch(err =>
+        logger.warn(
+          { err, channelId },
+          'Failed to set DM backfill sentinel — next bare DM will re-scan'
+        )
+      );
+    return null;
+  }
+
+  /**
    * Find the active personality by looking at recent DM messages.
    * Finds most recent bot message with **DisplayName:** prefix and looks up
-   * the personality via conversation history.
+   * the personality via conversation history. Used as the lazy-backfill
+   * fallback when channel_settings has no DM-session row yet.
    */
   private async findActivePersonality(
     channel: DMChannel,

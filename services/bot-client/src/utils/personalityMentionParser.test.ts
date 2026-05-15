@@ -5,7 +5,7 @@
  * personality ID (first occurrence wins), longest-match-per-position wins.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { findPersonalityMentions } from './personalityMentionParser.js';
 import { createMockPersonalityService } from '../test/mocks/PersonalityService.mock.js';
 import type { PersonalityService } from '@tzurot/common-types';
@@ -443,6 +443,45 @@ describe('personalityMentionParser', () => {
       );
       expect(result).toHaveLength(1);
       expect(result[0].personality.name).toBe('Lilith');
+    });
+
+    it('skips role-mention candidates (<@&123>) without DB lookup', async () => {
+      const lookupSpy = vi.spyOn(mockPersonalityService, 'loadPersonality');
+      lookupSpy.mockClear();
+
+      const result = await findPersonalityMentions(
+        'hi <@&123456789> @Lilith',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
+      // The role-mention capture produces `&123456789>` (the trailing `>`
+      // survives WORD_PUNCTUATION_STRIP_ALL which doesn't include it). The
+      // filter regex catches both `&123` and `&123>` shapes. Verify neither
+      // reaches the DB.
+      const lookedUpNames = lookupSpy.mock.calls.map((c: unknown[]) => c[0]);
+      expect(lookedUpNames).not.toContain('&123456789');
+      expect(lookedUpNames).not.toContain('&123456789>');
+    });
+
+    it('skips channel-mention candidates (<#123>) without DB lookup', async () => {
+      const lookupSpy = vi.spyOn(mockPersonalityService, 'loadPersonality');
+      lookupSpy.mockClear();
+
+      const result = await findPersonalityMentions(
+        'in <#987654321> @Lilith',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+
+      // `#987654321` after the capture-strip — must not hit the DB.
+      const lookedUpNames = lookupSpy.mock.calls.map((c: unknown[]) => c[0]);
+      expect(lookedUpNames).not.toContain('#987654321');
+      expect(result.some(r => r.personality.name === 'Lilith')).toBe(true);
     });
   });
 

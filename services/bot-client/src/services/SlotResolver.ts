@@ -6,7 +6,7 @@
  * this resolves them into the ordered slot list the MultiTagCoordinator
  * fans out to. Pure (no I/O); easy to test in isolation.
  *
- * Slot ordering (per `.claude/plans/bright-coalescing-wreath.md`):
+ * Slot ordering:
  *   slot 0 = reply-to-character (if any)
  *   slot 1 = activated channel OR DM-session (if different from slot 0)
  *   slot 2+ = inline mentions in textual order
@@ -46,7 +46,19 @@ export interface SlotResolverInput {
    * `dmSessionPersonality` — only one of these can be set per message.
    */
   activatedPersonality?: LoadedPersonality | null;
-  /** DM-session personality (DM channels with an active session). */
+  /**
+   * DM-session personality (DM channels with an active session).
+   *
+   * **Scaffolding for DM session recovery.** No production code path
+   * populates this field today — bare-DM dispatch lives in
+   * `DMSessionProcessor` (not in the multi-tag fan-out), and multi-tag DM
+   * messages skip the ambient slot, relying on the rightmost mention
+   * becoming the new active session via the post-fan-out channel_settings
+   * write. The field exists so a future recovery path can express "this
+   * slot was the ambient DM session personality" when rehydrating a
+   * persisted fan-out snapshot, and SlotResolver tests exercise the slot-1
+   * tie-break logic to keep that path tested ahead of its first caller.
+   */
   dmSessionPersonality?: LoadedPersonality | null;
   /** Inline `@`-mentions, in textual left-to-right order. */
   mentionedPersonalities?: LoadedPersonality[];

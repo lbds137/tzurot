@@ -210,7 +210,23 @@ function extractCandidatesByPosition(content: string, escapedChar: string): Cand
     const candidates: string[] = [];
     const seen = new Set<string>();
     const addCandidate = (name: string): void => {
-      if (name.length === 0 || /^\d+$/.test(name) || seen.has(name)) {
+      // Skip empty / already-seen names + Discord-mention-syntax artifacts
+      // that the `@`-anchored capture can produce:
+      //   - `<@123>` / `@123456` (user) → all-digit → personality names
+      //     can't be purely numeric anyway.
+      //   - `<@&123>` (role) → capture starts at `@`, captures `&123` or
+      //     `&123>` (the trailing `>` survives `WORD_PUNCTUATION_STRIP_ALL`
+      //     which doesn't include `>`). The optional-`>?` branch of the
+      //     filter regex catches both shapes.
+      // Channel mentions `<#123>` don't start with `@`, so they never
+      // enter this parser at all — the `#` branch in the filter regex is
+      // defensive belt-and-suspenders, not load-bearing.
+      // Mixed names like "2B" (digit + letter) still pass — filter is
+      // strictly Discord-mention-shape, not "contains-digits."
+      if (name.length === 0 || seen.has(name)) {
+        return;
+      }
+      if (/^\d+$/.test(name) || /^[&#]\d+>?$/.test(name)) {
         return;
       }
       candidates.push(name);
