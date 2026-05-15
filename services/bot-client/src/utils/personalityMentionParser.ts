@@ -1,354 +1,242 @@
 /**
- * Utility for parsing personality mentions from Discord messages
+ * Utility for parsing personality mentions from Discord messages.
  *
- * Handles complex cases like:
- * - Multi-word personalities (@Bambi Prime, @Angel Dust)
- * - Overlapping mentions (@Bambi @Bambi Prime → prefers longer)
- * - Multiple personalities in one message
+ * Multi-tag aware: returns an array of mentioned personalities in textual
+ * left-to-right order. At each `@`-anchored position, the longest valid
+ * candidate wins (so `@Bambi Prime` beats `@Bambi` when both exist). Deduped
+ * by personality ID (first occurrence keeps its slot).
  *
- * **Performance**: Batches all personality lookups to minimize database calls
+ * Handles:
+ * - Multi-word personalities (`@Bambi Prime`, `@Angel Dust`)
+ * - Abbreviation-style names with periods (`@Dr. Gregory House`)
+ * - Possessive suffixes (`@Lilith's` → `Lilith`)
+ * - Discord markdown wrapping (`*@X*`, `` `@X` ``, `||@X||`, etc.)
+ * - Trailing punctuation (`@Lilith,` / `@Lilith?` / `@Lilith.`)
+ *
+ * Performance: batches all candidate lookups into a single Promise.all() so a
+ * message with N mention positions × M candidates each costs one parallel
+ * DB roundtrip rather than N×M sequential calls.
+ *
+ * Security: caps the position-extraction step at MAX_POTENTIAL_MENTIONS to
+ * prevent resource exhaustion attacks (a message full of `@`-noise).
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type LoadedPersonality, MULTI_TAG } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 
 const logger = createLogger('PersonalityMentionParser');
 const MAX_MENTION_WORDS = 4;
-const MAX_POTENTIAL_MENTIONS = 10; // Security: Prevent resource exhaustion from excessive @mentions
+const MAX_POTENTIAL_MENTIONS = 10; // Bound on positions scanned per message.
 
-/** Strip possessive suffix ('s) from a name candidate to also try the base form */
+/** Strip possessive suffix ('s) from a name candidate to also try the base form. */
 const POSSESSIVE_SUFFIX = /'s$/i;
 
 /**
- * Strip trailing punctuation from a word — full-strip variant. Strips sentence
- * punctuation (".", "!", "?"), list punctuation (",", ";", ":"), quotes,
- * Discord markdown chars (`*_~|`), and the backtick used for Discord
- * inline-code formatting (`` `@Lilith` `` / `` ```@Dr. Gregory House``` ``).
- * Used when the trailing period is treated as sentence-ending punctuation,
- * not part of the name ("Hey @Lilith." → "Lilith"). Also the regex passed
- * to {@link extractPotentialMentions} for cleaning the full matched text
- * at the message-spanning level.
+ * Strip trailing punctuation — full-strip variant. Strips sentence punctuation
+ * (".", "!", "?"), list punctuation (",", ";", ":"), quotes, Discord markdown
+ * chars (`*_~|`), and the backtick used for inline-code formatting.
+ * Bounded `{1,16}` prevents polynomial-slide ReDoS.
  */
-// Bounded `{1,16}` quantifier prevents polynomial-slide ReDoS — real trailing
-// punctuation is rarely more than 2-3 chars ("?!", "...", etc.).
 const WORD_PUNCTUATION_STRIP_ALL = /[.,!?;:)"'*_~|`]{1,16}$/;
 
 /**
- * Strip trailing punctuation from a word — period-preserving variant.
- * Used to generate alternate candidates when the trailing period might be
- * semantically part of the name ("@Dr. Gregory House" → "Dr." is preserved
- * as a candidate prefix, so "Dr. Gregory House" can match). Personalities
- * with abbreviation-style names ("Dr.", "J.R.R. Tolkien") can't be matched
- * without this variant.
- *
- * Both the period-preserving and full-strip candidates are inserted into the
- * Map simultaneously; whichever matches an actual personality name wins at
- * lookup time. Deduplication prevents candidate explosion for period-free
- * names (where both variants produce identical strings).
- *
- * Backtick is included so inline-code wrapping (`` `@Dr. Gregory House` ``)
- * strips correctly while preserving the name's internal period.
+ * Strip trailing punctuation — period-preserving variant. Allows abbreviation
+ * names like "Dr." to keep their semantic period while still stripping other
+ * trailing markdown/punctuation. Both variants feed the candidate set; whichever
+ * matches a real personality wins at lookup time.
  */
-// Bounded `{1,16}` — see WORD_PUNCTUATION_STRIP_ALL above for rationale.
 const WORD_PUNCTUATION_STRIP_NON_PERIOD = /[,!?;:)"'*_~|`]{1,16}$/;
 
-interface PersonalityMentionResult {
-  personalityName: string;
-  cleanContent: string;
-}
-
-interface PotentialMention {
-  name: string;
-  wordCount: number;
+/**
+ * A matched personality mention with its textual position. Position is the
+ * index of the `@` character in the original content; useful for slot
+ * ordering when combined with other trigger sources (reply, activation).
+ */
+export interface PersonalityMentionMatch {
+  /** The full loaded personality object (already access-checked for the user). */
+  personality: LoadedPersonality;
+  /** Index of the `@` character that started this match in the original content. */
+  startIndex: number;
 }
 
 /**
- * Find the best matching personality mention in a message
+ * Find all personality mentions in a message, in textual order.
  *
- * **Behavior: Word Count First, Then Length**
- * Prioritizes multi-word personalities over single-word, then character length as tiebreaker.
- * Only ONE personality is returned - multi-personality responses are not yet supported.
+ * Returns an array of `{personality, startIndex}` deduplicated by personality
+ * ID (first occurrence keeps its slot). Capped at `maxMentions` after dedupe.
  *
- * **Priority Rules:**
- * 1. Word count (more words = higher priority)
- * 2. Character length (longer = higher priority, as tiebreaker)
- * 3. Order of appearance (if tied on word count and length)
+ * @param content      Message content to search.
+ * @param mentionChar  Mention prefix character (from `BOT_MENTION_CHAR`).
+ * @param personalityService  Loader used to validate candidates (also enforces access control).
+ * @param userId       Discord user ID — only personalities accessible to this user match.
+ * @param maxMentions  Maximum mentions to return. Defaults to `MULTI_TAG.MAX_TAGS`.
  *
- * **Examples:**
- * - "@Bambi @Bambi Prime" → Returns "Bambi Prime" (2 words > 1 word)
- * - "@Bambi Prime @Administrator" → Returns "Bambi Prime" (2 words > 1 word, even though Administrator is longer)
- * - "@Lilith @Sarcastic" → Returns "Sarcastic" (both 1 word, so 9 chars > 6 chars)
- * - "@Unknown @Lilith" → Returns "Lilith" (ignores unknown personalities)
- *
- * **Duplicate Mention Behavior:**
- * When the selected personality is mentioned multiple times, ALL occurrences are removed from cleanContent.
- * - "@Bambi Prime @Bambi Prime, how are you?" → Returns "Bambi Prime" with cleanContent ", how are you?"
- * This is intentional to avoid leaving redundant mentions in the message.
- *
- * **Discord User Filtering:**
- * Ignores numeric-only mentions (Discord user IDs like <@123456789>)
- *
- * **Security:**
- * Limits processing to MAX_POTENTIAL_MENTIONS (10) to prevent resource exhaustion attacks
- *
- * **Access Control:**
- * When userId is provided, only matches personalities that the user has access to
- * (public personalities or ones they own)
- *
- * **Performance:**
- * Batches all personality lookups into a single Promise.all() to minimize database calls
- *
- * @param content - The message content to search
- * @param mentionChar - The character used for mentions (from BOT_MENTION_CHAR config)
- * @param personalityService - Service to validate personality names
- * @param userId - Discord user ID for access control
- * @returns The best matching personality and cleaned content, or null if none found
+ * Examples:
+ * - `'@Lilith hi'`  → `[{personality: Lilith, startIndex: 0}]`
+ * - `'@Bambi @Bambi Prime hi'` → `[{Bambi, 0}, {BambiPrime, 7}]` (two distinct personalities)
+ * - `'@Bambi @Bambi hi'` → `[{Bambi, 0}]` (dedupe — same personality)
+ * - `'@Unknown @Lilith hi'` → `[{Lilith, 9}]` (invalid mention skipped)
+ * - `'@A @B @C @D @E @F'` with cap 5 → first 5 in textual order
  */
-export async function findPersonalityMention(
+export async function findPersonalityMentions(
   content: string,
   mentionChar: string,
   personalityService: IPersonalityLoader,
-  userId: string
-): Promise<PersonalityMentionResult | null> {
-  logger.debug({ content, mentionChar }, 'Parsing mentions');
+  userId: string,
+  maxMentions: number = MULTI_TAG.MAX_TAGS
+): Promise<PersonalityMentionMatch[]> {
+  logger.debug({ contentLength: content.length, mentionChar }, 'Parsing multi-tag mentions');
 
   const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const mentionCharRegex = new RegExp(`^${escapedChar}`);
 
-  // Step 1: Extract all potential personality names from the message
-  const potentialMentions = extractPotentialMentions(
-    content,
-    escapedChar,
-    mentionCharRegex,
-    WORD_PUNCTUATION_STRIP_ALL
-  );
+  // Step 1: walk all `@`-anchored positions, generate candidate names per position.
+  const positions = extractCandidatesByPosition(content, escapedChar);
 
-  if (potentialMentions.length === 0) {
-    logger.debug('No potential mentions found');
-    return null;
+  if (positions.length === 0) {
+    return [];
   }
 
-  // Security: Limit number of mentions to prevent resource exhaustion
-  if (potentialMentions.length > MAX_POTENTIAL_MENTIONS) {
-    logger.warn(
-      { count: potentialMentions.length, limit: MAX_POTENTIAL_MENTIONS },
-      'Too many mentions, truncating to prevent abuse'
-    );
-    potentialMentions.length = MAX_POTENTIAL_MENTIONS;
+  // Step 2: batch-load all unique candidates across all positions.
+  const allCandidateNames = new Set<string>();
+  for (const pos of positions) {
+    for (const name of pos.candidates) {
+      allCandidateNames.add(name);
+    }
   }
 
-  logger.debug(
-    { potentialMentions: potentialMentions.map(m => m.name) },
-    `Found ${potentialMentions.length} potential mention(s)`
-  );
-
-  // Step 2: Batch lookup all potential personalities at once (performance optimization)
-  // Pass userId for access control - only matches accessible personalities
-  const lookupResults = await Promise.all(
-    potentialMentions.map(async ({ name, wordCount }) => {
-      const personality = await personalityService.loadPersonality(name, userId);
-      return personality ? { name, wordCount, isValid: true } : null;
+  const nameToPersonality = new Map<string, LoadedPersonality | null>();
+  await Promise.all(
+    Array.from(allCandidateNames).map(async name => {
+      const loaded = await personalityService.loadPersonality(name, userId);
+      nameToPersonality.set(name, loaded);
     })
   );
 
-  // Step 3: Filter out invalid personalities and sort by priority
-  const validMentions = lookupResults
-    .filter(
-      (result): result is { name: string; wordCount: number; isValid: true } => result !== null
-    )
-    .sort((a, b) => {
-      // Priority 1: Word count (multi-word beats single-word)
-      if (a.wordCount !== b.wordCount) {
-        return b.wordCount - a.wordCount; // Descending
+  // Step 3: walk positions in textual order, picking longest valid candidate per position.
+  // Dedupe by personality ID — first occurrence keeps its slot.
+  const seenPersonalityIds = new Set<string>();
+  const results: PersonalityMentionMatch[] = [];
+
+  for (const pos of positions) {
+    if (results.length >= maxMentions) {
+      break;
+    }
+    for (const candidateName of pos.candidates) {
+      const personality = nameToPersonality.get(candidateName);
+      if (personality === null || personality === undefined) {
+        continue;
       }
-      // Priority 2: Character length (tiebreaker)
-      return b.name.length - a.name.length; // Descending
-    });
-
-  if (validMentions.length === 0) {
-    logger.debug('No valid personalities found');
-    return null;
+      if (seenPersonalityIds.has(personality.id)) {
+        // Same personality already in another slot — stop trying candidates
+        // at this position. We don't fall through to a shorter alternative
+        // because the longest-match-wins rule already picked the right one
+        // at the earlier position; trying a shorter name here would be
+        // semantically equivalent to "@Bambi @Bambi Prime" picking
+        // "Bambi Prime" at slot 0 and then "Bambi" at slot 1 — wrong.
+        break;
+      }
+      seenPersonalityIds.add(personality.id);
+      results.push({ personality, startIndex: pos.startIndex });
+      break;
+    }
   }
-
-  // Step 4: Return the highest priority match
-  const bestMatch = validMentions[0];
 
   logger.debug(
     {
-      personalityName: bestMatch.name,
-      wordCount: bestMatch.wordCount,
-      allMatches: validMentions.map(m => m.name),
+      mentionCount: results.length,
+      names: results.map(r => r.personality.name),
     },
-    'Found personality mention (highest priority match)'
+    'Found personality mentions'
   );
 
-  // Step 5: Clean the content by removing the matched personality mention
-  // Handle possessive suffix (@Lilith's → remove entirely, not just @Lilith)
-  // Include Discord markdown chars (*_~|) and backtick (inline-code wrapping)
-  // as valid word boundaries so `` `@Lilith` `` cleans to the empty string.
-  const matchRegex = new RegExp(
-    `${escapedChar}${bestMatch.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:'s)?(?:[.,!?;:)"'*_~|\`]|\\s|$)`,
-    'gi' // Note: 'gi' flag removes ALL occurrences of the mention
-  );
-  const cleanContent = content.replace(matchRegex, '').trim();
+  return results;
+}
 
-  return {
-    personalityName: bestMatch.name,
-    cleanContent,
-  };
+interface CandidatesAtPosition {
+  /** Position of the `@` character in the original content. */
+  startIndex: number;
+  /** Candidate names to try, longest-first. First valid one wins for this position. */
+  candidates: string[];
 }
 
 /**
- * Add name candidates to the deduplication map, including the possessive-stripped
- * variant. Extracted to flatten nesting depth in the multi-word extraction loop
- * (multi-word match × word-count × candidate × possessive = 4 levels deep
- * inline). Accepts both the full-strip and period-preserving candidate forms
- * for the two-pass approach.
+ * Walk all `@`-anchored matches in textual order and produce a candidate list
+ * per match position. Each match consumes up to `MAX_MENTION_WORDS` words
+ * after the `@`; the candidate list goes from longest (all captured words) to
+ * shortest (single word), with both punctuation-stripping variants and the
+ * possessive-stripped form included.
+ *
+ * Capped at `MAX_POTENTIAL_MENTIONS` positions.
  */
-function addMultiWordCandidates(
-  map: Map<string, number>,
-  stripped: string,
-  withPeriod: string,
-  wordCount: number
-): void {
-  // Deduplicate the two variants before storage (often identical for
-  // period-free names like "Bambi Prime").
-  const candidates = stripped === withPeriod ? [stripped] : [stripped, withPeriod];
 
-  for (const name of candidates) {
-    if (!name) {
-      continue;
-    }
-    if (!map.has(name)) {
-      map.set(name, wordCount);
-    }
-    const withoutPossessive = name.replace(POSSESSIVE_SUFFIX, '');
-    if (withoutPossessive !== name && !map.has(withoutPossessive)) {
-      map.set(withoutPossessive, wordCount);
-    }
-  }
-}
-
-/**
- * Extract all potential personality mentions from message content
- *
- * This function performs a two-pass extraction to find both multi-word and single-word
- * personality mentions, then deduplicates them to minimize database lookups.
- *
- * **Extraction Strategy:**
- * 1. **Multi-word pass**: Extracts mentions like "@Bambi Prime", "@Angel Dust"
- *    - Tries all word combinations from longest to shortest (up to MAX_MENTION_WORDS)
- *    - Example: "@Bambi Prime" generates candidates: "Bambi Prime", "Bambi"
- * 2. **Single-word pass**: Extracts mentions like "@Lilith", "@Sarcastic"
- *    - Filters out Discord user IDs (all-numeric mentions)
- *    - Filters out empty/whitespace-only names
- *
- * **Deduplication:**
- * Uses a Map to track unique personality names and their word counts.
- * This prevents redundant database lookups for the same personality.
- *
- * **Example:**
- * Input: "@Bambi @Bambi Prime @Lilith"
- * Output: [
- *   { name: "Bambi", wordCount: 1 },
- *   { name: "Bambi Prime", wordCount: 2 },
- *   { name: "Lilith", wordCount: 1 }
- * ]
- *
- * @param content - The message content to parse
- * @param escapedChar - The escaped mention character (e.g., "\\@")
- * @param mentionCharRegex - Regex to match and remove the mention character
- * @param trailingPunctuationRegex - Regex to remove trailing punctuation
- * @returns Array of unique potential mentions with their word counts
- */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Extracts multi-word and single-word mentions with deduplication, escape handling, and punctuation stripping
-function extractPotentialMentions(
-  content: string,
-  escapedChar: string,
-  mentionCharRegex: RegExp,
-  trailingPunctuationRegex: RegExp
-): PotentialMention[] {
-  const potentialMentions = new Map<string, number>(); // name -> word count (for deduplication)
-
-  // Extract multi-word mentions (e.g., @Bambi Prime, @Angel Dust)
-  // Regex: first word + up to (MAX_MENTION_WORDS - 1) more words = MAX_MENTION_WORDS total
+function extractCandidatesByPosition(content: string, escapedChar: string): CandidatesAtPosition[] {
+  // Multi-word capture: starts at `@`, captures 1..MAX_MENTION_WORDS whitespace-
+  // separated tokens that contain no `@` or newline. Single-word mentions like
+  // `@Lilith` are captured as a 1-word match (next char is a separator or EOL).
   const multiWordRegex = new RegExp(
     `${escapedChar}([^\\s${escapedChar}\\n]+(?:\\s+[^\\s${escapedChar}\\n]+){0,${MAX_MENTION_WORDS - 1}})`,
     'gi'
   );
-  const multiWordMatches = content.match(multiWordRegex);
 
-  if (multiWordMatches) {
-    for (const fullMatch of multiWordMatches) {
-      // Clean up the matched text
-      const capturedText = fullMatch
-        .replace(mentionCharRegex, '') // Remove mention char
-        .replace(trailingPunctuationRegex, ''); // Remove trailing punctuation
+  const positions: CandidatesAtPosition[] = [];
 
-      // Split into words and produce TWO variants per word (two-pass approach):
-      // - `words`: full strip — handles "Hey @Lilith." sentence-ending periods
-      // - `wordsWithPeriods`: preserves trailing periods — handles abbreviation
-      //   names like "Dr." in "@Dr. Gregory House". User-reported: "Dr. Gregory
-      //   House" couldn't be matched because the per-word strip removed the
-      //   period from "Dr." before generating candidates, so only
-      //   "Dr Gregory House" (no period) was tried. Both variants feed into
-      //   the Map and the lookup succeeds for whichever matches an actual
-      //   personality name; deduplication prevents candidate explosion.
-      const rawWords = capturedText.split(/\s+/);
-      const words = rawWords.map(word => word.replace(WORD_PUNCTUATION_STRIP_ALL, ''));
-      const wordsWithPeriods = rawWords.map(word =>
-        word.replace(WORD_PUNCTUATION_STRIP_NON_PERIOD, '')
+  for (const match of content.matchAll(multiWordRegex)) {
+    if (positions.length >= MAX_POTENTIAL_MENTIONS) {
+      logger.warn(
+        { limit: MAX_POTENTIAL_MENTIONS },
+        'Position cap reached; remaining mentions ignored to prevent resource exhaustion'
       );
+      break;
+    }
 
-      // Try combinations from longest to shortest for this match, using both
-      // per-word variants so abbreviation-style names are discoverable.
-      for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
-        addMultiWordCandidates(
-          potentialMentions,
-          words.slice(0, wordCount).join(' ').trim(),
-          wordsWithPeriods.slice(0, wordCount).join(' ').trim(),
-          wordCount
-        );
+    const captureGroup = match[1] ?? '';
+    const startIndex = match.index ?? 0;
+
+    // Strip trailing punctuation from the whole capture before splitting.
+    const cleanedCapture = captureGroup.replace(WORD_PUNCTUATION_STRIP_ALL, '');
+    if (cleanedCapture.length === 0) {
+      continue;
+    }
+
+    const rawWords = cleanedCapture.split(/\s+/);
+    const wordsAllStripped = rawWords.map(w => w.replace(WORD_PUNCTUATION_STRIP_ALL, ''));
+    const wordsPeriodPreserved = rawWords.map(w =>
+      w.replace(WORD_PUNCTUATION_STRIP_NON_PERIOD, '')
+    );
+
+    // Build candidate list longest-first; both punctuation variants per word
+    // count; plus possessive-stripped forms. Dedup within this position so we
+    // don't try the same name twice.
+    const candidates: string[] = [];
+    const seen = new Set<string>();
+    const addCandidate = (name: string): void => {
+      if (name.length === 0 || /^\d+$/.test(name) || seen.has(name)) {
+        return;
       }
+      candidates.push(name);
+      seen.add(name);
+    };
+
+    for (
+      let wordCount = Math.min(MAX_MENTION_WORDS, rawWords.length);
+      wordCount >= 1;
+      wordCount--
+    ) {
+      const stripped = wordsAllStripped.slice(0, wordCount).join(' ').trim();
+      const withPeriod = wordsPeriodPreserved.slice(0, wordCount).join(' ').trim();
+
+      addCandidate(stripped);
+      addCandidate(stripped.replace(POSSESSIVE_SUFFIX, ''));
+      if (withPeriod !== stripped) {
+        addCandidate(withPeriod);
+        addCandidate(withPeriod.replace(POSSESSIVE_SUFFIX, ''));
+      }
+    }
+
+    if (candidates.length > 0) {
+      positions.push({ startIndex, candidates });
     }
   }
 
-  // Extract single-word mentions (e.g., @Lilith, @Ha-Shem, @O'Reilly)
-  // Include Discord markdown chars (*_~|) and backtick (inline-code
-  // wrapping like `` `@Lilith` ``) as valid word boundaries.
-  // Apostrophe (') is allowed mid-word for names like O'Reilly;
-  // trailing apostrophes are stripped by trailingPunctuationRegex.
-  const singleWordRegex = new RegExp(`${escapedChar}([\\w'-]+)(?:[.,!?;:)"*_~|\`]|\\s|$)`, 'gi');
-  const singleWordMatches = content.match(singleWordRegex);
-
-  if (singleWordMatches) {
-    for (const fullMatch of singleWordMatches) {
-      const personalityName = fullMatch
-        .replace(mentionCharRegex, '')
-        .replace(trailingPunctuationRegex, '')
-        .trim();
-
-      // Ignore Discord user ID mentions (all digits) or empty strings
-      if (!personalityName || /^\d+$/.test(personalityName)) {
-        continue;
-      }
-
-      // Deduplicate: only store if we haven't seen this name yet
-      if (!potentialMentions.has(personalityName)) {
-        potentialMentions.set(personalityName, 1); // Single word = word count of 1
-      }
-
-      // Also try without possessive suffix: @Lilith's → Lilith
-      const withoutPossessive = personalityName.replace(POSSESSIVE_SUFFIX, '');
-      if (withoutPossessive !== personalityName && !potentialMentions.has(withoutPossessive)) {
-        potentialMentions.set(withoutPossessive, 1);
-      }
-    }
-  }
-
-  // Convert Map to array of objects
-  return Array.from(potentialMentions.entries()).map(([name, wordCount]) => ({
-    name,
-    wordCount,
-  }));
+  return positions;
 }

@@ -169,38 +169,50 @@ export class RedisService {
   }
 
   /**
-   * Acquire idempotency lock for a Discord message.
+   * Acquire idempotency lock for a (Discord message, personality) pair.
    * Uses SET NX EX to atomically set a key only if it doesn't exist.
    *
-   * IMPORTANT: If processing fails after acquiring the lock, call releaseMessageLock()
-   * to allow BullMQ retries. Otherwise the retry will be blocked as a "duplicate".
+   * The lock key is composite — keyed on both the Discord message ID and the
+   * target personality ID — so that multi-tag fan-out (N parallel jobs for
+   * the same message, one per character) doesn't collapse into a single
+   * response. A single-message lock would let only the first job win;
+   * the rest would be silently dropped as "duplicates".
+   *
+   * IMPORTANT: If processing fails after acquiring the lock, call
+   * releaseMessageLock() to allow BullMQ retries. Otherwise the retry will
+   * be blocked as a duplicate.
    *
    * TTL Rationale (1 hour):
    * - Long enough to cover: queue backlog, retries, and processing time
-   * - Short enough to not block legitimate re-triggers (e.g., bot restart scenarios)
-   * - Message edits create new Discord events with the SAME message ID, so edits
-   *   within the TTL window will be deduplicated (intentional - prevents spam)
+   * - Short enough to not block legitimate re-triggers (e.g., bot restart)
+   * - Message edits create new Discord events with the SAME message ID, so
+   *   edits within the TTL window will be deduplicated (intentional —
+   *   prevents spam)
    *
    * @param messageId Discord message ID that triggered the request
-   * @returns true if lock acquired (should process), false if already locked/processed
+   * @param personalityId Personality being targeted by this specific job
+   * @returns true if lock acquired (should process), false if duplicate
    */
-  async markMessageProcessing(messageId: string): Promise<boolean> {
+  async markMessageProcessing(messageId: string, personalityId: string): Promise<boolean> {
     try {
-      const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}`;
+      const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}:${personalityId}`;
       // 1 hour TTL - see docstring for rationale
       const result = await this.redis.set(key, '1', 'EX', 3600, 'NX');
 
-      // Result is 'OK' if key was set (new message), null if key already exists (duplicate)
+      // Result is 'OK' if key was set (new), null if key already exists (duplicate)
       const isNew = result === 'OK';
 
       if (!isNew) {
-        logger.info({ messageId }, 'Duplicate message detected - skipping processing');
+        logger.info(
+          { messageId, personalityId },
+          'Duplicate (message, personality) detected - skipping processing'
+        );
       }
 
       return isNew;
     } catch (error) {
       logger.error(
-        { err: error, messageId },
+        { err: error, messageId, personalityId },
         'Error acquiring idempotency lock - allowing processing'
       );
       // On error, default to allowing processing (fail open)
@@ -209,20 +221,21 @@ export class RedisService {
   }
 
   /**
-   * Release idempotency lock for a Discord message.
+   * Release idempotency lock for a (Discord message, personality) pair.
    * Call this when job processing FAILS to allow BullMQ retries.
    * Do NOT call on success - the lock should remain to prevent reprocessing.
    *
    * @param messageId Discord message ID that triggered the request
+   * @param personalityId Personality that was being targeted by this job
    */
-  async releaseMessageLock(messageId: string): Promise<void> {
+  async releaseMessageLock(messageId: string, personalityId: string): Promise<void> {
     try {
-      const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}`;
+      const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}:${personalityId}`;
       await this.redis.del(key);
-      logger.debug({ messageId }, 'Released idempotency lock for retry');
+      logger.debug({ messageId, personalityId }, 'Released idempotency lock for retry');
     } catch (error) {
       // Log but don't throw - lock release failure shouldn't block error propagation
-      logger.error({ err: error, messageId }, 'Failed to release idempotency lock');
+      logger.error({ err: error, messageId, personalityId }, 'Failed to release idempotency lock');
     }
   }
 

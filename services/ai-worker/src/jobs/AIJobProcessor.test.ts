@@ -791,8 +791,13 @@ describe('AIJobProcessor', () => {
 
         await expect(processor.processJob(job)).rejects.toThrow('LLM API timeout');
 
-        // Lock should be released on failure to allow retries
-        expect(redisService.releaseMessageLock).toHaveBeenCalledWith('discord-msg-123');
+        // Lock should be released on failure to allow retries — composite
+        // key (messageId, personalityId) so multi-tag fan-out can dedupe
+        // per-personality.
+        expect(redisService.releaseMessageLock).toHaveBeenCalledWith(
+          'discord-msg-123',
+          'personality-123'
+        );
       });
 
       it('should not check idempotency when triggerMessageId is undefined', async () => {
