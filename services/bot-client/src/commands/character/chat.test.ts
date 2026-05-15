@@ -148,6 +148,7 @@ describe('Character Chat Handler (push delivery)', () => {
           if (name === 'message') return message;
           return null;
         }),
+        getBoolean: vi.fn(() => null),
       },
       replied: false,
       deferred: true,
