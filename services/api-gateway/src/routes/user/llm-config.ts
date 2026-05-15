@@ -12,6 +12,7 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import type { z } from 'zod';
 import {
   createLogger,
   isBotOwner,
@@ -217,6 +218,30 @@ function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterM
   };
 }
 
+type LlmConfigUpdateBody = z.infer<typeof LlmConfigUpdateSchema>;
+
+/**
+ * Apply the owner-driven name-promotion logic to an update body. Caller is
+ * responsible for guarding admin-edits-on-non-owned-configs (which should
+ * apply the name verbatim — suffixing under the bot owner's username would
+ * mis-attribute provenance).
+ */
+function applyOwnerNamePromotion(
+  body: LlmConfigUpdateBody,
+  config: { name: string; isGlobal: boolean },
+  req: ProvisionedRequest
+): LlmConfigUpdateBody {
+  const effectiveName = computeNameForPromotion({
+    currentName: config.name,
+    currentIsGlobal: config.isGlobal,
+    requestedName: body.name,
+    requestedIsGlobal: body.isGlobal,
+    discordId: req.userId,
+    discordUsername: getDiscordUsernameFromRequest(req),
+  });
+  return { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
+}
+
 function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -248,10 +273,18 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
 
-    // Users can only edit configs they own (including their own global presets)
-    if (config.ownerId !== userId) {
+    // Permission gate. computeLlmConfigPermissions grants canEdit to creator
+    // OR bot owner (admin override) — see packages/common-types/src/utils/permissions.ts.
+    // Bot owner editing another user's preset is a moderation/maintenance path.
+    const editPermissions = computeLlmConfigPermissions(
+      { ownerId: config.ownerId, isGlobal: config.isGlobal },
+      userId,
+      discordUserId
+    );
+    if (!editPermissions.canEdit) {
       return sendError(res, ErrorResponses.unauthorized('You can only edit your own configs'));
     }
+    const isOwnedByRequester = config.ownerId === userId;
 
     // Empty-body guard runs BEFORE the promotion helper so that a PUT with
     // `{}` returns 400 (preserves the original API contract) rather than
@@ -261,20 +294,9 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       return sendError(res, ErrorResponses.validationError('No fields to update'));
     }
 
-    // If the user is promoting their own config to global (or already had it
-    // global and is renaming), suffix the name with their username so other
-    // users can identify provenance — prevents non-bot-owners from creating
-    // names that look admin-curated. Bot owner gets unsuffixed names per
-    // `normalizeSlugForUser`'s built-in semantic.
-    const effectiveName = computeNameForPromotion({
-      currentName: config.name,
-      currentIsGlobal: config.isGlobal,
-      requestedName: body.name,
-      requestedIsGlobal: body.isGlobal,
-      discordId: discordUserId,
-      discordUsername: getDiscordUsernameFromRequest(req),
-    });
-    const patch = { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
+    // Owner edits run the promotion helper; admin edits on non-owned configs
+    // apply the name verbatim (suffixing would mis-attribute provenance).
+    const patch = isOwnedByRequester ? applyOwnerNamePromotion(body, config, req) : { ...body };
 
     // Compute post-update isGlobal so the collision check covers the cross-
     // user global-namespace case when the user is promoting (or already
@@ -284,10 +306,12 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
     // Check for duplicate name if a name is being applied (either user-supplied
     // or normalized by the promotion helper). Use the post-normalization value
     // so collision checks reflect what will actually land in the DB.
+    // Bot-owner-editing-others uses the OWNER's userId for namespace scoping
+    // (the name lives in the owner's namespace, not the requester's).
     if (patch.name !== undefined && patch.name.length > 0) {
       const nameCheck = await service.checkNameExists(
         patch.name,
-        { type: 'USER', userId, discordId: discordUserId },
+        { type: 'USER', userId: config.ownerId, discordId: discordUserId },
         configId,
         postIsGlobal
       );
@@ -325,9 +349,10 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
       throw err;
     }
 
-    // User always owns their own updated config (we already checked ownership above)
+    // Permissions reflect the requester's view of the (post-update) config.
+    // ownerId stays the original owner's even after a bot-owner edit.
     const permissions = computeLlmConfigPermissions(
-      { ownerId: userId, isGlobal: updated.isGlobal },
+      { ownerId: updated.ownerId, isGlobal: updated.isGlobal },
       userId,
       discordUserId
     );
@@ -337,13 +362,19 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
     await enrichWithModelContext(formatted, updated.model, modelCache);
 
     logger.info(
-      { discordUserId, configId, name: updated.name, updates: Object.keys(body) },
-      'Updated config'
+      {
+        discordUserId,
+        configId,
+        name: updated.name,
+        updates: Object.keys(body),
+        adminEdit: !isOwnedByRequester,
+      },
+      isOwnedByRequester ? 'Updated config' : 'Admin updated another user config'
     );
 
     sendCustomSuccess(
       res,
-      { config: { ...formatted, isOwned: true, permissions } },
+      { config: { ...formatted, isOwned: isOwnedByRequester, permissions } },
       StatusCodes.OK
     );
   };
@@ -371,20 +402,32 @@ function createDeleteHandler(service: LlmConfigService) {
     if (!permissions.canDelete) {
       return sendError(res, ErrorResponses.unauthorized('You can only delete your own configs'));
     }
+    const isAdminBypass = config.ownerId !== userId;
 
-    // Check delete constraints using service. User-route deletes own configs
-    // only — `warning` is unlikely (would mean OTHER users adopted it as
-    // their default, possible only for shared/global configs the user owns).
-    // Surfaced for consistency with admin route.
+    // Check delete constraints using service. Bot owner deleting another
+    // user's preset BYPASSES the in-use blocker — the underlying FK constraints
+    // already cascade safely (PersonalityDefaultConfig has ON DELETE CASCADE,
+    // UserPersonalityConfig.llmConfigId has ON DELETE SET NULL). The blocker
+    // is an application-level safety check for the owner-driven path.
     const { blocker } = await service.checkDeleteConstraints(configId);
-    if (blocker !== null) {
+    if (blocker !== null && !isAdminBypass) {
       return sendError(res, ErrorResponses.validationError(blocker));
     }
 
-    // Delete using service (handles cache invalidation)
+    // Delete using service (handles cache invalidation). FK cascades clean up
+    // PersonalityDefaultConfig rows + null out UserPersonalityConfig refs.
     await service.delete(configId);
 
-    logger.info({ discordUserId, configId, name: config.name }, 'Deleted config');
+    logger.info(
+      {
+        discordUserId,
+        configId,
+        name: config.name,
+        adminBypass: isAdminBypass,
+        cascadedBlocker: isAdminBypass ? blocker : null,
+      },
+      isAdminBypass ? 'Admin deleted another user config (cascaded)' : 'Deleted config'
+    );
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
   };
 }

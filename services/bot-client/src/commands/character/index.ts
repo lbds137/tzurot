@@ -361,6 +361,14 @@ export default defineCommand({
             .setRequired(false)
             .setMaxLength(2000)
         )
+        .addBooleanOption(option =>
+          option
+            .setName('exclude-private')
+            .setDescription(
+              'When picking a random character, only consider public ones (skip your private characters)'
+            )
+            .setRequired(false)
+        )
     )
     .addSubcommand(subcommand =>
       subcommand

@@ -40,13 +40,16 @@ vi.mock('../../utils/userGatewayClient.js', async importOriginal => {
 
 import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
 
-const makeSummary = (slug: string, displayName: string | null = null) => ({
+const makeSummary = (
+  slug: string,
+  opts: { displayName?: string | null; isPublic?: boolean } = {}
+) => ({
   id: `id-${slug}`,
   slug,
   name: slug,
-  displayName,
+  displayName: opts.displayName ?? null,
   isOwned: true,
-  isPublic: false,
+  isPublic: opts.isPublic ?? false,
   ownerId: 'user-123',
   ownerDiscordId: 'user-123',
   permissions: { canEdit: true, canDelete: true, canView: true },
@@ -126,6 +129,56 @@ describe('resolveCharacterSlug', () => {
     const result = await resolveCharacterSlug(null, makeContext());
 
     expect(result).toEqual({ kind: 'slug', slug: 'd', randomPick: true });
+  });
+
+  it('with excludePrivate=true, filters out non-public personalities before picking', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        makeSummary('mine-private', { isPublic: false }),
+        makeSummary('public-one', { isPublic: true }),
+        makeSummary('public-two', { isPublic: true }),
+      ],
+    });
+    // index 1 of 2 candidates → 'public-two'
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const result = await resolveCharacterSlug(null, makeContext(), { excludePrivate: true });
+
+    expect(result).toEqual({ kind: 'slug', slug: 'public-two', randomPick: true });
+  });
+
+  it('with excludePrivate=true and only-private pool, returns a clear error message', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        makeSummary('mine-1', { isPublic: false }),
+        makeSummary('mine-2', { isPublic: false }),
+      ],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), { excludePrivate: true });
+
+    expect(result).toEqual({
+      kind: 'error',
+      message: expect.stringContaining('No public characters available'),
+    });
+    // The message should suggest dropping the option (helpful UX)
+    expect(result).toEqual({
+      kind: 'error',
+      message: expect.stringContaining('exclude-private'),
+    });
+  });
+
+  it('with excludePrivate=false (default), private personalities stay in the pool', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [makeSummary('only-private', { isPublic: false })],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext());
+
+    expect(result).toEqual({ kind: 'slug', slug: 'only-private', randomPick: true });
   });
 });
 
