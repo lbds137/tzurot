@@ -35,6 +35,7 @@ import {
   handleSearchDetailAction,
   isMemorySearchPagination,
 } from './search.js';
+import { MEMORY_PURGE_PREFIX, handlePurgeButton, handlePurgeModal } from './purge.js';
 
 const logger = createLogger('memory-command');
 
@@ -72,6 +73,12 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   // Search pagination button (memory-search::browse::...)
   if (isMemorySearchPagination(customId)) {
     await handleSearchPagination(interaction);
+    return;
+  }
+
+  // Purge confirmation buttons (memory-purge::proceed::... or memory-purge::cancel)
+  if (customId.startsWith(`${MEMORY_PURGE_PREFIX}::`)) {
+    await handlePurgeButton(interaction);
     return;
   }
 
@@ -148,10 +155,18 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
  * than a clean error message.
  */
 export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
-  const parsed = parseMemoryActionId(interaction.customId);
+  const { customId } = interaction;
+
+  // Purge confirmation modal (memory-purge::confirm::<personalityId>)
+  if (customId.startsWith(`${MEMORY_PURGE_PREFIX}::`)) {
+    await handlePurgeModal(interaction);
+    return;
+  }
+
+  const parsed = parseMemoryActionId(customId);
 
   if (parsed?.action !== 'edit') {
-    logger.warn({ customId: interaction.customId }, 'Unknown modal');
+    logger.warn({ customId }, 'Unknown modal');
     await interaction.reply({
       content: '❌ Unknown modal submission.',
       flags: MessageFlags.Ephemeral,

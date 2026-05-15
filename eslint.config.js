@@ -65,6 +65,33 @@ const SEND_TYPING_RULES = [
   },
 ];
 
+// Per `.claude/rules/04-discord.md` "Component Interaction Routing": commands
+// with interactive components MUST route via CommandHandler → handleButton /
+// handleModal / handleSelectMenu. Inline collectors (awaitMessageComponent /
+// awaitModalSubmit / createMessageComponentCollector) race with CommandHandler
+// — the loser produces "Unknown interaction" 10062 errors at random under load.
+//
+// Exception: collectors may be used INSIDE exported handler functions as a
+// secondary mechanism (e.g., a timeout-bounded confirmation wait). Suppress with:
+//   // eslint-disable-next-line no-restricted-syntax -- secondary collector inside exported handler; see 04-discord.md
+const COMPONENT_ROUTING_RULES = [
+  {
+    selector: "CallExpression[callee.property.name='awaitMessageComponent']",
+    message:
+      "Don't use `.awaitMessageComponent()` as a primary interaction handler — it races with CommandHandler. Route component interactions via `handleButton` / `handleSelectMenu` exports + the `command::action::id` customId format. See `.claude/rules/04-discord.md` 'Component Interaction Routing'.",
+  },
+  {
+    selector: "CallExpression[callee.property.name='awaitModalSubmit']",
+    message:
+      "Don't use `.awaitModalSubmit()` as a primary interaction handler — it races with CommandHandler. Route modal submits via the `handleModal` export + customId routing. See `.claude/rules/04-discord.md` 'Component Interaction Routing'.",
+  },
+  {
+    selector: "CallExpression[callee.property.name='createMessageComponentCollector']",
+    message:
+      "Don't use `.createMessageComponentCollector()` as a primary interaction handler — it races with CommandHandler. Route via `handleButton` / `handleSelectMenu` exports. See `.claude/rules/04-discord.md` 'Component Interaction Routing'.",
+  },
+];
+
 const IDENTITY_PROVISIONING_RULES = [
   {
     selector:
@@ -276,6 +303,7 @@ export default tseslint.config(
         ...PINO_LOGGER_RULES,
         ...IDENTITY_PROVISIONING_RULES,
         ...SEND_TYPING_RULES,
+        ...COMPONENT_ROUTING_RULES,
       ],
 
       // ============================================================================

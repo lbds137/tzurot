@@ -171,6 +171,7 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
 
     // Wait for button interaction
     try {
+      // eslint-disable-next-line no-restricted-syntax -- Secondary collector inside an exported handler — documented exception in `.claude/rules/04-discord.md`. The customIds use the `command::action::id` format and the parent flow IS routed through CommandHandler; this collector is just the timeout-bounded confirmation wait.
       const buttonInteraction = await response.awaitMessageComponent({
         componentType: ComponentType.Button,
         filter: (i: ButtonInteraction) => i.user.id === userId,
