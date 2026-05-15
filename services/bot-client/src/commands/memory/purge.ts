@@ -1,17 +1,27 @@
 /**
  * Purge Handler
- * Handles /memory purge command - delete ALL memories for a character
- * Requires typed confirmation modal for safety
+ * Handles /memory purge command - delete ALL memories for a character.
+ * Requires typed confirmation modal for safety.
+ *
+ * Routing model (per `.claude/rules/04-discord.md` "Component Interaction Routing"):
+ * The slash command renders a warning + proceed/cancel buttons, then returns.
+ * Button + modal interactions are routed via CommandHandler → memory's
+ * `handleButton` / `handleModal` → the exports below. No `awaitMessageComponent`
+ * or `awaitModalSubmit` (those race with CommandHandler and produce 10062
+ * "Unknown interaction" errors).
+ *
+ * State is encoded in custom IDs (personalityId) and the warning embed's
+ * footer (personality display name) — restart-safe, multi-replica-safe.
  */
 
 import {
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  ComponentType,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  MessageFlags,
   escapeMarkdown,
   type ButtonInteraction,
   type ModalSubmitInteraction,
@@ -24,13 +34,17 @@ import { resolveRequiredPersonality } from './resolveHelpers.js';
 
 const logger = createLogger('memory-purge');
 
-/** Timeout for confirmation buttons (60 seconds) */
-const CONFIRMATION_TIMEOUT = 60_000;
+/**
+ * Custom ID prefix used by CommandHandler to route purge component interactions
+ * to memory's handleButton / handleModal. Must be registered in
+ * memory/index.ts `componentPrefixes`.
+ */
+export const MEMORY_PURGE_PREFIX = 'memory-purge';
 
-/** Modal timeout (5 minutes for typing) */
-const MODAL_TIMEOUT = 300_000;
+/** Footer marker that encodes the personality display name on the warning embed. */
+const FOOTER_PREFIX = 'Personality: ';
 
-/** Buffer for confirmation phrase input to allow minor whitespace */
+/** Buffer for confirmation phrase input to allow minor whitespace. */
 const CONFIRMATION_PHRASE_LENGTH_BUFFER = 5;
 
 interface StatsResponse {
@@ -49,18 +63,57 @@ interface PurgeResponse {
   message: string;
 }
 
-/**
- * Generate the confirmation phrase for a character
- */
+/** Build the confirmation phrase the user must type to confirm the purge. */
 function getConfirmationPhrase(personalityName: string): string {
   return `DELETE ${personalityName.toUpperCase()} MEMORIES`;
 }
 
+/** Read the personality display name from the warning embed's footer. */
+function readPersonalityNameFromMessage(
+  interaction: ButtonInteraction | ModalSubmitInteraction
+): string | null {
+  const footerText = interaction.message?.embeds[0]?.footer?.text;
+  if (footerText?.startsWith(FOOTER_PREFIX) !== true) {
+    return null;
+  }
+  return footerText.slice(FOOTER_PREFIX.length);
+}
+
 /**
- * Handle /memory purge
- * Shows warning and requires typed confirmation before purging
+ * Reject the interaction with an ephemeral message if the clicker isn't the
+ * original command invoker. Defense-in-depth: the API also rejects cross-user
+ * purge attempts at the data layer, but this surfaces the right UX message
+ * instead of an opaque "Failed to purge memories: ..." error.
+ *
+ * Returns true when the check passed (interaction may proceed); false when
+ * the check failed and an error reply was already sent.
  */
-// eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with multi-step confirmation flow
+async function assertInvokerOwnership(
+  interaction: ButtonInteraction | ModalSubmitInteraction,
+  invokerIdFromCustomId: string | undefined
+): Promise<boolean> {
+  if (invokerIdFromCustomId === undefined || invokerIdFromCustomId === '') {
+    logger.warn({ customId: interaction.customId }, 'Purge interaction missing invoker ID');
+    await interaction.reply({
+      content: '❌ Malformed purge interaction (missing invoker ID).',
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+  if (interaction.user.id !== invokerIdFromCustomId) {
+    await interaction.reply({
+      content: '❌ Only the person who ran this command can confirm or cancel the purge.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Handle /memory purge — show warning + confirmation buttons, then return.
+ * Button + modal handling continues via handlePurgeButton / handlePurgeModal.
+ */
 export async function handlePurge(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const user = toGatewayUser(context.user);
@@ -68,19 +121,14 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
   const personalityInput = options.character();
 
   try {
-    // Resolve personality slug to ID
     const personalityId = await resolveRequiredPersonality(context, user, personalityInput);
     if (personalityId === null) {
       return;
     }
 
-    // Get stats to show what will be purged
     const statsResult = await callGatewayApi<StatsResponse>(
       `/user/memory/stats?personalityId=${encodeURIComponent(personalityId)}`,
-      {
-        user,
-        method: 'GET',
-      }
+      { user, method: 'GET' }
     );
 
     if (!statsResult.ok) {
@@ -95,7 +143,6 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
 
     const stats = statsResult.data;
 
-    // Nothing to purge
     if (stats.totalCount === 0) {
       await context.editReply({
         content: `No memories found for **${escapeMarkdown(stats.personalityName)}**.`,
@@ -106,164 +153,231 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
     const confirmPhrase = getConfirmationPhrase(stats.personalityName);
     const deletableCount = stats.totalCount - stats.lockedCount;
 
-    // Build warning embed
     let description = `You are about to **permanently delete ALL ${deletableCount} memories** for **${escapeMarkdown(stats.personalityName)}**.`;
-
     if (stats.lockedCount > 0) {
       description += `\n\n**${stats.lockedCount}** locked (core) memories will be preserved.`;
     }
-
     description += '\n\n**This action cannot be undone.**';
     description += '\n\nTo confirm, you will need to type:';
     description += `\n\`${confirmPhrase}\``;
 
-    const embed = createDangerEmbed('DANGER: Purge All Memories', description);
+    const embed = createDangerEmbed('DANGER: Purge All Memories', description).setFooter({
+      text: `${FOOTER_PREFIX}${stats.personalityName}`,
+    });
 
-    // Create buttons
+    // Embed the invoker's user ID in the customId so the button/modal handlers
+    // can reject cross-user clicks before any work runs (defense-in-depth on
+    // top of the API's data-layer enforcement).
     const proceedButton = new ButtonBuilder()
-      .setCustomId('memory_purge_proceed')
+      .setCustomId(`${MEMORY_PURGE_PREFIX}::proceed::${personalityId}::${userId}`)
       .setLabel('I Understand - Proceed')
       .setStyle(ButtonStyle.Danger);
 
     const cancelButton = new ButtonBuilder()
-      .setCustomId('memory_purge_cancel')
+      .setCustomId(`${MEMORY_PURGE_PREFIX}::cancel::${userId}`)
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Secondary);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(proceedButton, cancelButton);
 
-    const response = await context.editReply({
-      embeds: [embed],
-      components: [row],
-    });
-
-    // Wait for button interaction
-    let buttonInteraction: ButtonInteraction;
-    try {
-      buttonInteraction = await response.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        filter: (i: ButtonInteraction) => i.user.id === userId,
-        time: CONFIRMATION_TIMEOUT,
-      });
-    } catch {
-      await context.editReply({
-        content: 'Purge cancelled - confirmation timed out.',
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    if (buttonInteraction.customId === 'memory_purge_cancel') {
-      await buttonInteraction.update({
-        content: 'Purge cancelled.',
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    // Show modal for typed confirmation
-    const modal = new ModalBuilder()
-      .setCustomId(`memory_purge_confirm_${personalityId}`)
-      .setTitle('Confirm Memory Purge');
-
-    const confirmInput = new TextInputBuilder()
-      .setCustomId('confirmation_phrase')
-      .setLabel(`Type: ${confirmPhrase}`)
-      .setPlaceholder(confirmPhrase)
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMinLength(confirmPhrase.length)
-      .setMaxLength(confirmPhrase.length + CONFIRMATION_PHRASE_LENGTH_BUFFER);
-
-    const modalRow = new ActionRowBuilder<TextInputBuilder>().addComponents(confirmInput);
-    modal.addComponents(modalRow);
-
-    await buttonInteraction.showModal(modal);
-
-    // Wait for modal submission
-    let modalInteraction: ModalSubmitInteraction;
-    try {
-      modalInteraction = await buttonInteraction.awaitModalSubmit({
-        filter: (i: ModalSubmitInteraction) =>
-          i.user.id === userId && i.customId === `memory_purge_confirm_${personalityId}`,
-        time: MODAL_TIMEOUT,
-      });
-    } catch {
-      // Modal timed out or was dismissed
-      await context.editReply({
-        content: 'Purge cancelled - confirmation timed out.',
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    // Validate confirmation phrase
-    const enteredPhrase = modalInteraction.fields.getTextInputValue('confirmation_phrase').trim();
-
-    if (enteredPhrase !== confirmPhrase) {
-      await modalInteraction.reply({
-        content: `Purge cancelled - confirmation phrase did not match.\n\nYou entered: \`${enteredPhrase}\`\nExpected: \`${confirmPhrase}\``,
-        ephemeral: true,
-      });
-      await context.editReply({
-        content: 'Purge cancelled - confirmation phrase did not match.',
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    // User confirmed correctly - perform purge
-    await modalInteraction.deferUpdate();
-
-    const purgeResult = await callGatewayApi<PurgeResponse>('/user/memory/purge', {
-      user,
-      method: 'POST',
-      body: {
-        personalityId,
-        confirmationPhrase: enteredPhrase,
-      },
-    });
-
-    if (!purgeResult.ok) {
-      await modalInteraction.editReply({
-        content: `Failed to purge memories: ${purgeResult.error ?? 'Unknown error'}`,
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    const result = purgeResult.data;
-
-    // Show success
-    let successDescription = `Purged **${result.deletedCount}** memories for **${escapeMarkdown(result.personalityName)}**.`;
-
-    if (result.lockedPreserved > 0) {
-      successDescription += `\n\n**${result.lockedPreserved}** locked (core) memories were preserved.`;
-    }
-
-    const successEmbed = createSuccessEmbed('Memories Purged', successDescription);
-
-    await modalInteraction.editReply({
-      embeds: [successEmbed],
-      components: [],
-    });
-
-    logger.warn(
-      {
-        userId,
-        personalityId,
-        deletedCount: result.deletedCount,
-        lockedPreserved: result.lockedPreserved,
-      },
-      'PURGE completed'
-    );
+    await context.editReply({ embeds: [embed], components: [row] });
   } catch (error) {
     logger.error({ err: error, userId }, 'Unexpected error');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
+}
+
+/**
+ * Handle proceed/cancel button clicks for /memory purge.
+ * Routed from CommandHandler → memory's handleButton.
+ *
+ * The proceed branch MUST call `showModal()` as its first action — Discord
+ * requires the modal to be the first response to a button interaction
+ * (no `deferUpdate` first), and the 3-second budget for that response is
+ * indivisible. State needed for the modal (personalityId, personalityName)
+ * comes from the customId and the parent message's embed footer respectively.
+ */
+export async function handlePurgeButton(interaction: ButtonInteraction): Promise<void> {
+  const parts = interaction.customId.split('::');
+  // parts[0] = 'memory-purge'
+  // proceed: parts[1] = 'proceed', parts[2] = personalityId, parts[3] = invokerId
+  // cancel:  parts[1] = 'cancel', parts[2] = invokerId
+  const action = parts[1];
+
+  if (action === 'cancel') {
+    if (!(await assertInvokerOwnership(interaction, parts[2]))) {
+      return;
+    }
+    await interaction.update({ content: 'Purge cancelled.', embeds: [], components: [] });
+    return;
+  }
+
+  if (action !== 'proceed') {
+    logger.warn({ customId: interaction.customId }, 'Unknown purge button action');
+    await interaction.reply({
+      content: '❌ Unknown interaction.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const personalityId = parts[2];
+  if (personalityId === undefined || personalityId === '') {
+    logger.warn({ customId: interaction.customId }, 'Purge proceed button missing personalityId');
+    await interaction.reply({
+      content: '❌ Malformed purge button (missing personality ID).',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!(await assertInvokerOwnership(interaction, parts[3]))) {
+    return;
+  }
+
+  const personalityName = readPersonalityNameFromMessage(interaction);
+  if (personalityName === null) {
+    logger.warn({ customId: interaction.customId }, 'Purge proceed button missing footer name');
+    await interaction.reply({
+      content:
+        '❌ This confirmation prompt is missing required state. Please run `/memory purge` again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const confirmPhrase = getConfirmationPhrase(personalityName);
+
+  const modal = new ModalBuilder()
+    .setCustomId(`${MEMORY_PURGE_PREFIX}::confirm::${personalityId}::${interaction.user.id}`)
+    .setTitle('Confirm Memory Purge');
+
+  const confirmInput = new TextInputBuilder()
+    .setCustomId('confirmation_phrase')
+    .setLabel(`Type: ${confirmPhrase}`)
+    .setPlaceholder(confirmPhrase)
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMinLength(confirmPhrase.length)
+    .setMaxLength(confirmPhrase.length + CONFIRMATION_PHRASE_LENGTH_BUFFER);
+
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(confirmInput));
+
+  // First (and only) response to the button interaction; no async work above
+  // this line so the 3-second budget stays indivisible.
+  await interaction.showModal(modal);
+}
+
+/**
+ * Handle the "type the phrase" modal submission for /memory purge.
+ * Routed from CommandHandler → memory's handleModal.
+ */
+export async function handlePurgeModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const parts = interaction.customId.split('::');
+  // parts[0] = 'memory-purge', parts[1] = 'confirm', parts[2] = personalityId, parts[3] = invokerId
+  const personalityId = parts[2];
+  if (personalityId === undefined || personalityId === '') {
+    logger.warn({ customId: interaction.customId }, 'Purge modal missing personalityId');
+    await interaction.reply({
+      content: '❌ Malformed purge modal (missing personality ID).',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!(await assertInvokerOwnership(interaction, parts[3]))) {
+    return;
+  }
+
+  const personalityName = readPersonalityNameFromMessage(interaction);
+  if (personalityName === null) {
+    logger.warn({ customId: interaction.customId }, 'Purge modal missing footer name');
+    await interaction.reply({
+      content: '❌ Confirmation state lost. Please run `/memory purge` again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const expectedPhrase = getConfirmationPhrase(personalityName);
+  const enteredPhrase = interaction.fields.getTextInputValue('confirmation_phrase').trim();
+
+  if (enteredPhrase !== expectedPhrase) {
+    await interaction.reply({
+      content: `Purge cancelled - confirmation phrase did not match.\n\nYou entered: \`${enteredPhrase}\`\nExpected: \`${expectedPhrase}\``,
+      flags: MessageFlags.Ephemeral,
+    });
+    if (interaction.message !== null) {
+      // Best-effort cleanup. If the parent message was deleted, perms changed,
+      // or the bot was restarted between modal-submit and now, the edit can
+      // throw — but the user already saw the ephemeral mismatch reply, so the
+      // failure isn't user-visible and shouldn't crash the handler.
+      try {
+        await interaction.message.edit({
+          content: 'Purge cancelled - confirmation phrase did not match.',
+          embeds: [],
+          components: [],
+        });
+      } catch (err) {
+        logger.warn({ err, customId: interaction.customId }, 'Failed to clear purge warning');
+      }
+    }
+    return;
+  }
+
+  // Phrase validated. Ack the modal, clear the warning, then perform the purge.
+  // `update()` is only available on modal submits that originated from a
+  // message component — for our flow that's always true (the modal is shown
+  // by the proceed button), but we narrow to satisfy the type checker.
+  if (!interaction.isFromMessage()) {
+    logger.warn({ customId: interaction.customId }, 'Purge modal submitted without parent message');
+    await interaction.reply({
+      content: '❌ Internal error: malformed modal context.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  await interaction.update({
+    content: 'Purging memories…',
+    embeds: [],
+    components: [],
+  });
+
+  const user = toGatewayUser(interaction.user);
+  const purgeResult = await callGatewayApi<PurgeResponse>('/user/memory/purge', {
+    user,
+    method: 'POST',
+    body: { personalityId, confirmationPhrase: enteredPhrase },
+  });
+
+  if (!purgeResult.ok) {
+    await interaction.editReply({
+      content: `Failed to purge memories: ${purgeResult.error ?? 'Unknown error'}`,
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const result = purgeResult.data;
+  let successDescription = `Purged **${result.deletedCount}** memories for **${escapeMarkdown(result.personalityName)}**.`;
+  if (result.lockedPreserved > 0) {
+    successDescription += `\n\n**${result.lockedPreserved}** locked (core) memories were preserved.`;
+  }
+
+  await interaction.editReply({
+    content: '',
+    embeds: [createSuccessEmbed('Memories Purged', successDescription)],
+    components: [],
+  });
+
+  logger.warn(
+    {
+      userId: interaction.user.id,
+      personalityId,
+      deletedCount: result.deletedCount,
+      lockedPreserved: result.lockedPreserved,
+    },
+    'PURGE completed'
+  );
 }
