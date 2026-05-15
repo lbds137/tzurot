@@ -30,11 +30,6 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   NSFW_VERIFICATION_CHECK_FAILED_MESSAGE: "⚠️ Couldn't verify your age status right now.",
 }));
 
-// Mock personalityMentionParser
-vi.mock('../utils/personalityMentionParser.js', () => ({
-  findPersonalityMentions: vi.fn(),
-}));
-
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import {
   isDMChannel,
@@ -42,7 +37,6 @@ import {
   sendNsfwVerificationMessage,
   trackPendingVerificationMessage,
 } from '../utils/nsfwVerification.js';
-import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 
 function createMockDMChannel(overrides: Partial<DMChannel> = {}): DMChannel {
   const messagesCollection = new Collection<string, Message>();
@@ -113,6 +107,12 @@ describe('DMSessionProcessor', () => {
   let processor: DMSessionProcessor;
   let mockGatewayClient: {
     lookupPersonalityFromConversation: ReturnType<typeof vi.fn>;
+    getChannelSettings: ReturnType<typeof vi.fn>;
+    setDmSessionPersonality: ReturnType<typeof vi.fn>;
+  };
+  let mockMultiTagPersistence: {
+    wasDMBackfillTried: ReturnType<typeof vi.fn>;
+    markDMBackfillTried: ReturnType<typeof vi.fn>;
   };
   let mockPersonalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
@@ -137,11 +137,18 @@ describe('DMSessionProcessor', () => {
       },
     });
     vi.mocked(trackPendingVerificationMessage).mockResolvedValue(undefined);
-    // Default: no explicit personality mention (override in specific tests)
-    vi.mocked(findPersonalityMentions).mockResolvedValue([]);
+    // (DMSessionProcessor no longer parses mentions itself — PersonalityTriggerProcessor
+    // earlier in the chain handles tagged messages.)
 
     mockGatewayClient = {
       lookupPersonalityFromConversation: vi.fn(),
+      // Default: no DM-session row in channel_settings — tests exercise the
+      // history-scan fallback. Tests that want to validate the fast path
+      // override this per-case.
+      getChannelSettings: vi.fn().mockResolvedValue({ hasSettings: false }),
+      // Lazy-backfill write — best-effort, fire-and-forget. Default to
+      // resolved-undefined; specific tests can assert it was called.
+      setDmSessionPersonality: vi.fn().mockResolvedValue(undefined),
     };
 
     mockPersonalityService = {
@@ -152,10 +159,18 @@ describe('DMSessionProcessor', () => {
       handleMessage: vi.fn(),
     };
 
+    // MultiTagPersistence is consulted for the backfill-tried sentinel. Default
+    // mocks return "never tried" + no-op write; specific tests override per case.
+    mockMultiTagPersistence = {
+      wasDMBackfillTried: vi.fn().mockResolvedValue(false),
+      markDMBackfillTried: vi.fn().mockResolvedValue(undefined),
+    };
+
     processor = new DMSessionProcessor(
       mockGatewayClient as unknown as GatewayClient,
       mockPersonalityService as unknown as IPersonalityLoader,
-      mockPersonalityHandler as unknown as PersonalityMessageHandler
+      mockPersonalityHandler as unknown as PersonalityMessageHandler,
+      mockMultiTagPersistence as never
     );
   });
 
@@ -221,6 +236,13 @@ describe('DMSessionProcessor', () => {
         mockLilithPersonality,
         'Hello world',
         { isAutoResponse: true }
+      );
+      // Lazy-backfill write: after a successful history scan, the discovered
+      // personality is recorded in channel_settings so the next bare DM hits
+      // the fast (cached) path instead of re-scanning Discord history.
+      expect(mockGatewayClient.setDmSessionPersonality).toHaveBeenCalledWith(
+        message.channelId,
+        'lilith'
       );
     });
 
@@ -562,46 +584,56 @@ describe('DMSessionProcessor', () => {
     });
   });
 
-  describe('Explicit mention handling', () => {
-    it('should defer to PersonalityMentionProcessor when explicit mention found', async () => {
+  describe('Backfill-tried sentinel', () => {
+    it('skips history scan when wasDMBackfillTried returns true', async () => {
       const botId = 'bot-123';
-      const botMessage = createMockBotMessage({
-        id: 'bot-msg-123',
-        content: '**COLD:** Hello',
-        botId,
-      });
-
-      const messagesCollection = new Collection<string, Message>();
-      messagesCollection.set(botMessage.id, botMessage);
-
       const channel = createMockDMChannel();
-      (channel.messages.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(messagesCollection);
-
-      const message = createMockMessage({ channel, botId, content: '&Selah hi' });
+      const message = createMockMessage({ channel, botId, content: 'bare DM' });
       vi.mocked(isDMChannel).mockReturnValue(true);
 
-      // Setup: COLD is active, but user mentioned Selah
-      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
-        personalityId: 'cold-id',
-      });
-      vi.mocked(findPersonalityMentions).mockResolvedValue([
-        {
-          personality: { id: 'selah-id', name: 'Selah' },
-          startIndex: 0,
-        },
-        // Casting: mock only needs id+name; full shape isn't exercised here.
-      ] as unknown as Awaited<ReturnType<typeof findPersonalityMentions>>);
+      // No channel_settings row exists.
+      mockGatewayClient.getChannelSettings.mockResolvedValue({ hasSettings: false });
+      // Sentinel says we already tried; the history scan should NOT run.
+      mockMultiTagPersistence.wasDMBackfillTried.mockResolvedValue(true);
 
       const result = await processor.process(message);
 
-      // Should return false to let PersonalityMentionProcessor handle it
-      expect(result).toBe(false);
-      // Should NOT route to COLD
-      expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
-      // Should NOT show help message
-      expect(message.reply).not.toHaveBeenCalled();
+      // No history scan = no Discord API call to messages.fetch
+      expect(channel.messages.fetch).not.toHaveBeenCalled();
+      // Empty session → help message
+      expect(result).toBe(true);
+      // Did not re-mark (already marked).
+      expect(mockMultiTagPersistence.markDMBackfillTried).not.toHaveBeenCalled();
     });
 
+    it('marks backfill tried after a history scan that finds nothing', async () => {
+      const botId = 'bot-123';
+      const channel = createMockDMChannel();
+      // No bot messages → history scan returns null.
+      (channel.messages.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+        new Collection<string, Message>()
+      );
+
+      const message = createMockMessage({
+        channel,
+        botId,
+        content: 'bare DM',
+        channelId: 'channel-empty',
+      });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+      mockGatewayClient.getChannelSettings.mockResolvedValue({ hasSettings: false });
+      mockMultiTagPersistence.wasDMBackfillTried.mockResolvedValue(false);
+
+      await processor.process(message);
+
+      // Scan ran...
+      expect(channel.messages.fetch).toHaveBeenCalledOnce();
+      // ...and we recorded that we tried, so the NEXT bare DM doesn't repeat.
+      expect(mockMultiTagPersistence.markDMBackfillTried).toHaveBeenCalledWith('channel-empty');
+    });
+  });
+
+  describe('Active-session routing', () => {
     it('should process normally when no explicit mention', async () => {
       const botId = 'bot-123';
       const botMessage = createMockBotMessage({
@@ -618,9 +650,6 @@ describe('DMSessionProcessor', () => {
 
       const message = createMockMessage({ channel, botId, content: 'just a normal message' });
       vi.mocked(isDMChannel).mockReturnValue(true);
-
-      // No explicit mention
-      vi.mocked(findPersonalityMentions).mockResolvedValue([]);
 
       mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
         personalityId: 'lilith-id',

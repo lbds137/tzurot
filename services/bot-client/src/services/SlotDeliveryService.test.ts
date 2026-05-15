@@ -177,5 +177,25 @@ describe('SlotDeliveryService', () => {
       // Assistant message is NOT persisted when webhook fails (we never got chunk IDs).
       expect(persistence.saveAssistantMessage).not.toHaveBeenCalled();
     });
+
+    it('does NOT double-deliver when webhook succeeded but persistence threw', async () => {
+      // Webhook send succeeds, returns chunk IDs.
+      responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['chunk-err-1'] });
+      // Persistence layer throws (e.g., DB hiccup).
+      persistence.saveAssistantMessage.mockRejectedValue(new Error('db unavailable'));
+      const slot = buildSlotContext();
+      const failResult = {
+        requestId: 'req-1',
+        success: false,
+        error: 'thing broke',
+      } as LLMGenerationResult;
+
+      await service.deliverError('Error occurred', failResult, slot);
+
+      // Webhook sent the error once...
+      expect(responseSender.sendResponse).toHaveBeenCalledTimes(1);
+      // ...and the reply fallback MUST NOT fire, since the user already saw it.
+      expect(slot.message.reply).not.toHaveBeenCalled();
+    });
   });
 });
