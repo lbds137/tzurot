@@ -1,19 +1,15 @@
 /**
- * Tests for personality mention parser
+ * Tests for the multi-tag personality mention parser.
  *
- * Tests behavior (WHAT the code does) not implementation (HOW it does it)
- *
- * Key principles demonstrated:
- * - Mock external dependencies (PersonalityService)
- * - Test public API only (findPersonalityMention function)
- * - Test edge cases and error conditions
- * - Clear test descriptions that explain WHAT is being tested
+ * The parser returns mentions in textual left-to-right order, deduped by
+ * personality ID (first occurrence wins), longest-match-per-position wins.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { findPersonalityMention } from './personalityMentionParser.js';
+import { findPersonalityMentions } from './personalityMentionParser.js';
 import { createMockPersonalityService } from '../test/mocks/PersonalityService.mock.js';
 import type { PersonalityService } from '@tzurot/common-types';
+import { MULTI_TAG } from '@tzurot/common-types';
 
 const TEST_USER_ID = 'test-user-123';
 
@@ -21,576 +17,460 @@ describe('personalityMentionParser', () => {
   let mockPersonalityService: PersonalityService;
 
   beforeEach(() => {
-    // Set up fresh mocks before each test
     mockPersonalityService = createMockPersonalityService([
       { name: 'Lilith', displayName: 'Lilith', systemPrompt: 'Test prompt' },
       { name: 'Sarcastic', displayName: 'Sarcastic', systemPrompt: 'Test prompt' },
       { name: 'Bambi Prime', displayName: 'Bambi Prime', systemPrompt: 'Test prompt' },
+      { name: 'Bambi', displayName: 'Bambi', systemPrompt: 'Test prompt' },
       { name: 'Administrator', displayName: 'Administrator', systemPrompt: 'Test prompt' },
       { name: 'Angel Dust', displayName: 'Angel Dust', systemPrompt: 'Test prompt' },
       { name: "O'Reilly", displayName: "O'Reilly", systemPrompt: 'Test prompt' },
       { name: 'Dr. Gregory House', displayName: 'Dr. Gregory House', systemPrompt: 'Test prompt' },
       { name: 'J.R.R. Tolkien', displayName: 'J.R.R. Tolkien', systemPrompt: 'Test prompt' },
+      { name: 'Charlie', displayName: 'Charlie', systemPrompt: 'Test prompt' },
+      { name: 'Delta', displayName: 'Delta', systemPrompt: 'Test prompt' },
+      { name: 'Echo', displayName: 'Echo', systemPrompt: 'Test prompt' },
+      { name: 'Foxtrot', displayName: 'Foxtrot', systemPrompt: 'Test prompt' },
     ]);
   });
 
-  describe('Basic Mention Detection', () => {
-    it('should find single-word personality mention', async () => {
-      const result = await findPersonalityMention(
+  describe('Basic detection', () => {
+    it('returns a single mention for a single @-name', async () => {
+      const result = await findPersonalityMentions(
         '@Lilith hello there',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      expect(result?.cleanContent).toBe('hello there');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
+      expect(result[0].startIndex).toBe(0);
     });
 
-    it('should find multi-word personality mention', async () => {
-      const result = await findPersonalityMention(
+    it('returns multi-word personality match', async () => {
+      const result = await findPersonalityMentions(
         '@Bambi Prime how are you?',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Bambi Prime');
-      expect(result?.cleanContent).toBe('how are you?');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Bambi Prime');
     });
 
-    it('should return null when no personality is mentioned', async () => {
-      const result = await findPersonalityMention(
+    it('returns empty array for content with no mentions', async () => {
+      const result = await findPersonalityMentions(
         'just a regular message',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).toBeNull();
+      expect(result).toEqual([]);
     });
 
-    it('should return null when mentioned personality does not exist', async () => {
-      const result = await findPersonalityMention(
+    it('returns empty array when mentioned personality does not exist', async () => {
+      const result = await findPersonalityMentions(
         '@Unknown personality, hello',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).toBeNull();
+      expect(result).toEqual([]);
     });
   });
 
-  describe('Names with apostrophes', () => {
-    it('should match personality names containing apostrophes', async () => {
-      const result = await findPersonalityMention(
-        "@O'Reilly hello there",
+  describe('Ordering', () => {
+    it('returns mentions in textual left-to-right order', async () => {
+      const result = await findPersonalityMentions(
+        '@Lilith and @Sarcastic say hi',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe("O'Reilly");
-      expect(result?.cleanContent).toBe('hello there');
+      expect(result.map(r => r.personality.name)).toEqual(['Lilith', 'Sarcastic']);
     });
 
-    it('should match apostrophe names followed by punctuation', async () => {
-      const result = await findPersonalityMention(
-        "@O'Reilly, what do you think?",
+    it('preserves textual order even when first mention is longer', async () => {
+      const result = await findPersonalityMentions(
+        '@Bambi Prime then @Lilith',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe("O'Reilly");
-      expect(result?.cleanContent).toBe('what do you think?');
+      expect(result.map(r => r.personality.name)).toEqual(['Bambi Prime', 'Lilith']);
     });
 
-    it('should match possessive form of personality name', async () => {
-      const result = await findPersonalityMention(
-        "@Lilith's approach is interesting",
+    it('preserves textual order when later mention is longer', async () => {
+      const result = await findPersonalityMentions(
+        '@Lilith then @Bambi Prime',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      expect(result?.cleanContent).toBe('approach is interesting');
+      expect(result.map(r => r.personality.name)).toEqual(['Lilith', 'Bambi Prime']);
     });
 
-    it('should match possessive form of apostrophe-containing name', async () => {
-      const result = await findPersonalityMention(
-        "@O'Reilly's book is great",
+    it('returns startIndex matching the @-position in original content', async () => {
+      const result = await findPersonalityMentions(
+        'hi there @Lilith',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe("O'Reilly");
-      expect(result?.cleanContent).toBe('book is great');
-    });
-
-    it('should match possessive form of multi-word personality name', async () => {
-      const result = await findPersonalityMention(
-        "@Bambi Prime's strategy is interesting",
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Bambi Prime');
-      expect(result?.cleanContent).toBe('strategy is interesting');
+      expect(result).toHaveLength(1);
+      expect(result[0].startIndex).toBe(9);
     });
   });
 
-  describe('Names with periods (abbreviations)', () => {
-    // User-reported bug (beta.97): "Dr. Gregory House" couldn't be matched
-    // because the per-word trailing-punctuation strip removed the period
-    // from "Dr." before generating candidates, so only "Dr Gregory House"
-    // (no period) was tried — which didn't match any personality.
-    // Fix: two-pass per-word punctuation strip (full vs. period-preserving),
-    // so both "Dr. Gregory House" and "Dr Gregory House" become candidates.
-
-    it('should match personality names containing abbreviation periods', async () => {
-      const result = await findPersonalityMention(
-        '@Dr. Gregory House how are you?',
+  describe('Longest-match-per-position wins', () => {
+    it('picks Bambi Prime over Bambi at the same position', async () => {
+      const result = await findPersonalityMentions(
+        '@Bambi Prime hello',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Dr. Gregory House');
-      expect(result?.cleanContent).toBe('how are you?');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Bambi Prime');
     });
 
-    it('should match period-name followed by sentence-ending period', async () => {
-      // Trailing period here is sentence-ending, not part of "House"
-      const result = await findPersonalityMention(
-        '@Dr. Gregory House.',
+    it('falls back to shorter when longer is not a valid personality', async () => {
+      // "Bambi Prime hello world" is not a personality, but "Bambi Prime" is.
+      const result = await findPersonalityMentions(
+        '@Bambi Prime hello world',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Dr. Gregory House');
-      expect(result?.cleanContent).toBe('');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Bambi Prime');
     });
 
-    it('should match period-name followed by other punctuation', async () => {
-      const result = await findPersonalityMention(
-        '@Dr. Gregory House, what do you think?',
+    it('treats @Bambi and @Bambi Prime as separate mentions in order', async () => {
+      // Both Bambi and Bambi Prime exist as distinct personalities. Since they
+      // are separated by an `@`, each match position resolves independently.
+      const result = await findPersonalityMentions(
+        '@Bambi @Bambi Prime hello',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Dr. Gregory House');
-      expect(result?.cleanContent).toBe('what do you think?');
-    });
-
-    it('should match personality names with multiple abbreviation periods', async () => {
-      const result = await findPersonalityMention(
-        '@J.R.R. Tolkien wrote fantasy novels',
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('J.R.R. Tolkien');
-      expect(result?.cleanContent).toBe('wrote fantasy novels');
-    });
-
-    it('should match possessive form of period-containing name', async () => {
-      const result = await findPersonalityMention(
-        "@Dr. Gregory House's diagnosis was correct",
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Dr. Gregory House');
-      expect(result?.cleanContent).toBe('diagnosis was correct');
-    });
-
-    it('should still match simple names without periods (no regression)', async () => {
-      // Regression guard: the new period-preserving pass MUST NOT break the
-      // common case of a name without periods followed by sentence-ending
-      // punctuation.
-      const result = await findPersonalityMention(
-        '@Lilith.',
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      expect(result?.cleanContent).toBe('');
+      expect(result).toHaveLength(2);
+      expect(result.map(r => r.personality.name)).toEqual(['Bambi', 'Bambi Prime']);
     });
   });
 
-  describe('Priority Rules', () => {
-    it('should prioritize multi-word over single-word personalities', async () => {
-      // "Bambi Prime" (2 words) should win over "Bambi" (1 word) even if we had both
-      const result = await findPersonalityMention(
-        '@Bambi Prime @Lilith hello',
+  describe('Deduplication', () => {
+    it('dedupes when the same personality is mentioned twice', async () => {
+      const result = await findPersonalityMentions(
+        '@Lilith hi @Lilith',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Bambi Prime');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
+      expect(result[0].startIndex).toBe(0); // First occurrence wins.
     });
 
-    it('should prioritize longer character length when word count is equal', async () => {
-      // "Sarcastic" (9 chars) should win over "Lilith" (6 chars) - both single words
-      const result = await findPersonalityMention(
-        '@Lilith @Sarcastic hey',
+    it('keeps the first slot when the same name appears in different cases', async () => {
+      // DB lookup is case-insensitive; both @Lilith and @lilith resolve to the
+      // same personality ID.
+      const result = await findPersonalityMentions(
+        '@Lilith and @lilith',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Sarcastic');
-    });
-
-    it('should prefer multi-word even when single-word has more characters', async () => {
-      // "Bambi Prime" (2 words, 11 chars) should win over "Administrator" (1 word, 13 chars)
-      const result = await findPersonalityMention(
-        '@Bambi Prime @Administrator test',
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Bambi Prime');
+      expect(result).toHaveLength(1);
+      expect(result[0].startIndex).toBe(0);
     });
   });
 
-  describe('Content Cleaning', () => {
-    it('should remove mention and extra whitespace from content', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith    hello   there',
+  describe('Mention cap', () => {
+    it('caps at MULTI_TAG.MAX_TAGS by default', async () => {
+      // Six distinct valid mentions; cap is 5.
+      const result = await findPersonalityMentions(
+        '@Lilith @Sarcastic @Charlie @Delta @Echo @Foxtrot',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.cleanContent).toBe('hello   there'); // Preserves internal whitespace
+      expect(result).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(result.map(r => r.personality.name)).toEqual([
+        'Lilith',
+        'Sarcastic',
+        'Charlie',
+        'Delta',
+        'Echo',
+      ]);
     });
 
-    it('should handle mention at end of message', async () => {
-      const result = await findPersonalityMention(
-        'hello @Lilith',
+    it('respects a custom cap argument', async () => {
+      const result = await findPersonalityMentions(
+        '@Lilith @Sarcastic @Charlie',
         '@',
         mockPersonalityService,
-        TEST_USER_ID
+        TEST_USER_ID,
+        2
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      expect(result?.cleanContent).toBe('hello');
-    });
-
-    it('should handle mention in middle of message', async () => {
-      const result = await findPersonalityMention(
-        'hey @Lilith how are you?',
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.cleanContent).toBe('hey how are you?');
-    });
-
-    it('should remove ALL occurrences of the selected personality', async () => {
-      const result = await findPersonalityMention(
-        '@Bambi Prime @Bambi Prime, how are you?',
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Bambi Prime');
-      // Note: Trailing punctuation is part of the match pattern and gets removed
-      expect(result?.cleanContent).toBe('how are you?');
+      expect(result).toHaveLength(2);
+      expect(result.map(r => r.personality.name)).toEqual(['Lilith', 'Sarcastic']);
     });
   });
 
-  describe('Trailing Punctuation Handling', () => {
-    it('should handle mention with comma (punctuation removed as part of match)', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith, hello there',
+  describe('Possessive handling', () => {
+    it("handles @Lilith's by matching the base name", async () => {
+      const result = await findPersonalityMentions(
+        "@Lilith's hello",
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      // Trailing punctuation is part of the regex match pattern and gets removed
-      expect(result?.cleanContent).toBe('hello there');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
     });
+  });
 
-    it('should handle mention with exclamation mark (punctuation removed)', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith! hello',
+  describe('Trailing punctuation', () => {
+    it.each([
+      ['@Lilith,', 'Lilith'],
+      ['@Lilith.', 'Lilith'],
+      ['@Lilith!', 'Lilith'],
+      ['@Lilith?', 'Lilith'],
+      ['@Lilith!!!', 'Lilith'],
+      ['@Lilith...', 'Lilith'],
+      ['@Lilith;', 'Lilith'],
+    ])('strips trailing punctuation for %s', async (input, expected) => {
+      const result = await findPersonalityMentions(
+        `${input} hi`,
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      // Trailing punctuation is part of the regex match pattern and gets removed
-      expect(result?.cleanContent).toBe('hello');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe(expected);
     });
+  });
 
-    it('should handle mention with question mark (punctuation removed)', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith? are you there',
+  describe('Discord markdown wrapping', () => {
+    it('matches inside *asterisk* italics', async () => {
+      const result = await findPersonalityMentions(
+        '*nudges @Lilith*',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      // Trailing punctuation is part of the regex match pattern and gets removed
-      expect(result?.cleanContent).toBe('are you there');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
     });
 
-    // PR #864 bounded-quantifier regression: the trailing-punctuation strip
-    // is `[.,!?;:)"'*_~|\`]{1,16}$`. If the bound were narrowed to `{1,2}`,
-    // "!!!" and "..." would stop matching as a full strip.
-    it('strips multi-char trailing punctuation (bounded-quantifier regression)', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith!!!',
+    it('matches inside _underscore_ italics', async () => {
+      const result = await findPersonalityMentions(
+        '_whispers to @Lilith_',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
     });
 
-    it('strips ellipsis-style trailing punctuation', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith...',
+    it('matches inside ~~strikethrough~~', async () => {
+      const result = await findPersonalityMentions(
+        '~~hello @Lilith~~',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
     });
 
-    it('should handle mention with asterisk (Discord italic/bold markdown)', async () => {
-      // User scenario: *action text with @Mention* more text
-      const result = await findPersonalityMention(
-        '*grabs the blankets and brings them over to @Lilith* yep, sure thing',
+    it('matches inside ||spoiler||', async () => {
+      const result = await findPersonalityMentions(
+        '||@Lilith surprise||',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-      // Note: Internal whitespace is preserved, so there are two spaces where the mention was
-      expect(result?.cleanContent).toBe(
-        '*grabs the blankets and brings them over to  yep, sure thing'
-      );
+      expect(result).toHaveLength(1);
     });
 
-    it('should handle mention with underscore (Discord italic markdown)', async () => {
-      const result = await findPersonalityMention(
-        '_whispers to @Lilith_ hello there',
+    it('matches inside `backticks`', async () => {
+      const result = await findPersonalityMentions(
+        '`@Lilith` over here',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
     });
 
-    it('should handle mention with tilde (Discord strikethrough markdown)', async () => {
-      const result = await findPersonalityMention(
-        '~~deleted message to @Lilith~~ oops',
+    it('matches inside triple-backticks for code blocks', async () => {
+      const result = await findPersonalityMentions(
+        '```@Lilith``` block',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
     });
+  });
 
-    it('should handle mention with pipe (Discord spoiler markdown)', async () => {
-      const result = await findPersonalityMention(
-        '||spoiler for @Lilith|| surprise!',
+  describe('Abbreviation-style names with periods', () => {
+    it('matches @Dr. Gregory House', async () => {
+      const result = await findPersonalityMentions(
+        '@Dr. Gregory House is here',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Dr. Gregory House');
     });
 
-    it('should handle single-backtick wrap (Discord inline-code formatting)', async () => {
-      const result = await findPersonalityMention(
-        '`@Lilith` is around here somewhere',
+    it('matches @J.R.R. Tolkien', async () => {
+      const result = await findPersonalityMentions(
+        '@J.R.R. Tolkien wrote LOTR',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('J.R.R. Tolkien');
     });
 
-    it('should handle backtick with period for abbreviation-style names', async () => {
-      // Regression guard combining the PR #811 periods-in-names fix with the
-      // new backtick support. User types `` `@Dr. Gregory House` `` — both
-      // the trailing backtick AND the period-preserving candidate must
-      // cooperate for this to match.
-      const result = await findPersonalityMention(
+    it('matches @Dr. Gregory House inside backticks', async () => {
+      const result = await findPersonalityMentions(
         '`@Dr. Gregory House` is in the house',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Dr. Gregory House');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Dr. Gregory House');
     });
+  });
 
-    it('should handle triple-backtick wrap (Discord code-block formatting)', async () => {
-      // Council-flagged edge case: the multi-word regex starts matching at `@`,
-      // so leading backticks aren't part of the capture. The trailing `` ``` ``
-      // is stripped by WORD_PUNCTUATION_STRIP_ALL since it's a run of backticks.
-      const result = await findPersonalityMention(
-        '```@Lilith``` block formatting',
+  describe('Apostrophes', () => {
+    it("matches @O'Reilly", async () => {
+      const result = await findPersonalityMentions(
+        "@O'Reilly hello",
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe("O'Reilly");
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle empty string', async () => {
-      const result = await findPersonalityMention('', '@', mockPersonalityService, TEST_USER_ID);
-
-      expect(result).toBeNull();
+  describe('Edge cases', () => {
+    it('handles empty string', async () => {
+      const result = await findPersonalityMentions('', '@', mockPersonalityService, TEST_USER_ID);
+      expect(result).toEqual([]);
     });
 
-    it('should handle string with only whitespace', async () => {
-      const result = await findPersonalityMention('   ', '@', mockPersonalityService, TEST_USER_ID);
-
-      expect(result).toBeNull();
+    it('handles whitespace-only string', async () => {
+      const result = await findPersonalityMentions(
+        '   ',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result).toEqual([]);
     });
 
-    it('should handle mention character only', async () => {
-      const result = await findPersonalityMention('@', '@', mockPersonalityService, TEST_USER_ID);
-
-      expect(result).toBeNull();
+    it('handles mention character only', async () => {
+      const result = await findPersonalityMentions('@', '@', mockPersonalityService, TEST_USER_ID);
+      expect(result).toEqual([]);
     });
 
-    it('should handle custom mention character', async () => {
-      const result = await findPersonalityMention(
-        '!Lilith hello',
+    it('supports custom mention character', async () => {
+      const result = await findPersonalityMentions(
+        '!Lilith hi',
         '!',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
     });
 
-    it('should be case-insensitive for personality names (database lookup)', async () => {
-      const result = await findPersonalityMention(
-        '@lilith hello',
+    it('does case-insensitive DB lookup but returns the loaded personality', async () => {
+      const result = await findPersonalityMentions(
+        '@lilith hi',
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
+      expect(result).toHaveLength(1);
+      // Returned personality is the loaded object — canonical name from DB.
+      expect(result[0].personality.name).toBe('Lilith');
+    });
 
-      expect(result).not.toBeNull();
-      // Returns the name as typed in the message, not the canonical DB name
-      expect(result?.personalityName).toBe('lilith');
+    it('skips unknown mentions and includes only valid ones in textual order', async () => {
+      const result = await findPersonalityMentions(
+        '@Unknown @Lilith @AlsoUnknown @Sarcastic',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result.map(r => r.personality.name)).toEqual(['Lilith', 'Sarcastic']);
+    });
+
+    it('skips numeric-only mentions (Discord user-ID shape)', async () => {
+      const result = await findPersonalityMentions(
+        '@123456 @Lilith',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
     });
   });
 
-  describe('Resource Exhaustion Protection', () => {
-    it('should handle excessive mentions gracefully', async () => {
-      // Create message with 15 mentions (> MAX_POTENTIAL_MENTIONS which is 10)
-      // The parser internally limits to 10 mentions for performance
-      const excessiveMentions = Array(15).fill('@Lilith').join(' ');
-
-      const result = await findPersonalityMention(
-        excessiveMentions,
+  describe('Resource exhaustion protection', () => {
+    it('caps position scanning at MAX_POTENTIAL_MENTIONS', async () => {
+      // 15 @-mentions; internal position cap is 10. The mention cap further
+      // narrows to MAX_TAGS=5. We assert the final cap (5).
+      const noisy = Array(15).fill('@Lilith').join(' ');
+      const result = await findPersonalityMentions(
+        noisy,
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      // Should still work (parser truncates to first 10 mentions internally)
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Lilith');
-    });
-  });
-
-  describe('Multiple Personalities', () => {
-    it('should only return ONE personality (first by priority)', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith @Sarcastic @Bambi Prime hello',
-        '@',
-        mockPersonalityService,
-        TEST_USER_ID
-      );
-
-      // Should return "Bambi Prime" (2 words beats 1 word)
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Bambi Prime');
+      // All resolve to the same personality → deduped to 1.
+      expect(result).toHaveLength(1);
+      expect(result[0].personality.name).toBe('Lilith');
     });
 
-    it('should not return multiple personalities', async () => {
-      const result = await findPersonalityMention(
-        '@Lilith @Sarcastic hello',
+    it('handles 15 distinct mentions by capping at MAX_TAGS after dedup', async () => {
+      const noisy = '@Lilith @Sarcastic @Charlie @Delta @Echo @Foxtrot @Bambi @Administrator';
+      const result = await findPersonalityMentions(
+        noisy,
         '@',
         mockPersonalityService,
         TEST_USER_ID
       );
-
-      // Result is single object, not array
-      expect(result).not.toBeNull();
-      expect(result?.personalityName).toBe('Sarcastic'); // Longer single-word
-      expect(Array.isArray(result)).toBe(false);
+      expect(result).toHaveLength(MULTI_TAG.MAX_TAGS);
     });
   });
 });

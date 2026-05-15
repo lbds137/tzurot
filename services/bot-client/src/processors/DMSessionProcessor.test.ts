@@ -32,7 +32,7 @@ vi.mock('../utils/nsfwVerification.js', () => ({
 
 // Mock personalityMentionParser
 vi.mock('../utils/personalityMentionParser.js', () => ({
-  findPersonalityMention: vi.fn(),
+  findPersonalityMentions: vi.fn(),
 }));
 
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
@@ -42,7 +42,7 @@ import {
   sendNsfwVerificationMessage,
   trackPendingVerificationMessage,
 } from '../utils/nsfwVerification.js';
-import { findPersonalityMention } from '../utils/personalityMentionParser.js';
+import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 
 function createMockDMChannel(overrides: Partial<DMChannel> = {}): DMChannel {
   const messagesCollection = new Collection<string, Message>();
@@ -138,7 +138,7 @@ describe('DMSessionProcessor', () => {
     });
     vi.mocked(trackPendingVerificationMessage).mockResolvedValue(undefined);
     // Default: no explicit personality mention (override in specific tests)
-    vi.mocked(findPersonalityMention).mockResolvedValue(null);
+    vi.mocked(findPersonalityMentions).mockResolvedValue([]);
 
     mockGatewayClient = {
       lookupPersonalityFromConversation: vi.fn(),
@@ -584,10 +584,13 @@ describe('DMSessionProcessor', () => {
       mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
         personalityId: 'cold-id',
       });
-      vi.mocked(findPersonalityMention).mockResolvedValue({
-        personalityName: 'Selah',
-        cleanContent: 'hi',
-      });
+      vi.mocked(findPersonalityMentions).mockResolvedValue([
+        {
+          personality: { id: 'selah-id', name: 'Selah' },
+          startIndex: 0,
+        },
+        // Casting: mock only needs id+name; full shape isn't exercised here.
+      ] as unknown as Awaited<ReturnType<typeof findPersonalityMentions>>);
 
       const result = await processor.process(message);
 
@@ -617,7 +620,7 @@ describe('DMSessionProcessor', () => {
       vi.mocked(isDMChannel).mockReturnValue(true);
 
       // No explicit mention
-      vi.mocked(findPersonalityMention).mockResolvedValue(null);
+      vi.mocked(findPersonalityMentions).mockResolvedValue([]);
 
       mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
         personalityId: 'lilith-id',

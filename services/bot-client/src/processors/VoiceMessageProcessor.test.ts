@@ -28,11 +28,11 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 vi.mock('../utils/personalityMentionParser.js', () => ({
-  findPersonalityMention: vi.fn(),
+  findPersonalityMentions: vi.fn(),
 }));
 
 import { getConfig } from '@tzurot/common-types';
-import { findPersonalityMention } from '../utils/personalityMentionParser.js';
+import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 
 function createMockMessage(overrides: Record<string, unknown> = {}): Message {
   return {
@@ -135,7 +135,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: false,
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -156,7 +156,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: false,
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -174,7 +174,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: false,
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -193,7 +193,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: false, // Voice-only (no mention/reply)
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -210,7 +210,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: false,
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await processor.process(message);
 
@@ -229,10 +229,12 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: true, // Has mention
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue({
-        personalityName: 'lilith',
-        cleanContent: '',
-      });
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          personality: { id: 'mock-id-lilith', name: 'lilith' },
+          startIndex: 0,
+        },
+      ]);
 
       const result = await processor.process(message);
 
@@ -251,7 +253,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: true, // Is reply
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -269,7 +271,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: true,
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -285,10 +287,12 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: true,
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue({
-        personalityName: 'lilith',
-        cleanContent: '',
-      });
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          personality: { id: 'mock-id-lilith', name: 'lilith' },
+          startIndex: 0,
+        },
+      ]);
 
       await processor.process(message);
 
@@ -308,7 +312,7 @@ describe('VoiceMessageProcessor', () => {
         continueToPersonalityHandler: false,
       });
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -325,7 +329,7 @@ describe('VoiceMessageProcessor', () => {
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
       mockVoiceService.transcribe.mockResolvedValue(null); // Transcription failed
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const result = await processor.process(message);
 
@@ -338,7 +342,7 @@ describe('VoiceMessageProcessor', () => {
       mockVoiceService.hasVoiceAttachment.mockReturnValue(true);
       mockVoiceService.transcribe.mockResolvedValue(null);
 
-      (findPersonalityMention as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (findPersonalityMentions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       await processor.process(message);
 

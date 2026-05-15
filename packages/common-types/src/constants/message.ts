@@ -92,6 +92,38 @@ export const MESSAGE_LIMITS = {
 } as const;
 
 /**
+ * Multi-tag fan-out limits.
+ *
+ * When a single message tags multiple personalities (reply-to-character +
+ * inline @-mentions + activated channel or DM-session personality), the
+ * bot fans out responses in parallel and delivers them in slot order once
+ * all have completed.
+ */
+export const MULTI_TAG = {
+  /**
+   * Maximum number of characters that can respond to a single message.
+   * Slot 0 = reply-to-character; slot 1 = activated/DM-session; remaining
+   * slots = inline mentions in textual order. Dedupe by personality ID
+   * before applying the cap.
+   */
+  MAX_TAGS: 5,
+  /**
+   * Safety-net timeout for the multi-tag coordinator. Per-job timeouts
+   * (TIMEOUTS.JOB_WAIT) dominate; this fires only if a slot's result is
+   * truly lost (gateway disconnect, worker crash without error result).
+   * On fire, the coordinator flushes the slots that did complete and
+   * synthesizes timeout content for the rest.
+   */
+  COORDINATOR_TIMEOUT_MS: 10 * 60 * 1000,
+  /**
+   * TTL for persisted coordinator entries in Redis. Longer than
+   * COORDINATOR_TIMEOUT_MS so restart-recovery has a window even if a
+   * timeout was about to fire pre-restart.
+   */
+  REDIS_TTL_SEC: 30 * 60,
+} as const;
+
+/**
  * Unknown User Constants
  * Used for forwarded messages where author information is unavailable
  * These must be used consistently to allow filtering during batch user creation
