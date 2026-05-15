@@ -6,6 +6,11 @@ python-multipart>=0.0.18,<1.0.0
 # Audio processing
 scipy>=1.14.0,<2.0.0
 librosa>=0.10.2,<0.11.0
+# soundfile is required by pocket-tts>=2.0 for reading reference audio in
+# formats libsndfile supports (ogg, flac, aiff, wav, etc); without it,
+# pocket-tts raises ImportError. MP3 reference audio continues to go through
+# librosa/ffmpeg as before — soundfile/libsndfile does not decode MP3.
+soundfile>=0.12.0,<1.0.0
 # numpy 2.x required by pocket-tts>=1.1.0; nemo_toolkit 2.1+ targets numpy 2.x
 numpy>=2.0,<3.0
 
@@ -13,7 +18,10 @@ numpy>=2.0,<3.0
 nemo_toolkit[asr]>=2.1.0,<3.0.0
 
 # TTS: Pocket TTS (MIT license)
-pocket-tts>=1.1.0,<2.0.0
+# v2.0+ ships english_2026-04 model with materially better voice cloning vs
+# the older english_2026-01. Default with no language arg is english_2026-04.
+# 2.0.x bound excluded — defensive against future quantize=True usage (broken in 2.0.x, fixed in 2.1.0).
+pocket-tts>=2.1.0,<3.0.0
 
 # PyTorch CPU-only — installed separately in Dockerfile with --index-url
 # to guarantee CPU wheels. Do NOT add torch/torchaudio here; --extra-index-url

@@ -281,7 +281,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     # --- Load TTS model ---
     logger.info("Loading Kyutai Pocket TTS")
-    tts_model: Any = TTSModel.load_model()
+    # Explicit "english" alias (= english_2026-04) — the default in pocket-tts 2.1+
+    # but pinned here so a future package version that changes the default doesn't
+    # silently shift our voice quality.
+    tts_model: Any = TTSModel.load_model(language="english")
     models["tts"] = tts_model
     logger.info("Pocket TTS loaded", extra={"sample_rate": tts_model.sample_rate})
 
