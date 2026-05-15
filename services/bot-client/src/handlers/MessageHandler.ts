@@ -19,6 +19,7 @@ import {
   type SlashJobContext,
 } from '../services/JobTracker.js';
 import { getGatewayClient } from '../services/serviceRegistry.js';
+import type { SlotDeliveryService, SlotDeliveryContext } from '../services/SlotDeliveryService.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -30,7 +31,8 @@ export class MessageHandler {
     private readonly processors: IMessageProcessor[],
     private readonly responseSender: DiscordResponseSender,
     private readonly persistence: ConversationPersistence,
-    private readonly jobTracker: JobTracker
+    private readonly jobTracker: JobTracker,
+    private readonly slotDelivery: SlotDeliveryService
   ) {
     logger.info({ processorCount: processors.length }, 'Initialized with processor chain');
   }
@@ -122,17 +124,7 @@ export class MessageHandler {
     result: LLMGenerationResult,
     jobContext: MessageJobContext
   ): Promise<void> {
-    const {
-      message,
-      personality,
-      personaId,
-      userMessageContent,
-      userMessageTime,
-      isAutoResponse,
-      channel,
-      guildId,
-      clientId,
-    } = jobContext;
+    const slotContext = messageJobContextToSlotContext(jobContext);
 
     // Handle explicit failure from ai-worker (success: false)
     if (result.success === false) {
@@ -140,11 +132,11 @@ export class MessageHandler {
         { jobId, error: result.error, errorInfo: result.errorInfo },
         'Job failed with error from ai-worker'
       );
-      await this.sendErrorResponse(jobId, buildErrorContent(result), result, jobContext);
+      await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
       return;
     }
 
-    // BOUNDARY VALIDATION: Validate result has valid content before using it
+    // BOUNDARY VALIDATION: validate result has usable content before delivery.
     if (
       result.content === undefined ||
       result.content === null ||
@@ -159,138 +151,22 @@ export class MessageHandler {
         },
         'Job result missing or invalid content field'
       );
-      await this.sendErrorResponse(jobId, buildErrorContent(result), result, jobContext);
+      await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
       return;
     }
 
     try {
-      // Upgrade user message from placeholders to rich descriptions
-      await this.persistence.updateUserMessage({
-        message,
-        personality,
-        personaId,
-        messageContent: userMessageContent,
-        attachmentDescriptions: result.attachmentDescriptions,
-      });
-
-      // Send AI response to Discord
-      const { chunkMessageIds } = await this.responseSender.sendResponse({
-        content: result.content,
-        personality,
-        channel,
-        guildId,
-        clientId,
-        modelUsed: result.metadata?.modelUsed,
-        providerUsed: result.metadata?.providerUsed,
-        isGuestMode: result.metadata?.isGuestMode,
-        isAutoResponse,
-        focusModeEnabled: result.metadata?.focusModeEnabled,
-        incognitoModeActive: result.metadata?.incognitoModeActive,
-        thinkingContent: result.metadata?.thinkingContent,
-        showThinking: result.metadata?.showThinking,
-        showModelFooter: result.metadata?.showModelFooter,
-        ttsAudioKey: result.metadata?.ttsAudioKey,
-        ttsAudioContentType: result.metadata?.ttsAudioContentType,
-        ttsNotices: result.metadata?.ttsNotices,
-        recipientUserId: message.author.id,
-      });
-
-      // Save assistant message to conversation history
-      await this.persistence.saveAssistantMessage({
-        message,
-        personality,
-        personaId,
-        content: result.content,
-        chunkMessageIds,
-        userMessageTime,
-      });
-
-      // Update diagnostic log with response message IDs (fire-and-forget)
-      // This enables /admin debug to lookup by AI response message ID
-      if (chunkMessageIds.length > 0) {
-        void getGatewayClient()
-          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-          .catch(err => {
-            logger.warn({ err }, 'Failed to update diagnostic response IDs');
-          });
-      }
-
+      const { chunkMessageIds } = await this.slotDelivery.deliverSuccess(
+        result as LLMGenerationResult & { success: true },
+        slotContext
+      );
       logger.info(
         { jobId, chunks: chunkMessageIds.length },
         'Async job result delivered successfully'
       );
     } catch (error) {
       logger.error({ err: error, jobId }, 'Error handling job result');
-      // Try to notify user of the error via webhook (don't throw - we don't want to crash the listener)
-      await this.sendErrorResponse(jobId, buildErrorContent(result), result, jobContext);
-    }
-  }
-
-  /**
-   * Send error response to Discord and save to history
-   * Extracted to reduce complexity in handleJobResult
-   */
-  private async sendErrorResponse(
-    jobId: string,
-    errorContent: string,
-    result: LLMGenerationResult,
-    jobContext: MessageJobContext
-  ): Promise<void> {
-    const {
-      message,
-      personality,
-      personaId,
-      userMessageTime,
-      isAutoResponse,
-      channel,
-      guildId,
-      clientId,
-    } = jobContext;
-
-    try {
-      const { chunkMessageIds } = await this.responseSender.sendResponse({
-        content: errorContent,
-        personality,
-        channel,
-        guildId,
-        clientId,
-        modelUsed: result.metadata?.modelUsed,
-        providerUsed: result.metadata?.providerUsed,
-        isGuestMode: result.metadata?.isGuestMode,
-        isAutoResponse,
-        focusModeEnabled: result.metadata?.focusModeEnabled,
-        incognitoModeActive: result.metadata?.incognitoModeActive,
-        showModelFooter: result.metadata?.showModelFooter,
-      });
-
-      // Save error message to history (stripped of technical spoiler details)
-      await this.persistence.saveAssistantMessage({
-        message,
-        personality,
-        personaId,
-        content: stripErrorSpoiler(errorContent),
-        chunkMessageIds,
-        userMessageTime,
-      });
-
-      // Update diagnostic log with response message IDs (fire-and-forget)
-      // This enables /admin debug to lookup by AI error message ID
-      if (chunkMessageIds.length > 0) {
-        void getGatewayClient()
-          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-          .catch(err => {
-            logger.warn({ err }, 'Failed to update diagnostic response IDs for error');
-          });
-      }
-    } catch (sendError) {
-      logger.error(
-        { err: sendError, jobId },
-        'Failed to send error via webhook, falling back to reply'
-      );
-      // Fallback to direct reply if webhook fails
-      await message.reply(errorContent).catch(() => {
-        // Intentionally ignore reply failures - we've already logged the webhook error
-      });
+      await this.slotDelivery.deliverError(buildErrorContent(result), result, slotContext);
     }
   }
 
@@ -464,4 +340,30 @@ export class MessageHandler {
       });
     }
   }
+}
+
+/**
+ * Project a `MessageJobContext` (what JobTracker stores) into the slot-shaped
+ * context `SlotDeliveryService` expects. Pure projection — no side effects.
+ *
+ * Used by the @mention/reply/auto-response delivery path. Multi-tag fan-out
+ * builds equivalent slot contexts directly in MultiTagCoordinator.
+ */
+function messageJobContextToSlotContext(jobContext: MessageJobContext): SlotDeliveryContext {
+  // discord.js types `author` as non-nullable User. Use optional chaining
+  // anyway so tests with minimal Message fixtures don't trip on the access;
+  // the empty-string fallback never fires in production (system messages are
+  // filtered upstream, so every handled message has an author).
+  return {
+    message: jobContext.message,
+    channel: jobContext.channel,
+    guildId: jobContext.guildId,
+    clientId: jobContext.clientId,
+    personality: jobContext.personality,
+    personaId: jobContext.personaId,
+    userMessageContent: jobContext.userMessageContent,
+    userMessageTime: jobContext.userMessageTime,
+    isAutoResponse: jobContext.isAutoResponse,
+    recipientUserId: jobContext.message.author?.id ?? '',
+  };
 }
