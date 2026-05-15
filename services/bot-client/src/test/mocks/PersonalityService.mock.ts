@@ -47,7 +47,7 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
       // Return a minimal mock personality object
       // In real code this would be a full LoadedPersonality from the database
       return Promise.resolve({
-        id: 'mock-id',
+        id: `mock-id-${personality.name.toLowerCase()}`,
         name: personality.name,
         displayName: personality.displayName,
         systemPrompt: personality.systemPrompt,

@@ -27,7 +27,7 @@ import {
 } from '../utils/nsfwVerification.js';
 import { toGatewayUser } from '../utils/userGatewayClient.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
-import { findPersonalityMention } from '../utils/personalityMentionParser.js';
+import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 
 const logger = createLogger('DMSessionProcessor');
 
@@ -92,16 +92,17 @@ export class DMSessionProcessor implements IMessageProcessor {
     // 3. Check for explicit personality mention - let PersonalityMentionProcessor handle it
     const config = getConfig();
     const effectiveContent = getEffectiveContent(message);
-    const mentionMatch = await findPersonalityMention(
+    const matches = await findPersonalityMentions(
       effectiveContent,
       config.BOT_MENTION_CHAR,
       this.personalityService,
-      userId
+      userId,
+      1
     );
 
-    if (mentionMatch !== null) {
+    if (matches.length > 0) {
       logger.debug(
-        { userId, mentionedPersonality: mentionMatch.personalityName },
+        { userId, mentionedPersonality: matches[0].personality.name },
         'Explicit mention found, deferring to PersonalityMentionProcessor'
       );
       return false; // Let PersonalityMentionProcessor handle it

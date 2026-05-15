@@ -334,14 +334,14 @@ describe('RedisService', () => {
   });
 
   describe('markMessageProcessing', () => {
-    it('should return true when message is new (key was set)', async () => {
+    it('should return true when (message, personality) is new (key was set)', async () => {
       mockRedis.set.mockResolvedValue('OK');
 
-      const result = await redisService.markMessageProcessing('discord-msg-123');
+      const result = await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
 
       expect(result).toBe(true);
       expect(mockRedis.set).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123`,
+        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123:pers-uuid-A`,
         '1',
         'EX',
         3600,
@@ -349,19 +349,48 @@ describe('RedisService', () => {
       );
     });
 
-    it('should return false when message already exists (duplicate)', async () => {
+    it('should return false when the (message, personality) pair already exists', async () => {
       // When key already exists, SET NX returns null
       mockRedis.set.mockResolvedValue(null);
 
-      const result = await redisService.markMessageProcessing('discord-msg-123');
+      const result = await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
 
       expect(result).toBe(false);
+    });
+
+    it('should allow same message with DIFFERENT personality (multi-tag fan-out)', async () => {
+      // The composite key change exists exactly for this: N parallel jobs
+      // for one message ID, each targeting a different personality, must
+      // all acquire their own lock.
+      mockRedis.set.mockResolvedValue('OK');
+
+      const aRes = await redisService.markMessageProcessing('msg-1', 'pers-A');
+      const bRes = await redisService.markMessageProcessing('msg-1', 'pers-B');
+
+      expect(aRes).toBe(true);
+      expect(bRes).toBe(true);
+      expect(mockRedis.set).toHaveBeenNthCalledWith(
+        1,
+        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}msg-1:pers-A`,
+        '1',
+        'EX',
+        3600,
+        'NX'
+      );
+      expect(mockRedis.set).toHaveBeenNthCalledWith(
+        2,
+        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}msg-1:pers-B`,
+        '1',
+        'EX',
+        3600,
+        'NX'
+      );
     });
 
     it('should return true on Redis error (fail open)', async () => {
       mockRedis.set.mockRejectedValue(new Error('Connection lost'));
 
-      const result = await redisService.markMessageProcessing('discord-msg-123');
+      const result = await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
 
       // Should not throw, should return true to allow processing
       expect(result).toBe(true);
@@ -370,7 +399,7 @@ describe('RedisService', () => {
     it('should use 1 hour TTL for idempotency key', async () => {
       mockRedis.set.mockResolvedValue('OK');
 
-      await redisService.markMessageProcessing('discord-msg-123');
+      await redisService.markMessageProcessing('discord-msg-123', 'pers-uuid-A');
 
       // Verify TTL is 3600 seconds (1 hour)
       expect(mockRedis.set).toHaveBeenCalledWith(
@@ -384,13 +413,13 @@ describe('RedisService', () => {
   });
 
   describe('releaseMessageLock', () => {
-    it('should delete the idempotency key', async () => {
+    it('should delete the composite idempotency key', async () => {
       mockRedis.del.mockResolvedValue(1);
 
-      await redisService.releaseMessageLock('discord-msg-123');
+      await redisService.releaseMessageLock('discord-msg-123', 'pers-uuid-A');
 
       expect(mockRedis.del).toHaveBeenCalledWith(
-        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123`
+        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123:pers-uuid-A`
       );
     });
 
@@ -398,14 +427,18 @@ describe('RedisService', () => {
       mockRedis.del.mockRejectedValue(new Error('Connection lost'));
 
       // Should not throw - just log the error
-      await expect(redisService.releaseMessageLock('discord-msg-123')).resolves.toBeUndefined();
+      await expect(
+        redisService.releaseMessageLock('discord-msg-123', 'pers-uuid-A')
+      ).resolves.toBeUndefined();
     });
 
     it('should handle non-existent key gracefully', async () => {
       // del returns 0 when key doesn't exist
       mockRedis.del.mockResolvedValue(0);
 
-      await expect(redisService.releaseMessageLock('discord-msg-123')).resolves.toBeUndefined();
+      await expect(
+        redisService.releaseMessageLock('discord-msg-123', 'pers-uuid-A')
+      ).resolves.toBeUndefined();
     });
   });
 

@@ -11,7 +11,7 @@ import type { IMessageProcessor } from './IMessageProcessor.js';
 import { VoiceTranscriptionService } from '../services/VoiceTranscriptionService.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { GatewayClient } from '../utils/GatewayClient.js';
-import { findPersonalityMention } from '../utils/personalityMentionParser.js';
+import { findPersonalityMentions } from '../utils/personalityMentionParser.js';
 
 const logger = createLogger('VoiceMessageProcessor');
 
@@ -55,15 +55,18 @@ export class VoiceMessageProcessor implements IMessageProcessor {
 
     logger.debug('Processing voice message');
 
-    // Check if message also targets a personality
+    // Check if message also targets a personality (any mention is enough —
+    // multi-tag fan-out is handled by PersonalityTriggerProcessor; we only
+    // need a boolean here to choose the right TTS-routing branch).
     const isReply = message.reference !== null;
-    const mentionCheck = await findPersonalityMention(
+    const mentionMatches = await findPersonalityMentions(
       message.content,
       config.BOT_MENTION_CHAR,
       this.personalityService,
-      message.author.id
+      message.author.id,
+      1
     );
-    const hasMention = mentionCheck !== null || message.mentions.has(message.client.user);
+    const hasMention = mentionMatches.length > 0 || message.mentions.has(message.client.user);
 
     // Transcribe the voice message
     const result = await this.voiceService.transcribe(message, hasMention, isReply);
