@@ -77,6 +77,16 @@ export const REDIS_KEY_PREFIXES = {
   VISION_FAILURE: 'vision:fail:',
   /** Prefix for TTS audio buffer storage (binary, keyed by jobId) */
   TTS_AUDIO: 'tts-audio:',
+  /** Prefix for multi-tag coordinator entries (keyed by groupId) */
+  MULTI_TAG_ENTRY: 'multitag:entry:',
+  /** Prefix for multi-tag jobId → groupId reverse index */
+  MULTI_TAG_JOB_INDEX: 'multitag:job-index:',
+  /** Prefix for multi-tag sourceMessageId → groupId index (dedupe/source lookup) */
+  MULTI_TAG_SOURCE_INDEX: 'multitag:source-index:',
+  /** SET of jobIds whose pre-restart results must be discarded on arrival */
+  MULTI_TAG_STALE_JOBS: 'multitag:stale-jobids',
+  /** Prefix for the DM "we already attempted history-scan backfill" sentinel */
+  MULTI_TAG_DM_BACKFILL_TRIED: 'multitag:dm-backfill-tried:',
 } as const;
 
 /**
