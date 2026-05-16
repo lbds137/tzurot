@@ -877,6 +877,78 @@ describe('MessageContextBuilder', () => {
       expect(result.conversationHistory).toHaveLength(2);
     });
 
+    it('caches botSuffix on first call and ignores subsequent client.user.tag changes', async () => {
+      // The bot's Discord tag doesn't change at runtime, so MessageContextBuilder
+      // lazily derives the canonical suffix once and reuses it. This test pins
+      // the cache contract: a second call seeing a different `client.user.tag`
+      // must still get the value from the first call. If a future refactor
+      // re-derives per-call, this test fails — alerting that the cache
+      // invariant has drifted.
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
+        userId: 'user-uuid-123',
+        defaultPersonaId: 'test-persona-id',
+      });
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: [],
+        fetchedCount: 0,
+        filteredCount: 0,
+      });
+      mockMergeWithHistory.mockReturnValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      const extendedContext = {
+        maxMessages: 20,
+        maxAge: null,
+        maxImages: 0,
+        sources: {
+          maxMessages: 'personality' as const,
+          maxAge: 'personality' as const,
+          maxImages: 'personality' as const,
+        },
+      };
+
+      // First call: client.user.tag = 'BotA'
+      const messageA = {
+        ...mockMessage,
+        client: { user: { tag: 'BotA' } },
+      } as unknown as Message;
+      await builder.buildContext(messageA, mockPersonality, 'Hello', {
+        extendedContext,
+        botUserId: 'bot-123',
+      });
+
+      expect(mockFetchRecentMessages).toHaveBeenLastCalledWith(
+        messageA.channel,
+        expect.objectContaining({ botSuffix: ' · BotA' })
+      );
+
+      // Second call: client.user.tag = 'DifferentBot' — cache should win.
+      const messageB = {
+        ...mockMessage,
+        client: { user: { tag: 'DifferentBot' } },
+      } as unknown as Message;
+      await builder.buildContext(messageB, mockPersonality, 'Hello again', {
+        extendedContext,
+        botUserId: 'bot-123',
+      });
+
+      expect(mockFetchRecentMessages).toHaveBeenLastCalledWith(
+        messageB.channel,
+        // Still ' · BotA' — first-call value cached, not re-derived.
+        expect.objectContaining({ botSuffix: ' · BotA' })
+      );
+    });
+
     it('should not fetch extended context when botUserId is not provided', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue({
         userId: 'user-uuid-123',

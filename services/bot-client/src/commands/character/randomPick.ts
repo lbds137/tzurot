@@ -80,8 +80,9 @@ export async function resolveCharacterSlug(
       activeFilters.push('`exclude-private`');
     }
 
+    const filterNoun = activeFilters.length > 1 ? 'filters active' : 'filter on';
     const filtersClause =
-      activeFilters.length > 0 ? ` (${activeFilters.join(' + ')} filter on)` : '';
+      activeFilters.length > 0 ? ` (${activeFilters.join(', ')} ${filterNoun})` : '';
     const suggestion =
       activeFilters.length > 0
         ? 'Adjust the filters or use `/character create` to make one.'

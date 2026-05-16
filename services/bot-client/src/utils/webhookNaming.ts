@@ -76,6 +76,13 @@ export function deriveBotSuffix(botTag: string | null | undefined): string {
  * ` | BotName` form so messages sent before the separator was switched are
  * still parseable.
  *
+ * **Caller contract**: `botSuffix` is expected to be a value produced by
+ * `deriveBotSuffix` — i.e. the canonical form starting with ` · `. The
+ * legacy fallback path reconstructs ` | BotName` from that canonical
+ * shape, so a hand-crafted suffix that doesn't start with ` · ` would
+ * disable the legacy fallback. Always derive via `deriveBotSuffix` rather
+ * than constructing suffix strings inline.
+ *
  * @returns The personality display name, or `null` if `webhookUsername`
  *   doesn't end with either suffix form. Returning `null` (rather than the
  *   raw username) lets callers distinguish "matched and stripped" from

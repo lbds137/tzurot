@@ -75,8 +75,14 @@ export function createTranscribeRoute(
    * Creates an AudioTranscriptionJob for each audio attachment.
    *
    * Query parameters:
-   * - wait=true: Wait for job completion using Redis pub/sub (no polling)
-   * - wait=false (default): Return job ID immediately
+   * - wait=true: Wait for job completion using Redis pub/sub (no polling).
+   *   `result.showModelFooter` is resolved from the user's default and
+   *   returned alongside the transcript.
+   * - wait=false (default): Return job ID immediately. The caller is
+   *   responsible for fetching the job result via polling; that path does
+   *   NOT inject `showModelFooter`, so a polling caller that wants the
+   *   toggle must resolve user preferences separately. The sole caller
+   *   (bot-client) always uses `?wait=true`, which keeps this safe.
    */
   router.post(
     '/',
@@ -124,12 +130,12 @@ export function createTranscribeRoute(
       logger.info({ jobId: job.id, durationMs: Date.now() - startTime }, 'Created transcribe job');
 
       // If client wants to wait, use Redis pub/sub. `showModelFooter` is
-      // resolved only on this path because bot-client (the sole caller
-      // today) always invokes with `?wait=true`. An async-polling caller
-      // would see `showModelFooter: undefined` on the result, which the
-      // bot-client treats as "render footer" (back-compat fallback) — if a
-      // future caller adopts polling and needs the toggle, the resolution
-      // needs to move into the non-wait branch (or run unconditionally).
+      // resolved only on this path because the sole caller (bot-client)
+      // always invokes with `?wait=true`. An async-polling caller would
+      // see `showModelFooter: undefined` on the result, which the bot-client
+      // treats as "render footer" (back-compat fallback) — if a future
+      // caller adopts polling and needs the toggle, the resolution needs
+      // to move into the non-wait branch (or run unconditionally).
       if (waitForCompletion) {
         try {
           const [result, showModelFooter] = await Promise.all([
