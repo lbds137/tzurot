@@ -210,7 +210,11 @@ export default defineCommand({
   deferralMode: 'ephemeral', // Default for most subcommands
   subcommandDeferralModes: {
     create: 'modal', // /character create shows a modal
-    chat: 'public', // /character chat is visible to everyone
+    // `chat` defers ephemerally so the random-pick notice ("🎲 Picked X")
+    // and any error responses (editReply) land as invoker-only messages.
+    // The user-mirror (`channel.send` in chat.ts) and the character's
+    // webhook reply are independent of the defer mode and remain public.
+    chat: 'ephemeral',
   },
   data: new SlashCommandBuilder()
     .setName('character')
@@ -366,6 +370,14 @@ export default defineCommand({
             .setName('exclude-private')
             .setDescription(
               'When picking a random character, only consider public ones (skip your private characters)'
+            )
+            .setRequired(false)
+        )
+        .addBooleanOption(option =>
+          option
+            .setName('only-mine')
+            .setDescription(
+              'When picking a random character, only consider characters you own (composable with exclude-private)'
             )
             .setRequired(false)
         )

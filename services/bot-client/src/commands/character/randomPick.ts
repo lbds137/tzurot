@@ -26,6 +26,8 @@ export type ResolvedSlug =
 export interface ResolveCharacterSlugOptions {
   /** When true and no slug was provided, exclude private personalities from the random pool. */
   excludePrivate?: boolean;
+  /** When true and no slug was provided, restrict the random pool to user-owned personalities. */
+  onlyMine?: boolean;
 }
 
 /**
@@ -33,8 +35,10 @@ export interface ResolveCharacterSlugOptions {
  * If they didn't, pick a random personality from their accessible pool.
  *
  * The pool is `getCachedPersonalities` — owned + public per the autocomplete
- * scope. With `excludePrivate: true`, the user's own private personalities
- * are filtered out so the random pick lands on something publicly visible.
+ * scope. Two independent filters compose as AND conjunctions:
+ *  - `excludePrivate: true` drops private personalities (`isPublic === false`)
+ *  - `onlyMine: true` drops personalities the user doesn't own (`isOwned === false`)
+ * Combined, the pool becomes the user's owned-AND-public characters.
  */
 export async function resolveCharacterSlug(
   providedSlug: string | null,
@@ -57,13 +61,35 @@ export async function resolveCharacterSlug(
   }
 
   const excludePrivate = options.excludePrivate === true;
-  const candidates = excludePrivate ? result.value.filter(p => p.isPublic) : result.value;
+  const onlyMine = options.onlyMine === true;
+
+  let candidates = result.value;
+  if (onlyMine) {
+    candidates = candidates.filter(p => p.isOwned);
+  }
+  if (excludePrivate) {
+    candidates = candidates.filter(p => p.isPublic);
+  }
 
   if (candidates.length === 0) {
-    const empty = excludePrivate
-      ? '❌ No public characters available to chat with. Drop the `exclude-private` option to include your own characters, or check that public characters exist.'
-      : '❌ No characters available to chat with. Use `/character create` to make one, or check that public characters exist.';
-    return { kind: 'error', message: empty };
+    const activeFilters: string[] = [];
+    if (onlyMine) {
+      activeFilters.push('`only-mine`');
+    }
+    if (excludePrivate) {
+      activeFilters.push('`exclude-private`');
+    }
+
+    const filtersClause =
+      activeFilters.length > 0 ? ` (${activeFilters.join(' + ')} filter on)` : '';
+    const suggestion =
+      activeFilters.length > 0
+        ? 'Adjust the filters or use `/character create` to make one.'
+        : 'Use `/character create` to make one, or check that public characters exist.';
+    return {
+      kind: 'error',
+      message: `❌ No characters available to chat with${filtersClause}. ${suggestion}`,
+    };
   }
   // Index lands in [0, length-1] — Math.random() is half-open so floor() never
   // hits length itself; the length>0 guard above keeps the denominator safe.
