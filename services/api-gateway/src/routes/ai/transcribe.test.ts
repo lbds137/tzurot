@@ -235,5 +235,29 @@ describe('POST /transcribe', () => {
 
       expect(response.body.result.showModelFooter).toBe(true);
     });
+
+    it('does NOT resolve showModelFooter on the async-polling path (?wait=false)', async () => {
+      // The non-wait branch returns the job ID for later polling and skips
+      // the user-preference resolution. A polling caller receives no
+      // showModelFooter field on the result; bot-client (the sole caller
+      // today) always uses ?wait=true, but pinning this contract prevents
+      // a future refactor from silently making the toggle inconsistent
+      // across the two response shapes.
+      buildJob();
+
+      const response = await request(app)
+        .post('/transcribe') // ?wait=false (the default)
+        .send({ attachments: audioAttachments, userId: '111222333' });
+
+      // Non-wait response is the queued-job envelope, not a full transcript.
+      expect(response.body.status).toBe('queued');
+      expect(response.body.result).toBeUndefined();
+      // Critically: Prisma is never consulted on this path. Pinning the
+      // specific `findFirst` call shape because that's what
+      // resolveShowModelFooter uses today — if the implementation switches
+      // to a different lookup (e.g., findUnique), this assertion needs to
+      // follow.
+      expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    });
   });
 });

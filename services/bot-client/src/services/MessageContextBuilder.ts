@@ -92,7 +92,17 @@ interface ExtendedContextParams {
 }
 
 /**
- * Builds AI context from Discord messages
+ * Builds AI context from Discord messages.
+ *
+ * **Post-login invariant**: callers must invoke this builder only after the
+ * Discord gateway is ready. The `cachedBotSuffix` field lazily reads
+ * `Client.user.tag` on first call; pre-login that field is `null` and the
+ * cache would freeze at `''` for the service lifetime, breaking
+ * personality-name attribution in extended-context fetches. Today this is
+ * unreachable because the sole entry point (`fetchExtendedContext`) is
+ * driven by message events, which only fire post-`ready`. If a new
+ * non-message entry point is added, either thread the bot suffix in as a
+ * constructor dependency or assert `Client.isReady()` here.
  */
 export class MessageContextBuilder {
   private conversationHistory: ConversationHistoryService;
