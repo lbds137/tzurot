@@ -30,7 +30,7 @@ import {
 import { WebhookManager } from './utils/WebhookManager.js';
 import { MessageHandler } from './handlers/MessageHandler.js';
 import { CommandHandler } from './handlers/CommandHandler.js';
-import { closeRedis } from './redis.js';
+import { redis as botRedis, closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
@@ -43,6 +43,8 @@ import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentServic
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
+import type { MultiTagPersistence } from './services/MultiTagPersistence.js';
+import type { MultiTagRecovery } from './services/MultiTagRecovery.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
 import { DenylistCache } from './services/DenylistCache.js';
 import { DMCacheWarmer } from './services/DMCacheWarmer.js';
@@ -52,7 +54,7 @@ import { registerServices } from './services/serviceRegistry.js';
 // Processors
 import {
   buildPersonalityChatPipeline,
-  buildMultiTagCoordinator,
+  buildMultiTagStack,
   buildProcessorChain,
 } from './composition.js';
 import {
@@ -137,6 +139,8 @@ interface Services {
   denylistCacheInvalidationService: DenylistCacheInvalidationService;
   dmCacheWarmer: DMCacheWarmer;
   multiTagCoordinator: MultiTagCoordinator;
+  multiTagPersistence: MultiTagPersistence;
+  multiTagRecovery: MultiTagRecovery;
 }
 
 /**
@@ -161,6 +165,7 @@ function buildCacheRedis(): Redis {
  * This is where all dependencies are instantiated and wired together.
  * Full dependency injection - no service creates its own dependencies.
  */
+// eslint-disable-next-line max-lines-per-function -- composition root: every line is `const X = new Foo(...)` or a `buildY({...})` helper call. Length tracks the total service count, not branching complexity. Each block already extracts the cohesive wiring into helpers (`buildPersonalityChatPipeline`, `buildMultiTagStack`, `buildProcessorChain`); further splitting would fragment the top-down readability that composition roots want.
 function createServices(): Services {
   // Composition Root: Create Prisma client for dependency injection
   const prisma = getPrismaClient();
@@ -228,16 +233,23 @@ function createServices(): Services {
     gatewayClient,
   });
 
-  // Multi-tag coordinator + Redis persistence. Persistence is shared with
-  // DMSessionProcessor for its backfill-tried sentinel.
-  const { coordinator: multiTagCoordinator, persistence: multiTagPersistence } =
-    buildMultiTagCoordinator({
-      chatManager: personalityChatManager,
-      gatewayClient,
-      jobTracker,
-      orderingService: responseOrderingService,
-      slotDelivery,
-    });
+  // Multi-tag stack: coordinator + Redis persistence + recovery service.
+  // Persistence is shared with DMSessionProcessor (backfill sentinel).
+  // Recovery's `run()` is invoked later in start() AFTER `client.login()`.
+  const {
+    coordinator: multiTagCoordinator,
+    persistence: multiTagPersistence,
+    recovery: multiTagRecovery,
+  } = buildMultiTagStack({
+    redis: botRedis,
+    chatManager: personalityChatManager,
+    gatewayClient,
+    jobTracker,
+    orderingService: responseOrderingService,
+    slotDelivery,
+    personalityService,
+    discordClient: client,
+  });
 
   // Processor chain (order matters — see buildProcessorChain doc).
   const processors = buildProcessorChain({
@@ -291,6 +303,8 @@ function createServices(): Services {
     denylistCache,
     denylistCacheInvalidationService,
     multiTagCoordinator,
+    multiTagPersistence,
+    multiTagRecovery,
     dmCacheWarmer,
   };
 }
@@ -770,6 +784,49 @@ async function start(): Promise<void> {
 
     await client.login(config.discordToken);
     logger.info('Successfully logged in to Discord');
+
+    // Recover any multi-tag fan-outs left in-flight by the previous bot
+    // shutdown. Marks old jobIds stale, resubmits fresh jobs, and
+    // rehydrates the coordinator's in-memory state. MUST run BEFORE
+    // startResultsListener — the stale-set filter has to be in place
+    // before any pre-restart result can arrive.
+    //
+    // **Defense in depth — overall timeout**: recovery makes Discord API
+    // calls (channels.fetch / messages.fetch) per entry. If Discord's API
+    // is degraded during a restart, those calls have no per-call timeout
+    // and could hang indefinitely. Without an overall cap, startup would
+    // stall and `startResultsListener` would never run — the bot would
+    // accept Discord events but couldn't process AI results. 30s gives
+    // recovery plenty of time even with 20+ entries under normal Discord
+    // latency, and bounds the worst case under degraded conditions.
+    const RECOVERY_TIMEOUT_MS = 30_000;
+    try {
+      const recoveryStats = await Promise.race([
+        services.multiTagRecovery.run(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Multi-tag recovery exceeded ${RECOVERY_TIMEOUT_MS}ms`)),
+            RECOVERY_TIMEOUT_MS
+          )
+        ),
+      ]);
+      logger.info({ ...recoveryStats }, 'Multi-tag recovery finished');
+    } catch (err) {
+      // Conservatively enable the stale-check fast-path even on timeout.
+      // If `recovery.run()` was mid-flight when the 30s deadline fired, it
+      // keeps running in the background — its `noteRecoveryMarkedStale()`
+      // call only happens at the end, AFTER the loop. Without this line,
+      // `MessageHandler` would skip the isStale Redis check for every
+      // result that arrives between now and whenever the background
+      // recovery actually finishes, letting old-jobId results bypass the
+      // stale filter. Worst case if there's nothing to filter: a few
+      // wasted SISMEMBER calls against an empty SET. Cheap.
+      services.multiTagCoordinator.noteRecoveryMarkedStale();
+      logger.error(
+        { err },
+        'Multi-tag recovery failed — continuing startup; entries will retry next restart'
+      );
+    }
 
     // Start listening for job results (async delivery pattern)
     await startResultsListener();

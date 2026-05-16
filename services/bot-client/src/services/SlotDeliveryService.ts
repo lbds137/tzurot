@@ -59,7 +59,7 @@ export interface SlotDeliveryContext {
   /** Timestamp anchoring user-message < assistant-message ordering. */
   userMessageTime: Date;
   /** True for ambient sources (activation, dm-session). Drives footer text. */
-  isAutoResponse: boolean | undefined;
+  isAutoResponse: boolean;
   /** Discord user ID of the message author — gates bot-owner-only TTS notices. */
   recipientUserId: string;
 }
@@ -89,6 +89,15 @@ export class SlotDeliveryService {
    * Deliver a successful AI result for a single slot.
    * Returns the chunk message IDs (useful for diagnostic tracking by the
    * caller — fire-and-forget update already enqueued internally).
+   *
+   * **Caller contract**: every caller MUST validate content before invoking
+   * this. The runtime guard below exists as a belt-and-suspenders backstop
+   * for the type system (which can express `success: true` but not
+   * "content is a non-empty string"). Callers must fork to `deliverError`
+   * when content is missing/empty. Direct tests exercise the throw (see
+   * `SlotDeliveryService.test.ts`).
+   *
+   * @throws Error if `result.content` is empty, null, undefined, or non-string.
    */
   async deliverSuccess(
     result: LLMGenerationResult & { success: true },
@@ -169,6 +178,13 @@ export class SlotDeliveryService {
    * — when AI generation failed there are no attachment descriptions to
    * upgrade, and we don't want to mutate the user-message row on the AI
    * error path. The asymmetry is intentional.
+   *
+   * Also unlike `deliverSuccess`, this path does **not** pass
+   * `recipientUserId` to `sendResponse`. That field gates bot-owner-only
+   * TTS notices — but error responses don't trigger TTS (there's no
+   * successful content to render as audio), so the gate is moot here. The
+   * omission is intentional and preserves pre-PR behavior from
+   * `sendErrorResponse`.
    */
   async deliverError(
     errorContent: string,

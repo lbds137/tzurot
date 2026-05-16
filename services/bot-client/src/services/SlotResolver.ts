@@ -131,6 +131,14 @@ export function resolveSlots(input: SlotResolverInput): ResolvedSlot[] {
  * Used by the multi-tag coordinator post-fan-out in DM channels to update
  * `channel_settings` so the next bare DM message routes to the right
  * character. Aligns with user intent: "last tagged character stays activated."
+ *
+ * **Why reply-target counts as a session switch**: in a DM, replying to a
+ * personality's message IS an explicit interaction with that personality —
+ * the user clicked the reply UI on a specific bot message, so subsequent
+ * bare DMs going to the replied-to character matches intent. This is the
+ * "last explicit interaction wins" rule. Compare with `dm-session` source
+ * (ambient/passive continuation) which does NOT trigger a switch — only
+ * sources that represent fresh explicit user intent (reply, mention) do.
  */
 export function pickNewDMActivePersonality(slots: ResolvedSlot[]): LoadedPersonality | null {
   // Walk in reverse to find the last mention.

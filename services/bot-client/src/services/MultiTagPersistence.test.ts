@@ -49,6 +49,7 @@ function buildEntry(overrides: Partial<CoordinatorEntrySnapshot> = {}): Coordina
       },
     ],
     createdAt: Date.now(),
+    truncated: false,
     ...overrides,
   };
 }
@@ -131,27 +132,29 @@ describe('MultiTagPersistence', () => {
   });
 
   describe('updateEntry', () => {
-    it('replaces the entry JSON and slides TTLs on reverse indices via MULTI', async () => {
+    it('replaces entry JSON, slides source-index TTL, sets job-index entries idempotently', async () => {
       const entry = buildEntry();
       await persistence.updateEntry(entry);
 
       expect(mockRedis.multi).toHaveBeenCalledOnce();
-      // 1 SET for the entry key
+      // SET for the entry key + one SET per slot's job-index. Using SET
+      // (not EXPIRE) so recovery's new jobIds create their job-index
+      // entries fresh — EXPIRE is a no-op on missing keys.
       const setCalls = pipelineCalls.filter(c => c.method === 'set');
-      expect(setCalls).toHaveLength(1);
+      expect(setCalls).toHaveLength(3); // 1 entry + 2 slot job-indexes
       expect(setCalls[0].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_ENTRY}group-1`);
       expect(setCalls[0].args[2]).toBe('EX');
       expect(setCalls[0].args[3]).toBe(MULTI_TAG.REDIS_TTL_SEC);
-      // 1 EXPIRE for the source-index + 1 per slot (2 slots = 2 here)
+      expect(setCalls[1].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}job-A`);
+      expect(setCalls[1].args[1]).toBe('group-1');
+      expect(setCalls[2].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}job-B`);
+      expect(setCalls[2].args[1]).toBe('group-1');
+      // EXPIRE only for the source-index (its key was always created by putEntry
+      // and never changes mid-flight, so refreshing TTL is sufficient).
       const expireCalls = pipelineCalls.filter(c => c.method === 'expire');
-      expect(expireCalls).toHaveLength(3);
+      expect(expireCalls).toHaveLength(1);
       expect(expireCalls[0].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_SOURCE_INDEX}src-msg-1`);
-      expect(expireCalls[1].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}job-A`);
-      expect(expireCalls[2].args[0]).toBe(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}job-B`);
-      // All TTLs identical
-      for (const call of expireCalls) {
-        expect(call.args[1]).toBe(MULTI_TAG.REDIS_TTL_SEC);
-      }
+      expect(expireCalls[0].args[1]).toBe(MULTI_TAG.REDIS_TTL_SEC);
     });
   });
 

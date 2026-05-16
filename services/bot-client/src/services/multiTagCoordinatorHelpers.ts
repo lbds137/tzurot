@@ -42,6 +42,13 @@ export interface RuntimeEntry {
   slots: RuntimeSlot[];
   createdAt: number;
   timeoutHandle: NodeJS.Timeout;
+  /**
+   * Did the resolver's cap drop at least one tagged personality? Set at
+   * fan-out start from `StartFanOutInput.truncated`; consumed by
+   * `deliverGroup` to append a post-burst notice. Persisted to the
+   * snapshot so the notice survives restart/recovery.
+   */
+  truncated: boolean;
 }
 
 /**
@@ -84,5 +91,6 @@ export function toSnapshot(entry: RuntimeEntry): CoordinatorEntrySnapshot {
       status: s.status,
     })),
     createdAt: entry.createdAt,
+    truncated: entry.truncated,
   };
 }

@@ -1,7 +1,14 @@
 /**
  * Composition helpers for the bot-client startup. Extracted from `index.ts`
  * so the main composition root stays under the function-length cap and the
- * file under the line cap. No logic here — just wiring.
+ * file under the line cap.
+ *
+ * **Load-bearing invariant**: every export must be pure DI wiring — a
+ * sequence of `new X(...)` calls with no conditional logic, no branching,
+ * and no derivation beyond mechanical option-object plumbing. Any control
+ * flow MUST move to a tested helper module: this file's `structure.test.ts`
+ * exclusion is justified by the no-logic invariant, and adding logic here
+ * silently exempts it from coverage enforcement.
  *
  * Each helper bundles a logical sub-system that's instantiated together at
  * startup. Returning the new objects keeps `createServices` linear and easy
@@ -31,7 +38,10 @@ import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import { MultiTagPersistence } from './services/MultiTagPersistence.js';
-import { redis as botRedis } from './redis.js';
+import { MultiTagRecovery } from './services/MultiTagRecovery.js';
+import type { Redis } from 'ioredis';
+import type { Client } from 'discord.js';
+import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
 
 /**
  * Build the chat pipeline used by @mention/reply/auto-response paths:
@@ -70,13 +80,14 @@ export function buildPersonalityChatPipeline(deps: {
  * the backfill-tried sentinel that gates expensive Discord history scans).
  */
 export function buildMultiTagCoordinator(deps: {
+  redis: Redis;
   chatManager: PersonalityChatManager;
   gatewayClient: GatewayClient;
   jobTracker: JobTracker;
   orderingService: ResponseOrderingService;
   slotDelivery: SlotDeliveryService;
 }): { coordinator: MultiTagCoordinator; persistence: MultiTagPersistence } {
-  const persistence = new MultiTagPersistence(botRedis);
+  const persistence = new MultiTagPersistence(deps.redis);
   const coordinator = new MultiTagCoordinator({
     chatManager: deps.chatManager,
     gatewayClient: deps.gatewayClient,
@@ -86,6 +97,69 @@ export function buildMultiTagCoordinator(deps: {
     persistence,
   });
   return { coordinator, persistence };
+}
+
+/**
+ * Build the recovery service. Wired separately from
+ * `buildMultiTagCoordinator` because recovery depends on the Discord
+ * client being logged in — the caller invokes `recovery.run()` AFTER
+ * `client.login()`, while the coordinator + persistence are constructed
+ * earlier alongside the rest of the services.
+ */
+export function buildMultiTagRecovery(deps: {
+  persistence: MultiTagPersistence;
+  coordinator: MultiTagCoordinator;
+  chatManager: PersonalityChatManager;
+  jobTracker: JobTracker;
+  personalityService: IPersonalityLoader;
+  discordClient: Client;
+}): MultiTagRecovery {
+  return new MultiTagRecovery({
+    persistence: deps.persistence,
+    coordinator: deps.coordinator,
+    chatManager: deps.chatManager,
+    jobTracker: deps.jobTracker,
+    personalityService: deps.personalityService,
+    discordClient: deps.discordClient,
+  });
+}
+
+/**
+ * Bundle the entire multi-tag stack — coordinator + persistence + recovery
+ * — into one call. Keeps `createServices` linear by collapsing what would
+ * otherwise be three back-to-back composition calls into a single section.
+ */
+export function buildMultiTagStack(deps: {
+  redis: Redis;
+  chatManager: PersonalityChatManager;
+  gatewayClient: GatewayClient;
+  jobTracker: JobTracker;
+  orderingService: ResponseOrderingService;
+  slotDelivery: SlotDeliveryService;
+  personalityService: IPersonalityLoader;
+  discordClient: Client;
+}): {
+  coordinator: MultiTagCoordinator;
+  persistence: MultiTagPersistence;
+  recovery: MultiTagRecovery;
+} {
+  const { coordinator, persistence } = buildMultiTagCoordinator({
+    redis: deps.redis,
+    chatManager: deps.chatManager,
+    gatewayClient: deps.gatewayClient,
+    jobTracker: deps.jobTracker,
+    orderingService: deps.orderingService,
+    slotDelivery: deps.slotDelivery,
+  });
+  const recovery = buildMultiTagRecovery({
+    persistence,
+    coordinator,
+    chatManager: deps.chatManager,
+    jobTracker: deps.jobTracker,
+    personalityService: deps.personalityService,
+    discordClient: deps.discordClient,
+  });
+  return { coordinator, persistence, recovery };
 }
 
 /**

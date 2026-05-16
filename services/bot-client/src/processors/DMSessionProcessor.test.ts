@@ -113,6 +113,7 @@ describe('DMSessionProcessor', () => {
   let mockMultiTagPersistence: {
     wasDMBackfillTried: ReturnType<typeof vi.fn>;
     markDMBackfillTried: ReturnType<typeof vi.fn>;
+    clearDMBackfillTried: ReturnType<typeof vi.fn>;
   };
   let mockPersonalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
@@ -164,6 +165,7 @@ describe('DMSessionProcessor', () => {
     mockMultiTagPersistence = {
       wasDMBackfillTried: vi.fn().mockResolvedValue(false),
       markDMBackfillTried: vi.fn().mockResolvedValue(undefined),
+      clearDMBackfillTried: vi.fn().mockResolvedValue(undefined),
     };
 
     processor = new DMSessionProcessor(
@@ -664,6 +666,48 @@ describe('DMSessionProcessor', () => {
         message,
         mockLilithPersonality,
         'just a normal message',
+        { isAutoResponse: true }
+      );
+    });
+
+    it('uses channel_settings fast path when activatedPersonalityId is set (no history scan)', async () => {
+      // The steady-state path: any DM that has ever had a multi-tag fan-out
+      // has channel_settings.activatedPersonalityId written. Subsequent bare
+      // DMs must hit the fast path and skip the expensive Discord history
+      // scan entirely.
+      const channel = createMockDMChannel();
+      const message = createMockMessage({ channel, botId: 'bot-123', content: 'follow-up' });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+
+      mockGatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: {
+          activatedPersonalityId: 'lilith-id',
+          personalitySlug: 'lilith',
+          personalityName: 'Lilith',
+          autoRespond: true,
+        },
+      });
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(true);
+      // The Discord history scan MUST NOT have been called — that's the
+      // whole point of the fast path.
+      expect(channel.messages.fetch).not.toHaveBeenCalled();
+      // Backfill-tried sentinel check must also be skipped (only consulted
+      // on the slow path).
+      expect(mockMultiTagPersistence.wasDMBackfillTried).not.toHaveBeenCalled();
+      // Personality loaded for access gating + routed to handler.
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
+        'lilith-id',
+        message.author.id
+      );
+      expect(mockPersonalityHandler.handleMessage).toHaveBeenCalledWith(
+        message,
+        mockLilithPersonality,
+        'follow-up',
         { isAutoResponse: true }
       );
     });
