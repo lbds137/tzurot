@@ -30,6 +30,7 @@ import { registerInspectCommands } from './commands/inspect.js';
 import { registerXrayCommands } from './commands/xray.js';
 import { registerGuardCommands } from './commands/guard.js';
 import { registerVoiceCommands } from './commands/voice.js';
+import { registerCpdCommands } from './commands/cpd.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,7 @@ registerInspectCommands(cli);
 registerXrayCommands(cli);
 registerGuardCommands(cli);
 registerVoiceCommands(cli);
+registerCpdCommands(cli);
 
 // Global options
 cli.help();
