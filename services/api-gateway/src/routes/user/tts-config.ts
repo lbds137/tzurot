@@ -39,9 +39,13 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { sendZodError } from '../../utils/zodHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
+import {
+  parseBodyOrSendError,
+  findConfigOrSendNotFound,
+  ensureNoNameCollision,
+} from '../../utils/configRouteHelpers.js';
 import {
   buildCollisionMessage,
   computeNameForPromotion,
@@ -101,9 +105,13 @@ function createGetHandler(service: TtsConfigService) {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const config = await service.getById(configId);
+    const config = await findConfigOrSendNotFound(
+      res,
+      () => service.getById(configId),
+      CONFIG_RESOURCE
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
 
     const userId = resolveProvisionedUserId(req);
@@ -124,28 +132,24 @@ function createCreateHandler(service: TtsConfigService) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
-    const parseResult = TtsConfigCreateSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
+    const body = parseBodyOrSendError(res, TtsConfigCreateSchema, req.body);
+    if (body === null) {
+      return;
     }
-    const body = parseResult.data;
 
     const userId = resolveProvisionedUserId(req);
 
     // Skip duplicate-name check when client opts into autoSuffixOnCollision
     // (the clone flow); service bumps `(Copy N)` server-side.
-    if (body.autoSuffixOnCollision !== true) {
-      const nameCheck = await service.checkNameExists(body.name, {
-        type: 'USER',
-        userId,
-        discordId: discordUserId,
-      });
-      if (nameCheck.exists) {
-        return sendError(
-          res,
-          ErrorResponses.nameCollision(`You already have a TTS config named "${body.name}"`)
-        );
-      }
+    if (
+      body.autoSuffixOnCollision !== true &&
+      !(await ensureNoNameCollision(res, service, {
+        name: body.name,
+        scope: { type: 'USER', userId, discordId: discordUserId },
+        formatCollisionMessage: n => `You already have a TTS config named "${n}"`,
+      }))
+    ) {
+      return;
     }
 
     let config;
@@ -205,18 +209,22 @@ function createUpdateHandler(service: TtsConfigService) {
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const parseResult = TtsConfigUpdateSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
+    const body = parseBodyOrSendError(res, TtsConfigUpdateSchema, req.body);
+    if (body === null) {
+      return;
     }
-    const body = parseResult.data;
 
     const userId = resolveProvisionedUserId(req);
 
-    const config = await service.getById(configId);
+    const config = await findConfigOrSendNotFound(
+      res,
+      () => service.getById(configId),
+      CONFIG_RESOURCE
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
+
     if (config.ownerId !== userId) {
       return sendError(res, ErrorResponses.unauthorized('You can only edit your own TTS configs'));
     }
@@ -323,9 +331,13 @@ function createDeleteHandler(service: TtsConfigService) {
 
     const userId = resolveProvisionedUserId(req);
 
-    const config = await service.getById(configId);
+    const config = await findConfigOrSendNotFound(
+      res,
+      () => service.getById(configId),
+      CONFIG_RESOURCE
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
 
     const permissions = computeLlmConfigPermissions(
