@@ -229,7 +229,12 @@ describe('ensureNoNameCollision', () => {
     });
 
     expect(result).toBe(true);
-    expect(service.checkNameExists).toHaveBeenCalledWith('NewName', globalScope, undefined);
+    expect(service.checkNameExists).toHaveBeenCalledWith(
+      'NewName',
+      globalScope,
+      undefined,
+      undefined
+    );
     expect(mockSendError).not.toHaveBeenCalled();
   });
 
@@ -270,7 +275,8 @@ describe('ensureNoNameCollision', () => {
     expect(service.checkNameExists).toHaveBeenCalledWith(
       'RenameTarget',
       globalScope,
-      'existing-id-789'
+      'existing-id-789',
+      undefined
     );
   });
 
@@ -286,7 +292,12 @@ describe('ensureNoNameCollision', () => {
       formatCollisionMessage: n => `You already have a config named "${n}"`,
     });
 
-    expect(service.checkNameExists).toHaveBeenCalledWith('MyConfig', userScope, undefined);
+    expect(service.checkNameExists).toHaveBeenCalledWith(
+      'MyConfig',
+      userScope,
+      undefined,
+      undefined
+    );
   });
 
   it('uses the caller-provided formatter for the collision message', async () => {
@@ -306,6 +317,41 @@ describe('ensureNoNameCollision', () => {
       expect.objectContaining({
         message: 'You already have a config named "Duplicate"',
       })
+    );
+  });
+
+  it('forwards postIsGlobal to the service for cross-namespace global checks', async () => {
+    const service = {
+      checkNameExists: vi.fn().mockResolvedValue({ exists: false }),
+    };
+
+    await ensureNoNameCollision(mockRes, service, {
+      name: 'Renamed',
+      scope: userScope,
+      excludeId: 'cfg-1',
+      postIsGlobal: true,
+      formatCollisionMessage: _n => `irrelevant`,
+    });
+
+    expect(service.checkNameExists).toHaveBeenCalledWith('Renamed', userScope, 'cfg-1', true);
+  });
+
+  it('does not pass postIsGlobal when omitted (service receives undefined 4th arg)', async () => {
+    const service = {
+      checkNameExists: vi.fn().mockResolvedValue({ exists: false }),
+    };
+
+    await ensureNoNameCollision(mockRes, service, {
+      name: 'Created',
+      scope: userScope,
+      formatCollisionMessage: _n => `irrelevant`,
+    });
+
+    expect(service.checkNameExists).toHaveBeenCalledWith(
+      'Created',
+      userScope,
+      undefined,
+      undefined
     );
   });
 });

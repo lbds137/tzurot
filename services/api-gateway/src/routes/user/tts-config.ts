@@ -47,8 +47,8 @@ import {
   ensureNoNameCollision,
 } from '../../utils/configRouteHelpers.js';
 import {
+  applyOwnerNamePromotion,
   buildCollisionMessage,
-  computeNameForPromotion,
   getDiscordUsernameFromRequest,
 } from '../../utils/normalizeConfigNameOnPromote.js';
 import type { ProvisionedRequest } from '../../types.js';
@@ -242,40 +242,32 @@ function createUpdateHandler(service: TtsConfigService) {
     // users can identify provenance — prevents non-bot-owners from creating
     // names that look admin-curated. Bot owner gets unsuffixed names per
     // `normalizeSlugForUser`'s built-in semantic. Mirrors the LLM route.
-    const effectiveName = computeNameForPromotion({
-      currentName: config.name,
-      currentIsGlobal: config.isGlobal,
-      requestedName: body.name,
-      requestedIsGlobal: body.isGlobal,
+    const patch = applyOwnerNamePromotion(body, config, {
       discordId: discordUserId,
       discordUsername: getDiscordUsernameFromRequest(req),
     });
-    const patch = { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
 
     // Compute post-update isGlobal so the collision check covers the cross-
     // user global-namespace case when the user is promoting (or already
     // promoted) their config.
     const postIsGlobal = body.isGlobal ?? config.isGlobal;
 
-    if (patch.name !== undefined && patch.name.length > 0) {
-      const nameCheck = await service.checkNameExists(
-        patch.name,
-        { type: 'USER', userId, discordId: discordUserId },
-        configId,
-        postIsGlobal
-      );
-      if (nameCheck.exists) {
-        return sendError(
-          res,
-          ErrorResponses.nameCollision(
-            buildCollisionMessage({
-              effectiveName: patch.name,
-              requestedName: body.name,
-              configKind: 'TTS config',
-            })
-          )
-        );
-      }
+    if (
+      patch.name !== undefined &&
+      !(await ensureNoNameCollision(res, service, {
+        name: patch.name,
+        scope: { type: 'USER', userId, discordId: discordUserId },
+        excludeId: configId,
+        postIsGlobal,
+        formatCollisionMessage: n =>
+          buildCollisionMessage({
+            effectiveName: n,
+            requestedName: body.name,
+            configKind: 'TTS config',
+          }),
+      }))
+    ) {
+      return;
     }
 
     // Empty-body guard ran earlier; patch is guaranteed non-empty here. Wrap

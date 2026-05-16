@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Request } from 'express';
 import {
+  applyOwnerNamePromotion,
   buildCollisionMessage,
   computeNameForPromotion,
   getDiscordUsernameFromRequest,
@@ -210,6 +211,57 @@ describe('getDiscordUsernameFromRequest', () => {
     // Express can deliver array values for repeated headers
     const req = { headers: { 'x-user-username': ['a', 'b'] } } as unknown as Request;
     expect(getDiscordUsernameFromRequest(req)).toBe('');
+  });
+});
+
+describe('applyOwnerNamePromotion', () => {
+  const config = { name: 'MyConfig', isGlobal: false };
+
+  it('returns body unchanged when no promotion or rename', () => {
+    const body: { name?: string; isGlobal?: boolean; description: string } = {
+      description: 'new description',
+    };
+    const result = applyOwnerNamePromotion(body, config, REGULAR_USER);
+    expect(result).toEqual({ description: 'new description' });
+  });
+
+  it('suffixes the name when promoting to global as a regular user', () => {
+    const body = { name: 'Cool', isGlobal: true };
+    const result = applyOwnerNamePromotion(body, config, REGULAR_USER);
+    expect(result).toEqual({ name: 'Cool-bob', isGlobal: true });
+  });
+
+  it('leaves the name unchanged when bot owner promotes to global', () => {
+    const body = { name: 'Official', isGlobal: true };
+    const result = applyOwnerNamePromotion(body, config, BOT_OWNER);
+    expect(result).toEqual({ name: 'Official', isGlobal: true });
+  });
+
+  it('preserves arbitrary extra fields on the body', () => {
+    const body = { name: 'Renamed', isGlobal: true, advancedParameters: { temp: 0.7 } };
+    const result = applyOwnerNamePromotion(body, config, REGULAR_USER);
+    expect(result).toEqual({
+      name: 'Renamed-bob',
+      isGlobal: true,
+      advancedParameters: { temp: 0.7 },
+    });
+  });
+
+  it('works generically for a TTS-shaped body', () => {
+    const ttsBody = { name: 'MyVoice', provider: 'mistral', isGlobal: true };
+    const result = applyOwnerNamePromotion(ttsBody, config, REGULAR_USER);
+    expect(result).toEqual({ name: 'MyVoice-bob', provider: 'mistral', isGlobal: true });
+  });
+
+  it('omits the name field when computeNameForPromotion returns undefined (no rename)', () => {
+    const globalConfig = { name: 'AlreadyGlobal', isGlobal: true };
+    // Description-only update on an already-global config — no rename triggered
+    const body: { name?: string; isGlobal?: boolean; description: string } = {
+      description: 'updated desc',
+    };
+    const result = applyOwnerNamePromotion(body, globalConfig, REGULAR_USER);
+    expect(result).toEqual({ description: 'updated desc' });
+    expect(result).not.toHaveProperty('name');
   });
 });
 
