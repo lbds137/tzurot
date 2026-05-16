@@ -12,6 +12,7 @@ import {
   MESSAGE_LIMITS,
   ConversationSyncService,
   computeHistoryCutoff,
+  stripBotFooters,
 } from '@tzurot/common-types';
 import { INTERNAL_DISCORD_ID_PREFIX } from '../constants/personaId.js';
 import type {
@@ -23,6 +24,7 @@ import type {
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
+import { extractPersonalityName } from '../utils/webhookNaming.js';
 
 import {
   isThinkingBlockMessage,
@@ -52,15 +54,6 @@ import type {
 } from './channelFetcher/types.js';
 
 const logger = createLogger('DiscordChannelFetcher');
-
-/** Extract personality display name from "DisplayName | Suffix" webhook format */
-function extractPersonalityName(webhookName: string): string {
-  const delimiterIndex = webhookName.indexOf(' | ');
-  if (delimiterIndex > 0) {
-    return webhookName.substring(0, delimiterIndex);
-  }
-  return webhookName;
-}
 
 /** Fetches and processes Discord channel messages for extended context */
 export class DiscordChannelFetcher {
@@ -330,7 +323,7 @@ export class DiscordChannelFetcher {
   /**
    * Convert a Discord message to ConversationMessage format
    */
-  // eslint-disable-next-line complexity -- Message type conversion branches for role detection, content building, attachment handling, reference resolution, and forwarded message extraction
+  // eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- Message type conversion branches for role detection, content building, attachment handling, reference resolution, forwarded message extraction, and bot-footer stripping on prior assistant turns
   private async convertMessage(
     msg: Message,
     options: FetchOptions,
@@ -370,7 +363,12 @@ export class DiscordChannelFetcher {
       return null;
     }
 
-    const content = rawContent;
+    // Strip bot-emitted footers (model indicator, incognito mode, auto-response,
+    // etc.) from prior assistant turns so the model doesn't see its own footers
+    // in extended context and roleplay around them. Mirrors the DB-persisted-
+    // history strip in channelFetcher/SyncValidator.ts. User messages are
+    // left untouched — footer-shaped text in user content is user-authored.
+    const content = isBot ? stripBotFooters(rawContent) : rawContent;
     const hasMetadata = embedsXml !== undefined || voiceTranscripts !== undefined;
     let messageMetadata: ConversationMessage['messageMetadata'] = hasMetadata
       ? { embedsXml, voiceTranscripts }
@@ -410,7 +408,9 @@ export class DiscordChannelFetcher {
       isForwarded: isForwarded || undefined,
       messageMetadata,
       personalityName:
-        role === MessageRole.Assistant ? extractPersonalityName(authorName) : undefined,
+        role === MessageRole.Assistant
+          ? extractPersonalityName(authorName, options.botSuffix ?? '')
+          : undefined,
       channelId: msg.channelId,
       guildId: msg.guildId,
     };
