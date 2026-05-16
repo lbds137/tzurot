@@ -81,6 +81,9 @@ jobs:
         run: pnpm cpd
         continue-on-error: true
 
+      - name: Enforce CPD ratchet (filtered count must not exceed baseline)
+        run: pnpm ops cpd:check
+
       - name: Check for duplicate export names
         run: pnpm ops guard:duplicate-exports
 
