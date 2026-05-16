@@ -47,6 +47,29 @@ export function parseBodyOrSendError<T>(
   return result.data;
 }
 
+/**
+ * Fetch a config row by id (caller supplies the typed thunk) and 404 if
+ * absent. Unlike findGlobalConfigOrSendError, no isGlobal guard — user-side
+ * routes gate on permissions (computeLlmConfigPermissions → canEdit / canDelete)
+ * separately after the row is fetched, so the row's isGlobal value is not
+ * load-bearing at this point.
+ *
+ * The fetch-thunk pattern preserves Prisma `select` inference at the call
+ * site, same rationale as findGlobalConfigOrSendError.
+ */
+export async function findConfigOrSendNotFound<T>(
+  res: Response,
+  fetchRow: () => Promise<T | null>,
+  notFoundResource: string
+): Promise<T | null> {
+  const row = await fetchRow();
+  if (row === null) {
+    sendError(res, ErrorResponses.notFound(notFoundResource));
+    return null;
+  }
+  return row;
+}
+
 /** Operations governed by the isGlobal guard. Each maps to a scoped error wording. */
 export type GlobalGuardOperation =
   | 'edit'
@@ -61,7 +84,7 @@ export type GlobalGuardOperation =
  */
 export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean }>(
   res: Response,
-  fetch: () => Promise<T | null>,
+  fetchRow: () => Promise<T | null>,
   options: {
     /** Resource name used by the not-found error (e.g., 'Config', 'TtsConfig'). */
     notFoundResource: string;
@@ -71,7 +94,7 @@ export async function findGlobalConfigOrSendError<T extends { isGlobal: boolean 
     operation: GlobalGuardOperation;
   }
 ): Promise<T | null> {
-  const row = await fetch();
+  const row = await fetchRow();
   if (row === null) {
     sendError(res, ErrorResponses.notFound(options.notFoundResource));
     return null;
