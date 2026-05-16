@@ -34,14 +34,22 @@ import {
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { sendZodError } from '../../utils/zodHelpers.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { TtsConfigService, TtsInvalidProviderError } from '../../services/TtsConfigService.js';
+import {
+  parseBodyOrSendError,
+  findGlobalConfigOrSendError,
+  findAdminUserOrSendError,
+  ensureNoNameCollision,
+  shapeDeleteResponse,
+} from '../../utils/configRouteHelpers.js';
 
 const logger = createLogger('admin-tts-config');
 
 const CONFIG_RESOURCE = 'TtsConfig';
+/** Plural label used in the isGlobal-guard messages. */
+const CONFIG_LABEL = 'TTS configs';
 
 // --- Handler factories -----------------------------------------------------
 
@@ -79,30 +87,24 @@ function createCreateHandler(service: TtsConfigService, prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
-    const parseResult = TtsConfigCreateSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
+    const body = parseBodyOrSendError(res, TtsConfigCreateSchema, req.body);
+    if (body === null) {
+      return;
     }
-    const body = parseResult.data;
 
-    // Get admin user's internal ID for ownership
-    const adminUser = await prisma.user.findUnique({
-      // eslint-disable-next-line no-restricted-syntax -- Admin owner lookup: route is behind requireOwnerAuth, not requireProvisionedUser, so provisionedUserId is not attached; the Discord ID comes from the X-Owner-Id header and the internal UUID is needed for TtsConfig.ownerId FK
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
+    const adminUser = await findAdminUserOrSendError(res, prisma, discordUserId, logger);
     if (adminUser === null) {
-      logger.warn({ discordUserId }, 'Admin user not found in database');
-      return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
+      return;
     }
 
-    const nameCheck = await service.checkNameExists(body.name, { type: 'GLOBAL' });
-    if (nameCheck.exists) {
-      return sendError(
-        res,
-        ErrorResponses.nameCollision(`A global TTS config named "${body.name}" already exists`)
-      );
+    if (
+      !(await ensureNoNameCollision(res, service, {
+        name: body.name,
+        scope: { type: 'GLOBAL' },
+        formatCollisionMessage: n => `A global TTS config named "${n}" already exists`,
+      }))
+    ) {
+      return;
     }
 
     const config = await service.create({ type: 'GLOBAL' }, body, adminUser.id);
@@ -120,32 +122,34 @@ function createEditHandler(service: TtsConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const parseResult = TtsConfigUpdateSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
+    const body = parseBodyOrSendError(res, TtsConfigUpdateSchema, req.body);
+    if (body === null) {
+      return;
     }
-    const body = parseResult.data;
 
-    const existing = await prisma.ttsConfig.findUnique({
-      where: { id: configId },
-      select: { id: true, name: true, isGlobal: true },
-    });
-
+    const existing = await findGlobalConfigOrSendError(
+      res,
+      () =>
+        prisma.ttsConfig.findUnique({
+          where: { id: configId },
+          select: { id: true, name: true, isGlobal: true },
+        }),
+      { notFoundResource: CONFIG_RESOURCE, resourceLabel: CONFIG_LABEL, operation: 'edit' }
+    );
     if (existing === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
-    }
-    if (!existing.isGlobal) {
-      return sendError(res, ErrorResponses.validationError('Can only edit global TTS configs'));
+      return;
     }
 
-    if (body.name !== undefined && body.name.length > 0) {
-      const nameCheck = await service.checkNameExists(body.name, { type: 'GLOBAL' }, configId);
-      if (nameCheck.exists) {
-        return sendError(
-          res,
-          ErrorResponses.nameCollision(`A global TTS config named "${body.name}" already exists`)
-        );
-      }
+    if (
+      body.name !== undefined &&
+      !(await ensureNoNameCollision(res, service, {
+        name: body.name,
+        scope: { type: 'GLOBAL' },
+        excludeId: configId,
+        formatCollisionMessage: n => `A global TTS config named "${n}" already exists`,
+      }))
+    ) {
+      return;
     }
 
     if (Object.keys(body).length === 0) {
@@ -180,19 +184,21 @@ function createSetDefaultHandler(service: TtsConfigService, prisma: PrismaClient
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const config = await prisma.ttsConfig.findUnique({
-      where: { id: configId },
-      select: { id: true, name: true, isGlobal: true },
-    });
-
+    const config = await findGlobalConfigOrSendError(
+      res,
+      () =>
+        prisma.ttsConfig.findUnique({
+          where: { id: configId },
+          select: { id: true, name: true, isGlobal: true },
+        }),
+      {
+        notFoundResource: CONFIG_RESOURCE,
+        resourceLabel: CONFIG_LABEL,
+        operation: 'set as system default',
+      }
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
-    }
-    if (!config.isGlobal) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('Only global TTS configs can be set as system default')
-      );
+      return;
     }
 
     await service.setAsDefault(configId);
@@ -206,20 +212,23 @@ function createSetFreeDefaultHandler(service: TtsConfigService, prisma: PrismaCl
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const config = await prisma.ttsConfig.findUnique({
-      where: { id: configId },
-      select: { id: true, name: true, isGlobal: true, provider: true },
-    });
-
+    const config = await findGlobalConfigOrSendError(
+      res,
+      () =>
+        prisma.ttsConfig.findUnique({
+          where: { id: configId },
+          select: { id: true, name: true, isGlobal: true, provider: true },
+        }),
+      {
+        notFoundResource: CONFIG_RESOURCE,
+        resourceLabel: CONFIG_LABEL,
+        operation: 'set as free tier default',
+      }
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
-    if (!config.isGlobal) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('Only global TTS configs can be set as free tier default')
-      );
-    }
+
     // TTS-shaped invariant: only self-hosted is free at the per-user level —
     // BYOK providers (elevenlabs, mistral) require user-supplied API keys,
     // so they can't serve guests as a fallback.
@@ -243,17 +252,19 @@ function createDeleteHandler(service: TtsConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
     const configId = getRequiredParam(req.params.id, 'id');
 
-    const config = await prisma.ttsConfig.findUnique({
-      where: { id: configId },
-      select: { id: true, name: true, isGlobal: true, isDefault: true, isFreeDefault: true },
-    });
-
+    const config = await findGlobalConfigOrSendError(
+      res,
+      () =>
+        prisma.ttsConfig.findUnique({
+          where: { id: configId },
+          select: { id: true, name: true, isGlobal: true, isDefault: true, isFreeDefault: true },
+        }),
+      { notFoundResource: CONFIG_RESOURCE, resourceLabel: CONFIG_LABEL, operation: 'delete' }
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
-    if (!config.isGlobal) {
-      return sendError(res, ErrorResponses.validationError('Can only delete global TTS configs'));
-    }
+
     if (config.isDefault) {
       return sendError(
         res,
@@ -283,12 +294,10 @@ function createDeleteHandler(service: TtsConfigService, prisma: PrismaClient) {
 
     await service.delete(configId);
 
-    // Omit `warning` from response body and log fields when null — keeps clean
-    // deletes producing `{ deleted: true }` instead of `{ deleted: true, warning: null }`,
-    // and avoids `warning: null` log noise on every routine delete.
-    const responseBody = warning !== null ? { deleted: true, warning } : { deleted: true };
-    const logFields =
-      warning !== null ? { configId, name: config.name, warning } : { configId, name: config.name };
+    const { responseBody, logFields } = shapeDeleteResponse(warning, {
+      configId,
+      name: config.name,
+    });
 
     logger.info(logFields, 'Deleted global TTS config');
     sendCustomSuccess(res, responseBody, StatusCodes.OK);
