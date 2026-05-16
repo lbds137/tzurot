@@ -13,6 +13,7 @@ import {
   JobType,
   JOB_PREFIXES,
   type AudioTranscriptionResult,
+  type PrismaClient,
   TranscribeRequestSchema,
 } from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -23,7 +24,48 @@ import { addValidatedJob } from '../../utils/validatedQueue.js';
 
 const logger = createLogger('AIRouter');
 
-export function createTranscribeRoute(aiQueue: Queue, queueEvents: QueueEvents): Router {
+/**
+ * Resolve the user's `showModelFooter` user-default for the STT footer
+ * attribution line. Hardcoded default is `true`; only an explicit user-default
+ * `false` suppresses the footer. Returns `true` for unknown users so the
+ * footer keeps showing in the legacy "system" / unprovisioned case.
+ *
+ * Inlined here (rather than going through the full ConfigCascadeResolver)
+ * because the cascade is overkill for one boolean field with no personality
+ * or channel scope.
+ */
+async function resolveShowModelFooter(prisma: PrismaClient, discordId: string): Promise<boolean> {
+  if (discordId === 'system') {
+    return true;
+  }
+  try {
+    const user = await prisma.user.findFirst({
+      // eslint-disable-next-line no-restricted-syntax -- transcribe endpoint receives the Discord ID directly in the request body (not via requireProvisionedUser middleware); a single non-cascading lookup keyed on it is the simplest way to read the user-default
+      where: { discordId },
+      select: { configDefaults: true },
+    });
+    // Prisma's `Json?` lands as `Prisma.JsonValue | null` which can also be
+    // an array or primitive. Guard explicitly so the cast below is honest:
+    // only an object literal can carry a `showModelFooter` field. All other
+    // shapes (including null and arrays) fail open to true.
+    const defaults = user?.configDefaults;
+    if (defaults === null || typeof defaults !== 'object' || Array.isArray(defaults)) {
+      return true;
+    }
+    return (defaults as Record<string, unknown>).showModelFooter !== false;
+  } catch (err) {
+    // Fail-open: any DB hiccup leaves the footer showing — preserves the
+    // historical behavior rather than silently suppressing on a transient.
+    logger.warn({ err, discordId }, 'showModelFooter lookup failed; defaulting to true');
+    return true;
+  }
+}
+
+export function createTranscribeRoute(
+  prisma: PrismaClient,
+  aiQueue: Queue,
+  queueEvents: QueueEvents
+): Router {
   const router = Router();
 
   /**
@@ -81,24 +123,42 @@ export function createTranscribeRoute(aiQueue: Queue, queueEvents: QueueEvents):
 
       logger.info({ jobId: job.id, durationMs: Date.now() - startTime }, 'Created transcribe job');
 
-      // If client wants to wait, use Redis pub/sub
+      // If client wants to wait, use Redis pub/sub. `showModelFooter` is
+      // resolved only on this path because bot-client (the sole caller
+      // today) always invokes with `?wait=true`. An async-polling caller
+      // would see `showModelFooter: undefined` on the result, which the
+      // bot-client treats as "render footer" (back-compat fallback) — if a
+      // future caller adopts polling and needs the toggle, the resolution
+      // needs to move into the non-wait branch (or run unconditionally).
       if (waitForCompletion) {
         try {
-          const result = (await job.waitUntilFinished(
-            queueEvents,
-            TIMEOUTS.JOB_WAIT
-          )) as AudioTranscriptionResult;
+          const [result, showModelFooter] = await Promise.all([
+            job.waitUntilFinished(
+              queueEvents,
+              TIMEOUTS.JOB_WAIT
+            ) as Promise<AudioTranscriptionResult>,
+            resolveShowModelFooter(prisma, userId ?? 'system'),
+          ]);
 
           logger.info(
             { jobId: job.id, durationMs: Date.now() - startTime },
             'Transcribe job completed'
           );
 
+          // Inject the user-default `showModelFooter` into the result so the
+          // bot-client can gate the `-# Transcribed by X` attribution line
+          // without a separate roundtrip. Resolution runs in parallel with
+          // the transcription job, so this adds zero latency on the hot path.
+          const enrichedResult: AudioTranscriptionResult = {
+            ...result,
+            showModelFooter,
+          };
+
           return sendCustomSuccess(res, {
             jobId: job.id ?? requestId,
             requestId,
             status: JobStatus.Completed,
-            result,
+            result: enrichedResult,
             timestamp: new Date().toISOString(),
           });
         } catch (error) {

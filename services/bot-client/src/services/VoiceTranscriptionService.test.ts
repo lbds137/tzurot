@@ -323,6 +323,87 @@ describe('VoiceTranscriptionService', () => {
       });
     });
 
+    it('omits attribution when showModelFooter=false (user opted out)', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Hello there',
+        provider: 'mistral',
+        showModelFooter: false, // explicit user-default opt-out
+      });
+
+      await service.transcribe(message, false, false);
+
+      expect(message.reply).toHaveBeenCalledWith({
+        content: 'Hello there',
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
+    it('renders attribution when showModelFooter=true (explicit opt-in)', async () => {
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Hello there',
+        provider: 'mistral',
+        showModelFooter: true,
+      });
+
+      await service.transcribe(message, false, false);
+
+      expect(message.reply).toHaveBeenCalledWith({
+        content: 'Hello there\n-# Transcribed by [Mistral](<https://mistral.ai/news/voxtral>)',
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
+    it('renders attribution when showModelFooter is undefined (legacy back-compat)', async () => {
+      // During a deploy-window mismatch where api-gateway hasn't deployed yet,
+      // the bot-client may see responses without the showModelFooter field.
+      // Footer should keep rendering — preserving the pre-toggle behavior.
+      const message = createMockMessage({
+        attachments: [
+          {
+            url: 'https://cdn.discord.com/voice/123.ogg',
+            contentType: 'audio/ogg',
+            name: 'voice.ogg',
+            size: 50000,
+            duration: 5.2,
+          },
+        ],
+      });
+      mockGatewayClient.transcribe.mockResolvedValue({
+        content: 'Hello there',
+        provider: 'mistral',
+        // showModelFooter intentionally omitted
+      });
+
+      await service.transcribe(message, false, false);
+
+      expect(message.reply).toHaveBeenCalledWith({
+        content: 'Hello there\n-# Transcribed by [Mistral](<https://mistral.ai/news/voxtral>)',
+        allowedMentions: { parse: [], repliedUser: false },
+      });
+    });
+
     it('should set continueToPersonalityHandler=true when hasMention=true', async () => {
       const message = createMockMessage({
         attachments: [

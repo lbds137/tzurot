@@ -204,6 +204,16 @@ export interface AudioTranscriptionResult {
   error?: string;
   /** Which STT provider produced the transcript; surfaced as user-visible attribution. */
   provider?: SttProvider;
+  /**
+   * User's resolved `showModelFooter` user-default. When `false`, bot-client
+   * suppresses the `-# Transcribed by X` attribution line beneath voice
+   * transcripts. Optional for backward compatibility: `undefined` preserves
+   * the legacy behavior of always showing the footer when a provider is
+   * known. Resolved server-side via `ConfigCascadeResolver` at the
+   * user-default tier so the bot-client doesn't need to fetch user
+   * preferences separately for every voice message.
+   */
+  showModelFooter?: boolean;
   metadata?: {
     processingTimeMs?: number;
     duration?: number;

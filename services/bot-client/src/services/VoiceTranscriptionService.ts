@@ -33,9 +33,21 @@ const TYPING_INDICATOR_INTERVAL_MS = 8000;
  * Mirrors the LLM model footer's `Model: [name](<url>)` clickable-link shape from
  * `buildModelFooterText` in `@tzurot/common-types/constants/discord` — readers
  * can click through to the upstream model card to learn what produced the text.
+ *
+ * Gated on the user's `showModelFooter` preference (resolved server-side and
+ * piggybacked on the transcribe response). `undefined` preserves the legacy
+ * behavior of always showing the footer when a provider is known — keeps
+ * old api-gateway versions from silently dropping the footer during a
+ * deploy-window mismatch.
  */
-function formatProviderAttribution(provider?: SttProvider): string | null {
+function formatProviderAttribution(
+  provider: SttProvider | undefined,
+  showModelFooter: boolean | undefined
+): string | null {
   if (provider === undefined) {
+    return null;
+  }
+  if (showModelFooter === false) {
     return null;
   }
   const name = sttProviderDisplayName(provider);
@@ -311,8 +323,13 @@ export class VoiceTranscriptionService {
 
       // Send chunks + the attribution suffix to Discord as message replies.
       // These appear BEFORE the personality webhook response so the user
-      // sees their transcript first.
-      await sendTranscriptChunks(message, chunks, formatProviderAttribution(response.provider));
+      // sees their transcript first. Footer is suppressed when the user
+      // has set `showModelFooter: false` (resolved server-side).
+      await sendTranscriptChunks(
+        message,
+        chunks,
+        formatProviderAttribution(response.provider, response.showModelFooter)
+      );
 
       // Determine if we should continue to personality handler
       const continueToPersonalityHandler = hasMention || isReply;

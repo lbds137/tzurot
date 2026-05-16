@@ -7,6 +7,7 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { createTranscribeRoute } from './transcribe.js';
 import type { Queue, QueueEvents, Job } from 'bullmq';
+import type { PrismaClient } from '@tzurot/common-types';
 import { JobStatus } from '@tzurot/common-types';
 
 // Create mock BullMQ queue
@@ -25,22 +26,35 @@ const createMockQueueEvents = () => ({
   off: vi.fn(),
 });
 
+const createMockPrisma = () =>
+  ({
+    user: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+  }) as unknown as PrismaClient;
+
 describe('POST /transcribe', () => {
   let app: Express;
   let aiQueue: ReturnType<typeof createMockQueue>;
   let queueEvents: ReturnType<typeof createMockQueueEvents>;
+  let prisma: PrismaClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     aiQueue = createMockQueue();
     queueEvents = createMockQueueEvents();
+    prisma = createMockPrisma();
 
     app = express();
     app.use(express.json());
     app.use(
       '/transcribe',
-      createTranscribeRoute(aiQueue as unknown as Queue, queueEvents as unknown as QueueEvents)
+      createTranscribeRoute(
+        prisma,
+        aiQueue as unknown as Queue,
+        queueEvents as unknown as QueueEvents
+      )
     );
   });
 
@@ -132,5 +146,94 @@ describe('POST /transcribe', () => {
       }),
       expect.any(Object)
     );
+  });
+
+  describe('?wait=true → showModelFooter resolution', () => {
+    const audioAttachments = [
+      { url: 'https://example.com/audio.ogg', contentType: 'audio/ogg', name: 'audio.ogg' },
+    ];
+
+    const buildJob = () => {
+      const job = {
+        id: 'audio-req-w',
+        waitUntilFinished: vi.fn().mockResolvedValue({
+          requestId: 'req-w',
+          success: true,
+          content: 'Hello there',
+          provider: 'mistral',
+          attachmentUrl: audioAttachments[0].url,
+          attachmentName: audioAttachments[0].name,
+        }),
+      } as unknown as Job;
+      aiQueue.add.mockResolvedValue(job);
+      return job;
+    };
+
+    it('returns showModelFooter=true when the user opted in (or default)', async () => {
+      buildJob();
+      (prisma.user.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        configDefaults: { showModelFooter: true },
+      });
+
+      const response = await request(app)
+        .post('/transcribe?wait=true')
+        .send({ attachments: audioAttachments, userId: '111222333' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.result.showModelFooter).toBe(true);
+      expect(prisma.user.findFirst).toHaveBeenCalledWith({
+        where: { discordId: '111222333' },
+        select: { configDefaults: true },
+      });
+    });
+
+    it('returns showModelFooter=false when the user explicitly opted out', async () => {
+      buildJob();
+      (prisma.user.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        configDefaults: { showModelFooter: false },
+      });
+
+      const response = await request(app)
+        .post('/transcribe?wait=true')
+        .send({ attachments: audioAttachments, userId: '111222333' });
+
+      expect(response.body.result.showModelFooter).toBe(false);
+    });
+
+    it('returns showModelFooter=true when no user row matches the Discord ID (hardcoded fallback)', async () => {
+      buildJob();
+      // findFirst returning null → no user row found; falls back to default (true)
+      (prisma.user.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+
+      const response = await request(app)
+        .post('/transcribe?wait=true')
+        .send({ attachments: audioAttachments, userId: '111222333' });
+
+      expect(response.body.result.showModelFooter).toBe(true);
+    });
+
+    it('returns showModelFooter=true for system userId without touching Prisma', async () => {
+      buildJob();
+
+      const response = await request(app)
+        .post('/transcribe?wait=true')
+        .send({ attachments: audioAttachments }); // no userId → defaults to 'system'
+
+      expect(response.body.result.showModelFooter).toBe(true);
+      expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('fails open with showModelFooter=true on DB error (preserves footer rendering)', async () => {
+      buildJob();
+      (prisma.user.findFirst as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('connection refused')
+      );
+
+      const response = await request(app)
+        .post('/transcribe?wait=true')
+        .send({ attachments: audioAttachments, userId: '111222333' });
+
+      expect(response.body.result.showModelFooter).toBe(true);
+    });
   });
 });
