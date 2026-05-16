@@ -7,6 +7,7 @@
 
 import { createLogger, INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
 import { ChannelType, Client } from 'discord.js';
+import { deriveBotSuffix } from './webhookNaming.js';
 import type {
   TextChannel,
   ThreadChannel,
@@ -44,10 +45,10 @@ export class WebhookManager {
   }
 
   /**
-   * Get bot suffix from bot tag
-   * Format: "BotName · suffix" -> " · suffix"
-   * Or: "BotName | suffix" -> " · suffix" (legacy support)
-   * Or: "BotName" -> " · BotName"
+   * Get bot suffix from bot tag. Cached on first call. Delegates to the
+   * shared `deriveBotSuffix` utility so all webhook-username consumers
+   * (WebhookManager, ReplyResolutionService, DiscordChannelFetcher) agree
+   * on the format.
    */
   private getBotSuffix(): string {
     if (this.botSuffix !== null) {
@@ -61,25 +62,8 @@ export class WebhookManager {
       return '';
     }
 
-    const botTag = clientUser.tag;
-    logger.debug({ botTag }, 'Extracting suffix from bot tag');
-
-    // Check for delimiters: prefer " · " (middle dot), fallback to " | " (pipe)
-    // Always output with " · " regardless of input format
-    let suffix: string;
-    if (botTag.includes(' · ')) {
-      const parts = botTag.split(' · ');
-      suffix = parts[1].replace(/\s{0,16}#\d{4}$/, '').trim();
-    } else if (botTag.includes(' | ')) {
-      const parts = botTag.split(' | ');
-      suffix = parts[1].replace(/\s{0,16}#\d{4}$/, '').trim();
-    } else {
-      // No delimiter - use full username (without discriminator) as suffix
-      suffix = botTag.replace(/\s{0,16}#\d{4}$/, '').trim();
-    }
-
-    this.botSuffix = ` · ${suffix}`;
-    logger.debug({ suffix: this.botSuffix }, 'Using bot suffix');
+    this.botSuffix = deriveBotSuffix(clientUser.tag);
+    logger.debug({ botTag: clientUser.tag, suffix: this.botSuffix }, 'Derived bot suffix');
     return this.botSuffix;
   }
 

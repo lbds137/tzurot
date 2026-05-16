@@ -46,7 +46,10 @@ describe('ReplyResolutionService', () => {
     };
 
     mockGatewayClient = {
-      lookupPersonalityFromConversation: vi.fn(),
+      // Default to null so tests not explicitly exercising tier-2 DB lookup
+      // get a clean miss (rather than `undefined`, which would crash the
+      // `if (dbResult !== null)` branch in lookupPersonalityIdentifier).
+      lookupPersonalityFromConversation: vi.fn().mockResolvedValue(null),
     };
 
     service = new ReplyResolutionService(
@@ -215,7 +218,7 @@ describe('ReplyResolutionService', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null when webhook username has no pipe separator', async () => {
+    it('should return null when webhook username has no recognizable suffix', async () => {
       const referencedMessage = {
         id: 'ref-123',
         webhookId: 'webhook-123',
@@ -235,6 +238,99 @@ describe('ReplyResolutionService', () => {
 
       expect(mockPersonalityService.loadPersonality).not.toHaveBeenCalled();
       expect(result).toBeNull();
+    });
+
+    it('should resolve via tier-3 with the canonical " · BotName" separator (current format)', async () => {
+      // Tier-3 parser must agree with WebhookManager's emitted separator;
+      // when they drift, every guild reply with a Redis miss silently
+      // falls through to null, the reply slot doesn't populate, and in
+      // multi-tag activated channels the activated personality claims
+      // slot 0 instead of the replied-to one. This test pins the
+      // invariant so a future separator change is caught here first.
+      const mockPersonality: LoadedPersonality = {
+        id: 'pers-weaver',
+        name: 'weaver',
+        displayName: 'Weaver',
+        systemPrompt: 'Test prompt',
+        llmConfig: {
+          model: 'test-model',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 1000,
+        },
+      } as unknown as LoadedPersonality;
+
+      const referencedMessage = {
+        id: 'ref-123',
+        webhookId: 'webhook-123',
+        applicationId: null,
+        author: { id: 'webhook-user', username: 'Weaver · Tzurot' },
+      };
+
+      const message = createMockMessage({
+        reference: { messageId: 'ref-123' } as MessageReference,
+        fetchedReferencedMessage: referencedMessage,
+        channelType: ChannelType.GuildText,
+      });
+
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
+
+      const result = await service.resolvePersonality(message, 'user-123');
+
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith('Weaver', 'user-123');
+      expect(result).toBe(mockPersonality);
+    });
+
+    it('should resolve via tier-2 DB lookup in a guild channel (Redis-evicted case)', async () => {
+      // Tier-2 (DB lookup) must run in BOTH DMs and guild channels. The DB
+      // is the authoritative fallback when Redis isn't — gating it on
+      // `isDM` leaves guild replies with no recovery path when Redis
+      // evicts (>7d TTL) or transient store failures lose the mapping.
+      const mockPersonality: LoadedPersonality = {
+        id: 'pers-weaver',
+        name: 'weaver',
+        displayName: 'Weaver',
+        systemPrompt: 'Test prompt',
+        llmConfig: {
+          model: 'test-model',
+          provider: 'openrouter',
+          temperature: 0.7,
+          maxTokens: 1000,
+        },
+      } as unknown as LoadedPersonality;
+
+      const referencedMessage = {
+        id: 'ref-old-message',
+        webhookId: 'webhook-123',
+        applicationId: null,
+        // Username has no recognizable suffix — tier-3 won't fire. Only the
+        // DB lookup path can resolve this.
+        author: { id: 'webhook-user', username: 'OrphanedWebhookName' },
+      };
+
+      const message = createMockMessage({
+        reference: { messageId: 'ref-old-message' } as MessageReference,
+        fetchedReferencedMessage: referencedMessage,
+        channelType: ChannelType.GuildText,
+      });
+
+      (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+        personalityId: 'pers-weaver',
+      });
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockPersonality);
+
+      const result = await service.resolvePersonality(message, 'user-123');
+
+      expect(mockGatewayClient.lookupPersonalityFromConversation).toHaveBeenCalledWith(
+        'ref-old-message'
+      );
+      expect(mockPersonalityService.loadPersonality).toHaveBeenCalledWith(
+        'pers-weaver',
+        'user-123'
+      );
+      expect(result).toBe(mockPersonality);
     });
 
     it('should handle fetch errors gracefully', async () => {
@@ -559,6 +655,13 @@ interface MockMessageOptions {
   reference?: MessageReference | null;
   fetchedReferencedMessage?: any;
   clientUserId?: string;
+  /**
+   * The bot's `client.user.tag` value. Production dev/prod tags use a ` · `
+   * separator (e.g., `'Rotzot · תשב#3778'`). Tests that exercise tier-3
+   * webhook-username parsing must supply a tag so `deriveBotSuffix` produces
+   * the correct suffix.
+   */
+  clientUserTag?: string;
   fetchWillFail?: boolean;
   channelType?: ChannelType;
 }
@@ -584,6 +687,13 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
     client: {
       user: {
         id: options.clientUserId || 'current-bot-789',
+        // Default tag uses bare `'Tzurot'` so `deriveBotSuffix` produces
+        // ` · Tzurot` — keeps legacy fixtures (`'X | Tzurot'` usernames)
+        // matching via `stripBotSuffix`'s ` | ` back-compat path. Tests that
+        // need to exercise prod-tag shapes should pass `clientUserTag`
+        // explicitly. Production-tag verification lives in
+        // `webhookNaming.test.ts`.
+        tag: options.clientUserTag ?? 'Tzurot',
       },
     },
   } as unknown as Message;

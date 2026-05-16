@@ -214,6 +214,11 @@ export class GatewayClient {
     content: string;
     /** Which STT provider produced the transcript; surfaced as user-visible attribution. */
     provider?: SttProvider;
+    /**
+     * User's resolved `showModelFooter` user-default. `false` ⇒ suppress
+     * the `-# Transcribed by X` footer; `undefined` or `true` ⇒ render it.
+     */
+    showModelFooter?: boolean;
     metadata?: {
       processingTimeMs?: number;
     };
@@ -234,6 +239,7 @@ export class GatewayClient {
   ): Promise<{
     content: string;
     provider?: SttProvider;
+    showModelFooter?: boolean;
     metadata?: { processingTimeMs?: number };
   }> {
     const response = await fetch(`${this.baseUrl}/ai/transcribe?wait=true`, {
@@ -273,6 +279,7 @@ export class GatewayClient {
     return {
       content: data.result.content,
       provider: data.result.provider,
+      showModelFooter: data.result.showModelFooter,
       metadata: data.result.metadata,
     };
   }
@@ -491,9 +498,10 @@ export class GatewayClient {
 
   /**
    * Lookup which personality sent a message by Discord message ID.
-   * Used by ReplyResolutionService to resolve DM reply targets.
-   *
-   * This is a database lookup fallback when Redis cache misses (messages >7 days old).
+   * Used by ReplyResolutionService as the tier-2 database fallback when the
+   * Redis cache misses (messages >7 days old, or transient store failures
+   * during the original send). Works for DMs and guild channels alike — the
+   * underlying query is keyed on `discordMessageId` only.
    *
    * @param discordMessageId - The Discord snowflake ID to look up
    * @returns Personality info if found, null otherwise

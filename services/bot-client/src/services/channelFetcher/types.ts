@@ -59,6 +59,14 @@ export interface FetchOptions {
   before?: string;
   /** Bot's own user ID (to identify assistant messages) */
   botUserId: string;
+  /**
+   * Canonical bot suffix (e.g. ` · Tzurot`) derived from the bot's Discord
+   * tag via `deriveBotSuffix`. Used to strip the suffix off webhook usernames
+   * when extracting personality display names. Optional for backward
+   * compatibility: callers that don't supply it get the raw webhook username
+   * as the personality name attribution.
+   */
+  botSuffix?: string;
   /** The personality name (for assistant message attribution) */
   personalityName?: string;
   /** The personality ID (for message tagging) */
