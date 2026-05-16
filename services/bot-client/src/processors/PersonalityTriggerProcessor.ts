@@ -67,6 +67,13 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
 
     // Resolve the three trigger sources in parallel — they don't depend on
     // each other and each may produce 0..1 personalities.
+    //
+    // Cold-cache caveat: this may load the same personality up to 3x when
+    // reply target + activation + mention all resolve to the same character.
+    // PersonalityIdCache makes this cheap in steady state; SlotResolver's
+    // `resolveSlots` dedupes by personality.id downstream so the duplicate
+    // resolution doesn't propagate. The duplicated cold-cache fetch is an
+    // acceptable cost for keeping the resolvers independent.
     const [replyPersonality, activatedPersonality, mentionedPersonalities] = await Promise.all([
       this.resolveReplyPersonality(message, userId),
       this.resolveActivatedPersonality(message, userId),
@@ -83,6 +90,21 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
       return false; // Nothing for this processor to do; let chain continue.
     }
 
+    // Did the cap drop any tagged personalities? Compare unique candidate
+    // count to delivered slot count. Dedup-driven shrinkage (same personality
+    // mentioned twice) doesn't count as truncation — only the cap does.
+    const uniqueCandidates = new Set<string>();
+    if (replyPersonality !== null) {
+      uniqueCandidates.add(replyPersonality.id);
+    }
+    if (activatedPersonality !== null) {
+      uniqueCandidates.add(activatedPersonality.id);
+    }
+    for (const m of mentionedPersonalities) {
+      uniqueCandidates.add(m.id);
+    }
+    const truncated = uniqueCandidates.size > slots.length;
+
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
     const content = voiceTranscript ?? getEffectiveContent(message);
 
@@ -90,6 +112,8 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
       {
         messageId: message.id,
         slotCount: slots.length,
+        candidateCount: uniqueCandidates.size,
+        truncated,
         sources: slots.map(s => s.source),
         personalityIds: slots.map(s => s.personality.id),
       },
@@ -101,6 +125,7 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
       channel,
       slots,
       content,
+      truncated,
     });
 
     return true; // Stop chain — coordinator owns delivery from here.

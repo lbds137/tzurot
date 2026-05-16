@@ -11,7 +11,12 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { Message } from 'discord.js';
 import type { LLMGenerationResult, LoadedPersonality, TypingChannel } from '@tzurot/common-types';
 import { MULTI_TAG } from '@tzurot/common-types';
-import { MultiTagCoordinator, type StartFanOutInput } from './MultiTagCoordinator.js';
+import {
+  MultiTagCoordinator,
+  type StartFanOutInput,
+  type MultiTagCoordinatorDeps,
+  type RuntimeEntry,
+} from './MultiTagCoordinator.js';
 import type { ResolvedSlot } from './SlotResolver.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -84,6 +89,7 @@ describe('MultiTagCoordinator', () => {
     deleteEntry: ReturnType<typeof vi.fn>;
     markStale: ReturnType<typeof vi.fn>;
     isStale: ReturnType<typeof vi.fn>;
+    clearDMBackfillTried: ReturnType<typeof vi.fn>;
   };
 
   let coordinator: MultiTagCoordinator;
@@ -114,15 +120,16 @@ describe('MultiTagCoordinator', () => {
       deleteEntry: vi.fn().mockResolvedValue(undefined),
       markStale: vi.fn().mockResolvedValue(undefined),
       isStale: vi.fn().mockResolvedValue(false),
+      clearDMBackfillTried: vi.fn().mockResolvedValue(undefined),
     };
 
     coordinator = new MultiTagCoordinator({
-      chatManager: chatManager as never,
-      gatewayClient: gatewayClient as never,
-      jobTracker: jobTracker as never,
-      orderingService: orderingService as never,
-      slotDelivery: slotDelivery as never,
-      persistence: persistence as never,
+      chatManager: chatManager as unknown as MultiTagCoordinatorDeps['chatManager'],
+      gatewayClient: gatewayClient as unknown as MultiTagCoordinatorDeps['gatewayClient'],
+      jobTracker: jobTracker as unknown as MultiTagCoordinatorDeps['jobTracker'],
+      orderingService: orderingService as unknown as MultiTagCoordinatorDeps['orderingService'],
+      slotDelivery: slotDelivery as unknown as MultiTagCoordinatorDeps['slotDelivery'],
+      persistence: persistence as unknown as MultiTagCoordinatorDeps['persistence'],
     });
   });
 
@@ -132,13 +139,14 @@ describe('MultiTagCoordinator', () => {
 
   function fanOut(
     slots: ResolvedSlot[],
-    opts: { jobIdsBySlotIndex?: string[]; message?: Message } = {}
+    opts: { jobIdsBySlotIndex?: string[]; message?: Message; truncated?: boolean } = {}
   ) {
     const input: StartFanOutInput = {
       message: opts.message ?? buildMessage(),
       channel: buildChannel(),
       slots,
       content: 'hi everyone',
+      truncated: opts.truncated ?? false,
     };
     chatManager.submitChatJob.mockImplementation(async ({ personality }) => {
       const idx = slots.findIndex(s => s.personality.id === personality.id);
@@ -209,6 +217,7 @@ describe('MultiTagCoordinator', () => {
         channel: buildChannel(),
         slots: [buildResolvedSlot(a), buildResolvedSlot(b)],
         content: 'hi',
+        truncated: false,
       });
 
       // Only Alice tracked
@@ -224,6 +233,7 @@ describe('MultiTagCoordinator', () => {
         channel: buildChannel(),
         slots: [buildResolvedSlot(buildPersonality('Alice'))],
         content: 'hi',
+        truncated: false,
       });
       expect(chatManager.submitChatJob).not.toHaveBeenCalled();
     });
@@ -234,9 +244,32 @@ describe('MultiTagCoordinator', () => {
         channel: buildChannel(),
         slots: [],
         content: 'hi',
+        truncated: false,
       });
       expect(chatManager.submitChatJob).not.toHaveBeenCalled();
       expect(persistence.putEntry).not.toHaveBeenCalled();
+    });
+
+    it('populates ownsJob BEFORE the putEntry roundtrip resolves (race-window guard)', async () => {
+      // Race scenario: between `submitSlot` (registers the jobId with
+      // JobTracker) and `putEntry` resolving, a result could arrive. If
+      // `ownsJob` isn't populated yet, the result falls through to the
+      // single-personality path via JobTracker.getContext — bypassing slot
+      // ordering. The fix pre-populates jobToGroup/entries before the
+      // persistence await; this test pins that ordering.
+      const a = buildPersonality('Alice');
+      let ownsJobInsidePersist: boolean | null = null;
+      persistence.putEntry.mockImplementationOnce(async () => {
+        ownsJobInsidePersist = coordinator.ownsJob('job-Alice');
+      });
+
+      const { input } = fanOut([buildResolvedSlot(a)]);
+      await coordinator.startFanOut(input);
+
+      // The check inside putEntry's mock saw ownsJob = true → the
+      // in-memory state was populated before the roundtrip.
+      expect(ownsJobInsidePersist).toBe(true);
+      expect(coordinator.ownsJob('job-Alice')).toBe(true);
     });
 
     it('leaves no in-memory state when putEntry fails, registers slots per-job for ordering', async () => {
@@ -574,6 +607,110 @@ describe('MultiTagCoordinator', () => {
       persistence.isStale.mockResolvedValue(true);
       expect(await coordinator.isStale('foo')).toBe(true);
       expect(persistence.isStale).toHaveBeenCalledWith('foo');
+    });
+  });
+
+  describe('staleCheckNeeded fast-path flag', () => {
+    it('defaults to false before any stale marking', () => {
+      expect(coordinator.staleCheckNeeded).toBe(false);
+    });
+
+    it('flips to true after beginShutdown marks any pending jobIds', async () => {
+      const a = buildPersonality('Alice');
+      const { input } = fanOut([buildResolvedSlot(a)]);
+      await coordinator.startFanOut(input);
+
+      expect(coordinator.staleCheckNeeded).toBe(false);
+      await coordinator.beginShutdown();
+      expect(coordinator.staleCheckNeeded).toBe(true);
+    });
+
+    it('stays false when shutdown finds nothing to mark stale', async () => {
+      await coordinator.beginShutdown();
+      expect(coordinator.staleCheckNeeded).toBe(false);
+    });
+
+    it('flips to true via noteRecoveryMarkedStale (recovery hook)', () => {
+      expect(coordinator.staleCheckNeeded).toBe(false);
+      coordinator.noteRecoveryMarkedStale();
+      expect(coordinator.staleCheckNeeded).toBe(true);
+    });
+  });
+
+  describe('adoptRehydratedEntry', () => {
+    it('wires in-memory state and registers with ordering service', async () => {
+      const a = buildPersonality('Alice');
+      const entry: RuntimeEntry = {
+        groupId: 'rehydrated-group',
+        sourceMessageId: 'msg-x',
+        message: buildMessage(),
+        channel: buildChannel(),
+        guildId: 'guild-1',
+        clientId: 'bot-1',
+        userId: 'user-1',
+        userMessageTime: new Date('2026-05-15T10:00:00Z'),
+        userMessageContent: 'hi',
+        slots: [
+          {
+            slotIndex: 0,
+            personality: a,
+            personaId: 'persona-a',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'fresh-job-Alice',
+            status: 'pending',
+          },
+        ],
+        createdAt: Date.now(),
+        timeoutHandle: setTimeout(() => undefined, 100000),
+        truncated: false,
+      };
+
+      await coordinator.adoptRehydratedEntry(entry);
+
+      expect(coordinator.ownsJob('fresh-job-Alice')).toBe(true);
+      expect(orderingService.registerJob).toHaveBeenCalledWith(
+        entry.channel.id,
+        'rehydrated-group',
+        entry.userMessageTime
+      );
+    });
+
+    it('immediately flushes when every slot is already terminal at adopt time', async () => {
+      // Shutdown happened mid-flush: all slots completed but Redis state
+      // not yet cleared. On recovery, adopt should flush immediately.
+      const a = buildPersonality('Alice');
+      const entry: RuntimeEntry = {
+        groupId: 'terminal-group',
+        sourceMessageId: 'msg-y',
+        message: buildMessage(),
+        channel: buildChannel(),
+        guildId: 'guild-1',
+        clientId: 'bot-1',
+        userId: 'user-1',
+        userMessageTime: new Date('2026-05-15T10:00:00Z'),
+        userMessageContent: 'hi',
+        slots: [
+          {
+            slotIndex: 0,
+            personality: a,
+            personaId: 'persona-a',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-Alice',
+            status: 'completed',
+            result: { requestId: 'r1', success: true, content: 'pre-shutdown reply' },
+          },
+        ],
+        createdAt: Date.now(),
+        timeoutHandle: setTimeout(() => undefined, 100000),
+        truncated: false,
+      };
+
+      await coordinator.adoptRehydratedEntry(entry);
+
+      // Group flushed immediately via deliverGroup → deliverSuccess called
+      expect(slotDelivery.deliverSuccess).toHaveBeenCalledOnce();
     });
   });
 });

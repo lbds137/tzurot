@@ -91,6 +91,12 @@ export interface CoordinatorEntrySnapshot {
   userMessageContent: string;
   slots: SlotSnapshot[];
   createdAt: number; // epoch ms
+  /**
+   * Did the resolver's cap drop tagged personalities? Persisted so a
+   * post-restart recovery still appends the truncation notice when the
+   * group finally delivers.
+   */
+  truncated: boolean;
 }
 
 export class MultiTagPersistence {
@@ -121,7 +127,7 @@ export class MultiTagPersistence {
   }
 
   /**
-   * Replace the entry JSON and slide TTLs on its reverse indices.
+   * Replace the entry JSON and refresh its reverse indices.
    *
    * Slot status changes during fan-out (each slot result extends the
    * entry's effective lifetime); the reverse-index keys must slide along
@@ -130,6 +136,12 @@ export class MultiTagPersistence {
    * the slide, a slow-flushing group whose total wall time approaches
    * `MULTI_TAG.REDIS_TTL_SEC` could break the jobId → groupId lookup
    * silently in recovery scans.
+   *
+   * Uses `SET` (not `EXPIRE`) for job-index keys so recovery's new jobIds
+   * also get created here — `EXPIRE` is a no-op on non-existent keys, so
+   * resubmitted slots would otherwise leave the new jobId without any
+   * reverse-index entry. `SET` is idempotent: refreshes if exists, creates
+   * if not.
    */
   async updateEntry(entry: CoordinatorEntrySnapshot): Promise<void> {
     const ttl = MULTI_TAG.REDIS_TTL_SEC;
@@ -142,7 +154,12 @@ export class MultiTagPersistence {
     );
     pipeline.expire(`${REDIS_KEY_PREFIXES.MULTI_TAG_SOURCE_INDEX}${entry.sourceMessageId}`, ttl);
     for (const slot of entry.slots) {
-      pipeline.expire(`${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}${slot.jobId}`, ttl);
+      pipeline.set(
+        `${REDIS_KEY_PREFIXES.MULTI_TAG_JOB_INDEX}${slot.jobId}`,
+        entry.groupId,
+        'EX',
+        ttl
+      );
     }
     await pipeline.exec();
   }
@@ -236,9 +253,22 @@ export class MultiTagPersistence {
     }
   }
 
-  /** Remove a jobId from the stale set after its result has been discarded. */
+  /**
+   * Remove a jobId from the stale set after its result has been discarded.
+   *
+   * Fails soft on Redis errors: the stale-jobs SET has a sliding 24h TTL,
+   * so an unconsumed jobId eventually self-prunes. A blip on clearStale is
+   * "the SET grows by 1 for at most 24h" — worth a log line but not worth
+   * propagating to the caller (which already does best-effort `.catch`).
+   * Aligns the error-handling shape with sibling `isStale` and
+   * `wasDMBackfillTried`, both fail-open.
+   */
   async clearStale(jobId: string): Promise<void> {
-    await this.redis.srem(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, jobId);
+    try {
+      await this.redis.srem(REDIS_KEY_PREFIXES.MULTI_TAG_STALE_JOBS, jobId);
+    } catch (err) {
+      logger.warn({ err, jobId }, 'clearStale Redis call failed — stale entry will expire via TTL');
+    }
   }
 
   /**
@@ -270,6 +300,29 @@ export class MultiTagPersistence {
         'wasDMBackfillTried Redis check failed; failing open (will re-scan)'
       );
       return false;
+    }
+  }
+
+  /**
+   * Clear the "backfill tried" sentinel for a channel. Called after a
+   * session materializes via the activation path so a future bare DM
+   * doesn't get short-circuited to "no session" by the stale negative
+   * cache. Without this, a session set via `/activate` (admin path) would
+   * wait up to 1 hour for the sentinel TTL to expire before bare DMs
+   * could route correctly.
+   *
+   * Fails soft on Redis errors — the sentinel will expire naturally via
+   * its 1-hour TTL.
+   */
+  async clearDMBackfillTried(channelId: string): Promise<void> {
+    const key = `${REDIS_KEY_PREFIXES.MULTI_TAG_DM_BACKFILL_TRIED}${channelId}`;
+    try {
+      await this.redis.del(key);
+    } catch (err) {
+      logger.warn(
+        { err, channelId },
+        'clearDMBackfillTried Redis call failed — sentinel will expire via TTL'
+      );
     }
   }
 }
@@ -309,12 +362,37 @@ function parseSnapshotOrLog(key: string, raw: string | null): CoordinatorEntrySn
       parsed.slots.every(
         s =>
           typeof s.jobId === 'string' &&
+          s.jobId.length > 0 &&
           typeof s.status === 'string' &&
           typeof s.personalityId === 'string' &&
+          s.personalityId.length > 0 &&
           typeof s.personalitySlug === 'string' &&
+          s.personalitySlug.length > 0 &&
           typeof s.source === 'string'
       )
     ) {
+      // Backwards-compat: snapshots written before the `truncated` field
+      // existed (or by a roll-back to an older build mid-deploy) won't have
+      // it. Default to false so they parse — the worst case is the user
+      // doesn't see a truncation notice for a fan-out that started under
+      // the older build.
+      if (typeof parsed.truncated !== 'boolean') {
+        parsed.truncated = false;
+      }
+      // Same pattern for `isAutoResponse` on each slot. The
+      // `SlotDeliveryContext.isAutoResponse` field was narrowed from
+      // `boolean | undefined` to `boolean` — without this coercion, a
+      // pre-narrowing snapshot (or a malformed entry) would slip through
+      // the validation block above (which doesn't check this field
+      // because of this default), then surface as `undefined` downstream
+      // in `buildSlotContext`. Defaulting to `false` mirrors the
+      // pre-narrowing implicit behavior (false-ish = explicit user
+      // mention, not ambient).
+      for (const slot of parsed.slots) {
+        if (typeof slot.isAutoResponse !== 'boolean') {
+          slot.isAutoResponse = false;
+        }
+      }
       return parsed;
     }
     logger.warn({ key }, 'Skipping malformed multi-tag entry (failed field validation)');

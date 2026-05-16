@@ -53,6 +53,7 @@ function buildEntry(overrides: Partial<RuntimeEntry> = {}): RuntimeEntry {
     slots: [buildSlot('Alice')],
     createdAt: 1737900000000,
     timeoutHandle: setTimeout(() => undefined, 1_000_000),
+    truncated: false,
     ...overrides,
   };
 }
