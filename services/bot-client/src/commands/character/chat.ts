@@ -310,6 +310,24 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
 }
 
 /**
+ * Read the random-pick filter flags out of the typed slash options.
+ *
+ * Extracted from `handleChat` so the two `?? false` defaults don't push the
+ * caller over the cyclomatic-complexity cap; the per-flag default expansion
+ * lives here where it's the function's only concern. Each filter is
+ * independent — see `ResolveCharacterSlugOptions` for the AND-composition.
+ */
+function readRandomPickFilters(options: ReturnType<typeof characterChatOptions>): {
+  excludePrivate: boolean;
+  onlyMine: boolean;
+} {
+  return {
+    excludePrivate: options['exclude-private']() ?? false,
+    onlyMine: options['only-mine']() ?? false,
+  };
+}
+
+/**
  * Handle /character chat subcommand
  *
  * Supports two modes:
@@ -337,9 +355,11 @@ export async function handleChat(
   const discordDisplayName = context.member?.displayName ?? context.user.displayName;
 
   // Resolve the character slug (either user-provided or random pick).
-  const resolved = await resolveCharacterSlug(options.character(), context, {
-    excludePrivate: options['exclude-private']() ?? false,
-  });
+  const resolved = await resolveCharacterSlug(
+    options.character(),
+    context,
+    readRandomPickFilters(options)
+  );
   if (resolved.kind === 'error') {
     await context.editReply({ content: resolved.message });
     return;
