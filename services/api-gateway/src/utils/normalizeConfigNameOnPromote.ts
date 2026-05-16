@@ -85,6 +85,41 @@ export function computeNameForPromotion(opts: PromotionContext): string | undefi
 }
 
 /**
+ * Apply the owner-driven name-promotion logic to an update body.
+ *
+ * If `computeNameForPromotion` returns an effective name (the user is
+ * promoting their config to global or renaming a global), splice it into
+ * the patch under `name`. Otherwise return the body unchanged.
+ *
+ * Caller is responsible for guarding admin-edits-on-non-owned-configs
+ * (which should apply the body verbatim — suffixing under the bot owner's
+ * username would mis-attribute provenance). The LLM route uses an
+ * `isOwnedByRequester ? applyOwnerNamePromotion(...) : { ...body }` ternary;
+ * the TTS route hard-fails non-owner edits before reaching this point so
+ * the guard is implicit.
+ *
+ * Generic on `TBody extends { name?: string; isGlobal?: boolean }` so both
+ * LlmConfigUpdateBody and TtsConfigUpdateBody work. Takes a minimal
+ * `{ discordId, discordUsername }` shape rather than an Express request to
+ * decouple this util from the route layer.
+ */
+export function applyOwnerNamePromotion<TBody extends { name?: string; isGlobal?: boolean }>(
+  body: TBody,
+  config: { name: string; isGlobal: boolean },
+  user: { discordId: string; discordUsername: string }
+): TBody {
+  const effectiveName = computeNameForPromotion({
+    currentName: config.name,
+    currentIsGlobal: config.isGlobal,
+    requestedName: body.name,
+    requestedIsGlobal: body.isGlobal,
+    discordId: user.discordId,
+    discordUsername: user.discordUsername,
+  });
+  return { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
+}
+
+/**
  * Build the user-facing collision message for a config update where the
  * post-update state may be auto-renamed by the promotion helper.
  *

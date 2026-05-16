@@ -160,9 +160,19 @@ export async function findAdminUserOrSendError(
  * The subset of a config-service used for name-collision checks. Each
  * service implements this method with its own row and scope types; we only
  * care about the boolean `exists` flag.
+ *
+ * `postIsGlobal` is the 4th argument used by user-side update routes that
+ * may promote a config to global — passing `true` widens the collision
+ * check to cover the cross-user global namespace. Admin and create paths
+ * omit it; the service defaults to `false`.
  */
 interface NameExistsChecker<TScope> {
-  checkNameExists(name: string, scope: TScope, excludeId?: string): Promise<{ exists: boolean }>;
+  checkNameExists(
+    name: string,
+    scope: TScope,
+    excludeId?: string,
+    postIsGlobal?: boolean
+  ): Promise<{ exists: boolean }>;
 }
 
 /**
@@ -190,14 +200,18 @@ export async function ensureNoNameCollision<TScope>(
     /** When editing an existing row, pass its id so the row's own current
      *  name doesn't count as a collision against itself. Omit on creates. */
     excludeId?: string;
+    /** For user-side update paths only — set `true` when the post-update
+     *  state would be `isGlobal: true`, so the check widens to the
+     *  cross-user global namespace. Admin and create paths omit this. */
+    postIsGlobal?: boolean;
     /** Caller-provided message formatter. Receives `name` (so the caller
      *  doesn't have to capture it in closure) and returns the full
      *  user-facing message. */
     formatCollisionMessage: (name: string) => string;
   }
 ): Promise<boolean> {
-  const { name, scope, excludeId, formatCollisionMessage } = options;
-  const nameCheck = await service.checkNameExists(name, scope, excludeId);
+  const { name, scope, excludeId, postIsGlobal, formatCollisionMessage } = options;
+  const nameCheck = await service.checkNameExists(name, scope, excludeId, postIsGlobal);
   if (nameCheck.exists) {
     sendError(res, ErrorResponses.nameCollision(formatCollisionMessage(name)));
     return false;

@@ -12,7 +12,6 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import type { z } from 'zod';
 import {
   createLogger,
   isBotOwner,
@@ -48,8 +47,8 @@ import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.j
 import { enrichWithModelContext } from '../../utils/modelValidation.js';
 import { validateLlmConfigModelFields } from '../../utils/llmConfigValidation.js';
 import {
+  applyOwnerNamePromotion,
   buildCollisionMessage,
-  computeNameForPromotion,
   getDiscordUsernameFromRequest,
 } from '../../utils/normalizeConfigNameOnPromote.js';
 import { createResolveHandler } from './llmConfigResolve.js';
@@ -220,30 +219,6 @@ function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterM
   };
 }
 
-type LlmConfigUpdateBody = z.infer<typeof LlmConfigUpdateSchema>;
-
-/**
- * Apply the owner-driven name-promotion logic to an update body. Caller is
- * responsible for guarding admin-edits-on-non-owned-configs (which should
- * apply the name verbatim — suffixing under the bot owner's username would
- * mis-attribute provenance).
- */
-function applyOwnerNamePromotion(
-  body: LlmConfigUpdateBody,
-  config: { name: string; isGlobal: boolean },
-  req: ProvisionedRequest
-): LlmConfigUpdateBody {
-  const effectiveName = computeNameForPromotion({
-    currentName: config.name,
-    currentIsGlobal: config.isGlobal,
-    requestedName: body.name,
-    requestedIsGlobal: body.isGlobal,
-    discordId: req.userId,
-    discordUsername: getDiscordUsernameFromRequest(req),
-  });
-  return { ...body, ...(effectiveName !== undefined ? { name: effectiveName } : {}) };
-}
-
 function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -299,7 +274,8 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
 
     // Owner edits run the promotion helper; admin edits on non-owned configs
     // apply the name verbatim (suffixing would mis-attribute provenance).
-    const patch = isOwnedByRequester ? applyOwnerNamePromotion(body, config, req) : { ...body };
+    const user = { discordId: req.userId, discordUsername: getDiscordUsernameFromRequest(req) };
+    const patch = isOwnedByRequester ? applyOwnerNamePromotion(body, config, user) : { ...body };
 
     // Compute post-update isGlobal so the collision check covers the cross-
     // user global-namespace case when the user is promoting (or already
@@ -307,29 +283,25 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
     const postIsGlobal = body.isGlobal ?? config.isGlobal;
 
     // Check for duplicate name if a name is being applied (either user-supplied
-    // or normalized by the promotion helper). Use the post-normalization value
-    // so collision checks reflect what will actually land in the DB.
-    // Bot-owner-editing-others uses the OWNER's userId for namespace scoping
-    // (the name lives in the owner's namespace, not the requester's).
-    if (patch.name !== undefined && patch.name.length > 0) {
-      const nameCheck = await service.checkNameExists(
-        patch.name,
-        { type: 'USER', userId: config.ownerId, discordId: discordUserId },
-        configId,
-        postIsGlobal
-      );
-      if (nameCheck.exists) {
-        return sendError(
-          res,
-          ErrorResponses.nameCollision(
-            buildCollisionMessage({
-              effectiveName: patch.name,
-              requestedName: body.name,
-              configKind: 'config',
-            })
-          )
-        );
-      }
+    // or normalized by the promotion helper). Bot-owner-editing-others uses
+    // the OWNER's userId for namespace scoping (the name lives in the
+    // owner's namespace, not the requester's).
+    if (
+      patch.name !== undefined &&
+      !(await ensureNoNameCollision(res, service, {
+        name: patch.name,
+        scope: { type: 'USER', userId: config.ownerId, discordId: discordUserId },
+        excludeId: configId,
+        postIsGlobal,
+        formatCollisionMessage: n =>
+          buildCollisionMessage({
+            effectiveName: n,
+            requestedName: body.name,
+            configKind: 'config',
+          }),
+      }))
+    ) {
+      return;
     }
 
     // Update using service (handles cache invalidation). Empty-body guard
