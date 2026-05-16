@@ -273,3 +273,39 @@ logger.error("Operation failed", exc_info=True)
 - All functions must have parameter and return type annotations
 - Use `Any` for NeMo/PocketTTS objects (no type stubs) — justify with `# type: ignore[import-untyped]`
 - Target: `mypy --strict` passes
+
+## Duplication, Helpers, and the CPD Ratchet
+
+The CRUD config routes (admin/{llm,tts}-config, user/{llm,tts}-config) share extracted helpers; the raw-jscpd metric is paired with a post-filter that excludes call-expression-dominant fragments (the "standardized helper call site" false-positive class). The full close-out audit lives in [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../../docs/reference/CPD_CAMPAIGN_AUDIT.md).
+
+### Config-route helpers — scope and boundary
+
+The helpers in `services/api-gateway/src/utils/configRouteHelpers.ts` and `normalizeConfigNameOnPromote.ts` standardize the CRUD config-route shape:
+
+- `parseBodyOrSendError(res, schema, body)` — Zod parse + send error
+- `findConfigOrSendNotFound(res, fetchRow, resourceName)` — fetch + 404
+- `findGlobalConfigOrSendError(res, fetchRow, options)` — fetch + 404 + isGlobal guard (admin paths)
+- `findAdminUserOrSendError(res, prisma, discordUserId, logger)` — admin discordId → UUID
+- `ensureNoNameCollision<TScope>(res, service, options)` — generic name-collision check; supports `postIsGlobal` for cross-namespace promotion paths
+- `shapeDeleteResponse(warning, baseLogFields)` — conditional warning omission for delete
+- `applyOwnerNamePromotion<TBody>(body, config, user)` — generic promotion patch construction
+
+**Apply these helpers when:** the route follows the fetch-validate-respond shape over a top-level config row (LlmConfig, TtsConfig, similar future resources).
+
+**Do NOT apply these helpers when:** the route uses cascade-override semantics (`user/{tts,stt,model}-override.ts`). Cascade overrides set/clear values on a personality-scoped key — a fundamentally different domain shape than CRUD. Forcing CRUD helpers there is the Wrong Abstraction trap per Kimi K2.6 and GLM 5.1 council review during campaign close-out.
+
+### The 2-callback ceiling rule (when considering new extractions)
+
+Before extracting a new shared helper from a duplicated route pattern, prototype the kernel signature. If the proposed shared function requires **more than 2 callback/predicate parameters** to handle observed divergences across the call sites, **the divergence is structural and the helper should NOT be extracted**. Leave the code inline; duplication is cheaper than the wrong abstraction.
+
+The rule's symmetry: when council reviewers (or your own instinct) warn "this looks like Wrong Abstraction," try the prototype. Don't pre-decide; let the signature size be the empirical answer.
+
+### CPD measurement: raw vs filtered
+
+- **`pnpm cpd`** — runs jscpd. Output is informational. The raw clone count cannot reach zero in a well-abstracted TypeScript codebase because jscpd's token matcher treats standardized call sites of shared helpers as new clones across consumers.
+- **`pnpm ops cpd:filtered`** — runs the post-filter against jscpd's JSON output. Excludes fragments where ≥80% of classifiable lines are call-expression shape. This is the metric that reflects real duplication debt.
+- **`pnpm ops cpd:check`** — CI gate. Fails the build if filtered lines exceed the baseline ceiling (`baseline.filteredLines + baseline.graceMargin`) recorded in `.github/baselines/cpd-baseline.json`.
+
+**When a clone trips the ratchet, ask first**: is this a new call-site of a shared helper (likely OK, will be excluded by the filter — investigate why the filter missed it) or a new copy-paste of business logic (real debt, fix it)? `pnpm ops cpd:filtered --show-pairs 25` shows the top remaining pairs to help triage.
+
+**Do NOT bypass the ratchet by editing the baseline upward** without first either (a) extracting the duplication into a shared helper, (b) confirming the new clones are legitimate skeleton-shape uniformity not worth abstracting (apply the 2-callback rule), or (c) raising the threshold on `pnpm ops cpd:filtered` if the heuristic is misclassifying.
