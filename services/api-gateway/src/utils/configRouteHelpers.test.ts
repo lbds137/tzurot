@@ -29,6 +29,7 @@ vi.mock('./errorResponses.js', () => ({
 
 import {
   parseBodyOrSendError,
+  findConfigOrSendNotFound,
   findGlobalConfigOrSendError,
   findAdminUserOrSendError,
   ensureNoNameCollision,
@@ -61,6 +62,30 @@ describe('parseBodyOrSendError', () => {
   });
 });
 
+describe('findConfigOrSendNotFound', () => {
+  it('returns the row when fetch resolves to a value', async () => {
+    const row = { id: 'r1', ownerId: 'u1', name: 'User config' };
+    const fetchRow = vi.fn().mockResolvedValue(row);
+
+    const result = await findConfigOrSendNotFound(mockRes, fetchRow, 'Config');
+
+    expect(result).toBe(row);
+    expect(mockSendError).not.toHaveBeenCalled();
+  });
+
+  it('sends 404 and returns null when fetch resolves to null', async () => {
+    const fetchRow = vi.fn().mockResolvedValue(null);
+
+    const result = await findConfigOrSendNotFound(mockRes, fetchRow, 'TtsConfig');
+
+    expect(result).toBeNull();
+    expect(mockSendError).toHaveBeenCalledWith(
+      mockRes,
+      expect.objectContaining({ error: 'NOT_FOUND', message: 'TtsConfig not found' })
+    );
+  });
+});
+
 describe('findGlobalConfigOrSendError', () => {
   const baseOptions = {
     notFoundResource: 'Config',
@@ -69,9 +94,9 @@ describe('findGlobalConfigOrSendError', () => {
 
   it('returns the row when it exists and isGlobal is true', async () => {
     const row = { id: 'r1', isGlobal: true, name: 'Global Default' };
-    const fetch = vi.fn().mockResolvedValue(row);
+    const fetchRow = vi.fn().mockResolvedValue(row);
 
-    const result = await findGlobalConfigOrSendError(mockRes, fetch, {
+    const result = await findGlobalConfigOrSendError(mockRes, fetchRow, {
       ...baseOptions,
       operation: 'edit',
     });
@@ -81,9 +106,9 @@ describe('findGlobalConfigOrSendError', () => {
   });
 
   it('sends 404 and returns null when row is null', async () => {
-    const fetch = vi.fn().mockResolvedValue(null);
+    const fetchRow = vi.fn().mockResolvedValue(null);
 
-    const result = await findGlobalConfigOrSendError(mockRes, fetch, {
+    const result = await findGlobalConfigOrSendError(mockRes, fetchRow, {
       ...baseOptions,
       operation: 'edit',
     });
@@ -97,9 +122,9 @@ describe('findGlobalConfigOrSendError', () => {
 
   it('sends validation error and returns null when isGlobal is false', async () => {
     const row = { id: 'r1', isGlobal: false, name: 'User config' };
-    const fetch = vi.fn().mockResolvedValue(row);
+    const fetchRow = vi.fn().mockResolvedValue(row);
 
-    const result = await findGlobalConfigOrSendError(mockRes, fetch, {
+    const result = await findGlobalConfigOrSendError(mockRes, fetchRow, {
       ...baseOptions,
       operation: 'delete',
     });
@@ -119,9 +144,9 @@ describe('findGlobalConfigOrSendError', () => {
   ] as const)(
     'formats operation %s with the resource label',
     async (operation, expectedMessage) => {
-      const fetch = vi.fn().mockResolvedValue({ id: 'x', isGlobal: false });
+      const fetchRow = vi.fn().mockResolvedValue({ id: 'x', isGlobal: false });
 
-      await findGlobalConfigOrSendError(mockRes, fetch, { ...baseOptions, operation });
+      await findGlobalConfigOrSendError(mockRes, fetchRow, { ...baseOptions, operation });
 
       expect(mockSendError).toHaveBeenCalledWith(
         mockRes,
@@ -131,9 +156,9 @@ describe('findGlobalConfigOrSendError', () => {
   );
 
   it('respects a custom resourceLabel (e.g., "TTS configs")', async () => {
-    const fetch = vi.fn().mockResolvedValue({ id: 'x', isGlobal: false });
+    const fetchRow = vi.fn().mockResolvedValue({ id: 'x', isGlobal: false });
 
-    await findGlobalConfigOrSendError(mockRes, fetch, {
+    await findGlobalConfigOrSendError(mockRes, fetchRow, {
       notFoundResource: 'TtsConfig',
       resourceLabel: 'TTS configs',
       operation: 'edit',

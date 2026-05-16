@@ -30,9 +30,13 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { resolveProvisionedUserId } from '../../utils/resolveProvisionedUserId.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { sendZodError } from '../../utils/zodHelpers.js';
 import { isPrismaUniqueConstraintError } from '../../utils/prismaErrors.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
+import {
+  parseBodyOrSendError,
+  findConfigOrSendNotFound,
+  ensureNoNameCollision,
+} from '../../utils/configRouteHelpers.js';
 import type { ProvisionedRequest } from '../../types.js';
 import {
   LlmConfigService,
@@ -96,10 +100,13 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
-    // Use service to get config
-    const config = await service.getById(configId);
+    const config = await findConfigOrSendNotFound(
+      res,
+      () => service.getById(configId),
+      CONFIG_RESOURCE
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
 
     const userId = resolveProvisionedUserId(req);
@@ -127,12 +134,10 @@ function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterM
   return async (req: ProvisionedRequest, res: Response) => {
     const discordUserId = req.userId;
 
-    // Validate request body with shared Zod schema from common-types
-    const parseResult = LlmConfigCreateSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
+    const body = parseBodyOrSendError(res, LlmConfigCreateSchema, req.body);
+    if (body === null) {
+      return;
     }
-    const body = parseResult.data;
 
     if (!(await validateLlmConfigModelFields({ res, modelCache, body }))) {
       return;
@@ -144,18 +149,15 @@ function createCreateHandler(service: LlmConfigService, modelCache?: OpenRouterM
     // autoSuffixOnCollision (the preset clone flow): the service will bump
     // the (Copy N) suffix server-side until it finds a free slot. For
     // regular creates, strict name-uniqueness still surfaces as an error.
-    if (body.autoSuffixOnCollision !== true) {
-      const nameCheck = await service.checkNameExists(body.name, {
-        type: 'USER',
-        userId,
-        discordId: discordUserId,
-      });
-      if (nameCheck.exists) {
-        return sendError(
-          res,
-          ErrorResponses.nameCollision(`You already have a config named "${body.name}"`)
-        );
-      }
+    if (
+      body.autoSuffixOnCollision !== true &&
+      !(await ensureNoNameCollision(res, service, {
+        name: body.name,
+        scope: { type: 'USER', userId, discordId: discordUserId },
+        formatCollisionMessage: n => `You already have a config named "${n}"`,
+      }))
+    ) {
+      return;
     }
 
     // Create config using service. Three collision paths to translate:
@@ -247,12 +249,10 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
     const discordUserId = req.userId;
     const configId = getRequiredParam(req.params.id, 'id');
 
-    // Validate request body with shared Zod schema from common-types
-    const parseResult = LlmConfigUpdateSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendZodError(res, parseResult.error);
+    const body = parseBodyOrSendError(res, LlmConfigUpdateSchema, req.body);
+    if (body === null) {
+      return;
     }
-    const body = parseResult.data;
 
     if (
       !(await validateLlmConfigModelFields({
@@ -267,10 +267,13 @@ function createUpdateHandler(service: LlmConfigService, modelCache?: OpenRouterM
 
     const userId = resolveProvisionedUserId(req);
 
-    // Get existing config using service
-    const config = await service.getById(configId);
+    const config = await findConfigOrSendNotFound(
+      res,
+      () => service.getById(configId),
+      CONFIG_RESOURCE
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
 
     // Permission gate. computeLlmConfigPermissions grants canEdit to creator
@@ -387,10 +390,13 @@ function createDeleteHandler(service: LlmConfigService) {
 
     const userId = resolveProvisionedUserId(req);
 
-    // Get config using service
-    const config = await service.getById(configId);
+    const config = await findConfigOrSendNotFound(
+      res,
+      () => service.getById(configId),
+      CONFIG_RESOURCE
+    );
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
+      return;
     }
 
     // Use centralized permission computation for consistency
