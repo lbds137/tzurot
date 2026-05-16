@@ -28,7 +28,7 @@ export function createAIRouter(
   router.use('/generate', createGenerateRoute());
 
   // Audio transcription endpoint
-  router.use('/transcribe', createTranscribeRoute(aiQueue, queueEvents));
+  router.use('/transcribe', createTranscribeRoute(prisma, aiQueue, queueEvents));
 
   // Job status and delivery confirmation endpoints
   router.use('/', createJobStatusRoute(aiQueue));
