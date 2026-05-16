@@ -19,7 +19,7 @@
     "reports/**"
   ],
   "format": ["typescript"],
-  "minLines": 5,
+  "minLines": 10,
   "minTokens": 50,
   "gitignore": true,
   "absolute": true,
