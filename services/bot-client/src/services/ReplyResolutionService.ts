@@ -7,8 +7,14 @@
  *
  * Lookup Strategy (Tiered):
  * 1. Redis (fast path) - 7-day TTL, stores personality ID directly
- * 2. Database (authoritative) - Query by Discord message ID via api-gateway (DMs only)
- * 3. Display name parsing (last resort) - Parse **Name:** prefix or webhook username
+ * 2. Database (authoritative) - Query by Discord message ID via api-gateway.
+ *    Runs in both DMs and guild channels; covers the Redis-evicted case
+ *    (messages older than 7 days, or transient store failure during the
+ *    original send).
+ * 3. Display name parsing (last resort) - Parse **Name:** prefix (DMs) or
+ *    strip the canonical bot suffix off the webhook username (guilds). The
+ *    suffix is derived from `client.user.tag` via `deriveBotSuffix`, so the
+ *    parser stays in sync with the suffix WebhookManager emits.
  */
 
 import { ChannelType, type Message } from 'discord.js';
@@ -17,6 +23,7 @@ import type { LoadedPersonality } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import { redisService } from '../redis.js';
+import { deriveBotSuffix, stripBotSuffix } from '../utils/webhookNaming.js';
 
 const logger = createLogger('ReplyResolutionService');
 
@@ -90,8 +97,18 @@ export class ReplyResolutionService {
   /**
    * Parse personality name from message content (DM) or webhook username (guild).
    * Tier 3 fallback — purely for user convenience, not security-dependent.
+   *
+   * @param botTag - The running bot's `client.user.tag`. Used to derive the
+   *   canonical webhook suffix for guild webhook-username parsing. Passed in
+   *   explicitly (rather than read from `referencedMessage.client`) because
+   *   the caller already has access to the original message's client and
+   *   threading it down keeps the dependency explicit + test-friendly.
    */
-  private parseDisplayName(referencedMessage: Message, isDM: boolean): string | null {
+  private parseDisplayName(
+    referencedMessage: Message,
+    isDM: boolean,
+    botTag: string | null
+  ): string | null {
     if (isDM && referencedMessage.content) {
       // DM format: **DisplayName:** message content
       const prefixMatch = /^\*\*([^:\n]+?):\*\*/.exec(referencedMessage.content);
@@ -107,10 +124,16 @@ export class ReplyResolutionService {
       referencedMessage.author !== undefined &&
       referencedMessage.author !== null
     ) {
-      // Guild format: Webhook username is "DisplayName | BotName"
+      // Guild format: webhook username is `${personality.displayName}${botSuffix}`.
+      // Derive the suffix from the running bot's tag (rather than scanning
+      // for a hardcoded separator) so the parser stays correct even if the
+      // separator changes again; `stripBotSuffix` also falls back to the
+      // legacy ` | BotName` form for messages sent before the separator
+      // was switched.
       const webhookUsername = referencedMessage.author.username;
-      if (webhookUsername.includes(' | ')) {
-        const name = webhookUsername.split(' | ')[0].trim();
+      const botSuffix = deriveBotSuffix(botTag);
+      const name = botSuffix.length > 0 ? stripBotSuffix(webhookUsername, botSuffix) : null;
+      if (name !== null) {
         logger.debug(
           { personalityName: name },
           'Extracted personality name from webhook username (tier 3)'
@@ -123,11 +146,13 @@ export class ReplyResolutionService {
 
   /**
    * Multi-tier personality identifier lookup:
-   * Tier 1: Redis (fast path), Tier 2: Database (DM only), Tier 3: Display name parsing
+   * Tier 1: Redis (fast path), Tier 2: Database (DMs and guilds — covers
+   * Redis-evicted/never-stored cases), Tier 3: Display name parsing
    */
   private async lookupPersonalityIdentifier(
     referencedMessage: Message,
-    isDM: boolean
+    isDM: boolean,
+    botTag: string | null
   ): Promise<string | null> {
     // Tier 1: Redis (fast path for recent messages)
     let identifier = await redisService.getWebhookPersonality(referencedMessage.id);
@@ -136,15 +161,22 @@ export class ReplyResolutionService {
       logger.debug({ personalityId: identifier }, 'Found personality ID in Redis (tier 1)');
     }
 
-    // Tier 2: Database lookup (DM only when Redis misses)
-    if (!isValidIdentifier(identifier) && isDM && this.gatewayClient !== undefined) {
+    // Tier 2: Database lookup when Redis misses. Runs in both DMs and guild
+    // channels — `lookupPersonalityFromConversation` is a generic query by
+    // `discordMessageId`, not DM-specific. Critical for guild channels where
+    // tier 3 webhook-username parsing is best-effort: in an activated channel
+    // where the user direct-replies to a personality whose Redis key has
+    // expired (>7d) or was never stored (transient failure), tier 2 is what
+    // keeps the reply slot populated and preserves slot-0 ordering in
+    // multi-tag fan-outs.
+    if (!isValidIdentifier(identifier) && this.gatewayClient !== undefined) {
       const dbResult = await this.gatewayClient.lookupPersonalityFromConversation(
         referencedMessage.id
       );
       if (dbResult !== null) {
         identifier = dbResult.personalityId;
         logger.debug(
-          { personalityId: identifier },
+          { personalityId: identifier, isDM },
           'Found personality via database lookup (tier 2)'
         );
       }
@@ -152,7 +184,7 @@ export class ReplyResolutionService {
 
     // Tier 3: Display name parsing (last resort)
     if (!isValidIdentifier(identifier)) {
-      identifier = this.parseDisplayName(referencedMessage, isDM);
+      identifier = this.parseDisplayName(referencedMessage, isDM, botTag);
     }
 
     return isValidIdentifier(identifier) ? identifier : null;
@@ -185,7 +217,11 @@ export class ReplyResolutionService {
         return null;
       }
 
-      const personalityIdOrName = await this.lookupPersonalityIdentifier(referencedMessage, isDM);
+      const personalityIdOrName = await this.lookupPersonalityIdentifier(
+        referencedMessage,
+        isDM,
+        message.client.user?.tag ?? null
+      );
       if (personalityIdOrName === null) {
         logger.debug('No personality found for replied message');
         return null;

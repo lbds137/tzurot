@@ -263,7 +263,7 @@ describe('DiscordChannelFetcher', () => {
       expect(assistantMsg!.personaName).toBeUndefined();
     });
 
-    it('should extract personality name from webhook with suffix', async () => {
+    it('should extract personality name from webhook using canonical " · BotName" suffix', async () => {
       const botUserId = 'bot123';
 
       const messages = [
@@ -271,7 +271,37 @@ describe('DiscordChannelFetcher', () => {
           id: '1',
           content: 'Bot response from webhook',
           authorId: botUserId,
-          // Webhook name format: "DisplayName | Suffix"
+          // Webhook name format: "DisplayName · BotName" (current canonical form)
+          authorUsername: 'Lila · תשב',
+          isBot: true,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        botSuffix: ' · תשב',
+        personalityName: 'CurrentPersonality', // Different from webhook name
+      });
+
+      const assistantMsg = result.messages.find(m => m.role === MessageRole.Assistant);
+      expect(assistantMsg).toBeDefined();
+      // Should extract "Lila" from "Lila · תשב", not use "CurrentPersonality"
+      expect(assistantMsg!.personalityName).toBe('Lila');
+    });
+
+    it('should extract personality name from webhook using legacy " | BotName" suffix (back-compat)', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Bot response from legacy webhook',
+          authorId: botUserId,
+          // Legacy webhook name format: "DisplayName | BotName" — older
+          // messages keep their original pipe separator and must still
+          // parse correctly (backward-compat read path).
           authorUsername: 'Lila | תשב',
           isBot: true,
         }),
@@ -281,13 +311,40 @@ describe('DiscordChannelFetcher', () => {
 
       const result = await fetcher.fetchRecentMessages(channel, {
         botUserId,
-        personalityName: 'CurrentPersonality', // Different from webhook name
+        botSuffix: ' · תשב',
+        personalityName: 'CurrentPersonality',
       });
 
       const assistantMsg = result.messages.find(m => m.role === MessageRole.Assistant);
       expect(assistantMsg).toBeDefined();
-      // Should extract "Lila" from "Lila | תשב", not use "CurrentPersonality"
       expect(assistantMsg!.personalityName).toBe('Lila');
+    });
+
+    it('falls back to raw webhook username when no botSuffix is supplied (back-compat)', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Bot response',
+          authorId: botUserId,
+          authorUsername: 'Lila · תשב',
+          isBot: true,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        personalityName: 'CurrentPersonality',
+      });
+
+      const assistantMsg = result.messages.find(m => m.role === MessageRole.Assistant);
+      expect(assistantMsg).toBeDefined();
+      // No botSuffix in options → extractPersonalityName returns the raw username
+      // (degraded but not broken — caller's choice to opt in to stripping)
+      expect(assistantMsg!.personalityName).toBe('Lila · תשב');
     });
 
     it('should filter out system messages', async () => {

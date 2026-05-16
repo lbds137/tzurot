@@ -854,16 +854,21 @@ describe('MessageContextBuilder', () => {
         botUserId: 'bot-123',
       });
 
-      // Verify channel fetcher was called with transcript retriever
-      expect(mockFetchRecentMessages).toHaveBeenCalledWith(mockMessage.channel, {
-        limit: 20, // From resolved extendedContext.maxMessages
-        maxAge: null, // From resolved extendedContext.maxAge
-        before: 'message-123',
-        botUserId: 'bot-123',
-        personalityName: 'Test Bot',
-        personalityId: 'personality-123',
-        getTranscript: expect.any(Function), // Transcript retriever for voice messages
-      });
+      // Verify channel fetcher was called with transcript retriever.
+      // `botSuffix` is derived from `message.client?.user?.tag`; tests that
+      // don't mock the client get `''` (back-compat fallback).
+      expect(mockFetchRecentMessages).toHaveBeenCalledWith(
+        mockMessage.channel,
+        expect.objectContaining({
+          limit: 20, // From resolved extendedContext.maxMessages
+          maxAge: null, // From resolved extendedContext.maxAge
+          before: 'message-123',
+          botUserId: 'bot-123',
+          personalityName: 'Test Bot',
+          personalityId: 'personality-123',
+          getTranscript: expect.any(Function), // Transcript retriever for voice messages
+        })
+      );
 
       // Verify merge was called
       expect(mockMergeWithHistory).toHaveBeenCalledWith(extendedMessages, dbHistory);

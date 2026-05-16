@@ -29,6 +29,7 @@ import { getThreadParentId } from '../utils/discordChannelTypes.js';
 import { hasVoiceAttachments } from '../utils/forwardedMessageUtils.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
+import { deriveBotSuffix } from '../utils/webhookNaming.js';
 import type { DenylistCache } from './DenylistCache.js';
 import { TranscriptRetriever } from '../handlers/references/TranscriptRetriever.js';
 import {
@@ -102,6 +103,19 @@ export class MessageContextBuilder {
   private channelFetcher: DiscordChannelFetcher;
   private transcriptRetriever: TranscriptRetriever;
   private denylistCache?: DenylistCache;
+  /**
+   * Cached canonical bot suffix (e.g. ` · Tzurot`). The bot's Discord tag
+   * doesn't change at runtime, so a single lookup per service instance is
+   * sufficient. Lazily computed on first context build because the Discord
+   * `Client` isn't fully populated until login completes.
+   *
+   * Safe against the pre-login edge case because `fetchExtendedContext` —
+   * the sole entry point that triggers caching — is only reachable from
+   * message-handler code that fires after the gateway is ready. If a future
+   * caller invokes the builder before login, the cache would freeze at `''`
+   * for the service lifetime; revisit then.
+   */
+  private cachedBotSuffix: string | null = null;
 
   constructor(
     private prisma: PrismaClient,
@@ -116,6 +130,19 @@ export class MessageContextBuilder {
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever(this.conversationHistory);
     this.denylistCache = denylistCache;
+  }
+
+  /**
+   * Resolve the canonical bot suffix for webhook-username parsing, caching
+   * the result for subsequent calls. The optional-chain dereferences live
+   * here so `fetchExtendedContext` stays under its complexity budget.
+   */
+  private getBotSuffix(message: Message): string {
+    if (this.cachedBotSuffix !== null) {
+      return this.cachedBotSuffix;
+    }
+    this.cachedBotSuffix = deriveBotSuffix(message.client?.user?.tag ?? null);
+    return this.cachedBotSuffix;
   }
 
   /**
@@ -158,6 +185,7 @@ export class MessageContextBuilder {
         limit: options.extendedContext.maxMessages,
         before: message.id,
         botUserId: options.botUserId,
+        botSuffix: this.getBotSuffix(message),
         personalityName: personality.displayName,
         personalityId: personality.id,
         getTranscript: (discordMessageId, attachmentUrl) =>
