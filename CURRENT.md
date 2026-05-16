@@ -1,14 +1,14 @@
 # Current
 
-> **Session**: 2026-05-12 → 2026-05-13 marathon. Shipped 4 quick-wins PRs (#1023-#1026), drained inbox 33→0, drained quick-wins to empty, hit NeuTTS Air plan-mode → **abandoned Phase 2** after hands-on Railway probe revealed architectural mismatch (~30s output cap incompatible with 1-4 min long-form use case). TTS Engine Upgrade epic is functionally complete (cost win achieved via Phase 1 + 3); Phase 2 polish moves to "Self-Hosted TTS + BYOK Re-Evaluation" theme.
+> **Session**: 2026-05-16 — shipped PR #1035 (webhook-suffix parser drift + footer context-leak + `/character chat` polish + STT footer toggle + tier-2 reply resolution in guilds) and follow-up PR #1036 (JSDoc polish + filter-error wording). PR #1035 surfaced from a user-observed multi-tag ordering bug in a guild activated channel; root cause was a missed-grep when the webhook separator changed from `|` to `·` — three parsers had to agree but only one was updated. Fix centralizes separator knowledge in a shared util keyed on the bot's tag. **Release readiness**: ready to cut v3.0.0-beta.122 once #1036 merges.
 > **Version**: v3.0.0-beta.121 (released 2026-05-15)
-> **🚧 Release freeze status**: LIFTED. No release in progress.
+> **🚧 Release freeze status**: LIFTED. No release in progress (v3.0.0-beta.122 ready to cut after #1036 lands).
 
 ---
 
 ## Next Session Goal
 
-**Open** — pick from the re-evaluation theme or other backlog work. Two natural candidates:
+**Release v3.0.0-beta.122** once PR #1036 merges. Then open to:
 
 1. **Self-Hosted TTS + BYOK Re-Eval — Step 0 probes** ([future-themes.md](backlog/future-themes.md)): hands-on probe (30 min each) of OmniVoice / F5-TTS / CosyVoice using the reusable pattern from the 2026-05-13 NeuTTS Air probe. Plus verify Pocket TTS long-form support — current self-hosted might already cover the user's 1-4 min reply use case without any new engine.
 2. **API Security Hardening** ([future-themes.md](backlog/future-themes.md)): rate limiter + helmet/CORS + `/voice-references/:slug` enumeration risk. 3 items in a single security pass.
@@ -18,6 +18,7 @@
 - [`backlog/active-epic.md`](backlog/active-epic.md) — TTS Engine Upgrade epic; Phase 1 + 3 ✅, Phase 2 (NeuTTS Air) ABANDONED with full evidence
 - [`backlog/future-themes.md`](backlog/future-themes.md) — refreshed "Self-Hosted TTS + BYOK Re-Eval" theme with NeuTTS Air abandon evidence + Step-0-probe-required directive + candidate list
 - [`backlog/quick-wins.md`](backlog/quick-wins.md) — empty
+- [`backlog/deferred.md`](backlog/deferred.md) — 3 new deferred items from #1035 review cycle (convertMessage extraction, tier-2 latency monitoring, cachedBotSuffix hard invariant)
 
 ---
 
@@ -42,7 +43,12 @@ Shipped v3.0.0-beta.120 — TTS Phase 3 end-to-end, 3-PR cross-channel context b
 
 ## Unreleased on Develop
 
-_(none yet — develop is SHA-aligned with main at v3.0.0-beta.121)_
+**v3.0.0-beta.122 candidates** (since v3.0.0-beta.121):
+
+- **#1035** — webhook-username parser unification (root-cause fix for multi-tag slot-0 ordering bug in guild activated channels); extended-context footer-leak strip (Emily-roleplay-around-footer); `/character chat` ephemeral random-pick notice + new `only-mine` filter; STT attribution footer gated on `showModelFooter` user-default; tier-2 reply-resolution DB lookup now runs in guild channels too.
+- **#1036** — JSDoc polish + filter-error wording cleanup follow-up.
+
+No prisma migrations in this delta — no `pnpm ops db:migrate` step needed post-merge.
 
 ---
 
