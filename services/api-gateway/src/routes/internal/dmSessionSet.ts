@@ -22,6 +22,14 @@
  * `invalidateChannelSettingsCache` after a successful response. The
  * user-facing `/user/channel/activate` endpoint follows the same pattern.
  * No server-side pub/sub fires from here.
+ *
+ * **Single-caller assumption**: client-side-only invalidation is correct
+ * today because bot-client is the only caller. If a second service ever
+ * calls this endpoint, the bot-client's local cache won't see the change
+ * and will serve stale values until its 30s TTL expires. Adding a Redis
+ * pub/sub broadcast here would close that gap; the trigger to do so is "a
+ * second service legitimately needs to invoke this endpoint." Until then,
+ * the simpler client-invalidation path is preferred.
  */
 
 import { type Response, type RequestHandler } from 'express';

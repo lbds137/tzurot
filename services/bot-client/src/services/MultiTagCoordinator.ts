@@ -20,9 +20,11 @@
  * Restart contract: in-memory state is volatile. On graceful shutdown, all
  * pending slot jobIds are added to a Redis stale set. Post-restart, results
  * arriving for those jobIds are discarded by the MessageHandler stale check
- * (confirmDelivery is still called so the Redis stream entry clears). The
- * user-facing experience after a restart-mid-fan-out is "no response —
- * please retry"; auto-resubmit recovery is deferred to a follow-up PR.
+ * (confirmDelivery is still called so the Redis stream entry clears).
+ * MultiTagRecovery scans the persisted entries on startup, marks old jobIds
+ * stale, and re-submits fresh AI jobs — so user-facing experience after a
+ * restart-mid-fan-out is "responses arrive a bit later" rather than "no
+ * response, please retry."
  */
 
 import { randomUUID } from 'node:crypto';
@@ -34,44 +36,23 @@ import {
   type LoadedPersonality,
   type TypingChannel,
 } from '@tzurot/common-types';
-import { buildErrorContent } from '../utils/buildErrorContent.js';
 import type { PersonalityChatManager } from './character/PersonalityChatManager.js';
 import type { JobTracker } from './JobTracker.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 import type { SlotDeliveryService } from './SlotDeliveryService.js';
 import type { MultiTagPersistence } from './MultiTagPersistence.js';
-import { pickNewDMActivePersonality, type ResolvedSlot, type SlotSource } from './SlotResolver.js';
+import { type ResolvedSlot, type SlotSource } from './SlotResolver.js';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 
 const logger = createLogger('MultiTagCoordinator');
-
-/**
- * A slot is deliverable via the success path only when its job completed,
- * the result claims success, and the content is a non-empty string. Mirrors
- * the boundary validation in `MessageHandler.handleSinglePersonalityResult`
- * so multi-tag and single-personality paths handle empty content identically.
- */
-function hasUsableContent(slot: { status: string; result?: LLMGenerationResult }): boolean {
-  return (
-    slot.status === 'completed' &&
-    slot.result !== undefined &&
-    slot.result.success !== false &&
-    typeof slot.result.content === 'string' &&
-    slot.result.content.length > 0
-  );
-}
 
 // `RuntimeSlot` and `RuntimeEntry` shapes plus the `buildSlotContext` /
 // `toSnapshot` projections live in a sibling file so this orchestrator
 // stays under the `max-lines` cap and the projections are unit-testable
 // independently.
 export type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
-import {
-  buildSlotContext,
-  toSnapshot,
-  type RuntimeEntry,
-  type RuntimeSlot,
-} from './multiTagCoordinatorHelpers.js';
+import { toSnapshot, type RuntimeEntry, type RuntimeSlot } from './multiTagCoordinatorHelpers.js';
+import { deliverGroup } from './multiTagDeliveryFlow.js';
 
 /** Input shape for startFanOut — what PersonalityTriggerProcessor builds. */
 export interface StartFanOutInput {
@@ -81,6 +62,14 @@ export interface StartFanOutInput {
   slots: ResolvedSlot[];
   /** Raw effective content to pass to each slot's AI submission. */
   content: string;
+  /**
+   * `true` if the resolver's cap dropped at least one tagged personality
+   * (more unique candidates than `MAX_TAGS`). Surfaced as a one-line notice
+   * after the slot-delivery burst so users see why fewer characters
+   * responded than they tagged. Dedup-driven shrinkage (same character
+   * tagged twice) doesn't count — caller decides.
+   */
+  truncated: boolean;
 }
 
 export interface MultiTagCoordinatorDeps {
@@ -111,6 +100,15 @@ export class MultiTagCoordinator {
    */
   private readonly flushingGroups = new Set<string>();
   private shuttingDown = false;
+  /**
+   * Whether any jobId has been marked stale during this process's lifetime
+   * (via `beginShutdown` or `markStaleFromRecovery`). Gates the
+   * `isStale` Redis SISMEMBER fast-path: if no shutdown has produced stale
+   * jobIds, every regular single-personality result would otherwise pay a
+   * pointless Redis roundtrip per arrival. Recovery on startup also flips
+   * this — recovery marks the pre-restart jobIds stale.
+   */
+  private hasMarkedStale = false;
 
   constructor(private readonly deps: MultiTagCoordinatorDeps) {}
 
@@ -146,6 +144,13 @@ export class MultiTagCoordinator {
       input.slots.map(async resolved => this.submitSlot(input, resolved))
     );
 
+    // Dense slot indices: denied slots are skipped, surviving slots get
+    // 0..k-1. The ResolvedSlot input may have had non-contiguous "logical"
+    // positions (e.g., reply at 0, denied activation at 1, mention at 2 →
+    // dense becomes [0:reply, 1:mention]). Recovery uses the snapshot's
+    // dense `slotIndex` directly when rehydrating and never re-resolves
+    // from input — so the indices are stable across the entry's lifetime
+    // and the dense numbering is the canonical view.
     const runtimeSlots: RuntimeSlot[] = [];
     let nextIndex = 0;
     for (const submission of slotSubmissions) {
@@ -168,6 +173,33 @@ export class MultiTagCoordinator {
         { sourceMessageId: input.message.id },
         'All multi-tag slots denied — nothing to coordinate'
       );
+      // User-facing notice: pre-PR per-processor flow surfaced denial via
+      // the respective trigger processor (e.g., ActivatedChannelProcessor's
+      // inaccessible-personality notice). Unified multi-tag path has no
+      // such fallback today — without this, the user sees silence after
+      // tagging personalities that can't respond. Best-effort reply; if
+      // it fails, log only (we already did nothing useful for them anyway).
+      //
+      // **Bypasses the ordering buffer intentionally.** This notice is a
+      // UI feedback message, not an AI response, and denied fan-outs are
+      // rare. The cost of routing it through `ResponseOrderingService`
+      // (require a real jobId, register/handleResult round-trip) isn't
+      // worth the ordering guarantee given the user only sees this when
+      // their input produced no AI responses at all. The notice could
+      // theoretically appear before a queued response for the same
+      // channel if one is in flight, but the user already understands
+      // this notice belongs to a different message.
+      try {
+        await input.message.reply(
+          '❌ None of the tagged personalities are currently available. ' +
+            'They may be private, on the denylist, or restricted in this channel.'
+        );
+      } catch (err) {
+        logger.warn(
+          { err, sourceMessageId: input.message.id },
+          'Failed to send all-denied notice — user will see silence'
+        );
+      }
       return;
     }
 
@@ -190,41 +222,45 @@ export class MultiTagCoordinator {
       slots: runtimeSlots,
       createdAt: Date.now(),
       timeoutHandle,
+      truncated: input.truncated,
     };
 
-    // Persist BEFORE registering in-memory state and the ordering-service
-    // group entry. If persistence fails, we want NO partial state: no
-    // entries-map, no jobToGroup, no group-level ordering registration.
-    // The slots' BullMQ jobs are already submitted (uncancellable here)
-    // and were registered with JobTracker by submitSlot using
-    // `skipOrderingRegistration: true` (expecting the coordinator to
-    // register the group). On failure we must register them INDIVIDUALLY
-    // so their results still obey cross-message channel ordering — they'd
-    // otherwise bypass the ordering buffer entirely and could interleave
-    // with other channel messages. Intra-fan-out slot order is lost
-    // (acceptable degradation), but cross-message order is preserved.
-    try {
-      await this.deps.persistence.putEntry(toSnapshot(entry));
-    } catch (err) {
-      clearTimeout(timeoutHandle);
-      logger.error(
-        {
-          err,
-          groupId,
-          sourceMessageId: input.message.id,
-          slotCount: runtimeSlots.length,
-        },
-        'Failed to persist multi-tag entry; degrading to per-slot ordered delivery'
-      );
-      for (const slot of runtimeSlots) {
-        this.deps.orderingService.registerJob(entry.channel.id, slot.jobId, userMessageTime);
-      }
-      return;
-    }
-
+    // Populate in-memory ownership BEFORE the persistence roundtrip.
+    //
+    // Why: between `Promise.all(submitSlot)` completing and the
+    // `entries`/`jobToGroup` writes below, an AI response could in theory
+    // arrive (very fast local cache hit, or a job result re-queued from a
+    // previous bot session). Before this reorder, that result would find
+    // `ownsJob` false, the stale check false, and `jobTracker.getContext`
+    // populated (submitSlot registered it) — falling through to the
+    // single-personality path and bypassing slot ordering for the whole
+    // fan-out. After the reorder, `ownsJob` flips true the instant the
+    // slot jobIds exist, so the result correctly buffers in the coordinator.
+    //
+    // The trade: if `putEntry` fails, the in-memory state is rolled back
+    // (and the existing per-slot orderingService.registerJob degradation
+    // kicks in). This means in-memory state is the "primary" ownership view
+    // and Redis is the durable view — the inverse of "persist then publish"
+    // but correct for hot-path correctness.
     this.entries.set(groupId, entry);
     for (const slot of runtimeSlots) {
       this.jobToGroup.set(slot.jobId, groupId);
+    }
+
+    // The slots' BullMQ jobs are already submitted (uncancellable here)
+    // and were registered with JobTracker by submitSlot using
+    // `skipOrderingRegistration: true` (expecting the coordinator to
+    // register the group). On putEntry failure we must register them
+    // INDIVIDUALLY so their results still obey cross-message channel
+    // ordering — they'd otherwise bypass the ordering buffer entirely
+    // and could interleave with other channel messages. Intra-fan-out
+    // slot order is lost (acceptable degradation), but cross-message
+    // order is preserved.
+    try {
+      await this.deps.persistence.putEntry(toSnapshot(entry));
+    } catch (err) {
+      this.degradeToPerSlotOrdering(entry, runtimeSlots, timeoutHandle, userMessageTime, err);
+      return;
     }
 
     // Register a SINGLE group-level entry with the ordering service — using
@@ -246,6 +282,68 @@ export class MultiTagCoordinator {
   /** O(1) check: is this jobId tracked by an in-flight multi-tag entry? */
   ownsJob(jobId: string): boolean {
     return this.jobToGroup.has(jobId);
+  }
+
+  /**
+   * Adopt a runtime entry rebuilt by MultiTagRecovery on startup. Mirrors
+   * the post-persistence branch of `startFanOut`: registers in-memory
+   * ownership, hooks the group with the ordering service. If every slot
+   * is already in a terminal state by the time we adopt (e.g., shutdown
+   * happened mid-flush with all jobs already completed but Redis state
+   * not yet deleted), flush immediately so the user finally sees the
+   * delivery they were owed.
+   *
+   * Caller is responsible for arming the safety timer on `entry.timeoutHandle`
+   * before calling this — the coordinator only clears it on flush.
+   */
+  async adoptRehydratedEntry(entry: RuntimeEntry): Promise<void> {
+    this.entries.set(entry.groupId, entry);
+    for (const slot of entry.slots) {
+      this.jobToGroup.set(slot.jobId, entry.groupId);
+    }
+    this.deps.orderingService.registerJob(entry.channel.id, entry.groupId, entry.userMessageTime);
+
+    const allDone = entry.slots.every(s => s.status !== 'pending');
+    if (allDone) {
+      // Every slot was already terminal at recovery time — flush now so
+      // the user receives the delivery they were waiting on.
+      await this.flushEntry(entry);
+    }
+  }
+
+  /**
+   * Public re-arm path for the safety timeout, intended for recovery.
+   * Internal flushes drive the timeout via the timer set in `startFanOut`;
+   * recovery sets up its own timer (since it didn't go through startFanOut)
+   * and needs a way to invoke the same handler. Forwards to the private
+   * implementation.
+   */
+  async handleSafetyTimeoutPublic(groupId: string): Promise<void> {
+    await this.handleSafetyTimeout(groupId);
+  }
+
+  /**
+   * Whether `isStale` could possibly return true given the coordinator's
+   * lifetime state. Gates the Redis SISMEMBER short-circuit in
+   * `MessageHandler.handleJobResult`: if no shutdown has produced stale
+   * jobIds and recovery hasn't run, every non-multi-tag result would
+   * otherwise pay a wasted Redis roundtrip. Becomes `true` after either
+   * `beginShutdown` writes stale jobIds OR recovery calls
+   * `noteRecoveryMarkedStale`.
+   */
+  get staleCheckNeeded(): boolean {
+    return this.hasMarkedStale;
+  }
+
+  /**
+   * Recovery hook: when MultiTagRecovery marks pre-restart jobIds stale on
+   * startup, it must inform the coordinator so the fast-path skip flag
+   * activates. Without this, recovery's stale writes would be invisible to
+   * the staleCheckNeeded getter and the stale check would be skipped for
+   * jobs that actually need it.
+   */
+  noteRecoveryMarkedStale(): void {
+    this.hasMarkedStale = true;
   }
 
   /** Async check: was this jobId marked stale on a previous shutdown? */
@@ -304,14 +402,18 @@ export class MultiTagCoordinator {
     // pending slots' intervals).
     this.deps.jobTracker.completeJob(jobId);
 
+    const allDone = entry.slots.every(s => s.status !== 'pending');
+    if (allDone) {
+      // Last slot — skip the intermediate snapshot write. `deliverGroup`'s
+      // `deleteEntry` is about to run; one Redis roundtrip instead of two
+      // (write-then-delete) for state about to disappear.
+      await this.flushEntry(entry);
+      return;
+    }
+
     // Snapshot the updated state so a mid-flush crash leaves recoverable
     // progress in Redis (the next process won't re-submit completed slots).
     await this.deps.persistence.updateEntry(toSnapshot(entry));
-
-    const allDone = entry.slots.every(s => s.status !== 'pending');
-    if (allDone) {
-      await this.flushEntry(entry);
-    }
   }
 
   /**
@@ -333,6 +435,7 @@ export class MultiTagCoordinator {
     }
     if (allPendingJobIds.length > 0) {
       await this.deps.persistence.markStale(...allPendingJobIds);
+      this.hasMarkedStale = true;
       logger.info(
         { entryCount: this.entries.size, staleJobIdCount: allPendingJobIds.length },
         'Multi-tag coordinator shutdown — pending jobIds marked stale for recovery'
@@ -341,6 +444,47 @@ export class MultiTagCoordinator {
     this.entries.clear();
     this.jobToGroup.clear();
     this.flushingGroups.clear();
+  }
+
+  /**
+   * Roll back the in-memory ownership written before the persistence
+   * attempt and fall back to per-slot ordering registration. Called only
+   * from `startFanOut` when `putEntry` throws — extracted to keep
+   * `startFanOut` itself under the function-length cap.
+   *
+   * Cross-message ordering survives (each slot's jobId is registered
+   * individually); intra-fan-out slot order is lost. The BullMQ jobs
+   * are already submitted and can't be cancelled from here.
+   *
+   * **Why this doesn't touch `flushingGroups`**: `flushingGroups` is
+   * only populated by `flushEntry` (the re-entry guard for the
+   * deliver-burst path). `startFanOut` never adds to it, so the rollback
+   * has nothing to clean up there.
+   */
+  private degradeToPerSlotOrdering(
+    entry: RuntimeEntry,
+    runtimeSlots: RuntimeSlot[],
+    timeoutHandle: NodeJS.Timeout,
+    userMessageTime: Date,
+    err: unknown
+  ): void {
+    clearTimeout(timeoutHandle);
+    this.entries.delete(entry.groupId);
+    for (const slot of runtimeSlots) {
+      this.jobToGroup.delete(slot.jobId);
+    }
+    logger.error(
+      {
+        err,
+        groupId: entry.groupId,
+        sourceMessageId: entry.sourceMessageId,
+        slotCount: runtimeSlots.length,
+      },
+      'Failed to persist multi-tag entry; degrading to per-slot ordered delivery'
+    );
+    for (const slot of runtimeSlots) {
+      this.deps.orderingService.registerJob(entry.channel.id, slot.jobId, userMessageTime);
+    }
   }
 
   /**
@@ -436,7 +580,7 @@ export class MultiTagCoordinator {
         entry.groupId,
         syntheticResult,
         entry.userMessageTime,
-        async () => this.deliverGroup(entry)
+        async () => deliverGroup(entry, this.deps)
       );
     } finally {
       // Unconditional in-memory teardown. Runs whether `handleResult`
@@ -452,126 +596,6 @@ export class MultiTagCoordinator {
       }
       this.flushingGroups.delete(entry.groupId);
     }
-  }
-
-  /**
-   * Deliver a single slot's response (success or error), error-contained
-   * so a failing slot can't block its siblings in the burst. Extracted from
-   * `deliverGroup` to keep the loop body trivially scannable and to honor
-   * the cognitive-complexity budget.
-   */
-  private async deliverSlot(entry: RuntimeEntry, slot: RuntimeSlot): Promise<void> {
-    const slotContext = buildSlotContext(entry, slot);
-    try {
-      // Parity with MessageHandler.handleSinglePersonalityResult: a slot
-      // marked `completed` with `success !== false` can still carry empty
-      // or non-string content (rare upstream edge cases like rate-limit
-      // soft-fail). Without this guard, deliverSuccess would throw, the
-      // per-slot catch below would swallow it, and the user would get NO
-      // response AND no error for that slot. Route through the error path
-      // so the user at least sees a fallback message.
-      if (hasUsableContent(slot)) {
-        await this.deps.slotDelivery.deliverSuccess(
-          slot.result as LLMGenerationResult & { success: true },
-          slotContext
-        );
-        return;
-      }
-      if (slot.status === 'completed' && slot.result !== undefined) {
-        logger.warn(
-          {
-            groupId: entry.groupId,
-            slotIndex: slot.slotIndex,
-            personalityId: slot.personality.id,
-            hasContent: slot.result.content !== undefined && slot.result.content !== null,
-            contentType: typeof slot.result.content,
-          },
-          'Slot result completed but content missing/empty — routing to error path'
-        );
-      }
-      const synthetic: LLMGenerationResult = slot.result ?? {
-        requestId: entry.groupId,
-        success: false,
-        error: slot.status === 'timedout' ? 'Response timed out' : 'No response received',
-      };
-      await this.deps.slotDelivery.deliverError(
-        buildErrorContent(synthetic),
-        synthetic,
-        slotContext
-      );
-    } catch (err) {
-      logger.error(
-        {
-          err,
-          groupId: entry.groupId,
-          slotIndex: slot.slotIndex,
-          personalityId: slot.personality.id,
-        },
-        'Slot delivery threw — continuing to next slot'
-      );
-    }
-  }
-
-  /**
-   * Sequentially send each slot's response to Discord in slot order. Called
-   * by the ordering service when the group's turn arrives (i.e., no earlier
-   * channel message is waiting).
-   */
-  private async deliverGroup(entry: RuntimeEntry): Promise<void> {
-    for (const slot of entry.slots) {
-      await this.deliverSlot(entry, slot);
-    }
-
-    // Best-effort delivery confirmation (clears Redis stream entries).
-    await Promise.all(
-      entry.slots.map(slot =>
-        this.deps.gatewayClient.confirmDelivery(slot.jobId).catch(err => {
-          logger.warn(
-            { err, jobId: slot.jobId, groupId: entry.groupId },
-            'confirmDelivery failed after multi-tag flush'
-          );
-        })
-      )
-    );
-
-    // For DM channels, record the new active personality so the next bare
-    // DM message routes to the textually-last-tagged character. Best-effort
-    // — failures logged inside setDmSessionPersonality, not thrown.
-    if (entry.guildId === null) {
-      const newActive = pickNewDMActivePersonality(
-        entry.slots.map(s => ({
-          personality: s.personality,
-          source: s.source,
-          isAutoResponse: s.isAutoResponse,
-        }))
-      );
-      if (newActive !== null) {
-        await this.deps.gatewayClient.setDmSessionPersonality(entry.channel.id, newActive.slug);
-      }
-    }
-
-    // In-memory teardown (clearTimeout, entries.delete, jobToGroup.delete,
-    // flushingGroups.delete) is handled unconditionally by flushEntry's
-    // finally — so a throw from orderingService.handleResult before this
-    // callback runs doesn't leak entries. Only delivery-contingent cleanup
-    // (Redis persistence delete) belongs here.
-    //
-    // Cleanup failure must not propagate up through the ordering-service
-    // callback: the user-visible delivery already succeeded above, and the
-    // stale Redis entry will self-clean via the 30-min TTL. A noisy log
-    // here would misrepresent "delivery failed" to operators watching
-    // logs; log-and-swallow is the correct posture.
-    await this.deps.persistence.deleteEntry(toSnapshot(entry)).catch(err => {
-      logger.warn(
-        { err, groupId: entry.groupId },
-        'Failed to delete coordinator entry from Redis — TTL will reclaim'
-      );
-    });
-
-    logger.info(
-      { groupId: entry.groupId, deliveredCount: entry.slots.length },
-      'Multi-tag group delivered and cleaned up'
-    );
   }
 
   /**

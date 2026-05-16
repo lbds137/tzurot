@@ -10,6 +10,11 @@ import { MessageHandler } from './MessageHandler.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
 import type { LLMGenerationResult } from '@tzurot/common-types';
+import type { DiscordResponseSender } from '../services/DiscordResponseSender.js';
+import type { ConversationPersistence } from '../services/ConversationPersistence.js';
+import type { JobTracker } from '../services/JobTracker.js';
+import type { SlotDeliveryService } from '../services/SlotDeliveryService.js';
+import type { MultiTagCoordinator } from '../services/MultiTagCoordinator.js';
 
 // Mock serviceRegistry to provide getGatewayClient
 const mockGatewayClient = {
@@ -36,9 +41,10 @@ const mockJobTracker = {
   completeJob: vi.fn(),
 };
 
-// Slot-delivery surface — both deliverSuccess and deliverError forward to the
-// same response-sender + persistence mocks above so the existing assertions
-// (which check those mocks) keep working through the refactor.
+// Slot-delivery surface. Mocked directly (no threading-through): tests
+// assert on `mockSlotDelivery.deliverSuccess` / `deliverError` calls
+// rather than the inner persistence/sendResponse details, which are
+// covered by SlotDeliveryService.test.ts.
 const mockSlotDelivery = {
   deliverSuccess: vi.fn(),
   deliverError: vi.fn(),
@@ -46,10 +52,19 @@ const mockSlotDelivery = {
 
 // Multi-tag coordinator — default to "not owning" any job and "not stale" so
 // existing single-personality tests flow through the original path.
+// `staleCheckNeeded` defaults true so existing tests preserve their prior
+// behavior of going through the isStale call; tests targeting the short-
+// circuit explicitly flip `mockCoordinatorState.staleCheckNeeded = false`
+// in their setup.
+const mockCoordinatorState = { staleCheckNeeded: true };
 const mockCoordinator = {
   ownsJob: vi.fn().mockReturnValue(false),
   isStale: vi.fn().mockResolvedValue(false),
   handleJobResult: vi.fn().mockResolvedValue(undefined),
+  clearStale: vi.fn().mockResolvedValue(undefined),
+  get staleCheckNeeded() {
+    return mockCoordinatorState.staleCheckNeeded;
+  },
 };
 
 describe('MessageHandler', () => {
@@ -61,6 +76,7 @@ describe('MessageHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGatewayClient.updateDiagnosticResponseIds.mockResolvedValue(undefined);
+    mockCoordinatorState.staleCheckNeeded = true;
 
     // Create mock processors
     mockProcessor1 = {
@@ -77,87 +93,19 @@ describe('MessageHandler', () => {
 
     messageHandler = new MessageHandler({
       processors: [mockProcessor1, mockProcessor2, mockProcessor3],
-      responseSender: mockResponseSender as any,
-      persistence: mockPersistence as any,
-      jobTracker: mockJobTracker as any,
-      slotDelivery: mockSlotDelivery as any,
-      coordinator: mockCoordinator as any,
+      responseSender: mockResponseSender as unknown as DiscordResponseSender,
+      persistence: mockPersistence as unknown as ConversationPersistence,
+      jobTracker: mockJobTracker as unknown as JobTracker,
+      slotDelivery: mockSlotDelivery as unknown as SlotDeliveryService,
+      coordinator: mockCoordinator as unknown as MultiTagCoordinator,
     });
 
-    // Default: deliverSuccess/Error wire through to the existing mocks so legacy
-    // assertions (mockResponseSender.sendResponse, mockPersistence.*) continue
-    // to observe the indirect call path post-refactor.
-    mockSlotDelivery.deliverSuccess.mockImplementation(async (result, slot) => {
-      await mockPersistence.updateUserMessage({
-        message: slot.message,
-        personality: slot.personality,
-        personaId: slot.personaId,
-        messageContent: slot.userMessageContent,
-        attachmentDescriptions: result.attachmentDescriptions,
-      });
-      const { chunkMessageIds } = await mockResponseSender.sendResponse({
-        content: result.content,
-        personality: slot.personality,
-        channel: slot.channel,
-        guildId: slot.guildId,
-        clientId: slot.clientId,
-        isAutoResponse: slot.isAutoResponse,
-        recipientUserId: slot.recipientUserId,
-        modelUsed: result.metadata?.modelUsed,
-        providerUsed: result.metadata?.providerUsed,
-        isGuestMode: result.metadata?.isGuestMode,
-        focusModeEnabled: result.metadata?.focusModeEnabled,
-        incognitoModeActive: result.metadata?.incognitoModeActive,
-        thinkingContent: result.metadata?.thinkingContent,
-        showThinking: result.metadata?.showThinking,
-        showModelFooter: result.metadata?.showModelFooter,
-        ttsAudioKey: result.metadata?.ttsAudioKey,
-        ttsAudioContentType: result.metadata?.ttsAudioContentType,
-        ttsNotices: result.metadata?.ttsNotices,
-      });
-      await mockPersistence.saveAssistantMessage({
-        message: slot.message,
-        personality: slot.personality,
-        personaId: slot.personaId,
-        content: result.content,
-        chunkMessageIds,
-        userMessageTime: slot.userMessageTime,
-      });
-      if (chunkMessageIds.length > 0) {
-        void mockGatewayClient
-          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
-          .catch(() => undefined);
-      }
-      return { chunkMessageIds };
-    });
-    mockSlotDelivery.deliverError.mockImplementation(async (errorContent, result, slot) => {
-      try {
-        const { chunkMessageIds } = await mockResponseSender.sendResponse({
-          content: errorContent,
-          personality: slot.personality,
-          channel: slot.channel,
-          guildId: slot.guildId,
-          clientId: slot.clientId,
-          isAutoResponse: slot.isAutoResponse,
-          modelUsed: result.metadata?.modelUsed,
-          providerUsed: result.metadata?.providerUsed,
-          isGuestMode: result.metadata?.isGuestMode,
-          focusModeEnabled: result.metadata?.focusModeEnabled,
-          incognitoModeActive: result.metadata?.incognitoModeActive,
-          showModelFooter: result.metadata?.showModelFooter,
-        });
-        await mockPersistence.saveAssistantMessage({
-          message: slot.message,
-          personality: slot.personality,
-          personaId: slot.personaId,
-          content: (await import('@tzurot/common-types')).stripErrorSpoiler(errorContent),
-          chunkMessageIds,
-          userMessageTime: slot.userMessageTime,
-        });
-      } catch {
-        await slot.message.reply(errorContent).catch(() => undefined);
-      }
-    });
+    // Direct mocks — no threading-through. Tests assert on
+    // mockSlotDelivery.{deliverSuccess,deliverError} directly. (For tests
+    // targeting deliverError fallback / persistence behavior, override the
+    // implementation per-test.)
+    mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['m1', 'm2'] });
+    mockSlotDelivery.deliverError.mockResolvedValue(undefined);
   });
 
   describe('handleMessage - Chain of Responsibility', () => {
@@ -331,6 +279,37 @@ describe('MessageHandler', () => {
     });
   });
 
+  describe('handleJobResult - staleCheckNeeded fast-path', () => {
+    it('skips the isStale Redis call when staleCheckNeeded is false', async () => {
+      // Normal operation: no shutdown or recovery has marked any jobIds
+      // stale, so the SET is empty. The fast-path flag short-circuits the
+      // wasted Redis SISMEMBER on every regular single-personality result.
+      mockCoordinatorState.staleCheckNeeded = false;
+      mockJobTracker.getContext.mockReturnValue(null); // unknown job — bail before delivery
+
+      await messageHandler.handleJobResult('job-fast-path', {
+        requestId: 'r1',
+        success: true,
+        content: 'whatever',
+      });
+
+      expect(mockCoordinator.isStale).not.toHaveBeenCalled();
+    });
+
+    it('runs the isStale check when staleCheckNeeded is true', async () => {
+      mockCoordinatorState.staleCheckNeeded = true;
+      mockJobTracker.getContext.mockReturnValue(null);
+
+      await messageHandler.handleJobResult('job-with-check', {
+        requestId: 'r1',
+        success: true,
+        content: 'whatever',
+      });
+
+      expect(mockCoordinator.isStale).toHaveBeenCalledWith('job-with-check');
+    });
+  });
+
   describe('handleJobResult - Async Job Completion', () => {
     it('should handle successful job result and update/save messages', async () => {
       const jobId = 'job-123';
@@ -363,7 +342,7 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockResponseSender.sendResponse.mockResolvedValue({
+      mockSlotDelivery.deliverSuccess.mockResolvedValue({
         chunkMessageIds: ['discord-1', 'discord-2'],
       });
 
@@ -375,36 +354,24 @@ describe('MessageHandler', () => {
       // Should complete the job (clear typing, remove from tracker)
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
 
-      // Should update user message with enriched content
-      expect(mockPersistence.updateUserMessage).toHaveBeenCalledWith({
-        message: mockMessage,
-        personality: mockContext.personality,
-        personaId: 'persona-456',
-        messageContent: 'User message',
-        attachmentDescriptions: '[Image: cat.jpg]\nA cute cat',
-      });
-
-      // Should send response to Discord
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+      // Should hand off to SlotDeliveryService with the right slot + result.
+      // (Inner persistence/sendResponse details are covered by
+      // SlotDeliveryService.test.ts; MessageHandler is the dispatch layer.)
+      expect(mockSlotDelivery.deliverSuccess).toHaveBeenCalledWith(
         expect.objectContaining({
           content: 'AI response text',
+          attachmentDescriptions: '[Image: cat.jpg]\nA cute cat',
+        }),
+        expect.objectContaining({
           personality: mockContext.personality,
+          personaId: 'persona-456',
           channel: mockContext.channel,
           guildId: mockContext.guildId,
           clientId: mockContext.clientId,
-          modelUsed: 'anthropic/claude-sonnet-4.5',
+          message: mockMessage,
+          userMessageTime: mockContext.userMessageTime,
         })
       );
-
-      // Should save assistant message to conversation history
-      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith({
-        message: mockMessage,
-        personality: mockContext.personality,
-        personaId: 'persona-456',
-        content: 'AI response text',
-        chunkMessageIds: ['discord-1', 'discord-2'],
-        userMessageTime: mockContext.userMessageTime,
-      });
     });
 
     it('should ignore results for unknown jobs', async () => {
@@ -421,9 +388,8 @@ describe('MessageHandler', () => {
 
       // Should not call any other methods
       expect(mockJobTracker.completeJob).not.toHaveBeenCalled();
-      expect(mockPersistence.updateUserMessage).not.toHaveBeenCalled();
-      expect(mockResponseSender.sendResponse).not.toHaveBeenCalled();
-      expect(mockPersistence.saveAssistantMessage).not.toHaveBeenCalled();
+      expect(mockSlotDelivery.deliverSuccess).not.toHaveBeenCalled();
+      expect(mockSlotDelivery.deliverError).not.toHaveBeenCalled();
     });
 
     it('should handle job result without metadata', async () => {
@@ -447,15 +413,16 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockResponseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['msg-1'] });
+      mockSlotDelivery.deliverSuccess.mockResolvedValue({ chunkMessageIds: ['msg-1'] });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should send response with undefined modelUsed
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+      // Should hand off the bare result (no metadata) to slotDelivery
+      expect(mockSlotDelivery.deliverSuccess).toHaveBeenCalledWith(
         expect.objectContaining({
-          modelUsed: undefined,
-        })
+          content: 'Response without metadata',
+        }),
+        expect.any(Object)
       );
     });
 
@@ -487,7 +454,8 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockPersistence.updateUserMessage.mockRejectedValue(new Error('Database error'));
+      // Simulate the inner SlotDeliveryService throwing during persistence.
+      mockSlotDelivery.deliverSuccess.mockRejectedValue(new Error('Database error'));
 
       // Should NOT throw - handle error gracefully
       await expect(messageHandler.handleJobResult(jobId, result)).resolves.toBeUndefined();
@@ -495,14 +463,14 @@ describe('MessageHandler', () => {
       // Should still complete the job
       expect(mockJobTracker.completeJob).toHaveBeenCalledWith(jobId);
 
-      // Should notify user of error via webhook (not direct reply)
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+      // Should fall through to deliverError so the user sees a fallback
+      // error message instead of silence.
+      expect(mockSlotDelivery.deliverError).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ success: true, content: 'Content' }),
         expect.objectContaining({
-          content: 'Sorry, I encountered an error generating a response. Please try again later.',
           personality: mockPersonality,
           channel: mockContext.channel,
-          guildId: mockContext.guildId,
-          clientId: mockContext.clientId,
         })
       );
     });
@@ -527,22 +495,21 @@ describe('MessageHandler', () => {
         userMessageTime: new Date(),
       };
 
-      // Reset mocks from previous test
-      mockPersistence.updateUserMessage.mockResolvedValue(undefined);
-      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
-
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockResponseSender.sendResponse.mockResolvedValue({
+      mockSlotDelivery.deliverSuccess.mockResolvedValue({
         chunkMessageIds: ['chunk-1', 'chunk-2', 'chunk-3'],
       });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should save all chunk IDs
-      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
+      // Chunking is internal to SlotDeliveryService (covered by its own
+      // tests). At this layer we only need to confirm the long content
+      // was handed off cleanly.
+      expect(mockSlotDelivery.deliverSuccess).toHaveBeenCalledWith(
         expect.objectContaining({
-          chunkMessageIds: ['chunk-1', 'chunk-2', 'chunk-3'],
-        })
+          content: 'Very long response that will be chunked across multiple Discord messages',
+        }),
+        expect.any(Object)
       );
     });
 
@@ -575,24 +542,16 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
-      mockResponseSender.sendResponse.mockResolvedValue({
-        chunkMessageIds: ['err-msg-1'],
-      });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should save message with stripped error spoiler (no ||*(...))*|| pattern)
-      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.not.stringContaining('||*('),
-        })
-      );
-      // The content should still contain the user-facing error message
-      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.any(String),
-        })
+      // Should hand the failed result to deliverError. The error-content
+      // formatting (and stripErrorSpoiler before persistence) is internal
+      // to SlotDeliveryService — covered by SlotDeliveryService.test.ts.
+      expect(mockSlotDelivery.deliverError).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ success: false, error: 'API rate limit exceeded' }),
+        expect.objectContaining({ message: mockMessage })
       );
     });
 
@@ -632,22 +591,23 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
-      mockResponseSender.sendResponse.mockResolvedValue({
-        chunkMessageIds: ['meta-msg-1'],
-      });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should include all metadata fields in the error response
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+      // Metadata flows through the result to deliverError (which then
+      // forwards relevant fields to sendResponse internally — covered by
+      // SlotDeliveryService.test.ts).
+      expect(mockSlotDelivery.deliverError).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
-          modelUsed: 'anthropic/claude-3-5-sonnet',
-          isGuestMode: true,
-          focusModeEnabled: false,
-          incognitoModeActive: true,
-          isAutoResponse: false,
-        })
+          metadata: expect.objectContaining({
+            modelUsed: 'anthropic/claude-3-5-sonnet',
+            isGuestMode: true,
+            focusModeEnabled: false,
+            incognitoModeActive: true,
+          }),
+        }),
+        expect.objectContaining({ isAutoResponse: false })
       );
     });
 
@@ -682,20 +642,16 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
-      mockResponseSender.sendResponse.mockResolvedValue({
-        chunkMessageIds: ['nometa-msg-1'],
-      });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should still call sendResponse with undefined metadata fields (no crash)
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelUsed: undefined,
-          isGuestMode: undefined,
-          isAutoResponse: true,
-        })
+      // No metadata on the result → deliverError still called cleanly
+      // with the failed result + the slot context (which retains
+      // isAutoResponse from the job context).
+      expect(mockSlotDelivery.deliverError).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ success: false }),
+        expect.objectContaining({ isAutoResponse: true })
       );
     });
 
@@ -730,20 +686,21 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
-      mockResponseSender.sendResponse.mockResolvedValue({
-        chunkMessageIds: ['invmeta-msg-1'],
-      });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should include metadata even when content validation fails
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+      // Empty content → routes to deliverError; metadata still flows through
+      // the result so the error response can render footer fields.
+      expect(mockSlotDelivery.deliverError).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
-          modelUsed: 'openai/gpt-4o',
-          isGuestMode: false,
-          focusModeEnabled: true,
-        })
+          metadata: expect.objectContaining({
+            modelUsed: 'openai/gpt-4o',
+            isGuestMode: false,
+            focusModeEnabled: true,
+          }),
+        }),
+        expect.any(Object)
       );
     });
 
@@ -777,25 +734,16 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
-      mockResponseSender.sendResponse.mockResolvedValue({
-        chunkMessageIds: ['noref-msg-1'],
-      });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should not include 'undefined' in the content
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.not.stringContaining('undefined'),
-        })
-      );
-      // Should not include reference footer at all when referenceId is missing
-      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.not.stringContaining('reference:'),
-        })
-      );
+      // Should call deliverError with an error-content string that
+      // doesn't render "undefined" or reference-footer when referenceId
+      // is missing. (Detailed buildErrorContent shape is unit-tested
+      // separately; we just verify nothing weird leaks here.)
+      const errorContent = mockSlotDelivery.deliverError.mock.calls[0][0] as string;
+      expect(errorContent).not.toContain('undefined');
+      expect(errorContent).not.toContain('reference:');
     });
 
     it('should strip error spoiler when saving invalid content error to history', async () => {
@@ -823,19 +771,13 @@ describe('MessageHandler', () => {
       };
 
       mockJobTracker.getContext.mockReturnValue(mockContext);
-      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
-      mockResponseSender.sendResponse.mockResolvedValue({
-        chunkMessageIds: ['inv-msg-1'],
-      });
 
       await messageHandler.handleJobResult(jobId, result);
 
-      // Should save message with stripped error spoiler
-      expect(mockPersistence.saveAssistantMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.not.stringContaining('||*('),
-        })
-      );
+      // Empty content routes to deliverError. The "strip error spoiler
+      // before persistence" detail is internal to SlotDeliveryService
+      // and covered there directly.
+      expect(mockSlotDelivery.deliverError).toHaveBeenCalledOnce();
     });
   });
 

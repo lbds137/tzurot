@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ChannelType, type Message } from 'discord.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import { type LoadedPersonality, MULTI_TAG } from '@tzurot/common-types';
 import { PersonalityTriggerProcessor } from './PersonalityTriggerProcessor.js';
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -155,6 +155,34 @@ describe('PersonalityTriggerProcessor', () => {
         'Bob',
       ]);
     });
+
+    it('flags truncated=true when more unique mentions than MAX_TAGS', async () => {
+      // MAX_TAGS = 5. Six unique mentions → 5 slots delivered + truncated:true.
+      // The coordinator then surfaces a user-visible notice after the burst.
+      const personalities = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'].map(buildPersonality);
+      vi.mocked(findPersonalityMentions).mockResolvedValue(
+        personalities.map((p, i) => ({ personality: p, startIndex: i * 7 }))
+      );
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol @Dave @Eve @Frank hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(arg.truncated).toBe(true);
+    });
+
+    it('flags truncated=false when mentions fit exactly at MAX_TAGS', async () => {
+      const personalities = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'].map(buildPersonality);
+      vi.mocked(findPersonalityMentions).mockResolvedValue(
+        personalities.map((p, i) => ({ personality: p, startIndex: i * 7 }))
+      );
+
+      await processor.process(buildMessage({ content: '@Alice @Bob @Carol @Dave @Eve hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(MULTI_TAG.MAX_TAGS);
+      expect(arg.truncated).toBe(false);
+    });
   });
 
   describe('Reply triggers', () => {
@@ -225,6 +253,34 @@ describe('PersonalityTriggerProcessor', () => {
         source: 'mention',
         isAutoResponse: false,
       });
+    });
+
+    it('dedupes when activation and mention resolve to the same personality (first occurrence wins)', async () => {
+      // If a channel is activated for personality A, and the user @mentions
+      // A in the same message, we should produce ONE slot, not two. The
+      // first occurrence wins: activation (slot precedence 1) gets the
+      // slot, the mention is dropped. SlotResolver's unit tests cover the
+      // dedup logic; this is the integration check that the trigger
+      // processor wires the inputs correctly.
+      const alice = buildPersonality('Alice');
+      gatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: { personalitySlug: 'alice', personalityName: 'Alice' },
+      });
+      personalityService.loadPersonality.mockResolvedValue(alice);
+      vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
+
+      await processor.process(buildMessage({ content: '@Alice hi' }));
+
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(1);
+      expect(arg.slots[0]).toMatchObject({
+        personality: alice,
+        source: 'activation',
+        isAutoResponse: true,
+      });
+      // Truncation flag must NOT trip — this is dedup, not cap-driven drop.
+      expect(arg.truncated).toBe(false);
     });
 
     it('does not include activated personality in DM channels', async () => {

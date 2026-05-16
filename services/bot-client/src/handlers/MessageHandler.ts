@@ -126,7 +126,15 @@ export class MessageHandler {
     // shutdown (because its result hadn't arrived yet), discard the result
     // silently. Recovery already submitted a fresh job; the new jobId will
     // arrive separately. confirmDelivery clears the Redis stream entry.
-    if (await this.coordinator.isStale(jobId)) {
+    //
+    // Fast-path short-circuit: in normal operation (no recent shutdown, no
+    // recovery pending), the stale-jobs SET is empty and the Redis
+    // SISMEMBER would be wasted. The coordinator's `staleCheckNeeded` flag
+    // flips true once any jobId has been marked stale during the process's
+    // lifetime (either via `beginShutdown` or `MultiTagRecovery`). Skipping
+    // the check in the common case saves one Redis roundtrip per single-
+    // personality result.
+    if (this.coordinator.staleCheckNeeded && (await this.coordinator.isStale(jobId))) {
       logger.info({ jobId }, 'Discarding result for pre-restart (stale) jobId');
       // Confirm delivery so the Redis stream entry clears, and remove the
       // jobId from the stale SET so it doesn't accumulate across the bot's
@@ -134,8 +142,20 @@ export class MessageHandler {
       // SET grows monotonically).
       void getGatewayClient()
         .confirmDelivery(jobId)
-        .catch(() => undefined);
-      void this.coordinator.clearStale(jobId).catch(() => undefined);
+        .catch(err =>
+          logger.warn(
+            { err, jobId },
+            'stale-discard: confirmDelivery failed — Redis stream entry may not clear'
+          )
+        );
+      void this.coordinator
+        .clearStale(jobId)
+        .catch(err =>
+          logger.warn(
+            { err, jobId },
+            'stale-discard: clearStale failed — stale entry will expire via TTL'
+          )
+        );
       return;
     }
 
@@ -394,10 +414,6 @@ export class MessageHandler {
  * builds equivalent slot contexts directly in MultiTagCoordinator.
  */
 function messageJobContextToSlotContext(jobContext: MessageJobContext): SlotDeliveryContext {
-  // discord.js types `author` as non-nullable User. Use optional chaining
-  // anyway so tests with minimal Message fixtures don't trip on the access;
-  // the empty-string fallback never fires in production (system messages are
-  // filtered upstream, so every handled message has an author).
   return {
     message: jobContext.message,
     channel: jobContext.channel,
@@ -407,7 +423,16 @@ function messageJobContextToSlotContext(jobContext: MessageJobContext): SlotDeli
     personaId: jobContext.personaId,
     userMessageContent: jobContext.userMessageContent,
     userMessageTime: jobContext.userMessageTime,
-    isAutoResponse: jobContext.isAutoResponse,
+    // jobContext.isAutoResponse is optional on the source type but every
+    // call site (single-personality, multi-tag) sets it explicitly today.
+    // Coerce missing → false; SlotDeliveryContext.isAutoResponse is now
+    // non-nullable.
+    isAutoResponse: jobContext.isAutoResponse ?? false,
+    // discord.js types `author` as non-nullable User on regular Messages,
+    // and system messages (which lack author) are filtered upstream by
+    // BotMessageFilter. Use optional chaining anyway so tests with minimal
+    // Message fixtures don't trip on the access; the empty-string fallback
+    // never fires in production (every handled message has an author).
     recipientUserId: jobContext.message.author?.id ?? '',
   };
 }

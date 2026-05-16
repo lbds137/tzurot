@@ -133,6 +133,24 @@ describe('SlotDeliveryService', () => {
       ).rejects.toThrow();
     });
 
+    // The runtime guard exists as a backstop for the type system. Today's
+    // callers all validate first, so the throw is unreachable from happy-path
+    // flow — but it MUST exist because TypeScript can express `success: true`
+    // and not "non-empty string content." These cases lock the guard so a
+    // future caller skip can't introduce silent slot drops.
+    it.each([
+      { label: 'null content', content: null },
+      { label: 'undefined content', content: undefined },
+      { label: 'non-string content', content: 42 as unknown as string },
+    ])('throws on $label', async ({ content }) => {
+      const result = { ...buildSuccessResult(), content } as LLMGenerationResult & {
+        success: true;
+      };
+      const slot = buildSlotContext();
+
+      await expect(service.deliverSuccess(result, slot)).rejects.toThrow();
+    });
+
     it('forwards isAutoResponse to the response sender', async () => {
       const result = buildSuccessResult();
       const slot = buildSlotContext({ isAutoResponse: true });

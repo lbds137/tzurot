@@ -14,7 +14,7 @@
  */
 
 import type { Message, DMChannel } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
@@ -100,21 +100,29 @@ export class DMSessionProcessor implements IMessageProcessor {
     // PersonalityTriggerProcessor earlier in the chain. By the time this
     // processor runs, the message is bare (no trigger). The previous "detect
     // mention and defer" branch here was dead code under the new chain order.
-    const personalityId = await this.resolveActiveDmPersonality(message, botId);
+    const resolved = await this.resolveActiveDmPersonality(message, botId);
 
-    if (personalityId === null || personalityId.length === 0) {
+    if (resolved === null || resolved.personalityId.length === 0) {
       // No active session - send self-destructing help message
       logger.debug({ userId }, 'No active session found');
       await this.sendHelpMessage(message);
       return true; // Consume message (don't continue chain)
     }
 
-    // 4. Load personality with access control
-    const personality = await this.personalityService.loadPersonality(personalityId, userId);
+    // 4. Load personality with access control. The backfill path may have
+    // already loaded it (uses the same userId as access scope) — reuse the
+    // cached object in that case to avoid a redundant DB roundtrip. The
+    // fast-path returns only the ID (cheap to re-load via TTLCache).
+    const personality =
+      resolved.personality ??
+      (await this.personalityService.loadPersonality(resolved.personalityId, userId));
 
     if (!personality) {
       // Personality deleted or access revoked - send help
-      logger.debug({ userId, personalityId }, 'Personality not accessible, showing help');
+      logger.debug(
+        { userId, personalityId: resolved.personalityId },
+        'Personality not accessible, showing help'
+      );
       await this.sendHelpMessage(message);
       return true;
     }
@@ -145,11 +153,17 @@ export class DMSessionProcessor implements IMessageProcessor {
    *   2. History scan (existing logic) — only when no settings row exists
    *      yet. On success, write the discovered personality slug to
    *      channel_settings so subsequent messages take the fast path.
+   *
+   * **Return shape**: `{ personalityId, personality }` lets the caller reuse
+   * an already-loaded personality from the backfill path (avoids a second
+   * DB roundtrip). The fast-path returns `personality: null` because the
+   * channel_settings hit doesn't have a personality object handy and a
+   * fresh cache-backed load is cheap. `null` (top-level) means no session.
    */
   private async resolveActiveDmPersonality(
     message: Message,
     botId: string | undefined
-  ): Promise<string | null> {
+  ): Promise<{ personalityId: string; personality: LoadedPersonality | null } | null> {
     const channelId = message.channelId;
 
     const channelSettings = await this.gatewayClient.getChannelSettings(channelId);
@@ -158,7 +172,7 @@ export class DMSessionProcessor implements IMessageProcessor {
       channelSettings.settings?.activatedPersonalityId !== undefined &&
       channelSettings.settings.activatedPersonalityId !== null
     ) {
-      return channelSettings.settings.activatedPersonalityId;
+      return { personalityId: channelSettings.settings.activatedPersonalityId, personality: null };
     }
 
     // History scan is expensive (Discord API fetch of 50 messages). The
@@ -174,16 +188,21 @@ export class DMSessionProcessor implements IMessageProcessor {
     const personalityId = await this.findActivePersonality(message.channel as DMChannel, botId);
     if (personalityId !== null && personalityId.length > 0) {
       // Look up slug for the backfill write. Loading the personality also
-      // validates access; if the user can't see it, we don't backfill.
+      // validates access; if the user can't see it, we don't backfill. The
+      // loaded object is also returned to the caller so it doesn't have to
+      // re-load it for its own access gate.
       const personality = await this.personalityService.loadPersonality(
         personalityId,
         message.author.id
       );
       if (personality !== null) {
         // Fire-and-forget — best-effort, doesn't block the response.
+        // Also clear the backfill-tried sentinel (this scan just succeeded
+        // so any prior negative-cache marker should not survive).
         void this.gatewayClient.setDmSessionPersonality(channelId, personality.slug);
+        void this.multiTagPersistence.clearDMBackfillTried(channelId);
       }
-      return personalityId;
+      return { personalityId, personality };
     }
 
     // Scan came back empty. Record the attempt so the next bare DM doesn't
