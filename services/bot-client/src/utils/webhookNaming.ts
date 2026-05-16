@@ -83,6 +83,15 @@ export function deriveBotSuffix(botTag: string | null | undefined): string {
  * disable the legacy fallback. Always derive via `deriveBotSuffix` rather
  * than constructing suffix strings inline.
  *
+ * **Compound-tag note**: when the bot's tag itself contains multiple
+ * separators (e.g. `'A · B · C'`), `deriveBotSuffix` returns the full
+ * right-hand side as the suffix core — so `botSuffix` here may legitimately
+ * be ` · B · C`. Similarly, a tag with mixed separators (`'A · B | C'`)
+ * yields a canonical suffix whose trailing portion contains the legacy
+ * character (`' · B | C'`). Both shapes are intentional and correctly
+ * matched by `endsWith`; the canonical-first / legacy-fallback ordering
+ * still resolves cleanly for either input.
+ *
  * @returns The personality display name, or `null` if `webhookUsername`
  *   doesn't end with either suffix form. Returning `null` (rather than the
  *   raw username) lets callers distinguish "matched and stripped" from

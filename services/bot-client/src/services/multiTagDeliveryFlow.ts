@@ -94,6 +94,14 @@ async function deliverSlot(
         'Slot result completed but content missing/empty — routing to error path'
       );
     }
+    // `requestId` here is the coordinator's groupId (a crypto UUID) rather
+    // than a BullMQ jobId, because the timeout/no-response path doesn't have
+    // a real per-slot job result to crib from. `SlotDeliveryService.deliverError`
+    // forwards this into the diagnostic-update fire-and-forget, so any
+    // `admin debug` lookup keyed on AI response IDs won't find these timeout-
+    // path error messages. Acceptable trade-off: timeouts are rare, the
+    // user-visible delivery still happens, and surfacing a synthesized
+    // requestId is preferable to leaving the field empty.
     const synthetic: LLMGenerationResult = slot.result ?? {
       requestId: entry.groupId,
       success: false,
