@@ -212,6 +212,12 @@ export interface AudioTranscriptionResult {
    * known. Resolved server-side via `ConfigCascadeResolver` at the
    * user-default tier so the bot-client doesn't need to fetch user
    * preferences separately for every voice message.
+   *
+   * **Populated only on the synchronous `?wait=true` path** of the
+   * api-gateway transcribe route. Asynchronous-polling callers receive
+   * `undefined` here and must resolve user preferences separately. The
+   * sole caller, bot-client, always uses `?wait=true`, so this matters
+   * only if a future caller adopts polling.
    */
   showModelFooter?: boolean;
   metadata?: {

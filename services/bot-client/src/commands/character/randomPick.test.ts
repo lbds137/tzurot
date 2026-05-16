@@ -255,6 +255,39 @@ describe('resolveCharacterSlug', () => {
       expect(result.message).toContain('exclude-private');
     }
   });
+
+  it('uses plural "filters active" wording when both filters are on and pool is empty', async () => {
+    // Pins the plural-branch of the `filterNoun` ternary — the singular
+    // "filter on" path is exercised by the two single-filter tests above.
+    mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: [] });
+
+    const result = await resolveCharacterSlug(null, makeContext(), {
+      onlyMine: true,
+      excludePrivate: true,
+    });
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).toContain('filters active');
+      expect(result.message).not.toContain('filter on');
+    }
+  });
+
+  it('uses singular "filter on" wording when only one filter is active', async () => {
+    // Companion to the plural-branch test above — pins the singular path
+    // so a future refactor can't collapse both into one form silently.
+    mockGetCachedPersonalities.mockResolvedValue({ kind: 'ok', value: [] });
+
+    const result = await resolveCharacterSlug(null, makeContext(), {
+      onlyMine: true,
+    });
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).toContain('filter on');
+      expect(result.message).not.toContain('filters active');
+    }
+  });
 });
 
 describe('finalizeDeferredReply', () => {
