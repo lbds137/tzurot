@@ -65,8 +65,12 @@ describe('CommandHandler (component)', () => {
 
       expect(characterCommand).toBeDefined();
       expect(characterCommand?.subcommandDeferralModes).toBeDefined();
-      // character has 'chat' and 'create' as public subcommands
-      expect(characterCommand?.subcommandDeferralModes?.chat).toBe('public');
+      // `chat` defers ephemerally so the random-pick notice + errors land
+      // invoker-only; the character webhook reply and user-mirror are
+      // independent of defer mode and stay public.
+      expect(characterCommand?.subcommandDeferralModes?.chat).toBe('ephemeral');
+      // `create` shows a modal; cross-check it's still set up correctly.
+      expect(characterCommand?.subcommandDeferralModes?.create).toBe('modal');
     });
 
     it('should preserve subcommandDeferralModes for persona command', () => {

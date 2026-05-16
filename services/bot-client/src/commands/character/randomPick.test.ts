@@ -42,13 +42,13 @@ import { resolveCharacterSlug, finalizeDeferredReply } from './randomPick.js';
 
 const makeSummary = (
   slug: string,
-  opts: { displayName?: string | null; isPublic?: boolean } = {}
+  opts: { displayName?: string | null; isPublic?: boolean; isOwned?: boolean } = {}
 ) => ({
   id: `id-${slug}`,
   slug,
   name: slug,
   displayName: opts.displayName ?? null,
-  isOwned: true,
+  isOwned: opts.isOwned ?? true,
   isPublic: opts.isPublic ?? false,
   ownerId: 'user-123',
   ownerDiscordId: 'user-123',
@@ -148,7 +148,7 @@ describe('resolveCharacterSlug', () => {
     expect(result).toEqual({ kind: 'slug', slug: 'public-two', randomPick: true });
   });
 
-  it('with excludePrivate=true and only-private pool, returns a clear error message', async () => {
+  it('with excludePrivate=true and only-private pool, the error names the active filter', async () => {
     mockGetCachedPersonalities.mockResolvedValue({
       kind: 'ok',
       value: [
@@ -159,15 +159,12 @@ describe('resolveCharacterSlug', () => {
 
     const result = await resolveCharacterSlug(null, makeContext(), { excludePrivate: true });
 
-    expect(result).toEqual({
-      kind: 'error',
-      message: expect.stringContaining('No public characters available'),
-    });
-    // The message should suggest dropping the option (helpful UX)
-    expect(result).toEqual({
-      kind: 'error',
-      message: expect.stringContaining('exclude-private'),
-    });
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).toContain('No characters available');
+      // Names the specific filter so the user knows what to toggle off
+      expect(result.message).toContain('exclude-private');
+    }
   });
 
   it('with excludePrivate=false (default), private personalities stay in the pool', async () => {
@@ -179,6 +176,84 @@ describe('resolveCharacterSlug', () => {
     const result = await resolveCharacterSlug(null, makeContext());
 
     expect(result).toEqual({ kind: 'slug', slug: 'only-private', randomPick: true });
+  });
+
+  // --- only-mine filter (independent of excludePrivate, AND-composable) ---
+
+  it('with onlyMine=true, filters the pool to user-owned personalities', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        makeSummary('not-mine-public', { isPublic: true, isOwned: false }),
+        makeSummary('mine-private', { isPublic: false, isOwned: true }),
+        makeSummary('not-mine-other', { isPublic: true, isOwned: false }),
+      ],
+    });
+    vi.spyOn(Math, 'random').mockReturnValue(0); // pick index 0 of survivors
+
+    const result = await resolveCharacterSlug(null, makeContext(), { onlyMine: true });
+
+    expect(result).toEqual({ kind: 'slug', slug: 'mine-private', randomPick: true });
+  });
+
+  it('with onlyMine=true AND excludePrivate=true, filters to user-owned AND public (intersection)', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        makeSummary('not-mine-public', { isPublic: true, isOwned: false }),
+        makeSummary('mine-private', { isPublic: false, isOwned: true }),
+        makeSummary('mine-public-1', { isPublic: true, isOwned: true }),
+        makeSummary('mine-public-2', { isPublic: true, isOwned: true }),
+      ],
+    });
+    vi.spyOn(Math, 'random').mockReturnValue(0); // pick index 0 of survivors
+
+    const result = await resolveCharacterSlug(null, makeContext(), {
+      onlyMine: true,
+      excludePrivate: true,
+    });
+
+    expect(result).toEqual({ kind: 'slug', slug: 'mine-public-1', randomPick: true });
+  });
+
+  it('with onlyMine=true and no owned personalities in the pool, the error names the active filter', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        makeSummary('not-mine-1', { isPublic: true, isOwned: false }),
+        makeSummary('not-mine-2', { isPublic: true, isOwned: false }),
+      ],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), { onlyMine: true });
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).toContain('No characters available');
+      expect(result.message).toContain('only-mine');
+    }
+  });
+
+  it('with both filters on and empty intersection, the error lists both filter names', async () => {
+    mockGetCachedPersonalities.mockResolvedValue({
+      kind: 'ok',
+      value: [
+        // User owns one private; doesn't own any public — the intersection is empty
+        makeSummary('mine-private', { isPublic: false, isOwned: true }),
+        makeSummary('not-mine-public', { isPublic: true, isOwned: false }),
+      ],
+    });
+
+    const result = await resolveCharacterSlug(null, makeContext(), {
+      onlyMine: true,
+      excludePrivate: true,
+    });
+
+    expect(result.kind).toBe('error');
+    if (result.kind === 'error') {
+      expect(result.message).toContain('only-mine');
+      expect(result.message).toContain('exclude-private');
+    }
   });
 });
 

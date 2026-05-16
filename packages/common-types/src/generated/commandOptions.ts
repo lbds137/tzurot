@@ -143,12 +143,13 @@ export const characterExportOptions = defineTypedOptions({
 });
 
 /**
- * /character chat <character, message, exclude-private>
+ * /character chat <character, message, exclude-private, only-mine>
  */
 export const characterChatOptions = defineTypedOptions({
   character: { type: 'string', required: false },
   message: { type: 'string', required: false },
   'exclude-private': { type: 'boolean', required: false },
+  'only-mine': { type: 'boolean', required: false },
 });
 
 /**
