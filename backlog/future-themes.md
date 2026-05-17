@@ -684,10 +684,10 @@ _Developer experience, schema-type discipline, CI strictness, and test infrastru
 
 Pre-push hook runs CPD and depcruise in warning-only mode (non-blocking). ESLint has warnings for complexity/statements that don't block CI. As we hit targets, tighten the ratchet:
 
-- [ ] **CPD**: Currently non-blocking in pre-push. Once under target (<100 clones), add threshold check that blocks push
+- [x] **CPD**: ratchet shipped 2026-05-16 as `pnpm ops cpd:check` (CI lint job) + post-filter heuristic + boundary docs. See `docs/reference/CPD_CAMPAIGN_AUDIT.md` for the close-out audit and `02-code-standards.md` "Duplication, Helpers, and the CPD Ratchet" for the rules.
 - [ ] **Duplicate Exports**: `guard:duplicate-exports` runs in CI with `continue-on-error: true`. Add ratchet (baseline count file + "new duplicates above baseline" check) so it blocks CI while still allowing existing allowlisted duplicates. Then drop `continue-on-error`
 - [ ] **ESLint warnings**: `max-statements`, `complexity`, `max-lines-per-function` are warn-level. Audit current violation count, set a baseline, block new violations
-- [ ] **Knip**: Dead code detection runs manually. Add to pre-push or CI as blocking check
+- [x] **Knip dead-files**: shipped 2026-05-17 — `pnpm knip:dead` now blocks in both the pre-push hook and the CI lint job. `pnpm knip` (unused exports/imports/deps) was already CI-blocking. Goal achieved: dead files surface immediately, not by audit cycle. The unused-exports half (`pnpm knip`) has been CI-blocking for a while; this closes the dead-files half.
 
 Goal: every quality check that currently warns should eventually block, with a clear baseline so new violations are caught immediately.
 
