@@ -122,6 +122,14 @@ export const envSchema = z.object({
     .optional()
     .transform(val => val?.split(',') ?? ['*'])
     .default(['*']),
+  PUBLIC_RATE_LIMIT_PER_MIN: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .refine(n => n > 0, {
+      message: 'PUBLIC_RATE_LIMIT_PER_MIN must be a positive integer (0 blocks all traffic)',
+    })
+    .default(60),
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -244,6 +252,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     GATEWAY_URL: `http://localhost:${SERVICE_DEFAULTS.API_GATEWAY_PORT}`,
     PUBLIC_GATEWAY_URL: undefined,
     CORS_ORIGINS: ['*'],
+    PUBLIC_RATE_LIMIT_PER_MIN: 60,
 
     // Environment
     NODE_ENV: 'test',
