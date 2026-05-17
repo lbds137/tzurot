@@ -6,11 +6,10 @@
  * insufficient permissions (which surface as 401 with a distinctive
  * `detail.status === 'missing_permissions'` body).
  *
- * Note: intentionally duplicates validation logic from ai-worker's
- * KeyValidationService.validateElevenLabsKey(). Gateway validates on key
- * submission (user-facing flow); worker validates on job execution
- * (runtime health check). Different service boundaries, different error
- * handling.
+ * Validation runs at the api-gateway layer on key submission (user-facing
+ * flow). Runtime health checks happen implicitly when the worker calls
+ * the provider during job execution — bad keys surface as job failures
+ * with provider error details there.
  */
 
 import { AI_ENDPOINTS, VALIDATION_TIMEOUTS } from '@tzurot/common-types';
