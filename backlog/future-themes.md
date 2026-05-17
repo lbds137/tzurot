@@ -685,11 +685,11 @@ _Developer experience, schema-type discipline, CI strictness, and test infrastru
 Pre-push hook runs CPD and depcruise in warning-only mode (non-blocking). ESLint has warnings for complexity/statements that don't block CI. As we hit targets, tighten the ratchet:
 
 - [x] **CPD**: ratchet shipped 2026-05-16 as `pnpm ops cpd:check` (CI lint job) + post-filter heuristic + boundary docs. See `docs/reference/CPD_CAMPAIGN_AUDIT.md` for the close-out audit and `02-code-standards.md` "Duplication, Helpers, and the CPD Ratchet" for the rules.
-- [ ] **Duplicate Exports**: `guard:duplicate-exports` runs in CI with `continue-on-error: true`. Add ratchet (baseline count file + "new duplicates above baseline" check) so it blocks CI while still allowing existing allowlisted duplicates. Then drop `continue-on-error`
-- [ ] **ESLint warnings**: `max-statements`, `complexity`, `max-lines-per-function` are warn-level. Audit current violation count, set a baseline, block new violations
+- [x] **Duplicate Exports**: `guard:duplicate-exports` already runs blocking in CI (no `continue-on-error`) and pre-push, with an `ALLOWLIST` mechanism in `packages/tooling/src/dev/check-duplicate-exports.ts` for intentional duplicates. Currently 0 violations across all packages. Ratchet effectively in place — the "baseline file" approach is unnecessary because the allowlist serves the same role and is more readable.
+- [x] **ESLint warnings**: `eslint --max-warnings=0` is set on every package's lint script, so `complexity`, `max-statements`, `max-lines-per-function`, `max-depth`, `max-params`, `max-nested-callbacks`, and `sonarjs/cognitive-complexity` (all warn-level rules) effectively block CI. `pnpm lint` is currently clean (0 warnings of any kind). No baseline needed — the codebase is already at zero.
 - [x] **Knip dead-files**: shipped 2026-05-17 — `pnpm knip:dead` now blocks in both the pre-push hook and the CI lint job. `pnpm knip` (unused exports/imports/deps) was already CI-blocking. Goal achieved: dead files surface immediately, not by audit cycle. The unused-exports half (`pnpm knip`) has been CI-blocking for a while; this closes the dead-files half.
 
-Goal: every quality check that currently warns should eventually block, with a clear baseline so new violations are caught immediately.
+**Theme status: CLOSED.** All four planned ratchets are in place. Future "block more warnings" work would go in a fresh theme; this one is complete.
 
 #### 🏗️ Schema-Type Unification (Zod `z.infer`)
 
