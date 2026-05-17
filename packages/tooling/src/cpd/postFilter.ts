@@ -171,6 +171,9 @@ export interface FilterResult {
 export function filterReport(report: JscpdReport, threshold = 0.8): FilterResult {
   const rawCount = report.statistics.total.clones;
   const rawLines = report.statistics.total.duplicatedLines;
+  // Cache cwd once — `stripCwd` is called twice per duplicate, and
+  // process.cwd() is a syscall on each invocation.
+  const cwd = process.cwd();
 
   let filteredCount = 0;
   let filteredLines = 0;
@@ -186,8 +189,8 @@ export function filterReport(report: JscpdReport, threshold = 0.8): FilterResult
     filteredCount++;
     filteredLines += dup.lines;
 
-    const a = relativeName(dup.firstFile.name);
-    const b = relativeName(dup.secondFile.name);
+    const a = stripCwd(dup.firstFile.name, cwd);
+    const b = stripCwd(dup.secondFile.name, cwd);
     const key = [a, b].sort().join(' <-> ');
     const prev = pairAgg.get(key) ?? { clones: 0, lines: 0 };
     pairAgg.set(key, { clones: prev.clones + 1, lines: prev.lines + dup.lines });
@@ -201,8 +204,7 @@ export function filterReport(report: JscpdReport, threshold = 0.8): FilterResult
 }
 
 /** Strip the absolute prefix to keep output readable. */
-function relativeName(absPath: string): string {
-  const cwd = process.cwd();
+function stripCwd(absPath: string, cwd: string): string {
   return absPath.startsWith(cwd) ? absPath.slice(cwd.length + 1) : absPath;
 }
 
