@@ -110,7 +110,7 @@ export class RedisRateLimiter {
         const resetTime = ttl > 0 ? ttl : windowSeconds;
 
         logger.warn(
-          { userId: userKey, count, maxRequests: this.maxRequests },
+          { rateLimitKey: userKey, count, maxRequests: this.maxRequests },
           'Rate limit exceeded'
         );
 
@@ -126,7 +126,7 @@ export class RedisRateLimiter {
     } catch (error) {
       // On Redis error, log and allow request through
       // (fail open to prevent service disruption)
-      logger.error({ err: error, userId: userKey }, 'Redis error - allowing request through');
+      logger.error({ err: error, rateLimitKey: userKey }, 'Redis error - allowing request through');
       next();
     }
   }
@@ -192,6 +192,70 @@ export function createRedisDenylistRateLimiter(redis: Redis): RequestHandler {
     maxRequests: 10, // 10 mutations per minute
     message: 'Too many denylist operations. Please try again later.',
     keyPrefix: 'ratelimit:denylist:',
+  });
+  return limiter.middleware();
+}
+
+/**
+ * IP-based key generator for unauthenticated public routes.
+ *
+ * Takes the RIGHTMOST `X-Forwarded-For` entry — that's the IP the last
+ * proxy in the chain (Railway's edge) saw the TCP connection from. Earlier
+ * entries can be client-supplied and spoofable; the rightmost is appended
+ * by Railway based on the actual socket and cannot be controlled by the
+ * client. Using Express's `req.ip` with `trust proxy: 1` is unsafe here —
+ * that setting returns one-in-from-the-right, which IS the spoofable
+ * position when an attacker injects a single XFF entry.
+ *
+ * Falls back to `req.socket.remoteAddress` when there's no XFF header
+ * (local dev, direct connection). Final fallback to a shared 'unknown'
+ * bucket — failing closed at the layer where fail-open would be most
+ * dangerous (one shared bucket beats no rate limiting at all).
+ */
+function publicRouteKeyGenerator(req: Request): string {
+  const xffHeader = req.headers['x-forwarded-for'];
+  // Express types XFF as `string | string[] | undefined`. Node's HTTP parser
+  // normally joins repeated headers into a single comma-separated string, but
+  // the array shape can surface if middleware reshapes headers — flatten it
+  // back to the same comma-separated form before parsing.
+  const xff = Array.isArray(xffHeader) ? xffHeader.join(', ') : xffHeader;
+  if (typeof xff === 'string' && xff.length > 0) {
+    const entries = xff
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    const last = entries[entries.length - 1];
+    if (last !== undefined) {
+      // Strip RFC 7239 §6.3 IPv6 brackets so `[2001:db8::1]` and `2001:db8::1`
+      // map to the same Redis bucket — otherwise IPv6 clients get split-bucket
+      // rate limits depending on upstream proxy formatting.
+      return last.startsWith('[') && last.endsWith(']') ? last.slice(1, -1) : last;
+    }
+  }
+  return req.socket.remoteAddress ?? 'unknown';
+}
+
+/**
+ * Create rate limiter for unauthenticated public routes.
+ *
+ * Keyed by real client IP, extracted directly from the rightmost
+ * `X-Forwarded-For` entry (see `publicRouteKeyGenerator` for the
+ * spoofing-defense rationale — `req.ip` with `trust proxy: 1` is the
+ * spoofable position when an attacker injects one XFF entry).
+ *
+ * Applied to /metrics, /avatars, /voice-references, /exports — NOT /health,
+ * which must remain freely pollable for uptime monitoring.
+ */
+export function createRedisPublicRouteRateLimiter(
+  redis: Redis,
+  maxRequestsPerMinute: number
+): RequestHandler {
+  const limiter = new RedisRateLimiter(redis, {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: maxRequestsPerMinute,
+    message: 'Too many requests from this IP. Please try again later.',
+    keyGenerator: publicRouteKeyGenerator,
+    keyPrefix: 'ratelimit:public:',
   });
   return limiter.middleware();
 }
