@@ -38,18 +38,36 @@ If `pnpm cpd` crashes before emitting `reports/jscpd/jscpd-report.json` (jscpd s
 
 **Start**: `packages/tooling/src/commands/cpd.ts` — both the `cpd:filtered` and `cpd:check` actions have the same `jscpd report not found` early-exit.
 
-### 🏗️ One-time lint-suppression audit
+### ~~🏗️ One-time lint-suppression audit~~ ✅ Done 2026-05-17
 
-_Surfaced 2026-05-16 during campaign close-out planning. Different concern than the "graduate CPD warnings to errors" item in the Tooling & Quality Ratchet theme._
+_Audit run: 97 suppressions across 5 packages, **0 unjustified**. The codebase already meets the project's "target 0" goal on this metric. No follow-up action needed. Top files: `bot-client/test/mocks/Discord.mock.ts` (9), `ai-worker/redis.ts` (4), `api-gateway/queue.ts` (3). All justifications scanned by `pnpm ops xray --suppressions` parse cleanly._
 
-Run `pnpm ops xray --suppressions` once and audit findings. The project's `02-code-standards.md` rule says target 0 unjustified `eslint-disable` / `ts-expect-error` suppressions; the campaign added some new suppressions (e.g., in `configRouteHelpers.ts`) that should have justifications, plus there may be pre-existing unjustified ones from earlier work. Audit is ~30 min; addressing findings depends on count (could be quick-wins-sized or spawn a sub-task).
+### ~~🏗️ One-time `pnpm knip` dead-code sweep~~ ✅ Done 2026-05-17, findings filed
 
-**Start**: `pnpm ops xray --suppressions | head -50` to see the output shape, then bucket findings.
+_Audit run: `pnpm knip` is clean (no unused exports/imports/deps). `pnpm knip:dead` flagged 6 candidate dead files; all 6 verified as actually dead (only own test references each)._
 
-### 🏗️ One-time `pnpm knip` dead-code sweep
+**Findings (filed as new quick-win below):**
 
-_Surfaced 2026-05-16 during campaign close-out planning. Sibling to the suppression audit — different signal, same "run-the-audit-once" shape._
+- `services/ai-worker/src/services/KeyValidationService.ts` — production validation moved to `api-gateway/src/utils/apiKeyValidation/*`; the service's own JSDoc claim "ai-worker ONLY" is stale
+- `services/bot-client/src/memory/ConversationManager.ts`
+- `services/bot-client/src/utils/api/gatewayFetcher.ts`
+- `services/bot-client/src/utils/commandContext/testUtils.ts`
+- `services/bot-client/src/utils/safeInteraction.ts`
+- `services/bot-client/src/utils/triStateHelpers.ts`
 
-The Tooling & Quality Ratchet theme tracks "make Knip CI-blocking" as a future hardening step. **This entry is different**: just RUN it now to see what's currently dead. `pnpm knip` for live exports/imports; `pnpm knip:dead` for files only imported by their own tests. Both have been growing since the TTS epic. Audit, prune low-risk dead code, leave the rest for a focused PR.
+### 🏗️ Dead-code removal: 6 files surfaced by `knip:dead` 2026-05-17
 
-**Start**: `pnpm knip` and `pnpm knip:dead` — read output, classify into safe-to-delete / needs-investigation / intentional-export.
+_Surfaced 2026-05-17 by the dead-code audit (above). All 6 verified — each has only its own `.test.ts` as a reference, no production imports. Some may have intended consumers that were removed in earlier refactors but the helper + tests stayed._
+
+**Files to remove (with their `.test.ts` siblings):**
+
+1. `services/ai-worker/src/services/KeyValidationService.ts` (+ test) — production validation lives in `api-gateway/src/utils/apiKeyValidation/{elevenlabs,mistral,openrouter,zaiCoding}.ts`. The ai-worker JSDoc comment claiming "ai-worker ONLY" was misleading even when written.
+2. `services/bot-client/src/memory/ConversationManager.ts` (+ test) — verify against any vestigial memory-system code paths
+3. `services/bot-client/src/utils/api/gatewayFetcher.ts` (+ test) — possibly superseded by `callGatewayApi` / `adminFetch` helpers
+4. `services/bot-client/src/utils/commandContext/testUtils.ts` (+ test) — test-helper for something that no longer exists
+5. `services/bot-client/src/utils/safeInteraction.ts` (+ test) — possibly superseded by the current interaction-handling patterns
+6. `services/bot-client/src/utils/triStateHelpers.ts` (+ test) — verify against settings cascade code (tri-state semantics could come back if needed)
+
+**Approach**: one small PR removing all 6 + their tests. Pre-check each via git log (when was it last meaningfully used?) and a final grep across `services/` for any string references missed by the basename-only matcher (knip:dead's documented limitation). Likely 1-2 hours including verification.
+
+**Why not delete in audit session**: each removal needs the verification pass per file. Lumping audit + removal would have been a 4-5 hour session; splitting keeps the audit findings fast and the removal focused.
