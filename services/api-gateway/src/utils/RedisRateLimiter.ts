@@ -114,6 +114,8 @@ export class RedisRateLimiter {
           'Rate limit exceeded'
         );
 
+        // RFC 6585 §4: 429 SHOULD include Retry-After (seconds) for client back-off.
+        res.set('Retry-After', String(resetTime));
         res.status(StatusCodes.TOO_MANY_REQUESTS).json({
           error: 'RATE_LIMIT_EXCEEDED',
           message: this.message,

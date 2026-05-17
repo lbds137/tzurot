@@ -67,6 +67,7 @@ describe('RedisRateLimiter', () => {
     mockRes = {
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
     };
 
     mockNext = vi.fn();
@@ -126,11 +127,27 @@ describe('RedisRateLimiter', () => {
 
       expect(mockNext).not.toHaveBeenCalled();
       expect(mockRes.status).toHaveBeenCalledWith(StatusCodes.TOO_MANY_REQUESTS);
+      expect(mockRes.set).toHaveBeenCalledWith('Retry-After', '30');
       expect(mockRes.json).toHaveBeenCalledWith({
         error: 'RATE_LIMIT_EXCEEDED',
         message: 'Too many requests, please try again later',
         retryAfter: 30,
       });
+    });
+
+    it('should fall back to windowSeconds for Retry-After when TTL is missing', async () => {
+      // Edge case: Redis returns -1 (no TTL) or -2 (key not found) for ttl().
+      // The handler falls back to the configured window to ensure clients
+      // still get a sensible back-off rather than 0 or a bogus value.
+      mockRedis.eval.mockResolvedValue(6);
+      mockRedis.ttl.mockResolvedValue(-1);
+
+      const middleware = limiter.middleware();
+      middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockRes.set).toHaveBeenCalledWith('Retry-After', '60');
     });
 
     it('should allow request through on Redis error (fail open)', async () => {
@@ -293,6 +310,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
     mockRes = {
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnThis(),
     };
     mockNext = vi.fn();
   });
@@ -471,6 +489,7 @@ describe('createRedisPublicRouteRateLimiter', () => {
     await new Promise(resolve => setImmediate(resolve));
 
     expect(mockRes.status).toHaveBeenCalledWith(StatusCodes.TOO_MANY_REQUESTS);
+    expect(mockRes.set).toHaveBeenCalledWith('Retry-After', '30');
     expect(mockNext).not.toHaveBeenCalled();
   });
 });
