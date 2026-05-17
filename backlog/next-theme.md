@@ -1,52 +1,30 @@
-## 📅 Next Theme: CPD Clone Reduction
+## 📅 Next Theme: _open — to be picked next session_
 
-_Focus: Reduce code clones to <100. Demoted from Next Epic 2026-04-21 when TTS promoted; resume after TTS Epic completes._
+The previous "Next Theme: CPD Clone Reduction" was **completed differently** by the 2026-05-16 campaign (5 PRs, #1038-1042) than its original "drive to <100 clones" framing — the campaign reframed the goal as **filtered-metric + CI ratchet + documented boundary** after three council models independently identified jscpd's raw count as a broken proxy in a well-abstracted codebase.
 
-**Progress**: 175 → 127 (PRs #599, #665–#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137; PR #776 (browse footer helpers) → 126; Session 1 (PRs #778, #779) → 118; PR #785 (ElevenLabs `readBody` extraction) → 119; 2026-04-13 quick wins session (PRs #794-798, thinking tags data-driven, BrowseActionRow extraction, routeHelpers split) → 119. **Current (`develop`): 169** (re-measured 2026-05-05). Net +50 since 2026-04-13 driven by the TTS Engine Upgrade Phase 1 + supporting infrastructure (LLM/TTS config-service mirror, MistralTtsClient/MistralTtsProvider parallels to ElevenLabs, dispatcher fallback chain). Most of the new clones are intentional symmetry between LLM and TTS code paths; they should largely fold back when the cross-cutting "split LlmConfigService + TtsConfigService into Query/Mutation/Cache services" inbox item promotes.
+**Where the CPD work landed:**
 
-### Completed (Phases 1-4)
+- Close-out audit: [`docs/reference/CPD_CAMPAIGN_AUDIT.md`](../docs/reference/CPD_CAMPAIGN_AUDIT.md) — classification of all remaining clone pairs
+- Helpers extracted: 7 thin helpers in `services/api-gateway/src/utils/configRouteHelpers.ts` + `normalizeConfigNameOnPromote.ts`
+- Enforcement: `pnpm ops cpd:check` runs in CI lint job, baselined at `filteredLines=1752 + graceMargin=10`
+- Documented boundary: `.claude/rules/02-code-standards.md` "Duplication, Helpers, and the CPD Ratchet" section + 2-callback ceiling rule
 
-Phases 1-4 shipped in PRs #599, #665-#668, #704 — Redis setup factory, error reply helpers, route test utilities, personality formatters, API gateway route boilerplate extractions. See git history for details.
+**Candidate next themes** (user to pick — each deserves its own council pass before plan-mode):
 
-### Phase 5: Bot-Client Dashboard Patterns (~16 clones)
+1. **Adjacent CPD follow-up campaigns** — see [`backlog/future-themes.md`](future-themes.md) → "Adjacent CPD Follow-Up Campaigns" — four independently-pickable mini-epics (service-layer parallel cleanup, override-route campaign, bot-client command-pattern, ai-worker voice providers)
+2. **Self-Hosted TTS + BYOK Re-Eval** — Step-0 probes for OmniVoice / F5-TTS / CosyVoice (see `future-themes.md`)
+3. **API Security Hardening** — rate limiter + helmet/CORS + slug-enumeration fix (see `future-themes.md`)
+4. **Other future-themes** — see `backlog/future-themes.md` for the full queue
 
-Session/ownership boilerplate and modal/select handling repeated across all dashboard commands.
+**For tomorrow's session-start**: read [`CURRENT.md`](../CURRENT.md) → [`backlog/quick-wins.md`](quick-wins.md) → pick from the candidates above OR sweep a quick-win first.
 
-- [ ] Standardize `requireDashboardSession` utility — session lookup + expiry + ownership check (8 clones across settings, preset, persona, deny dashboards)
-- [ ] Extract `handleDashboardModalSubmit` — section lookup + value extraction + API call + refresh (4 clones)
-- [ ] Extract `handleDashboardSelectMenu` — edit prefix parsing + section lookup (2 clones)
-- [ ] Deduplicate persona profile section config — single source of truth between `config.ts` and `profileSections.ts` (3 clones)
+---
 
-### Phase 6: Bot-Client Command Patterns (~15 clones)
+## Historical reference: CPD Clone Reduction (closed 2026-05-16)
 
-Subcommand routing, browse/pagination, custom IDs, and command-specific duplication.
+The original phase-by-phase plan from when this was the queued Next Theme:
 
-- [ ] Consolidate subcommand routers — parameterized router with context-type generic (3 clones)
-- [x] Migrate browse consumers to `browse/` utilities, delete `paginationBuilder.ts` (4 clones) — PRs #771-776
-- [x] Servers command: use `createBrowseCustomIdHelpers` instead of inline parsing (4 clones) — PR #773
-- [ ] Extract memory command shared helpers — `formatMemoryLine` (remaining clones)
+**Progress trajectory** (2026-04 through 2026-05-16):
+175 → 127 (PRs #599, #665-#668); grew to 152 from features; PR #729 → 146; 2026-04-06 architecture day (PRs #766, #768, #769) → 137; PR #776 → 126; Session 1 (PRs #778, #779) → 118; PR #785 → 119; 2026-04-13 quick wins → 119; grew to 178 during the 2026-04 → 2026-05 TTS Epic; then the 2026-05-16 campaign (PRs #1038-1042) drove **raw count 178 → 113** (-65) and established the **filtered count metric at 109 / 1752 lines** as the actual enforcement target.
 
-### Phase 7: Cross-Service & Common-Types (~15 clones)
-
-Shared types, config resolver patterns, and remaining cross-service duplication.
-
-- [x] Define `PersonalityFields` type in common-types — `PersonalityCharacterFields` interface + Zod schema fragment (4 files updated)
-- [ ] Extract `CacheWithTTL` base — cleanup interval + user-prefix invalidation (6 clones across config resolvers)
-- [x] DRY personality create/update Zod schemas — use `.extend()` (2 clones) — already implemented via `...PersonalityCharacterFieldsSchema.shape` composition in `PersonalityCreateSchema` and `PersonalityUpdateSchema` (confirmed during Session 1 investigation, 2026-04-11)
-- [ ] Extract `sessionContextFields` Zod fragment — shared between jobs.ts and personality schemas (1 clone)
-- [ ] ResultsListener: use shared `createIORedisClient` factory (1 clone)
-
-### Phase 8: AI Worker + Tooling (~10 clones)
-
-Smaller wins in ai-worker internal patterns and tooling utilities.
-
-- [ ] Extract `createStuckJobCleanup(model, config)` factory (2 clones)
-- [x] Extract `handleShapesJobError` shared error handler — `shapesJobHelpers.ts` factory with callbacks
-- [ ] Extract tooling `spawnWithPiping` and shared `execFileSafe` helpers (3 clones)
-- [ ] Extract migration preamble helper (`validateEnvironment` + banner + client) (2 clones)
-
-### Remaining (~10 clones)
-
-Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
-
-**Target**: <100 clones or <1.5%. Currently 119 clones on develop.
+The original Phase 5-8 breakdown (dashboard patterns, command patterns, cross-service, ai-worker/tooling) was largely subsumed by the 2026-05-16 campaign's State-3 close-out — the work that's still left is documented as **deferred follow-up campaigns** in the audit doc and the future-themes umbrella entry. Future work picks up there with fresh council passes per-campaign rather than chasing the original phase list, which had absorbed assumptions that the council reviews invalidated.

@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-05-05
-> **Version**: v3.0.0-beta.116 (released — develop is currently SHA-aligned with main; next bundle starts fresh)
+> **Last Updated**: 2026-05-16
+> **Version**: v3.0.0-beta.122 (released — develop is currently ahead with the CPD Reduction Campaign close-out, 5 PRs not yet released)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -20,7 +20,7 @@ This file is the index. Each section below is its own file under [`backlog/`](ba
 | 🎯 Current Focus     | [`backlog/current-focus.md`](backlog/current-focus.md)         | This week's active work. Max 3 items.                                      |
 | ⚡️ Quick Wins        | [`backlog/quick-wins.md`](backlog/quick-wins.md)               | Small tasks for momentum between major features.                           |
 | 🏗 Active Epic       | [`backlog/active-epic.md`](backlog/active-epic.md)             | Current major initiative with phases.                                      |
-| 📅 Next Theme        | [`backlog/next-theme.md`](backlog/next-theme.md)               | Queued-after-active-epic theme. Currently: drive CPD to zero.              |
+| 📅 Next Theme        | [`backlog/next-theme.md`](backlog/next-theme.md)               | Queued-after-active-epic theme. **Open** — pick next session.              |
 | 📦 Future Themes     | [`backlog/future-themes.md`](backlog/future-themes.md)         | Themes ordered by dependency. The big queue.                               |
 | 🧊 Icebox            | [`backlog/icebox.md`](backlog/icebox.md)                       | Ideas for later. Resist the shiny object.                                  |
 | ⏸️ Deferred          | [`backlog/deferred.md`](backlog/deferred.md)                   | Decided not to do yet — either declined, or parked behind a named trigger. |
