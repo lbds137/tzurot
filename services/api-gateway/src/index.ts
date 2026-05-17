@@ -13,6 +13,7 @@
  */
 
 import express, { type Express } from 'express';
+import helmet from 'helmet';
 import { Redis } from 'ioredis';
 import { createRequire } from 'module';
 import {
@@ -54,6 +55,7 @@ import { createCorsMiddleware, notFoundHandler, globalErrorHandler } from './mid
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
 import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
 import { requireServiceAuth } from './services/AuthMiddleware.js';
+import { createRedisPublicRouteRateLimiter } from './utils/RedisRateLimiter.js';
 import {
   initializeEmbeddingService,
   shutdownEmbeddingService,
@@ -227,11 +229,22 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   } = services;
 
   // PUBLIC ROUTES (no authentication required)
+  // /health is intentionally exempt from rate limiting — uptime monitors
+  // (Railway, external probes) need unconstrained polling access.
   app.use('/health', createHealthRouter(startTime));
-  app.use('/metrics', createMetricsRouter(aiQueue, startTime));
-  app.use('/avatars', createAvatarRouter(prisma));
-  app.use('/voice-references', createVoiceReferenceRouter(prisma));
-  app.use('/exports', createExportsRouter(prisma));
+
+  const publicRateLimiter = createRedisPublicRouteRateLimiter(
+    cacheRedis,
+    envConfig.PUBLIC_RATE_LIMIT_PER_MIN
+  );
+  logger.info(
+    { maxRequestsPerMinute: envConfig.PUBLIC_RATE_LIMIT_PER_MIN },
+    'Public-route rate limiter initialized'
+  );
+  app.use('/metrics', publicRateLimiter, createMetricsRouter(aiQueue, startTime));
+  app.use('/avatars', publicRateLimiter, createAvatarRouter(prisma));
+  app.use('/voice-references', publicRateLimiter, createVoiceReferenceRouter(prisma));
+  app.use('/exports', publicRateLimiter, createExportsRouter(prisma));
 
   // PROTECTED ROUTES (require service authentication)
   validateServiceAuthConfig();
@@ -362,6 +375,24 @@ async function main(): Promise<void> {
   const prisma = getPrismaClient();
   await prisma.$connect();
   logger.info('Database connection established');
+
+  // Trust one reverse-proxy hop (Railway sits behind a single edge proxy).
+  // Used by Express to populate req.protocol / req.hostname / req.secure
+  // from forwarded headers, and by access logging via req.ip.
+  //
+  // Note: the public-route rate limiter does NOT use req.ip — with
+  // `trust proxy: 1`, req.ip is the one-in-from-the-right XFF entry, which
+  // is spoofable when a client injects an X-Forwarded-For header. The rate
+  // limiter parses XFF manually and takes the rightmost entry (Railway's
+  // own append) — see `publicRouteKeyGenerator` in RedisRateLimiter.ts.
+  app.set('trust proxy', 1);
+
+  // Security headers. crossOriginResourcePolicy is loosened to 'cross-origin'
+  // so /avatars and /voice-references can be fetched by Discord and other
+  // consumers; without this, helmet's default 'same-origin' policy would
+  // block external embedding of these intentionally-public media routes.
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
   // 20MB to accommodate base64-encoded voice reference audio (up to 10MB raw → ~13.3MB base64).
   // Applied globally — acceptable for single-tenant bot. Could be scoped per-route if needed.
   app.use(express.json({ limit: '20mb' }));

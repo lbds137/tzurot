@@ -26,6 +26,7 @@
     "@tzurot/embeddings": "workspace:*",
     "bullmq": "^5.76.7",
     "express": "^5.2.1",
+    "helmet": "^8.1.0",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.10.1",
     "openai": "^6.37.0",

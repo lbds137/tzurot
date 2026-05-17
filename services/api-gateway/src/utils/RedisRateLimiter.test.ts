@@ -6,7 +6,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import type { Mock } from 'vitest';
 import { StatusCodes } from 'http-status-codes';
-import { RedisRateLimiter, createRedisWalletRateLimiter } from './RedisRateLimiter.js';
+import {
+  RedisRateLimiter,
+  createRedisWalletRateLimiter,
+  createRedisPublicRouteRateLimiter,
+} from './RedisRateLimiter.js';
 
 /**
  * Minimal Redis client interface for rate limiting
@@ -277,5 +281,196 @@ describe('createRedisWalletRateLimiter', () => {
     const middleware = createRedisWalletRateLimiter(mockRedis as never);
 
     expect(typeof middleware).toBe('function');
+  });
+});
+
+describe('createRedisPublicRouteRateLimiter', () => {
+  let mockRes: Partial<Response>;
+  let mockNext: NextFunction;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRes = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    };
+    mockNext = vi.fn();
+  });
+
+  function buildReq(overrides: { xff?: string | string[]; socketAddr?: string }): Request {
+    return {
+      headers: overrides.xff !== undefined ? { 'x-forwarded-for': overrides.xff } : {},
+      socket: { remoteAddress: overrides.socketAddr },
+    } as unknown as Request;
+  }
+
+  it('should rate-limit using the X-Forwarded-For header', async () => {
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ xff: '203.0.113.42' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:203.0.113.42',
+      60
+    );
+    expect(mockNext).toHaveBeenCalled();
+  });
+
+  it('should take the RIGHTMOST XFF entry to defeat spoofing', async () => {
+    // Attacker injects `X-Forwarded-For: 1.2.3.4`. Railway appends the real
+    // client IP, so XFF arrives as "1.2.3.4, 198.51.100.7". The rightmost
+    // entry (198.51.100.7) is the one Railway saw and cannot be spoofed.
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ xff: '1.2.3.4, 198.51.100.7' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:198.51.100.7',
+      60
+    );
+  });
+
+  it('should combine rightmost-XFF + IPv6 bracket stripping on multi-hop headers', async () => {
+    // Intersection of two security paths: attacker injects an IPv4 entry,
+    // Railway appends a bracketed IPv6 client address. Should resolve to the
+    // bare bracketless IPv6 form.
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ xff: '1.2.3.4, [2001:db8::1]' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:2001:db8::1',
+      60
+    );
+  });
+
+  it('should strip RFC 7239 IPv6 brackets so [addr] and addr share a bucket', async () => {
+    // Upstream proxies may emit `X-Forwarded-For: [2001:db8::1]` (RFC 7239
+    // §6.3 bracket form) or the bare `2001:db8::1`. Both should land in the
+    // same Redis key — otherwise the same client gets split-bucket rate
+    // limits depending on header formatting.
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ xff: '[2001:db8::1]' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:2001:db8::1',
+      60
+    );
+  });
+
+  it('should handle XFF arriving as a string[] (Express type contract)', async () => {
+    // Node.js normally joins repeated headers, but Express types still allow
+    // `string[]`. The key generator flattens both shapes before parsing.
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ xff: ['1.2.3.4', '198.51.100.7'] }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:198.51.100.7',
+      60
+    );
+  });
+
+  it('should fall back to socket.remoteAddress when no XFF header', async () => {
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ socketAddr: '127.0.0.1' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:127.0.0.1',
+      60
+    );
+  });
+
+  it('should fall back to socket.remoteAddress when XFF is empty string', async () => {
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ xff: '', socketAddr: '127.0.0.1' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:127.0.0.1',
+      60
+    );
+  });
+
+  it('should fall back to socket.remoteAddress when XFF is only commas/whitespace', async () => {
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({ xff: ' , , ', socketAddr: '127.0.0.1' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:127.0.0.1',
+      60
+    );
+  });
+
+  it('should fall back to "unknown" bucket when neither XFF nor socket is available', async () => {
+    mockRedis.eval.mockResolvedValue(1);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 60);
+    middleware(buildReq({}), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRedis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      'ratelimit:public:unknown',
+      60
+    );
+  });
+
+  it('should honor the maxRequestsPerMinute argument', async () => {
+    mockRedis.eval.mockResolvedValue(11);
+    mockRedis.ttl.mockResolvedValue(30);
+
+    const middleware = createRedisPublicRouteRateLimiter(mockRedis as never, 10);
+    middleware(buildReq({ xff: '203.0.113.42' }), mockRes as Response, mockNext);
+
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(mockRes.status).toHaveBeenCalledWith(StatusCodes.TOO_MANY_REQUESTS);
+    expect(mockNext).not.toHaveBeenCalled();
   });
 });
