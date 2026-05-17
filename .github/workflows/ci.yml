@@ -93,6 +93,9 @@ jobs:
       - name: Check for unused code (knip)
         run: pnpm knip
 
+      - name: Check for dead files (knip:dead)
+        run: pnpm knip:dead
+
       - name: Run typecheck:spec
         run: pnpm typecheck:spec
 

@@ -138,7 +138,21 @@ if ! pnpm ops guard:duplicate-exports; then
     exit 1
 fi
 
-# 10. Run dependency boundary checks (BLOCKING)
+# 10. Run dead-file check (BLOCKING)
+# `pnpm knip:dead` flags source files whose only references are their own
+# colocated tests — i.e., production code with zero live consumers. CI runs
+# this in the lint job; mirroring it here catches dead code before push,
+# saving a CI round-trip. Fast (~5s).
+echo "Running dead-file check..."
+if ! pnpm knip:dead; then
+    echo "${RED}Dead-file check failed!${NC}"
+    echo "Either remove the dead file(s), or wire up production consumers."
+    echo "If knip:dead's basename matcher reports a false positive, verify"
+    echo "the file is actually reachable via 'grep -rln <filename> services/ packages/'."
+    exit 1
+fi
+
+# 11. Run dependency boundary checks (BLOCKING)
 # Clear the depcruise cache first — content-strategy caching has missed
 # circular-dependency violations across renamed/moved files at least once
 # (PR #901, 2026-04-25). The full analysis takes ~5s, so the cost of always
@@ -152,7 +166,7 @@ if ! pnpm depcruise; then
     exit 1
 fi
 
-# 11. Run Python quality checks if Python files changed
+# 12. Run Python quality checks if Python files changed
 if [ -n "$PYTHON_FILES" ]; then
     echo "Running Python quality checks (ruff + mypy + pytest)..."
     if ! (cd services/voice-engine && ruff check .); then
