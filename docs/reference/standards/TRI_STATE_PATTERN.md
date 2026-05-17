@@ -94,12 +94,11 @@ Effective: **{enabled|disabled}** (from {entity|channel|global})
 2. Add global default column to AdminSettings (if applicable)
 3. Create resolver following the cascade pattern
 4. Add command actions: `enable`, `disable`, `auto`, `status`
-5. Use shared helpers from `triStateHelpers.ts` for message formatting
+5. Format messages inline at the command-handler level using the resolver's output — each setting localises its own message strings rather than sharing helpers
 6. Add tests for all 9 combinations (3 entity × 3 channel states)
 7. Update this table with the new setting
 
 ## Related Files
 
-- `services/bot-client/src/utils/triStateHelpers.ts` - Shared formatting helpers
 - `services/bot-client/src/commands/channel/context.ts` - Channel command example
 - `services/bot-client/src/commands/character/settings.ts` - Entity command example
