@@ -240,26 +240,15 @@ await interaction.editReply({
 });
 ```
 
-### 🛡️ SafeInteraction Wrapper (Runtime Safety Net)
+### 🛡️ Preventing `InteractionAlreadyReplied` errors
 
-To prevent `InteractionAlreadyReplied` errors from reaching production, a runtime safety wrapper exists in `bot-client/src/utils/safeInteraction.ts`.
+The pattern that historically caused `InteractionAlreadyReplied` errors — calling `reply()` on a deferred interaction — is now prevented at the architecture level rather than via a runtime wrapper:
 
-**What It Does:**
+- **Deferral mode is encoded in the context type** (`DeferredCommandContext` exposes only `editReply()`, not `reply()`) — see `services/bot-client/src/utils/commandContext/`
+- **Component interactions follow the deferUpdate-first contract** in `.claude/rules/04-discord.md`: the first `await` in a button/select handler is `interaction.deferUpdate()`, and error paths after that use `followUp()` not `reply()`
+- **Nested-router pattern** documented in `04-discord.md` for cases where a top-level handler defers before dispatching to downstream handlers that may also defer
 
-- Intercepts `reply()` calls on deferred interactions
-- Auto-converts them to `editReply()` at runtime
-- Logs a warning so developers can find and fix the incorrect code
-
-**How It's Applied:**
-
-```typescript
-// In bot-client/src/index.ts
-await interaction.deferReply({ flags: ... });
-const safeInteraction = wrapDeferredInteraction(interaction);
-await commandHandler.handleInteraction(safeInteraction);
-```
-
-**This is a safety net, not a best practice.** Always use `editReply()` directly in deferred command handlers. The wrapper exists to prevent silent failures while bugs are being fixed.
+Always use `editReply()` directly in deferred command handlers. If you find yourself wanting a runtime safety wrapper, the deferral mode of the calling context probably needs to change instead.
 
 ---
 
