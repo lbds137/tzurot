@@ -182,6 +182,74 @@ describe('ResponseOrderingService', () => {
     });
   });
 
+  describe('per-result deliverFn (cross-contamination fix)', () => {
+    // Two concurrent `handleResult` calls on the same channel with
+    // DIFFERENT deliverFns must each route via their own deliverFn — not
+    // whatever was passed most recently. See `BufferedResult` doc for why.
+
+    it('should route each buffered result to its OWN deliverFn', async () => {
+      const channelId = 'channel-1';
+      const time1 = new Date('2024-01-01T10:00:00Z');
+      const time2 = new Date('2024-01-01T10:01:00Z');
+
+      const calledByFnA: string[] = [];
+      const calledByFnB: string[] = [];
+      const deliverFnA = vi.fn(async (jobId: string) => {
+        calledByFnA.push(jobId);
+      });
+      const deliverFnB = vi.fn(async (jobId: string) => {
+        calledByFnB.push(jobId);
+      });
+
+      // Register both jobs upfront — both will buffer (out-of-order arrival)
+      service.registerJob(channelId, 'job-A', time1);
+      service.registerJob(channelId, 'job-B', time2);
+
+      // jobB's result arrives first (out of order), gets buffered with deliverFnB
+      await service.handleResult(channelId, 'job-B', createResult('B'), time2, deliverFnB);
+      // jobA's result arrives second, gets buffered with deliverFnA — and
+      // unblocks jobB. Pre-fix, both would be delivered via deliverFnA
+      // (the deliverFn passed to the second handleResult call).
+      await service.handleResult(channelId, 'job-A', createResult('A'), time1, deliverFnA);
+
+      // Each job must be delivered via its OWN deliverFn — no swap.
+      expect(calledByFnA).toEqual(['job-A']);
+      expect(calledByFnB).toEqual(['job-B']);
+    });
+
+    it('should use the right deliverFn on shutdown', async () => {
+      const channelId = 'channel-1';
+      const time1 = new Date('2024-01-01T10:00:00Z');
+      const time2 = new Date('2024-01-01T10:01:00Z');
+
+      const calledByFnA: string[] = [];
+      const calledByFnB: string[] = [];
+      const deliverFnA = vi.fn(async (jobId: string) => {
+        calledByFnA.push(jobId);
+      });
+      const deliverFnB = vi.fn(async (jobId: string) => {
+        calledByFnB.push(jobId);
+      });
+
+      // Both jobs registered, both will buffer
+      service.registerJob(channelId, 'job-A', time1);
+      service.registerJob(channelId, 'job-B', time2);
+      service.registerJob(channelId, 'job-blocker', new Date('2024-01-01T09:00:00Z'));
+
+      // Both results arrive but are blocked by the older job-blocker
+      await service.handleResult(channelId, 'job-A', createResult('A'), time1, deliverFnA);
+      await service.handleResult(channelId, 'job-B', createResult('B'), time2, deliverFnB);
+      expect(calledByFnA).toHaveLength(0);
+      expect(calledByFnB).toHaveLength(0);
+
+      // Shutdown delivers everything — each via its own deliverFn
+      await service.shutdown();
+
+      expect(calledByFnA).toEqual(['job-A']);
+      expect(calledByFnB).toEqual(['job-B']);
+    });
+  });
+
   describe('multi-channel independence', () => {
     it('should not block results in one channel due to pending job in another', async () => {
       const time1 = new Date('2024-01-01T10:00:00Z');
@@ -220,7 +288,7 @@ describe('ResponseOrderingService', () => {
 
       // Cancel job-1 to trigger queue reprocessing with the new time
       // (In production, this happens when job-1 times out and returns an error)
-      await service.cancelJob(channelId, 'job-1', deliverFn);
+      await service.cancelJob(channelId, 'job-1');
 
       // Job 2 should have been delivered (either due to cancel unblocking or timeout)
       expect(deliveredResults).toHaveLength(1);
@@ -268,7 +336,7 @@ describe('ResponseOrderingService', () => {
       expect(deliveredResults).toHaveLength(0);
 
       // Cancel job 1 (e.g., it failed)
-      await service.cancelJob(channelId, 'job-1', deliverFn);
+      await service.cancelJob(channelId, 'job-1');
 
       // Job 2 should now be delivered
       expect(deliveredResults).toHaveLength(1);
@@ -406,7 +474,7 @@ describe('ResponseOrderingService', () => {
       expect(deliveredResults).toHaveLength(0);
 
       // Shutdown
-      await service.shutdown(deliverFn);
+      await service.shutdown();
 
       // Buffered result should be delivered
       expect(deliveredResults).toHaveLength(1);
@@ -429,7 +497,7 @@ describe('ResponseOrderingService', () => {
       expect(deliveredResults).toHaveLength(0);
 
       // Shutdown
-      await service.shutdown(deliverFn);
+      await service.shutdown();
 
       // Both should be delivered in order
       expect(deliveredResults).toHaveLength(2);
@@ -441,7 +509,7 @@ describe('ResponseOrderingService', () => {
       service.registerJob('channel-1', 'job-1', new Date());
       service.registerJob('channel-2', 'job-2', new Date());
 
-      await service.shutdown(deliverFn);
+      await service.shutdown();
 
       const stats = service.getStats();
       expect(stats.channelCount).toBe(0);

@@ -18,12 +18,20 @@ const logger = createLogger('ResponseOrderingService');
 
 /**
  * A result that has been received but is waiting for delivery
+ *
+ * The `deliverFn` is captured PER RESULT, not per-processQueue invocation —
+ * different jobs in the same channel may have different delivery callbacks
+ * (e.g., a multi-tag group's deliverFn closure that captures its own entry
+ * vs. a single-personality deliverFn that routes by jobId). Sharing one
+ * deliverFn across all buffered results in a channel would mis-route
+ * deliveries when multiple groups race to flush concurrently.
  */
 interface BufferedResult {
   jobId: string;
   result: LLMGenerationResult;
   userMessageTime: Date;
   receivedAt: number; // Date.now() for timeout calculation
+  deliverFn: DeliverFn;
 }
 
 /**
@@ -62,12 +70,6 @@ export class ResponseOrderingService {
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   /**
-   * Stored delivery function for processing queues after stale cleanup.
-   * Set by the first call to handleResult() and reused for cleanup.
-   */
-  private storedDeliverFn: DeliverFn | null = null;
-
-  /**
    * Create a new ResponseOrderingService
    * @param enableCleanup - If true, starts periodic stale job cleanup (default: true)
    */
@@ -97,15 +99,15 @@ export class ResponseOrderingService {
   /**
    * Cleanup stale jobs and process any unblocked queues.
    * This is the async wrapper called by the interval.
+   *
+   * Each buffered result carries its own deliverFn (see `BufferedResult`),
+   * so cleanup can re-process freely — every result delivers via the
+   * callback it was registered with, no shared deliverFn risk.
    */
   private async cleanupStaleJobsAndProcess(): Promise<void> {
     const { channelsCleaned } = this.cleanupStaleJobs();
-
-    // If we have a stored delivery function, process queues to deliver unblocked results
-    if (channelsCleaned.length > 0 && this.storedDeliverFn !== null) {
-      for (const channelId of channelsCleaned) {
-        await this.processQueue(channelId, this.storedDeliverFn);
-      }
+    for (const channelId of channelsCleaned) {
+      await this.processQueue(channelId);
     }
   }
 
@@ -166,10 +168,6 @@ export class ResponseOrderingService {
   ): Promise<void> {
     const queue = this.channelQueues.get(channelId);
 
-    // Store the deliverFn for use in stale job cleanup
-    // This allows us to process queues and deliver unblocked results after cleanup
-    this.storedDeliverFn = deliverFn;
-
     // Validate that job was registered - if not, deliver immediately
     // This catches programming errors where registerJob wasn't called
     if (queue?.pendingJobs.has(jobId) !== true) {
@@ -181,12 +179,14 @@ export class ResponseOrderingService {
       return;
     }
 
-    // Add to buffer
+    // Add to buffer with its OWN deliverFn — see `BufferedResult` interface
+    // for why per-result registration matters (concurrent-flush race fix).
     queue.bufferedResults.push({
       jobId,
       result,
       userMessageTime,
       receivedAt: Date.now(),
+      deliverFn,
     });
 
     logger.debug(
@@ -195,7 +195,7 @@ export class ResponseOrderingService {
     );
 
     // Process the queue to deliver any ready results
-    await this.processQueue(channelId, deliverFn);
+    await this.processQueue(channelId);
   }
 
   /**
@@ -204,9 +204,8 @@ export class ResponseOrderingService {
    *
    * @param channelId - Discord channel ID
    * @param jobId - BullMQ job ID
-   * @param deliverFn - Callback to deliver any unblocked results
    */
-  async cancelJob(channelId: string, jobId: string, deliverFn?: DeliverFn): Promise<void> {
+  async cancelJob(channelId: string, jobId: string): Promise<void> {
     const queue = this.channelQueues.get(channelId);
     if (!queue) {
       return;
@@ -216,11 +215,9 @@ export class ResponseOrderingService {
 
     if (wasRegistered) {
       logger.info({ channelId, jobId }, 'Cancelled pending job');
-
-      // Re-process queue in case this unblocks buffered results
-      if (deliverFn) {
-        await this.processQueue(channelId, deliverFn);
-      }
+      // Re-process queue in case this unblocks buffered results — each
+      // buffered result uses its own captured deliverFn.
+      await this.processQueue(channelId);
     }
 
     this.cleanupIfEmpty(channelId, queue);
@@ -250,7 +247,7 @@ export class ResponseOrderingService {
    * - No pending jobs have an earlier userMessageTime, OR
    * - The result has been waiting longer than MAX_WAIT_MS (timeout escape)
    */
-  private async processQueue(channelId: string, deliverFn: DeliverFn): Promise<void> {
+  private async processQueue(channelId: string): Promise<void> {
     const queue = this.channelQueues.get(channelId);
     if (!queue || queue.bufferedResults.length === 0) {
       return;
@@ -324,9 +321,8 @@ export class ResponseOrderingService {
         );
       }
 
-      // Deliver the result
       try {
-        await deliverFn(oldest.jobId, oldest.result);
+        await oldest.deliverFn(oldest.jobId, oldest.result);
       } catch (error) {
         // Log but continue processing queue - don't let one failure block others
         logger.error({ err: error, channelId, jobId: oldest.jobId }, 'Failed to deliver result');
@@ -399,9 +395,11 @@ export class ResponseOrderingService {
 
   /**
    * Shutdown: deliver all buffered results immediately (in order).
-   * Called during graceful shutdown to avoid losing results.
+   * Called during graceful shutdown to avoid losing results. Each result
+   * delivers via its OWN captured deliverFn (the same per-result routing
+   * that prevents cross-contamination during normal operation).
    */
-  async shutdown(deliverFn: DeliverFn): Promise<void> {
+  async shutdown(): Promise<void> {
     logger.info(
       { channelCount: this.channelQueues.size },
       'Shutting down - delivering all buffered results'
@@ -415,7 +413,7 @@ export class ResponseOrderingService {
 
       for (const buffered of queue.bufferedResults) {
         try {
-          await deliverFn(buffered.jobId, buffered.result);
+          await buffered.deliverFn(buffered.jobId, buffered.result);
           logger.debug(
             { channelId, jobId: buffered.jobId },
             'Delivered buffered result on shutdown'
