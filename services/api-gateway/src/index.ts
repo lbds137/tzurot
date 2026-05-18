@@ -42,11 +42,11 @@ import { createInternalRouter } from './routes/internal/index.js';
 import { createModelsRouter } from './routes/models/index.js';
 import {
   createHealthRouter,
-  createMetricsRouter,
   createAvatarRouter,
   createVoiceReferenceRouter,
   createExportsRouter,
 } from './routes/public/index.js';
+import { createMetricsRouter } from './routes/protected/index.js';
 
 // Middleware
 import {
@@ -267,10 +267,10 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
 
   // /metrics exposes BullMQ queue depth, completed/failed counts, and uptime.
   // Operational telemetry — no PII, but useful intelligence for an attacker
-  // (timing high-load windows, detecting deploys). No external consumer
-  // exists today (bot-client uses /health for status), so requiring auth is
-  // free; if a future Prometheus-style scraper is added, it authenticates
-  // via INTERNAL_SERVICE_SECRET like everything else.
+  // (timing high-load windows, detecting deploys). bot-client uses /health
+  // for status checks rather than /metrics, so requiring service auth here
+  // is free; a future Prometheus-style scraper would authenticate via
+  // INTERNAL_SERVICE_SECRET like everything else in the protected section.
   app.use('/metrics', createMetricsRouter(aiQueue, startTime));
   logger.info('Metrics route registered (service-auth protected)');
 
