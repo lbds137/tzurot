@@ -1,7 +1,10 @@
 /**
  * Public Routes
  *
- * Routes that don't require authentication (health, metrics, avatars, exports).
+ * Route factories grouped here for historical reasons. Most are mounted
+ * publicly (health, avatars, voice-references, exports), but `metrics`
+ * is mounted behind service auth despite living in this directory — the
+ * factory shape is identical, only the mount-point auth posture differs.
  */
 
 export { createHealthRouter } from './health.js';

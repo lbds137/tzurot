@@ -49,7 +49,12 @@ import {
 } from './routes/public/index.js';
 
 // Middleware
-import { createCorsMiddleware, notFoundHandler, globalErrorHandler } from './middleware/index.js';
+import {
+  createCorsMiddleware,
+  allowCrossOriginEmbedding,
+  notFoundHandler,
+  globalErrorHandler,
+} from './middleware/index.js';
 
 // Services
 import { DatabaseNotificationListener } from './services/DatabaseNotificationListener.js';
@@ -241,15 +246,33 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     { maxRequestsPerMinute: envConfig.PUBLIC_RATE_LIMIT_PER_MIN },
     'Public-route rate limiter initialized'
   );
-  app.use('/metrics', publicRateLimiter, createMetricsRouter(aiQueue, startTime));
-  app.use('/avatars', publicRateLimiter, createAvatarRouter(prisma));
-  app.use('/voice-references', publicRateLimiter, createVoiceReferenceRouter(prisma));
+
+  // Media routes that legitimately need cross-origin embedding (Discord
+  // fetches avatars and voice samples from outside our origin). Opt these
+  // two specific routers into CORP cross-origin via the per-route
+  // middleware; everything else inherits helmet's same-origin default.
+  app.use('/avatars', publicRateLimiter, allowCrossOriginEmbedding, createAvatarRouter(prisma));
+  app.use(
+    '/voice-references',
+    publicRateLimiter,
+    allowCrossOriginEmbedding,
+    createVoiceReferenceRouter(prisma)
+  );
   app.use('/exports', publicRateLimiter, createExportsRouter(prisma));
 
   // PROTECTED ROUTES (require service authentication)
   validateServiceAuthConfig();
   app.use(requireServiceAuth());
   logger.info('Service authentication middleware applied globally');
+
+  // /metrics exposes BullMQ queue depth, completed/failed counts, and uptime.
+  // Operational telemetry — no PII, but useful intelligence for an attacker
+  // (timing high-load windows, detecting deploys). No external consumer
+  // exists today (bot-client uses /health for status), so requiring auth is
+  // free; if a future Prometheus-style scraper is added, it authenticates
+  // via INTERNAL_SERVICE_SECRET like everything else.
+  app.use('/metrics', createMetricsRouter(aiQueue, startTime));
+  logger.info('Metrics route registered (service-auth protected)');
 
   app.use('/ai', createAIRouter(prisma, aiQueue, queueEvents));
   logger.info('AI routes registered');
@@ -387,11 +410,11 @@ async function main(): Promise<void> {
   // own append) — see `publicRouteKeyGenerator` in RedisRateLimiter.ts.
   app.set('trust proxy', 1);
 
-  // Security headers. crossOriginResourcePolicy is loosened to 'cross-origin'
-  // so /avatars and /voice-references can be fetched by Discord and other
-  // consumers; without this, helmet's default 'same-origin' policy would
-  // block external embedding of these intentionally-public media routes.
-  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  // Security headers. Helmet defaults apply globally (CORP = 'same-origin').
+  // The two media routes that need cross-origin embedding (/avatars and
+  // /voice-references) opt in to a looser CORP per-route below, so the
+  // permissive policy doesn't leak onto every other endpoint.
+  app.use(helmet());
 
   // 20MB to accommodate base64-encoded voice reference audio (up to 10MB raw → ~13.3MB base64).
   // Applied globally — acceptable for single-tenant bot. Could be scoped per-route if needed.

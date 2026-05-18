@@ -1,7 +1,8 @@
 /**
  * Metrics Routes
  *
- * Public endpoint for service metrics.
+ * Service-auth-protected endpoint for operational metrics (queue depth,
+ * cache size, uptime). Mounted behind requireServiceAuth() in index.ts.
  */
 
 import { Router } from 'express';
