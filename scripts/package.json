@@ -13,7 +13,7 @@
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "dotenv": "^17.4.2",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
