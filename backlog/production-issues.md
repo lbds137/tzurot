@@ -2,7 +2,22 @@
 
 _Active bugs observed in production. Fix before new features._
 
-_(none — all recent prod issues resolved through v3.0.0-beta.119)_
+- 🐛 `[FIX]` **Multi-personality ping race: wrong personality + duplicate response content** — Observed by user 2026-05-17 at 23:06 in `#monotheism` channel. Nyota pinged three personalities in quick succession (~60s window): @Samael, then @Yeshua, then @Samael. All three responses came back attributed to Samael (audio attachment filenames confirm: `<snowflake>-samael-melech-ha-ela-mp...`). Yeshua never responded. The **second** response (which should have been Yeshua) was **text-identical** to the first Samael response — same opening "Your framework has shifted toward mercy as default..." running through the full body. The third was a fresh Samael response on a different prompt.
+
+  **Initial hypothesis (unverified — investigating now)**: api-gateway deduplication cache hashes request content without including the target personality identifier. Three thematically-similar pings → second one collides on the first's dedup hash → returns the cached job ID, replaying Samael's content as the "Yeshua" response.
+
+  **Symptoms checklist**:
+  - 3 separate Discord pings to 2 different personalities (S/Y/S)
+  - Only 1 personality (Samael) ever produced output
+  - Middle response text byte-identical to first
+  - Audio attachments confirm personality attribution via filename slug
+  - All within the same ~60s window (timestamps both 23:06)
+
+  **Where to look first**: `services/api-gateway/src/utils/RedisDeduplicationCache.ts` (hash key generation — confirm whether personality identifier is included), then `services/bot-client/src/processors/` (how multi-personality pings are dispatched into the job payload).
+
+  **Severity**: User-impacting in active production. Quick consecutive multi-personality pings in any channel can produce wrong-personality responses. Workaround for users: wait between pings.
+
+  **Investigation in progress** — see PR (TBD) for diagnosis + fix.
 
 _Cleared 2026-05-10:_
 
