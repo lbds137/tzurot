@@ -116,14 +116,26 @@ async function transcribeWithVoiceEngine(
     // Retry transient errors (ECONNREFUSED, 502/503/504) — the engine may still be
     // stabilizing after warmup polling returned. Auth errors and other permanent
     // failures fast-fail via shouldRetry returning false.
-    // No globalTimeoutMs — the per-call VOICE_ENGINE_API timeout (180s) bounds each
-    // attempt, and with maxAttempts=2 the worst-case retry overhead is ~3s (delay only).
+    //
+    // globalTimeoutMs interacts with the retry loop based on WHERE the check
+    // fires: at the start of each attempt, against wall-clock elapsed since
+    // withRetry began. Setting it to VOICE_ENGINE_API (180s) — equal to the
+    // per-attempt timeout — produces the intended asymmetric behavior:
+    //   - Attempt 1 fast-fails (e.g., ECONNREFUSED at 5s): elapsed at attempt-2
+    //     entry ≈ 8s, < 180s, so retry proceeds. We keep retry value on transients.
+    //   - Attempt 1 times out fully (180s): elapsed at attempt-2 entry ≈ 183s,
+    //     ≥ 180s, so the global-timeout check fires and aborts. Worst case ≈ 183s.
+    // Any higher value (e.g., STT_GATEWAY - AUDIO_FETCH = 210s) is a no-op at
+    // MAX_ATTEMPTS=2 because elapsed-at-attempt-2 is bounded by 180 + 3 = 183s
+    // and never reaches the threshold. The fully correct fix requires AbortSignal
+    // propagation to cancel in-flight work mid-attempt — out of scope here.
     const { value: result } = await withRetry(
       () =>
         voiceEngineClient.transcribe(Buffer.from(audioBuffer), filename, attachment.contentType),
       {
         maxAttempts: VOICE_ENGINE_RETRY.MAX_ATTEMPTS,
         initialDelayMs: VOICE_ENGINE_RETRY.INITIAL_DELAY_MS,
+        globalTimeoutMs: TIMEOUTS.VOICE_ENGINE_API,
         shouldRetry: isTransientVoiceEngineError,
         operationName: 'Voice Engine STT',
         logger,
