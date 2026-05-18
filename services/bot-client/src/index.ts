@@ -551,58 +551,51 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
     }
   })();
 
-  // Then deliver any buffered results
-  void services.responseOrderingService
-    .shutdown(async (jobId, result) => {
-      try {
-        await services.messageHandler.handleJobResult(jobId, result);
-        await services.gatewayClient.confirmDelivery(jobId);
-      } catch (error) {
-        logger.error({ err: error, jobId }, 'Error delivering buffered result on shutdown');
-      }
-    })
-    .finally(async () => {
-      services.jobTracker.cleanup();
-      services.responseOrderingService.stopCleanup();
-      services.webhookManager.destroy();
-      stopNotificationCacheCleanup();
-      stopVerificationCleanupScheduler();
-      services.personaResolver.stopCleanup();
-      // ioredis Redis#disconnect is synchronous (returns void) — kept outside
-      // the awaited Promise.all because there's no Promise to await.
-      services.cacheRedis.disconnect();
+  // Then deliver any buffered results — each result uses its own captured
+  // deliverFn (multi-tag groups use their deliverGroup closure; single-
+  // personality results use the per-jobId routing closure from handleResult).
+  void services.responseOrderingService.shutdown().finally(async () => {
+    services.jobTracker.cleanup();
+    services.responseOrderingService.stopCleanup();
+    services.webhookManager.destroy();
+    stopNotificationCacheCleanup();
+    stopVerificationCleanupScheduler();
+    services.personaResolver.stopCleanup();
+    // ioredis Redis#disconnect is synchronous (returns void) — kept outside
+    // the awaited Promise.all because there's no Promise to await.
+    services.cacheRedis.disconnect();
 
-      // Await async cleanup with a bounded timeout so a hung resource can't
-      // block shutdown. Railway will SIGKILL after its grace window anyway;
-      // better to exit cleanly when we can. Without the await, voided promises
-      // returned ~immediately and process.exit ran before Discord WebSocket
-      // close handshake / Redis disconnect / Prisma cleanup completed.
-      const SHUTDOWN_TIMEOUT_MS = 5000;
-      try {
-        await Promise.race([
-          Promise.all([
-            services.cacheInvalidationService.unsubscribe(),
-            services.personaCacheInvalidationService.unsubscribe(),
-            services.channelActivationCacheInvalidationService.unsubscribe(),
-            services.denylistCacheInvalidationService.unsubscribe(),
-            closeRedis(),
-            client.destroy(),
-            disconnectPrisma(),
-          ]),
-          new Promise<never>((_resolve, reject) =>
-            setTimeout(
-              () => reject(new Error(`Shutdown cleanup exceeded ${SHUTDOWN_TIMEOUT_MS}ms`)),
-              SHUTDOWN_TIMEOUT_MS
-            )
-          ),
-        ]);
-        logger.info('Shutdown cleanup completed cleanly');
-      } catch (error) {
-        logger.warn({ err: error }, 'Shutdown cleanup did not complete cleanly');
-      }
+    // Await async cleanup with a bounded timeout so a hung resource can't
+    // block shutdown. Railway will SIGKILL after its grace window anyway;
+    // better to exit cleanly when we can. Without the await, voided promises
+    // returned ~immediately and process.exit ran before Discord WebSocket
+    // close handshake / Redis disconnect / Prisma cleanup completed.
+    const SHUTDOWN_TIMEOUT_MS = 5000;
+    try {
+      await Promise.race([
+        Promise.all([
+          services.cacheInvalidationService.unsubscribe(),
+          services.personaCacheInvalidationService.unsubscribe(),
+          services.channelActivationCacheInvalidationService.unsubscribe(),
+          services.denylistCacheInvalidationService.unsubscribe(),
+          closeRedis(),
+          client.destroy(),
+          disconnectPrisma(),
+        ]),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error(`Shutdown cleanup exceeded ${SHUTDOWN_TIMEOUT_MS}ms`)),
+            SHUTDOWN_TIMEOUT_MS
+          )
+        ),
+      ]);
+      logger.info('Shutdown cleanup completed cleanly');
+    } catch (error) {
+      logger.warn({ err: error }, 'Shutdown cleanup did not complete cleanly');
+    }
 
-      process.exit(0);
-    });
+    process.exit(0);
+  });
 }
 process.on('SIGTERM', handleShutdownSignal);
 process.on('SIGINT', handleShutdownSignal);
