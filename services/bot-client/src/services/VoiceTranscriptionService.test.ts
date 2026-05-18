@@ -248,6 +248,7 @@ describe('VoiceTranscriptionService', () => {
         [
           {
             url: 'https://cdn.discord.com/voice/123.ogg',
+            originalUrl: 'https://cdn.discord.com/voice/123.ogg',
             contentType: 'audio/ogg',
             name: 'voice-message.ogg',
             size: 50000,
@@ -840,6 +841,7 @@ describe('VoiceTranscriptionService', () => {
         [
           {
             url: 'https://cdn.discord.com/voice/forwarded.ogg',
+            originalUrl: 'https://cdn.discord.com/voice/forwarded.ogg',
             contentType: 'audio/ogg',
             name: 'forwarded-voice.ogg',
             size: 45000,

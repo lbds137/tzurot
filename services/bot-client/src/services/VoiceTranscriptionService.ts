@@ -86,6 +86,8 @@ async function sendTranscriptChunks(
 /** Attachment info for transcription */
 interface TranscriptionAttachment {
   url: string;
+  // Canonical cache-key field — matches `AttachmentMetadata.originalUrl` used by ai-worker's `lookupCachedTranscript`. Equals `url` at construction time (no bot-client pipeline transforms).
+  originalUrl: string;
   contentType: string;
   name: string;
   size: number;
@@ -121,6 +123,7 @@ function extractAudioFromSnapshot(snapshot: {
     )
     .map(attachment => ({
       url: attachment.url,
+      originalUrl: attachment.url,
       contentType:
         attachment.contentType !== null &&
         attachment.contentType !== undefined &&
@@ -309,12 +312,11 @@ export class VoiceTranscriptionService {
         'Transcription complete'
       );
 
-      // Cache transcript in Redis BEFORE sending Discord replies to prevent race condition
-      // If personality processing starts before cache storage completes, it might re-transcribe
-      // Key by attachment URL with 5 min TTL (long enough for personality processing)
+      // Cache BEFORE Discord replies (5-min TTL via voiceTranscriptCache default).
+      // Key by `originalUrl` — same field ai-worker reads in `lookupCachedTranscript`. Explicit field reference survives future refactors that might diverge `url` from `originalUrl`.
       const voiceAttachment = attachments[0]; // We know there's at least one
       if (voiceAttachment !== undefined && voiceAttachment !== null) {
-        await voiceTranscriptCache.store(voiceAttachment.url, response.content);
+        await voiceTranscriptCache.store(voiceAttachment.originalUrl, response.content);
         logger.debug(
           { urlPreview: voiceAttachment.url.substring(0, 50) },
           'Cached transcript for attachment'
