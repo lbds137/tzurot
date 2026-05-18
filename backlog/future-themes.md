@@ -722,17 +722,15 @@ Migrate remaining stub commands in `packages/tooling` to proper TypeScript imple
 
 _Focus: close known gaps in the api-gateway public-route surface — rate limiting, security headers, and slug-enumeration on voice references._
 
-Surfaced 2026-05-11 from user-prompted security audit after redacting hosted-deployment URLs from public docs. Three concrete items in a single security pass, all touching `services/api-gateway/`.
+Surfaced 2026-05-11 from user-prompted security audit. Two of three items shipped; one remains.
 
-1. **Global rate limiter on public routes** — The 5 unauthenticated routes (`/health`, `/metrics`, `/avatars/:id`, `/voice-references/:slug`, `/exports/:jobId`) have NO global rate limiter; only the admin denylist mutation has one. Motivated attacker can bulk-hammer for compute/bandwidth waste OR enumerate predictable slugs on `/voice-references` to scrape voice samples. **Fix**: add `express-rate-limit` with existing Redis backend (`createRedisDenylistRateLimiter` is the reference pattern); apply globally before public routes mount. Defaults: ~60 req/min/IP, env-configurable. ~30-50 LOC + per-route exemption mechanism if `/health` needs higher monitoring allowance.
+1. ✅ **Global rate limiter on public routes** — shipped in PR #1046 (IP-based `RedisRateLimiter` on `/metrics`, `/avatars/:id`, `/voice-references/:slug`, `/exports/:jobId`; `/health` intentionally exempt). `/metrics` was subsequently moved behind service auth in PR #1048, so the limiter now applies to the 4 truly-public routes.
 
-2. **`helmet()` + CORS lockdown** — `services/api-gateway/src/index.ts` doesn't apply `helmet()` or any CORS middleware. Public routes lack standard security headers (X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security). **Fix**: `app.use(helmet())` near top of middleware chain; CORS config that explicitly allows only the bot's own origins (none — api-gateway is server-to-server). ~10 LOC.
+2. ✅ **`helmet()` + CORS lockdown** — shipped in PR #1046. helmet defaults applied globally; CORP loosened to `cross-origin` only on `/avatars` and `/voice-references` via the per-route `allowCrossOriginEmbedding` middleware (PR #1048).
 
-3. **`/voice-references/:slug` enumeration risk** — Per route's docstring, voice references are "intentionally semi-public — anyone with the personality slug can retrieve them." Slugs are predictable (`lilith`, `abigail`, etc), so an attacker can enumerate the voice-clone library. For public characters acceptable; for private characters, a guessable-slug leak is a real privacy concern. **Fix options**: (a) switch public endpoint to `/voice-references/:uuid` with slug→UUID lookup via authenticated path; (b) keep slug routing but require voice-engine service secret; (c) add per-character visibility controls and 404 private-character fetches. Bundles naturally with the future Character Visibility Toggle (icebox item).
+3. **`/voice-references/:slug` enumeration risk** — Per route's docstring, voice references are "intentionally semi-public — anyone with the personality slug can retrieve them." Slugs are predictable, so an attacker can enumerate the voice-clone library. For public characters acceptable; for private characters, a guessable-slug leak is a real privacy concern. **Fix options**: (a) switch public endpoint to `/voice-references/:uuid` with slug→UUID lookup via authenticated path; (b) keep slug routing but require voice-engine service secret; (c) add per-character visibility controls and 404 private-character fetches. Bundles naturally with the future Character Visibility Toggle (icebox item).
 
-**Sequencing**: items 1 + 2 together as a single PR (same surface area, same risk class). Item 3 separately because it forces a design call on voice-engine integration shape vs privacy.
-
-**Promote when**: any sign of public-route abuse in Railway logs, OR opportunistic when next touching api-gateway middleware. Promoted from Inbox 2026-05-12.
+**Promote when**: design appetite for the visibility-toggle question, OR observed enumeration attempt in Railway logs.
 
 ### Theme: `/voice` + `/inspect` UX Polish (mini-epic)
 
