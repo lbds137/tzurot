@@ -25,6 +25,8 @@ export function extractAttachments(
     // Discord attachment ID - stable snowflake for caching (preferred over URL hash)
     id: attachment.id,
     url: attachment.url,
+    // Cache-stable Discord CDN URL — survives ai-worker pipeline transforms that overwrite `url`.
+    originalUrl: attachment.url,
     contentType: attachment.contentType ?? CONTENT_TYPES.BINARY,
     name: attachment.name,
     size: attachment.size,

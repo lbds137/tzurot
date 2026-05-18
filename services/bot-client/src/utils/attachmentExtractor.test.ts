@@ -71,6 +71,10 @@ describe('extractAttachments', () => {
       expect(result![0]).toEqual({
         id: '123',
         url: 'https://cdn.discord.com/attachments/guild/channel/123/image.png',
+        // Discord CDN URL is duplicated into originalUrl so the cache-stable
+        // key survives pipeline transformations (DownloadAttachmentsStep
+        // rewrites `url` to a data URL).
+        originalUrl: 'https://cdn.discord.com/attachments/guild/channel/123/image.png',
         contentType: 'image/png',
         name: 'image.png',
         size: 2048,
@@ -298,6 +302,26 @@ describe('extractAttachments', () => {
       const result = extractAttachments(collection);
 
       expect(result![0].url).toBe(longUrl);
+    });
+  });
+
+  describe('cache-key invariant', () => {
+    // VoiceTranscriptCache keys by `originalUrl` (the field that survives
+    // pipeline transformations downstream). Both the writer (bot-client
+    // VoiceTranscriptionService) and the reader (ai-worker AudioProcessor)
+    // must see the same Discord CDN URL in that field, or every voice
+    // message gets transcribed twice.
+    it('should set originalUrl equal to url for cache-stable lookup', () => {
+      const cdnUrl = 'https://cdn.discord.com/attachments/g/c/v/voice.ogg?ex=A&hm=B';
+      const attachment = createMockAttachment('vm', { url: cdnUrl });
+      const collection = createAttachmentCollection([attachment]);
+
+      const result = extractAttachments(collection);
+
+      // originalUrl must equal url at extraction time — this is the
+      // invariant the cross-service VoiceTranscriptCache depends on.
+      expect(result![0].url).toBe(cdnUrl);
+      expect(result![0].originalUrl).toBe(cdnUrl);
     });
   });
 });

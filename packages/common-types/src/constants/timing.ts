@@ -33,10 +33,15 @@ export const TIMEOUTS = {
   SYSTEM_OVERHEAD: 15000,
   /** Job wait timeout in gateway (10 minutes - Railway safety buffer) */
   JOB_WAIT: 600000,
-  /** Client-side timeout for STT transcription gateway requests (2 minutes).
-   * Shorter than JOB_WAIT to provide timely user feedback on failure.
-   * Covers: cold start warmup (~75s) + audio fetch (~30s) + transcription (~15s). */
-  STT_GATEWAY: 120_000,
+  /** Client-side timeout for STT transcription gateway requests (4 minutes).
+   * Must exceed AUDIO_FETCH (30s) + VOICE_ENGINE_API (180s) + a queue/network
+   * margin — otherwise the bot-client AbortSignal fires while ai-worker is
+   * still mid-call. 240s = 30 + 180 + 30s margin. Covers the observed
+   * Railway-serverless cold-start (~135s end-to-end) with headroom for
+   * queue latency when the downstream steps approach their individual caps.
+   * Stays well under JOB_WAIT (10 min) so user feedback stays timely on
+   * real hangs. Bump this if `AUDIO_FETCH` or `VOICE_ENGINE_API` change. */
+  STT_GATEWAY: 240_000,
   /** BullMQ worker lock duration - maximum time a job can run before being considered stalled (20 minutes - safety net for hung jobs) */
   WORKER_LOCK_DURATION: 20 * 60 * 1000,
 } as const;
