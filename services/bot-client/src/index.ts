@@ -34,6 +34,7 @@ import { redis as botRedis, closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
 import { ResultsListener } from './services/ResultsListener.js';
 import { JobTracker } from './services/JobTracker.js';
+import { JobFailureListener } from './services/JobFailureListener.js';
 import { ResponseOrderingService } from './services/ResponseOrderingService.js';
 import { DiscordResponseSender } from './services/DiscordResponseSender.js';
 import { MessageContextBuilder } from './services/MessageContextBuilder.js';
@@ -127,6 +128,7 @@ interface Services {
   gatewayClient: GatewayClient;
   jobTracker: JobTracker;
   resultsListener: ResultsListener;
+  jobFailureListener: JobFailureListener;
   responseOrderingService: ResponseOrderingService;
   webhookManager: WebhookManager;
   personalityService: PersonalityService;
@@ -180,6 +182,7 @@ function createServices(): Services {
   const responseOrderingService = new ResponseOrderingService();
   const jobTracker = new JobTracker(responseOrderingService);
   const resultsListener = new ResultsListener();
+  const jobFailureListener = new JobFailureListener(jobTracker, responseOrderingService);
 
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
@@ -292,6 +295,7 @@ function createServices(): Services {
     gatewayClient,
     jobTracker,
     resultsListener,
+    jobFailureListener,
     responseOrderingService,
     webhookManager,
     personalityService,
@@ -545,6 +549,7 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
   void (async () => {
     try {
       await services.resultsListener.stop();
+      await services.jobFailureListener.stop();
       await services.multiTagCoordinator.beginShutdown();
     } catch (err) {
       logger.error({ err }, 'Error during early shutdown sequence');
@@ -649,6 +654,12 @@ async function startResultsListener(): Promise<void> {
     }
   });
   logger.info('Results listener started');
+
+  // Failure listener subscribes to BullMQ QueueEvents and unblocks the channel
+  // ordering queue when an AI job ends without producing a result. Placement
+  // after ResultsListener is stylistic — both subscribers are independent and
+  // the ordering doesn't affect correctness.
+  services.jobFailureListener.start();
 }
 
 /**
