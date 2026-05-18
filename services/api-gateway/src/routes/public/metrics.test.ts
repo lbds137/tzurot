@@ -22,15 +22,24 @@ vi.mock('@tzurot/common-types', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+  // requireServiceAuth reads getConfig().INTERNAL_SERVICE_SECRET — stub
+  // it to a known value so the auth-protection test can verify rejection
+  // (missing header) and acceptance (matching header).
+  getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
 }));
 
 vi.mock('../../utils/errorResponses.js', () => ({
   ErrorResponses: {
     metricsError: vi.fn((message: string) => ({ error: 'Metrics Error', message })),
+    unauthorized: vi.fn((message: string) => ({ error: 'UNAUTHORIZED', message })),
   },
+  getStatusCode: vi.fn((errorCode: string) =>
+    errorCode === 'UNAUTHORIZED' ? StatusCodes.UNAUTHORIZED : StatusCodes.INTERNAL_SERVER_ERROR
+  ),
 }));
 
 import { createMetricsRouter } from './metrics.js';
+import { requireServiceAuth } from '../../services/AuthMiddleware.js';
 
 describe('Metrics Route', () => {
   let app: express.Express;
@@ -85,5 +94,42 @@ describe('Metrics Route', () => {
     expect(mockQueue.getActiveCount).toHaveBeenCalled();
     expect(mockQueue.getCompletedCount).toHaveBeenCalled();
     expect(mockQueue.getFailedCount).toHaveBeenCalled();
+  });
+
+  describe('with requireServiceAuth mounted upstream', () => {
+    // Reproduces the production wiring: auth middleware runs before the
+    // route handler. Locks in the invariant that /metrics is NOT public —
+    // future accidental removal of the auth middleware in index.ts would
+    // fail this test rather than ship as a regression.
+
+    function buildProtectedApp(): express.Express {
+      const protectedApp = express();
+      protectedApp.use(requireServiceAuth());
+      protectedApp.use('/metrics', createMetricsRouter(mockQueue as Queue, startTime));
+      return protectedApp;
+    }
+
+    it('should reject requests without the X-Service-Auth header', async () => {
+      const response = await request(buildProtectedApp()).get('/metrics');
+
+      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
+    });
+
+    it('should reject requests with the wrong X-Service-Auth secret', async () => {
+      const response = await request(buildProtectedApp())
+        .get('/metrics')
+        .set('X-Service-Auth', 'wrong-secret');
+
+      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
+    });
+
+    it('should allow requests with the correct X-Service-Auth secret', async () => {
+      const response = await request(buildProtectedApp())
+        .get('/metrics')
+        .set('X-Service-Auth', 'test-secret');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.body.queue).toBeDefined();
+    });
   });
 });
