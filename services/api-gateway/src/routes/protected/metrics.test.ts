@@ -28,15 +28,22 @@ vi.mock('@tzurot/common-types', () => ({
   getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
 }));
 
-vi.mock('../../utils/errorResponses.js', () => ({
-  ErrorResponses: {
-    metricsError: vi.fn((message: string) => ({ error: 'Metrics Error', message })),
-    unauthorized: vi.fn((message: string) => ({ error: 'UNAUTHORIZED', message })),
-  },
-  getStatusCode: vi.fn((errorCode: string) =>
-    errorCode === 'UNAUTHORIZED' ? StatusCodes.UNAUTHORIZED : StatusCodes.INTERNAL_SERVER_ERROR
-  ),
-}));
+// Mock only `ErrorResponses` (the call-site-specific shape) — let the real
+// `getStatusCode` run so any error code mapping is correct out of the box.
+// Manual code-by-code mocking masked failures when new codes got added.
+vi.mock('../../utils/errorResponses.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/errorResponses.js')>(
+    '../../utils/errorResponses.js'
+  );
+  return {
+    ...actual,
+    ErrorResponses: {
+      ...actual.ErrorResponses,
+      metricsError: vi.fn((message: string) => ({ error: 'Metrics Error', message })),
+      unauthorized: vi.fn((message: string) => ({ error: 'UNAUTHORIZED', message })),
+    },
+  };
+});
 
 import { createMetricsRouter } from './metrics.js';
 import { requireServiceAuth } from '../../services/AuthMiddleware.js';
@@ -109,10 +116,13 @@ describe('Metrics Route', () => {
       return protectedApp;
     }
 
+    // Production maps `ErrorCode.UNAUTHORIZED` → HTTP 403 (FORBIDDEN), not
+    // 401 (UNAUTHORIZED). Whether that's semantically right is a separate
+    // backlog question — these tests reflect actual behavior, not aspiration.
     it('should reject requests without the X-Service-Auth header', async () => {
       const response = await request(buildProtectedApp()).get('/metrics');
 
-      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
+      expect(response.status).toBe(StatusCodes.FORBIDDEN);
     });
 
     it('should reject requests with the wrong X-Service-Auth secret', async () => {
@@ -120,7 +130,7 @@ describe('Metrics Route', () => {
         .get('/metrics')
         .set('X-Service-Auth', 'wrong-secret');
 
-      expect(response.status).toBe(StatusCodes.UNAUTHORIZED);
+      expect(response.status).toBe(StatusCodes.FORBIDDEN);
     });
 
     it('should allow requests with the correct X-Service-Auth secret', async () => {
