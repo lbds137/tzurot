@@ -13,19 +13,24 @@ import { MULTI_TAG } from '@tzurot/common-types';
 import { deliverGroup, type DeliveryFlowDeps } from './multiTagDeliveryFlow.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 
-function buildPersonality(name: string): LoadedPersonality {
+function buildPersonality(name: string, errorMessage?: string): LoadedPersonality {
   return {
     id: `id-${name.toLowerCase()}`,
     slug: name.toLowerCase(),
     displayName: name,
     name,
+    errorMessage,
   } as unknown as LoadedPersonality;
 }
 
-function buildSlot(name: string, overrides: Partial<RuntimeSlot> = {}): RuntimeSlot {
+function buildSlot(
+  name: string,
+  overrides: Partial<RuntimeSlot> & { personalityErrorMessage?: string } = {}
+): RuntimeSlot {
+  const { personalityErrorMessage, ...slotOverrides } = overrides;
   return {
     slotIndex: 0,
-    personality: buildPersonality(name),
+    personality: buildPersonality(name, personalityErrorMessage),
     personaId: `persona-${name}`,
     source: 'mention',
     isAutoResponse: false,
@@ -36,7 +41,7 @@ function buildSlot(name: string, overrides: Partial<RuntimeSlot> = {}): RuntimeS
       success: true,
       content: `Hello from ${name}`,
     },
-    ...overrides,
+    ...slotOverrides,
   };
 }
 
@@ -143,6 +148,65 @@ describe('deliverGroup', () => {
     const synthetic = slotDelivery.deliverError.mock.calls[0][1];
     expect(synthetic.success).toBe(false);
     expect(synthetic.error).toContain('timed out');
+    // Synthetic carries structured errorInfo so buildErrorContent can format
+    // the user-facing message (with spoiler) instead of returning the
+    // generic bot fallback.
+    expect(synthetic.errorInfo).toBeDefined();
+    expect(synthetic.errorInfo.category).toBe('timeout');
+    expect(synthetic.errorInfo.referenceId).toBe(entry.groupId);
+  });
+
+  it('renders the personality error message on safety timeout when configured', async () => {
+    const entry = buildEntry({
+      slots: [
+        buildSlot('Alice', {
+          status: 'timedout',
+          result: undefined,
+          personalityErrorMessage: 'My circuits got fried, sorry darling.',
+        }),
+      ],
+    });
+
+    await deliverGroup(entry, deps);
+
+    const [rendered, synthetic] = slotDelivery.deliverError.mock.calls[0];
+    expect(synthetic.personalityErrorMessage).toBe('My circuits got fried, sorry darling.');
+    // Rendered output uses the personality's voice, not the generic default.
+    expect(rendered).toContain('My circuits got fried');
+    expect(rendered).not.toContain('Sorry, I encountered an error');
+  });
+
+  it('uses the timeout-category user message when no personality errorMessage is configured', async () => {
+    const entry = buildEntry({
+      slots: [buildSlot('Alice', { status: 'timedout', result: undefined })],
+    });
+
+    await deliverGroup(entry, deps);
+
+    const [rendered] = slotDelivery.deliverError.mock.calls[0];
+    // No personalityErrorMessage on the slot's personality, so buildErrorContent
+    // falls through to USER_ERROR_MESSAGES[timeout] — the timeout-specific
+    // user message, NOT the generic bot fallback.
+    expect(rendered).toContain('took too long');
+  });
+
+  it('uses UNKNOWN category when a slot has no result and is not timed-out', async () => {
+    // Slot ended up at deliverError without a result and without 'timedout'
+    // status — rare path that happens when an upstream error path marks the
+    // slot 'errored' but doesn't populate result.
+    const entry = buildEntry({
+      slots: [buildSlot('Alice', { status: 'errored', result: undefined })],
+    });
+
+    await deliverGroup(entry, deps);
+
+    const [rendered, synthetic] = slotDelivery.deliverError.mock.calls[0];
+    expect(synthetic.error).toBe('No response received');
+    expect(synthetic.errorInfo.category).toBe('unknown');
+    expect(synthetic.errorInfo.type).toBe('unknown');
+    // No personalityErrorMessage configured → falls through to the
+    // UNKNOWN category's user message, NOT the generic bot fallback.
+    expect(rendered).not.toContain('Sorry, I encountered an error');
   });
 
   it('continues delivering remaining slots when one slot throws', async () => {
