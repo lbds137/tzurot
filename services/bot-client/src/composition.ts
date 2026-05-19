@@ -39,6 +39,7 @@ import { SlotDeliveryService } from './services/SlotDeliveryService.js';
 import { MultiTagCoordinator } from './services/MultiTagCoordinator.js';
 import { MultiTagPersistence } from './services/MultiTagPersistence.js';
 import { MultiTagRecovery } from './services/MultiTagRecovery.js';
+import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Client } from 'discord.js';
 import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
@@ -109,18 +110,16 @@ export function buildMultiTagCoordinator(deps: {
 export function buildMultiTagRecovery(deps: {
   persistence: MultiTagPersistence;
   coordinator: MultiTagCoordinator;
-  chatManager: PersonalityChatManager;
-  jobTracker: JobTracker;
   personalityService: IPersonalityLoader;
   discordClient: Client;
+  queue: Queue;
 }): MultiTagRecovery {
   return new MultiTagRecovery({
     persistence: deps.persistence,
     coordinator: deps.coordinator,
-    chatManager: deps.chatManager,
-    jobTracker: deps.jobTracker,
     personalityService: deps.personalityService,
     discordClient: deps.discordClient,
+    queue: deps.queue,
   });
 }
 
@@ -138,6 +137,7 @@ export function buildMultiTagStack(deps: {
   slotDelivery: SlotDeliveryService;
   personalityService: IPersonalityLoader;
   discordClient: Client;
+  recoveryQueue: Queue;
 }): {
   coordinator: MultiTagCoordinator;
   persistence: MultiTagPersistence;
@@ -154,10 +154,9 @@ export function buildMultiTagStack(deps: {
   const recovery = buildMultiTagRecovery({
     persistence,
     coordinator,
-    chatManager: deps.chatManager,
-    jobTracker: deps.jobTracker,
     personalityService: deps.personalityService,
     discordClient: deps.discordClient,
+    queue: deps.recoveryQueue,
   });
   return { coordinator, persistence, recovery };
 }
