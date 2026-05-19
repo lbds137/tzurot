@@ -19,9 +19,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Client, Message, Channel } from 'discord.js';
 import type { Queue } from 'bullmq';
 import { ChannelType } from 'discord.js';
-import type { LLMGenerationResult, LoadedPersonality } from '@tzurot/common-types';
+import type { LLMGenerationResult, LoadedPersonality, PersonaResolver } from '@tzurot/common-types';
 import { MultiTagRecovery, type MultiTagRecoveryDeps } from './MultiTagRecovery.js';
 import type { CoordinatorEntrySnapshot } from './MultiTagPersistence.js';
+
+// Stable UUID for the test user's default persona; exercised in every resolution assertion.
+const RESOLVED_PERSONA_ID = '00000000-0000-4000-8000-000000000aaa';
 
 function buildPersonality(name: string): LoadedPersonality {
   return {
@@ -101,6 +104,9 @@ describe('MultiTagRecovery', () => {
   let personalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
   };
+  let personaResolver: {
+    resolveForMemory: ReturnType<typeof vi.fn>;
+  };
   let discordClient: {
     channels: { fetch: ReturnType<typeof vi.fn> };
   };
@@ -140,6 +146,14 @@ describe('MultiTagRecovery', () => {
         return buildPersonality(slug);
       }),
     };
+    personaResolver = {
+      // Default: resolver returns the real persona UUID via cascade. Tests
+      // that need the null-fallback or throw-fallback path override per-call.
+      resolveForMemory: vi.fn().mockResolvedValue({
+        personaId: RESOLVED_PERSONA_ID,
+        focusModeEnabled: false,
+      }),
+    };
     mockMessage = { id: 'msg-1', client: { user: { id: 'bot-1' } } };
     mockChannel = {
       id: 'channel-1',
@@ -159,6 +173,7 @@ describe('MultiTagRecovery', () => {
       coordinator: coordinator as unknown as MultiTagRecoveryDeps['coordinator'],
       personalityService:
         personalityService as unknown as MultiTagRecoveryDeps['personalityService'],
+      personaResolver: personaResolver as unknown as PersonaResolver,
       discordClient: discordClient as unknown as Client,
       queue: queue as unknown as Queue,
     });
@@ -486,6 +501,105 @@ describe('MultiTagRecovery', () => {
       expect(personalityService.loadPersonality).toHaveBeenCalledWith('alice', 'user-1');
       // State poll runs because the slug fallback rescued the personality.
       expect(queue.getJob).toHaveBeenCalledWith('old-job-Alice');
+    });
+  });
+
+  describe('personaId resolution via PersonaResolver', () => {
+    it('resolves the real persona UUID via cascade and attaches it to the runtime slot', async () => {
+      // Resolver returns a valid memoryInfo → slot carries the resolved
+      // UUID, NOT a synthetic `recovery-*` string. A real `personas.id`
+      // FK means `saveAssistantMessage` succeeds and the recovered
+      // message lands in conversation history.
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      await recovery.run();
+
+      expect(personaResolver.resolveForMemory).toHaveBeenCalledWith('user-1', 'id-alice');
+      const adoptedEntry = coordinator.adoptRehydratedEntry.mock.calls[0]?.[0] as {
+        slots: Array<{ personaId: string }>;
+      };
+      expect(adoptedEntry.slots[0]?.personaId).toBe(RESOLVED_PERSONA_ID);
+    });
+
+    it('passes the LOADED personality.id (not the snapshot id) when ID-lookup fell back to slug', async () => {
+      // Slug fallback can rescue a personality whose UUID changed since the
+      // snapshot was written. The resolver call should use the current
+      // personality.id from the loaded record — that's the FK the
+      // UserPersonalityConfig cascade keys on today.
+      personalityService.loadPersonality.mockImplementation(
+        async (nameOrId: string): Promise<LoadedPersonality | null> => {
+          if (nameOrId.startsWith('id-')) return null;
+          return {
+            id: 'new-id-after-rename',
+            slug: nameOrId,
+            displayName: nameOrId,
+            name: nameOrId,
+          } as unknown as LoadedPersonality;
+        }
+      );
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      await recovery.run();
+
+      // The resolver is called with the LOADED personality's id, not the
+      // snapshot's stale id-alice value.
+      expect(personaResolver.resolveForMemory).toHaveBeenCalledWith(
+        'user-1',
+        'new-id-after-rename'
+      );
+    });
+
+    it('falls back to synthetic personaId when resolver returns null (user has no personas)', async () => {
+      // SYSTEM_DEFAULT case: resolver returns null when the user has zero
+      // personas. The slot still adopts and delivers — the synthetic
+      // `recovery-fallback-*` string is caught by the saveAssistantMessage
+      // try/catch in SlotDeliveryService, so the user gets their message;
+      // conversation history just doesn't persist for this edge case.
+      personaResolver.resolveForMemory.mockResolvedValue(null);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesResumed).toBe(1);
+      const adoptedEntry = coordinator.adoptRehydratedEntry.mock.calls[0]?.[0] as {
+        slots: Array<{ personaId: string }>;
+      };
+      expect(adoptedEntry.slots[0]?.personaId).toBe('recovery-fallback-alice');
+    });
+
+    it('falls back to synthetic personaId when resolver throws (transient Prisma blip)', async () => {
+      // Defensive: a Prisma blip during recovery shouldn't fail the slot.
+      // The slot still adopts and delivers via the same fallback path as
+      // the null-return case.
+      personaResolver.resolveForMemory.mockRejectedValue(new Error('connection refused'));
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesResumed).toBe(1);
+      const adoptedEntry = coordinator.adoptRehydratedEntry.mock.calls[0]?.[0] as {
+        slots: Array<{ personaId: string }>;
+      };
+      expect(adoptedEntry.slots[0]?.personaId).toBe('recovery-fallback-alice');
+    });
+
+    it('uses snapshot personalityId for resolver lookup when personality is revoked', async () => {
+      // Revoked-personality path: we don't have a loaded personality.id, so
+      // the resolver call uses slotSnap.personalityId as the cascade key.
+      // The user's default persona still resolves correctly, so the
+      // synthetic-error message for this slot persists under the user's
+      // own persona.
+      personalityService.loadPersonality.mockResolvedValue(null);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      await recovery.run();
+
+      expect(personaResolver.resolveForMemory).toHaveBeenCalledWith('user-1', 'id-alice');
+      const adoptedEntry = coordinator.adoptRehydratedEntry.mock.calls[0]?.[0] as {
+        slots: Array<{ personaId: string; status: string }>;
+      };
+      expect(adoptedEntry.slots[0]?.status).toBe('errored');
+      expect(adoptedEntry.slots[0]?.personaId).toBe(RESOLVED_PERSONA_ID);
     });
   });
 
