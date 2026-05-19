@@ -4,13 +4,11 @@
  *
  * **Why this exists**: when the bot shuts down (graceful or crash), pending
  * multi-tag fan-outs leave Redis entries behind. Without recovery, those
- * entries' old jobIds would never produce user-visible responses — and on
- * the next restart, the SET-of-stale-jobIds would block delivery for any
- * jobs that DID return between shutdown and restart. The
- * `beginShutdown` path (MultiTagCoordinator) marks pending jobIds stale so
- * pre-restart results get discarded; this service does the converse —
- * resubmits fresh jobs for those slots so the user eventually sees a
- * response.
+ * entries would never produce user-visible responses, and any results the
+ * old ai-worker finished publishing AFTER the old bot-client died would be
+ * silently lost — the new bot-client's fresh `QueueEvents` / Redis-Stream
+ * subscriptions don't replay events emitted before they attached, even
+ * though the BullMQ job state itself still holds the result.
  *
  * **Algorithm** (run BEFORE ResultsListener starts):
  *   1. Scan `multitag:entry:*` Redis keys via `MultiTagPersistence.scanAllEntries`.
@@ -18,30 +16,56 @@
  *      - Fetch Discord channel + source message. If either fails (channel
  *        deleted, message deleted), discard the entry — the user can't be
  *        delivered to anyway.
- *      - For each pending slot: mark old jobId stale, load personality
- *        (may be revoked), resubmit chat job, replace jobId in snapshot.
- *      - For each terminal slot: leave as-is (it'll flush along with the
- *        last pending slot's completion).
+ *      - For each pending slot: poll BullMQ for the OLD job's authoritative
+ *        state via `queue.getJob().getState()`. Routes:
+ *          • `'completed'` → consume `job.returnvalue` and feed it through
+ *            `coordinator.handleJobResult` after adoption (deferred delivery).
+ *          • `'failed'` → synthesize an error `LLMGenerationResult` from
+ *            `job.failedReason` and route through the same entrypoint.
+ *          • `'active' | 'waiting' | 'delayed' | 'prioritized' | 'waiting-children'` →
+ *            adopt the slot as still-pending with the old jobId; the live
+ *            stream + QueueEvents subscriptions will deliver the result
+ *            when the ai-worker finishes.
+ *          • Job evicted from Redis (`getJob` returns null) → synthesize
+ *            an "unavailable after restart" failure result.
+ *          • `getJob` / `getState` throws → fall back to adopting as
+ *            still-pending; don't fail recovery for a transient Redis blip.
+ *      - For each terminal slot in the snapshot: preserve as-is (the result
+ *        was never persisted in the snapshot, so the slot will flush as an
+ *        error via the existing `deliverError` path — same as before).
  *      - Adopt the rehydrated runtime entry into the coordinator's
  *        in-memory maps + register with orderingService.
- *      - Persist the updated snapshot back to Redis with new jobIds.
+ *      - After adoption, dispatch the collected deferred deliveries via
+ *        `coordinator.handleJobResult(jobId, syntheticResult)`. This routes
+ *        through the same flush path live results travel.
  *   3. Notify coordinator that stale jobIds exist (flips the
  *      `staleCheckNeeded` fast-path flag) so MessageHandler runs the
- *      isStale check post-recovery.
+ *      isStale check post-recovery for any entries that were discarded.
+ *
+ * **No resubmission**: prior versions of this service resubmitted a fresh
+ * AI job for every still-pending slot at recovery time. That wasted API
+ * tokens and produced different content than what the user would have
+ * received absent the restart — and crucially, results the prior process
+ * had already produced were thrown away in favour of duplicate work. The
+ * BullMQ-state poll above replaces resubmission entirely.
  *
  * **Critical ordering**: `run()` MUST complete before `ResultsListener.start()`.
- * The stale-set filter is what makes pre-restart-jobId results safe to
- * discard; without it, an old result could arrive during recovery and
- * race the rehydration.
+ * The stale-set filter (populated during discard) is what makes results
+ * for discarded entries safe to drop; without it, a delayed delivery could
+ * arrive during recovery and race the discard logic. For the in-flight
+ * branch, the slot retains its original jobId, so the stream/event
+ * subscriptions deliver normally once they attach.
  *
  * **Discord readiness**: callers must invoke `run()` AFTER `client.login()`
  * completes — channel/message fetches require an authenticated client.
  */
 
 import type { Client, Message, Channel } from 'discord.js';
+import type { Queue } from 'bullmq';
 import {
   createLogger,
   isTypingChannel,
+  type LLMGenerationResult,
   type LoadedPersonality,
   type TypingChannel,
   MULTI_TAG,
@@ -52,30 +76,64 @@ import type {
   CoordinatorEntrySnapshot,
   SlotSnapshot,
 } from './MultiTagPersistence.js';
-import type { PersonalityChatManager } from './character/PersonalityChatManager.js';
-import type { JobTracker } from './JobTracker.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
-import { toSnapshot, type RuntimeEntry, type RuntimeSlot } from './multiTagCoordinatorHelpers.js';
+import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
 
 const logger = createLogger('MultiTagRecovery');
 
 export interface MultiTagRecoveryDeps {
   persistence: MultiTagPersistence;
   coordinator: MultiTagCoordinator;
-  chatManager: PersonalityChatManager;
-  jobTracker: JobTracker;
   personalityService: IPersonalityLoader;
   discordClient: Client;
+  /**
+   * BullMQ queue handle for the AI-requests queue. Used to poll the
+   * authoritative state (`completed | failed | active | ...`) of jobs that
+   * were in flight when the bot last shut down. Constructed in
+   * `index.ts`'s composition root and closed in the shutdown sequence.
+   */
+  queue: Queue;
 }
 
 export interface RecoveryStats {
   entriesScanned: number;
   entriesResumed: number;
   entriesDiscarded: number;
-  slotsResubmitted: number;
+  /** Slots whose old job was found completed; result delivered synthetically. */
+  slotsRecoveredCompleted: number;
+  /** Slots whose old job was found failed; error delivered synthetically. */
+  slotsRecoveredFailed: number;
+  /** Slots whose old job was still in flight; adopted as-is, stream will deliver. */
+  slotsTrustedToStream: number;
+  /**
+   * Slots whose old job was evicted from Redis (or whose state poll
+   * returned 'unknown'); error delivered synthetically because the result
+   * is unrecoverable.
+   */
+  slotsUnrecoverable: number;
   slotsAccessRevoked: number;
   staleJobIdsMarked: number;
 }
+
+interface DeferredDelivery {
+  jobId: string;
+  result: LLMGenerationResult;
+  /**
+   * Why this delivery exists — preserves the recovery-outcome category through
+   * the deferred-dispatch loop. The per-entry log emits these as distinct
+   * counters; operators diagnosing eviction frequency need to distinguish
+   * `'unrecoverable'` from `'recoveredFailed'`, since both materialize as
+   * `success: false` results that filtering on `result.success` alone would
+   * collapse together.
+   */
+  kind: 'recoveredCompleted' | 'recoveredFailed' | 'unrecoverable';
+}
+
+type SlotStateOutcome =
+  | { kind: 'completed'; result: LLMGenerationResult }
+  | { kind: 'failed'; failedReason: string }
+  | { kind: 'inFlight' }
+  | { kind: 'unrecoverable' };
 
 export class MultiTagRecovery {
   constructor(private readonly deps: MultiTagRecoveryDeps) {}
@@ -85,7 +143,10 @@ export class MultiTagRecovery {
       entriesScanned: 0,
       entriesResumed: 0,
       entriesDiscarded: 0,
-      slotsResubmitted: 0,
+      slotsRecoveredCompleted: 0,
+      slotsRecoveredFailed: 0,
+      slotsTrustedToStream: 0,
+      slotsUnrecoverable: 0,
       slotsAccessRevoked: 0,
       staleJobIdsMarked: 0,
     };
@@ -106,11 +167,11 @@ export class MultiTagRecovery {
 
     // Sequential (not Promise.allSettled) is intentional. Each entry
     // makes 2 Discord API calls (channels.fetch + messages.fetch) plus
-    // a chat-job resubmission per pending slot. Parallelizing across N
+    // one BullMQ state-poll per pending slot. Parallelizing across N
     // entries on a fresh bot startup would risk Discord rate limits
     // (especially after a heavy-traffic shutdown that left many in-flight
-    // fan-outs) and burst the gateway/queue. Recovery is rare and runs
-    // once per process; the extra wall time is acceptable.
+    // fan-outs). Recovery is rare and runs once per process; the extra
+    // wall time is acceptable.
     for (const snapshot of snapshots) {
       await this.recoverOne(snapshot, stats);
     }
@@ -118,7 +179,7 @@ export class MultiTagRecovery {
     // Notify coordinator so its `staleCheckNeeded` fast-path skip-flag
     // becomes active for the rest of the process lifetime. Without this,
     // MessageHandler would skip the isStale check and could deliver
-    // pre-restart results.
+    // pre-restart results to entries that were discarded here.
     //
     // Defensive `entriesDiscarded` clause: discardEntry only counts
     // staleJobIdsMarked for the PENDING slots it marks stale. An entry
@@ -158,15 +219,31 @@ export class MultiTagRecovery {
         return;
       }
 
-      // Build runtime slots: resubmit pending, preserve terminal. Slots
-      // whose personality became inaccessible are kept as errored sentinel
-      // slots (not dropped) so the group still flushes a fallback error
-      // message for each position — `rebuildSlot` never returns null
-      // today, so the loop just maps 1:1.
+      // Build runtime slots: poll BullMQ state for pending slots, preserve
+      // terminal ones. Slots whose personality became inaccessible are
+      // kept as errored sentinel slots (not dropped) so the group still
+      // flushes a fallback error message for each position.
+      //
+      // Track inFlight slot count locally during the loop rather than
+      // re-deriving from `runtimeSlots` post-`handleJobResult`. The
+      // derive-from-slot-status approach is load-bearing on the
+      // coordinator mutating slot objects in place when delivering — it
+      // works today (see `MultiTagCoordinator.handleJobResult`), but
+      // counting here keeps the per-entry log independent of that
+      // implementation detail. A slot enters this count iff its outcome
+      // was `inFlight` (returns a pending base slot with no deferred
+      // delivery); revoked/terminal slots don't qualify.
       const runtimeSlots: RuntimeSlot[] = [];
+      const deferredDeliveries: DeferredDelivery[] = [];
+      let entryTrustedToStreamCount = 0;
       for (const slotSnap of snapshot.slots) {
-        const rebuilt = await this.rebuildSlot(slotSnap, sourceMessage, snapshot, stats);
-        runtimeSlots.push(rebuilt);
+        const { slot, deferredDelivery } = await this.rebuildSlot(slotSnap, snapshot, stats);
+        runtimeSlots.push(slot);
+        if (deferredDelivery !== undefined) {
+          deferredDeliveries.push(deferredDelivery);
+        } else if (slot.status === 'pending') {
+          entryTrustedToStreamCount++;
+        }
       }
 
       if (runtimeSlots.length === 0) {
@@ -179,8 +256,8 @@ export class MultiTagRecovery {
       }
 
       // Build runtime entry. Safety timer is re-armed from rehydrate time
-      // (giving the resubmitted jobs the full timeout budget) rather than
-      // counting against the original createdAt.
+      // (giving any genuinely-in-flight jobs the full timeout budget)
+      // rather than counting against the original createdAt.
       //
       // **Safe-against-adoption-throw**: this timer is armed BEFORE
       // `adoptRehydratedEntry` runs below. If adoption throws, the timer
@@ -213,33 +290,33 @@ export class MultiTagRecovery {
         truncated: snapshot.truncated,
       };
 
-      // Adopt: coordinator wires the in-memory state and triggers
-      // immediate flush if every slot is already terminal.
-      //
-      // **Capture `allTerminal` BEFORE the adopt await.** When the entry
-      // has no pending slots, `adoptRehydratedEntry` calls `flushEntry`
-      // → `deliverGroup` → `persistence.deleteEntry` synchronously
-      // before returning. If we inspected `entry.slots` after the await,
-      // we'd skip the updateEntry below correctly but the reasoning
-      // would be load-bearing on coordinator-internal timing rather than
-      // captured intent. Pre-capture makes the ordering explicit.
-      const allTerminal = entry.slots.every(s => s.status !== 'pending');
+      // Adopt: coordinator wires the in-memory state. The jobToGroup map
+      // is populated here, which is the precondition for handleJobResult
+      // to find the slot via its jobId in the deferred-delivery loop below.
       await this.deps.coordinator.adoptRehydratedEntry(entry);
 
-      // Persist the updated snapshot (new jobIds in pending slots). Skip
-      // when every slot was already terminal at adopt time — the immediate
-      // flush triggered by adoptRehydratedEntry already called
-      // deleteEntry, so writing back here would orphan a snapshot at a
-      // key that's about to expire via TTL anyway.
-      if (!allTerminal) {
-        try {
-          await this.deps.persistence.updateEntry(toSnapshot(entry));
-        } catch (err) {
-          logger.warn(
-            { err, groupId: snapshot.groupId },
-            'Failed to persist rehydrated snapshot — coordinator will continue in-memory only'
-          );
-        }
+      // Dispatch any deferred deliveries (completed / failed / unrecoverable
+      // results from the prior process). Each call routes through the same
+      // entrypoint live results use — including the flush trigger when all
+      // slots in the group reach terminal state, and the per-call
+      // updateEntry persistence write inside handleJobResult itself. No
+      // explicit updateEntry needed at this layer.
+      //
+      // **Non-idempotency window**: if the process crashes between two
+      // successive `handleJobResult` calls in this loop, the next recovery
+      // run can re-dispatch the same already-delivered result. Whether
+      // the user sees a duplicate Discord message depends on
+      // `handleJobResult`'s persistence timing — if updateEntry runs
+      // before the user-visible send (current behavior in non-flush
+      // cases), the re-dispatch sees terminal status and skips; the
+      // all-terminal flush path deletes the entry, so a crash there
+      // means recovery is already done. The behavior is "potentially
+      // duplicate message" rather than "no message" — the better
+      // failure mode — and the exposure window is tiny (only between
+      // two awaits within recovery itself). Idempotent re-dispatch is
+      // tracked as a follow-up; see backlog/deferred.md.
+      for (const delivery of deferredDeliveries) {
+        await this.deps.coordinator.handleJobResult(delivery.jobId, delivery.result);
       }
 
       stats.entriesResumed++;
@@ -247,7 +324,11 @@ export class MultiTagRecovery {
         {
           groupId: snapshot.groupId,
           channelId: snapshot.channelId,
-          slotsResubmitted: snapshot.slots.filter(s => s.status === 'pending').length,
+          slotsRecoveredCompleted: deferredDeliveries.filter(d => d.kind === 'recoveredCompleted')
+            .length,
+          slotsRecoveredFailed: deferredDeliveries.filter(d => d.kind === 'recoveredFailed').length,
+          slotsUnrecoverable: deferredDeliveries.filter(d => d.kind === 'unrecoverable').length,
+          slotsTrustedToStream: entryTrustedToStreamCount,
         },
         'Multi-tag entry rehydrated'
       );
@@ -260,144 +341,221 @@ export class MultiTagRecovery {
   }
 
   /**
-   * Rebuild one slot: resubmit pending, preserve terminal. Always returns
-   * a slot — when the personality is inaccessible, builds a sentinel slot
-   * (errored status, sentinel personality) so the group still flushes with
-   * a fallback error message for that position rather than silently
-   * dropping the slot.
+   * Rebuild one slot. For pending slots: poll BullMQ for authoritative
+   * state and dispatch on the outcome. For already-terminal slots in the
+   * snapshot: preserve as-is (the result was never persisted in the
+   * snapshot, so the slot flushes via `deliverError`'s synthetic-error
+   * path — same as the prior implementation).
+   *
+   * Returns a `RuntimeSlot` plus an optional `deferredDelivery` — the
+   * `LLMGenerationResult` to feed through `coordinator.handleJobResult`
+   * AFTER `adoptRehydratedEntry` registers the entry. Delivery is
+   * deferred (not pre-seeded on the slot) so the slot's transition to
+   * terminal travels the same canonical path live results travel.
    */
   private async rebuildSlot(
     slotSnap: SlotSnapshot,
-    sourceMessage: Message,
     entrySnap: CoordinatorEntrySnapshot,
     stats: RecoveryStats
-  ): Promise<RuntimeSlot> {
+  ): Promise<{ slot: RuntimeSlot; deferredDelivery?: DeferredDelivery }> {
+    // Hoisted from the per-branch lookups in the old resubmit implementation:
+    // both the terminal-snapshot path and the pending-poll path need the
+    // personality (for displayName/id rendering during deliverGroup), so
+    // looking it up unconditionally collapses two near-duplicate calls
+    // into one. Recovery is rare enough that the extra lookup for an
+    // already-revoked terminal slot is acceptable.
+    const personality = await this.lookupPersonalityWithFallback(slotSnap, entrySnap.userId);
+
+    // Already-terminal slots in the snapshot: preserve. No state poll, no
+    // deferred delivery — the snapshot status is the source of truth here
+    // and the slot will flush via the existing deliverError path (the
+    // snapshot doesn't carry `result`, so an "errored" or "completed"
+    // slot from the snapshot becomes a fallback-error in the flushed
+    // burst — same as the prior implementation; this is not a regression).
     if (slotSnap.status !== 'pending') {
-      // Already terminal — preserve as-is. result is NOT in the snapshot
-      // (we only persist the SlotSnapshot subset); the existing slot will
-      // synthesize an error in deliverGroup if result is missing, which
-      // is correct for slots that completed before shutdown but never
-      // got their result back from Redis.
-      const personality = await this.lookupPersonalityWithFallback(slotSnap, entrySnap.userId);
       if (personality === null) {
-        // Personality became inaccessible between completion and recovery.
-        // Keep the slot (with sentinel personality) so the group still
-        // flushes a fallback error in that position — symmetric with the
-        // pending-branch handling below. Count it in stats so observers
-        // can see "this many slots lost access during recovery."
-        //
-        // **About the synthetic `personaId`**: `personaId` is a Prisma
-        // UUID FK to the `personas` table. The `recovery-revoked-*`
-        // string isn't a valid UUID, so `saveAssistantMessage` would
-        // hit a FK violation when SlotDeliveryService's deliverError
-        // path tries to persist the synthetic error message. That's
-        // acceptable degradation: `deliverError` wraps the persist call
-        // in try/catch (the webhook already sent), so the user sees
-        // the error message but conversation history doesn't record
-        // it. The same applies to `recovery-denied-*` below. Recovery
-        // could look up the user's default persona here to make
-        // persistence work, but synthetic-strings + log-and-swallow
-        // is acceptable for the rare access-revoked / denied edge cases.
         stats.slotsAccessRevoked++;
-        return {
-          slotIndex: slotSnap.slotIndex,
-          personality: this.buildSentinelPersonality(slotSnap),
-          personaId: `recovery-revoked-${slotSnap.personalitySlug}`,
-          source: slotSnap.source,
-          isAutoResponse: slotSnap.isAutoResponse,
-          jobId: slotSnap.jobId,
-          status: 'errored',
-        };
+        return { slot: this.buildRevokedSlot(slotSnap) };
       }
-      // Same synthetic-personaId trap as the revoked branch above: result
-      // is never persisted in SlotSnapshot, so recovered terminal slots
-      // route through deliverError → saveAssistantMessage → FK violation
-      // (caught + logged by SlotDeliveryService). User regression: a
-      // pre-restart "completed" slot becomes a delivered-as-error slot on
-      // the channel. Acceptable for an already-rare recovery edge case;
-      // a future fix would resolve the user's default persona at recovery
-      // time and use that as personaId.
-      return {
-        slotIndex: slotSnap.slotIndex,
-        personality,
-        personaId: `recovery-persona-${personality.id}`,
-        source: slotSnap.source,
-        isAutoResponse: slotSnap.isAutoResponse,
-        jobId: slotSnap.jobId,
-        status: slotSnap.status,
-      };
+      return { slot: this.buildPreservedTerminalSlot(slotSnap, personality) };
     }
 
-    // Pending slot: mark old jobId stale BEFORE resubmitting (closes the
-    // race where the old result arrives during the resubmit roundtrip).
-    await this.deps.persistence.markStale(slotSnap.jobId);
-    stats.staleJobIdsMarked++;
-
-    const personality = await this.lookupPersonalityWithFallback(slotSnap, entrySnap.userId);
+    // Pending slot with revoked personality: still keep the slot (with
+    // sentinel personality) so the group flushes a fallback error in that
+    // position. No state poll needed — even if the prior job completed
+    // successfully, we can't render the result without the personality.
     if (personality === null) {
       stats.slotsAccessRevoked++;
-      // Personality access revoked since the original fan-out. Keep the
-      // slot in the entry but flag it as errored so the group can still
-      // flush (the error path will render a fallback message for this
-      // slot).
-      return {
-        slotIndex: slotSnap.slotIndex,
-        // Use a sentinel personality object so downstream code that
-        // accesses .id/.slug/.displayName doesn't NPE. The deliverError
-        // path will produce a "couldn't reach this personality" message.
-        personality: this.buildSentinelPersonality(slotSnap),
-        personaId: `recovery-revoked-${slotSnap.personalitySlug}`,
-        source: slotSnap.source,
-        isAutoResponse: slotSnap.isAutoResponse,
-        jobId: slotSnap.jobId,
-        status: 'errored',
-      };
+      return { slot: this.buildRevokedSlot(slotSnap) };
     }
 
-    // Resubmit the chat job. Treat any failure (denied / network / etc.)
-    // the same as access-revoked — slot becomes errored.
-    const submitResult = await this.deps.chatManager.submitChatJob({
-      message: sourceMessage,
+    // Pending slot, personality accessible: poll BullMQ for the old job's
+    // authoritative state.
+    const outcome = await this.pollPriorJobState(slotSnap.jobId);
+    const baseSlot: RuntimeSlot = {
+      slotIndex: slotSnap.slotIndex,
       personality,
-      content: entrySnap.userMessageContent,
+      personaId: `recovery-persona-${personality.id}`,
+      source: slotSnap.source,
       isAutoResponse: slotSnap.isAutoResponse,
-    });
-    if (submitResult.kind !== 'submitted') {
-      logger.warn(
-        {
-          groupId: entrySnap.groupId,
-          slotIndex: slotSnap.slotIndex,
-          personalityId: personality.id,
-          reason: submitResult.reason,
-        },
-        'Recovery resubmit denied — marking slot errored'
-      );
-      return {
-        slotIndex: slotSnap.slotIndex,
-        personality,
-        personaId: `recovery-denied-${personality.id}`,
-        source: slotSnap.source,
-        isAutoResponse: slotSnap.isAutoResponse,
-        jobId: slotSnap.jobId,
-        status: 'errored',
-      };
+      jobId: slotSnap.jobId,
+      status: 'pending',
+    };
+
+    switch (outcome.kind) {
+      case 'completed':
+        stats.slotsRecoveredCompleted++;
+        return {
+          slot: baseSlot,
+          deferredDelivery: {
+            jobId: slotSnap.jobId,
+            result: outcome.result,
+            kind: 'recoveredCompleted',
+          },
+        };
+      case 'failed':
+        stats.slotsRecoveredFailed++;
+        return {
+          slot: baseSlot,
+          deferredDelivery: {
+            jobId: slotSnap.jobId,
+            result: synthesizeFailureResult(slotSnap, outcome.failedReason),
+            kind: 'recoveredFailed',
+          },
+        };
+      case 'inFlight':
+        stats.slotsTrustedToStream++;
+        return { slot: baseSlot };
+      case 'unrecoverable':
+        stats.slotsUnrecoverable++;
+        return {
+          slot: baseSlot,
+          deferredDelivery: {
+            jobId: slotSnap.jobId,
+            result: synthesizeFailureResult(slotSnap, 'Result unavailable after restart'),
+            kind: 'unrecoverable',
+          },
+        };
+    }
+  }
+
+  /**
+   * Poll BullMQ for the authoritative state of a job that was pending at
+   * snapshot time. Wraps `queue.getJob().getState()` with bounded error
+   * handling — a transient Redis blip during recovery falls back to
+   * "trust the stream" rather than failing the slot, so the live
+   * subscription can still deliver once it's running.
+   */
+  private async pollPriorJobState(jobId: string): Promise<SlotStateOutcome> {
+    let job;
+    try {
+      job = await this.deps.queue.getJob(jobId);
+    } catch (err) {
+      logger.warn({ err, jobId }, 'Recovery: queue.getJob threw — treating as in-flight');
+      return { kind: 'inFlight' };
+    }
+    if (!job) {
+      return { kind: 'unrecoverable' };
     }
 
-    // Register the new jobId with JobTracker so typing indicator runs
-    // and the result eventually routes back to handleJobResult.
-    this.deps.jobTracker.trackJob(submitResult.jobId, submitResult.trackingContext, {
-      skipOrderingRegistration: true,
-    });
-    stats.slotsResubmitted++;
+    let state: string;
+    try {
+      state = await job.getState();
+    } catch (err) {
+      logger.warn({ err, jobId }, 'Recovery: job.getState threw — treating as in-flight');
+      return { kind: 'inFlight' };
+    }
 
+    switch (state) {
+      case 'completed':
+        // Cast required because BullMQ's Job#returnvalue is typed `unknown`
+        // at the generic-Queue level. The ai-worker handler's signature
+        // (`Promise<LLMGenerationResult>` in LLMGenerationHandler.processJob)
+        // guarantees this shape architecturally for jobs on the AI-requests
+        // queue — but the contract isn't enforced at the boundary.
+        //
+        // **The most common runtime cause of `returnvalue === undefined`
+        // here is BullMQ's `removeOnComplete: { count: N }` eviction
+        // racing the `getState()`→`returnvalue` access window**: state
+        // returns 'completed', then the job record is GC'd before we read
+        // returnvalue. Worker crash between completion-write and
+        // returnvalue-write is a possible but rarer cause. Operators
+        // investigating non-zero `slotsUnrecoverable` on a healthy cluster
+        // should check the queue's `removeOnComplete` retention first.
+        //
+        // Either way, route through the unrecoverable path so
+        // coordinator.handleJobResult never receives a malformed result.
+        if (job.returnvalue === null || job.returnvalue === undefined) {
+          return { kind: 'unrecoverable' };
+        }
+        return { kind: 'completed', result: job.returnvalue as LLMGenerationResult };
+      case 'failed':
+        return { kind: 'failed', failedReason: job.failedReason ?? 'Unknown failure' };
+      case 'active':
+      case 'waiting':
+      case 'waiting-children':
+      case 'delayed':
+      case 'prioritized':
+        return { kind: 'inFlight' };
+      default:
+        // 'unknown' or any future state BullMQ adds. Treat as unrecoverable
+        // so the user gets a synthetic-error message instead of a silent
+        // wait until the safety timeout fires.
+        return { kind: 'unrecoverable' };
+    }
+  }
+
+  /**
+   * Build a runtime slot for an already-terminal snapshot slot. The
+   * snapshot doesn't carry `result`, so the flushed burst will produce a
+   * fallback error message for this slot via the existing deliverError
+   * path. Same trade-off applies as in the revoked-slot branch: synthetic
+   * personaId (`recovery-persona-*`) will hit a Prisma FK violation when
+   * `saveAssistantMessage` tries to persist the synthetic message; the
+   * persist call is wrapped in try/catch in deliverError, so the user
+   * sees the message but conversation history doesn't record it.
+   */
+  private buildPreservedTerminalSlot(
+    slotSnap: SlotSnapshot,
+    personality: LoadedPersonality
+  ): RuntimeSlot {
     return {
       slotIndex: slotSnap.slotIndex,
       personality,
-      personaId: submitResult.trackingContext.personaId,
+      personaId: `recovery-persona-${personality.id}`,
       source: slotSnap.source,
       isAutoResponse: slotSnap.isAutoResponse,
-      jobId: submitResult.jobId,
-      status: 'pending',
+      jobId: slotSnap.jobId,
+      status: slotSnap.status,
+    };
+  }
+
+  /**
+   * Build a sentinel slot for a personality that's no longer accessible
+   * (deleted, ownership revoked, etc.). Status is forced to `'errored'`
+   * so the group flushes a fallback error message in that position rather
+   * than silently dropping the slot.
+   *
+   * **About the synthetic `personaId`**: `personaId` is a Prisma UUID FK
+   * to the `personas` table. The `recovery-revoked-*` string isn't a
+   * valid UUID, so `saveAssistantMessage` would hit a FK violation when
+   * SlotDeliveryService's deliverError path tries to persist the
+   * synthetic error message. That's acceptable degradation: `deliverError`
+   * wraps the persist call in try/catch (the webhook already sent), so
+   * the user sees the error message but conversation history doesn't
+   * record it. Recovery could look up the user's default persona here to
+   * make persistence work, but synthetic-strings + log-and-swallow is
+   * acceptable for the rare access-revoked edge case.
+   */
+  private buildRevokedSlot(slotSnap: SlotSnapshot): RuntimeSlot {
+    return {
+      slotIndex: slotSnap.slotIndex,
+      personality: this.buildSentinelPersonality(slotSnap),
+      personaId: `recovery-revoked-${slotSnap.personalitySlug}`,
+      source: slotSnap.source,
+      isAutoResponse: slotSnap.isAutoResponse,
+      jobId: slotSnap.jobId,
+      status: 'errored',
     };
   }
 
@@ -489,7 +647,7 @@ export class MultiTagRecovery {
    * future refactor changes deliverError to access additional
    * LoadedPersonality fields, this sentinel must be extended accordingly.
    * A typed `Partial<LoadedPersonality>` + a discriminated-union sentinel
-   * shape would be cleaner; deferred as out of scope for this PR.
+   * shape would be cleaner; tracked in backlog/deferred.md.
    */
   private buildSentinelPersonality(slotSnap: SlotSnapshot): LoadedPersonality {
     return {
@@ -533,4 +691,24 @@ export class MultiTagRecovery {
       'Multi-tag entry discarded during recovery'
     );
   }
+}
+
+/**
+ * Build a synthetic `LLMGenerationResult` for slots whose old job failed
+ * (handler threw or job was evicted). The shape matches what
+ * `coordinator.handleJobResult` expects on the failure branch — `success:
+ * false` triggers the `'errored'` slot transition, and `error` is rendered
+ * by the deliverError path.
+ *
+ * The `requestId` is set to the old jobId so log correlation still works
+ * (the prior process's logs reference the same id). `content` is omitted
+ * because the success-path consumer wouldn't reach it anyway when
+ * `success === false`.
+ */
+function synthesizeFailureResult(slotSnap: SlotSnapshot, error: string): LLMGenerationResult {
+  return {
+    requestId: slotSnap.jobId,
+    success: false,
+    error,
+  };
 }

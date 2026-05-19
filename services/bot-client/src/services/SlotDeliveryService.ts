@@ -142,14 +142,27 @@ export class SlotDeliveryService {
       recipientUserId: slot.recipientUserId,
     });
 
-    await this.persistence.saveAssistantMessage({
-      message: slot.message,
-      personality: slot.personality,
-      personaId: slot.personaId,
-      content: result.content,
-      chunkMessageIds,
-      userMessageTime: slot.userMessageTime,
-    });
+    // Webhook send already succeeded above — the user has received the
+    // message. Persistence failures from here MUST NOT propagate, so the
+    // caller's per-slot catch doesn't log a misleading "Slot delivery
+    // threw" while the user just got their response. Symmetric with the
+    // try/catch in deliverError: after a successful webhook send,
+    // persist failures are logged but never bubble to the caller.
+    try {
+      await this.persistence.saveAssistantMessage({
+        message: slot.message,
+        personality: slot.personality,
+        personaId: slot.personaId,
+        content: result.content,
+        chunkMessageIds,
+        userMessageTime: slot.userMessageTime,
+      });
+    } catch (persistError) {
+      logger.error(
+        { err: persistError, personalityId: slot.personality.id },
+        'Failed to persist assistant message to conversation history (webhook already sent)'
+      );
+    }
 
     if (chunkMessageIds.length > 0) {
       void this.gatewayClient

@@ -6,6 +6,7 @@ import {
   Partials,
   type ChatInputCommandInteraction,
 } from 'discord.js';
+import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import {
   createLogger,
@@ -21,6 +22,8 @@ import {
   disconnectPrisma,
   getPrismaClient,
   getConfig,
+  parseRedisUrl,
+  createBullMQRedisConfig,
 } from '@tzurot/common-types';
 import {
   GatewayClient,
@@ -143,6 +146,12 @@ interface Services {
   multiTagCoordinator: MultiTagCoordinator;
   multiTagPersistence: MultiTagPersistence;
   multiTagRecovery: MultiTagRecovery;
+  /**
+   * BullMQ Queue handle used by MultiTagRecovery to poll the authoritative
+   * state of jobs that were in flight at the previous process's shutdown.
+   * Owned by the composition root; closed in the shutdown sequence.
+   */
+  multiTagRecoveryQueue: Queue;
 }
 
 /**
@@ -236,6 +245,16 @@ function createServices(): Services {
     gatewayClient,
   });
 
+  // BullMQ Queue handle for MultiTagRecovery's state polling. Constructed
+  // here (rather than inside MultiTagRecovery) so its lifecycle is visible
+  // to the shutdown sequence below. Mirrors the existing
+  // BullMQ-config pattern in JobFailureListener — same QUEUE_NAME + same
+  // ioredis connection config derived from REDIS_URL.
+  const multiTagRecoveryQueue = new Queue(envConfig.QUEUE_NAME, {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL validated by validateRedisUrl() in buildCacheRedis() above
+    connection: createBullMQRedisConfig(parseRedisUrl(envConfig.REDIS_URL!)),
+  });
+
   // Multi-tag stack: coordinator + Redis persistence + recovery service.
   // Persistence is shared with DMSessionProcessor (backfill sentinel).
   // Recovery's `run()` is invoked later in start() AFTER `client.login()`.
@@ -252,6 +271,7 @@ function createServices(): Services {
     slotDelivery,
     personalityService,
     discordClient: client,
+    recoveryQueue: multiTagRecoveryQueue,
   });
 
   // Processor chain (order matters — see buildProcessorChain doc).
@@ -309,6 +329,7 @@ function createServices(): Services {
     multiTagCoordinator,
     multiTagPersistence,
     multiTagRecovery,
+    multiTagRecoveryQueue,
     dmCacheWarmer,
   };
 }
@@ -583,6 +604,7 @@ function handleShutdownSignal(signal: NodeJS.Signals): void {
           services.personaCacheInvalidationService.unsubscribe(),
           services.channelActivationCacheInvalidationService.unsubscribe(),
           services.denylistCacheInvalidationService.unsubscribe(),
+          services.multiTagRecoveryQueue.close(),
           closeRedis(),
           client.destroy(),
           disconnectPrisma(),
