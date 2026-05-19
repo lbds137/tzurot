@@ -51,10 +51,6 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
   constructor(private readonly deps: PersonalityTriggerProcessorDeps) {}
 
   async process(message: Message): Promise<boolean> {
-    if (isForwardedMessage(message)) {
-      logger.debug({ messageId: message.id }, 'Skipping forwarded message');
-      return false;
-    }
     if (!isTypingChannel(message.channel)) {
       // Coordinator + chat manager need a TypingChannel for delivery; bail
       // out for channel types we don't support (announcement guild forum,
@@ -64,6 +60,11 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
 
     const userId = message.author.id;
     const channel = message.channel;
+    // Forwards: activation fires (forwarder posted into activated channel),
+    // but reply/mention resolution is skipped — forwards carry no webhook-
+    // reply relationship and text content was authored by the *original*
+    // sender.
+    const forwarded = isForwardedMessage(message);
 
     // Resolve the three trigger sources in parallel — they don't depend on
     // each other and each may produce 0..1 personalities.
@@ -75,9 +76,11 @@ export class PersonalityTriggerProcessor implements IMessageProcessor {
     // resolution doesn't propagate. The duplicated cold-cache fetch is an
     // acceptable cost for keeping the resolvers independent.
     const [replyPersonality, activatedPersonality, mentionedPersonalities] = await Promise.all([
-      this.resolveReplyPersonality(message, userId),
+      forwarded ? Promise.resolve(null) : this.resolveReplyPersonality(message, userId),
       this.resolveActivatedPersonality(message, userId),
-      this.resolveMentionedPersonalities(message, userId),
+      forwarded
+        ? Promise.resolve<LoadedPersonality[]>([])
+        : this.resolveMentionedPersonalities(message, userId),
     ]);
 
     const slots = resolveSlots({
