@@ -143,7 +143,7 @@ async function getCapabilities(modelId: string, redis: Redis): Promise<CachedCap
  * We normalize by stripping :free for the cache key, and check both forms when querying the model list
  * to handle edge cases where OpenRouter might change their behavior.
  *
- * @param modelId - The model ID to check (e.g., "google/gemma-3-27b-it:free")
+ * @param modelId - The model ID to check (e.g., "google/gemma-4-31b-it:free")
  * @param redis - Redis client instance
  * @returns true if the model supports image input
  */
@@ -193,9 +193,11 @@ const VISION_MODEL_PATTERNS: { required: string; additional?: string[] }[] = [
   // Google Gemini models — '2.' matches dot-separated (gemini-2.0-flash),
   // '2-' matches hyphen-separated (gemini-2-flash) alternate naming
   { required: 'gemini', additional: ['1.5', '2.', '2-', 'vision'] },
-  // Google Gemma 3 models
+  // Google Gemma 3 / 4 models (both multimodal)
   { required: 'gemma-3' },
   { required: 'gemma3' },
+  { required: 'gemma-4' },
+  { required: 'gemma4' },
   // Llama vision models
   { required: 'llama', additional: ['vision'] },
   // Qwen VL models + Qwen 3.5 (natively multimodal; qwen3 base models are text-only)

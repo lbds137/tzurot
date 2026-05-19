@@ -170,7 +170,7 @@ export function deriveApiKeySource(
  * This queries the Redis cache populated by api-gateway's OpenRouterModelCache,
  * which contains accurate capability information from OpenRouter's /models API.
  *
- * @param modelName - The model ID to check (e.g., "google/gemma-3-27b-it:free")
+ * @param modelName - The model ID to check (e.g., "google/gemma-4-31b-it:free")
  * @returns true if the model supports image input
  */
 export async function hasVisionSupport(modelName: string): Promise<boolean> {
