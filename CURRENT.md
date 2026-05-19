@@ -1,15 +1,15 @@
 # Current
 
-> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod since the auto-deploy ~01:16 EDT. Subsequent dev work (PR #1062 + PR #1063) on develop, will ship in beta.124.
+> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod since the auto-deploy ~01:16 EDT. Subsequent dev work (PR #1062 + PR #1063 + PR #1064) on develop, will ship in beta.124.
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**Active focus** ([current-focus.md](backlog/current-focus.md)): **Resolve real persona UUID at recovery time via `PersonaResolver`** — immediate follow-up to PR #1063 (merged 2026-05-19). PR #1063 added symmetric try/catch protection on `deliverSuccess` + `deliverError` so user-visible behavior is correct, but conversation history is silently dropped for any recovered slot due to the synthetic `recovery-persona-*` personaId failing Prisma's UUID FK. Per-session directive: tackle immediately after PR #1063.
+**Active focus**: none. The MultiTagRecovery hardening chain (PR #1062 → #1063 → #1064) is fully shipped to develop. Pick from the candidates below for next session, or `backlog/future-themes.md` for a larger theme.
 
-**Other candidates after the persona-resolver task**:
+**Candidates**:
 
 1. **`/admin metrics` Discord command** ([quick-wins.md](backlog/quick-wins.md)) — bot-owner-only slash command that fetches `/metrics` and renders an embed. ~1-2hr.
 2. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
