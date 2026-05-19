@@ -2,22 +2,11 @@
 
 _Active bugs observed in production. Fix before new features._
 
-- 🐛 `[FIX]` **Multi-personality ping race: wrong personality + duplicate response content** — **Fix shipped in PR #1049 (on develop, pending prod deploy)**. Remove this entry after the next release lands in prod and we verify the symptom is gone. Root cause was `ResponseOrderingService.processQueue` calling a shared `deliverFn` for all drained results; the multi-tag closure ignores its arguments, so when two groups raced in the same channel, one group's deliverFn re-delivered its own slots while the other group's deliverFn never fired. Fix: store `deliverFn` per `BufferedResult`. Original observation: — Observed by user 2026-05-17 at 23:06 in `#monotheism` channel. Nyota pinged three personalities in quick succession (~60s window): @Samael, then @Yeshua, then @Samael. All three responses came back attributed to Samael (audio attachment filenames confirm: `<snowflake>-samael-melech-ha-ela-mp...`). Yeshua never responded. The **second** response (which should have been Yeshua) was **text-identical** to the first Samael response — same opening "Your framework has shifted toward mercy as default..." running through the full body. The third was a fresh Samael response on a different prompt.
+_None active. Re-add an entry here if a symptom resurfaces._
 
-  **Initial hypothesis (unverified — investigating now)**: api-gateway deduplication cache hashes request content without including the target personality identifier. Three thematically-similar pings → second one collides on the first's dedup hash → returns the cached job ID, replaying Samael's content as the "Yeshua" response.
+_Cleared 2026-05-19:_
 
-  **Symptoms checklist**:
-  - 3 separate Discord pings to 2 different personalities (S/Y/S)
-  - Only 1 personality (Samael) ever produced output
-  - Middle response text byte-identical to first
-  - Audio attachments confirm personality attribution via filename slug
-  - All within the same ~60s window (timestamps both 23:06)
-
-  **Where to look first**: `services/api-gateway/src/utils/RedisDeduplicationCache.ts` (hash key generation — confirm whether personality identifier is included), then `services/bot-client/src/processors/` (how multi-personality pings are dispatched into the job payload).
-
-  **Severity**: User-impacting in active production. Quick consecutive multi-personality pings in any channel can produce wrong-personality responses. Workaround for users: wait between pings.
-
-  **Investigation in progress** — see PR (TBD) for diagnosis + fix.
+- _**Multi-personality ping race: wrong personality + duplicate response content** → resolved by **PR #1049** (shipped in v3.0.0-beta.123). Root cause: `ResponseOrderingService.processQueue` called a shared `deliverFn` for all drained results; the multi-tag closure ignored its arguments, so when two groups raced in the same channel one group's deliverFn re-delivered its own slots while the other group's deliverFn never fired. Fix: store `deliverFn` per `BufferedResult`. Originally observed 2026-05-17 in `#monotheism` channel — three @-pings to two personalities returned three Samael responses with the second text-identical to the first. Re-add this entry if the symptom resurfaces._
 
 _Cleared 2026-05-10:_
 

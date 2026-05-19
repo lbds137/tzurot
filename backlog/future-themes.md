@@ -733,9 +733,9 @@ Move hardcoded model patterns (e.g., capability flags, context-window limits) to
 
 Migrate remaining stub commands in `packages/tooling` to proper TypeScript implementations.
 
-### Theme: API Security Hardening (mini-epic)
+### Theme: API Security Hardening — voice-reference slug enumeration (last open item)
 
-_Focus: close known gaps in the api-gateway public-route surface — rate limiting, security headers, and slug-enumeration on voice references._
+_Focus: close the remaining known gap in the api-gateway public-route surface — slug-enumeration on voice references. Two of three items already shipped (rate limiter + helmet/CORS); kept here for context._
 
 Surfaced 2026-05-11 from user-prompted security audit. Two of three items shipped; one remains.
 
