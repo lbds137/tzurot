@@ -67,6 +67,7 @@ import {
   isTypingChannel,
   type LLMGenerationResult,
   type LoadedPersonality,
+  type PersonaResolver,
   type TypingChannel,
   MULTI_TAG,
 } from '@tzurot/common-types';
@@ -78,6 +79,11 @@ import type {
 } from './MultiTagPersistence.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
+import {
+  pollPriorJobState,
+  synthesizeFailureResult,
+  type SlotStateOutcome,
+} from './multiTagRecoveryHelpers.js';
 
 const logger = createLogger('MultiTagRecovery');
 
@@ -85,6 +91,7 @@ export interface MultiTagRecoveryDeps {
   persistence: MultiTagPersistence;
   coordinator: MultiTagCoordinator;
   personalityService: IPersonalityLoader;
+  personaResolver: PersonaResolver;
   discordClient: Client;
   /**
    * BullMQ queue handle for the AI-requests queue. Used to poll the
@@ -128,12 +135,6 @@ interface DeferredDelivery {
    */
   kind: 'recoveredCompleted' | 'recoveredFailed' | 'unrecoverable';
 }
-
-type SlotStateOutcome =
-  | { kind: 'completed'; result: LLMGenerationResult }
-  | { kind: 'failed'; failedReason: string }
-  | { kind: 'inFlight' }
-  | { kind: 'unrecoverable' };
 
 export class MultiTagRecovery {
   constructor(private readonly deps: MultiTagRecoveryDeps) {}
@@ -366,6 +367,14 @@ export class MultiTagRecovery {
     // already-revoked terminal slot is acceptable.
     const personality = await this.lookupPersonalityWithFallback(slotSnap, entrySnap.userId);
 
+    // See `resolvePersonaIdOrFallback` JSDoc for cascade semantics and
+    // the synthetic-fallback safety net.
+    const personaId = await this.resolvePersonaIdOrFallback(
+      entrySnap.userId,
+      personality?.id ?? slotSnap.personalityId,
+      slotSnap.personalitySlug
+    );
+
     // Already-terminal slots in the snapshot: preserve. No state poll, no
     // deferred delivery — the snapshot status is the source of truth here
     // and the slot will flush via the existing deliverError path (the
@@ -375,9 +384,9 @@ export class MultiTagRecovery {
     if (slotSnap.status !== 'pending') {
       if (personality === null) {
         stats.slotsAccessRevoked++;
-        return { slot: this.buildRevokedSlot(slotSnap) };
+        return { slot: this.buildRevokedSlot(slotSnap, personaId) };
       }
-      return { slot: this.buildPreservedTerminalSlot(slotSnap, personality) };
+      return { slot: this.buildPreservedTerminalSlot(slotSnap, personality, personaId) };
     }
 
     // Pending slot with revoked personality: still keep the slot (with
@@ -386,16 +395,16 @@ export class MultiTagRecovery {
     // successfully, we can't render the result without the personality.
     if (personality === null) {
       stats.slotsAccessRevoked++;
-      return { slot: this.buildRevokedSlot(slotSnap) };
+      return { slot: this.buildRevokedSlot(slotSnap, personaId) };
     }
 
     // Pending slot, personality accessible: poll BullMQ for the old job's
     // authoritative state.
-    const outcome = await this.pollPriorJobState(slotSnap.jobId);
+    const outcome: SlotStateOutcome = await pollPriorJobState(this.deps.queue, slotSnap.jobId);
     const baseSlot: RuntimeSlot = {
       slotIndex: slotSnap.slotIndex,
       personality,
-      personaId: `recovery-persona-${personality.id}`,
+      personaId,
       source: slotSnap.source,
       isAutoResponse: slotSnap.isAutoResponse,
       jobId: slotSnap.jobId,
@@ -440,89 +449,22 @@ export class MultiTagRecovery {
   }
 
   /**
-   * Poll BullMQ for the authoritative state of a job that was pending at
-   * snapshot time. Wraps `queue.getJob().getState()` with bounded error
-   * handling — a transient Redis blip during recovery falls back to
-   * "trust the stream" rather than failing the slot, so the live
-   * subscription can still deliver once it's running.
-   */
-  private async pollPriorJobState(jobId: string): Promise<SlotStateOutcome> {
-    let job;
-    try {
-      job = await this.deps.queue.getJob(jobId);
-    } catch (err) {
-      logger.warn({ err, jobId }, 'Recovery: queue.getJob threw — treating as in-flight');
-      return { kind: 'inFlight' };
-    }
-    if (!job) {
-      return { kind: 'unrecoverable' };
-    }
-
-    let state: string;
-    try {
-      state = await job.getState();
-    } catch (err) {
-      logger.warn({ err, jobId }, 'Recovery: job.getState threw — treating as in-flight');
-      return { kind: 'inFlight' };
-    }
-
-    switch (state) {
-      case 'completed':
-        // Cast required because BullMQ's Job#returnvalue is typed `unknown`
-        // at the generic-Queue level. The ai-worker handler's signature
-        // (`Promise<LLMGenerationResult>` in LLMGenerationHandler.processJob)
-        // guarantees this shape architecturally for jobs on the AI-requests
-        // queue — but the contract isn't enforced at the boundary.
-        //
-        // **The most common runtime cause of `returnvalue === undefined`
-        // here is BullMQ's `removeOnComplete: { count: N }` eviction
-        // racing the `getState()`→`returnvalue` access window**: state
-        // returns 'completed', then the job record is GC'd before we read
-        // returnvalue. Worker crash between completion-write and
-        // returnvalue-write is a possible but rarer cause. Operators
-        // investigating non-zero `slotsUnrecoverable` on a healthy cluster
-        // should check the queue's `removeOnComplete` retention first.
-        //
-        // Either way, route through the unrecoverable path so
-        // coordinator.handleJobResult never receives a malformed result.
-        if (job.returnvalue === null || job.returnvalue === undefined) {
-          return { kind: 'unrecoverable' };
-        }
-        return { kind: 'completed', result: job.returnvalue as LLMGenerationResult };
-      case 'failed':
-        return { kind: 'failed', failedReason: job.failedReason ?? 'Unknown failure' };
-      case 'active':
-      case 'waiting':
-      case 'waiting-children':
-      case 'delayed':
-      case 'prioritized':
-        return { kind: 'inFlight' };
-      default:
-        // 'unknown' or any future state BullMQ adds. Treat as unrecoverable
-        // so the user gets a synthetic-error message instead of a silent
-        // wait until the safety timeout fires.
-        return { kind: 'unrecoverable' };
-    }
-  }
-
-  /**
    * Build a runtime slot for an already-terminal snapshot slot. The
    * snapshot doesn't carry `result`, so the flushed burst will produce a
    * fallback error message for this slot via the existing deliverError
-   * path. Same trade-off applies as in the revoked-slot branch: synthetic
-   * personaId (`recovery-persona-*`) will hit a Prisma FK violation when
-   * `saveAssistantMessage` tries to persist the synthetic message; the
-   * persist call is wrapped in try/catch in deliverError, so the user
-   * sees the message but conversation history doesn't record it.
+   * path. The `personaId` is resolved via `PersonaResolver` upstream
+   * (see `rebuildSlot`), so persistence of the synthetic error message
+   * succeeds against the `personas.id` FK in the typical case.
    */
   private buildPreservedTerminalSlot(
     slotSnap: SlotSnapshot,
-    personality: LoadedPersonality
+    personality: LoadedPersonality,
+    personaId: string
   ): RuntimeSlot {
     return {
       slotIndex: slotSnap.slotIndex,
       personality,
-      personaId: `recovery-persona-${personality.id}`,
+      personaId,
       source: slotSnap.source,
       isAutoResponse: slotSnap.isAutoResponse,
       jobId: slotSnap.jobId,
@@ -534,29 +476,63 @@ export class MultiTagRecovery {
    * Build a sentinel slot for a personality that's no longer accessible
    * (deleted, ownership revoked, etc.). Status is forced to `'errored'`
    * so the group flushes a fallback error message in that position rather
-   * than silently dropping the slot.
-   *
-   * **About the synthetic `personaId`**: `personaId` is a Prisma UUID FK
-   * to the `personas` table. The `recovery-revoked-*` string isn't a
-   * valid UUID, so `saveAssistantMessage` would hit a FK violation when
-   * SlotDeliveryService's deliverError path tries to persist the
-   * synthetic error message. That's acceptable degradation: `deliverError`
-   * wraps the persist call in try/catch (the webhook already sent), so
-   * the user sees the error message but conversation history doesn't
-   * record it. Recovery could look up the user's default persona here to
-   * make persistence work, but synthetic-strings + log-and-swallow is
-   * acceptable for the rare access-revoked edge case.
+   * than silently dropping the slot. The `personaId` is resolved via
+   * `PersonaResolver` upstream (see `rebuildSlot`), so the synthetic
+   * error message persists against a real `personas.id` FK in the
+   * typical case — the user's conversation history records the
+   * "couldn't reach this personality" entry under their own persona.
    */
-  private buildRevokedSlot(slotSnap: SlotSnapshot): RuntimeSlot {
+  private buildRevokedSlot(slotSnap: SlotSnapshot, personaId: string): RuntimeSlot {
     return {
       slotIndex: slotSnap.slotIndex,
       personality: this.buildSentinelPersonality(slotSnap),
-      personaId: `recovery-revoked-${slotSnap.personalitySlug}`,
+      personaId,
       source: slotSnap.source,
       isAutoResponse: slotSnap.isAutoResponse,
       jobId: slotSnap.jobId,
       status: 'errored',
     };
+  }
+
+  /**
+   * Resolve a real `personas.id` UUID for the slot via the PersonaResolver
+   * cascade (per-personality override → user default → first-owned-persona).
+   * Returns the resolved UUID, or a synthetic-string fallback when the
+   * cascade returns null (user has zero personas at all) OR the resolver
+   * call throws (transient Prisma blip). The synthetic-fallback path
+   * keeps the slot deliverable — the `saveAssistantMessage` try/catch
+   * in both deliverSuccess and deliverError swallows the FK violation
+   * so the user still gets their message, history just doesn't persist.
+   *
+   * `fallbackSlug` is passed separately rather than derived from a
+   * `SlotSnapshot` argument because the synthetic-fallback string is
+   * the only thing the function needs from the slot; threading the full
+   * snapshot would be a leaky boundary.
+   */
+  private async resolvePersonaIdOrFallback(
+    discordUserId: string,
+    personalityId: string,
+    fallbackSlug: string
+  ): Promise<string> {
+    try {
+      const memoryInfo = await this.deps.personaResolver.resolveForMemory(
+        discordUserId,
+        personalityId
+      );
+      if (memoryInfo !== null) {
+        return memoryInfo.personaId;
+      }
+      logger.warn(
+        { discordUserId, personalityId },
+        'Recovery: PersonaResolver returned null (user has no personas); falling back to synthetic personaId'
+      );
+    } catch (err) {
+      logger.warn(
+        { err, discordUserId, personalityId },
+        'Recovery: PersonaResolver threw; falling back to synthetic personaId'
+      );
+    }
+    return `recovery-fallback-${fallbackSlug}`;
   }
 
   private async fetchTypingChannel(channelId: string): Promise<TypingChannel | null> {
@@ -691,24 +667,4 @@ export class MultiTagRecovery {
       'Multi-tag entry discarded during recovery'
     );
   }
-}
-
-/**
- * Build a synthetic `LLMGenerationResult` for slots whose old job failed
- * (handler threw or job was evicted). The shape matches what
- * `coordinator.handleJobResult` expects on the failure branch — `success:
- * false` triggers the `'errored'` slot transition, and `error` is rendered
- * by the deliverError path.
- *
- * The `requestId` is set to the old jobId so log correlation still works
- * (the prior process's logs reference the same id). `content` is omitted
- * because the success-path consumer wouldn't reach it anyway when
- * `success === false`.
- */
-function synthesizeFailureResult(slotSnap: SlotSnapshot, error: string): LLMGenerationResult {
-  return {
-    requestId: slotSnap.jobId,
-    success: false,
-    error,
-  };
 }
