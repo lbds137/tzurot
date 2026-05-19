@@ -270,6 +270,7 @@ function createServices(): Services {
     orderingService: responseOrderingService,
     slotDelivery,
     personalityService,
+    personaResolver,
     discordClient: client,
     recoveryQueue: multiTagRecoveryQueue,
   });

@@ -1,0 +1,115 @@
+/**
+ * Recovery-time invariants for `MultiTagRecovery`: BullMQ state polling
+ * and synthetic failure-result construction. All helpers here shape
+ * BullMQ job state into the form `coordinator.handleJobResult` consumes
+ * during recovery.
+ *
+ * Separate from `multiTagCoordinatorHelpers.ts` (coordinator-time
+ * invariants: `RuntimeSlot`, `RuntimeEntry`, snapshot projections)
+ * because coordinator and recovery are different lifecycle phases.
+ */
+
+import type { Queue } from 'bullmq';
+import { createLogger, type LLMGenerationResult } from '@tzurot/common-types';
+import type { SlotSnapshot } from './MultiTagPersistence.js';
+
+const logger = createLogger('MultiTagRecoveryHelpers');
+
+/**
+ * Outcome of polling BullMQ for a slot's job state at recovery time.
+ * Discriminated union; consumers `switch` on `kind`.
+ */
+export type SlotStateOutcome =
+  | { kind: 'completed'; result: LLMGenerationResult }
+  | { kind: 'failed'; failedReason: string }
+  | { kind: 'inFlight' }
+  | { kind: 'unrecoverable' };
+
+/**
+ * Poll BullMQ for the authoritative state of a job that was pending at
+ * snapshot time. Wraps `queue.getJob().getState()` with bounded error
+ * handling — a transient Redis blip during recovery falls back to
+ * "trust the stream" rather than failing the slot, so the live
+ * subscription can still deliver once it's running.
+ */
+export async function pollPriorJobState(queue: Queue, jobId: string): Promise<SlotStateOutcome> {
+  let job;
+  try {
+    job = await queue.getJob(jobId);
+  } catch (err) {
+    logger.warn({ err, jobId }, 'Recovery: queue.getJob threw — treating as in-flight');
+    return { kind: 'inFlight' };
+  }
+  if (!job) {
+    return { kind: 'unrecoverable' };
+  }
+
+  let state: string;
+  try {
+    state = await job.getState();
+  } catch (err) {
+    logger.warn({ err, jobId }, 'Recovery: job.getState threw — treating as in-flight');
+    return { kind: 'inFlight' };
+  }
+
+  switch (state) {
+    case 'completed':
+      // Cast required because BullMQ's Job#returnvalue is typed `unknown`
+      // at the generic-Queue level. The ai-worker handler's signature
+      // (`Promise<LLMGenerationResult>` in LLMGenerationHandler.processJob)
+      // guarantees this shape architecturally for jobs on the AI-requests
+      // queue — but the contract isn't enforced at the boundary.
+      //
+      // **The most common runtime cause of `returnvalue === undefined`
+      // here is BullMQ's `removeOnComplete: { count: N }` eviction
+      // racing the `getState()`→`returnvalue` access window**: state
+      // returns 'completed', then the job record is GC'd before we read
+      // returnvalue. Worker crash between completion-write and
+      // returnvalue-write is a possible but rarer cause. Operators
+      // investigating non-zero `slotsUnrecoverable` on a healthy cluster
+      // should check the queue's `removeOnComplete` retention first.
+      //
+      // Either way, route through the unrecoverable path so
+      // coordinator.handleJobResult never receives a malformed result.
+      if (job.returnvalue === null || job.returnvalue === undefined) {
+        return { kind: 'unrecoverable' };
+      }
+      return { kind: 'completed', result: job.returnvalue as LLMGenerationResult };
+    case 'failed':
+      return { kind: 'failed', failedReason: job.failedReason ?? 'Unknown failure' };
+    case 'active':
+    case 'waiting':
+    case 'waiting-children':
+    case 'delayed':
+    case 'prioritized':
+      return { kind: 'inFlight' };
+    default:
+      // 'unknown' or any future state BullMQ adds. Treat as unrecoverable
+      // so the user gets a synthetic-error message instead of a silent
+      // wait until the safety timeout fires.
+      return { kind: 'unrecoverable' };
+  }
+}
+
+/**
+ * Build a synthetic `LLMGenerationResult` for slots whose old job failed
+ * (handler threw or job was evicted). The shape matches what
+ * `coordinator.handleJobResult` expects on the failure branch — `success:
+ * false` triggers the `'errored'` slot transition, and `error` is rendered
+ * by the deliverError path.
+ *
+ * The `requestId` is set to the old jobId so log correlation still works
+ * (the prior process's logs reference the same id). `content` is omitted
+ * because the success-path consumer wouldn't reach it anyway when
+ * `success === false`.
+ */
+export function synthesizeFailureResult(
+  slotSnap: SlotSnapshot,
+  error: string
+): LLMGenerationResult {
+  return {
+    requestId: slotSnap.jobId,
+    success: false,
+    error,
+  };
+}

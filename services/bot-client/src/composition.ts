@@ -42,6 +42,7 @@ import { MultiTagRecovery } from './services/MultiTagRecovery.js';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Client } from 'discord.js';
+import type { PersonaResolver } from '@tzurot/common-types';
 import type { IPersonalityLoader } from './types/IPersonalityLoader.js';
 
 /**
@@ -111,6 +112,7 @@ export function buildMultiTagRecovery(deps: {
   persistence: MultiTagPersistence;
   coordinator: MultiTagCoordinator;
   personalityService: IPersonalityLoader;
+  personaResolver: PersonaResolver;
   discordClient: Client;
   queue: Queue;
 }): MultiTagRecovery {
@@ -118,6 +120,7 @@ export function buildMultiTagRecovery(deps: {
     persistence: deps.persistence,
     coordinator: deps.coordinator,
     personalityService: deps.personalityService,
+    personaResolver: deps.personaResolver,
     discordClient: deps.discordClient,
     queue: deps.queue,
   });
@@ -136,6 +139,7 @@ export function buildMultiTagStack(deps: {
   orderingService: ResponseOrderingService;
   slotDelivery: SlotDeliveryService;
   personalityService: IPersonalityLoader;
+  personaResolver: PersonaResolver;
   discordClient: Client;
   recoveryQueue: Queue;
 }): {
@@ -155,6 +159,7 @@ export function buildMultiTagStack(deps: {
     persistence,
     coordinator,
     personalityService: deps.personalityService,
+    personaResolver: deps.personaResolver,
     discordClient: deps.discordClient,
     queue: deps.recoveryQueue,
   });
