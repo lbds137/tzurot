@@ -203,7 +203,13 @@ export class ConversationPersistence {
       embedsXml = buildResult.embedsXml;
     }
 
-    // Delegate to field-based implementation with Message fields extracted
+    // Delegate to field-based implementation with Message fields extracted.
+    // Pass `message.createdAt` as the explicit timestamp so the user row's
+    // `createdAt` matches the Discord post time. Without this, the row used
+    // the DB-default `new Date()` (insert time, hundreds of ms after Discord
+    // post), while the corresponding assistant row uses `userMessageTime + 1ms`
+    // (Discord post + 1ms) — making the assistant's `createdAt` *earlier* than
+    // the user's, and reversing every turn-pair in cross-channel-context output.
     await this.saveUserMessageFromFields({
       channelId: message.channel.id,
       guildId: message.guild?.id ?? null,
@@ -215,6 +221,7 @@ export class ConversationPersistence {
       referencedMessages,
       isForwarded: isForwarded || undefined,
       embedsXml,
+      timestamp: message.createdAt,
     });
   }
 

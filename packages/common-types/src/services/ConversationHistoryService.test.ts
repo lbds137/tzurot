@@ -1215,18 +1215,21 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       );
 
       expect(result).toHaveLength(2);
-      // Channel A appears first (has most recent message: msg-3)
-      expect(result[0].channelId).toBe('channel-a');
-      expect(result[0].guildId).toBe('guild-1');
-      expect(result[0].messages).toHaveLength(2);
-      // Messages within group are chronological (oldest first)
-      expect(result[0].messages[0].id).toBe('msg-1');
-      expect(result[0].messages[1].id).toBe('msg-3');
+      // Groups are sorted by their newest message ASC, so the channel whose
+      // most-recent activity is older comes first. Channel B's newest message
+      // is older than Channel A's, so B appears first and A appears last —
+      // closer to current_conversation, matching the LLM's "most-recent
+      // context closest to the current turn" intuition.
+      expect(result[0].channelId).toBe('channel-b');
+      expect(result[0].messages).toHaveLength(1);
+      expect(result[0].messages[0].id).toBe('msg-2');
 
-      // Channel B appears second
-      expect(result[1].channelId).toBe('channel-b');
-      expect(result[1].messages).toHaveLength(1);
-      expect(result[1].messages[0].id).toBe('msg-2');
+      expect(result[1].channelId).toBe('channel-a');
+      expect(result[1].guildId).toBe('guild-1');
+      expect(result[1].messages).toHaveLength(2);
+      // Messages within group are chronological (oldest first)
+      expect(result[1].messages[0].id).toBe('msg-1');
+      expect(result[1].messages[1].id).toBe('msg-3');
     });
 
     it('should handle DM channels with null guildId', async () => {
