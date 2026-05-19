@@ -1,53 +1,78 @@
 # Current
 
-> **Version**: v3.0.0-beta.123 (released 2026-05-19) — 10-PR sweep cycle. Multi-personality ping race fix (#1049) shipped to prod. Cross-channel history ordering + voice transcript tagging (#1056), free-tier vision constant bump (#1057), forwarded-message activation slot (#1058), and `JobFailureListener` (#1053) all live.
-> **🚧 Release freeze status**: LIFTED. No release in progress. Prod auto-deploy from main → prod completing now.
+> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod since the auto-deploy ~01:16 EDT. Subsequent dev work (PR #1062) on develop, will ship in beta.124.
+> **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**Open** — inbox is empty as of 2026-05-19. Pick from:
+**Active focus** ([current-focus.md](backlog/current-focus.md)): **Poll BullMQ job state on `MultiTagRecovery` rehydration to backfill missed completion events.** Confirmed in-prod failure on the v3.0.0-beta.123 deploy (timeline + fix shape + file pointers all in current-focus.md). Reproducible on any deploy with in-flight jobs, so the next deploy will hit it again unless fixed. This is the structural follow-up to PR #1062, which made the safety-timeout error render in the persona's voice but didn't recover the actual response.
 
-1. **`/admin metrics` Discord command** ([quick-wins.md](backlog/quick-wins.md)) — bot-owner-only slash command that fetches `/metrics` and renders an embed. ~1-2hr. Original trigger ("wait until prod-issue ping race resolved") is now met.
-2. **Self-Hosted TTS + BYOK Re-Eval — Step 0 probes** ([future-themes.md](backlog/future-themes.md)) — hands-on probe of OmniVoice / F5-TTS / CosyVoice (30 min each).
-3. **User-feedback solicitation + revive v2 release-notes delivery** ([future-themes.md](backlog/future-themes.md)) — DM blast mechanism + release announce. Multi-PR epic.
-4. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work.
+**Other candidates after the rehydration task**:
 
-**Verify on prod after deploy completes**:
+1. **`/admin metrics` Discord command** ([quick-wins.md](backlog/quick-wins.md)) — bot-owner-only slash command that fetches `/metrics` and renders an embed. ~1-2hr.
+2. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
+3. **`/voice-references/:slug` enumeration risk** — the one remaining API Security item (items 1 + 2 already shipped in PRs #1046 + #1048); design-blocked on the visibility-toggle bundle.
+4. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
+5. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work.
 
-- Multi-personality ping race fix ([production-issues.md](backlog/production-issues.md) entry pending verification — ping 2-3 personalities in quick succession with different prompts; each should reply with its own content)
-- `google/gemma-4-31b-it:free` is a real slug (confirmed via preset screenshot 2026-05-19; verify guest-mode vision works in prod for paranoia)
+**Verify on prod (low priority, fix shipped)**:
+
+- Multi-personality ping race (shipped in PR #1049 / beta.123) — entry retired from production-issues.md since the fix is live. Ping 2-3 personalities in quick succession with different prompts; each should reply with its own content. Re-add the entry only if the symptom resurfaces.
+- `google/gemma-4-31b-it:free` is a real slug (confirmed via preset screenshot 2026-05-19; verify guest-mode vision works in prod for paranoia).
 
 ---
 
-## Last Session — v3.0.0-beta.123 sweep (2026-05-18 → 2026-05-19)
+## Last Session — v3.0.0-beta.123 release + PR #1062 fast-follow + backlog cleanup (2026-05-18 → 2026-05-19)
 
-Marathon sweep cycle: started with intake from a personal-notes review of recent UX issues, shipped 10 PRs over ~24 hours.
+Marathon sweep cycle: started with intake from a personal-notes review of recent UX issues, shipped 10 PRs into the beta.123 release, then a post-release fast-follow PR and a backlog hygiene pass.
 
-### PRs merged
+### PRs merged this cycle
 
-| PR    | Title                                                                        | Domain                    |
-| ----- | ---------------------------------------------------------------------------- | ------------------------- |
-| #1051 | `chore(api-gateway): /metrics housekeeping`                                  | Internal API auth         |
-| #1052 | `fix(ai-worker): bound voice-engine STT retry loop`                          | Voice STT                 |
-| #1053 | `fix(bot-client): unblock channel queue when AI job fails`                   | Multi-personality routing |
-| #1054 | `chore(deps): bump production-dependencies` (×7)                             | Deps                      |
-| #1055 | `chore(deps-dev): bump development-dependencies` (×14) + knip 6.14.1 fallout | Deps + ci hook            |
-| #1056 | `fix: cross-channel history ordering + voice transcript tagging`             | Conversation context      |
-| #1057 | `fix(ai-worker): cache header-less 429s + bump free gemma constant`          | LLM provider              |
-| #1058 | `fix(bot-client): activation slot on forwarded messages`                     | Discord routing           |
-| #1059 | `chore(bot-client): polish /admin db-sync embed truncation`                  | Admin UX                  |
-| #1060 | `v3.0.0-beta.123` (release PR, develop → main)                               | Release                   |
+| PR    | Title                                                                          | Domain                    |
+| ----- | ------------------------------------------------------------------------------ | ------------------------- |
+| #1051 | `chore(api-gateway): /metrics housekeeping`                                    | Internal API auth         |
+| #1052 | `fix(ai-worker): bound voice-engine STT retry loop`                            | Voice STT                 |
+| #1053 | `fix(bot-client): unblock channel queue when AI job fails`                     | Multi-personality routing |
+| #1054 | `chore(deps): bump production-dependencies` (×7)                               | Deps                      |
+| #1055 | `chore(deps-dev): bump development-dependencies` (×14) + knip 6.14.1 fallout   | Deps + ci hook            |
+| #1056 | `fix: cross-channel history ordering + voice transcript tagging`               | Conversation context      |
+| #1057 | `fix(ai-worker): cache header-less 429s + bump free gemma constant`            | LLM provider              |
+| #1058 | `fix(bot-client): activation slot on forwarded messages`                       | Discord routing           |
+| #1059 | `chore(bot-client): polish /admin db-sync embed truncation`                    | Admin UX                  |
+| #1060 | `v3.0.0-beta.123` (release PR, develop → main)                                 | Release                   |
+| #1062 | `fix(bot-client): render personality voice on multi-tag safety-timeout errors` | Post-release follow-up    |
 
 Plus PR #1049 (per-result `deliverFn` for multi-personality race) which landed on develop earlier and shipped in this release.
 
-### Backlog state after sweep
+### Post-release: production failure surfaced + diagnosed + partial-fix shipped
 
+Within minutes of beta.123 deploy, a user-visible error appeared in Discord ("Sorry, I encountered an error..."). Railway logs revealed the failure mode:
+
+- Old bot-client SIGTERM'd cleanly at 05:16:15 UTC
+- Old ai-worker completed the in-flight job 17s LATER (05:16:32 UTC) — result published to BullMQ with no consumer listening
+- New bot-client rehydrated coordinator entry but `QueueEvents` is a stream subscription that doesn't replay events emitted before the listener attached
+- 10 min later `MultiTagCoordinator.handleSafetyTimeout` fired → generic bot error in Discord
+
+**PR #1062** addresses the user-facing symptom (in-character voice on safety-timeout instead of generic bot fallback). **The structural fix** (poll BullMQ job state at rehydration to backfill missed completion events) is now the next-session active focus, since it's reproducible on every deploy with in-flight jobs.
+
+### Backlog hygiene pass
+
+- **production-issues.md**: ping-race entry retired (shipped in PR #1049). No active production issues.
+- **active-epic.md**: TTS Engine Upgrade closed — Phase 1 + Phase 3 shipped, Phase 2 abandoned with replacement work tracked in the "Self-Hosted TTS + BYOK Re-Evaluation" theme. File stripped to a closure stub.
+- **API Security Hardening theme**: items 1 (rate limiter, PR #1046) + 2 (helmet/CORS, PR #1046/#1048) already shipped; theme retitled to reflect that only the voice-reference slug-enumeration item remains.
+- **deferred.md**: +1 entry (personality-voice for completed-but-empty slots, from PR #1062 round-3 review).
+
+### Backlog state at session close
+
+- **Production issues**: 0 active
 - **Inbox**: empty (last swept 2026-05-19)
-- **Deferred**: 86 trigger-gated items (10 added this cycle)
+- **Current focus**: 1 active (rehydration poll)
 - **Quick wins**: 2 items (`/admin metrics`, retry-on-inadequate-LLM-response)
-- **Production issues**: 1 entry pending prod verification (multi-personality ping race — fix shipped, verify post-deploy)
+- **Active epic**: none — pick from next-theme candidates
+- **Deferred**: 87 trigger-gated items
+- **Future themes**: 23 queued
 
 ---
 
@@ -59,4 +84,4 @@ All three migration waves were applied to dev + prod during the previous develop
 - `drop_unused_voice_provider_columns` (#1007)
 - `add_stt_provider_check_constraint` (#1008)
 
-No new migrations in v3.0.0-beta.121, beta.122, or beta.123.
+No new migrations in v3.0.0-beta.121, beta.122, beta.123, or develop since.
