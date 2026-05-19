@@ -18,7 +18,14 @@
  * without forcing a circular import.
  */
 
-import { createLogger, MULTI_TAG, type LLMGenerationResult } from '@tzurot/common-types';
+import {
+  ApiErrorCategory,
+  ApiErrorType,
+  createLogger,
+  MULTI_TAG,
+  USER_ERROR_MESSAGES,
+  type LLMGenerationResult,
+} from '@tzurot/common-types';
 import { buildErrorContent } from '../utils/buildErrorContent.js';
 import { pickNewDMActivePersonality } from './SlotResolver.js';
 import { buildSlotContext, toSnapshot } from './multiTagCoordinatorHelpers.js';
@@ -102,10 +109,31 @@ async function deliverSlot(
     // path error messages. Acceptable trade-off: timeouts are rare, the
     // user-visible delivery still happens, and surfacing a synthesized
     // requestId is preferable to leaving the field empty.
+    //
+    // Enrich the synthetic result with the personality's own `errorMessage`
+    // and a structured `errorInfo` so `buildErrorContent` renders the
+    // character's voice instead of the generic bot fallback. Without this,
+    // safety-timeout flushes show "Sorry, I encountered an error..." even
+    // when the persona has a configured error message.
+    const isTimeout = slot.status === 'timedout';
+    const category = isTimeout ? ApiErrorCategory.TIMEOUT : ApiErrorCategory.UNKNOWN;
+    const technicalMessage = isTimeout ? 'Response timed out' : 'No response received';
     const synthetic: LLMGenerationResult = slot.result ?? {
       requestId: entry.groupId,
       success: false,
-      error: slot.status === 'timedout' ? 'Response timed out' : 'No response received',
+      error: technicalMessage,
+      personalityErrorMessage: slot.personality.errorMessage,
+      errorInfo: {
+        type: isTimeout ? ApiErrorType.TRANSIENT : ApiErrorType.UNKNOWN,
+        category,
+        userMessage: USER_ERROR_MESSAGES[category],
+        technicalMessage,
+        referenceId: entry.groupId,
+        // Required by the errorInfo schema; false because no auto-retry
+        // fires on the safety-timeout path. The user decides whether to
+        // re-prompt after seeing the in-character error message.
+        shouldRetry: false,
+      },
     };
     await deps.slotDelivery.deliverError(buildErrorContent(synthetic), synthetic, slotContext);
   } catch (err) {
