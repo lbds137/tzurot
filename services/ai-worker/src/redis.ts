@@ -43,7 +43,7 @@ export const creditExhaustionCache = new CreditExhaustionCache(redis);
  * Check if a model supports vision input using OpenRouter's cached model data.
  * This is a singleton wrapper that uses the shared ioredis client.
  *
- * @param modelId - The model ID to check (e.g., "google/gemma-3-27b-it:free")
+ * @param modelId - The model ID to check (e.g., "google/gemma-4-31b-it:free")
  * @returns true if the model supports image input
  */
 export async function checkModelVisionSupport(modelId: string): Promise<boolean> {
