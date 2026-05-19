@@ -2,16 +2,24 @@
  * Tests for MultiTagRecovery — the startup hook that rehydrates in-flight
  * multi-tag fan-outs after a bot restart.
  *
- * Strategy: mock every external dep (persistence, coordinator, chatManager,
- * jobTracker, personalityService, Discord client). Drive the recovery
- * lifecycle by feeding in pre-built snapshots and asserting on the calls
- * the recovery service makes downstream.
+ * Strategy: mock every external dep (persistence, coordinator, queue,
+ * personalityService, Discord client). Drive the recovery lifecycle by
+ * feeding in pre-built snapshots and asserting on the calls the recovery
+ * service makes downstream.
+ *
+ * The core invariant under test: rebuildSlot polls BullMQ for the prior
+ * job's authoritative state and dispatches accordingly — completed/failed
+ * results from the prior process get delivered via handleJobResult AFTER
+ * adoption, in-flight jobs are trusted to the live stream subscription,
+ * and unrecoverable jobs (evicted from Redis) get a synthetic error
+ * delivered.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Client, Message, Channel } from 'discord.js';
+import type { Queue } from 'bullmq';
 import { ChannelType } from 'discord.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LLMGenerationResult, LoadedPersonality } from '@tzurot/common-types';
 import { MultiTagRecovery, type MultiTagRecoveryDeps } from './MultiTagRecovery.js';
 import type { CoordinatorEntrySnapshot } from './MultiTagPersistence.js';
 
@@ -52,6 +60,28 @@ function buildSnapshot(
   };
 }
 
+/**
+ * Builder for the mocked BullMQ Job returned by queue.getJob. State and
+ * payload are parameterized; the mock surface is intentionally narrow —
+ * production code only reads `getState()`, `returnvalue`, and
+ * `failedReason`, so the test mock matches.
+ */
+function buildMockJob(opts: {
+  state: string;
+  returnvalue?: LLMGenerationResult;
+  failedReason?: string;
+}): {
+  getState: ReturnType<typeof vi.fn>;
+  returnvalue?: LLMGenerationResult;
+  failedReason?: string;
+} {
+  return {
+    getState: vi.fn().mockResolvedValue(opts.state),
+    returnvalue: opts.returnvalue,
+    failedReason: opts.failedReason,
+  };
+}
+
 describe('MultiTagRecovery', () => {
   let persistence: {
     scanAllEntries: ReturnType<typeof vi.fn>;
@@ -63,12 +93,10 @@ describe('MultiTagRecovery', () => {
     adoptRehydratedEntry: ReturnType<typeof vi.fn>;
     noteRecoveryMarkedStale: ReturnType<typeof vi.fn>;
     handleSafetyTimeoutPublic: ReturnType<typeof vi.fn>;
+    handleJobResult: ReturnType<typeof vi.fn>;
   };
-  let chatManager: {
-    submitChatJob: ReturnType<typeof vi.fn>;
-  };
-  let jobTracker: {
-    trackJob: ReturnType<typeof vi.fn>;
+  let queue: {
+    getJob: ReturnType<typeof vi.fn>;
   };
   let personalityService: {
     loadPersonality: ReturnType<typeof vi.fn>;
@@ -95,15 +123,13 @@ describe('MultiTagRecovery', () => {
       adoptRehydratedEntry: vi.fn().mockResolvedValue(undefined),
       noteRecoveryMarkedStale: vi.fn(),
       handleSafetyTimeoutPublic: vi.fn().mockResolvedValue(undefined),
+      handleJobResult: vi.fn().mockResolvedValue(undefined),
     };
-    chatManager = {
-      submitChatJob: vi.fn().mockImplementation(async ({ personality }) => ({
-        kind: 'submitted',
-        jobId: `new-job-${personality.name}`,
-        trackingContext: { personaId: `persona-${personality.name}` },
-      })),
+    // Default: every job returns 'active' state — the "trust the stream"
+    // path. Individual tests override per-jobId via mockImplementation.
+    queue = {
+      getJob: vi.fn().mockImplementation(async () => buildMockJob({ state: 'active' })),
     };
-    jobTracker = { trackJob: vi.fn() };
     personalityService = {
       // Recovery looks up by ID first (stable), falls back to slug (mutable).
       // Snapshots in this test use `personalityId: 'id-alice'` and
@@ -131,57 +157,227 @@ describe('MultiTagRecovery', () => {
     recovery = new MultiTagRecovery({
       persistence: persistence as unknown as MultiTagRecoveryDeps['persistence'],
       coordinator: coordinator as unknown as MultiTagRecoveryDeps['coordinator'],
-      chatManager: chatManager as unknown as MultiTagRecoveryDeps['chatManager'],
-      jobTracker: jobTracker as unknown as MultiTagRecoveryDeps['jobTracker'],
       personalityService:
         personalityService as unknown as MultiTagRecoveryDeps['personalityService'],
       discordClient: discordClient as unknown as Client,
+      queue: queue as unknown as Queue,
     });
   });
 
-  describe('happy path', () => {
-    it('rehydrates a single pending slot and reports stats', async () => {
+  describe('completed-job recovery (synthetic delivery)', () => {
+    it("polls BullMQ, finds 'completed' state, and delivers job.returnvalue via handleJobResult", async () => {
+      const priorResult: LLMGenerationResult = {
+        requestId: 'old-job-Alice',
+        success: true,
+        content: 'response from the prior process',
+      };
+      queue.getJob.mockResolvedValue(
+        buildMockJob({ state: 'completed', returnvalue: priorResult })
+      );
       persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
 
       const stats = await recovery.run();
 
       expect(stats.entriesScanned).toBe(1);
       expect(stats.entriesResumed).toBe(1);
-      expect(stats.slotsResubmitted).toBe(1);
-      expect(stats.staleJobIdsMarked).toBe(1);
-
-      // Old jobId marked stale
-      expect(persistence.markStale).toHaveBeenCalledWith('old-job-Alice');
-      // New job submitted + tracked
-      expect(chatManager.submitChatJob).toHaveBeenCalledOnce();
-      expect(jobTracker.trackJob).toHaveBeenCalledWith('new-job-alice', expect.any(Object), {
-        skipOrderingRegistration: true,
-      });
-      // Adopted into coordinator
+      expect(stats.slotsRecoveredCompleted).toBe(1);
+      expect(stats.slotsTrustedToStream).toBe(0);
+      // Entry adopted; THEN handleJobResult invoked with prior process's result.
       expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
-      // Coordinator notified about stale marks
-      expect(coordinator.noteRecoveryMarkedStale).toHaveBeenCalledOnce();
-      // Updated snapshot persisted with the new jobId, not the stale one.
-      // This locks in the EXPIRE→SET fix in updateEntry: the new jobId's
-      // reverse-index must be CREATED here, not just have its TTL
-      // refreshed (refresh on a non-existent key is a Redis no-op).
-      expect(persistence.updateEntry).toHaveBeenCalledOnce();
-      expect(persistence.updateEntry).toHaveBeenCalledWith(
+      expect(coordinator.handleJobResult).toHaveBeenCalledOnce();
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith('old-job-Alice', priorResult);
+      // No stale marking on the recovered slot — its jobId is still the live
+      // tracking ID, and the prior result is what we're consuming.
+      expect(persistence.markStale).not.toHaveBeenCalled();
+    });
+
+    it('preserves call ordering: adoptRehydratedEntry runs strictly before handleJobResult', async () => {
+      // The coordinator's jobToGroup map is populated by adoption; calling
+      // handleJobResult first would silently drop the result (warn + return).
+      // This ordering is load-bearing.
+      const callOrder: string[] = [];
+      coordinator.adoptRehydratedEntry.mockImplementation(async () => {
+        callOrder.push('adopt');
+      });
+      coordinator.handleJobResult.mockImplementation(async () => {
+        callOrder.push('handleJobResult');
+      });
+      queue.getJob.mockResolvedValue(
+        buildMockJob({
+          state: 'completed',
+          returnvalue: { requestId: 'old-job-Alice', success: true, content: 'hi' },
+        })
+      );
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      await recovery.run();
+
+      expect(callOrder).toEqual(['adopt', 'handleJobResult']);
+    });
+  });
+
+  describe('failed-job recovery (synthetic error delivery)', () => {
+    it("polls BullMQ, finds 'failed' state, and synthesizes an error LLMGenerationResult", async () => {
+      queue.getJob.mockResolvedValue(
+        buildMockJob({ state: 'failed', failedReason: 'OpenRouter 502 Bad Gateway' })
+      );
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsRecoveredFailed).toBe(1);
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith(
+        'old-job-Alice',
         expect.objectContaining({
-          slots: expect.arrayContaining([
-            expect.objectContaining({ jobId: 'new-job-alice', status: 'pending' }),
-          ]),
+          requestId: 'old-job-Alice',
+          success: false,
+          error: 'OpenRouter 502 Bad Gateway',
         })
       );
     });
 
-    it('rehydrates multiple pending slots with fresh jobIds each', async () => {
+    it("falls back to 'Unknown failure' when job has no failedReason", async () => {
+      queue.getJob.mockResolvedValue(buildMockJob({ state: 'failed' }));
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      await recovery.run();
+
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith(
+        'old-job-Alice',
+        expect.objectContaining({ success: false, error: 'Unknown failure' })
+      );
+    });
+  });
+
+  describe('in-flight job recovery (trust the stream)', () => {
+    it.each(['active', 'waiting', 'delayed', 'prioritized', 'waiting-children'])(
+      "leaves slot pending with old jobId when state is '%s'",
+      async (state: string) => {
+        queue.getJob.mockResolvedValue(buildMockJob({ state }));
+        persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+        const stats = await recovery.run();
+
+        expect(stats.slotsTrustedToStream).toBe(1);
+        expect(stats.slotsRecoveredCompleted).toBe(0);
+        expect(stats.slotsRecoveredFailed).toBe(0);
+        expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
+        // No deferred delivery; the live stream + QueueEvents will deliver
+        // once they attach.
+        expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+        // Slot keeps its original jobId — not marked stale, not resubmitted.
+        expect(persistence.markStale).not.toHaveBeenCalled();
+      }
+    );
+  });
+
+  describe('unrecoverable job (evicted from Redis or unknown state)', () => {
+    it('delivers synthetic "Result unavailable after restart" when getJob returns null', async () => {
+      queue.getJob.mockResolvedValue(null);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsUnrecoverable).toBe(1);
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith(
+        'old-job-Alice',
+        expect.objectContaining({
+          success: false,
+          error: 'Result unavailable after restart',
+        })
+      );
+    });
+
+    it("treats 'completed' with undefined returnvalue as unrecoverable (worker-crash or GC-race guard)", async () => {
+      // Architectural guarantee: ai-worker handlers return LLMGenerationResult.
+      // Edge cases that break that guarantee at runtime: worker crash after
+      // moveToCompleted but before returnvalue persist, or removeOnComplete
+      // GC racing the state→returnvalue read window. Routing through the
+      // unrecoverable path keeps the user-visible error message correct
+      // ("Result unavailable") instead of letting a malformed result reach
+      // coordinator.handleJobResult.
+      queue.getJob.mockResolvedValue(buildMockJob({ state: 'completed', returnvalue: undefined }));
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsUnrecoverable).toBe(1);
+      expect(stats.slotsRecoveredCompleted).toBe(0);
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith(
+        'old-job-Alice',
+        expect.objectContaining({
+          success: false,
+          error: 'Result unavailable after restart',
+        })
+      );
+    });
+
+    it("delivers synthetic error when state is 'unknown' (or any future BullMQ state)", async () => {
+      queue.getJob.mockResolvedValue(buildMockJob({ state: 'unknown' }));
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsUnrecoverable).toBe(1);
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith(
+        'old-job-Alice',
+        expect.objectContaining({ success: false })
+      );
+    });
+  });
+
+  describe('error tolerance during state polling', () => {
+    it("falls back to 'inFlight' (no delivery, trust stream) when queue.getJob throws", async () => {
+      queue.getJob.mockRejectedValue(new Error('Redis blip'));
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsTrustedToStream).toBe(1);
+      expect(stats.slotsUnrecoverable).toBe(0);
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+      // Slot still adopted — recovery continues normally.
+      expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
+    });
+
+    it("falls back to 'inFlight' when job.getState throws", async () => {
+      queue.getJob.mockResolvedValue({
+        getState: vi.fn().mockRejectedValue(new Error('Connection lost')),
+        returnvalue: undefined,
+        failedReason: undefined,
+      });
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.slotsTrustedToStream).toBe(1);
+      expect(coordinator.handleJobResult).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('mixed entries', () => {
+    it('routes each slot independently when an entry has slots in different BullMQ states', async () => {
+      const completedResult: LLMGenerationResult = {
+        requestId: 'old-job-Alice',
+        success: true,
+        content: 'Alice completed during the gap',
+      };
+      // Slot A completed; slot B still active.
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({ state: 'completed', returnvalue: completedResult });
+        }
+        if (jobId === 'old-job-Bob') {
+          return buildMockJob({ state: 'active' });
+        }
+        return null;
+      });
       const snapshot = buildSnapshot({
         slots: [
           {
             slotIndex: 0,
             personalityId: 'id-alice',
-            personalitySlug: 'Alice',
+            personalitySlug: 'alice',
             source: 'mention',
             isAutoResponse: false,
             jobId: 'old-job-Alice',
@@ -190,7 +386,7 @@ describe('MultiTagRecovery', () => {
           {
             slotIndex: 1,
             personalityId: 'id-bob',
-            personalitySlug: 'Bob',
+            personalitySlug: 'bob',
             source: 'mention',
             isAutoResponse: false,
             jobId: 'old-job-Bob',
@@ -202,10 +398,11 @@ describe('MultiTagRecovery', () => {
 
       const stats = await recovery.run();
 
-      expect(stats.slotsResubmitted).toBe(2);
-      expect(stats.staleJobIdsMarked).toBe(2);
-      expect(persistence.markStale).toHaveBeenCalledWith('old-job-Alice');
-      expect(persistence.markStale).toHaveBeenCalledWith('old-job-Bob');
+      expect(stats.slotsRecoveredCompleted).toBe(1);
+      expect(stats.slotsTrustedToStream).toBe(1);
+      // Only Alice's completed result delivers; Bob waits for the stream.
+      expect(coordinator.handleJobResult).toHaveBeenCalledOnce();
+      expect(coordinator.handleJobResult).toHaveBeenCalledWith('old-job-Alice', completedResult);
     });
   });
 
@@ -218,12 +415,13 @@ describe('MultiTagRecovery', () => {
 
       expect(stats.entriesDiscarded).toBe(1);
       expect(stats.entriesResumed).toBe(0);
-      // Old jobId still marked stale to protect against late delivery
+      // Pending jobIds still marked stale on discard — late deliveries
+      // wouldn't have an entry to route to and should be silently dropped.
       expect(persistence.markStale).toHaveBeenCalledWith('old-job-Alice');
-      // Entry removed from Redis
       expect(persistence.deleteEntry).toHaveBeenCalledOnce();
-      // Coordinator NOT adopted
       expect(coordinator.adoptRehydratedEntry).not.toHaveBeenCalled();
+      // No state poll either — the discard short-circuits before slot rebuild.
+      expect(queue.getJob).not.toHaveBeenCalled();
     });
 
     it('discards an entry when the source message is gone', async () => {
@@ -254,119 +452,45 @@ describe('MultiTagRecovery', () => {
 
   describe('access-revoked slots', () => {
     it('marks a slot errored when its personality is no longer accessible', async () => {
-      // Recovery now tries ID first, falls back to slug. Both must return
-      // null for the slot to be treated as revoked.
+      // Recovery tries ID first, falls back to slug. Both must return null
+      // for the slot to be treated as revoked.
       personalityService.loadPersonality.mockResolvedValue(null);
       persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
 
       const stats = await recovery.run();
 
       expect(stats.slotsAccessRevoked).toBe(1);
-      // Slot still marked stale; the slot stays in the entry as errored
-      expect(persistence.markStale).toHaveBeenCalledWith('old-job-Alice');
-      // Resubmit NOT called because personality couldn't be loaded
-      expect(chatManager.submitChatJob).not.toHaveBeenCalled();
+      // No state poll — when the personality is gone we can't render the
+      // result anyway, so the slot becomes a synthetic-error slot regardless
+      // of the prior job's state.
+      expect(queue.getJob).not.toHaveBeenCalled();
       // Entry STILL adopted (errored slot is delivered as an error message)
       expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
       expect(stats.entriesResumed).toBe(1);
     });
 
-    it('keeps slot as errored (not dropped) when personality is inaccessible at recovery', async () => {
-      const snapshot = buildSnapshot({
-        slots: [
-          {
-            slotIndex: 0,
-            personalityId: 'id-a',
-            personalitySlug: 'a',
-            source: 'mention',
-            isAutoResponse: false,
-            jobId: 'old-a',
-            status: 'pending',
-          },
-        ],
-      });
-      personalityService.loadPersonality.mockResolvedValue(null);
-      persistence.scanAllEntries.mockResolvedValue([snapshot]);
-
-      const stats = await recovery.run();
-
-      // Revoked slots are kept (with sentinel personality) rather than
-      // dropped — the group still flushes a fallback error message for
-      // that slot rather than silently vanishing it. So the entry IS
-      // adopted, and `slotsAccessRevoked` reflects the loss.
-      expect(stats.slotsAccessRevoked).toBe(1);
-      expect(stats.entriesResumed).toBe(1);
-      expect(stats.entriesDiscarded).toBe(0);
-    });
-
     it('falls back to slug lookup when ID lookup returns null (slug rename)', async () => {
-      // Scenario: personality was renamed (new slug) between snapshot
-      // write and recovery. Looking up by the OLD slug from the snapshot
-      // would fail, but the ID is stable. Reverse: this test simulates
-      // ID failing first (loader doesn't recognize the UUID for some
-      // reason), and the slug fallback rescues the lookup.
+      // Scenario: ID-form lookup fails (loader doesn't recognize the UUID
+      // for some reason), slug-form succeeds. Slot recovers normally.
       personalityService.loadPersonality.mockImplementation(
         async (nameOrId: string): Promise<LoadedPersonality | null> => {
-          // ID-form lookup fails; slug-form succeeds.
           if (nameOrId.startsWith('id-')) return null;
           return buildPersonality(nameOrId);
         }
       );
       persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
 
-      const stats = await recovery.run();
+      await recovery.run();
 
-      // Both lookups attempted: ID first (null), then slug (success).
       expect(personalityService.loadPersonality).toHaveBeenCalledWith('id-alice', 'user-1');
       expect(personalityService.loadPersonality).toHaveBeenCalledWith('alice', 'user-1');
-      // Slot recovered via slug fallback — not treated as revoked.
-      expect(stats.slotsAccessRevoked).toBe(0);
-      expect(stats.slotsResubmitted).toBe(1);
+      // State poll runs because the slug fallback rescued the personality.
+      expect(queue.getJob).toHaveBeenCalledWith('old-job-Alice');
     });
   });
 
-  describe('terminal slots', () => {
-    it('preserves slots already in completed/errored state without resubmitting', async () => {
-      const snapshot = buildSnapshot({
-        slots: [
-          {
-            slotIndex: 0,
-            personalityId: 'id-alice',
-            personalitySlug: 'Alice',
-            source: 'mention',
-            isAutoResponse: false,
-            jobId: 'old-job-Alice',
-            status: 'completed',
-          },
-          {
-            slotIndex: 1,
-            personalityId: 'id-bob',
-            personalitySlug: 'Bob',
-            source: 'mention',
-            isAutoResponse: false,
-            jobId: 'old-job-Bob',
-            status: 'pending',
-          },
-        ],
-      });
-      persistence.scanAllEntries.mockResolvedValue([snapshot]);
-
-      const stats = await recovery.run();
-
-      expect(stats.slotsResubmitted).toBe(1); // Only Bob
-      expect(stats.staleJobIdsMarked).toBe(1); // Only Bob's jobId
-      // Alice not resubmitted
-      expect(chatManager.submitChatJob).toHaveBeenCalledOnce();
-      expect(chatManager.submitChatJob).toHaveBeenCalledWith(
-        expect.objectContaining({ personality: expect.objectContaining({ slug: 'bob' }) })
-      );
-    });
-
-    it('skips updateEntry when every slot is already terminal (adoptRehydratedEntry flushes immediately)', async () => {
-      // When all slots are terminal at recovery time, adoptRehydratedEntry
-      // calls flushEntry → deliverGroup → deleteEntry synchronously. The
-      // subsequent updateEntry call must be skipped so we don't orphan a
-      // snapshot at a Redis key that was just deleted.
+  describe('terminal slots in snapshot', () => {
+    it('preserves slots already in completed/errored state without polling BullMQ', async () => {
       const snapshot = buildSnapshot({
         slots: [
           {
@@ -378,19 +502,25 @@ describe('MultiTagRecovery', () => {
             jobId: 'old-job-Alice',
             status: 'completed',
           },
+          {
+            slotIndex: 1,
+            personalityId: 'id-bob',
+            personalitySlug: 'bob',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-job-Bob',
+            status: 'pending',
+          },
         ],
       });
       persistence.scanAllEntries.mockResolvedValue([snapshot]);
 
-      const stats = await recovery.run();
+      await recovery.run();
 
-      expect(stats.entriesResumed).toBe(1);
-      expect(stats.slotsResubmitted).toBe(0); // Nothing to resubmit
-      // Adopted into coordinator (which would synchronously flush)
-      expect(coordinator.adoptRehydratedEntry).toHaveBeenCalledOnce();
-      // updateEntry NOT called — entry was already terminal, no new state
-      // to persist back, and deleteEntry already ran inside the flush.
-      expect(persistence.updateEntry).not.toHaveBeenCalled();
+      // Only Bob's pending slot triggers a state poll; Alice's snapshot-terminal
+      // slot is preserved as-is.
+      expect(queue.getJob).toHaveBeenCalledOnce();
+      expect(queue.getJob).toHaveBeenCalledWith('old-job-Bob');
     });
   });
 
@@ -433,26 +563,27 @@ describe('MultiTagRecovery', () => {
   });
 
   describe('coordinator notification', () => {
-    it('calls noteRecoveryMarkedStale only when at least one stale jobId was marked', async () => {
-      // Pure-terminal entries: no pending slots, no stale marks.
-      const allTerminalSnapshot = buildSnapshot({
-        slots: [
-          {
-            slotIndex: 0,
-            personalityId: 'id-alice',
-            personalitySlug: 'Alice',
-            source: 'mention',
-            isAutoResponse: false,
-            jobId: 'old-job-Alice',
-            status: 'completed',
-          },
-        ],
-      });
-      persistence.scanAllEntries.mockResolvedValue([allTerminalSnapshot]);
+    it('does NOT call noteRecoveryMarkedStale when no entries are discarded and no stale marks happen', async () => {
+      // Happy path: pending slots adopted with old jobIds, no stale marks
+      // generated. The flag should stay off so MessageHandler's hot path
+      // doesn't do unnecessary stale-set lookups.
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
 
       await recovery.run();
 
       expect(coordinator.noteRecoveryMarkedStale).not.toHaveBeenCalled();
+    });
+
+    it('calls noteRecoveryMarkedStale when entries are discarded', async () => {
+      // Channel gone → entry discarded → pending jobIds marked stale.
+      discordClient.channels.fetch.mockResolvedValue(null);
+      persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
+
+      const stats = await recovery.run();
+
+      expect(stats.entriesDiscarded).toBe(1);
+      expect(stats.staleJobIdsMarked).toBe(1);
+      expect(coordinator.noteRecoveryMarkedStale).toHaveBeenCalledOnce();
     });
 
     it('calls noteRecoveryMarkedStale when entries are discarded even without stale jobIds', async () => {
@@ -467,7 +598,7 @@ describe('MultiTagRecovery', () => {
           {
             slotIndex: 0,
             personalityId: 'id-alice',
-            personalitySlug: 'Alice',
+            personalitySlug: 'alice',
             source: 'mention',
             isAutoResponse: false,
             jobId: 'old-job-Alice',
@@ -475,15 +606,13 @@ describe('MultiTagRecovery', () => {
           },
         ],
       });
-      // Channel gone → entry discarded
       discordClient.channels.fetch.mockResolvedValue(null);
       persistence.scanAllEntries.mockResolvedValue([allTerminalSnapshot]);
 
       const stats = await recovery.run();
 
       expect(stats.entriesDiscarded).toBe(1);
-      expect(stats.staleJobIdsMarked).toBe(0); // no pending slots to mark
-      // Defensive: flag flipped via the entriesDiscarded branch
+      expect(stats.staleJobIdsMarked).toBe(0);
       expect(coordinator.noteRecoveryMarkedStale).toHaveBeenCalledOnce();
     });
   });

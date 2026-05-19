@@ -161,6 +161,27 @@ describe('SlotDeliveryService', () => {
         expect.objectContaining({ isAutoResponse: true })
       );
     });
+
+    it('does NOT propagate when webhook succeeded but persistence threw', async () => {
+      // Mirrors the deliverError try/catch around saveAssistantMessage:
+      // once the webhook delivers, the user has the message and a
+      // persistence failure must not surface as an exception to the
+      // caller (the per-slot catch in multiTagDeliveryFlow would log
+      // "Slot delivery threw" even though delivery succeeded). The
+      // guard logs the persist failure and returns normally.
+      responseSender.sendResponse.mockResolvedValue({ chunkMessageIds: ['chunk-ok-1'] });
+      persistence.saveAssistantMessage.mockRejectedValue(new Error('FK constraint violation'));
+      const result = buildSuccessResult();
+      const slot = buildSlotContext();
+
+      // Should NOT throw — the user got the message; conversation history
+      // just isn't recorded.
+      const out = await service.deliverSuccess(result, slot);
+
+      expect(responseSender.sendResponse).toHaveBeenCalledTimes(1);
+      expect(persistence.saveAssistantMessage).toHaveBeenCalledTimes(1);
+      expect(out.chunkMessageIds).toEqual(['chunk-ok-1']);
+    });
   });
 
   describe('deliverError', () => {
