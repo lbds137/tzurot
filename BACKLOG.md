@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-05-16
-> **Version**: v3.0.0-beta.122 (released — develop is currently ahead with the CPD Reduction Campaign close-out, 5 PRs not yet released)
+> **Last Updated**: 2026-05-19
+> **Version**: v3.0.0-beta.123 (released — develop SHA-aligned with main)
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
