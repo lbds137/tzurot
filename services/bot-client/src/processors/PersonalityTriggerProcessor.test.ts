@@ -98,13 +98,6 @@ describe('PersonalityTriggerProcessor', () => {
   });
 
   describe('Pass-through cases', () => {
-    it('returns false for forwarded messages', async () => {
-      vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
-      const result = await processor.process(buildMessage());
-      expect(result).toBe(false);
-      expect(coordinator.startFanOut).not.toHaveBeenCalled();
-    });
-
     it('returns false when no trigger sources match', async () => {
       const result = await processor.process(buildMessage());
       expect(result).toBe(false);
@@ -323,6 +316,68 @@ describe('PersonalityTriggerProcessor', () => {
       expect(arg.slots).toHaveLength(1);
       expect(arg.slots[0].source).toBe('mention');
       expect(result).toBe(true);
+    });
+  });
+
+  describe('Forwarded messages', () => {
+    it('lets activation slot fire on forwarded messages (image-only screenshots etc.)', async () => {
+      // Invariant: in an activated channel, the activation slot fires for
+      // forwarded messages regardless of text content. The forwarder's intent
+      // is to share something into the channel; the activated personality
+      // owns the response policy.
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      const ambient = buildPersonality('Ambient');
+      gatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
+      });
+      personalityService.loadPersonality.mockResolvedValue(ambient);
+
+      const result = await processor.process(buildMessage({ content: '' }));
+
+      expect(result).toBe(true);
+      expect(coordinator.startFanOut).toHaveBeenCalledOnce();
+      const arg = coordinator.startFanOut.mock.calls[0][0];
+      expect(arg.slots).toHaveLength(1);
+      expect(arg.slots[0]).toMatchObject({
+        personality: ambient,
+        source: 'activation',
+        isAutoResponse: true,
+      });
+    });
+
+    it('skips reply resolution on forwarded messages even if message.reference is set', async () => {
+      // A forwarded message can technically carry a `reference` field, but
+      // the forwarder isn't replying to the bot — the field tracks the
+      // origin of the forward, not a webhook-reply intent. Skip resolution
+      // to avoid spurious slot population.
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      const ambient = buildPersonality('Ambient');
+      gatewayClient.getChannelSettings.mockResolvedValue({
+        hasSettings: true,
+        settings: { personalitySlug: 'ambient', personalityName: 'Ambient' },
+      });
+      personalityService.loadPersonality.mockResolvedValue(ambient);
+
+      await processor.process(buildMessage({ reference: { messageId: 'origin-msg' } }));
+
+      expect(replyResolver.resolvePersonality).not.toHaveBeenCalled();
+      expect(coordinator.startFanOut).toHaveBeenCalledOnce();
+    });
+
+    it('skips inline mention resolution on forwarded messages — text content is the original author, not the forwarder', async () => {
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      const alice = buildPersonality('Alice');
+      vi.mocked(findPersonalityMentions).mockResolvedValue([{ personality: alice, startIndex: 0 }]);
+      // No activation either — the forwarded message should fall through to
+      // the next processor since neither activation nor mention applies.
+      gatewayClient.getChannelSettings.mockResolvedValue({ hasSettings: false });
+
+      const result = await processor.process(buildMessage({ content: '@Alice forwarded' }));
+
+      expect(findPersonalityMentions).not.toHaveBeenCalled();
+      expect(result).toBe(false);
+      expect(coordinator.startFanOut).not.toHaveBeenCalled();
     });
   });
 
