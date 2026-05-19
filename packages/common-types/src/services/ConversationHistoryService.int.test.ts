@@ -873,7 +873,7 @@ describe('ConversationHistoryService Component Test', () => {
       expect(result[0].channelId).toBe(chNewer);
     });
 
-    it('should order groups by most recent activity', async () => {
+    it('should order groups by most recent activity (oldest activity first, newest last)', async () => {
       const chExclude = 'cross-order-ch1';
       const chOlder = 'cross-order-ch2';
       const chNewer = 'cross-order-ch3';
@@ -906,9 +906,11 @@ describe('ConversationHistoryService Component Test', () => {
       );
 
       expect(result).toHaveLength(2);
-      // chNewer has more recent activity, so it appears first
-      expect(result[0].channelId).toBe(chNewer);
-      expect(result[1].channelId).toBe(chOlder);
+      // Groups are sorted ASC by their newest message — so the channel whose
+      // most-recent activity is older appears first, and the channel closest
+      // in time to the current turn appears last (closest to current_conversation).
+      expect(result[0].channelId).toBe(chOlder);
+      expect(result[1].channelId).toBe(chNewer);
     });
 
     it('should return messages in chronological order within groups', async () => {

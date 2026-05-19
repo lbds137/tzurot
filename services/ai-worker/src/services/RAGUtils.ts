@@ -56,6 +56,24 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
  *
  * Formats processed attachments into human-readable descriptions with headers
  * indicating the type (Image, Audio, Voice message).
+ *
+ * Voice/audio transcripts are wrapped in `<voice_transcripts><transcript>...
+ * </transcript></voice_transcripts>` so the LLM can unambiguously distinguish
+ * the transcript from any other text in the message. Without this wrapping, a
+ * voice message's transcript appearing under a `[Voice message: 5.2s]` header
+ * was read as separately-typed user text and the model would reply that no
+ * voice content was received.
+ *
+ * Wrapper tags are NOT in `PROTECTED_TAGS` because `escapeXmlContent` runs over
+ * the full message content at chat_log emit time — protecting them would also
+ * escape OUR wrapper, destroying its effect. Instead, `neutralizeWrapperClosingTags`
+ * pre-escapes any literal `</transcript>` / `</voice_transcripts>` characters
+ * the user might have spoken, so injection inside the transcript can't break
+ * out of the wrapper.
+ *
+ * Image descriptions stay under their `[Image: filename]` header without
+ * wrapping — image content isn't user-typed text, so the ambiguity that
+ * motivates the voice wrapping doesn't apply.
  */
 export function buildAttachmentDescriptions(
   processedAttachments: ProcessedAttachment[]
@@ -65,25 +83,52 @@ export function buildAttachmentDescriptions(
   }
 
   return processedAttachments
-    .map(a => {
-      let header = '';
-      if (a.type === AttachmentType.Image) {
-        header = `[Image: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
-      } else if (a.type === AttachmentType.Audio) {
-        if (
-          a.metadata.isVoiceMessage === true &&
-          a.metadata.duration !== undefined &&
-          a.metadata.duration !== null &&
-          a.metadata.duration > 0
-        ) {
-          header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
-        } else {
-          header = `[Audio: ${a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment'}]`;
-        }
-      }
-      return `${header}\n${a.description}`;
-    })
+    .map(formatProcessedAttachmentEntry)
+    .filter(s => s.length > 0)
     .join('\n\n');
+}
+
+function formatProcessedAttachmentEntry(a: ProcessedAttachment): string {
+  if (a.type === AttachmentType.Image) {
+    const name =
+      a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment';
+    return `[Image: ${name}]\n${a.description}`;
+  }
+  if (a.type === AttachmentType.Audio) {
+    const header = buildAudioAttachmentHeader(a);
+    const safeTranscript = neutralizeWrapperClosingTags(a.description);
+    return `${header}\n<voice_transcripts><transcript>${safeTranscript}</transcript></voice_transcripts>`;
+  }
+  return '';
+}
+
+/**
+ * Neutralize literal wrapper-closing-tag sequences in user-supplied transcript
+ * text so a transcript that happens to recognize the words "less than slash
+ * transcript greater than" can't break out of the wrapper.
+ *
+ * Replaces with the HTML-entity-escaped form so the LLM reads them as literal
+ * text rather than markup. `escapeXmlContent` (called later on the full
+ * message content) leaves `&lt;`/`&gt;` alone, so this doesn't double-escape.
+ */
+function neutralizeWrapperClosingTags(content: string): string {
+  return content
+    .replace(/<\s*\/\s*transcript\s*>/gi, '&lt;/transcript&gt;')
+    .replace(/<\s*\/\s*voice_transcripts\s*>/gi, '&lt;/voice_transcripts&gt;');
+}
+
+function buildAudioAttachmentHeader(a: ProcessedAttachment): string {
+  if (
+    a.metadata.isVoiceMessage === true &&
+    a.metadata.duration !== undefined &&
+    a.metadata.duration !== null &&
+    a.metadata.duration > 0
+  ) {
+    return `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
+  }
+  const name =
+    a.metadata.name !== undefined && a.metadata.name.length > 0 ? a.metadata.name : 'attachment';
+  return `[Audio: ${name}]`;
 }
 
 /**
