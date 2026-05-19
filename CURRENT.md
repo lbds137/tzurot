@@ -1,21 +1,21 @@
 # Current
 
-> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod since the auto-deploy ~01:16 EDT. Subsequent dev work (PR #1062) on develop, will ship in beta.124.
+> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod since the auto-deploy ~01:16 EDT. Subsequent dev work (PR #1062 + PR #1063) on develop, will ship in beta.124.
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**Active focus** ([current-focus.md](backlog/current-focus.md)): **Poll BullMQ job state on `MultiTagRecovery` rehydration to backfill missed completion events.** Confirmed in-prod failure on the v3.0.0-beta.123 deploy (timeline + fix shape + file pointers all in current-focus.md). Reproducible on any deploy with in-flight jobs, so the next deploy will hit it again unless fixed. This is the structural follow-up to PR #1062, which made the safety-timeout error render in the persona's voice but didn't recover the actual response.
+**Active focus** ([current-focus.md](backlog/current-focus.md)): **Resolve real persona UUID at recovery time via `PersonaResolver`** — immediate follow-up to PR #1063 (merged 2026-05-19). PR #1063 added symmetric try/catch protection on `deliverSuccess` + `deliverError` so user-visible behavior is correct, but conversation history is silently dropped for any recovered slot due to the synthetic `recovery-persona-*` personaId failing Prisma's UUID FK. Per-session directive: tackle immediately after PR #1063.
 
-**Other candidates after the rehydration task**:
+**Other candidates after the persona-resolver task**:
 
 1. **`/admin metrics` Discord command** ([quick-wins.md](backlog/quick-wins.md)) — bot-owner-only slash command that fetches `/metrics` and renders an embed. ~1-2hr.
 2. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
 3. **`/voice-references/:slug` enumeration risk** — the one remaining API Security item (items 1 + 2 already shipped in PRs #1046 + #1048); design-blocked on the visibility-toggle bundle.
 4. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
-5. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work.
+5. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work. Three new entries from PR #1063: idempotent re-dispatch, returnvalue shape validation, per-delivery error handling.
 
 **Verify on prod (low priority, fix shipped)**:
 
