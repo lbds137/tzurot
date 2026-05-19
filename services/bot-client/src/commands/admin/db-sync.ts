@@ -29,6 +29,64 @@ interface SyncResult {
 }
 
 /**
+ * Build the truncation suffix line emitted when a list overflows the embed
+ * field limit. Returns the bare suffix string with no surrounding whitespace —
+ * the caller is responsible for any leading newline that separates the suffix
+ * from surviving items.
+ */
+function buildTruncationSuffix(omittedCount: number): string {
+  return `…and ${omittedCount} more`;
+}
+
+/**
+ * Format an array of strings as a newline-joined embed-field value, dropping
+ * trailing items at line boundaries until the result fits within `fieldLimit`.
+ *
+ * Without this helper, a naive `.join('\n').slice(0, 1024)` chops mid-string —
+ * the last entry visible to the user is silently truncated and any items past
+ * the cut are invisible. The reader can't tell whether they're seeing the full
+ * list or a fragment. With this helper, surviving items are intact and the
+ * overflow is explicitly counted in the trailing `…and N more` line.
+ *
+ * **Precondition**: `fieldLimit` must exceed the maximum suffix length (a few
+ * dozen bytes — `…and <count> more`). True in practice with Discord's 1024
+ * embed-field cap; pathologically small limits (e.g., `fieldLimit < 30`) may
+ * produce output that exceeds `fieldLimit`. No real caller violates this.
+ */
+export function formatListForEmbedField(items: readonly string[], fieldLimit: number): string {
+  if (items.length === 0) {
+    return '';
+  }
+  const joined = items.join('\n');
+  if (joined.length <= fieldLimit) {
+    return joined;
+  }
+
+  // Drop items from the tail until we have enough room for the survivors plus
+  // a "…and N more" suffix. We size the suffix against the worst case (all
+  // items omitted) up front so the loop's budget never tightens further as
+  // omittedCount grows.
+  const worstCaseSuffix = `\n${buildTruncationSuffix(items.length)}`;
+  const survivorBudget = fieldLimit - worstCaseSuffix.length;
+
+  const survivors: string[] = [];
+  let runningLength = 0;
+  for (const item of items) {
+    const nextLength = runningLength === 0 ? item.length : runningLength + 1 + item.length;
+    if (nextLength > survivorBudget) {
+      break;
+    }
+    survivors.push(item);
+    runningLength = nextLength;
+  }
+  const omittedCount = items.length - survivors.length;
+  const survivorJoin = survivors.join('\n');
+  return survivors.length === 0
+    ? buildTruncationSuffix(omittedCount)
+    : `${survivorJoin}\n${buildTruncationSuffix(omittedCount)}`;
+}
+
+/**
  * Build the summary description for the sync result embed
  */
 function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
@@ -103,14 +161,14 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
     if (result.warnings && result.warnings.length > 0) {
       embed.addFields({
         name: '⚠️ Warnings',
-        value: result.warnings.join('\n').slice(0, TEXT_LIMITS.DISCORD_EMBED_FIELD),
+        value: formatListForEmbedField(result.warnings, TEXT_LIMITS.DISCORD_EMBED_FIELD),
       });
     }
 
     if (result.info && result.info.length > 0) {
       embed.addFields({
         name: 'ℹ️ Excluded Tables',
-        value: result.info.join('\n').slice(0, TEXT_LIMITS.DISCORD_EMBED_FIELD),
+        value: formatListForEmbedField(result.info, TEXT_LIMITS.DISCORD_EMBED_FIELD),
       });
     }
 
