@@ -250,9 +250,6 @@ importers:
         specifier: ^28.0.0
         version: 28.0.0
     devDependencies:
-      '@types/eslint':
-        specifier: ^9.6.1
-        version: 9.6.1
       '@types/estree':
         specifier: ^1.0.9
         version: 1.0.9

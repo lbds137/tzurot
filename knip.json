@@ -36,8 +36,7 @@
     },
     "packages/test-utils": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
-      "includeEntryExports": true,
-      "ignoreDependencies": ["@tzurot/common-types"]
+      "includeEntryExports": true
     }
   },
   "ignore": [
