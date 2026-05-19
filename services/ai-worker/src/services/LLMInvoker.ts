@@ -61,7 +61,7 @@ const logger = createLogger('LLMInvoker');
  * Research source: OpenRouter model API pages (January 2026)
  * - glm-4.5-air: Only supports temperature, top_p, max_tokens, stop (max 1), thinking, tools, tool_choice
  * - gemini-3-pro-preview: Only supports temperature, top_p, frequency_penalty
- * - gemma-3-27b-it:free: Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty
+ * - gemma free tier (3-27b-it / 4-31b-it): Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty
  * - llama-3.3-70b-instruct:free: Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty, tool_choice, tools
  *
  * TODO: Make this configurable via database (see BACKLOG.md)
@@ -71,8 +71,13 @@ const MODELS_WITHOUT_STOP_SUPPORT: RegExp[] = [
   /glm-4\.5-air/i,
   // Google Gemini 3 Pro Preview (but NOT Gemini 3 Flash which does support stop)
   /gemini-3-pro-preview/i,
-  // Google Gemma 3 free tier
-  /gemma-3-27b-it:free/i,
+  // Google Gemma free tier (3-27b-it superseded by 4-31b-it; both have the
+  // same restricted parameter set on the OpenRouter free route). The size
+  // group is `\d+b` rather than an explicit alternation so future variants
+  // inherit the restriction by default — if a new variant turns out to
+  // support stop sequences, the false-negative cost is just a slightly
+  // over-conservative filter, not a 400 error.
+  /gemma-[34]-\d+b-it:free/i,
   // Meta Llama 3.3 70B free tier
   /llama-3\.3-70b-instruct:free/i,
   // DeepSeek R1-0528 free tier (stop not in supported_parameters)
@@ -92,6 +97,40 @@ export function supportsStopSequences(modelName: string): boolean {
     }
   }
   return true;
+}
+
+/**
+ * Default cooldown applied when a 429 lacks a usable `X-RateLimit-Reset`
+ * header. 15 minutes is the middle ground between two failure modes:
+ *
+ *   - Too short → cache expires before the real upstream limit resets,
+ *     and the next request burns another ~80s retry cycle. With a 5-minute
+ *     default and a 1-hour real reset, the overhead is ~27%.
+ *   - Too long → users stay blocked past the real reset window. With a
+ *     1-hour default and a 1-minute real reset, they wait 59 unnecessary
+ *     minutes.
+ *
+ * 15 minutes caps the retry-storm overhead at ~6% in the worst case while
+ * keeping shorter-than-15-min flaps from accumulating real user wait.
+ * Tune in either direction once we have prod logs of actual reset windows.
+ */
+const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
+
+/**
+ * Default reset timestamp for a 429 whose response didn't include a usable
+ * `X-RateLimit-Reset` header. Returns `null` if the category doesn't qualify
+ * for default caching (caller should skip the cache write).
+ *
+ * Currently both RATE_LIMIT and QUOTA_EXCEEDED qualify — they both indicate
+ * the upstream is refusing requests until something resets, and we don't
+ * have header signal to distinguish duration. QUOTA_EXCEEDED routing is
+ * defensive: under current `classifyHttpStatus`, a 429 always lands in
+ * RATE_LIMIT, but `detectSpecialCases` or future routing could escalate.
+ */
+function defaultRateLimitResetMs(category: ApiErrorCategory): number | null {
+  return category === ApiErrorCategory.RATE_LIMIT || category === ApiErrorCategory.QUOTA_EXCEEDED
+    ? Date.now() + DEFAULT_RATE_LIMIT_COOLDOWN_MS
+    : null;
 }
 
 /**
@@ -354,13 +393,32 @@ export class LLMInvoker {
   }
 
   /**
-   * Inspect a thrown error from `withRetry` and, if it's a 429 carrying a
-   * usable `X-RateLimit-Reset`, mark the (apiKey, model) pair as rate-limited
-   * in the cache. Subsequent calls during the window will short-circuit.
+   * Inspect a thrown error from `withRetry` and, if it's a 429, mark the
+   * (cacheKeyId, model) pair as rate-limited in the cache. Subsequent calls
+   * during the window will short-circuit.
    *
    * `withRetry` wraps the underlying provider error in a `RetryError` whose
    * `lastError` field holds the original 429. Parsing the wrapper directly
    * loses the status code + headers, so unwrap when present before parsing.
+   *
+   * **Reset timestamp resolution**:
+   *
+   *   1. If the parsed error carries a usable `rateLimitResetMs` (from a
+   *      well-formed `X-RateLimit-Reset` header), use it verbatim.
+   *   2. If the 429's category is `RATE_LIMIT` or `QUOTA_EXCEEDED` and no
+   *      header is present, default to a flat cooldown (see
+   *      `DEFAULT_RATE_LIMIT_COOLDOWN_MS` for the duration + cost analysis).
+   *   3. Otherwise (non-429 or unexpected category), don't cache.
+   *
+   * Without the fallback, upstream 429s that lack a reset header (e.g.,
+   * Google AI Studio free-tier through OpenRouter) burned three full retry
+   * attempts every time, with each retry hitting a fresh 429.
+   *
+   * **Clock semantics**: `defaultRateLimitResetMs` calls `Date.now()` at the
+   * moment this method runs — which is *after* all retries exhaust. The
+   * effective cooldown window from the original 429 is therefore
+   * `DEFAULT_RATE_LIMIT_COOLDOWN_MS + retry-loop overhead` (~80s on the
+   * 3-attempt path). Slightly conservative, not loose.
    */
   private async cacheRateLimitOnFailure(
     cache: RateLimitCache,
@@ -373,13 +431,18 @@ export class LLMInvoker {
     // so the dependency on RetryError's shape is compiler-checked.
     const underlying = err instanceof RetryError ? err.lastError : err;
     const errorInfo = parseApiError(underlying);
-    if (errorInfo.statusCode !== 429 || errorInfo.rateLimitResetMs === undefined) {
+    if (errorInfo.statusCode !== 429) {
+      return;
+    }
+    const resetTimestampMs =
+      errorInfo.rateLimitResetMs ?? defaultRateLimitResetMs(errorInfo.category);
+    if (resetTimestampMs === null) {
       return;
     }
     await cache.markRateLimited({
       cacheKeyId,
       model: modelName,
-      resetTimestampMs: errorInfo.rateLimitResetMs,
+      resetTimestampMs,
       // Persist category + messages so the synthetic short-circuit at read
       // time can replay the same user-facing message the user would have
       // seen on a real upstream call. Without these, every cache hit

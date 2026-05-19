@@ -1534,8 +1534,14 @@ describe('LLMInvoker', () => {
       vi.useRealTimers();
     });
 
-    it('does not write to cache when 429 lacks a reset header', async () => {
+    it('falls back to a 15-minute cooldown when a 429 lacks a reset header', async () => {
+      // Without this fallback, header-less 429s burned three full retry
+      // attempts every time. Some upstream 429 paths (e.g., Google AI
+      // Studio free-tier through OpenRouter) omit X-RateLimit-Reset
+      // entirely. The default cooldown bounds the retry storm to one full
+      // attempt + cached short-circuit until the cooldown expires.
       vi.useFakeTimers();
+      const nowMs = Date.now();
 
       const messages: BaseMessage[] = [new HumanMessage('test')];
       const error = Object.assign(new Error('Rate limit exceeded'), { status: 429 });
@@ -1552,7 +1558,19 @@ describe('LLMInvoker', () => {
       await vi.runAllTimersAsync();
       await assertion;
 
-      expect(mockMarkRateLimited).not.toHaveBeenCalled();
+      // Fake-time advances during retries (initialDelay + backoff), so the
+      // actual resetTimestampMs is `nowMs + retryDrift + 15min`. Assert the
+      // call shape, then check resetTimestampMs falls within the expected
+      // window (15min target + up to 60s of retry drift).
+      expect(mockMarkRateLimited).toHaveBeenCalledTimes(1);
+      const [callArgs] = mockMarkRateLimited.mock.calls[0];
+      expect(callArgs).toMatchObject({
+        cacheKeyId: 'user:111111111111111111',
+        model: 'z-ai/glm-4.5-air:free',
+        category: ApiErrorCategory.RATE_LIMIT,
+      });
+      expect(callArgs.resetTimestampMs).toBeGreaterThanOrEqual(nowMs + 15 * 60 * 1000);
+      expect(callArgs.resetTimestampMs).toBeLessThanOrEqual(nowMs + 15 * 60 * 1000 + 60 * 1000);
 
       vi.useRealTimers();
     });

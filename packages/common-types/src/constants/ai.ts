@@ -161,7 +161,7 @@ export const AI_ENDPOINTS = {
 } as const;
 
 /** Primary free multimodal model — shared between vision fallback and guest mode */
-const FREE_MULTIMODAL_MODEL = 'google/gemma-3-27b-it:free';
+const FREE_MULTIMODAL_MODEL = 'google/gemma-4-31b-it:free';
 
 /**
  * Centralized Model Configuration
