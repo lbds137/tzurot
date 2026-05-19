@@ -101,7 +101,40 @@ describe('ConversationPersistence', () => {
         guildId: 'guild-123',
         discordMessageId: 'discord-msg-123',
         messageMetadata: undefined, // no references
+        timestamp: mockMessage.createdAt,
       });
+    });
+
+    it('should pass Discord message createdAt as the row timestamp', async () => {
+      // Regression test: without this, the user row's createdAt defaulted to
+      // `new Date()` (DB insert time), while the corresponding assistant row
+      // used `userMessageTime + 1ms` (Discord post + 1ms). That made the
+      // assistant's createdAt *earlier* than the user's, reversing every
+      // turn-pair in cross-channel-context output.
+      const discordPostTime = new Date('2026-05-16T15:42:10.000Z');
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-timestamp',
+        channelId: 'channel-timestamp',
+        guildId: 'guild-timestamp',
+      });
+      // Set createdAt after construction — createMockMessage's options object
+      // is typed `MockInput<Message> = Record<string, any>`, but TS catches the
+      // mismatch against Discord's Message type when `createdAt` is declared in
+      // the overrides literal. Direct assignment avoids that.
+      Object.assign(mockMessage as unknown as { createdAt: Date }, {
+        createdAt: discordPostTime,
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-timestamp',
+        messageContent: 'Hi',
+      });
+
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ timestamp: discordPostTime })
+      );
     });
 
     it('should use default content when message content is empty', async () => {

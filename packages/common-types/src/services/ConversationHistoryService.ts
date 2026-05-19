@@ -483,21 +483,25 @@ export class ConversationHistoryService {
         }
       }
 
-      // Convert to CrossChannelHistoryGroup[], reversing messages within each group
-      // to chronological order (oldest first)
-      const groups: CrossChannelHistoryGroup[] = [];
-      for (const [channelId, channelMessages] of channelGroups) {
-        groups.push({
+      // Convert each group to chronological order (oldest first), then sort
+      // groups ASC by their newest message — so the channel closest in time to
+      // the current turn appears last, immediately before current_conversation.
+      // `channelMessages[0]` is the newest because the query is `createdAt DESC`.
+      const sortedGroups = Array.from(channelGroups, ([channelId, channelMessages]) => ({
+        group: {
           channelId,
           guildId: channelMessages[0].guildId,
           messages: mapToConversationMessages(channelMessages.toReversed()),
-        });
-      }
+        } satisfies CrossChannelHistoryGroup,
+        newestAt: channelMessages[0].createdAt,
+      }))
+        .sort((a, b) => a.newestAt.getTime() - b.newestAt.getTime())
+        .map(t => t.group);
 
       logger.debug(
         {
           messageCount: messages.length,
-          groupCount: groups.length,
+          groupCount: sortedGroups.length,
           personaId,
           personalityId,
           excludeChannelId,
@@ -505,7 +509,7 @@ export class ConversationHistoryService {
         'Retrieved cross-channel messages'
       );
 
-      return groups;
+      return sortedGroups;
     } catch (error) {
       logger.error({ err: error }, 'Failed to get cross-channel conversation history');
       return [];
