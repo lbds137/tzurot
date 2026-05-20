@@ -40,6 +40,7 @@ import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
 import { handleStopSequences } from './stop-sequences.js';
 import { handleHealth } from './health.js';
+import { handleMetrics } from './metrics.js';
 import { handlePresence } from './presence.js';
 import {
   handleSettings,
@@ -65,6 +66,7 @@ const adminRouter = createSubcommandContextRouter(
     cleanup: handleCleanup,
     'stop-sequences': handleStopSequences,
     health: handleHealth,
+    metrics: handleMetrics,
     presence: handlePresence,
     settings: handleSettings,
   },
@@ -279,6 +281,11 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand.setName('health').setDescription('Check bot health and connected services')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('metrics')
+        .setDescription('View gateway queue depth, dedup cache size, and uptime')
     )
     .addSubcommand(subcommand =>
       subcommand
