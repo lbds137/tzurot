@@ -76,6 +76,36 @@ describe('pollPriorJobState', () => {
     expect(outcome).toEqual({ kind: 'unrecoverable' });
   });
 
+  it('returns unrecoverable when returnvalue is non-object (architectural-guarantee violation)', async () => {
+    // Defense-in-depth shape guard. If ai-worker ever returned a non-object
+    // (e.g., a serialization regression that yielded a string), the cast
+    // would propagate a malformed value to coordinator.handleJobResult.
+    const queue = buildMockQueue({
+      getState: vi.fn().mockResolvedValue('completed'),
+      returnvalue: 'malformed-string' as unknown,
+      failedReason: undefined,
+    });
+
+    const outcome = await pollPriorJobState(queue, 'old-job-Alice');
+
+    expect(outcome).toEqual({ kind: 'unrecoverable' });
+  });
+
+  it("returns unrecoverable when returnvalue is an object missing the 'success' field", async () => {
+    // Defense against an ai-worker contract change (e.g., envelope wrapping
+    // the result) — anything that doesn't look like LLMGenerationResult
+    // shape routes to unrecoverable.
+    const queue = buildMockQueue({
+      getState: vi.fn().mockResolvedValue('completed'),
+      returnvalue: { unrelated: 'shape' } as unknown,
+      failedReason: undefined,
+    });
+
+    const outcome = await pollPriorJobState(queue, 'old-job-Alice');
+
+    expect(outcome).toEqual({ kind: 'unrecoverable' });
+  });
+
   it('returns failed with the failedReason when the job is in failed state', async () => {
     const queue = buildMockQueue(buildMockJob({ state: 'failed', failedReason: 'OpenRouter 502' }));
 

@@ -105,7 +105,7 @@ describe('MultiTagRecovery', () => {
     loadPersonality: ReturnType<typeof vi.fn>;
   };
   let personaResolver: {
-    resolveForMemory: ReturnType<typeof vi.fn>;
+    resolvePersonaIdOnly: ReturnType<typeof vi.fn>;
   };
   let discordClient: {
     channels: { fetch: ReturnType<typeof vi.fn> };
@@ -149,10 +149,7 @@ describe('MultiTagRecovery', () => {
     personaResolver = {
       // Default: resolver returns the real persona UUID via cascade. Tests
       // that need the null-fallback or throw-fallback path override per-call.
-      resolveForMemory: vi.fn().mockResolvedValue({
-        personaId: RESOLVED_PERSONA_ID,
-        focusModeEnabled: false,
-      }),
+      resolvePersonaIdOnly: vi.fn().mockResolvedValue(RESOLVED_PERSONA_ID),
     };
     mockMessage = { id: 'msg-1', client: { user: { id: 'bot-1' } } };
     mockChannel = {
@@ -419,6 +416,67 @@ describe('MultiTagRecovery', () => {
       expect(coordinator.handleJobResult).toHaveBeenCalledOnce();
       expect(coordinator.handleJobResult).toHaveBeenCalledWith('old-job-Alice', completedResult);
     });
+
+    it('continues delivering remaining slots when one handleJobResult throws mid-loop', async () => {
+      // Per-delivery try/catch: a throw from one handleJobResult must not
+      // skip subsequent deliveries. The outer recoverOne catch is too
+      // coarse — it would log "Recovery failed for entry" and abandon the
+      // remaining work even if other slots have already-completed results
+      // sitting on BullMQ ready to deliver.
+      const aliceResult: LLMGenerationResult = {
+        requestId: 'old-job-Alice',
+        success: true,
+        content: 'alice content',
+      };
+      const bobResult: LLMGenerationResult = {
+        requestId: 'old-job-Bob',
+        success: true,
+        content: 'bob content',
+      };
+      queue.getJob.mockImplementation(async (jobId: string) => {
+        if (jobId === 'old-job-Alice') {
+          return buildMockJob({ state: 'completed', returnvalue: aliceResult });
+        }
+        if (jobId === 'old-job-Bob') {
+          return buildMockJob({ state: 'completed', returnvalue: bobResult });
+        }
+        return null;
+      });
+      // First delivery (Alice) throws; second delivery (Bob) must still proceed.
+      coordinator.handleJobResult
+        .mockRejectedValueOnce(new Error('handleJobResult failed for Alice'))
+        .mockResolvedValueOnce(undefined);
+      const snapshot = buildSnapshot({
+        slots: [
+          {
+            slotIndex: 0,
+            personalityId: 'id-alice',
+            personalitySlug: 'alice',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-job-Alice',
+            status: 'pending',
+          },
+          {
+            slotIndex: 1,
+            personalityId: 'id-bob',
+            personalitySlug: 'bob',
+            source: 'mention',
+            isAutoResponse: false,
+            jobId: 'old-job-Bob',
+            status: 'pending',
+          },
+        ],
+      });
+      persistence.scanAllEntries.mockResolvedValue([snapshot]);
+
+      await recovery.run();
+
+      // Both deliveries attempted despite the first throwing.
+      expect(coordinator.handleJobResult).toHaveBeenCalledTimes(2);
+      expect(coordinator.handleJobResult).toHaveBeenNthCalledWith(1, 'old-job-Alice', aliceResult);
+      expect(coordinator.handleJobResult).toHaveBeenNthCalledWith(2, 'old-job-Bob', bobResult);
+    });
   });
 
   describe('discard cases', () => {
@@ -514,7 +572,7 @@ describe('MultiTagRecovery', () => {
 
       await recovery.run();
 
-      expect(personaResolver.resolveForMemory).toHaveBeenCalledWith('user-1', 'id-alice');
+      expect(personaResolver.resolvePersonaIdOnly).toHaveBeenCalledWith('user-1', 'id-alice');
       const adoptedEntry = coordinator.adoptRehydratedEntry.mock.calls[0]?.[0] as {
         slots: Array<{ personaId: string }>;
       };
@@ -543,7 +601,7 @@ describe('MultiTagRecovery', () => {
 
       // The resolver is called with the LOADED personality's id, not the
       // snapshot's stale id-alice value.
-      expect(personaResolver.resolveForMemory).toHaveBeenCalledWith(
+      expect(personaResolver.resolvePersonaIdOnly).toHaveBeenCalledWith(
         'user-1',
         'new-id-after-rename'
       );
@@ -555,7 +613,7 @@ describe('MultiTagRecovery', () => {
       // `recovery-fallback-*` string is caught by the saveAssistantMessage
       // try/catch in SlotDeliveryService, so the user gets their message;
       // conversation history just doesn't persist for this edge case.
-      personaResolver.resolveForMemory.mockResolvedValue(null);
+      personaResolver.resolvePersonaIdOnly.mockResolvedValue(null);
       persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
 
       const stats = await recovery.run();
@@ -571,7 +629,7 @@ describe('MultiTagRecovery', () => {
       // Defensive: a Prisma blip during recovery shouldn't fail the slot.
       // The slot still adopts and delivers via the same fallback path as
       // the null-return case.
-      personaResolver.resolveForMemory.mockRejectedValue(new Error('connection refused'));
+      personaResolver.resolvePersonaIdOnly.mockRejectedValue(new Error('connection refused'));
       persistence.scanAllEntries.mockResolvedValue([buildSnapshot()]);
 
       const stats = await recovery.run();
@@ -594,7 +652,7 @@ describe('MultiTagRecovery', () => {
 
       await recovery.run();
 
-      expect(personaResolver.resolveForMemory).toHaveBeenCalledWith('user-1', 'id-alice');
+      expect(personaResolver.resolvePersonaIdOnly).toHaveBeenCalledWith('user-1', 'id-alice');
       const adoptedEntry = coordinator.adoptRehydratedEntry.mock.calls[0]?.[0] as {
         slots: Array<{ personaId: string; status: string }>;
       };
