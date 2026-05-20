@@ -167,6 +167,14 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "type": 1,
   },
   {
+    "description": "View gateway queue depth, dedup cache size, and uptime",
+    "description_localizations": undefined,
+    "name": "metrics",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
     "description": "Set or view the bot presence (activity status)",
     "description_localizations": undefined,
     "name": "presence",
