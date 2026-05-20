@@ -5,11 +5,20 @@
  * channel-ordering bookkeeping when a job fails or is removed without
  * producing a result.
  *
- * Without this listener, a failed AI job leaves a "pending job" entry in
- * ResponseOrderingService that blocks any later response in the same channel
- * until MAX_WAIT_MS (10 min) elapses via the timeout-escape path. With it,
- * failures unblock the queue immediately by calling orderingService.cancelJob
- * via the JobTracker-managed jobId → channelId lookup.
+ * Two routing paths depending on which subsystem owns the failed jobId:
+ *
+ *   1. **Multi-tag slot job**: route through `MultiTagCoordinator.handleJobResult`
+ *      with a synthesized failure `LLMGenerationResult`. Without this, the
+ *      slot stays in `'pending'` status until the coordinator's safety
+ *      timeout fires after 10 min, at which point the user sees a generic
+ *      bot error. Live-failure routing matches the rehydration-time
+ *      synthesis path: same shape, same flush behavior.
+ *
+ *   2. **Single-tag (legacy) job**: unblock the channel-ordering queue via
+ *      `orderingService.cancelJob`. This was the listener's original purpose
+ *      — multi-tag jobs register the groupId in the ordering service rather
+ *      than individual slot.jobIds, so cancelJob is a safe no-op for them
+ *      (kept as the fall-through path for non-multi-tag failures).
  */
 
 import { QueueEvents } from 'bullmq';
@@ -18,8 +27,10 @@ import {
   getConfig,
   parseRedisUrl,
   createBullMQRedisConfig,
+  type LLMGenerationResult,
 } from '@tzurot/common-types';
 import type { JobTracker } from './JobTracker.js';
+import type { MultiTagCoordinator } from './MultiTagCoordinator.js';
 import type { ResponseOrderingService } from './ResponseOrderingService.js';
 
 const logger = createLogger('JobFailureListener');
@@ -29,7 +40,8 @@ export class JobFailureListener {
 
   constructor(
     private readonly jobTracker: JobTracker,
-    private readonly orderingService: ResponseOrderingService
+    private readonly orderingService: ResponseOrderingService,
+    private readonly multiTagCoordinator: MultiTagCoordinator
   ) {}
 
   start(): void {
@@ -94,6 +106,28 @@ export class JobFailureListener {
     // wiring discards the promise and any thrown error surfaces as
     // unhandledRejection — which terminates the Node process in Node 15+.
     try {
+      // Multi-tag path: synthesize a failure result and route through the
+      // coordinator's normal delivery flow. This drives the slot to terminal
+      // immediately instead of waiting for the 10-min safety timeout.
+      if (this.multiTagCoordinator.ownsJob(jobId)) {
+        const syntheticFailure: LLMGenerationResult = {
+          requestId: jobId,
+          success: false,
+          error: failedReason ?? `Job ${reason} (no reason provided)`,
+        };
+        logger.info(
+          { jobId, reason, failedReason },
+          'Multi-tag slot terminal event — routing to coordinator'
+        );
+        await this.multiTagCoordinator.handleJobResult(jobId, syntheticFailure);
+        return;
+      }
+
+      // Single-tag path: unblock the channel-ordering queue. (Multi-tag jobs
+      // register groupId on the ordering service rather than individual
+      // slot.jobIds, so reaching this branch for a multi-tag jobId is
+      // already a safe no-op — but the ownsJob check above keeps the
+      // semantics explicit.)
       const context = this.jobTracker.getContext(jobId);
       if (context === null) {
         logger.debug({ jobId, reason }, 'Terminal event for unknown job — no action');
@@ -104,15 +138,9 @@ export class JobFailureListener {
         { jobId, channelId, reason, failedReason },
         'AI job terminal event — unblocking channel ordering queue'
       );
-      // cancelJob is idempotent: it no-ops if jobId isn't in the channel's
-      // pending set. Multi-tag's normal path registers groupId rather than the
-      // individual slot.jobId, so a slot failure here is a safe no-op.
       await this.orderingService.cancelJob(channelId, jobId);
     } catch (err) {
-      logger.error(
-        { err, jobId, reason, failedReason },
-        'Failed to unblock channel ordering queue on AI job terminal event'
-      );
+      logger.error({ err, jobId, reason, failedReason }, 'Failed to handle AI job terminal event');
     }
   }
 }
