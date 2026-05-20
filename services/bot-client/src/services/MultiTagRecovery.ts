@@ -79,11 +79,7 @@ import type {
 } from './MultiTagPersistence.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { RuntimeEntry, RuntimeSlot } from './multiTagCoordinatorHelpers.js';
-import {
-  pollPriorJobState,
-  synthesizeFailureResult,
-  type SlotStateOutcome,
-} from './multiTagRecoveryHelpers.js';
+import { pollPriorJobState, synthesizeFailureResult } from './multiTagRecoveryHelpers.js';
 
 const logger = createLogger('MultiTagRecovery');
 
@@ -316,8 +312,27 @@ export class MultiTagRecovery {
       // failure mode — and the exposure window is tiny (only between
       // two awaits within recovery itself). Idempotent re-dispatch is
       // tracked as a follow-up; see backlog/deferred.md.
+      //
+      // Per-delivery try/catch: a throw from one `handleJobResult` must
+      // not block subsequent deliveries in the same entry. The narrow
+      // failure shape today is `handleJobResult` itself throwing on its
+      // inner `updateEntry` persistence write (handler is otherwise
+      // robust), but the cost of the guard is negligible and the
+      // resilience matches the per-slot catch in `multiTagDeliveryFlow.deliverSlot`.
       for (const delivery of deferredDeliveries) {
-        await this.deps.coordinator.handleJobResult(delivery.jobId, delivery.result);
+        try {
+          await this.deps.coordinator.handleJobResult(delivery.jobId, delivery.result);
+        } catch (err) {
+          logger.error(
+            {
+              err,
+              jobId: delivery.jobId,
+              groupId: snapshot.groupId,
+              kind: delivery.kind,
+            },
+            'Recovery: deferred-delivery dispatch threw — continuing with remaining slots'
+          );
+        }
       }
 
       stats.entriesResumed++;
@@ -367,14 +382,6 @@ export class MultiTagRecovery {
     // already-revoked terminal slot is acceptable.
     const personality = await this.lookupPersonalityWithFallback(slotSnap, entrySnap.userId);
 
-    // See `resolvePersonaIdOrFallback` JSDoc for cascade semantics and
-    // the synthetic-fallback safety net.
-    const personaId = await this.resolvePersonaIdOrFallback(
-      entrySnap.userId,
-      personality?.id ?? slotSnap.personalityId,
-      slotSnap.personalitySlug
-    );
-
     // Already-terminal slots in the snapshot: preserve. No state poll, no
     // deferred delivery — the snapshot status is the source of truth here
     // and the slot will flush via the existing deliverError path (the
@@ -382,6 +389,11 @@ export class MultiTagRecovery {
     // slot from the snapshot becomes a fallback-error in the flushed
     // burst — same as the prior implementation; this is not a regression).
     if (slotSnap.status !== 'pending') {
+      const personaId = await this.resolvePersonaIdOrFallback(
+        entrySnap.userId,
+        personality?.id ?? slotSnap.personalityId,
+        slotSnap.personalitySlug
+      );
       if (personality === null) {
         stats.slotsAccessRevoked++;
         return { slot: this.buildRevokedSlot(slotSnap, personaId) };
@@ -395,12 +407,22 @@ export class MultiTagRecovery {
     // successfully, we can't render the result without the personality.
     if (personality === null) {
       stats.slotsAccessRevoked++;
+      const personaId = await this.resolvePersonaIdOrFallback(
+        entrySnap.userId,
+        slotSnap.personalityId,
+        slotSnap.personalitySlug
+      );
       return { slot: this.buildRevokedSlot(slotSnap, personaId) };
     }
 
-    // Pending slot, personality accessible: poll BullMQ for the old job's
-    // authoritative state.
-    const outcome: SlotStateOutcome = await pollPriorJobState(this.deps.queue, slotSnap.jobId);
+    // Pending slot, personality accessible: persona resolution and
+    // BullMQ state poll are independent, so dispatch them in parallel.
+    // Cuts the dominant-path recovery latency roughly in half (Prisma
+    // round-trip + Redis round-trip overlap instead of stacking).
+    const [personaId, outcome] = await Promise.all([
+      this.resolvePersonaIdOrFallback(entrySnap.userId, personality.id, slotSnap.personalitySlug),
+      pollPriorJobState(this.deps.queue, slotSnap.jobId),
+    ]);
     const baseSlot: RuntimeSlot = {
       slotIndex: slotSnap.slotIndex,
       personality,
@@ -515,12 +537,12 @@ export class MultiTagRecovery {
     fallbackSlug: string
   ): Promise<string> {
     try {
-      const memoryInfo = await this.deps.personaResolver.resolveForMemory(
+      const resolvedPersonaId = await this.deps.personaResolver.resolvePersonaIdOnly(
         discordUserId,
         personalityId
       );
-      if (memoryInfo !== null) {
-        return memoryInfo.personaId;
+      if (resolvedPersonaId !== null) {
+        return resolvedPersonaId;
       }
       logger.warn(
         { discordUserId, personalityId },

@@ -132,6 +132,25 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   }
 
   /**
+   * Resolve just the persona UUID via the cascade. Cheaper variant of
+   * `resolveForMemory` for callers that only need the FK (no focus-mode
+   * lookup, no full persona content). Returns null when the cascade falls
+   * through to SYSTEM_DEFAULT (user has no personas at all).
+   *
+   * Used by recovery-time paths where the slot only needs a valid
+   * `personas.id` for `saveAssistantMessage` and the focus-mode flag is
+   * never consumed — avoids the extra `userPersonalityConfig.findFirst`
+   * query that `resolveForMemory` would otherwise run.
+   */
+  async resolvePersonaIdOnly(discordUserId: string, personalityId: string): Promise<string | null> {
+    const result = await this.resolve(discordUserId, personalityId);
+    if (result.source === SOURCE_SYSTEM_DEFAULT || result.config.personaId === '') {
+      return null;
+    }
+    return result.config.personaId;
+  }
+
+  /**
    * Check if focus mode is enabled for a user-personality combination
    * Focus mode disables LTM retrieval without affecting memory storage
    */
