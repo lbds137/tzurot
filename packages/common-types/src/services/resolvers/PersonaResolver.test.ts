@@ -430,6 +430,55 @@ describe('PersonaResolver', () => {
     });
   });
 
+  describe('resolvePersonaIdOnly', () => {
+    it('should return the resolved persona id without querying focus mode', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValueOnce({
+        id: 'user-uuid',
+        defaultPersonaId: 'persona-123',
+        defaultPersona: {
+          id: 'persona-123',
+          preferredName: 'Name',
+          pronouns: null,
+          content: 'Content',
+        },
+        ownedPersonas: [],
+      });
+
+      // Only the persona-override lookup (from resolveFresh); NO focus-mode
+      // findFirst should fire because resolvePersonaIdOnly skips it.
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValueOnce(null);
+
+      const result = await resolver.resolvePersonaIdOnly('discord-123', 'personality-456');
+
+      expect(result).toBe('persona-123');
+      // The whole point: one fewer Prisma round-trip than resolveForMemory.
+      expect(mockPrismaClient.userPersonalityConfig.findFirst).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return null when cascade falls through to SYSTEM_DEFAULT', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue(null);
+
+      const result = await resolver.resolvePersonaIdOnly('discord-123', 'personality-456');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when resolved persona has empty personaId', async () => {
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        defaultPersonaId: null,
+        defaultPersona: null,
+        ownedPersonas: [],
+      });
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolvePersonaIdOnly('discord-123', 'personality-456');
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('getPersonaContentForPrompt', () => {
     // Valid UUID format required for database lookup
     const validPersonaUuid = '12345678-1234-1234-1234-123456789abc';

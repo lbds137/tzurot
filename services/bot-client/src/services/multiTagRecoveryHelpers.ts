@@ -74,6 +74,17 @@ export async function pollPriorJobState(queue: Queue, jobId: string): Promise<Sl
       if (job.returnvalue === null || job.returnvalue === undefined) {
         return { kind: 'unrecoverable' };
       }
+      // Shape guard: defense-in-depth against an ai-worker contract
+      // change (e.g., handler wraps the result in an envelope) or a
+      // partially-written returnvalue from a multi-field-write crash.
+      // The architectural guarantee is that handlers return
+      // `LLMGenerationResult` (an object with `success`), so anything
+      // that fails this check is unrecoverable — let the user see a
+      // synthetic error instead of feeding `coordinator.handleJobResult`
+      // a malformed value.
+      if (typeof job.returnvalue !== 'object' || !('success' in job.returnvalue)) {
+        return { kind: 'unrecoverable' };
+      }
       return { kind: 'completed', result: job.returnvalue as LLMGenerationResult };
     case 'failed':
       return { kind: 'failed', failedReason: job.failedReason ?? 'Unknown failure' };
