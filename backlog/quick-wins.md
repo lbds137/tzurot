@@ -2,14 +2,6 @@
 
 _Small tasks that can be done between major features. Good for momentum._
 
-### ✨ `/admin metrics` Discord command — give the gateway `/metrics` endpoint a UX
-
-The `/metrics` endpoint (post-PR #1048) requires service auth and exposes queue depth, completed/failed counts, dedup cache size, and uptime. No consumer in-bot today. Build a bot-owner-only `/admin metrics` slash command that fetches via `callGatewayApi('/metrics')` (using the existing `INTERNAL_SERVICE_SECRET` path) and renders an ephemeral embed: queue waiting/active/completed/failed, cache size, uptime as a human duration.
-
-**Pattern reference:** existing `/admin health` command in `services/bot-client/src/commands/admin/health.ts`. ~1-2hr.
-
-Surfaced 2026-05-17 PR #1048 review. Triaged 2026-05-19 (prod-issue ping race resolved — original "wait until" trigger now met).
-
 ### 🐛 Detect and Retry Inadequate LLM Responses
 
 LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned just `"N" (1 token, finishReason: "unknown"`, 160s duration). Needs compound scoring heuristic + timing data threading through RAGResponse. ~4-6hr feature, not a quick win — moved details to Logging & Error Observability theme.
