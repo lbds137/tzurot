@@ -191,7 +191,10 @@ function createServices(): Services {
   const responseOrderingService = new ResponseOrderingService();
   const jobTracker = new JobTracker(responseOrderingService);
   const resultsListener = new ResultsListener();
-  const jobFailureListener = new JobFailureListener(jobTracker, responseOrderingService);
+  // jobFailureListener is constructed AFTER the multi-tag coordinator below
+  // — it needs the coordinator to route live multi-tag slot failures
+  // through `handleJobResult` instead of leaving them to the 10-min safety
+  // timeout. See its module-level docstring for the dual-routing story.
 
   // Shared services (used by multiple processors)
   const personalityService = new PersonalityService(prisma);
@@ -274,6 +277,16 @@ function createServices(): Services {
     discordClient: client,
     recoveryQueue: multiTagRecoveryQueue,
   });
+
+  // Live failure routing: now that the coordinator exists, wire the
+  // failure listener so it can route multi-tag slot failures through
+  // `coordinator.handleJobResult` instead of falling through to the
+  // single-tag-only `cancelJob` path.
+  const jobFailureListener = new JobFailureListener(
+    jobTracker,
+    responseOrderingService,
+    multiTagCoordinator
+  );
 
   // Processor chain (order matters — see buildProcessorChain doc).
   const processors = buildProcessorChain({
