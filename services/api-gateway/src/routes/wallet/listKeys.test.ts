@@ -118,6 +118,7 @@ describe('GET /wallet/list', () => {
           lastUsedAt: true,
         },
         orderBy: { createdAt: 'desc' },
+        take: 100,
       });
     });
 

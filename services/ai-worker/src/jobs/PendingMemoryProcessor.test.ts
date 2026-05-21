@@ -34,6 +34,7 @@ describe('PendingMemoryProcessor', () => {
       findMany: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
       delete: ReturnType<typeof vi.fn>;
+      groupBy: ReturnType<typeof vi.fn>;
     };
     $disconnect: ReturnType<typeof vi.fn>;
   };
@@ -57,6 +58,7 @@ describe('PendingMemoryProcessor', () => {
         findMany: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+        groupBy: vi.fn(),
       },
       $disconnect: vi.fn(),
     };
@@ -354,9 +356,12 @@ describe('PendingMemoryProcessor', () => {
 
   describe('getStats', () => {
     it('should return statistics about pending memories', async () => {
-      const pending = [{ attempts: 0 }, { attempts: 0 }, { attempts: 1 }, { attempts: 2 }];
-
-      mockPrisma.pendingMemory.findMany.mockResolvedValue(pending);
+      // Prisma groupBy shape: one row per distinct `attempts` value with _count._all
+      mockPrisma.pendingMemory.groupBy.mockResolvedValue([
+        { attempts: 0, _count: { _all: 2 } },
+        { attempts: 1, _count: { _all: 1 } },
+        { attempts: 2, _count: { _all: 1 } },
+      ]);
 
       const processor = new PendingMemoryProcessor(
         mockPrisma as unknown as PrismaClient,
@@ -376,7 +381,7 @@ describe('PendingMemoryProcessor', () => {
     });
 
     it('should return empty stats when no pending memories exist', async () => {
-      mockPrisma.pendingMemory.findMany.mockResolvedValue([]);
+      mockPrisma.pendingMemory.groupBy.mockResolvedValue([]);
 
       const processor = new PendingMemoryProcessor(
         mockPrisma as unknown as PrismaClient,
@@ -392,7 +397,7 @@ describe('PendingMemoryProcessor', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      mockPrisma.pendingMemory.findMany.mockRejectedValue(new Error('Database error'));
+      mockPrisma.pendingMemory.groupBy.mockRejectedValue(new Error('Database error'));
 
       const processor = new PendingMemoryProcessor(
         mockPrisma as unknown as PrismaClient,

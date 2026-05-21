@@ -158,19 +158,22 @@ export class PendingMemoryProcessor {
     byAttempts: Record<number, number>;
   }> {
     try {
-      const pending = await this.prisma.pendingMemory.findMany({
-        select: { attempts: true },
+      // groupBy at the DB layer instead of fetching all rows — memory is
+      // bounded by the count of distinct attempt values (~retry step count),
+      // not the row count, so a stuck-job incident can't OOM this call.
+      const grouped = await this.prisma.pendingMemory.groupBy({
+        by: ['attempts'],
+        _count: { _all: true },
       });
 
       const byAttempts: Record<number, number> = {};
-      for (const p of pending) {
-        byAttempts[p.attempts] = (byAttempts[p.attempts] || 0) + 1;
+      let total = 0;
+      for (const row of grouped) {
+        byAttempts[row.attempts] = row._count._all;
+        total += row._count._all;
       }
 
-      return {
-        total: pending.length,
-        byAttempts,
-      };
+      return { total, byAttempts };
     } catch (error) {
       logger.error({ err: error }, 'Failed to get stats');
       return { total: 0, byAttempts: {} };

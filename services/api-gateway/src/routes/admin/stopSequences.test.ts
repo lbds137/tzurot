@@ -22,6 +22,14 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+// Mock AuthMiddleware — owner-auth gating runs unconditionally in tests
+vi.mock('../../services/AuthMiddleware.js', () => ({
+  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
+    req.userId = 'admin-discord-id';
+    next();
+  },
+}));
+
 function createMockRedis(
   overrides: {
     total?: string | null;

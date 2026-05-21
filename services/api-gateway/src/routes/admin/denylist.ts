@@ -3,7 +3,10 @@
  *
  * CRUD endpoints for managing denylisted users and guilds.
  * All endpoints require service authentication (applied globally).
- * Bot-client handles three-tier permission checking before calling these.
+ * User-facing endpoints additionally require bot-owner auth (defense-in-depth
+ * against post-INTERNAL_SERVICE_SECRET-compromise privilege escalation).
+ * The /cache endpoint is service-only — bot-client hydrates the denylist
+ * cache at startup, before any Discord user context exists.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -17,7 +20,7 @@ import {
   type PrismaClient,
   type DenylistCacheInvalidationService,
 } from '@tzurot/common-types';
-import { extractOwnerId } from '../../services/AuthMiddleware.js';
+import { extractOwnerId, requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
@@ -104,6 +107,7 @@ export function createDenylistRoutes(
   // GET / — List all entries (optional ?type= filter)
   router.get(
     '/',
+    requireOwnerAuth(),
     asyncHandler(async (req: Request, res: Response) => {
       const typeFilter = req.query.type;
       let where = {};
@@ -146,11 +150,17 @@ export function createDenylistRoutes(
 
   // POST / — Add denylist entry (rate limited)
   const mutationMiddleware = rateLimiter !== undefined ? [rateLimiter] : [];
-  router.post('/', ...mutationMiddleware, handleAddEntry(prisma, denylistInvalidation));
+  router.post(
+    '/',
+    requireOwnerAuth(),
+    ...mutationMiddleware,
+    handleAddEntry(prisma, denylistInvalidation)
+  );
 
   // DELETE /:type/:discordId/:scope/:scopeId — Remove entry (rate limited)
   router.delete(
     '/:type/:discordId/:scope/:scopeId',
+    requireOwnerAuth(),
     ...mutationMiddleware,
     asyncHandler(async (req: Request, res: Response) => {
       const typeResult = denylistEntityTypeSchema.safeParse(req.params.type);

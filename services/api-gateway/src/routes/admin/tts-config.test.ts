@@ -129,6 +129,23 @@ function buildRouter() {
 }
 
 describe('admin/tts-config routes', () => {
+  describe('middleware composition', () => {
+    it('wires requireOwnerAuth on every route', () => {
+      // Handler-extraction tests pick the last handler, which bypasses
+      // middleware. Inspect the router stack directly so a regression that
+      // removed requireOwnerAuth() from any route would fail this check.
+      const router = buildRouter();
+      const stack = (router as unknown as { stack: RouterLayer[] }).stack;
+      for (const layer of stack) {
+        if (!layer.route) continue;
+        expect(
+          layer.route.stack.length,
+          `${layer.route.path} missing auth middleware`
+        ).toBeGreaterThanOrEqual(2);
+      }
+    });
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(mockService.formatConfigDetail).mockImplementation((c: typeof sampleRawConfig) => ({
