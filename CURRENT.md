@@ -9,15 +9,20 @@
 
 **Active focus**: none. **v3.0.0-beta.124 shipped to prod** plus a post-release polish PR (#1073) that cleared all 3 release-review inbox items: GatewayClient hardcoded timeouts → named `TIMEOUTS.*` constants, `?? ''` fallback → `getValidatedServiceSecret()` helper, `/admin metrics` single-dispatch refactor. The **API Security Hardening theme is fully closed**. Auth posture symmetric across services.
 
-**Session 2026-05-21 added**: backlog cleanup (3 already-shipped deferred entries from PR #1070, TTS candidate refreshed to BYOK-only after May-13 sweep close-out) + security-audit discovery pass. **Inbox has 4 new findings** (2 MEDIUM, 2 LOW) — see [`backlog/inbox.md`](backlog/inbox.md). Audit certified clean on command-injection, SSRF, HTML/XML sanitization, secret leakage, Helmet/CORS, depcruise boundaries.
+**Session 2026-05-21 shipped**:
+
+- PR #1074 (security-audit findings — 4 inbox items bundled as one PR; merged after Round 3)
+- PR #1075 (PR #1074 follow-ups: test extensions + `settings.ts` migration to shared route util)
+- **PR #1076 (`pnpm ops dev:schema-audit`)** — Prisma optional-column workaround detector. Three-recipe architecture (read-mode, bimodal-writes, always-passed-no-default), `audit.config.ts` suppression, four-pattern null-semantics rule in `03-database.md`, PR-template checkbox upstream complement. Smoke run: 1 HIGH suppressed (intentional row aggregation) + 3 MEDIUM deferred to backlog. 15 review rounds converged on LGTM.
 
 Pick from `backlog/future-themes.md` candidates next session.
 
 **Candidates**:
 
-1. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
-2. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
-3. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work. (The rehydration-chain follow-ups all shipped in PR #1070 / beta.124.)
+1. **Schema-audit tightening trio** — the 3 active MEDIUMs surfaced by PR #1076: `LlmConfig.memoryScoreThreshold` + `LlmConfig.memoryLimit` + `UserPersonaHistoryConfig.lastContextReset`. All three are "always-passed-no-default" — move the application-level fallbacks into schema `@default(...)` clauses + tighten to NOT NULL + drop the `?`. Closes the loop on the tool we just shipped by acting on its first findings. Bundles cleanly as one PR with one migration.
+2. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
+3. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
+4. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work.
 
 **Verify on prod (low priority, fix shipped)**:
 
