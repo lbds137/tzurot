@@ -22,6 +22,7 @@ import {
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
 } from '@tzurot/common-types';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -304,13 +305,33 @@ export function createAdminLlmConfigRoutes(
   // Instantiate service with dependencies
   const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
 
-  router.get('/', asyncHandler(createListHandler(service)));
-  router.get('/:id', asyncHandler(createGetHandler(service, modelCache)));
-  router.post('/', asyncHandler(createCreateConfigHandler(service, prisma, modelCache)));
-  router.put('/:id', asyncHandler(createEditConfigHandler(service, prisma, modelCache)));
-  router.put('/:id/set-default', asyncHandler(createSetDefaultHandler(service, prisma)));
-  router.put('/:id/set-free-default', asyncHandler(createSetFreeDefaultHandler(service, prisma)));
-  router.delete('/:id', asyncHandler(createDeleteConfigHandler(service, prisma)));
+  router.get('/', requireOwnerAuth(), asyncHandler(createListHandler(service)));
+  router.get('/:id', requireOwnerAuth(), asyncHandler(createGetHandler(service, modelCache)));
+  router.post(
+    '/',
+    requireOwnerAuth(),
+    asyncHandler(createCreateConfigHandler(service, prisma, modelCache))
+  );
+  router.put(
+    '/:id',
+    requireOwnerAuth(),
+    asyncHandler(createEditConfigHandler(service, prisma, modelCache))
+  );
+  router.put(
+    '/:id/set-default',
+    requireOwnerAuth(),
+    asyncHandler(createSetDefaultHandler(service, prisma))
+  );
+  router.put(
+    '/:id/set-free-default',
+    requireOwnerAuth(),
+    asyncHandler(createSetFreeDefaultHandler(service, prisma))
+  );
+  router.delete(
+    '/:id',
+    requireOwnerAuth(),
+    asyncHandler(createDeleteConfigHandler(service, prisma))
+  );
 
   return router;
 }

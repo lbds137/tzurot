@@ -31,6 +31,7 @@ import {
   TtsConfigCreateSchema,
   TtsConfigUpdateSchema,
 } from '@tzurot/common-types';
+import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
@@ -313,13 +314,21 @@ export function createAdminTtsConfigRoutes(
   const router = Router();
   const service = new TtsConfigService(prisma, ttsConfigCacheInvalidation);
 
-  router.get('/', asyncHandler(createListHandler(service)));
-  router.get('/:id', asyncHandler(createGetHandler(service)));
-  router.post('/', asyncHandler(createCreateHandler(service, prisma)));
-  router.put('/:id', asyncHandler(createEditHandler(service, prisma)));
-  router.put('/:id/set-default', asyncHandler(createSetDefaultHandler(service, prisma)));
-  router.put('/:id/set-free-default', asyncHandler(createSetFreeDefaultHandler(service, prisma)));
-  router.delete('/:id', asyncHandler(createDeleteHandler(service, prisma)));
+  router.get('/', requireOwnerAuth(), asyncHandler(createListHandler(service)));
+  router.get('/:id', requireOwnerAuth(), asyncHandler(createGetHandler(service)));
+  router.post('/', requireOwnerAuth(), asyncHandler(createCreateHandler(service, prisma)));
+  router.put('/:id', requireOwnerAuth(), asyncHandler(createEditHandler(service, prisma)));
+  router.put(
+    '/:id/set-default',
+    requireOwnerAuth(),
+    asyncHandler(createSetDefaultHandler(service, prisma))
+  );
+  router.put(
+    '/:id/set-free-default',
+    requireOwnerAuth(),
+    asyncHandler(createSetFreeDefaultHandler(service, prisma))
+  );
+  router.delete('/:id', requireOwnerAuth(), asyncHandler(createDeleteHandler(service, prisma)));
 
   return router;
 }
