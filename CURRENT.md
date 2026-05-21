@@ -15,7 +15,7 @@ Pick from `backlog/future-themes.md` candidates next session.
 
 1. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
 2. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
-3. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work. Two outstanding from the rehydration chain: idempotent re-dispatch (PR #1063 round-6), synthesized-failure `personalityErrorMessage` enrichment (PR #1066 round-1).
+3. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work. (The rehydration-chain follow-ups all shipped in PR #1070 / beta.124.)
 
 **Verify on prod (low priority, fix shipped)**:
 
