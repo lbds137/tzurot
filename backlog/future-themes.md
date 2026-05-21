@@ -733,20 +733,6 @@ Move hardcoded model patterns (e.g., capability flags, context-window limits) to
 
 Migrate remaining stub commands in `packages/tooling` to proper TypeScript implementations.
 
-### Theme: API Security Hardening — voice-reference slug enumeration (last open item)
-
-_Focus: close the remaining known gap in the api-gateway public-route surface — slug-enumeration on voice references. Two of three items already shipped (rate limiter + helmet/CORS); kept here for context._
-
-Surfaced 2026-05-11 from user-prompted security audit. Two of three items shipped; one remains.
-
-1. ✅ **Global rate limiter on public routes** — shipped in PR #1046 (IP-based `RedisRateLimiter` on `/metrics`, `/avatars/:id`, `/voice-references/:slug`, `/exports/:jobId`; `/health` intentionally exempt). `/metrics` was subsequently moved behind service auth in PR #1048, so the limiter now applies to the 4 truly-public routes.
-
-2. ✅ **`helmet()` + CORS lockdown** — shipped in PR #1046. helmet defaults applied globally; CORP loosened to `cross-origin` only on `/avatars` and `/voice-references` via the per-route `allowCrossOriginEmbedding` middleware (PR #1048).
-
-3. **`/voice-references/:slug` enumeration risk** — Per route's docstring, voice references are "intentionally semi-public — anyone with the personality slug can retrieve them." Slugs are predictable, so an attacker can enumerate the voice-clone library. For public characters acceptable; for private characters, a guessable-slug leak is a real privacy concern. **Fix options**: (a) switch public endpoint to `/voice-references/:uuid` with slug→UUID lookup via authenticated path; (b) keep slug routing but require voice-engine service secret; (c) add per-character visibility controls and 404 private-character fetches. Bundles naturally with the future Character Visibility Toggle (icebox item).
-
-**Promote when**: design appetite for the visibility-toggle question, OR observed enumeration attempt in Railway logs.
-
 ### Theme: `/voice` + `/inspect` UX Polish (mini-epic)
 
 _Focus: the `/voice` and `/inspect` surfaces accumulated UX rough edges during the TTS Phase 3 cutover. Group them to amortize the test-harness + integration-snapshot regen cost._

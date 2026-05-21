@@ -1,21 +1,19 @@
 # Current
 
-> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod since the auto-deploy ~01:16 EDT. Subsequent dev work (PRs #1062 → #1063 → #1064 → #1065 → #1066) on develop, will ship in beta.124.
+> **Version**: v3.0.0-beta.123 (released 2026-05-19) — live on prod. Subsequent dev work (PRs #1062 → #1063 → #1064 → #1065 → #1066 → #1067 → #1068) on develop, will ship in beta.124.
 > **🚧 Release freeze status**: LIFTED. No release in progress.
 
 ---
 
 ## Next Session Goal
 
-**Active focus**: none. The MultiTagRecovery hardening chain (PRs #1062 → #1063 → #1064 → #1065 → #1066) is fully shipped to develop — restart recovery, real personaId persistence, live-failure routing, and 4 follow-up cleanups all in. Pick from the candidates below for next session, or `backlog/future-themes.md` for a larger theme.
+**Active focus**: none. Quick-wins chain (`/admin metrics` via #1067 + `/voice-references` service auth via #1068) shipped today. The MultiTagRecovery hardening chain shipped yesterday. The **API Security Hardening theme is now fully closed** (all 3 items: rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068).
 
 **Candidates**:
 
-1. **`/admin metrics` Discord command** ([quick-wins.md](backlog/quick-wins.md)) — bot-owner-only slash command that fetches `/metrics` and renders an embed. ~1-2hr.
-2. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
-3. **`/voice-references/:slug` enumeration risk** — the one remaining API Security item (items 1 + 2 already shipped in PRs #1046 + #1048); design-blocked on the visibility-toggle bundle.
-4. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
-5. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work. Two outstanding from the rehydration chain: idempotent re-dispatch (PR #1063 round-6), synthesized-failure `personalityErrorMessage` enrichment (PR #1066 round-1).
+1. **Self-Hosted TTS + BYOK Re-Eval — Step 0 BYOK probes** ([future-themes.md](backlog/future-themes.md)) — Cartesia / Fish Audio / PlayHT / Resemble pricing-and-quality pass.
+2. **Adjacent CPD Follow-Up Campaigns** ([future-themes.md](backlog/future-themes.md)) — four independently-pickable mini-epics from the 2026-05-16 CPD campaign close-out.
+3. **Deferred items with named triggers** ([deferred.md](backlog/deferred.md)) — many are gated on "next time you touch X." Check the list when picking up new work. Two outstanding from the rehydration chain: idempotent re-dispatch (PR #1063 round-6), synthesized-failure `personalityErrorMessage` enrichment (PR #1066 round-1).
 
 **Verify on prod (low priority, fix shipped)**:
 
@@ -24,7 +22,44 @@
 
 ---
 
-## Last Session — MultiTagRecovery hardening chain (2026-05-19, evening)
+## Last Session — Quick-wins chain: `/admin metrics` + `/voice-references` service auth (2026-05-20)
+
+Two-PR sweep tightening the bot's internal observability and closing the last API Security Hardening item.
+
+### PRs merged
+
+| PR    | Title                                                           | Outcome                                                                                          |
+| ----- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| #1067 | `feat(bot-client): /admin metrics command`                      | Bot-owner-only slash command renders queue/cache/uptime metrics in an ephemeral embed            |
+| #1068 | `fix(api-gateway): protect /voice-references with service auth` | Slug-enumeration attack surface closed; ai-worker now gates startup on `INTERNAL_SERVICE_SECRET` |
+
+### Net result
+
+- **API Security Hardening theme fully closed.** All three items shipped (rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068). Theme section removed from `future-themes.md`.
+- **Defense-in-depth on auth misconfig**: ai-worker now validates `INTERNAL_SERVICE_SECRET` at process startup (`validateRequiredEnvVars`) AND at call-site in `voiceReferenceHelper` — misconfig fails the boot instead of silently degrading TTS.
+- **Internal observability surface added**: `/admin metrics` slash command mirrors the existing `/admin health` pattern.
+
+### Backlog deltas
+
+- `current-focus.md`: voice-references enumeration item removed (shipped via #1068)
+- `quick-wins.md`: `/admin metrics` entry removed (shipped via #1067)
+- `icebox.md`: rate-limit voice-references item removed (concern moot now that route requires service auth)
+- `future-themes.md`: API Security Hardening theme section removed entirely
+- `next-theme.md`: API Security Hardening dropped from candidates list
+
+### Backlog state at session close
+
+- **Production issues**: 0 active
+- **Inbox**: empty
+- **Current focus**: empty (open-pick next session)
+- **Quick wins**: 0 active
+- **Active epic**: none
+- **Deferred**: 89 trigger-gated items
+- **Future themes**: 22 queued (API Security Hardening removed)
+
+---
+
+## Prior Session — MultiTagRecovery hardening chain (2026-05-19, evening)
 
 Five PRs shipped in sequence, each addressing a distinct layer of the multi-tag rehydration problem first surfaced by the beta.123 deploy incident at 05:16 UTC.
 
