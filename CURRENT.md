@@ -7,9 +7,9 @@
 
 ## Next Session Goal
 
-**Active focus**: none. **v3.0.0-beta.124 shipped to prod** with everything from MultiTagRecovery chain (#1062-#1066), today's quick-wins (#1067, #1068, #1069, #1070), and the post-release `adminFetch` timeout follow-up (#1072). The **API Security Hardening theme is fully closed** (all 3 items: rate limiter #1046, helmet/CORS #1046/#1048, voice-references service auth #1068). Auth posture across services is symmetric: api-gateway, bot-client, and ai-worker all refuse to boot without `INTERNAL_SERVICE_SECRET`.
+**Active focus**: none. **v3.0.0-beta.124 shipped to prod** plus a post-release polish PR (#1073) that cleared all 3 release-review inbox items: GatewayClient hardcoded timeouts → named `TIMEOUTS.*` constants, `?? ''` fallback → `getValidatedServiceSecret()` helper, `/admin metrics` single-dispatch refactor. The **API Security Hardening theme is fully closed**. Auth posture symmetric across services. **Fully clean slate** — inbox empty, no current focus, no quick wins, no active epic.
 
-Clean slate. Three inbox items filed from the release-cycle reviews — triage at session start.
+Pick from `backlog/future-themes.md` candidates next session.
 
 **Candidates**:
 
@@ -60,6 +60,20 @@ Three-PR sweep: internal observability (`/admin metrics`), closing the last API 
 - **Active epic**: none
 - **Deferred**: 89 trigger-gated items
 - **Future themes**: 22 queued (API Security Hardening removed)
+
+---
+
+## This Morning — Post-release polish (2026-05-21)
+
+Closed the 3 inbox items filed during the v3.0.0-beta.124 release-cycle reviews. One bundled PR:
+
+| PR    | Outcome                                                                                                                                                                                        |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1073 | GatewayClient timeouts → named `TIMEOUTS.*` (3 new constants); `?? ''` fallback → `getValidatedServiceSecret()` helper (10 sites); `/admin metrics` single-dispatch refactor + regression test |
+
+Net result: bot-client/utils is internally consistent, no more inline magic numbers for timeouts, no silent-401 risk from empty service-auth headers, no wrong-attribution failure mode on `/admin metrics` non-OK responses. Backlog inbox cleared.
+
+These will ship in beta.125 whenever it's cut; no release cadence pressure.
 
 ---
 
