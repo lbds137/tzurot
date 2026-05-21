@@ -102,6 +102,23 @@ Prisma tries to DROP these indexes in migrations - ALWAYS review and remove:
 
 The 5 indexes above are split: `idx_memories_embedding` and `memories_chunk_group_id_idx` are in **both** arrays (DROP suppression + recreate SQL); `llm_configs_free_default_unique`, `llm_configs_global_name_unique`, and `idx_memories_is_locked` are in **`ignorePatterns` only** (DROP suppression alone is enough — they have no expensive recreate cost). When adding a new partial/special index, default to `ignorePatterns`-only and only promote to `protectedIndexes` if recovery SQL would be valuable.
 
+### Optional Columns Require Null-Semantics Documentation
+
+Every new `?` (optional) field added to `prisma/schema.prisma` MUST have a triple-slash documentation comment explaining what `null` means in application terms. This makes the schema self-documenting and prevents the class of bug where a field gets `?` for code-convenience reasons rather than because null is a meaningful application state.
+
+**Pattern shapes** (use these in the doc to make the intent explicit):
+
+| Pattern                     | Meaning                                                                                     | Example                                                                                                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **State machine**           | Null until a specific event populates it; never reverts. Reads guard with `!= null` checks. | `/// Null until the user completes NSFW verification; populated to current time on success.` (`users.nsfwVerifiedAt`)                                                                               |
+| **Default-fallback**        | Null means "use the cascade fallback." Reads use `?? globalDefault` to resolve.             | `/// User-level STT provider override; when NULL, transcription derives from the user's default TTS provider, otherwise falls back to the self-hosted voice-engine.` (`users.defaultSttProviderId`) |
+| **Deferred-set**            | Null on creation, populated by a background worker / async job. Reads guard via truthiness. | `/// Populated by the PendingMemoryProcessor retry loop on each attempt; null on initial insert.` (`pending_memories.lastAttemptAt`)                                                                |
+| **State-machine-by-status** | Tied to a status column; nullable while the row is not yet in the right state.              | `/// Null until job status='completed'; populated atomically with the status transition.` (`export_jobs.fileContent`)                                                                               |
+
+**Why this rule exists**: a 4-month-undetected bug shipped because `users.default_persona_id` was nullable for code-convenience reasons (one creation path was inconvenient to fix). The bug was caught and fixed in Phase 5b, but the same pattern can recur on new columns. A self-documenting schema makes the next occurrence visible at review time.
+
+**Enforcement**: `pnpm ops dev:schema-audit` (see [`docs/reference/tooling/schema-audit.md`](../../docs/reference/tooling/schema-audit.md)) detects the bug-shape patterns statically. The PR-template checkbox surfaces the requirement at every PR touching `prisma/schema.prisma`. Combined, the goal is to make a "fake-optional" column impossible to introduce silently.
+
 ### Anti-Patterns
 
 | ❌ Don't                             | ✅ Instead                           |

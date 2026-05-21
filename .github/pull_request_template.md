@@ -17,6 +17,7 @@ Before submitting, please verify:
 - [ ] **No console.logs or debugging code left behind**
 - [ ] **Error handling is appropriate** (no silent failures)
 - [ ] **Changes are documented** (if public APIs changed)
+- [ ] **Any new `?` (optional) field in `prisma/schema.prisma` has a triple-slash comment explaining the null semantics** (state machine? default-fallback? deferred-set?) — see `.claude/rules/03-database.md`
 
 ## Testing
 
