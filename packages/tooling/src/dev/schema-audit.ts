@@ -4,8 +4,8 @@
  * Finds Prisma columns marked `?` (optional) where `null` is NOT a meaningful
  * application state — workarounds that ship latent bugs.
  *
- * Design rationale and council-pass synthesis:
- * `docs/proposals/backlog/schema-audit-tool-design.md`.
+ * Design rationale and recipe semantics:
+ * `docs/reference/tooling/schema-audit.md`.
  *
  * Implementation is split across sibling modules:
  * - `schema-audit-parser.ts` — Prisma schema parsing
@@ -45,6 +45,8 @@ import {
 import { printMarkdownReport } from './schema-audit-report.js';
 
 export interface SchemaAuditOptions {
+  /** Base directory for resolving relative paths. Defaults to `process.cwd()`. */
+  repoRoot?: string;
   schemaPath?: string;
   sourceGlobs?: string[];
   /** Path to audit.config (defaults to ./audit.config.ts at repo root). */
@@ -57,7 +59,7 @@ export interface SchemaAuditOptions {
  * Entry point invoked by the CLI.
  */
 export async function runSchemaAudit(options: SchemaAuditOptions = {}): Promise<void> {
-  const repoRoot = resolve(process.cwd());
+  const repoRoot = options.repoRoot ?? resolve(process.cwd());
   const schemaPath = options.schemaPath ?? resolve(repoRoot, 'prisma', 'schema.prisma');
   const sourceGlobs = options.sourceGlobs ?? ['services/**/*.ts', 'packages/**/*.ts'];
   const configPath = options.configPath ?? resolve(repoRoot, 'audit.config.ts');
@@ -106,9 +108,14 @@ export async function runSchemaAudit(options: SchemaAuditOptions = {}): Promise<
 function globSourceFiles(repoRoot: string, sourceGlobs: string[]): string[] {
   const project = new Project({ compilerOptions: { allowJs: false, skipLibCheck: true } });
   for (const glob of sourceGlobs) {
+    // Exclude both `.test.ts` and `.int.test.ts` — the simple
+    // `replace('*.ts', '*.test.ts')` form only catches the first; an
+    // integration test file like `FooService.int.test.ts` would otherwise
+    // get included and pollute write-site counts with fixture data.
     project.addSourceFilesAtPaths([
       `${repoRoot}/${glob}`,
-      `!${repoRoot}/${glob.replace('*.ts', '*.test.ts')}`,
+      `!${repoRoot}/${glob.replace(/\*\.ts$/, '*.test.ts')}`,
+      `!${repoRoot}/${glob.replace(/\*\.ts$/, '*.int.test.ts')}`,
       `!${repoRoot}/**/dist/**`,
       `!${repoRoot}/**/node_modules/**`,
     ]);

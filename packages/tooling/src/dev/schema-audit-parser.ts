@@ -4,8 +4,8 @@
  * Parses `prisma/schema.prisma` to extract field-level metadata: model name,
  * field name, type, optional flag, `@default` value, and triple-slash docs.
  *
- * Uses regex for milestone-1 simplicity. Edge cases that may require upgrading
- * to `@prisma/internals` `getDMMF()` (deferred to a later milestone):
+ * Uses regex for simplicity. Edge cases that may require upgrading to
+ * `@prisma/internals` `getDMMF()`:
  * - `@@map` and `@map` directives (currently ignored — we use schema names)
  * - Multi-line field attributes
  * - Complex composite types
