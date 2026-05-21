@@ -16,9 +16,6 @@ const mockLogger = vi.hoisted(() => ({
 
 vi.mock('@tzurot/common-types', () => ({
   createLogger: () => mockLogger,
-  CACHE_CONTROL: {
-    VOICE_REFERENCE_MAX_AGE: 3600,
-  },
   VOICE_REFERENCE_LIMITS: {
     ALLOWED_TYPES: [
       'audio/wav',
@@ -29,18 +26,30 @@ vi.mock('@tzurot/common-types', () => ({
       'audio/wave',
     ],
   },
+  // requireServiceAuth reads getConfig().INTERNAL_SERVICE_SECRET — stub
+  // it to a known value so the auth-protection test block can verify
+  // both rejection (missing/wrong header) and acceptance (matching header).
+  getConfig: () => ({ INTERNAL_SERVICE_SECRET: 'test-secret' }),
 }));
 
-vi.mock('../../utils/errorResponses.js', () => ({
-  ErrorResponses: {
-    validationError: vi.fn((message: string) => ({ error: 'Validation Error', message })),
-    notFound: vi.fn((resource: string) => ({
-      error: 'Not Found',
-      message: `${resource} not found`,
-    })),
-    internalError: vi.fn((message: string) => ({ error: 'Internal Error', message })),
-  },
-}));
+vi.mock('../../utils/errorResponses.js', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/errorResponses.js')>(
+    '../../utils/errorResponses.js'
+  );
+  return {
+    ...actual,
+    ErrorResponses: {
+      ...actual.ErrorResponses,
+      validationError: vi.fn((message: string) => ({ error: 'Validation Error', message })),
+      notFound: vi.fn((resource: string) => ({
+        error: 'Not Found',
+        message: `${resource} not found`,
+      })),
+      internalError: vi.fn((message: string) => ({ error: 'Internal Error', message })),
+      unauthorized: vi.fn((message: string) => ({ error: 'UNAUTHORIZED', message })),
+    },
+  };
+});
 
 vi.mock('../../utils/validators.js', () => ({
   validateSlug: vi.fn((slug: string | undefined) => {
@@ -52,6 +61,7 @@ vi.mock('../../utils/validators.js', () => ({
 }));
 
 import { createVoiceReferenceRouter } from './voiceReferences.js';
+import { requireServiceAuth } from '../../services/AuthMiddleware.js';
 
 function createMockPrisma() {
   return {
@@ -126,7 +136,7 @@ describe('Voice Reference Routes', () => {
       expect(response.status).toBe(StatusCodes.OK);
       expect(response.headers['content-type']).toContain('audio/wav');
       expect(response.headers['content-length']).toBe(String(audioBuffer.length));
-      expect(response.headers['cache-control']).toContain('max-age=3600');
+      expect(response.headers['cache-control']).toBe('no-store');
       expect(response.body).toEqual(audioBuffer);
     });
 
@@ -178,6 +188,52 @@ describe('Voice Reference Routes', () => {
         where: { slug: 'my-persona' },
         select: { voiceReferenceData: true, voiceReferenceType: true },
       });
+    });
+  });
+
+  describe('with requireServiceAuth mounted upstream', () => {
+    // Verifies the middleware-plus-router composition produces correct
+    // access control: unauthorized requests → 403, matching secret → 200.
+    // Documents that /voice-references requires service auth; production
+    // wiring is the umbrella `app.use(requireServiceAuth())` in index.ts.
+
+    function buildProtectedApp(): express.Express {
+      const protectedApp = express();
+      protectedApp.use(requireServiceAuth());
+      protectedApp.use('/voice-references', createVoiceReferenceRouter(mockPrisma as never));
+      return protectedApp;
+    }
+
+    // Production maps `ErrorCode.UNAUTHORIZED` → HTTP 403 (FORBIDDEN), not
+    // 401 (UNAUTHORIZED). Matches the metrics-route test's expectation
+    // for the same reason — these tests reflect actual behavior.
+    it('should reject requests without the X-Service-Auth header', async () => {
+      const response = await request(buildProtectedApp()).get('/voice-references/testbot');
+
+      expect(response.status).toBe(StatusCodes.FORBIDDEN);
+    });
+
+    it('should reject requests with the wrong X-Service-Auth secret', async () => {
+      const response = await request(buildProtectedApp())
+        .get('/voice-references/testbot')
+        .set('X-Service-Auth', 'wrong-secret');
+
+      expect(response.status).toBe(StatusCodes.FORBIDDEN);
+    });
+
+    it('should allow requests with the correct X-Service-Auth secret', async () => {
+      const audioBuffer = Buffer.from('fake-wav-data');
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        voiceReferenceData: audioBuffer,
+        voiceReferenceType: 'audio/wav',
+      });
+
+      const response = await request(buildProtectedApp())
+        .get('/voice-references/testbot')
+        .set('X-Service-Auth', 'test-secret');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.headers['content-type']).toContain('audio/wav');
     });
   });
 });

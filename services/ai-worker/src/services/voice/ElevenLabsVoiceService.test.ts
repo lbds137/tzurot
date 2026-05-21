@@ -23,6 +23,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     getConfig: () =>
       ({
         GATEWAY_URL: 'http://localhost:3000',
+        INTERNAL_SERVICE_SECRET: 'test-secret',
       }) as unknown as EnvConfig,
   };
 });
