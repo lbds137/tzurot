@@ -156,6 +156,8 @@ Phase 5b's NOT NULL fix revealed a pattern: `users.default_persona_id` was nulla
 
 **Start**: `prisma/schema.prisma` — enumerate every `?` on non-timestamp columns, cross-reference with `.findUnique` usage sites to identify which nullable values are never null at rest.
 
+**Audit run 2026-05-21**: discovery pass executed. Phase 5b had already eliminated the largest class of nullable-that-isn't (the original `default_persona_id` case + the shell-user pattern). Remaining findings filed to `backlog/deferred.md` are narrow: (1) stale doc claim in `syncTables.ts:246` calling `default_llm_config_id` NOT NULL when it's actually nullable; (2) opportunity to tighten `users.default_llm_config_id` + `default_tts_config_id` to NOT NULL post-Phase-5b (no bug today, dead-code removal in resolvers). The bulk of the optional columns (description fields, error messages, voice/avatar data, override columns, state-machine columns like ExportJob.fileContent) are genuinely optional — null carries meaningful application state. Theme stays open for opportunistic future findings.
+
 ### Theme: Enforce "Human Users Only" at Auth Middleware
 
 _Focus: middleware-level invariant that rejects bot-user HTTP requests, moving the guarantee from code convention to structural enforcement._
