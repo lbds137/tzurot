@@ -8,7 +8,7 @@
  * Currently this includes /admin/settings endpoints.
  */
 
-import { getConfig, CONTENT_TYPES } from '@tzurot/common-types';
+import { getConfig, CONTENT_TYPES, TIMEOUTS } from '@tzurot/common-types';
 
 /**
  * Options for admin API requests
@@ -55,7 +55,7 @@ export async function adminFetch(path: string, options: AdminFetchOptions = {}):
     throw new Error('GATEWAY_URL is not configured');
   }
 
-  const { headers: customHeaders, userId, ...restOptions } = options;
+  const { headers: customHeaders, userId, signal: callerSignal, ...restOptions } = options;
 
   // Build headers with service auth and optional user ID
   const headers: Record<string, string> = {
@@ -68,9 +68,20 @@ export async function adminFetch(path: string, options: AdminFetchOptions = {}):
     headers['X-User-Id'] = userId;
   }
 
+  // Bound the request so a hung api-gateway doesn't leave the slash command
+  // sitting in "Thinking…" until Discord's 15-min interaction expiry fires.
+  // Caller-supplied signal is composed via `AbortSignal.any` so either
+  // intentional cancellation OR our timeout aborts the fetch.
+  const timeoutSignal = AbortSignal.timeout(TIMEOUTS.ADMIN_GATEWAY);
+  const signal =
+    callerSignal !== undefined && callerSignal !== null
+      ? AbortSignal.any([callerSignal, timeoutSignal])
+      : timeoutSignal;
+
   return fetch(`${gatewayUrl}${path}`, {
     ...restOptions,
     headers,
+    signal,
   });
 }
 
