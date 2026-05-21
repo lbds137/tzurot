@@ -7,3 +7,4 @@
  */
 
 export { createMetricsRouter } from './metrics.js';
+export { createVoiceReferenceRouter } from './voiceReferences.js';

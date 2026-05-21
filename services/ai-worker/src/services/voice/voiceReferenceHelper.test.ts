@@ -54,9 +54,10 @@ const mockedGetConfig = vi.mocked(getConfig);
 describe('fetchVoiceReference', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedGetConfig.mockReturnValue({ GATEWAY_URL: 'http://localhost:3000' } as ReturnType<
-      typeof getConfig
-    >);
+    mockedGetConfig.mockReturnValue({
+      GATEWAY_URL: 'http://localhost:3000',
+      INTERNAL_SERVICE_SECRET: 'test-secret',
+    } as ReturnType<typeof getConfig>);
   });
 
   afterEach(() => {
@@ -78,15 +79,47 @@ describe('fetchVoiceReference', () => {
     expect(result.contentType).toBe('audio/mpeg');
     expect(mockFetch).toHaveBeenCalledWith(
       'http://localhost:3000/voice-references/test-slug',
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        headers: { 'X-Service-Auth': 'test-secret' },
+      })
     );
   });
 
   it('throws when GATEWAY_URL is undefined', async () => {
-    mockedGetConfig.mockReturnValue({} as ReturnType<typeof getConfig>);
+    mockedGetConfig.mockReturnValue({ INTERNAL_SERVICE_SECRET: 'test-secret' } as ReturnType<
+      typeof getConfig
+    >);
 
     await expect(fetchVoiceReference('test-slug')).rejects.toThrow(
       'GATEWAY_URL not configured — cannot fetch voice reference'
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('throws when INTERNAL_SERVICE_SECRET is undefined (fail-fast on misconfiguration)', async () => {
+    // The /voice-references route is service-auth-protected. Missing
+    // secret means every fetch would 403; failing here surfaces the
+    // misconfiguration as a clear error at the call site rather than
+    // letting api-gateway respond with a generic auth rejection.
+    mockedGetConfig.mockReturnValue({ GATEWAY_URL: 'http://localhost:3000' } as ReturnType<
+      typeof getConfig
+    >);
+
+    await expect(fetchVoiceReference('test-slug')).rejects.toThrow(
+      'INTERNAL_SERVICE_SECRET not configured'
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('throws when INTERNAL_SERVICE_SECRET is empty string', async () => {
+    mockedGetConfig.mockReturnValue({
+      GATEWAY_URL: 'http://localhost:3000',
+      INTERNAL_SERVICE_SECRET: '',
+    } as ReturnType<typeof getConfig>);
+
+    await expect(fetchVoiceReference('test-slug')).rejects.toThrow(
+      'INTERNAL_SERVICE_SECRET not configured'
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });

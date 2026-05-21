@@ -1,31 +1,30 @@
 /**
  * Voice Reference Routes
  *
- * Serves personality voice reference audio from database.
- * Unlike avatars, no filesystem caching — voice references are accessed infrequently
- * (only when registering voices with the voice-engine service).
+ * Serves personality voice reference audio from database. Mounted behind
+ * `requireServiceAuth()` in `index.ts` — sole consumer is ai-worker's
+ * `voiceReferenceHelper` for BYOK cloning + self-hosted voice-engine
+ * registration, both server-to-server within Railway's internal network.
  *
- * ACCESS DECISION: This endpoint is intentionally unauthenticated. Voice
- * references are treated as semi-public data (like avatars) — anyone with the
- * personality slug can retrieve them. The primary consumer is the voice-engine
- * service which fetches reference audio for voice cloning without user auth
- * context. If voice references become sensitive, add a shared service secret.
+ * ACCESS POSTURE: service-auth-required. Slugs are predictable, so an
+ * anonymous endpoint would let an attacker enumerate the voice-clone
+ * library by brute-forcing slug names. No client-side consumer exists —
+ * voice-engine fetches audio inline via TTS request bodies from ai-worker;
+ * it never hits this route directly.
  *
- * CACHE NOTE: max-age=3600 (1 hour) applies to downstream HTTP caches only.
- * The ai-worker's VoiceRegistrationService has its own 30-min positive cache
- * that is the actual user-visible latency bottleneck for voice reference updates.
- * Unlike avatars (which use timestamp-based cache-busting URLs), voice references
- * are served from DB with no filesystem cache layer.
+ * CACHE NOTE: response sends `Cache-Control: no-store` because the sole
+ * consumer is a server-to-server fetch with no HTTP cache layer between
+ * ai-worker and api-gateway within Railway's internal network. The
+ * user-visible latency bottleneck for voice reference updates is
+ * ai-worker's `VoiceRegistrationService` 30-min in-memory positive cache,
+ * which is unaffected by this header. Setting `no-store` also keeps the
+ * response from being cached by any future caching proxy that might be
+ * inserted into the path without `Vary: X-Service-Auth`.
  */
 
 import { Router } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import {
-  createLogger,
-  CACHE_CONTROL,
-  VOICE_REFERENCE_LIMITS,
-  type PrismaClient,
-} from '@tzurot/common-types';
+import { createLogger, VOICE_REFERENCE_LIMITS, type PrismaClient } from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { validateSlug } from '../../utils/validators.js';
 
@@ -74,7 +73,7 @@ export function createVoiceReferenceRouter(prisma: PrismaClient): Router {
 
         res.set('Content-Type', contentType);
         res.set('Content-Length', String(buffer.length));
-        res.set('Cache-Control', `max-age=${CACHE_CONTROL.VOICE_REFERENCE_MAX_AGE}`);
+        res.set('Cache-Control', 'no-store');
         res.send(buffer);
       } catch (error) {
         logger.error({ err: error, slug }, 'Error serving voice reference');

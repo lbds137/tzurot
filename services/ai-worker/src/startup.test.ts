@@ -20,6 +20,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
     getConfig: vi.fn(() => ({
       REDIS_URL: 'redis://localhost:6379',
+      INTERNAL_SERVICE_SECRET: 'test-secret',
     })),
     HealthStatus: actual.HealthStatus,
   };
@@ -39,9 +40,10 @@ describe('Startup Utilities', () => {
   });
 
   describe('validateRequiredEnvVars', () => {
-    it('should not throw when REDIS_URL is set', () => {
+    it('should not throw when all required vars are set', () => {
       const config = {
         REDIS_URL: 'redis://localhost:6379',
+        INTERNAL_SERVICE_SECRET: 'test-secret',
       };
       expect(() =>
         validateRequiredEnvVars(
@@ -53,6 +55,7 @@ describe('Startup Utilities', () => {
     it('should throw when REDIS_URL is undefined', () => {
       const config = {
         REDIS_URL: undefined,
+        INTERNAL_SERVICE_SECRET: 'test-secret',
       };
       expect(() =>
         validateRequiredEnvVars(
@@ -64,12 +67,37 @@ describe('Startup Utilities', () => {
     it('should throw when REDIS_URL is empty', () => {
       const config = {
         REDIS_URL: '',
+        INTERNAL_SERVICE_SECRET: 'test-secret',
       };
       expect(() =>
         validateRequiredEnvVars(
           config as ReturnType<typeof import('@tzurot/common-types').getConfig>
         )
       ).toThrow('REDIS_URL environment variable is required');
+    });
+
+    it('should throw when INTERNAL_SERVICE_SECRET is undefined', () => {
+      const config = {
+        REDIS_URL: 'redis://localhost:6379',
+        INTERNAL_SERVICE_SECRET: undefined,
+      };
+      expect(() =>
+        validateRequiredEnvVars(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
+    });
+
+    it('should throw when INTERNAL_SERVICE_SECRET is empty', () => {
+      const config = {
+        REDIS_URL: 'redis://localhost:6379',
+        INTERNAL_SERVICE_SECRET: '',
+      };
+      expect(() =>
+        validateRequiredEnvVars(
+          config as ReturnType<typeof import('@tzurot/common-types').getConfig>
+        )
+      ).toThrow('INTERNAL_SERVICE_SECRET environment variable is required');
     });
   });
 

@@ -17,6 +17,11 @@ export function validateRequiredEnvVars(config = getConfig()): void {
   if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
     throw new Error('REDIS_URL environment variable is required');
   }
+  if (config.INTERNAL_SERVICE_SECRET === undefined || config.INTERNAL_SERVICE_SECRET.length === 0) {
+    throw new Error(
+      'INTERNAL_SERVICE_SECRET environment variable is required (service-to-service auth for protected gateway routes)'
+    );
+  }
 }
 
 /**

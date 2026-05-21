@@ -19,15 +19,20 @@ railway variables --set "API_KEY_ENCRYPTION_KEY=<your-64-hex-chars>" --service a
 railway variables --set "API_KEY_ENCRYPTION_KEY=<your-64-hex-chars>" --service ai-worker
 ```
 
-On **both** `api-gateway` and `bot-client` services (for admin commands):
+On **all three** of `api-gateway`, `bot-client`, and `ai-worker` services:
+
+- api-gateway validates incoming `X-Service-Auth` headers
+- bot-client sends it on admin command → gateway calls
+- ai-worker sends it on `/voice-references/:slug` fetches (service-auth-protected)
 
 ```bash
 # Generate admin API key (shared secret for service-to-service auth)
 openssl rand -hex 32
 
-# Set on Railway (same key for both services)
+# Set on Railway (same key for all three services)
 railway variables --set "INTERNAL_SERVICE_SECRET=<your-64-hex-chars>" --service api-gateway
 railway variables --set "INTERNAL_SERVICE_SECRET=<your-64-hex-chars>" --service bot-client
+railway variables --set "INTERNAL_SERVICE_SECRET=<your-64-hex-chars>" --service ai-worker
 ```
 
 ### Verify Setup
@@ -37,9 +42,10 @@ railway variables --set "INTERNAL_SERVICE_SECRET=<your-64-hex-chars>" --service 
 railway variables --service api-gateway | grep API_KEY_ENCRYPTION
 railway variables --service ai-worker | grep API_KEY_ENCRYPTION
 
-# Check admin API key is set (for admin commands)
+# Check admin API key is set on all three services
 railway variables --service api-gateway | grep INTERNAL_SERVICE_SECRET
 railway variables --service bot-client | grep INTERNAL_SERVICE_SECRET
+railway variables --service ai-worker | grep INTERNAL_SERVICE_SECRET
 
 # Check services are healthy
 curl https://api-gateway-<your-deployment>.railway.app/health
