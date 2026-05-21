@@ -113,10 +113,15 @@ function registerSchemaAuditCommand(cli: CAC): void {
   cli
     .command('dev:schema-audit', 'Audit Prisma optional columns for fake-optionality')
     .option('--json', 'Emit JSON instead of markdown')
+    .option('--config <path>', 'Path to audit.config.ts/.json (default: ./audit.config.ts)')
     .example('ops dev:schema-audit')
     .example('ops dev:schema-audit --json')
-    .action(async (options: { json?: boolean }) => {
+    .example('ops dev:schema-audit --config ./audit.config.json')
+    .action(async (options: { json?: boolean; config?: string }) => {
       const { runSchemaAudit } = await import('../dev/schema-audit.js');
-      runSchemaAudit({ format: options.json === true ? 'json' : 'markdown' });
+      await runSchemaAudit({
+        format: options.json === true ? 'json' : 'markdown',
+        configPath: options.config,
+      });
     });
 }
