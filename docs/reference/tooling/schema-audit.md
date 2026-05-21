@@ -2,13 +2,10 @@
 
 > **Command**: `pnpm ops dev:schema-audit`
 > **Purpose**: find Prisma `?` (optional) columns where `null` is NOT a meaningful application state — workarounds that ship latent bugs.
-> **Status**: shipped from `feat/schema-audit-tool` branch via PR review.
 
 ## Why this tool exists
 
 A 4-month-undetected bug shipped because `users.default_persona_id` was nullable at the DB level not because `null` was meaningful, but because one creation code path (`getOrCreateUserShell`) was inconvenient to fix properly. Phase 5b of the identity-hardening epic closed that specific bug. This tool detects the same _shape_ on other columns — before they ship.
-
-Three council models (Gemini 3.1 Pro → GLM 5.1 → Kimi K2.6 → Opus 4.7) shaped the final design via the council MCP; see the proposal doc for the full synthesis.
 
 ## Usage
 
@@ -35,9 +32,9 @@ For each optional column, walk every TS `obj.field` access in the source tree an
 
 | Read pattern                  | Signal               | Threshold to flag |
 | ----------------------------- | -------------------- | ----------------- |
-| `field ?? fallback`           | Convenience-nullable | >50% of reads     |
+| `field ?? fallback`           | Convenience-nullable | ≥50% of reads     |
 | `field != null` / truthiness  | State machine        | (don't flag)      |
-| `field!` (non-null assertion) | Fake-optional        | >50% of reads     |
+| `field!` (non-null assertion) | Fake-optional        | ≥50% of reads     |
 
 If reads dominate `??` → flag MEDIUM. If reads dominate non-null-assertion → flag HIGH (the TS code asserts presence the schema doesn't enforce).
 
@@ -63,8 +60,8 @@ If every site passes a value (no null, no omit) AND the schema has no `@default(
 Some nullability is genuinely intentional (state machines, deferred-set columns). Suppress at the project root with a config file:
 
 ```typescript
-// audit.config.ts
-import type { SchemaAuditConfig } from '@tzurot/tooling';
+// audit.config.ts (at repo root)
+import type { SchemaAuditConfig } from './packages/tooling/src/dev/schema-audit-suppression.js';
 
 export const schemaAuditConfig: SchemaAuditConfig = {
   suppressions: [
@@ -98,16 +95,23 @@ Or as `audit.config.json`:
 
 **Validation**: At audit start, every suppression key must resolve to an OPTIONAL field in the current schema. Stale suppressions fail loudly — never silently no-op on a renamed/removed/tightened column. This means: if you tighten a column to NOT NULL and forget to remove its suppression, the next audit run breaks.
 
+**Runtime note for `.ts` configs**: `audit.config.ts` is loaded via dynamic `import()`. This works because `pnpm ops` runs the tooling via `tsx` (a TypeScript-aware loader). If you ever invoke the compiled `dist/cli.js` directly with bare `node`, `.ts` config files will fail with `Unknown file extension '.ts'` — switch to `audit.config.json` in that scenario, or ensure a TypeScript loader is registered.
+
 ## Known limitations (false-positive sources)
 
 The tool produces _candidates_ for human review, not verdicts:
 
 1. **Relation-mediated reads are invisible.** Most Prisma column reads happen via the RELATION (`user.defaultLlmConfig.model`) rather than the ID column (`user.defaultLlmConfigId`). The read-mode recipe only sees direct property accesses, so a column whose primary access pattern is relation-traversal won't classify.
-2. **Receiver-name matching is heuristic.** The read-mode recipe matches `<varName>.<field>` by lowercasing the variable name and comparing it to the model name. Variables named `currentUser`, `provisionedUser`, etc. won't match.
+2. **Receiver-name matching is heuristic.** The read-mode recipe matches `<varName>.<field>` by lowercasing the variable name and comparing it to the model name (or `<model>s`). Variables named `currentUser`, `provisionedUser`, etc. won't match `User` — and **multi-word models compound this**: a `UserPersonalityConfig` row held in a variable named `personalityConfig`, `config`, or `userConfig` also won't match. (Camel-case-to-camel-case identity-matching works — `userPersonalityConfig.configOverrides` matches `UserPersonalityConfig` — but abbreviated bindings don't.) On this codebase, that under-counts reads against most fields with write sites; the report header emits a `⚠` warning when ≥50% of write-bearing fields show zero reads.
 3. **`?? null` detection is syntactic, not type-based.** `field: data.foo ?? null` is correctly bucketed as null-yielding, but `field: getThing()` where `getThing` returns `T | null` is not — the static analysis can't introspect the return type.
-4. **Test-fixture sites are included by default.** Globs exclude `*.test.ts`/`*.int.test.ts`, but `test-utils.ts` and other helper files contribute to write-site counts. The signal-to-noise ratio is acceptable on the current codebase, but a project with many fixtures should look at the resulting findings critically.
+4. **Test-fixture sites are included by default.** Globs exclude `*.test.ts` (which also covers `*.int.test.ts` etc.), but `test-utils.ts` and other helper files contribute to write-site counts. The signal-to-noise ratio is acceptable on the current codebase, but a project with many fixtures should look at the resulting findings critically.
 5. **Schema parsing is regex-based.** Edge cases that may produce wrong field metadata: `@@map` directives, multi-line field attributes, complex composite types. Upgrade path: `@prisma/internals` `getDMMF()`.
-6. **No DB-level cross-check.** Some council models suggested querying production data (`SELECT COUNT(*), COUNT(column) FROM table`). The tool deliberately doesn't — "no nulls in prod" is survivorship bias (the edge case hasn't fired yet). Use `ALTER COLUMN SET NOT NULL` migrations for empirical enforcement; not this tool.
+6. **No DB-level cross-check.** "No nulls in prod" is survivorship bias (the edge case hasn't fired yet). Use `ALTER COLUMN SET NOT NULL` migrations for empirical enforcement; not this tool.
+7. **`createMany` is not analyzed.** Write-site analysis covers `.create()` and `.upsert({ create })` but not `prisma.<model>.createMany({ data: [...] })`. A column populated exclusively via `createMany` will report zero write sites and won't trigger the bimodal-writes or always-passed-no-default recipes. Bulk-insert-heavy models should be reviewed manually.
+8. **`upsert.update` is not analyzed.** Write-site analysis reads the `create` block of `prisma.<model>.upsert()` but ignores the `update` block. A field set exclusively in update paths (never in the create block) will appear as omitted and won't contribute to bimodal-writes or always-passed-no-default counts. Entities with heavy update-only patterns should be reviewed manually.
+9. **Relation fields parse as optional but never trigger recipes.** Prisma relation fields (e.g., `user User? @relation(...)`) match the same `?` pattern as scalar optional columns and contribute to the "optional fields" count in the report header. They don't correspond to nullable DB columns — the corresponding `_id` foreign-key column is the real schema concession — and write/read-mode analysis can't match them (callers don't write `user: null`, they write `userId: null`). The inflated header count is cosmetic; no recipe will fire on a relation field.
+10. **`x && x.field` guard pattern is not bucketed as truthiness.** The read-mode binary-expression classifier handles `??`, `!=`, `!==`, `==`, `===` — but not `&&`. The common pattern `user.field && doSomething(user.field)` falls through to `totalReads` only, not `truthinessGuardReads`. A field whose primary use is `x.field && x.field.method()` won't register as state-machine-guarded, so the convenience-nullable recipe is slightly less conservative than intended for that shape. Low impact in practice; widening the classifier to track `&&` would be a clean follow-up.
+11. **Shorthand `data`/`create` variable bindings are silently invisible.** `extractCreateData` expects a `PropertyAssignment` node (`data: { foo: 'bar' }`). The shorthand form `prisma.user.create({ data })` — where `data` is a variable identifier rather than an inline object — produces a `ShorthandPropertyAssignment` and the entire call site contributes zero to write-site counts. Same for `prisma.user.upsert({ create })`. Different from explicit-spread (which is counted as `unclassifiable`); shorthand bindings disappear entirely. Defensive fix would be to treat the shorthand the same as spread. Current codebase uses inline literals exclusively (verified 2026-05-21), so this is a hypothetical gap rather than an active blind spot, but worth tracking if a future contributor switches to a shorthand-data convention.
 
 ## Upstream complement — preventing fake-optionality at write time
 

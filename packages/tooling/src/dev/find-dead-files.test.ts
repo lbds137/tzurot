@@ -116,6 +116,28 @@ describe('find-dead-files', () => {
       expect(filterFalsePositives(['vitest.e2e.config.ts'])).toEqual([]);
     });
 
+    it('should filter root-level *.config.ts files', async () => {
+      const { filterFalsePositives } = await import('./find-dead-files.js');
+      expect(filterFalsePositives(['audit.config.ts'])).toEqual([]);
+      expect(filterFalsePositives(['prisma.config.ts'])).toEqual([]);
+    });
+
+    it('should filter -test-helpers.ts files (colocated test utilities)', async () => {
+      const { filterFalsePositives } = await import('./find-dead-files.js');
+      expect(
+        filterFalsePositives(['packages/tooling/src/dev/schema-audit-test-helpers.ts'])
+      ).toEqual([]);
+    });
+
+    it('should NOT filter sub-directory *.config.ts files', async () => {
+      // `^[^/]+\.config\.ts$` restricts exclusion to repo root — a sub-path
+      // config file is treated as genuinely suspicious.
+      const { filterFalsePositives } = await import('./find-dead-files.js');
+      expect(filterFalsePositives(['services/bot-client/audit.config.ts'])).toEqual([
+        'services/bot-client/audit.config.ts',
+      ]);
+    });
+
     it('should keep genuinely suspicious files', async () => {
       const { filterFalsePositives } = await import('./find-dead-files.js');
 

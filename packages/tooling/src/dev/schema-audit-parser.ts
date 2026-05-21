@@ -43,6 +43,12 @@ const TRIPLE_SLASH_RE = /^[ \t]*\/\/\/[ \t]*(.*)$/;
  * parens (e.g., `@default(now())`, `@default(dbgenerated("gen_random_uuid()"))`).
  *
  * Returns the captured inner string, or null if `@default(` is not found.
+ *
+ * Assumes parens are not embedded inside string literals on the same line —
+ * adequate for real Prisma schemas (the only quoted-paren case in practice
+ * is `dbgenerated("...")` and its single-arg shape can't trip the depth
+ * counter). A pathological `@default("has)paren")` would terminate early,
+ * but no sane Prisma default produces that shape.
  */
 function extractDefaultValue(line: string): string | null {
   const start = line.indexOf('@default(');
@@ -87,11 +93,20 @@ function classifyLine(rawLine: string): LineKind {
     return { kind: 'unrecognized' };
   }
   const [, , fieldName, fieldType, optionalMarker, rest] = fieldMatch;
+  // `Unsupported("...")?` parses as type=`Unsupported`, optionalMarker=undefined,
+  // rest=`("vector")?` — because the regex's `\w+` type capture stops at `(`.
+  // For this special shape, the optional flag lives at the END of the rest's
+  // type-argument parens. Without this fix, `Memory.embedding Unsupported("vector")?`
+  // would parse as `optional: false`, which silently excludes it from analysis
+  // AND produces a misleading "column has already been tightened" error if
+  // anyone adds a suppression entry for it.
+  const isUnsupportedOptional =
+    fieldType === 'Unsupported' && /^\([^)]*\)\?/.test(rest.trimStart());
   return {
     kind: 'field',
     field: fieldName,
     type: fieldType,
-    optional: optionalMarker === '?',
+    optional: optionalMarker === '?' || isUnsupportedOptional,
     defaultValue: extractDefaultValue(rest)?.trim() ?? null,
   };
 }

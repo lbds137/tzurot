@@ -3,20 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { analyzeWrites } from './schema-audit-writes.js';
 import type { PrismaField } from './schema-audit-parser.js';
-
-function withTempDir<T>(fn: (dir: string) => T): T {
-  const dir = mkdtempSync(join(tmpdir(), 'schema-audit-test-'));
-  try {
-    return fn(dir);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+import { withTempDir } from './schema-audit-test-helpers.js';
 
 describe('analyzeWrites', () => {
   const field: PrismaField = {
@@ -28,16 +19,16 @@ describe('analyzeWrites', () => {
     doc: null,
   };
 
-  function withSourceFile(content: string, fn: (path: string) => void): void {
-    withTempDir(dir => {
+  async function withSourceFile(content: string, fn: (path: string) => void): Promise<void> {
+    await withTempDir(dir => {
       const path = join(dir, 'test.ts');
       writeFileSync(path, content);
       fn(path);
     });
   }
 
-  it('classifies `field: null` literal as null-set', () => {
-    withSourceFile(
+  it('classifies `field: null` literal as null-set', async () => {
+    await withSourceFile(
       `
 declare const prisma: { user: { create: (args: unknown) => unknown } };
 prisma.user.create({ data: { targetField: null, discordId: 'x' } });
@@ -50,8 +41,8 @@ prisma.user.create({ data: { targetField: null, discordId: 'x' } });
     );
   });
 
-  it('classifies `field: someValue` as value-set', () => {
-    withSourceFile(
+  it('classifies `field: someValue` as value-set', async () => {
+    await withSourceFile(
       `
 declare const prisma: { user: { create: (args: unknown) => unknown } };
 declare const id: string;
@@ -64,8 +55,8 @@ prisma.user.create({ data: { targetField: id, discordId: 'x' } });
     );
   });
 
-  it('classifies `field: expr ?? null` as null-set (nullable-fallback pattern)', () => {
-    withSourceFile(
+  it('classifies `field: expr ?? null` as null-set (nullable-fallback pattern)', async () => {
+    await withSourceFile(
       `
 declare const prisma: { user: { create: (args: unknown) => unknown } };
 declare const maybeId: string | null;
@@ -82,8 +73,8 @@ prisma.user.create({ data: { targetField: maybeId || null, discordId: 'z' } });
     );
   });
 
-  it('classifies omitted field as omitted-set', () => {
-    withSourceFile(
+  it('classifies omitted field as omitted-set', async () => {
+    await withSourceFile(
       `
 declare const prisma: { user: { create: (args: unknown) => unknown } };
 prisma.user.create({ data: { discordId: 'x' } });
@@ -95,8 +86,8 @@ prisma.user.create({ data: { discordId: 'x' } });
     );
   });
 
-  it('classifies sites with spread as unclassifiable when field is absent', () => {
-    withSourceFile(
+  it('classifies sites with spread as unclassifiable when field is absent', async () => {
+    await withSourceFile(
       `
 declare const prisma: { user: { create: (args: unknown) => unknown } };
 declare const partial: { discordId: string };
@@ -109,8 +100,8 @@ prisma.user.create({ data: { ...partial } });
     );
   });
 
-  it('handles upsert by reading the `create` block', () => {
-    withSourceFile(
+  it('handles upsert by reading the `create` block', async () => {
+    await withSourceFile(
       `
 declare const prisma: { user: { upsert: (args: unknown) => unknown } };
 prisma.user.upsert({
@@ -126,8 +117,8 @@ prisma.user.upsert({
     );
   });
 
-  it('aggregates across multiple sites in one file', () => {
-    withSourceFile(
+  it('aggregates across multiple sites in one file', async () => {
+    await withSourceFile(
       `
 declare const prisma: { user: { create: (args: unknown) => unknown } };
 declare const id: string;
