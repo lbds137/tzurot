@@ -33,10 +33,10 @@ export {
   type SchemaAuditConfig,
 } from './schema-audit-suppression.js';
 
-import { parsePrismaSchema } from './schema-audit-parser.js';
+import { parsePrismaSchema, type PrismaField } from './schema-audit-parser.js';
 import { classifyReads } from './schema-audit-reads.js';
 import { analyzeWrites } from './schema-audit-writes.js';
-import { generateFindings } from './schema-audit-findings.js';
+import { generateFindings, type AuditFinding } from './schema-audit-findings.js';
 import {
   loadAuditConfig,
   validateSuppressions,
@@ -48,6 +48,13 @@ export interface SchemaAuditOptions {
   /** Base directory for resolving relative paths. Defaults to `process.cwd()`. */
   repoRoot?: string;
   schemaPath?: string;
+  /**
+   * Source globs to analyze. **Each glob MUST end with `*.ts`** — the
+   * test-exclusion pattern is derived by suffix-substituting `*.ts` → `*.test.ts`.
+   * A glob that doesn't end in `*.ts` (e.g., `services/foo.tsx`) will silently
+   * include test files because the substitution becomes a no-op. Track in
+   * `backlog/deferred.md` for tightening if a real consumer hits this gap.
+   */
   sourceGlobs?: string[];
   /** Path to audit.config (defaults to ./audit.config.ts at repo root). */
   configPath?: string;
@@ -88,19 +95,20 @@ export async function runSchemaAudit(options: SchemaAuditOptions = {}): Promise<
       findings,
       suppressedCount,
     });
-    return;
+  } else {
+    printMarkdownReport({
+      fields,
+      optionalFields,
+      readClassifications,
+      writeClassifications,
+      findings,
+      sourceFileCount: sourceFilePaths.length,
+      suppressedCount,
+    });
   }
 
-  printMarkdownReport({
-    fields,
-    optionalFields,
-    readClassifications,
-    writeClassifications,
-    findings,
-    sourceFileCount: sourceFilePaths.length,
-    suppressedCount,
-  });
-
+  // Both formats: non-zero exit when findings exist, so CI / scripted
+  // consumers can branch on `$?` regardless of which output mode was used.
   process.exitCode = findings.length > 0 ? 1 : 0;
 }
 
@@ -108,14 +116,12 @@ export async function runSchemaAudit(options: SchemaAuditOptions = {}): Promise<
 function globSourceFiles(repoRoot: string, sourceGlobs: string[]): string[] {
   const project = new Project({ compilerOptions: { allowJs: false, skipLibCheck: true } });
   for (const glob of sourceGlobs) {
-    // Exclude both `.test.ts` and `.int.test.ts` — the simple
-    // `replace('*.ts', '*.test.ts')` form only catches the first; an
-    // integration test file like `FooService.int.test.ts` would otherwise
-    // get included and pollute write-site counts with fixture data.
+    // `**/*.test.ts` matches any filename ending in `.test.ts`, including
+    // `Foo.int.test.ts` / `Foo.spec.test.ts` — verified empirically. No
+    // separate `*.int.test.ts` exclusion needed.
     project.addSourceFilesAtPaths([
       `${repoRoot}/${glob}`,
       `!${repoRoot}/${glob.replace(/\*\.ts$/, '*.test.ts')}`,
-      `!${repoRoot}/${glob.replace(/\*\.ts$/, '*.int.test.ts')}`,
       `!${repoRoot}/**/dist/**`,
       `!${repoRoot}/**/node_modules/**`,
     ]);
@@ -124,10 +130,10 @@ function globSourceFiles(repoRoot: string, sourceGlobs: string[]): string[] {
 }
 
 interface JsonEmitArgs {
-  fields: { length: number };
-  optionalFields: { length: number };
+  fields: PrismaField[];
+  optionalFields: PrismaField[];
   sourceFileCount: number;
-  findings: unknown[];
+  findings: AuditFinding[];
   suppressedCount: number;
 }
 

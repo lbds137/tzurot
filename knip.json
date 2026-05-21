@@ -44,7 +44,8 @@
     "**/vitest.config.ts",
     "**/test/setup.ts",
     "vitest.workspace.ts",
-    "**/__mocks__/**"
+    "**/__mocks__/**",
+    "audit.config.ts"
   ],
   "ignoreBinaries": ["dot", "railway", "ruff"],
   "ignoreDependencies": [

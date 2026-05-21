@@ -8,6 +8,7 @@
  */
 
 import { readFileSync, existsSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import type { PrismaField } from './schema-audit-parser.js';
 import type { AuditFinding } from './schema-audit-findings.js';
 
@@ -33,21 +34,74 @@ export interface SchemaAuditConfig {
  */
 export async function loadAuditConfig(configPath: string): Promise<SchemaAuditConfig> {
   if (!existsSync(configPath)) {
+    // Surface as a warning (not an error) — a missing audit.config.ts is the
+    // expected first-run state, but explicit notice prevents "why is my
+    // suppression not working?" confusion when the path is wrong.
+    console.warn(
+      `[schema-audit] Config not found at ${configPath} — running with no suppressions.`
+    );
     return { suppressions: [] };
   }
   if (configPath.endsWith('.json')) {
     const content = readFileSync(configPath, 'utf-8');
-    return JSON.parse(content) as SchemaAuditConfig;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch (cause) {
+      throw new Error(`Config at ${configPath}: malformed JSON — ${(cause as Error).message}`, {
+        cause,
+      });
+    }
+    return assertConfigShape(parsed, configPath);
   }
   // Dynamic import for .ts / .js — the file must export `schemaAuditConfig`.
-  const moduleUrl = `file://${configPath}`;
-  const mod = (await import(moduleUrl)) as { schemaAuditConfig?: SchemaAuditConfig };
+  // Use pathToFileURL() rather than string-interpolating `file://${path}` —
+  // raw interpolation breaks on paths with spaces or special characters
+  // (and is the URL-construction pattern that 00-critical.md flags).
+  const moduleUrl = pathToFileURL(configPath).href;
+  const mod = (await import(moduleUrl)) as { schemaAuditConfig?: unknown };
   if (mod.schemaAuditConfig === undefined) {
     throw new Error(
       `Config file ${configPath} must export \`schemaAuditConfig\` as a named export.`
     );
   }
-  return mod.schemaAuditConfig;
+  return assertConfigShape(mod.schemaAuditConfig, configPath);
+}
+
+/**
+ * Validate the shape of a loaded config object. Returns the typed config on
+ * success; throws a useful error on malformed input. Lightweight hand-rolled
+ * validation rather than Zod — keeps the tooling package free of a new dep.
+ */
+function assertConfigShape(value: unknown, configPath: string): SchemaAuditConfig {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Config at ${configPath}: expected an object with \`suppressions\`.`);
+  }
+  const obj = value as Record<string, unknown>;
+  if (!Array.isArray(obj.suppressions)) {
+    throw new Error(`Config at ${configPath}: \`suppressions\` must be an array.`);
+  }
+  for (let i = 0; i < obj.suppressions.length; i += 1) {
+    const entry = obj.suppressions[i] as unknown;
+    if (entry === null || typeof entry !== 'object') {
+      throw new Error(
+        `Config at ${configPath}: \`suppressions[${i}]\` must be an object with \`key\` and \`reason\`.`
+      );
+    }
+    const e = entry as Record<string, unknown>;
+    if (typeof e.key !== 'string') {
+      throw new Error(`Config at ${configPath}: \`suppressions[${i}].key\` must be a string.`);
+    }
+    if (typeof e.reason !== 'string') {
+      throw new Error(`Config at ${configPath}: \`suppressions[${i}].reason\` must be a string.`);
+    }
+    if (e.reviewedAt !== undefined && typeof e.reviewedAt !== 'string') {
+      throw new Error(
+        `Config at ${configPath}: \`suppressions[${i}].reviewedAt\` must be a string when present.`
+      );
+    }
+  }
+  return value as SchemaAuditConfig;
 }
 
 /**

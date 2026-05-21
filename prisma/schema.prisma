@@ -336,14 +336,27 @@ model PersonalityAlias {
 /// User-specific overrides for a personality (persona, LLM config)
 /// Note: STM epoch fields (lastContextReset) are in UserPersonaHistoryConfig,
 /// which tracks per-persona history (user + personality + persona).
+/// Per-(user, personality) overrides. Aggregates four orthogonal override
+/// slices into one row: persona, LLM config, TTS config, and a configOverrides
+/// JSON blob. Each slice is independently nullable because routes set them
+/// independently: /settings preset writes llmConfigId, /voice tts writes
+/// ttsConfigId, /persona override writes personaId, and /channel context
+/// writes configOverrides. The row's existence is the upsert anchor; nullability
+/// of each slice means "no override for this slice on this (user, personality)."
+/// State-machine-style pattern — null is meaningful per-field.
 model UserPersonalityConfig {
   id               String   @id @db.Uuid
   userId           String   @map("user_id") @db.Uuid
   personalityId    String   @map("personality_id") @db.Uuid
+  /// Default-fallback: null means "use the user's default persona for this personality."
   personaId        String?  @map("persona_id") @db.Uuid
+  /// Default-fallback: null means "use the user/personality LLM cascade."
   llmConfigId      String?  @map("llm_config_id") @db.Uuid
+  /// Default-fallback: null means "use the user/personality TTS cascade."
   ttsConfigId      String?  @map("tts_config_id") @db.Uuid
-  /// JSONB config cascade overrides (user+personality tier). Validated against ConfigOverridesSchema at runtime.
+  /// Default-fallback: JSONB config cascade overrides (user+personality tier).
+  /// Null means "no per-personality config-overrides for this user; fall through
+  /// to user/global tier." Validated against ConfigOverridesSchema at runtime.
   configOverrides  Json?    @map("config_overrides")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
