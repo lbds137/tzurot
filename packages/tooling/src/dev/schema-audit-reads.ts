@@ -117,11 +117,16 @@ function classifyBinaryParent(
   return null;
 }
 
-const TRUTHINESS_CONTEXT_KINDS: ReadonlySet<SyntaxKind> = new Set([
+// Parent kinds where `obj.field` IS the condition itself (no further checking needed).
+// `IfStatement.expression` / `WhileStatement.expression` / `DoStatement.expression`
+// are always truthiness contexts when the property access is their direct child.
+// (`PrefixUnaryExpression` is NOT in this set — only the `!` operator is a
+// truthiness guard; `+x.field`, `-x.field`, `~x.field` are arithmetic coercions
+// and shouldn't count.)
+const UNCONDITIONAL_TRUTHINESS_KINDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.IfStatement,
-  SyntaxKind.ConditionalExpression,
-  // `!obj.field` — prefix unary
-  SyntaxKind.PrefixUnaryExpression,
+  SyntaxKind.WhileStatement,
+  SyntaxKind.DoStatement,
 ]);
 
 /**
@@ -153,7 +158,26 @@ function classifyReadSite(
     }
     return;
   }
-  if (TRUTHINESS_CONTEXT_KINDS.has(parentKind)) {
+  if (parentKind === SyntaxKind.ConditionalExpression) {
+    // `cond ? whenTrue : whenFalse` — only count if `node` is the condition.
+    // Reads in the consequence/alternate branches are accesses, not guards.
+    const ternary = parent.asKindOrThrow(SyntaxKind.ConditionalExpression);
+    if (ternary.getCondition() === node) {
+      classification.truthinessGuardReads += 1;
+    }
+    return;
+  }
+  if (parentKind === SyntaxKind.PrefixUnaryExpression) {
+    // Only `!x.field` is a truthiness guard. `+`, `-`, `~` are arithmetic
+    // coercion operators — the property access is being read for its value,
+    // not for presence.
+    const prefix = parent.asKindOrThrow(SyntaxKind.PrefixUnaryExpression);
+    if (prefix.getOperatorToken() === SyntaxKind.ExclamationToken) {
+      classification.truthinessGuardReads += 1;
+    }
+    return;
+  }
+  if (UNCONDITIONAL_TRUTHINESS_KINDS.has(parentKind)) {
     classification.truthinessGuardReads += 1;
   }
 }

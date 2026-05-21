@@ -172,6 +172,7 @@ export default tseslint.config(
       '**/vitest.config.ts',
       'vitest.workspace.ts',
       'prisma.config.ts',
+      'audit.config.ts',
       'tzurot-legacy/**',
       'scripts/**',
       '**/scripts/**',

@@ -3,23 +3,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parsePrismaSchema } from './schema-audit-parser.js';
-
-function withTempDir<T>(fn: (dir: string) => T): T {
-  const dir = mkdtempSync(join(tmpdir(), 'schema-audit-test-'));
-  try {
-    return fn(dir);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+import { withTempDir } from './schema-audit-test-helpers.js';
 
 describe('parsePrismaSchema', () => {
-  it('extracts model + field + type + optional flag', () => {
-    withTempDir(dir => {
+  it('extracts model + field + type + optional flag', async () => {
+    await withTempDir(dir => {
       const schemaPath = join(dir, 'schema.prisma');
       writeFileSync(
         schemaPath,
@@ -57,8 +48,8 @@ model User {
     });
   });
 
-  it('extracts @default values, including generator-style nested parens', () => {
-    withTempDir(dir => {
+  it('extracts @default values, including generator-style nested parens', async () => {
+    await withTempDir(dir => {
       const schemaPath = join(dir, 'schema.prisma');
       writeFileSync(
         schemaPath,
@@ -79,8 +70,8 @@ model Personality {
     });
   });
 
-  it('captures triple-slash documentation immediately above a field', () => {
-    withTempDir(dir => {
+  it('captures triple-slash documentation immediately above a field', async () => {
+    await withTempDir(dir => {
       const schemaPath = join(dir, 'schema.prisma');
       writeFileSync(
         schemaPath,
@@ -107,8 +98,8 @@ model User {
     });
   });
 
-  it('skips block-level directives (@@unique, @@index, @@map)', () => {
-    withTempDir(dir => {
+  it('skips block-level directives (@@unique, @@index, @@map)', async () => {
+    await withTempDir(dir => {
       const schemaPath = join(dir, 'schema.prisma');
       writeFileSync(
         schemaPath,

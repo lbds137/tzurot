@@ -18,12 +18,17 @@ import { basename } from 'node:path';
 const EXCLUDE_PATTERNS = [
   /\/test\//, // Test utility directories
   /\/test-utils/, // Test utility files
+  /-test-helpers\.ts$/, // Colocated test helper modules (only imported by sibling .test.ts files)
   /\.mock\.ts$/, // Mock files
   /\/fixtures/, // Test fixtures
   /\/scripts\//, // Standalone scripts
   /\/commands\/[^/]+\/[^/]+\.ts$/, // Command submodules (dynamically loaded)
   /^vitest\./, // Vitest config files
   /^\.[^/]*\.ts$/, // Dotfiles
+  // Root-level *.config.ts files (audit.config.ts, prisma.config.ts, etc.) —
+  // loaded by tooling via dynamic import or external runners; static analysis
+  // can't see those entry points.
+  /^[^/]+\.config\.ts$/,
 ];
 
 /**

@@ -45,8 +45,8 @@ interface FindingsContext {
 }
 
 /**
- * Recipe Primary (read-mode classification): >50% `??` reads → convenience-nullable
- * (MEDIUM); >50% non-null assertions → fake-optional (HIGH).
+ * Recipe Primary (read-mode classification): ≥50% `??` reads → convenience-nullable
+ * (MEDIUM); ≥50% non-null assertions → fake-optional (HIGH).
  */
 function findingFromReads(ctx: FindingsContext): AuditFinding | null {
   const c = ctx.reads;
@@ -56,7 +56,9 @@ function findingFromReads(ctx: FindingsContext): AuditFinding | null {
   const truthinessShare = c.truthinessGuardReads / c.totalReads;
   const assertionShare = c.nonNullAssertionReads / c.totalReads;
 
-  if (assertionShare >= 0.5) {
+  // Dominance check mirrors the MEDIUM coalescing path below — without it, a
+  // 1-assertion + 1-truthiness pair (50/50) would fire HIGH on ambiguous evidence.
+  if (assertionShare >= 0.5 && assertionShare > truthinessShare) {
     return {
       severity: 'HIGH',
       recipe: 'read-mode-classification',
@@ -87,6 +89,10 @@ function findingFromBimodalWrites(ctx: FindingsContext): AuditFinding | null {
   const w = ctx.writes;
   if (!w) return null;
   const nullOrOmitSites = w.nullLiteralSites + w.omittedSites;
+  // `>= 2` on BOTH sides intentionally — a 1-vs-N split is more often
+  // "single legacy holdout" than a bimodal entity-identity split, and we'd
+  // rather miss a borderline case than fire HIGH on noise. The threshold is
+  // documented in `docs/reference/tooling/schema-audit.md`.
   if (nullOrOmitSites < 2 || w.valueSites < 2) return null;
   return {
     severity: 'HIGH',
@@ -110,13 +116,22 @@ function findingFromAlwaysPassed(ctx: FindingsContext): AuditFinding | null {
   if (w.valueSites < 2) return null;
   if (w.nullLiteralSites > 0 || w.omittedSites > 0) return null;
   if (isGeneratorDefault(ctx.field.defaultValue)) return null;
+  // Downgrade severity when unclassifiable sites dominate — the recipe's
+  // "all sites pass a real value" claim is less trustworthy when most write
+  // sites are spread/computed and their values are invisible to the analysis.
+  const dominatedByUnclassifiable = w.unclassifiableSites >= w.valueSites;
+  const severity: AuditFinding['severity'] = dominatedByUnclassifiable ? 'LOW' : 'MEDIUM';
+  const unclassifiableSuffix =
+    w.unclassifiableSites > 0
+      ? ` (${w.unclassifiableSites} additional sites were unclassifiable — spread, computed key, etc.; their values are not visible to this analysis${dominatedByUnclassifiable ? '; severity downgraded to LOW because unclassifiable ≥ classifiable' : ''})`
+      : '';
   return {
-    severity: 'MEDIUM',
+    severity,
     recipe: 'always-passed-no-default',
     model: w.model,
     field: w.field,
-    evidence: `All ${w.valueSites} write sites pass a real value; no site passes null or omits the field. Schema has no \`@default\` to explain why callers might skip it. The optionality is unused.`,
-    fixShape: `Confirm by reviewing each call site, then ALTER COLUMN SET NOT NULL and drop the \`?\` in schema.prisma.`,
+    evidence: `All ${w.valueSites} classifiable write sites pass a real value; no site passes null or omits the field${unclassifiableSuffix}. Schema has no \`@default\` to explain why callers might skip it. The optionality is unused.`,
+    fixShape: `Confirm by reviewing each call site (including unclassifiable ones, if any), then ALTER COLUMN SET NOT NULL and drop the \`?\` in schema.prisma.`,
   };
 }
 
@@ -132,10 +147,12 @@ export function generateFindings(
   fields: PrismaField[]
 ): AuditFinding[] {
   const findings: AuditFinding[] = [];
-  const fieldByKey = new Map(fields.map(f => [`${f.model}.${f.field}`, f]));
   const readsByKey = new Map(readClassifications.map(c => [`${c.model}.${c.field}`, c]));
   const writesByKey = new Map(writeClassifications.map(w => [`${w.model}.${w.field}`, w]));
 
+  // The loop skips non-optional fields up-front, so every finding emitted by
+  // a recipe is already guaranteed to come from an optional field — no
+  // terminal filter needed.
   for (const field of fields) {
     if (!field.optional) continue;
     const key = `${field.model}.${field.field}`;
@@ -149,5 +166,5 @@ export function generateFindings(
       if (result) findings.push(result);
     }
   }
-  return findings.filter(f => fieldByKey.get(`${f.model}.${f.field}`)?.optional === true);
+  return findings;
 }

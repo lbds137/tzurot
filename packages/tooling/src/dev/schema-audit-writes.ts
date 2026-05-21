@@ -13,7 +13,13 @@
  *   optionality is unused.
  */
 
-import { Project, Node, SyntaxKind, type ObjectLiteralExpression } from 'ts-morph';
+import {
+  Project,
+  Node,
+  SyntaxKind,
+  type CallExpression,
+  type ObjectLiteralExpression,
+} from 'ts-morph';
 import type { PrismaField } from './schema-audit-parser.js';
 
 /**
@@ -32,7 +38,12 @@ export interface WriteSiteClassification {
   omittedSites: number;
   /** Sites where classification was impossible (spread, computed, dynamic). */
   unclassifiableSites: number;
-  /** Total `.create`/`.upsert.create` call sites observed for this model. */
+  /**
+   * Total `.create`/`.upsert.create` call sites observed for this field's
+   * model. Per-model, not per-field — every `WriteSiteClassification` whose
+   * `model` matches will report the same value here, since the count is
+   * derived from the model's call sites regardless of which field is observed.
+   */
   totalSites: number;
 }
 
@@ -97,6 +108,9 @@ function classifyProperty(prop: Node, fieldName: string): WriteOutcome | null {
  */
 function classifyInitializer(initializer: Node): WriteOutcome {
   if (initializer.getText() === 'null') return 'null';
+  // Prisma treats `{ field: undefined }` identically to omitting the key,
+  // so bare `undefined` belongs in the `omitted` bucket — not `value`.
+  if (initializer.getText() === 'undefined') return 'omitted';
   if (initializer.getKind() === SyntaxKind.BinaryExpression) {
     const binary = initializer.asKindOrThrow(SyntaxKind.BinaryExpression);
     const op = binary.getOperatorToken().getText();
@@ -171,10 +185,9 @@ export function analyzeWrites(
  * `create` (upsert) property pointing to an object literal.
  */
 function extractCreateData(
-  call: Node,
+  call: CallExpression,
   fieldsByAccessor: Map<string, PrismaField[]>
 ): { dataObject: ObjectLiteralExpression; modelFields: PrismaField[] } | null {
-  if (!Node.isCallExpression(call)) return null;
   const callee = call.getExpression();
   if (!Node.isPropertyAccessExpression(callee)) return null;
   const methodName = callee.getName();
@@ -199,7 +212,7 @@ function extractCreateData(
 }
 
 function visitCallExpression(
-  call: Node,
+  call: CallExpression,
   fieldsByAccessor: Map<string, PrismaField[]>,
   classifications: Map<string, WriteSiteClassification>
 ): void {
