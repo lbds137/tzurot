@@ -30,6 +30,22 @@ export function validateRedisUrl(config = getConfig()): void {
 }
 
 /**
+ * Validate internal service secret is configured. Throws at startup so a
+ * misconfigured deploy fails to boot rather than silently sending empty
+ * `X-Service-Auth` headers and watching every gateway call return 403.
+ * Symmetric with the api-gateway and ai-worker startup checks.
+ *
+ * @throws Error if INTERNAL_SERVICE_SECRET is missing or empty
+ */
+export function validateInternalServiceSecret(config = getConfig()): void {
+  if (config.INTERNAL_SERVICE_SECRET === undefined || config.INTERNAL_SERVICE_SECRET.length === 0) {
+    throw new Error(
+      'INTERNAL_SERVICE_SECRET environment variable is required (service-to-service auth for protected gateway routes)'
+    );
+  }
+}
+
+/**
  * Log gateway health check result
  * @param isHealthy Whether the gateway health check passed
  */
